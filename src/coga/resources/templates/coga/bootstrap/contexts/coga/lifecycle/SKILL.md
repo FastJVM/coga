@@ -93,9 +93,12 @@ refuse a blocked ticket until `coga unblock` records an answer.
   blocks) about stranded ticket writes; see
   [dev/checkouts](../../dev/checkouts/SKILL.md).
 - `--to` / `--backward` is a **human** rewind; agents inside a supervised
-  launch are refused (`COGA_SUPERVISED`). It is recovery when understood work
-  went wrong, and a normal move in unknown work: because status and
-  blackboard are untouched, everything learned stays. It repositions only: accepts
+  launch are refused (`COGA_SUPERVISED`). It is recovery when a step went
+  wrong but the ticket's premise still holds: because status and blackboard
+  are untouched, everything learned stays. When the premise itself turns out
+  wrong, the usual move (owner practice, 2026-10-13) is not a rewind:
+  cancel the ticket with its reason, update the context that owns the fact,
+  and open a new ticket. It repositions only: accepts
   `active`, `in_progress`, `paused` (`REWINDABLE_STATUSES`), never changes
   status, and derives the target operator without persisting it. From
   `active`/`paused` it must target an agent step (an owner step could not be

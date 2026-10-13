@@ -1,102 +1,143 @@
-# Coga: Stop Repeating to Agents
+# Coga
 
-Coga is a CLI that runs any agent from Markdown files in your Git
-repo. Every launch rebuilds the agent's prompt from those files, never from
-chat history. When an agent gets something wrong, you fix the file once, and
-every later run starts from the fix.
+> Most tools are building infrastructure for agents. Coga is an instrument
+> for the human using them.
+
+Coga is a CLI that runs your coding agent from Markdown files in your Git
+repo. Claude Code and Codex work out of the box; any other CLI agent takes a
+few lines of config. Every launch rebuilds the agent's prompt from those
+files. When an agent gets something wrong, you fix the file once, and every
+later run starts from the fix. It doesn't replace Claude Code or Codex; it
+handles the part they can't do for you.
 
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
 
-## Key Ideas
-When you use coding agents a lot, they forget instructions, skip steps and
-drift off course. You end up babysitting them. Coga turns the instructions
-you keep repeating into a way of working that lives in your repo.
+## The problem
 
-It is built around three ideas:
+On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent
+only skims it. You repeat the same instructions in chat, and sometimes open a
+fresh session just to make the agent forget a bad idea. Worse, the same fact
+ends up written in several places that slowly disagree, including memories the
+tool keeps outside your repo. Nobody knows which version is true, so the agent
+acts on whichever copy it read, or falls back on its defaults.
 
-- **Built for work you discover by doing.** Work is small tickets you can
-  reshape at any time. When a premise turns out wrong, rewind the ticket:
-  what was learned stays, and abandoned designs stay on disk but out of the
-  agent's prompt.
-- **Improvements compound.** Coga is full of feedback loops, at every step:
-  - **Within a ticket**, the blackboard carries what each step learned into
-    the next one, and a second agent can review the first one's work.
-  - **Across tickets**, what a finished ticket taught is folded into the
-    contexts and skills that future tickets start from.
-  - **Across the system**, recurring jobs such as Dream check docs against
-    the code, flag drift and keep skills up to date.
-  - **From you**, any correction to a ticket, context or skill takes effect
-    on the next launch.
-  
-- **Everything is inspectable and hackable.** The base prompt, workflows,
-  docs and skills are plain files, and you can change any of them.
-  `coga launch <slug> --prompt-report` lists the prompt layers a ticket
-  launch would compose, with each layer's size and approximate token count,
-  then exits without launching an agent.
-  You and your agents change the system as your ways of working evolve. 
-  Changes to the shared rules arrive as pull requests: nothing changes how
-  agents work until you merge it.
+Tool memories store what was said; they can't tell which of it mattered or
+what changed along the way. On simple tasks that's fine. On work you have to
+argue through, with wrong turns and reversals, what survives is what got
+written down.
 
+Vibe coding explores fast but forgets what it found. Spec-driven tools keep
+what they know, but they're built around writing the spec before the code.
+A lot of real work is neither: you find out what you want by building it,
+and you backtrack when a premise breaks. Code is now cheap enough to throw
+away; what's expensive is the right idea, a clear spec, and proof that it
+works.
 
-The trade-off: you specify more up front, and you stay the one who decides. In exchange, you stop babysitting your agents.
+## Key ideas
+
+Each of these follows from one premise: you find out what you want while
+building it. So what has to last is what you learned, kept in files you can
+read, change and redo from, not the code and not the chat.
+
+- **The unit is the task, not the session.** Each launch builds a fresh
+  prompt from what that task needs: the ticket, the contexts it attaches, the
+  current workflow step. Contexts are chosen by what the task is, not by where
+  the code is; they go into the prompt as truth, and the agent can still look
+  up the rest. Nothing carries over from an earlier chat, so a bad idea
+  doesn't outlive the session that had it.
+- **Knowledge moves out of code and chat, into files.** Code says what the
+  system does; contexts and tickets say what it should do, why, and what
+  didn't work, with one owning file per fact. Every loop feeds them: each
+  step's findings go to the next, a retired ticket's lessons go to the
+  contexts, Dream, a weekly recurring job, checks contexts against the code,
+  and your corrections apply on the next launch. When a premise turns out
+  wrong, cancel the ticket with the reason, fix the context that owns the
+  fact, and start a new one.
+- **Each kind of work gets its own process.** A workflow lists the steps and
+  says which ones need you. A routine fix goes straight to a pull request you
+  review. Risky work first stops for you to approve a written design that a
+  second agent has already reviewed. Think plan mode, except the plan is a file
+  that's still there when implementation starts. Changes to workflows and
+  other shared rules arrive as pull requests, so nothing changes how agents
+  work until you merge it. You decide how closely to read each pull request;
+  the agent that prepares one recommends a review depth in its title (merge,
+  skim or deep), and Coga marks it deep when its recorded evidence is
+  incomplete.
+- **Hackable, and mostly automated.** Everything is a plain file you can
+  change, and contexts and skills use the same `SKILL.md` convention as agent
+  skills, but you rarely start from a blank page. After a short chat,
+  `coga build` drafts a vision and starter tickets, and `coga ticket` drafts a
+  ticket and picks its workflow and contexts with you; you edit the result,
+  rewrite it, or chat again. `coga launch <slug> --prompt-report` lists the
+  prompt layers a launch would compose, with their sizes, without launching an
+  agent.
+
+**The trade-off:** you write things down instead of saying them in chat, and
+you decide where you're needed; agents do most of the drafting. In exchange,
+you stop repeating yourself, and what you and your agents learn stays in your
+repo.
 
 ## Example
 
-I wanted a plugin that picks the model and reasoning level per task, instead
-of running Astra at max reasoning for everything. `coga build` turned ten
-minutes of conversation into a plan of tickets, but the plan assumed routing
-was a solved problem. It isn't.
-
-Asked directly, Claude would say routing isn't a solved problem. But it's easy for Claude to amplify your hidden biases and assumptions which is what happened here. Building a plan makes them visible, so you can question and correct them. Together.
-
-So we think harder, backtrack and build a research plan in tickets (written with Claude, run
-by Codex): [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
+I wanted a plugin that picks the model and reasoning level for each task, so
+a subscription's usage limits cover more work instead of spending top
+reasoning on everything. `coga build` turned ten minutes of conversation
+into a plan of tickets, and the plan treated routing as a solved problem.
+It isn't. The agent had followed my assumption instead of questioning it;
+having the plan written down is what made the assumption visible. So we
+replaced it with a research plan in tickets, written with Claude and run by
+Codex: [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
 [head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
 [Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
 [candidate scoring](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), then the
-[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The answer becomes a context
-every later ticket starts from. Browse the whole example in
+[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The decision became a
+context that every later ticket starts from. Browse the whole example in
 [thinkpick's tasks](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks).
 
-## Install
+## Who it is for, and its limits
 
-## Quick Start 
-### Existing repo
+Coga is for small technical teams who already use CLI agents, are comfortable
+with Git and the shell, and want to understand and correct the material their
+agents work from. It fits when writing down how work should be done costs less
+than supervising the same work indefinitely.
 
-### New repo
+It pays off most on work you have to argue through; for routine tasks, the
+agents' own memory is usually enough.
 
-## Development & Community
+It is local, self-hosted and self-supported: no managed service, SLA, hosted
+dashboard or zero-setup path. Workflows are linear sequences of steps; dynamic
+orchestration belongs in an agent framework. Coga does not replace judgment: it
+makes the points where you decide and correct explicit.
 
-## Donors and Sponsors
-## Licnence
+If you already separate what you know from what you are still discovering,
+Coga gives that separation a place in your repo. If you plan unknown work as
+if it were known, with fixed specs and throughput goals, it will feel like
+overhead. Coga assumes you know what you are merging: it makes changes
+visible; it doesn't stop you.
 
-```sh
-coga build
-```
+Contexts go into the prompt as truth, so a stale one misleads. The retro on a
+retired ticket updates the contexts that ticket touched; changes made outside
+Coga, or that affect contexts a ticket didn't load, wait for Dream's next
+scan. One owner per fact is an authoring rule, not something a test enforces.
 
-`coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
+The same task and workflow core also runs FastJVM's administrative routines
+and patent work, which have nothing to do with pull requests
+([usage comparison](docs/evidence/usage-comparison.md#core-flexibility-across-administrative-and-patent-work)).
 
-Everything it creates is just files in your repo. Edit them directly with any text editor, or use coga ticket <name> when you want to work through a ticket with an agent.
+This is a field report. Coga runs the work that builds Coga at FastJVM, a
+two-person company, and we build it around a thesis — that a two-person
+technical team can produce the output of a ten-person team when agents do the
+mechanizable work and humans specify, evaluate and correct — which is
+[a bet, not a measured result](docs/contexts/product/vision/SKILL.md). One
+dated observation: in the week ending 2026-07-05 the repository recorded
+31 distinct agent-operated workstreams, counted per week rather than as
+simultaneous processes ([method and limits](docs/evidence/velocity.md)).
+Human time per shipped task has not been measured.
 
-What it creates is far from perfect — that's the point. It gives you a structure to work from, exposes how agents understand your project and how they would approach it, and gives you something concrete to correct as your own understanding changes.
-
-```sh
-coga status
-```
-lists all the tickets
-
-```sh
-coga ticket my-first-ticket
-``` will start another conversation to complete the ticket. You can edit it yourself.
-
-
-```sh
-coga launch my-first-ticket
-```
-coga launch <ticket> works through the ticket by launching an agent. It assembles the prompt from the ticket, relevant context, workflow instructions and working state.
-
-When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
+Managing prompts and instructions as files has close precedents. For dated
+comparisons with other tools, see the [evidence pages](docs/evidence/) and the
+[market landscape](docs/archive/market-landscape.md) record.
 
 ## Install
 
@@ -119,31 +160,33 @@ repository that already uses Coga, and troubleshooting.
 draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
 was recorded in July 2026; some command names may have changed since.
 
-## Who it is for, and its limits
+## First steps
 
-Coga is for small technical teams who already use CLI agents, are comfortable
-with Git and the shell, and want to understand and correct the material their
-agents work from. It fits when writing down how work should be done costs less
-than supervising the same work indefinitely.
+After `coga init`:
 
-It is local, self-hosted and self-supported: no managed service, SLA, hosted
-dashboard or zero-setup path. Workflows are linear sequences of steps; dynamic
-orchestration belongs in an agent framework. Coga does not replace judgment: it
-makes the points where you decide and correct explicit.
+- **Empty repo:** run `coga build`, a guided discussion that turns your
+  project and goals into a short vision context and a batch of starter
+  tickets.
+- **Existing project:** init skips that step. Create your first ticket with
+  `coga ticket "<title>"`.
 
-This is a field report. Coga runs the work that builds Coga at FastJVM, a
-two-person company, and we build it around a thesis — that a two-person
-technical team can produce the output of a ten-person team when agents do the
-mechanizable work and humans specify, evaluate and correct — which is
-[a bet, not a measured result](docs/contexts/product/vision/SKILL.md). One
-dated observation: in the week ending 2026-07-05 the repository recorded
-31 distinct agent-operated workstreams, counted per week rather than as
-simultaneous processes ([method and limits](docs/evidence/velocity.md)).
-Human time per shipped task has not been measured.
+Either way, everything is plain files in your repo: edit them with any text
+editor, or use `coga ticket <slug>` to revise a ticket with an agent. What
+the agents draft is far from perfect, and that's the point: it shows how
+they understand your project and how they would approach it, and gives you
+something concrete to correct.
 
-Managing prompts and instructions as files has close precedents. For dated
-comparisons with other tools, see the [evidence pages](docs/evidence/) and the
-[market landscape](docs/archive/market-landscape.md) record.
+```sh
+coga status                 # list the tickets
+coga ticket my-first-ticket # refine a ticket with an agent, or edit it yourself
+coga launch my-first-ticket # launch an agent on it
+```
+
+`coga launch` assembles the prompt from the ticket, its contexts, the workflow
+step and the working state. When the work teaches you something worth
+keeping, decide what should change: edit it yourself, ask an agent to carry
+the new understanding through the project, or let Coga's recurring work
+surface it.
 
 ## Learn more
 

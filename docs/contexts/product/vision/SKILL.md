@@ -97,6 +97,8 @@ Coga mechanism carries it:
   `coga ticket` re-authoring at
   any status ([`coga/tickets`](../../coga/tickets/SKILL.md)), and
   [Dream](../../coga/dream/SKILL.md) for the maintenance that follows.
+  A wrong premise is usually cancelled and restarted rather than rewound
+  ([`coga/lifecycle`](../../coga/lifecycle/SKILL.md) owns the rule).
 
 Coga handles all three kinds, but it is **built for unknown work**. Routine
 and understood work are where the human's thinking has already been captured.
