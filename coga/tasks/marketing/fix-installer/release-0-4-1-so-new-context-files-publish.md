@@ -38,6 +38,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/998
 branch: release-0.4.1
 
 Plan (agreed with owner 2026-10-12): bump `pyproject.toml` version to 0.4.1
