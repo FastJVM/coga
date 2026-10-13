@@ -94,6 +94,28 @@ Next step: PR description must include the per-artifact evidence above
 
 ## Peer review
 
+2026-10-13 resumed Codex session: human stopped ticket work to investigate
+Codex daemon/sandbox permissions; no bump. Start/end checks passed and the
+checkout returned to main. Rebased and force-with-lease pushed feature head
+`54f6859970be70892ef08449fd80cbec60b91cc1` onto base
+`a0101af52b3c43a6934ac06459883617c0aef0f5`; no code changes.
+`codex review --base main`, the escalated retry, `--no-daemon`, and a separate
+TMPDIR all failed before a verdict. `/proc/self/mountinfo` proves the session
+masks `/tmp/codex-daemon-1000` with read-only mode-000 tmpfs; the nested reviewer
+requires that path to be user-owned mode 0700. This is a masked runtime path,
+not proof that host directory permissions are wrong. Logs:
+`/tmp/coga-clean-install-build-review-resumed.log` and
+`/tmp/coga-clean-install-build-review-private-runtime.log`.
+`.venv/bin/python -m pytest -q` was interrupted (exit 130) at the human's stop
+request around 69%; no final-head suite receipt. Log:
+`/tmp/coga-clean-install-build-pytest-resumed.log`.
+Repeated Docker PTY completed-ticket checks at 80x24 and 120x40: readable
+already-done refusal, before/after done, expected exit 2; two more records
+appended in the main container. Re-read both host successful build receipts;
+both show advancement to step 2 then done. Topic twin comparison and
+`git diff --check` passed. PR preparation below is historical and must be
+refreshed after a returned review and completed suite on the final head.
+
 2026-10-13, Codex session (independent of Claude implementation): review is
 **not complete; do not bump**. Start check passed on clean main. Rebased
 `clean-install-build` unconditionally onto fetched main
