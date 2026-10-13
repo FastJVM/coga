@@ -1,6 +1,6 @@
 ---
 title: Document Quick Start for empty and existing repositories
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: docs/with-review
