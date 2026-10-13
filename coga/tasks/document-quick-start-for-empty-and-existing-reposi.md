@@ -18,7 +18,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -63,6 +63,30 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: docs/readme-quick-start
+
+- 2026-10-13 peer-review: passed; no must-fix findings and no branch edits.
+  Reviewed `git diff main...docs/readme-quick-start -- '*.md'` from clean,
+  current `main` at entry; branch tip 222c4ec9f. Only README.md changes.
+  Scope preserves everything through Example and the owner's other WIP
+  sections. No context/template twins are changed. README relative links
+  resolve, and `git diff --check main...docs/readme-quick-start` passes.
+  - Spot-checked init's `_repo_is_empty`, scaffold detection, onboarding
+    pruning and next-step messages against tests/test_init.py and coga/init;
+    checked setup/first-task claims against their owning topics and the
+    packaged build/onboarding workflow. No premise or contract mismatch.
+  - Independently ran source-tree CLI `--version`, `init --help`,
+    `build --help`, `ticket --help`, `launch --help`, and `status --help`.
+    Used `/home/n/.local/share/uv/tools/coga/bin/python -m coga.cli` with
+    `PYTHONPATH=/home/n/Code/coga/src`, non-TTY stdin, launch-specific env
+    removed and SLACK_WEBHOOK_URL unset for disposable smoke repos.
+  - Ran `git init -b main`, configured a local test Git identity, then
+    `coga init --user reviewer` and `coga status` in two temporary repos:
+    empty, and existing with committed app.py. Both succeeded. Empty seeded
+    coga-build; existing did not. Outputs match the implementer's quotes
+    below: include those init quotes in the PR description at open-pr.
+    Local evidence: /tmp/coga-quickstart-review-eqelg8w0/{empty,existing}-init.txt
+    and the adjacent command-help captures.
+  - No pytest run: the branch changes prose only, with no code or fixtures.
 
 - 2026-10-13 implement: done. Owner unblocked: proceed on the WIP skeleton,
   move the drafts in, and delete the moved copies. Commit 222c4ec9f on
