@@ -8197,3 +8197,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 10:48 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-10-13 10:48 [correct-readme-claims-about-prompt-report-output] [human:nicktoper] auto-bumped on merge of PR #984 → done
 2026-10-13 10:48 [keep-multiline-audit-messages-on-one-log-line] [human:nicktoper] auto-bumped on merge of PR #985 → done
+2026-10-13 10:48 [publish-build-vision-before-handing-off-starter-ti] [human:nicktoper] auto-bumped on merge of PR #986 → done
