@@ -141,13 +141,14 @@ comparisons with other tools, see the [evidence pages](docs/evidence/) and the
 
 ## Install
 
-Coga needs Python 3.11+, Git, and an authenticated
+Coga runs on Linux or macOS and needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
 offers to install and log in whichever agent CLI you pick.
 
 ```sh
 uv tool install coga            # or: python -m pip install coga
+coga --version                  # check the install
 cd <your git repository>
 coga init --user <your-name>
 coga ticket "<what you want done>"
@@ -166,7 +167,8 @@ After `coga init`:
 
 - **Empty repo:** run `coga build`, a guided discussion that turns your
   project and goals into a short vision context and a batch of starter
-  tickets.
+  tickets. A stock README, LICENSE or `.gitattributes` from your hosting
+  provider still counts as empty; any other project file does not.
 - **Existing project:** init skips that step. Create your first ticket with
   `coga ticket "<title>"`.
 
