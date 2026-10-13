@@ -8174,3 +8174,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 21:42 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-12 21:42 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-12 21:42 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-12 22:21 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [agent:claude] advanced to step 2 (peer-review) → codex

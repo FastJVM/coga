@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -43,3 +43,59 @@ branch: release-0.4.1
 Plan (agreed with owner 2026-10-12): bump `pyproject.toml` version to 0.4.1
 (only hard-coded `0.4.0` in the tree), run the pre-tag gate on the branch,
 rerun it on the merged `main` HEAD before tagging.
+
+## Implement handoff (2026-10-12, claude)
+
+- Bumped `pyproject.toml` `version` 0.4.0 -> 0.4.1 (commit `6cee67362` on
+  `release-0.4.1`, pushed). No other file hard-codes the version.
+- Pre-tag gate ran on the branch commit (all passed): full suite, build +
+  twine check, fresh py3.11 venv wheel install with `coga --version` = 0.4.1,
+  `coga init --user tester` (git status clean afterwards), `coga validate --json`
+  0 issues. Gotcha: the owner's shell exports bare `SLACK_WEBHOOK_URL`, which
+  makes validate refuse; run it with `env -u SLACK_WEBHOOK_URL`.
+- **Rerun the gate on the merged `main` HEAD before tagging** — releasing
+  wants it on the exact tag commit.
+- **Open: TestPyPI dry run not dispatched.** I asked the owner whether the agent should
+  dispatch `gh workflow run release.yml --ref release-0.4.1 -f target=testpypi`
+  (permanently uses up 0.4.1 on TestPyPI) or leave it to them after merge; no answer yet.
+- Still to do after the PyPI publish (owner): `scripts/clean-install/run.sh pypi`
+  against 0.4.1 plus the attended `coga build` walk, checking that the
+  vision file is committed and `git status` is clean; record that evidence here.
+
+## PR
+
+```yaml
+title: Bump version to 0.4.1
+author: claude
+author_evidence: Implement session ran on Claude Opus 5.5 (coga-launch 9113f2cb).
+head: 6cee67362758de9cf9d98cd9418eccb74c8b3284
+base: 27c20939d35bc001b9df003ab4ae6e05cd54a044
+depth: skim
+rationale: One-line version bump releasing the already-merged context publication fix (4c9eff54b).
+implementation: Sets pyproject.toml version to 0.4.1 so main and the next release report a version distinct from 0.4.0.
+deviations: TestPyPI dry run not dispatched yet; awaiting the owner's choice of who runs it.
+limitations: Gate ran on the branch commit, not the eventual merge commit; rerun on main before tagging.
+files:
+  pyproject.toml: Bump the package version to 0.4.1.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
+    status: passed
+    head: 6cee67362758de9cf9d98cd9418eccb74c8b3284
+    base: 27c20939d35bc001b9df003ab4ae6e05cd54a044
+    detail: 3600 passed in 289.21s.
+  - command: uv build && uvx twine check dist/*
+    status: passed
+    head: 6cee67362758de9cf9d98cd9418eccb74c8b3284
+    base: 27c20939d35bc001b9df003ab4ae6e05cd54a044
+    detail: coga-0.4.1 wheel and sdist built; twine check PASSED for both.
+  - command: fresh uv venv -p 3.11, install wheel, coga --version / coga init --user tester / coga validate --json in scratch git repo
+    status: passed
+    head: 6cee67362758de9cf9d98cd9418eccb74c8b3284
+    base: 27c20939d35bc001b9df003ab4ae6e05cd54a044
+    detail: coga 0.4.1; init ok, tree clean; validate 0 issues (with SLACK_WEBHOOK_URL unset).
+```
