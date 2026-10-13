@@ -18,7 +18,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -56,6 +56,10 @@ Per `coga/knowledge`'s one-owner rule, setup facts belong to `coga/install` (`do
 
 Verified at authoring time (2026-10-08): `init.init` prints "Skipped the onboarding ticket… `coga build` is unavailable here — create tasks with `coga ticket`" for a filled repo, and its next-steps text branches on the repo being empty (`coga build`) or filled (`coga ticket "<title>"`); `tests/test_init.py` covers both branches. The sibling vision-publication ticket does not block this one — the local `build` → `launch` path works now — but don't promise clone-ready generated contexts.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/1001
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
@@ -63,6 +67,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: docs/readme-quick-start
+pr: https://github.com/FastJVM/coga/pull/1001
+
+- 2026-10-13 open-pr: branch already pushed (222c4ec9f, matches origin).
+  Opened PR #1001 with summary, init quotes for empty/existing repos (temp
+  paths redacted), and verification. gh reports MERGEABLE/CLEAN; no conflicts.
 
 - 2026-10-13 peer-review: passed; no must-fix findings and no branch edits.
   Reviewed `git diff main...docs/readme-quick-start -- '*.md'` from clean,
