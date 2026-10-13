@@ -75,3 +75,29 @@ results.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Production notes
+
+### Positioning review — 2026-10-13 (owner + Claude, claude.ai session)
+
+Decisions recorded in their owners, not here:
+`marketing/positioning` (`## Refinement — owner review session, 2026-10-13`
+and three new claim limits), `marketing/strategy` (`## Where value moves`),
+`product/vision` (close-and-update practice). Dated competitor facts:
+`docs/evidence/agent-memory-landscape-2026-10-13.md`.
+
+README change drafted on branch `marketing/readme-top-positioning`:
+opening keeps the approved 2026-09-21 contrast (universal wording qualified
+to "Most tools"); adds `## The problem`; Key ideas rewritten around contexts,
+disposable tickets, per-kind workflows, agents-draft-you-correct and
+what-you-read-is-what-the-agent-gets; "you specify more up front" removed;
+"Who it is for" moved before Install with posture, staleness limit and the
+admin/patent proof; empty stub headings removed; the `coga build` walkthrough
+moved after Install as `## First steps`.
+
+Still open for this ticket:
+- Proof: megalaunch carrying work forward is not shown yet; the Example shows
+  only the correction-becomes-context half.
+- Commands: `## First steps` order (init before build) is not yet checked
+  against the `fix-installer` final matrix.
+- Demo video: not watched; the README link and its caveat are unchanged.

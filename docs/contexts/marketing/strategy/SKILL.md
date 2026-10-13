@@ -42,6 +42,38 @@ position and maintained by a human-gated loop — against the field's opaque,
 retrieval-driven, auto-captured default. That gap does not close with better
 models, and the human is the only source of the missing facts.
 
+## Where value moves — 2026-10-13 refinement
+
+Owner argument, refined in a review session. Execution is becoming abundant,
+so value per unit moves to what stays scarce around it; volume, and
+thin-margin value, stay in execution and go to the vendors who sell usage.
+Three things stay scarce:
+
+- **Proprietary knowledge.** What the team decided, tried and learned is not in
+  any model's weights. This is the floor above, seen from the value side.
+- **Accountability.** Someone has to decide and answer for it, so high-stakes
+  work keeps human gates even where an agent could do the work.
+- **Differentiation.** When everyone uses the same models, an agent's default
+  is the industry average. What distinguishes a system is its deviation from
+  that default, which the human or a discovery step supplies and contexts
+  preserve.
+
+Capture follows location: knowledge held in a vendor's memory leaves the
+leverage with the vendor; kept as owned files in the repo, it stays with the
+team. This is the economic reading of explicit versus opaque composition.
+
+Coga does not create the deviation. It solicits the model with the team's own
+material and makes that solicitation durable and shared instead of a one-off
+prompt; `other-agent` review also limits lock-in to one model's defaults.
+
+Vendors sell usage, and selective injection plus human gates consume less of
+it, so copying ownership and freshness runs against their incentive. Expect
+convergence instead through enterprise needs (shared, versioned team
+knowledge, already arriving as skills), which Coga's use of the `SKILL.md`
+convention makes compatible rather than threatening. The likely trajectory is
+that the ideas spread while the tool stays small, which fits success measured
+as influence (`## Strategic posture`).
+
 ## What kind of thing Coga is
 
 Coga is better read as a discipline than a technology: operations-as-code,

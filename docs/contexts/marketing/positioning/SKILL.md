@@ -42,6 +42,48 @@ Coga's contracts, and the longer strategic argument in
 [strategy](../strategy/SKILL.md). Earlier positioning is
 [historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 
+## Refinement — owner review session, 2026-10-13
+
+Keeps the 2026-09-21 opening and the instrument framing above. Adds what the
+README's concrete behavior leads with and how it is worded.
+
+- **Core.** Coga keeps in the repo what the team knows and the model does not
+  (decisions, domain facts, experiment results, decisions not to act) as
+  contexts scoped to the task, one owner per fact, checked against the code.
+  Without them a capable agent falls back on its defaults, which are everyone's
+  defaults.
+- **Collaboration, defined.** The human brings what the model would not think
+  of; agents bring execution and breadth, including research and review; Coga
+  makes sure the human's part reaches every later launch. Use this definition
+  rather than the bare words "collaboration" or "human in the loop".
+- **Entry pain.** Lead with the growing `CLAUDE.md`/`AGENTS.md`, instructions
+  repeated in chat, and fresh sessions opened only to make an agent forget.
+  Then say why size is not the whole problem: the same fact in diverging
+  copies, and no way to tell which copies are still true.
+- **Scoping.** Contexts are scoped by what the task is, not by where the code
+  is, and the agent can still look up the rest. Comparisons with other tools
+  cite the dated [agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md).
+- **Tickets are disposable; what they teach is not.** The usual move when a
+  premise turns out wrong is to close the ticket with its reason, update the
+  owning context and open a new one. Rewind exists but is the exception; do not
+  lead with it.
+- **Agents draft, you correct.** Answer the "write everything up front" fear:
+  `coga build`, `coga ticket` and agents draft tickets, contexts and workflows,
+  and the human corrects them. Do not say "you specify more up front".
+- **The process is yours.** Workflows set, per kind of work, where the human,
+  the agent or a second agent steps in, and an agent can write them; shared
+  rule changes arrive as pull requests. Plan mode is a useful anchor: here the
+  plan is a file, reviewed cold by a second agent, approved as a step and still
+  there at implementation.
+- **Reading guidance.** Skim tickets; read changes to workflows and contexts,
+  because those apply to all later work.
+- **Audience by posture.** Write for readers who already separate what they
+  know from what they are still discovering; teams that plan unknown work as
+  if it were known will feel overhead. Targeting itself belongs to the
+  first-users ICP context; this is README voice only.
+- **Vocabulary.** The product term is "context". Describe contexts as stating
+  facts and contracts; avoid "documentation", which readers distrust.
+
 ## Source and claim limits
 
 - Use public support for claims about actual Coga work: dated tickets, log
@@ -64,3 +106,10 @@ Coga's contracts, and the longer strategic argument in
   inspectable local files, explicit human judgment, and the actual workflow
   and execution behavior. Do not turn illustrative copy into a promise of
   managed autonomy or universal results.
+- Do not say Coga forces the reader to read a ticket: `coga launch` activates
+  a draft. Say instead that what you read is what the agent gets.
+- Admin and patent use may be cited through
+  [usage comparison](../../../evidence/usage-comparison.md#core-flexibility-across-administrative-and-patent-work);
+  do not describe the operator beyond what the public record states.
+- Statements about what other tools do not do are dated observations ("at the
+  2026-10-13 check"), never "nobody else".

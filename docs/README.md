@@ -120,7 +120,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [research replacement trial](evidence/research-replacement-trial.md),
   [adoption trial](evidence/adoption-trial.md),
   [upkeep audit](evidence/upkeep-audit.md),
-  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md).
+  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md),
+  [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md).
 
 ## Proposals and history
 
