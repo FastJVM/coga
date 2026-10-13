@@ -26,19 +26,22 @@ defaults.
 
 ## Key ideas
 
-- **Contexts scoped to the task, one owner per fact.** What your agents need
-  to know lives in short Markdown contexts that state facts and contracts:
-  behavior, invariants, product intent, decisions not to do something. Each
-  fact has one owning file. A ticket attaches the contexts its work needs,
-  scoped by what the task is rather than where the code is, and they go into
-  the prompt as truth; the agent can still look up the rest. When a ticket is
-  retired, a retro carries what it taught into the contexts and skills, and
-  Dream, a weekly recurring job, checks contexts against the code and
-  proposes fixes as pull requests.
-- **Tickets are disposable; what they teach isn't.** When a premise turns out
-  wrong, cancel the ticket with the reason, update the context that owns the
-  fact, and start a new one. The dead end is recorded where later work will
-  find it, and it stays out of the next prompt.
+- **The unit is the task, not the session.** A ticket is a Markdown file
+  holding the goal, the contexts the work needs, the current workflow step and
+  the working notes. Every launch rebuilds the prompt from those files, so you
+  can close the session, switch from Claude to Codex, or come back next week,
+  and the work picks up from the ticket. Contexts are short files stating
+  facts and decisions, one owning file per fact; a ticket attaches only the
+  ones its work needs.
+- **Knowledge moves out of the code and into files you correct.** Decisions,
+  domain facts and dead ends that used to live in code, chat or your head go
+  into contexts and tickets, where you and every agent read the same version.
+  The loop is short: an agent gets something wrong, you fix the file that owns
+  the fact, and the next launch uses the fix. When a premise turns out wrong,
+  cancel the ticket with the reason, update the owning context and start a new
+  one. A retro carries what a ticket taught into the contexts, and Dream, a
+  weekly job, checks contexts against the code and proposes fixes as pull
+  requests.
 - **Each kind of work gets its own process.** A workflow sets the steps and
   who takes each one: you, the agent, or a second agent reviewing the first.
   A routine fix can go straight to a pull request you review; risky or
@@ -48,17 +51,19 @@ defaults.
   write workflows yourself or ask an agent to; changes to the shared rules
   arrive as pull requests, so nothing changes how agents work until you merge
   it.
-- **Agents draft, you correct.** `coga build` turns a conversation about your
-  project into draft tickets, contexts and workflows; `coga ticket` drafts a
-  ticket and the contexts it should attach. You don't write it all up front:
-  you read, you correct, and your corrections are what the system keeps.
-- **What you read is what the agent gets.** The base prompt, workflows,
-  contexts and skills are plain files, using the same `SKILL.md` convention as
-  agent skills. `coga launch <slug> --prompt-report` lists the prompt layers a
-  ticket launch would compose, with each layer's size and approximate token
-  count, then exits without launching an agent. Skim tickets as much as you
-  like; read changes to workflows and contexts, because those apply to
-  everything that follows.
+- **Everything is hackable, and most of it is automated.** Every ticket,
+  context and workflow is a plain file you can edit, but you rarely write one
+  from scratch. In practice an agent writes it after a quick chat
+  (`coga ticket`, `coga build`), and then you edit it, rewrite it, or chat
+  again.
+- **Built on Claude Code and Codex, not instead of them.** The agents already
+  plan, code and review well. Coga does the small part they leave to you:
+  keeping what you decided and learned in files, putting the right part in
+  front of the agent at every launch, and making it easy to correct. What you
+  read is what the agent gets: `coga launch <slug> --prompt-report` lists the
+  layers a launch would compose, with their sizes, without launching. Skim
+  tickets as much as you like; read changes to workflows and contexts, because
+  those apply to everything that follows.
 
 **The trade-off:** you write things down instead of saying them in chat, and
 you decide where you're needed; agents do most of the drafting. In exchange,

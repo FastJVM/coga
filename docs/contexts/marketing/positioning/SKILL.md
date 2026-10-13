@@ -44,6 +44,8 @@ Coga's contracts, and the longer strategic argument in
 
 ## Refinement — owner review session, 2026-10-13
 
+Revised the same day from the owner's PR #1000 review comments.
+
 Keeps the 2026-09-21 opening and the instrument framing above. Adds what the
 README's concrete behavior leads with and how it is worded.
 
@@ -63,13 +65,24 @@ README's concrete behavior leads with and how it is worded.
 - **Scoping.** Contexts are scoped by what the task is, not by where the code
   is, and the agent can still look up the rest. Comparisons with other tools
   cite the dated [agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md).
-- **Tickets are disposable; what they teach is not.** The usual move when a
-  premise turns out wrong is to close the ticket with its reason, update the
-  owning context and open a new one. Rewind exists but is the exception; do not
-  lead with it.
-- **Agents draft, you correct.** Answer the "write everything up front" fear:
-  `coga build`, `coga ticket` and agents draft tickets, contexts and workflows,
-  and the human corrects them. Do not say "you specify more up front".
+- **The unit is the task, not the session.** Lead the key ideas with this,
+  in plain words rather than "one owner per fact" vocabulary: a ticket holds
+  the goal, contexts, step and working notes, and every launch rebuilds from
+  it, so sessions and agents are interchangeable.
+- **Knowledge moves into files you correct.** Frame contexts as the feedback
+  loop: decisions and knowledge move from code, chat and heads into contexts
+  and tickets, and a fix to the owning file reaches the next launch. Tickets
+  are disposable; what they teach is not: the usual move when a premise turns
+  out wrong is to close the ticket with its reason, update the owning context
+  and open a new one. Rewind exists but is the exception; do not lead with it.
+- **Hackable and automated.** Answer the "write everything up front" fear:
+  every file is editable, but in practice an agent writes it after a quick
+  chat (`coga build` drafts a vision and starter tickets; `coga ticket`
+  drafts a ticket and its contexts), and the human edits, rewrites or chats
+  again. Do not say "you specify more up front".
+- **Built on Claude Code and Codex.** Coga builds on capable agents rather
+  than replacing them; it does the small part they leave to the human. Keep
+  this qualitative: no percentage.
 - **The process is yours.** Workflows set, per kind of work, where the human,
   the agent or a second agent steps in, and an agent can write them; shared
   rule changes arrive as pull requests. Plan mode is a useful anchor: here the
