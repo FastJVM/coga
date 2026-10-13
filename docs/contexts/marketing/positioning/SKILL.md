@@ -42,6 +42,23 @@ Coga's contracts, and the longer strategic argument in
 [strategy](../strategy/SKILL.md). Earlier positioning is
 [historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 
+## Root premise — owner follow-up, 2026-10-13
+
+Coga is built for work you discover by doing: you start from a rough idea,
+understand it as you go, and backtrack when a premise breaks. Code is now cheap
+enough to throw away; what is expensive is the right idea, a clear spec and
+proof that it works. So what has to last is what you learned, kept in files
+the human can read, change and redo from. The human-ownership principle and
+the features (task-scoped prompts, one owner per fact, per-kind workflows,
+Dream) follow from this premise; individual features have close prior art, so
+never present a feature as the original part.
+
+The first 2026-10-13 rewrite below folded the original "Built for work you
+discover by doing" idea into the knowledge lifecycle. The README follow-up on
+PR #1000 restores it as the root: the problem section names the gap between
+vibe coding and spec-first tools, and the key ideas open by deriving from the
+premise.
+
 ## Refinement — owner review session, 2026-10-13
 
 Revised the same day from the owner's PR #1000 review comments.
@@ -62,7 +79,8 @@ README's concrete behavior leads with and how it is worded.
   Codex out of the box, any CLI agent with a few lines of config) and lead
   with the payoff: fix the file once and every later run starts from the fix.
   Do not open with "never from chat history" or the collaboration definition;
-  the owner judged both unclear to a first-time reader.
+  the owner judged both unclear to a first-time reader. Then say Coga does not
+  replace Claude Code or Codex; it handles the part they cannot do for you.
 - **Entry pain.** Lead with the growing `CLAUDE.md`/`AGENTS.md`, instructions
   repeated in chat, and fresh sessions opened only to make an agent forget.
   Then say why size is not the whole problem: the same fact in diverging
@@ -86,15 +104,17 @@ README's concrete behavior leads with and how it is worded.
   drafts a ticket and its contexts), and the human edits, rewrites or chats
   again. Do not say "you specify more up front".
 - **Built on Claude Code and Codex.** Coga builds on capable agents rather
-  than replacing them; it does the small part they leave to the human. Keep
-  this qualitative: no percentage.
+  than replacing them; it does the part they leave to the human. Say it in the
+  opening, qualitatively: no percentage.
 - **The process is yours.** Workflows set, per kind of work, where the human,
   the agent or a second agent steps in, and an agent can write them; shared
   rule changes arrive as pull requests. Plan mode is a useful anchor: here the
   plan is a file, reviewed cold by a second agent, approved as a step and still
   there at implementation.
-- **Reading guidance.** Skim tickets; read changes to workflows and contexts,
-  because those apply to all later work.
+- **Reading guidance.** The human chooses how closely to read; the
+  preparing agent's advisory review depth on each pull request
+  ([pr-publication](../../coga/internals/pr-publication/SKILL.md)) is a
+  suggestion, not a requirement.
 - **Audience by posture.** Write for readers who already separate what they
   know from what they are still discovering; teams that plan unknown work as
   if it were known will feel overhead. Targeting itself belongs to the
@@ -103,6 +123,18 @@ README's concrete behavior leads with and how it is worded.
   facts and contracts; avoid "documentation", which readers distrust.
 
 ## Source and claim limits
+
+- **Owner follow-up, 2026-10-13.** Never position Coga as an audit,
+  governance or compliance tool, and do not use those words. No novelty or
+  priority words ("first", "only", "new", "unique"): individual features have
+  close prior art (see the dated
+  [landscape](../../../evidence/agent-memory-landscape-2026-10-13.md)). Avoid
+  category words that file Coga under shared AI knowledge: "knowledge
+  compounds", "learn once", "multiplayer", "company brain". Do not say
+  "human at the center", "human-centered", "human-in-the-loop" or
+  "progressive disclosure". Reading is chosen per pull request; never imply
+  the human reads everything or that Coga forces a review. Code is "cheap
+  enough to throw away", never free.
 
 - Use public support for claims about actual Coga work: dated tickets, log
   entries, contexts, diffs, PRs or a newly recorded public demonstration.

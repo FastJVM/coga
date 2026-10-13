@@ -7,7 +7,8 @@ Coga is a CLI that runs your coding agent from Markdown files in your Git
 repo. Claude Code and Codex work out of the box; any other CLI agent takes a
 few lines of config. Every launch rebuilds the agent's prompt from those
 files. When an agent gets something wrong, you fix the file once, and every
-later run starts from the fix.
+later run starts from the fix. It doesn't replace Claude Code or Codex; it
+handles the part they can't do for you.
 
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
@@ -21,39 +22,56 @@ ends up written in several places that slowly disagree, including memories the
 tool keeps outside your repo. Nobody knows which version is true, so the agent
 acts on whichever copy it read, or falls back on its defaults.
 
+Tool memories store what was said; they can't tell which of it mattered or
+what changed along the way. On simple tasks that's fine. On work you have to
+argue through, with wrong turns and reversals, what survives is what got
+written down.
+
+Vibe coding explores fast but forgets what it found. Spec-driven tools keep
+what they know, but they're built around writing the spec before the code.
+A lot of real work is neither: you find out what you want by building it,
+and you backtrack when a premise breaks. Code is now cheap enough to throw
+away; what's expensive is the right idea, a clear spec, and proof that it
+works.
+
 ## Key ideas
 
-- **The unit is the task, not the session.** A ticket is a Markdown file
-  holding the goal, the contexts the work needs, the current workflow step and
-  the working notes. Every launch rebuilds the prompt from those files, so you
-  can close the session, switch from Claude to Codex, or come back next week,
-  and the work picks up from the ticket. Contexts are short files stating
-  facts and decisions, one owning file per fact; a ticket attaches only the
-  ones its work needs.
-- **What you learn goes into files, not chat.** Decisions, domain facts and
-  the things you tried and dropped go into contexts and tickets instead of
-  staying in your head. Fix the file that holds a fact and every later launch
-  uses the fix. When a ticket's premise turns out wrong, cancel it with the
-  reason, fix the context, and start a new one. Dream, a weekly job, checks
-  contexts against the code and proposes fixes as pull requests.
+Each of these follows from one premise: you find out what you want while
+building it. So what has to last is what you learned, kept in files you can
+read, change and redo from, not the code and not the chat.
+
+- **The unit is the task, not the session.** Each launch builds a fresh
+  prompt from what that task needs: the ticket, the contexts it attaches, the
+  current workflow step. Contexts are chosen by what the task is, not by where
+  the code is; they go into the prompt as truth, and the agent can still look
+  up the rest. Nothing carries over from an earlier chat, so a bad idea
+  doesn't outlive the session that had it.
+- **Knowledge moves out of code and chat, into files.** Code says what the
+  system does; contexts and tickets say what it should do, why, and what
+  didn't work, with one owning file per fact. Every loop feeds them: each
+  step's findings go to the next, a retired ticket's lessons go to the
+  contexts, Dream, a weekly recurring job, checks contexts against the code,
+  and your corrections apply on the next launch. When a premise turns out
+  wrong, cancel the ticket with the reason, fix the context that owns the
+  fact, and start a new one.
 - **Each kind of work gets its own process.** A workflow lists the steps and
   says which ones need you. A routine fix goes straight to a pull request you
   review. Risky work first stops for you to approve a written design that a
   second agent has already reviewed. Think plan mode, except the plan is a file
   that's still there when implementation starts. Changes to workflows and
   other shared rules arrive as pull requests, so nothing changes how agents
-  work until you merge it.
-- **Hackable and automated.** Every ticket, context and workflow is a plain
-  file. Usually an agent writes it after a quick chat (`coga ticket`,
-  `coga build`); then you edit it, rewrite it, or chat again.
-- **Built on Claude Code and Codex, not instead of them.** The agents already
-  plan, code and review well. Coga does the small part they leave to you:
-  keeping what you decided and learned in files, putting the right part in
-  front of the agent at every launch, and making it easy to correct. What you
-  read is what the agent gets: `coga launch <slug> --prompt-report` lists the
-  layers a launch would compose, with their sizes, without launching. Skim
-  tickets as much as you like; read changes to workflows and contexts, because
-  those apply to everything that follows.
+  work until you merge it. You decide how closely to read each pull request;
+  the agent that prepares one recommends a review depth in its title (merge,
+  skim or deep), and Coga marks it deep when its recorded evidence is
+  incomplete.
+- **Hackable, and mostly automated.** Everything is a plain file you can
+  change, and contexts and skills use the same `SKILL.md` convention as agent
+  skills, but you rarely start from a blank page. After a short chat,
+  `coga build` drafts a vision and starter tickets, and `coga ticket` drafts a
+  ticket and picks its workflow and contexts with you; you edit the result,
+  rewrite it, or chat again. `coga launch <slug> --prompt-report` lists the
+  prompt layers a launch would compose, with their sizes, without launching an
+  agent.
 
 **The trade-off:** you write things down instead of saying them in chat, and
 you decide where you're needed; agents do most of the drafting. In exchange,
@@ -62,20 +80,19 @@ repo.
 
 ## Example
 
-I wanted a plugin that picks the model and reasoning level per task, instead
-of running Astra at max reasoning for everything. `coga build` turned ten
-minutes of conversation into a plan of tickets, but the plan assumed routing
-was a solved problem. It isn't.
-
-Asked directly, Claude would say routing isn't a solved problem. But it's easy for Claude to amplify your hidden biases and assumptions which is what happened here. Building a plan makes them visible, so you can question and correct them. Together.
-
-So we think harder, backtrack and build a research plan in tickets (written with Claude, run
-by Codex): [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
+I wanted a plugin that picks the model and reasoning level for each task, so
+a subscription's usage limits cover more work instead of spending top
+reasoning on everything. `coga build` turned ten minutes of conversation
+into a plan of tickets, and the plan treated routing as a solved problem.
+It isn't. The agent had followed my assumption instead of questioning it;
+having the plan written down is what made the assumption visible. So we
+replaced it with a research plan in tickets, written with Claude and run by
+Codex: [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
 [head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
 [Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
 [candidate scoring](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), then the
-[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The answer becomes a context
-every later ticket starts from. Browse the whole example in
+[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The decision became a
+context that every later ticket starts from. Browse the whole example in
 [thinkpick's tasks](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks).
 
 ## Who it is for, and its limits
@@ -84,6 +101,9 @@ Coga is for small technical teams who already use CLI agents, are comfortable
 with Git and the shell, and want to understand and correct the material their
 agents work from. It fits when writing down how work should be done costs less
 than supervising the same work indefinitely.
+
+It pays off most on work you have to argue through; for routine tasks, the
+agents' own memory is usually enough.
 
 It is local, self-hosted and self-supported: no managed service, SLA, hosted
 dashboard or zero-setup path. Workflows are linear sequences of steps; dynamic
@@ -142,21 +162,18 @@ was recorded in July 2026; some command names may have changed since.
 
 ## First steps
 
-In an existing project, `coga init` skips onboarding: draft your first ticket
-with `coga ticket "<what you want done>"`, as in the install snippet above.
+After `coga init`:
 
-In a new, empty repository, start with a guided discussion about your project
-and your goals:
+- **Empty repo:** run `coga build`, a guided discussion that turns your
+  project and goals into a short vision context and a batch of starter
+  tickets.
+- **Existing project:** init skips that step. Create your first ticket with
+  `coga ticket "<title>"`.
 
-```sh
-coga build
-```
-
-It turns that discussion into a short vision and a batch of starter tickets.
-Everything it creates is plain files in your repo: edit them with any text
-editor, or use `coga ticket <name>` to revise a ticket with an agent. What it
-creates is far from perfect, and that's the point: it shows how agents
-understand your project and how they would approach it, and gives you
+Either way, everything is plain files in your repo: edit them with any text
+editor, or use `coga ticket <slug>` to revise a ticket with an agent. What
+the agents draft is far from perfect, and that's the point: it shows how
+they understand your project and how they would approach it, and gives you
 something concrete to correct.
 
 ```sh
