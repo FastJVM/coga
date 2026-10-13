@@ -64,8 +64,12 @@ step pushes its branch and returns (`dev/checkouts`).
 
 ## peer-review
 
-You are running the peer-review step. Review the change with whichever review
-tool you natively speak:
+You are running the peer-review step. You were selected as the main agent's
+configured peer, but peer selection alone does not prove independent
+authorship: an explicit launch override can make the same agent implement and
+review a change, so do not assume you did not write this diff.
+
+Review the change with whichever review tool you natively speak:
 
 - **Claude**: run the `/code-review` slash command (default effort —
   *not* `ultra`) against the branch diff vs `main`.

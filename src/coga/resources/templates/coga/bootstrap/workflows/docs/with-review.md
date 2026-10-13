@@ -110,7 +110,12 @@ accurate and reachable rather than running tests that cover nothing.
 
 ## peer-review
 
-You are running the peer-review step for a docs change. Review the **content**.
+You are running the peer-review step for a docs change. You were selected as
+the main agent's configured peer, but peer selection alone does not prove
+independent authorship: an explicit launch override can make the same agent
+implement and review a change, so do not assume you did not write this diff.
+
+Review the **content**.
 From `main`, without switching, read the changed markdown by branch name
 (`git diff main...<branch> -- '*.md'` plus any non-markdown docs the ticket
 names) and check:
