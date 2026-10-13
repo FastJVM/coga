@@ -18,7 +18,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -63,6 +63,37 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: docs/readme-quick-start
+
+- 2026-10-13 implement: done. Owner unblocked: proceed on the WIP skeleton,
+  move the drafts in, and delete the moved copies. Commit 222c4ec9f on
+  `docs/readme-quick-start` (pushed). README changes only. Nothing through
+  `## Example` touched; bare `## Licnence` heading and other WIP sections left.
+  - `## Install`: prereqs (Linux/macOS, Python 3.11+, Git that can commit,
+    authenticated Claude Code/Codex), `uv tool install coga`, `coga --version`,
+    links to coga/install + demo. Old second `## Install` removed.
+  - Quick Start > Existing repo: `coga init --user` → (init says build is
+    unavailable) → `coga ticket "<title>"` → `coga status` → `coga launch <ticket>`.
+  - Quick Start > New repo: `git init` → `coga init --user` → `coga build` →
+    `coga status` → `coga launch <starter-ticket>`. Owner's draft prose reused,
+    fences fixed; states the empty rule (stock README/LICENSE/.gitattributes ok).
+- Verification (source tree, `env -u SLACK_WEBHOOK_URL`, stdin non-TTY), quote in PR:
+  - empty `git init` repo: seeds `coga-build`; Next steps #3 "Run `coga build`
+    with Claude Code, or `coga build --agent codex` with Codex — it launches the
+    coga-build onboarding: ...". `coga status` lists `coga-build` active.
+  - repo with `app.py` committed: "Skipped the onboarding ticket (this dir
+    already has a project), so `coga build` is unavailable here — create tasks
+    with `coga ticket` when you're ready."; Next steps #3 "Run `coga ticket
+    "<title>"` to author your first task — the guided author turns a one-line
+    title into a ready ticket." `coga build` there: "The 'coga-build' onboarding
+    ticket is not in this repo, so `coga build` has nothing to launch. ...
+    Author tasks with `coga ticket "<title>"` instead."
+  - `--help` checked for init (`[path]`, `--user`), build (alias → launch
+    coga-build), ticket (`[target]` title or slug), launch (`task`), status.
+  - Code, init messages, tests, and coga/init topic agree; no topic gap found
+    in coga/install or coga/first-task, so no topic edits.
+- Side notes (not in scope): a bare `SLACK_WEBHOOK_URL` in the env makes every
+  command except init refuse (the migration guard). In a filled repo on `master`
+  with no remote, init leaves control_branch=main and warns. Both are expected behavior.
 
 - 2026-10-08 implement: not started — no branch created, no README edits. The
   ticket's hold note says do not start until the owner's README rewrite lands
