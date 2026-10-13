@@ -8188,3 +8188,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 10:47 [recurring/upstream-coga] [system] created (status=active)
 2026-10-13 10:47 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W42
 2026-10-13 10:47 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-13 10:47 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
