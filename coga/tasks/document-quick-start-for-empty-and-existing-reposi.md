@@ -81,7 +81,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-10-08 12:08] [agent:claude] id=20261008T120827 Ticket is on hold until your README rewrite lands. README on main is still mid-rewrite: the skeleton Install/Quick Start is empty, draft build prose sits under 'Licnence' with an unclosed fence, and there is a duplicate old Install. Please confirm: (1) is the rewrite done, or should I write Quick Start into the current WIP skeleton now? (2) Should I move the draft build prose and the old Install block into the skeleton Install/Quick Start and delete the old copies, or leave them where they are?
+- [x] [2026-10-08 12:08] [agent:claude] id=20261008T120827 Ticket is on hold until your README rewrite lands. README on main is still mid-rewrite: the skeleton Install/Quick Start is empty, draft build prose sits under 'Licnence' with an unclosed fence, and there is a duplicate old Install. Please confirm: (1) is the rewrite done, or should I write Quick Start into the current WIP skeleton now? (2) Should I move the draft build prose and the old Install block into the skeleton Install/Quick Start and delete the old copies, or leave them where they are?
+  resolved: [2026-10-13 13:17] [human:nicktoper] Owner (2026-10-13): proceed now against the current WIP skeleton. Move the draft build/status/ticket/launch prose from under 'Licnence' into Quick Start > New repo and the old second '## Install' into the skeleton '## Install', fix the fences, keep the owner's wording where correct, and delete the moved copies. Leave the bare 'Licnence' heading and other WIP sections for the owner; do not touch anything through '## Example'.
 
 ---
 
