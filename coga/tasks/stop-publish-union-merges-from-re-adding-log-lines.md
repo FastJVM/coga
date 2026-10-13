@@ -1,6 +1,6 @@
 ---
 title: Stop publish union merges from re-adding log lines already on control
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -30,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 
