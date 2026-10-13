@@ -39,7 +39,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     bin_dir.mkdir()
     _checksum_stub(bin_dir)
     # Keep the host's installed coga out of PATH; only installation exposes it.
-    for name in ("bash", "git", "mkdir", "tee"):
+    for name in ("bash", "git", "grep", "mkdir", "sed", "tee"):
         (bin_dir / name).symlink_to(shutil.which(name))
     # The pinned interpreter reports a version without running a real Python.
     _executable(bin_dir / "python3.11", """
@@ -54,8 +54,21 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
             echo 'synthetic installed-artifact failure' >&2
             exit 17
         fi
-        if [ "$1" = ticket ]; then
+        if [ "$1" = ticket ] || [ "$1" = build ]; then
             [ -t 0 ] && [ -t 1 ] || exit 19
+        fi
+        # init seeds the onboarding ticket; build bumps its first step.
+        if [ "$1" = init ]; then
+            mkdir -p coga/tasks
+            printf -- '---\nstatus: active\nstep: 1 (gather-and-spec)\n---\nstep: body\n' \
+                > coga/tasks/coga-build.md
+            echo '2026-10-13 10:00 [coga-build] [human:first-user] created' > coga/log.md
+        fi
+        if [ "$1" = build ]; then
+            printf -- '---\nstatus: in_progress\nstep: 2 (generate-batch)\n---\n' \
+                > coga/tasks/coga-build.md
+            echo '2026-10-13 10:05 [coga-build] [agent:claude] bumped' >> coga/log.md
+            echo '2026-10-13 10:05 [other] [agent:claude] bumped' >> coga/log.md
         fi
         printf 'coga stub: %s\\n' "$*"
     """)
@@ -110,8 +123,9 @@ def test_clean_install_reaches_init_from_selected_artifact(
     if mode == "wheel":
         assert "coga-1.0-py3-none-any.whl" in steps
         assert "checksum" in steps
-    assert "attended coga ticket has not run" in (evidence / "init-passed.txt").read_text()
+    assert "attended coga ticket and coga build have not run" in (evidence / "init-passed.txt").read_text()
     assert not (evidence / "ticket.txt").exists()
+    assert not (evidence / "build.txt").exists()
 
 
 @pytest.mark.parametrize("failed_command", ["install", "--version", "init", "validate"])
@@ -162,20 +176,59 @@ def test_clean_install_refuses_reuse(install_env: dict[str, str]) -> None:
     assert "start a new container" in result.stderr
 
 
-def test_clean_install_ticket_keeps_terminal_stdio(install_env: dict[str, str]) -> None:
-    assert _run(install_env, "pypi", "first-user").returncode == 0
+def _run_attended(env: dict[str, str], *args: str) -> int:
     master, slave = os.openpty()
     try:
         result = subprocess.run(
-            ["bash", str(SCRIPT), "ticket", "First task", "--agent", "claude"],
-            env=install_env, stdin=slave, stdout=slave, stderr=slave,
+            ["bash", str(SCRIPT), *args],
+            env=env, stdin=slave, stdout=slave, stderr=slave,
         )
     finally:
         os.close(slave)
         os.close(master)
-    assert result.returncode == 0
+    return result.returncode
+
+
+def test_clean_install_ticket_keeps_terminal_stdio(install_env: dict[str, str]) -> None:
+    assert _run(install_env, "pypi", "first-user").returncode == 0
+    assert _run_attended(install_env, "ticket", "First task", "--agent", "claude") == 0
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
     assert "ticket_exit_code=0" in (evidence / "ticket.txt").read_text()
+
+
+def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, str]) -> None:
+    assert _run(install_env, "pypi", "first-user").returncode == 0
+    assert _run_attended(install_env, "build", "--agent", "claude") == 0
+    evidence = Path(install_env["HOME"]) / "clean-install/evidence"
+    assert (evidence / "build.txt").read_text().splitlines() == [
+        "+ coga build --agent claude",
+        "before_status=active",
+        "before_step=1 (gather-and-spec)",
+        "after_status=in_progress",
+        "after_step=2 (generate-batch)",
+        "log:",
+        "2026-10-13 10:00 [coga-build] [human:first-user] created",
+        "2026-10-13 10:05 [coga-build] [agent:claude] bumped",
+        "build_exit_code=0",
+    ]
+
+
+def test_clean_install_build_records_failure_and_removed_ticket(
+    install_env: dict[str, str],
+) -> None:
+    assert _run(install_env, "pypi", "first-user").returncode == 0
+    (Path(install_env["HOME"]) / "clean-install/repo/coga/tasks/coga-build.md").unlink()
+    install_env["COGA_TEST_FAIL"] = "build"
+    assert _run_attended(install_env, "build") == 17
+    record = (Path(install_env["HOME"]) / "clean-install/evidence/build.txt").read_text()
+    assert "before_ticket=absent\nafter_ticket=absent\n" in record
+    assert record.endswith("build_exit_code=17\n")
+
+
+def test_clean_install_build_needs_init(install_env: dict[str, str]) -> None:
+    result = _run(install_env, "build", "--agent", "claude")
+    assert result.returncode == 2
+    assert "before the attended build step" in result.stderr
 
 
 def test_clean_install_main_builds_fetched_commit_not_working_tree(
