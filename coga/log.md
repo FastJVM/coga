@@ -8237,3 +8237,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 13:49 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-13 13:49 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-13 15:11 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-13 16:02 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [agent:claude] advanced to step 2 (peer-review) → codex
