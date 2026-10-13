@@ -61,63 +61,98 @@ every later ticket starts from. Browse the whole example in
 
 ## Install
 
-## Quick Start 
-### Existing repo
-
-### New repo
-
-## Development & Community
-
-## Donors and Sponsors
-## Licnence
-
-```sh
-coga build
-```
-
-`coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
-
-Everything it creates is just files in your repo. Edit them directly with any text editor, or use coga ticket <name> when you want to work through a ticket with an agent.
-
-What it creates is far from perfect — that's the point. It gives you a structure to work from, exposes how agents understand your project and how they would approach it, and gives you something concrete to correct as your own understanding changes.
-
-```sh
-coga status
-```
-lists all the tickets
-
-```sh
-coga ticket my-first-ticket
-``` will start another conversation to complete the ticket. You can edit it yourself.
-
-
-```sh
-coga launch my-first-ticket
-```
-coga launch <ticket> works through the ticket by launching an agent. It assembles the prompt from the ticket, relevant context, workflow instructions and working state.
-
-When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
-
-## Install
-
-Coga needs Python 3.11+, Git, and an authenticated
-[Claude Code](https://claude.com/claude-code) or
+Coga runs on Linux or macOS and needs Python 3.11+, Git that can author a
+commit, and an authenticated [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
 offers to install and log in whichever agent CLI you pick.
 
 ```sh
 uv tool install coga            # or: python -m pip install coga
-cd <your git repository>
-coga init --user <your-name>
-coga ticket "<what you want done>"
-coga launch <ticket>
+coga --version
 ```
 
 [Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
-repository that already uses Coga, and troubleshooting.
+repository that already uses Coga, and troubleshooting. A
+[95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc) was recorded in
+July 2026; some command names may have changed since.
+
+## Quick Start
+
+Coga lives in the repository it organizes. Which path you take depends on
+what `coga init` finds there: `coga build` exists only in a repository that
+was empty when you initialized it.
+
+### Existing repo
+
+For a repository that already holds a project. `coga init` skips the
+onboarding ticket and says so: "`coga build` is unavailable here — create
+tasks with `coga ticket` when you're ready."
+
+```sh
+cd <your git repository>
+coga init --user <your-name>
+coga ticket "<what you want done>"
+```
+
+`coga ticket` starts a conversation with an agent that turns your one-line
+title into a ready ticket. It is just a file under `coga/tasks/`; edit it
+yourself whenever you like.
+
+```sh
+coga status
+coga launch <ticket>
+```
+
+`coga status` lists the tickets. `coga launch <ticket>` works through the
+ticket by launching an agent. It assembles the prompt from the ticket,
+relevant context, workflow instructions and working state.
+
 [First task](docs/contexts/coga/first-task/SKILL.md) walks one ticket from
-draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
-was recorded in July 2026; some command names may have changed since.
+draft to reviewed result.
+
+### New repo
+
+For a new, empty Git repository. A stock README, LICENSE or `.gitattributes`
+from your hosting provider still counts as empty; any other project file does
+not.
+
+```sh
+mkdir <project> && cd <project> && git init
+coga init --user <your-name>
+coga build
+```
+
+`coga build` is a guided discussion about your project and your goals. It
+turns that discussion into a short vision and a batch of starter tickets,
+contexts and workflows.
+
+Everything it creates is just files in your repo. Edit them directly with any
+text editor, or use `coga ticket <ticket>` when you want to work through a
+ticket with an agent.
+
+What it creates is far from perfect — that's the point. It gives you a
+structure to work from, exposes how agents understand your project and how
+they would approach it, and gives you something concrete to correct as your
+own understanding changes.
+
+```sh
+coga status
+coga launch <starter-ticket>
+```
+
+`coga status` lists all the tickets. `coga launch <ticket>` works through the
+ticket by launching an agent. It assembles the prompt from the ticket,
+relevant context, workflow instructions and working state.
+
+When the work teaches you something worth keeping, you decide what should
+change. Edit it yourself, ask an agent to propagate that new understanding
+through the project, or let Coga surface and carry it forward through its
+recurring work.
+
+## Development & Community
+
+## Donors and Sponsors
+## Licnence
 
 ## Who it is for, and its limits
 
