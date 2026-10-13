@@ -97,9 +97,8 @@ Coga mechanism carries it:
   `coga ticket` re-authoring at
   any status ([`coga/tickets`](../../coga/tickets/SKILL.md)), and
   [Dream](../../coga/dream/SKILL.md) for the maintenance that follows.
-  In the owner's practice (2026-10-13), a premise that turns out wrong is
-  usually handled by cancelling the ticket with its reason, updating the
-  owning context and opening a new ticket; rewind is the exception.
+  A wrong premise is usually cancelled and restarted rather than rewound
+  ([`coga/lifecycle`](../../coga/lifecycle/SKILL.md) owns the rule).
 
 Coga handles all three kinds, but it is **built for unknown work**. Routine
 and understood work are where the human's thinking has already been captured.

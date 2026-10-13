@@ -147,19 +147,22 @@ was recorded in July 2026; some command names may have changed since.
 
 ## First steps
 
-After `coga init`, start with a guided discussion about your project and
-your goals:
+In an existing project, `coga init` skips onboarding: draft your first ticket
+with `coga ticket "<what you want done>"`, as in the install snippet above.
+
+In a new, empty repository, start with a guided discussion about your project
+and your goals:
 
 ```sh
 coga build
 ```
 
-It turns that discussion into tickets, contexts and workflows. Everything it
-creates is plain files in your repo: edit them with any text editor, or use
-`coga ticket <name>` to work through a ticket with an agent. What it creates
-is far from perfect, and that's the point: it shows how agents understand your
-project and how they would approach it, and gives you something concrete to
-correct.
+It turns that discussion into a short vision and a batch of starter tickets.
+Everything it creates is plain files in your repo: edit them with any text
+editor, or use `coga ticket <name>` to revise a ticket with an agent. What it
+creates is far from perfect, and that's the point: it shows how agents
+understand your project and how they would approach it, and gives you
+something concrete to correct.
 
 ```sh
 coga status                 # list the tickets
