@@ -1,6 +1,6 @@
 ---
 title: Upstream Coga findings
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
