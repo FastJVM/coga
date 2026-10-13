@@ -64,43 +64,48 @@ rerun it on the merged `main` HEAD before tagging.
 
 ## Peer review (2026-10-13, Codex)
 
-- Recovered the interrupted session's single unpublished audit entry with the
-  normal `sync_coga_state` sweep, as explicitly authorized by the owner. The
-  machine permission fix is persistent: the managed `multiply-full` profile
-  now grants workspace/temp/Codex-state writes instead of root-wide writes;
-  the project selects that profile. All three protected-path denials remain.
-- Rebased `release-0.4.1` onto freshly fetched main, without conflicts, and
-  pushed with `git push --force-with-lease origin release-0.4.1`.
-  Head: `d303e5a9e1e1923c2f53c7238b6c635a50646d1e`.
-  Base: `837134972e4da47f137b1feeb05b493438afdd61`.
-  The complete diff remains one line in `pyproject.toml`, 0.4.0 -> 0.4.1;
-  the context-publication fix `4c9eff54b` is an ancestor.
-- **Required review has NOT completed.** `codex review --base main` returned
-  exit 1 before starting the review: `app-server socket directory must be a
-  user-owned directory with mode 0700`. An elevated retry, `--no-daemon`, and
-  a fresh private TMPDIR all failed at the same startup check. These are
-  returned invocation failures, not a review verdict; there are no tool
-  findings to claim resolved. The attending owner was asked to run the review
-  from a normal terminal, outside this session's nested sandbox. No transcript
-  was present at `/tmp/coga-release-0.4.1-review.txt` when this handoff was saved.
-- Current-head verification passed: full suite **3600 passed in 332.98s**
-  (Python 3.12.12), build and twine checks for both distributions, and a fresh
-  Python **3.11.15** wheel installation. Installed `coga --version` reports
-  **0.4.1**; scratch-repo init leaves a clean tree; validation returns no issues.
-  Exact commands and revisions are in `## PR` below. The first twine attempt
-  could not write the default uv tools directory; the successful retry used
-  temporary tool/cache directories. No UI behavior changes, so no interactive
-  terminal exercise applies to this one-line diff; the installed CLI smoke ran.
-- Checkout returned to clean `main` before this handoff. **No bump:** the review
-  gate remains unmet. To obtain the missing review from a normal terminal,
-  first `git checkout release-0.4.1`, then run
-  `codex review --base main 2>&1 | tee /tmp/coga-release-0.4.1-review.txt`, wait
-  for its verdict, and `git checkout main`. Record the actual reviewed head/base
-  and verdict before advancing; if revisions move, refresh checks as needed.
+- **Independent review returned: no must-fix findings.** Actual implementer:
+  Claude. Actual reviewer: independent Codex agent `/root/release_peer_review`.
+  Reviewed head `d303e5a9e1e1923c2f53c7238b6c635a50646d1e`, merge-base
+  `837134972e4da47f137b1feeb05b493438afdd61`. The reviewer inspected the complete
+  diff, confirmed the context-publication fix `4c9eff54b` is included and the
+  CLI reads its version from package metadata, and checked the release and
+  packaging contracts. No code fixes were needed.
+- **Explicit owner-approved tool substitution:** the owner answered "Yes, use
+  the reviewer agent" after `codex review --base main` failed before review
+  startup with `app-server socket directory must be a user-owned directory
+  with mode 0700`. Elevated, no-daemon, and private-TMPDIR retries failed too;
+  the legacy sandbox alternative also refused filesystem-restricted execution.
+  The parent sandbox masks the daemon socket directory as a read-only mode-000
+  mount. Those failed CLI invocations are not claimed as completed reviews;
+  the independent agent's returned verdict above satisfies the agreed substitute.
+  No manual review action remains assigned to the owner.
+- Rebased `release-0.4.1` onto freshly fetched main without conflicts, then
+  pushed with `git push --force-with-lease origin release-0.4.1`. The entire
+  diff remains one line in `pyproject.toml`, 0.4.0 -> 0.4.1. No source changes
+  occurred after testing or review. A final fetch showed only this ticket's
+  generated handoff as additional main drift; the reviewed merge-base is unchanged.
+- Current-head checks passed: **3600 passed in 332.98s** (Python 3.12.12), wheel
+  and sdist builds plus twine checks, and fresh Python **3.11.15** wheel install.
+  Installed `coga --version` reports **0.4.1**; scratch-repo init leaves a clean
+  tree; validation returns no issues. Exact commands and revisions are in
+  `## PR`. The successful twine retry used temporary uv tool/cache directories
+  after the default tool directory proved read-only. No UI behavior changes,
+  so interactive terminal-surface review is inapplicable; installed CLI smoke ran.
+- Recovered the interrupted session's audit entry using normal Coga state sync,
+  explicitly authorized by the owner. The machine permission correction is
+  persistent: managed `multiply-full` grants workspace/temp/Codex-state writes
+  instead of root-wide writes; project config selects that profile. All three
+  protected-path denials remain. This fixes repo writes, separately from the
+  nested reviewer runtime issue handled by the approved substitution.
+- Branch committed and pushed, checkout returned to clean `main`; ready for
+  the single bump to `open-pr` after saving this handoff. Recommend **skim**
+  because the review-tool substitution and later release gates need disclosure.
 - Release work remains: TestPyPI dry run, the pre-tag gate on the eventual
   merged/tagged main commit, owner-controlled GitHub release/PyPI publication,
-  and the post-PyPI clean-install + attended build/vision-publication evidence.
-  None of those publications occurred in this session.
+  and post-PyPI clean-install + attended build/vision-publication evidence.
+  No release was published here; the version-bump review does not complete those
+  obligations. Preserve them through the owner-controlled review gate.
 
 ## PR
 
@@ -110,26 +115,28 @@ author: claude
 author_evidence: Implement session ran on Claude Opus 5.5 (coga-launch 9113f2cb).
 head: d303e5a9e1e1923c2f53c7238b6c635a50646d1e
 base: 837134972e4da47f137b1feeb05b493438afdd61
-depth: deep
-rationale: One-line release version bump, but the required Codex review could not start; obtain its verdict
-  before opening the PR.
+depth: skim
+rationale: One-line version bump with returned independent review and passing full-suite, distribution,
+  and Python 3.11 installation checks. Read the approved reviewer-tool substitution and remaining release
+  obligations.
 implementation: Sets pyproject.toml version to 0.4.1 so the next release identifies the already-merged
   context publication fix distinctly from 0.4.0.
-deviations: Required peer-review tool is blocked by nested sandbox socket-directory permissions. TestPyPI
-  dry run has not been dispatched.
+deviations: Owner explicitly approved an independent Codex reviewer agent in place of the codex review
+  CLI after reproducible nested-sandbox startup failures. TestPyPI dry run has not been dispatched.
 limitations: Successful branch checks do not replace the pre-tag gate on the eventual merged main commit.
   Owner publication and post-PyPI attended install/build verification remain outstanding.
 files:
   pyproject.toml: Bump the package version from 0.4.0 to 0.4.1.
 review:
   reviewer: codex
-  kind: none
-  status: failed
+  kind: independent
+  status: passed
   head: d303e5a9e1e1923c2f53c7238b6c635a50646d1e
   base: 837134972e4da47f137b1feeb05b493438afdd61
-  detail: 'codex review --base main returned exit 1 during startup, before reviewing the diff: app-server
-    socket directory must be a user-owned directory with mode 0700. Elevated, no-daemon, and private-TMPDIR
-    retries also failed. No review verdict or completed independent review.'
+  detail: Independent Codex agent /root/release_peer_review returned with no must-fix findings. Actual
+    implementer was Claude. The owner explicitly authorized this substitute for the failing codex review
+    CLI; the reviewer inspected the entire named branch diff, ancestry, metadata version path, and release/packaging
+    contracts. Parent-run test receipts were considered, not rerun by the reviewer.
 checks:
 - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
   status: passed
