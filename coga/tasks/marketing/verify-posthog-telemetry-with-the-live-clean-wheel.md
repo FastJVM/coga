@@ -143,4 +143,42 @@ failure here and open a fix ticket. Do not patch telemetry in this task.
 
 ### Evidence (owner to paste)
 
-_Pending._
+**Session 1 — 2026-10-13, attended (owner-authorized; agent ran setup + first
+sweep).** Owner chose a two-sitting proof: first sweep now, query PostHog
+together in ~a week. Nothing sends in between — Coga installs no scheduler.
+Durable paths (not `/tmp`, which a reboot could wipe): `~/coga-telemetry-proof/`.
+
+- Commit: `3d12348082661969cab25fa1364cb268512b9e92` (`main` == `origin/main`
+  after fetch). Source exported with `git archive` into
+  `~/coga-telemetry-proof/src` (clean tree, no working-copy edits).
+- Wheel: `coga-0.4.0-py3-none-any.whl` (only wheel in
+  `~/coga-telemetry-proof/wheel`); sha256
+  `f593b158bd8f703f9daad14b13804ddece7ad24576948b361c436a554c275415`.
+  Built with the repo `.venv` python (`pip wheel --no-deps
+  --no-build-isolation`) because system python lacks `hatchling`; the builder
+  venv is not the install target.
+- Install: fresh venv `~/coga-telemetry-proof/venv`, non-editable;
+  `importlib.metadata.version("coga")` = `0.4.0`, module under that venv's
+  `site-packages`. Env check: no `CI`/`PYTEST*`/`GITHUB_ACTIONS` set.
+- Scratch repo: `~/coga-telemetry-proof/repo` (`git init -b main`,
+  `coga init . --user nicktoper`, no origin remote). `coga.toml` set to
+  `channels = ["slack"]`, `webhook = "env:SLACK_WEBHOOK_URL"`,
+  `important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"` (env refs only;
+  `coga validate`: All good). `[telemetry] enabled = true` (init default).
+- First sweep: `coga recurring launch phone-home` from `repo/coga`; UTC window
+  **2026-10-13T19:05:18Z – 19:05:37Z** (log.md shows local `12:05`).
+- `repo_id`: **`358bebae-feed-4234-8ed8-ca86cffc8f0a`**. period_state:
+  `{"schema":1,"run":1,"repo_id":"358bebae-feed-4234-8ed8-ca86cffc8f0a","offset":443,"digest":"d2b3e96cc2920c3b649079685c54ed4eb96cb8373cf0ca68fbb751fa003c3e29"}`
+- Period report (`.coga/recurring-runs/20261013T120519.md`):
+  `Run 1: capture accepted; receipt accepted.`
+  `Counts: {"movement_count": 0, "tickets_active": 1, "tickets_blocked": 0, "tickets_canceled": 0, "tickets_done": 0, "tickets_draft": 0, "tickets_in_progress": 0, "tickets_paused": 0}.`
+  HTTP acceptance is not ingestion proof — Obs 1 still needs the query.
+- Slack receipt (prepared keyless envelope): **owner to paste** from the
+  channel.
+
+**Still to do (session 2, together):** paste receipt → `project-get` (stop
+unless 606347) → Obs 1 query + property-key check → known forward advance on a
+scratch work ticket + audit lines → `venv/bin/python recurring/phone-home/ticket.py`
+→ Obs 2 query → `enabled = false` in scratch `coga.local.toml` + UTC time →
+rerun → Obs 3 `count()` query + automated no-worker/no-HTTP test → update
+`marketing/build-the-launch-plan` readiness line.
