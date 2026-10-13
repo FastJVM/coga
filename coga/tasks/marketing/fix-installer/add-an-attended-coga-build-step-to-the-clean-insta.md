@@ -1,6 +1,6 @@
 ---
 title: Add an attended coga build step to the clean-install harness
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
