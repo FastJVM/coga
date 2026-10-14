@@ -1,6 +1,6 @@
 ---
 title: Fail loud on Python older than 3.11
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: fb42269c-04cf-43d5-85c5-7eba22739d76
 ---
 
 ## Description
@@ -36,3 +35,15 @@ On Python 3.10 (Ubuntu 22.04 and other older distros), `pip install coga` silent
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Yank check (2026-10-14, implement step)
+
+- `curl -s https://pypi.org/pypi/coga/json`: `coga 0.0.1` wheel and sdist both report `yanked: false` (`requires_python >=3.9`); 0.2.0 and 0.4.0 are `>=3.11`, latest 0.4.0.
+- Per the agreed plan, the agent stops and asks while 0.0.1 is unyanked: the doc change claims pip fails loudly on Python < 3.11, which is only true after the yank. No branch created yet; start check passed (clean `main` at `origin/main` 7ddde4be3).
+- To resume: owner yanks 0.0.1 at https://pypi.org/manage/project/coga/release/0.0.1/ (Options → Yank), then `coga unblock`; the next session re-checks the JSON flag and proceeds with docs + twin + README (and optional 3.10 harness case).
+
+---
+
+## Blockers
+
+- [ ] [2026-10-14 11:46] [agent:claude] id=20261014T114630 coga 0.0.1 is still unyanked on PyPI (JSON yanked=false for wheel and sdist, checked 2026-10-14). Please yank it at https://pypi.org/manage/project/coga/release/0.0.1/ so pip on Python <3.11 fails with a Requires-Python error, then unblock; the docs change depends on that behaviour.
