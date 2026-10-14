@@ -14,20 +14,20 @@ positioning (2026-10-13).
 
 | Material | Home |
 | --- | --- |
-| Approved positioning and claim limits | [Positioning](../positioning/SKILL.md) |
+| Public-claim limits and sources | [Positioning](../positioning/SKILL.md) |
 | Strategic argument | [Strategy](../strategy/SKILL.md) |
 | Publication and measurement policy | [Plan](../plan/SKILL.md#distribution-and-measurement) |
-| Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
-| One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
+| Launch readiness, Show HN and response triage | [Plan](../plan/SKILL.md#publication-sequence); current work: [launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
+| One argument with concrete proof | [Plan](../plan/SKILL.md#publication-sequence); current work: [idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
 | Concepts and positioning (source of truth) | [README](../../../../README.md) |
-| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
+| Installation through one useful task | [`coga/install`](../../coga/install/SKILL.md), [`coga/first-task`](../../coga/first-task/SKILL.md); current work: [installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Vision](../../product/vision/SKILL.md): purpose, audience, kinds of work
+- [Vision](../../product/vision/SKILL.md): purpose, audience, kind of work
   and limits.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and

@@ -22,8 +22,8 @@ is `coga status` and the ticket bodies; stage posture is
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
-  contexts root. Ticket:
-  [`redo-documentation-dir-and-merge-it-with-context-b`](../../../../coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
+  contexts root. History:
+  [`docs/archive/context-migration.md`](../../../archive/context-migration.md).
   Authoring rule: [`coga/knowledge`](../knowledge/SKILL.md).
 - **V1 marketing is one idea piece, then Show HN (2026-09-21).** See
   [`marketing/plan`](../../marketing/plan/SKILL.md) and

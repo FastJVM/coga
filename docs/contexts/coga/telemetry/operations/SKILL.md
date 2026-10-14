@@ -64,9 +64,9 @@ proof below is owner-run from an ordinary shell with no test/CI environment,
 outside all Coga source trees. Do not unset test gates inside automation to make
 it deliver. Do not use an editable installation or target `example/`.
 
-Record the evidence in the ticket or PR that carries the proof; for the
-shipped weekly snapshot that is the blackboard of
-`marketing/verify-posthog-telemetry-with-the-live-clean-wheel`.
+Record the evidence in the ticket or PR that carries the proof; this runbook
+owns the procedure. For the shipped weekly snapshot, the current work is the
+ticket `marketing/verify-posthog-telemetry-with-the-live-clean-wheel`.
 
 Build the wheel from `main` at a recorded commit, then install it in a fresh
 external venv:

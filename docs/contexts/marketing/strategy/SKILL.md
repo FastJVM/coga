@@ -6,21 +6,21 @@ description: Coga's strategic market argument — where value and durability liv
 # Coga market strategy
 
 Distilled from the market thesis first written 2026-05-30. This is argument,
-not approved public voice ([positioning](../positioning/SKILL.md)), not the
-campaign ([plan](../plan/SKILL.md)), and not product behavior. Dated competitor
+not positioning ([README.md](../../../../README.md); claim limits in
+[positioning](../positioning/SKILL.md)), not the campaign
+([plan](../plan/SKILL.md)), and not product behavior. Dated competitor
 facts live in the [agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md)
 (older: [`docs/archive/market-landscape.md`](../../../archive/market-landscape.md));
-re-verify any of them before a public claim. [README.md](../../../../README.md)
-is the source of truth for concepts and positioning.
+re-verify any of them before a public claim.
 
 ## Thesis
 
-In Coga's layer — agent orchestration, knowledge management, ticketing — there
-is no defensible technical moat, only taste. Taste adopted by enough people
-hardens into a metaphor and a brand, and that is the only durable thing in the
-category (Jira endured through the metaphor it imposed; Linear displaced it on
-taste with no technical advantage). A metaphor only you use is a convention,
-not a moat.
+In Coga's layer — a CLI that runs coding agents from Markdown files in Git, a
+small overlay on what agents already provide — there is no defensible
+technical moat, only taste. Taste adopted by enough people hardens into a
+metaphor and a brand, and that is the only durable thing in the category (Jira
+endured through the metaphor it imposed; Linear displaced it on taste with no
+technical advantage). A metaphor only you use is a convention, not a moat.
 
 Why no moat:
 

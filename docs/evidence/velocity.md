@@ -1,8 +1,8 @@
-# Coga velocity report
+# Coga velocity report (through 2026-07-05)
 
 Dated operating facts about Coga working on Coga, cited by
-[`product/vision`](../contexts/product/vision/SKILL.md) and
-[`coga/usage`](../contexts/coga/usage/SKILL.md). It deliberately reports operating facts, not a
+[`coga/usage`](../contexts/coga/usage/SKILL.md) and
+[`marketing/map`](../contexts/marketing/map/SKILL.md). It deliberately reports operating facts, not a
 productivity multiplier. There is no control group, task sizes vary, and Coga
 working on Coga is not an external benchmark.
 

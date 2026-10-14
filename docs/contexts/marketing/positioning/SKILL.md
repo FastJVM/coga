@@ -1,6 +1,6 @@
 ---
 name: marketing/positioning
-description: Approved V1 instrument positioning, concrete behavior, proof and public-claim limits.
+description: Public-claim limits and sources for Coga's V1 instrument positioning; the positioning itself is README.md.
 ---
 
 # Coga positioning
@@ -12,24 +12,16 @@ make agent autonomy the objective.
 [README.md](../../../../README.md) is the source of truth for concepts and
 positioning; this page records claim limits and sources.
 
-## Opening and immediate behavior
+## Opening
 
-> Most tools are building infrastructure for agents. Coga is an instrument
-> for the human using them.
-
-The opening is the owner's rhetorical contrast, not a verified claim about
-every competitor. Qualify its universal wording where factual precision
-requires it. Coga orchestrates work itself; the distinction is where direction,
-judgment and the ability to change the system live.
-
-> You set direction. Agents carry the work forward. When something needs
-> your judgment, they leave it for you and move on to other work. Your
-> corrections become part of how the system works next time.
-
-The queue can move on to other eligible tasks; the task awaiting judgment
-stays at its human gate or blocker. Corrections become durable through edits
-to the files future runs use, with the existing human review boundaries.
-This is not a claim of automatic learning or permission to bypass a gate.
+The opening is the first lines of [README.md](../../../../README.md). Its
+contrast ("Most tools are building infrastructure for agents") is the owner's
+rhetorical contrast, not a verified claim about every competitor; qualify its
+universal wording where factual precision requires it. Corrections become
+durable through edits to the files future runs use, with the existing human
+review boundaries; this is not a claim of automatic learning or permission to
+bypass a gate. The earlier approved opening copy is in
+[positioning before the README reset](../../../archive/positioning-before-readme-2026-10-13.md#marketingpositioning--opening-and-immediate-behavior-superseded-2026-10-14).
 
 ## Proof
 

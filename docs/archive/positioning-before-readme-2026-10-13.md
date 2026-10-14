@@ -1,6 +1,6 @@
 # Positioning before the README reset
 
-> **History, archived 2026-10-13.** Sections removed from `marketing/positioning`, `marketing/strategy`, `product/vision`, `marketing/distribution` and `coga/current-direction` when the owner made [README.md](../../README.md) the source of truth for concepts and positioning. They are not instructions; current positioning is the README and [`marketing/positioning`](../contexts/marketing/positioning/SKILL.md).
+> **History, archived 2026-10-13.** Sections removed (2026-10-13, with later removals dated in their headings) from `marketing/positioning`, `marketing/strategy`, `product/vision`, `marketing/distribution` and `coga/current-direction` when the owner made [README.md](../../README.md) the source of truth for concepts and positioning. They are not instructions; current positioning is the README and [`marketing/positioning`](../contexts/marketing/positioning/SKILL.md).
 
 ## marketing/positioning — Proof
 
@@ -230,3 +230,44 @@ channel and again before submission. Sources:
   `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is
   recovery for understood work and a normal move for unknown work. Contract:
   [`coga/lifecycle`](../contexts/coga/lifecycle/SKILL.md).
+
+## marketing/positioning — Opening and immediate behavior (superseded 2026-10-14)
+
+Replaced by a pointer to the README's opening.
+
+> Most tools are building infrastructure for agents. Coga is an instrument
+> for the human using them.
+
+The opening is the owner's rhetorical contrast, not a verified claim about
+every competitor. Qualify its universal wording where factual precision
+requires it. Coga orchestrates work itself; the distinction is where direction,
+judgment and the ability to change the system live.
+
+> You set direction. Agents carry the work forward. When something needs
+> your judgment, they leave it for you and move on to other work. Your
+> corrections become part of how the system works next time.
+
+The queue can move on to other eligible tasks; the task awaiting judgment
+stays at its human gate or blocker. Corrections become durable through edits
+to the files future runs use, with the existing human review boundaries.
+This is not a claim of automatic learning or permission to bypass a gate.
+
+## product/vision — Three kinds of work (later version, removed 2026-10-14)
+
+Reduced to the README's fit sentence ("built for work you learn by doing").
+
+Tasks sort by how much of the task is known before it starts:
+
+- **Routine**: repeatable upkeep such as fixing merge conflicts or bumping
+  dependencies.
+- **Understood**: work you can fully specify before doing it, like a support
+  request or a planned feature.
+- **Unknown**: work you discover by doing. There is a known cone of what you
+  have already done, and beyond it everything is blurred.
+
+Coga is built for unknown work, learned by doing: the correction loop in
+`## Purpose` exists to serve it. When a premise turns out wrong, the usual
+move is to cancel the ticket and start a new one
+([`coga/lifecycle`](../contexts/coga/lifecycle/SKILL.md) owns the rule). For work
+you can fully specify up front, or that has settled into a routine, tools
+built for that are a better fit.

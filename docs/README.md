@@ -90,7 +90,9 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
 - [Weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out) and its
   [operator runbook](contexts/coga/telemetry/operations/SKILL.md) for release
   verification, read-back and deletion.
-- [Testing](contexts/coga/testing/SKILL.md),
+- [Testing](contexts/coga/testing/SKILL.md) and its clean-install harnesses
+  ([Linux](contexts/coga/testing/clean-install/SKILL.md),
+  [macOS on AWS](contexts/coga/testing/clean-install/macos-aws/SKILL.md)),
   [packaging](contexts/coga/packaging/SKILL.md),
   [releasing](contexts/coga/releasing/SKILL.md).
 - Code-task conventions: [overview](contexts/dev/code/SKILL.md),
@@ -105,7 +107,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
 ## Evidence and positioning
 
 - [Product vision](contexts/product/vision/SKILL.md) — purpose, audience,
-  kinds of work, limits.
+  kind of work, limits.
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),
