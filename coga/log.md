@@ -8271,3 +8271,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 10:57 v1 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
 2026-10-14 10:58 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-14 11:02 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:nicktoper] created (status=draft)
+2026-10-14 11:03 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [agent:claude] slack: Zach: you own this one. Coga needs a real clean-install pass on your Mac and Windows boxes, and native Windows can't run coga --help yet. To start, run coga launch marketing/fix-installer/test-and-fix-install-on-macos-and-windows on each machine and fix things with the agent as you go.
