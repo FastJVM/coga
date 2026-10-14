@@ -35,7 +35,7 @@ and next actions. It remains at its existing human-owned execution step.
 
 Read the approved campaign in `docs/contexts/marketing/plan/SKILL.md`, the
 message and proof limits in `docs/contexts/marketing/positioning/SKILL.md`, and
-channel/measurement policy in `docs/contexts/marketing/distribution/SKILL.md`.
+channel/measurement policy in `docs/contexts/marketing/plan/SKILL.md`.
 These are cited, not attached: read their V1 decisions before preparing the
 launch checklist. They are also the editing targets for accepted learnings.
 

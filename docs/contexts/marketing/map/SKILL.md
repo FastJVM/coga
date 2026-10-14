@@ -16,7 +16,7 @@ positioning (2026-10-13).
 | --- | --- |
 | Approved positioning and claim limits | [Positioning](../positioning/SKILL.md) |
 | Strategic argument | [Strategy](../strategy/SKILL.md) |
-| Publication and measurement policy | [Distribution](../distribution/SKILL.md) |
+| Publication and measurement policy | [Plan](../plan/SKILL.md#distribution-and-measurement) |
 | Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
 | One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
 | Concepts and positioning (source of truth) | [README](../../../../README.md) |
