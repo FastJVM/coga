@@ -363,6 +363,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1009
 branch: default-agent-key
 
 ## Implementation plan (implement step, 2026-10-14)
