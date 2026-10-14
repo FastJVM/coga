@@ -8339,3 +8339,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 14:20 v1 [stop-creating-linked-worktrees-for-coga-retire] [human:nicktoper] canceled (draft → canceled): Superseded: owner decision 2026-10-14 makes Retro's isolated worktree a sanctioned exception, so Retro runs while the operator keeps working in the main tree (dev/checkouts, PR #1010).
 2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] launched via coga megalaunch
