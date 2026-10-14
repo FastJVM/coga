@@ -104,9 +104,12 @@ step 1 (gather-and-spec). Answer the agent's question and let it work the
 step; under the launch supervisor it may chain into step 2. The record shows
 whether the step was reached and bumped: the ticket's `status:` and `step:`
 before and after the launch (a `done` ticket has no `step:`; `*_ticket=absent`
-if the file is gone), the scratch repo's `[coga-build]` audit-log lines without
-the `[system]` usage records (JSON messages), which quote the conversation, and
-the exit code.
+if the file is gone), the `[coga-build]` audit-log lines the launch appended
+to the scratch repo, and the exit code. The `[system]` usage records (JSON
+messages) quote the conversation and are left out; agent and human lines are
+the audit trail and are kept, so a bump message, block reason, or unblock
+answer may name what the operator asked to build. Read `build.txt` before
+quoting it in a PR.
 
 `ticket` runs `coga ticket` with the supplied title and records the command and
 exit code. Complete the interview with the agent; its exit code alone does not

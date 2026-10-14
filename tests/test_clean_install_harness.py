@@ -39,7 +39,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     bin_dir.mkdir()
     _checksum_stub(bin_dir)
     # Keep the host's installed coga out of PATH; only installation exposes it.
-    for name in ("bash", "git", "grep", "mkdir", "sed", "tee"):
+    for name in ("bash", "git", "grep", "mkdir", "sed", "tail", "tee", "wc"):
         (bin_dir / name).symlink_to(shutil.which(name))
     # The pinned interpreter reports a version without running a real Python.
     _executable(bin_dir / "python3.11", """
@@ -209,7 +209,6 @@ def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, s
         "after_status=in_progress",
         "after_step=2 (generate-batch)",
         "log:",
-        "2026-10-13 10:00 v1 [coga-build] [human:first-user] created",
         "2026-10-13 10:05 v1 [coga-build] [agent:claude] bumped",
         "2026-10-13 10:06 v1 [coga-build] [system] started via coga launch",
         "build_exit_code=0",
@@ -225,6 +224,7 @@ def test_clean_install_build_records_failure_and_removed_ticket(
     install_env["COGA_TEST_FAIL"] = "build"
     assert _run_attended(install_env, "build") == 17
     record = (Path(install_env["HOME"]) / "clean-install/evidence/build.txt").read_text()
+    assert record.startswith("+ coga build\nbefore_ticket=absent\n")
     assert "before_ticket=absent\nafter_ticket=absent\n" in record
     assert record.endswith("build_exit_code=17\n")
 

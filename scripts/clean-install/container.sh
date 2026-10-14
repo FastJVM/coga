@@ -17,7 +17,7 @@ attended() {
     fi
     cd "$repo"
     printf '+ coga %s' "$name" | tee -a "$record"
-    printf ' %q' "$@" | tee -a "$record"
+    (($# == 0)) || printf ' %q' "$@" | tee -a "$record"
     printf '\n' | tee -a "$record"
     [[ $name != build ]] || build_state before
     coga "$name" "$@" || status=$?
@@ -26,8 +26,9 @@ attended() {
     exit "$status"
 }
 
-# Where the seeded onboarding ticket stands, and its audit-log lines; an
-# exit code alone does not show whether coga build bumped a step.
+# Where the seeded onboarding ticket stands, and the audit-log lines this
+# launch appended; an exit code alone does not show whether coga build bumped
+# a step.
 build_state() {
     local ticket=coga/tasks/coga-build.md
     if [[ -f $ticket ]]; then
@@ -37,11 +38,15 @@ build_state() {
     else
         printf '%s_ticket=absent\n' "$1"
     fi | tee -a "$evidence/build.txt"
-    if [[ $1 == after && -f coga/log.md ]]; then
+    if [[ $1 == before ]]; then
+        log_seen=0
+        [[ ! -f coga/log.md ]] || log_seen=$(wc -l < coga/log.md)
+    elif [[ -f coga/log.md ]]; then
         printf 'log:\n' | tee -a "$evidence/build.txt"
         # Match the ref field, not a mention. System usage records (a JSON
         # message) embed request/outcome excerpts of the conversation.
-        grep -E '^[0-9-]+ [0-9:]+ (v1 )?\[coga-build\] ' coga/log.md \
+        tail -n "+$((log_seen + 1))" coga/log.md \
+            | grep -E '^[0-9-]+ [0-9:]+ (v1 )?\[coga-build\] ' \
             | grep -vE '^[^[]*\[coga-build\] \[system\] \{' \
             | tee -a "$evidence/build.txt" || true
     fi
