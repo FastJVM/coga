@@ -34,7 +34,7 @@ where the launch supervisor stops handing off to the other agent after
   is `owner`. No other-agent step by design. Several live tickets use it,
   including `run-the-landed-branch-sweep-daily-from-autoclose`. That is one
   concrete way a ticket ends up with no peer review.
-- `docs/create-google-doc`, `brief-for-human`, `draft-for-human`: not
+- `brief-for-human`, `draft-for-human`: not
   code-producing. Confirm and leave them alone unless the owner says otherwise.
 
 Repo-local `coga/workflows/` has no `code/` or `docs/` directories today, so a

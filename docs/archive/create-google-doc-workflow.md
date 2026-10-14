@@ -1,4 +1,10 @@
----
+# Google Doc creation workflow
+
+> **History, archived 2026-10-13.** Formerly the bundled workflow `docs/create-google-doc`. Its Drive-connector assumptions dated from 2026-06 and no longer matched the available Drive, Docs and Sheets connectors; nothing in this repo used it. A repo whose ticket names it now fails with the ordinary missing-workflow error. Not instructions.
+
+## Frontmatter
+
+```yaml
 name: docs/create-google-doc
 description: Author a document as HTML, upload it to Drive (MCP), have the human convert it to a native Google Doc, then loop human review and revision against the real Doc until the human signs off.
 steps:
@@ -8,9 +14,11 @@ steps:
     assignee: agent
   - name: revise
     assignee: agent
----
+```
 
-## Why HTML, and why the Doc is the artifact
+## Body
+
+### Why HTML, and why the Doc is the artifact
 
 The document is built in **HTML for every case**, tables or not — one code
 path. HTML expresses headings, lists, and tables cleanly, and importing it
@@ -23,7 +31,7 @@ Doc — not the HTML — is the artifact** everything downstream operates on.
 Conversion can introduce minor rendering drift, so the human always
 reviews the real converted Doc, never the pre-import HTML.
 
-## preflight
+### preflight
 
 A connection gate. Before any content work, **verify the Google connection
 (via MCP) is live** and confirm the server exposes `Google_Drive
@@ -58,7 +66,7 @@ reason. Do **not** bump forward into the content steps against a dead
 connection. If the check passes, note it on the blackboard and
 `coga bump <slug>`.
 
-## draft
+### draft
 
 Produce the first Google Doc.
 
@@ -85,7 +93,7 @@ blackboard and finish the step with
 or the converted Doc comes out wrong, capture the details on the
 blackboard and `coga block`.
 
-## revise
+### revise
 
 Review-and-revise loop, run with the human present. This step owns the
 iteration — coga bumps forward only, so the loop lives here rather than

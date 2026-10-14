@@ -84,8 +84,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-self-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
-    "create-google-doc.md",
-    "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "with-review.md",
     # …and the code/* skills those workflows reference.
     "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",

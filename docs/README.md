@@ -130,7 +130,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [superseded decisions](archive/superseded-decisions.md),
   [launch programs](archive/launch-programs/README.md),
   [Relay → Coga migration](archive/relay-migration.md),
-  [browser automation](archive/browser-automation.md) (removed 2026-10-13).
+  [browser automation](archive/browser-automation.md) and the
+  [Google Doc workflow](archive/create-google-doc-workflow.md) (removed 2026-10-13).
 - [Context migration record](context-migration.md) — old paths and refs,
   where each went, and the cutover.
 - Team-specific: [Google Drive MCP](contexts/docs/gdrive-mcp/SKILL.md)
