@@ -106,14 +106,15 @@ implementation, not a fixed rewrite to another command.
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
 | `ticket` | current `coga ticket` head + `coga/ticket/finalize`; home provisional | Not as a fixed alias | Authoring needs draft-on-fly / post-exit validate / git-sync / TTY. That rules out bare alias sugar but does not yet prove why an edge coordinator could not preserve the contract. |
 | `recurring-scan` | `coga recurring` command head + fixed `coga run recurring-scan` recipe | No | The bootstrap target is gone. The public command forwards `--interactive` / `--force` / `--agent` as ordinary argv; `--all <path>` dispatches the same recipe in each discovered repo. |
-| `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
 | `open-pr` | `open-pr` default alias → `run open-pr` | Yes — already aliased | Registered recipe (`coga.open_pr`); the target task ref is ordinary argv. The command ticket it used to be is retired. |
 | `resolve-conflicts` | `resolve-conflicts` default alias → `launch bootstrap/resolve-conflicts` | Yes — already aliased | Stateless agent command ticket; its optional PR selector reaches the `## Launch arguments` block. |
 | `address-pr-comments` | `address-pr-comments` default alias → `launch bootstrap/address-pr-comments` | Yes — already aliased | Stateless agent command ticket, same shape as `resolve-conflicts`; sweeps review comments on open PRs, optional PR selector. |
 
 The packaged bootstrap-ticket inventory is `orient`, `ticket`,
-`browser-automation`, `resolve-conflicts`, and `address-pr-comments`.
-Browser automation is the one intentionally unaliased launch target.
+`resolve-conflicts`, and `address-pr-comments`. The former
+`bootstrap/browser-automation` launcher was removed with the browser battery
+(text kept in [the browser-automation archive](../archive/browser-automation.md)),
+so no launch target remains intentionally unaliased.
 
 ### Recurring launches (`recurring launch <name>`)
 
@@ -136,12 +137,12 @@ task. There is no mode field.
 
 ## The concrete finding (verified, not assumed)
 
-**One unaliased bootstrap launch target remains intentionally.**
+**No unaliased bootstrap launch target remains.**
 `DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`,
 `autoclose`, `pick`, `open-pr`, `resolve-conflicts`, and
-`address-pr-comments`.
-`bootstrap/browser-automation` remains available only through its explicit
-launch spelling; it is orchestration rather than a stable top-level verb.
+`address-pr-comments`. The one former exception,
+`bootstrap/browser-automation`, was removed with the browser battery and no
+longer resolves.
 
 ## Gotchas
 
@@ -252,6 +253,6 @@ the audit's path to it.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
-  `bootstrap/{address-pr-comments,browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
+  `bootstrap/{address-pr-comments,orient,resolve-conflicts,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{address-pr-comments,autoclose-merged,blocker-reminders,branch-sweep,dream,resolve-conflicts,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.
