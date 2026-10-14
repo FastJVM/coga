@@ -8252,3 +8252,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 21:20 v1 [in-init-add-a-telemetry-true-message] [human:nicktoper] created (status=draft)
 2026-10-13 21:20 v1 [review-all-doc] [human:nicktoper] created (status=draft)
 2026-10-13 21:21 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-13 21:35 v1 [make-coga-run-on-native-windows] [human:nicktoper] created (status=draft)
