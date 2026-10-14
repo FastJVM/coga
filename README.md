@@ -4,80 +4,44 @@
 > for the human using them.
 
 Coga is a CLI that runs your coding agent from Markdown files in your Git
-repo. Claude Code and Codex work out of the box; any other CLI agent takes a
-few lines of config. Every launch rebuilds the agent's prompt from those
+repo. Every launch rebuilds the agent's prompt from those
 files. When an agent gets something wrong, you fix the file once, and every
-later run starts from the fix. It doesn't replace Claude Code or Codex; it
-handles the part they can't do for you.
+later run starts from the fix.
+
+Think of it as a workbench, not an assembly line: it's what you build with
+while you're still working out what to build. 
+
+Coga is a small overlay on
+top of what agents already provide, so it gets better when they do.
 
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
 
 ## The problem
 
-On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent
-only skims it. You repeat the same instructions in chat, and sometimes open a
-fresh session just to make the agent forget a bad idea. Worse, the same fact
-ends up written in several places that slowly disagree, including memories the
-tool keeps outside your repo. Nobody knows which version is true, so the agent
-acts on whichever copy it read, or falls back on its defaults.
+On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent only skims it. There are various techniques to mitigate this problem: auto-memories, scoped `AGENTS.md` files, MCP servers. Coga's solution is to make all this explicit while keeping intact the search capabilities of the agent. Each launch injects what you decided the task needs. In our use, the skimming problem never came up.
 
-Tool memories store what was said; they can't tell which of it mattered or
-what changed along the way. On simple tasks that's fine. On work you have to
-argue through, with wrong turns and reversals, what survives is what got
-written down.
+As a consequence, the source of truth is the text, not the code, so treat the text as a first-class citizen: above the code.
 
-Vibe coding explores fast but forgets what it found. Spec-driven tools keep
-what they know, but they're built around writing the spec before the code.
-A lot of real work is neither: you find out what you want by building it,
-and you backtrack when a premise breaks. Code is now cheap enough to throw
-away; what's expensive is the right idea, a clear spec, and proof that it
-works.
 
 ## Key ideas
 
-Each of these follows from one premise: you find out what you want while
-building it. So what has to last is what you learned, kept in files you can
-read, change and redo from, not the code and not the chat.
+Each of these follows from one premise: you learn by doing; agents don't. An
+LLM has no state between sessions; memory features add it back as hidden
+state, written by the agent and kept outside your repo, that every later
+launch depends on. That's a leaky abstraction. Coga drops it: each launch is
+built only from files you own and can read. It's like writing SQL instead of
+going through an ORM: more of the work is in your hands, and you see exactly
+what goes in. Sometimes that's worth it.
 
 - **The unit is the task, not the session.** Each launch builds a fresh
   prompt from what that task needs: the ticket, the contexts it attaches, the
-  current workflow step. Contexts are chosen by what the task is, not by where
-  the code is; they go into the prompt as truth, and the agent can still look
-  up the rest. Nothing carries over from an earlier chat, so a bad idea
-  doesn't outlive the session that had it.
-- **Knowledge moves out of code and chat, into files.** Code says what the
-  system does; contexts and tickets say what it should do, why, and what
-  didn't work, with one owning file per fact. Every loop feeds them: each
-  step's findings go to the next, a retired ticket's lessons go to the
-  contexts, Dream, a weekly recurring job, checks contexts against the code,
-  and your corrections apply on the next launch. When a premise turns out
-  wrong, cancel the ticket with the reason, fix the context that owns the
-  fact, and start a new one.
-- **Each kind of work gets its own process.** A workflow lists the steps and
-  says which ones need you. A routine fix goes straight to a pull request you
-  review. Risky work first stops for you to approve a written design that a
-  second agent has already reviewed. Think plan mode, except the plan is a file
-  that's still there when implementation starts. Workflows are files you edit
-  like any other, and every change is a commit in your Git history; what Dream
-  proposes arrives as a pull request, so none of it applies until you merge
-  it. You decide how closely to read each pull request;
-  the agent that prepares one recommends a review depth in its title (merge,
-  skim or deep), and Coga marks it deep when its recorded evidence is
-  incomplete.
-- **Hackable, and mostly automated.** Everything is a plain file you can
-  change, and contexts and skills use the same `SKILL.md` convention as agent
-  skills, but you rarely start from a blank page. After a short chat,
-  `coga build` drafts a vision and starter tickets, and `coga ticket` drafts a
-  ticket and picks its workflow and contexts with you; you edit the result,
-  rewrite it, or chat again. `coga launch <slug> --prompt-report` lists the
-  prompt layers a launch would compose, with their sizes, without launching an
-  agent.
+  current workflow step.
 
-**The trade-off:** you write things down instead of saying them in chat, and
-you decide where you're needed; agents do most of the drafting. In exchange,
-you stop repeating yourself, and what you and your agents learn stays in your
-repo.
+- **Knowledge moves out of code and chat, into files.** Coga treats the text as a first-class citizen. It creates PRs to update the documentation and takes great care to be right. The code is the agent's job. Coga's job is to make sure the text reflects your work and your learning.
+
+- **Hackable and automated.** You want a feature in Coga? Start `coga chat` and build it from there. It's built on known agent conventions, so it can build itself and you can understand what's being built.
+
 
 ## Example
 
@@ -100,49 +64,18 @@ context that every later ticket starts from. Browse the whole example in
 
 Coga is for small technical teams who already use CLI agents, are comfortable
 with Git and the shell, and want to understand and correct the material their
-agents work from. It fits when writing down how work should be done costs less
-than supervising the same work indefinitely.
+agents work from.
 
-It pays off most on work you have to argue through; for routine tasks, the
-agents' own memory is usually enough.
+It is built for work you learn by doing, where you are still working out
+what to build while you build it. For trivial tasks, the agent's own defaults
+are usually enough. For work you can fully specify up front, or that has
+settled into a routine, tools built for that are a better fit.
 
-It is local, self-hosted and self-supported: no managed service, SLA, hosted
-dashboard or zero-setup path. Workflows are linear sequences of steps; dynamic
-orchestration belongs in an agent framework. Coga does not replace judgment: it
-makes the points where you decide and correct explicit.
-
-If you already separate what you know from what you are still discovering,
-Coga gives that separation a place in your repo. If you plan unknown work as
-if it were known, with fixed specs and throughput goals, it will feel like
-overhead. Coga assumes you know what you are merging: it makes changes
-visible; it doesn't stop you.
-
-Contexts go into the prompt as truth, so a stale one misleads. The retro on a
-retired ticket updates the contexts that ticket touched; changes made outside
-Coga, or that affect contexts a ticket didn't load, wait for Dream's next
-scan. One owner per fact is an authoring rule, not something a test enforces.
-
-The same task and workflow core also runs FastJVM's administrative routines
-and patent work, which have nothing to do with pull requests
-([usage comparison](docs/evidence/usage-comparison.md#core-flexibility-across-administrative-and-patent-work)).
-
-This is a field report. Coga runs the work that builds Coga at FastJVM, a
-two-person company, and we build it around a thesis — that a two-person
-technical team can produce the output of a ten-person team when agents do the
-mechanizable work and humans specify, evaluate and correct — which is
-[a bet, not a measured result](docs/contexts/product/vision/SKILL.md). One
-dated observation: in the week ending 2026-07-05 the repository recorded
-31 distinct agent-operated workstreams, counted per week rather than as
-simultaneous processes ([method and limits](docs/evidence/velocity.md)).
-Human time per shipped task has not been measured.
-
-Managing prompts and instructions as files has close precedents. For dated
-comparisons with other tools, see the [evidence pages](docs/evidence/) and the
-[market landscape](docs/archive/market-landscape.md) record.
+It runs locally, in your repository's `coga/` directory: no hosted service.
 
 ## Install
 
-Coga runs on Linux or macOS and needs Python 3.11+, Git, and an authenticated
+Coga runs on Linux, Windows or macOS and needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
 offers to install and log in whichever agent CLI you pick.
@@ -152,8 +85,6 @@ uv tool install coga            # or: python -m pip install coga
 coga --version                  # check the install
 cd <your git repository>
 coga init --user <your-name>
-coga ticket "<what you want done>"
-coga launch <ticket>
 ```
 
 [Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
@@ -198,6 +129,10 @@ surface it.
 - [Principles](docs/contexts/coga/principles/SKILL.md): the design
   constraints.
 - [Contributing](CONTRIBUTING.md).
+- Limits: contexts go into the prompt as truth, so a stale one misleads, and
+  Dream catches drift once a week, not instantly. Managing prompts and
+  instructions as files has close precedents; see the
+  [evidence pages](docs/evidence/) for dated comparisons.
 
 Coga is free software licensed under
 [Apache-2.0](LICENSE).
