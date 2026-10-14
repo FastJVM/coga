@@ -160,9 +160,9 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/testing/clean-install/SKILL.md: Packaged twin of the clean-install topic.
 review:
   reviewer: Claude Code /code-review (claude-opus-5-5), default effort
-  kind: self-review (same agent family as the implementer; not independent)
+  kind: self
   status: returned
-  detail: Run 1 covered 08b32137b only. Run 2 covered the full branch vs main at head df5110fd3. Must-fix findings were applied in df5110fd3 and 0c80a081a; the last fix commit was not re-reviewed. Final head 3c3a239 differs from 0c80a081a only by a clean rebase.
+  detail: Same agent family as the implementer, so not independent. Run 1 covered 08b32137b only. Run 2 covered the full branch vs main at head df5110fd3. Must-fix findings were applied in df5110fd3 and 0c80a081a; the last fix commit was not re-reviewed. Final head 3c3a239 differs from 0c80a081a only by a clean rebase.
 checks:
   - command: .venv/bin/python -m pytest -q
     status: passed
@@ -195,3 +195,13 @@ Recorded: 2026-10-14T19:12:43+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: review kind must be independent, self, or none.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+Recorded: 2026-10-14T19:12:51+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: reviewer must be a compact identity.
