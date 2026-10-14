@@ -1,9 +1,6 @@
----
-name: docs/gdrive-mcp
-description: Dated (2026-06) capability observations for the Google Drive MCP server used by Docs and Sheets tasks — what creation converts, why revisions are re-uploads, and read-side gotchas; re-verify before relying on them.
----
-
 # Google Drive MCP capability contract (observed 2026-06)
+
+> **History, archived 2026-10-13.** Formerly the local-only context `docs/gdrive-mcp`; no ticket attached it and its 2026-06 observations predate the current Drive, Docs and Sheets connectors. The operative Google Docs steps live in the bundled `docs/create-google-doc` workflow. Not instructions.
 
 **Scope and date.** These are observations of the particular Google Drive MCP
 server connected in June 2026 (conductor-report, 2026-06; coga-crm,

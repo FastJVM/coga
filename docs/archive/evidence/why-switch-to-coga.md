@@ -1,5 +1,7 @@
 # Why would an existing tool user adopt Coga?
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 Assessment dated 2026-09-11. This complements [build versus adopt](build-vs-adopt.md)
 by evaluating the opposite direction: an existing user's reason to adopt Coga.
 Product behavior is grounded in the cited primary sources. Judgments about
@@ -31,7 +33,7 @@ the CE comparison below; the other product combinations have not been run.
 
 The positioning principle and comparative ratings drawn from this research
 for the writing work are recorded only on this page; the owner decision of
-2026-09-21 in [positioning](../contexts/marketing/positioning/SKILL.md)
+2026-09-21 in [positioning](../../contexts/marketing/positioning/SKILL.md)
 supersedes them. Ratings distinguish fit for the discussed workflow from an
 existing user's reason to adopt Coga; they do not rank overall product quality
 or claim measured superiority.
@@ -89,7 +91,7 @@ it. No measured setup, review-time or outcome advantage is claimed, and
 human review is not assumed to be an extra cost unique to Coga. The
 September 13 recommendation was to keep the then-endorsed pitch and
 explanation while developing this concrete reason to try; the 2026-09-21
-owner decision in [positioning](../contexts/marketing/positioning/SKILL.md)
+owner decision in [positioning](../../contexts/marketing/positioning/SKILL.md)
 supersedes that pitch.
 
 ## Worked comparison: asynchronous delegation — 2026-09-13
@@ -141,13 +143,13 @@ summarize some supplied interview notes. A possible queue result is:
 | Documentation check | Complete the requested report | Read the result when useful |
 | Interview summary | Discover that the named attachment is missing and record a blocker | Supply the attachment |
 
-Megalaunch's [engine](../../src/coga/megalaunch.py) services eligible tasks and
+Megalaunch's [engine](../../../src/coga/megalaunch.py) services eligible tasks and
 chains agent steps until that job reaches a handoff, blocker or terminal
 state. When the agent records `coga block`, the session ends, the blocked
 outcome returns to the sweep, and the sweep attempts the next eligible job
 within its configured limits. The question remains with the parked task.
 The
-[queue instructions](../../src/coga/resources/prompt-megalaunch.md) tell the
+[queue instructions](../../../src/coga/resources/prompt-megalaunch.md) tell the
 agent to record unavailable input as a blocker rather than leave the queue
 waiting for a chat answer. This instruction depends on agent compliance;
 the runtime advances when the lifecycle transition is recorded.
@@ -155,9 +157,9 @@ the runtime advances when the lifecycle transition is recorded.
 After the human records the angle and advances the task to its next agent
 stage, the next announcement launch can use an edited brief, corrected
 release facts and the saved choice together. The
-[composer](../../src/coga/compose.py) reads selected context, current-step
+[composer](../../../src/coga/compose.py) reads selected context, current-step
 instructions and the task's working notes from disk. The earlier
-[isolated checks](../archive/launch-programs/phase-0-audit/source-inspection-results.json)
+[isolated checks](../launch-programs/phase-0-audit/source-inspection-results.json)
 verified those composition and handoff mechanisms. Edits affect the next
 composition; already running sessions do not receive them automatically.
 An existing ticket's step sequence is frozen, so changing a workflow
@@ -485,8 +487,8 @@ subsequent tickets; existing tickets retain their saved step sequence.
 Shared skills and inline step instructions are read live, so edits to those
 can affect existing tickets too. Dream can raise a design ticket for a missing
 workflow. It does not silently install a new method.
-[Workflow state](../contexts/coga/architecture/SKILL.md),
-[Dream protocol](../../coga/recurring/dream/ticket.md).
+[Workflow state](../../contexts/coga/architecture/SKILL.md),
+[Dream protocol](../../../coga/recurring/dream/ticket.md).
 
 ## Competitor one-line messages — 2026-09-12
 
@@ -528,7 +530,7 @@ collecting this copy.
 
 **Truth and differentiation recheck — 2026-09-12.** The owner asked whether
 the leading creative direction is true and actually differentiating. Source
-inspection of [Coga's composer](../../src/coga/compose.py) confirms that supported
+inspection of [Coga's composer](../../../src/coga/compose.py) confirms that supported
 task sections, selected context and current-step instructions become the
 launch input. Maintained work files are a real interface for directing Coga;
 chat can help author them, and host instructions remain outside this input.
@@ -596,8 +598,8 @@ from allowing an editable task description, and adds a tool that is legible
 enough to use and extend. That is a more specific criterion than the presence
 of a prompt editor. Coga assembles the supported task sections, selected
 contexts, step instructions and working state into an inspectable launch
-prompt. The assembly is explicit Python in [compose.py](../../src/coga/compose.py),
-with the layers documented in [architecture](../contexts/coga/architecture/SKILL.md).
+prompt. The assembly is explicit Python in [compose.py](../../../src/coga/compose.py),
+with the layers documented in [architecture](../../contexts/coga/architecture/SKILL.md).
 
 The control has a boundary: the base prompt and session-conduct layers are
 package resources, not project-local overrides. Changing those layers today
@@ -612,7 +614,7 @@ scripts can perform deterministic work, with `ticket.py` reserved for a
 ticket's headless phase. Deeper changes live in the Python runtime. These are
 structural reasons to call the tool hackable. They do not establish that a
 new user finds it easier to understand than alternatives.
-[Source layout and extension boundary](../contexts/coga/codebase/SKILL.md).
+[Source layout and extension boundary](../../contexts/coga/codebase/SKILL.md).
 
 The competitors are not uniformly closed around a user-editable message.
 [CE](https://github.com/EveryInc/compound-engineering-plugin/blob/main/CONCEPTS.md)

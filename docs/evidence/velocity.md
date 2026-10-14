@@ -1,7 +1,8 @@
 # Coga velocity report
 
-This is the evidence note behind the operating observations cited in the
-[README](../../README.md). It deliberately reports operating facts, not a
+Dated operating facts about Coga working on Coga, cited by
+[`product/vision`](../contexts/product/vision/SKILL.md) and
+[`coga/usage`](../contexts/coga/usage/SKILL.md). It deliberately reports operating facts, not a
 productivity multiplier. There is no control group, task sizes vary, and Coga
 working on Coga is not an external benchmark.
 
@@ -99,6 +100,6 @@ receipt. **Status (2026-09-22): shelved.** No run is scheduled, no ticket owns
 it, and no result exists; the tracked apparatus and the history of the shelved
 proof-post option are indexed in
 [the launch-programs archive](../archive/launch-programs/README.md). Any future
-run needs its own owner decision. Until then, the two-person/output-of-ten
-statement stays where it belongs: in [the vision](../contexts/product/vision/SKILL.md),
-labeled as the bet.
+run needs its own owner decision. The two-person/output-of-ten statement was
+the vision's bet, now archived in
+[positioning before the README reset](../archive/positioning-before-readme-2026-10-13.md).

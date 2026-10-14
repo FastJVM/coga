@@ -39,6 +39,12 @@
   `post-slack-notification-on-mode-script-failures`,
   `slack-post-ignores-http-response-so-bad-webhook-fa`) are done and pruned.
 
+- **Daily digest and outcome spool removed (#786).** Outcomes were batched
+  into a spool drained by a daily digest; at Coga's volume the queue only
+  added a consumer, a drain step and drain/merge bugs. Every post is now live.
+  (Moved from `coga/notifications` and `coga/internals/spool-merge`,
+  2026-10-13.)
+
 ## Commands and primitives
 
 - **`coga step` renamed `coga bump`** (spec audit, PR #43) because "step"
@@ -69,6 +75,15 @@
 - **Single-subagent Dream scans replaced by bounded shards** after the corpus
   outgrew one subagent and an early stop was indistinguishable from a clean
   repo.
+
+- **`## Usage` blackboard heading dropped.** Usage records once lived on the
+  blackboard and bloated every later prompt on the ticket; they moved to
+  `coga/log.md` and the old blackboard records were dropped rather than
+  migrated. (Moved from `coga/usage`, 2026-10-13.)
+- **Pytest CI gate declined (2026-09-24).** PR #894's Python 3.11/3.12 GitHub
+  Actions matrix was closed unmerged; the port survives as commit
+  `58630a20f`. Test verification belongs to the implement / self-QA / review
+  workflow steps. (Moved from `coga/testing`, 2026-10-13.)
 
 ## Skills and diagnostics
 

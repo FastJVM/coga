@@ -132,7 +132,7 @@ verb migration unless it is required to prove the launch split.
       pass.
 - [ ] `coga/launch`, `coga/script-tickets`, `coga/internals/agent-spawn`,
       `coga/codebase`, `coga/extension-model`, and
-      `docs/design/cli-extension-audit.md` describe the new source boundary. Any
+      `docs/archive/cli-extension-audit.md` describe the new source boundary. Any
       changed shipped context is updated in both the live and packaged copies.
 
 ## Proposed Shape

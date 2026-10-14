@@ -1,5 +1,7 @@
 # Coga, Compound Engineering and Kortix for open-ended research
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **2026-09-16. Recommendation: keep Coga for the existing research programme;
 consider CE methods as additions. Kortix becomes attractive when a shared,
 remotely operated platform is itself a requirement.** Neither alternative

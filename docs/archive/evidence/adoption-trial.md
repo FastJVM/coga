@@ -1,5 +1,7 @@
 # Trying a Coga replacement — 2026-09-11
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **Observed so far:** unmodified Compound Engineering skills, a short queue
 instruction file and ordinary Git reproduced the small prepared-work queue,
 its code/non-code handoffs, a held human decision, and a fresh restart from an
@@ -13,7 +15,7 @@ The owner requested an actual attempt after the source comparisons. This
 trial tests the useful operating model, not whether another tool copies
 Coga's commands. It uses invented Cedar Workshop data in `/tmp`, with no
 actual Coga migration, remote publishing or changes to the current ticket's
-lifecycle. The [structured receipt](../archive/launch-programs/phase-0-audit/adoption-trial-results.json)
+lifecycle. The [structured receipt](../launch-programs/phase-0-audit/adoption-trial-results.json)
 preserves the fixture, prompts, added instructions, checks and run reports.
 
 ## Candidate and integration
@@ -112,4 +114,4 @@ was demonstrated. The full review-and-reuse result will determine how far
 this particular replacement attempt gets; even completion would not by
 itself establish a preferable product. The resulting pitch candidate is
 superseded by the owner decision of 2026-09-21 in the
-[positioning context](../contexts/marketing/positioning/SKILL.md).
+[positioning context](../../contexts/marketing/positioning/SKILL.md).

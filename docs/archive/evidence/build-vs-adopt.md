@@ -1,5 +1,7 @@
 # Coga: build or adopt — 2026-09-11
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **Current usage assessment — 2026-09-12:** [the ten-tool follow-up](usage-comparison.md)
 compares documented operator sequences and source protocols, including Pi
 and the broader VS Code agent environment. Coga is moderately differentiated
@@ -26,7 +28,7 @@ behavior and comparative benefit should decide a migration.
 
 The marketing question is different: what distinctive way of working should
 Coga stand for? The September 2026 pitch candidate, since superseded by the
-2026-09-21 [positioning](../contexts/marketing/positioning/SKILL.md),
+2026-09-21 [positioning](../../contexts/marketing/positioning/SKILL.md),
 centered on editable work definitions that agents execute and reviewed
 lessons can improve. Recreating parts of that model constrains technical
 exclusivity; it does not establish that the product design lacks value.
@@ -108,10 +110,10 @@ contexts, and groups warranted edits into bounded, coherent PRs. Dream
 finds stale knowledge and contract drift and produces proposals and a short
 run summary. Human approval can therefore operate on prepared, reviewable
 changes, with direct file editing available when useful.
-[Principles](../contexts/coga/principles/SKILL.md),
-[ticket authoring](../../src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md),
-[Retro](../../src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md),
-[Dream](../../coga/recurring/dream/ticket.md).
+[Principles](../../contexts/coga/principles/SKILL.md),
+[ticket authoring](../../../src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md),
+[Retro](../../../src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md),
+[Dream](../../../coga/recurring/dream/ticket.md).
 
 **Observed examples, not an authorship percentage.** The full September batch
 contains 13 merged PRs (#763–775), verified through GitHub; the earlier local
@@ -136,7 +138,7 @@ intent or complete routing. The W36 extraction backlog records a past case
 where 18 findings could not pass Retro's eligibility rules and needed a
 durable follow-up; that historical count is not a claim that all 18 remain
 unresolved today.
-[Recorded routing failure](../../coga/tasks/dream-2026-w36-extract-backlog-18-findings-phase-4.md).
+[Recorded routing failure](../../../coga/tasks/dream-2026-w36-extract-backlog-18-findings-phase-4.md).
 
 **Revised judgment:** the [complete batch audit](upkeep-audit.md) demonstrates
 automated document production but only partial closure of the knowledge loop.
@@ -228,9 +230,9 @@ that the runtime can operate independently of the authoring conversation.
   does not automatically reclaim every interrupted session. Step and session
   limits also constrain a run.
 
-[Engine](../../src/coga/megalaunch.py),
-[queue conduct](../../src/coga/resources/prompt-megalaunch.md),
-[workflow and launch contract](../contexts/coga/megalaunch/SKILL.md).
+[Engine](../../../src/coga/megalaunch.py),
+[queue conduct](../../../src/coga/resources/prompt-megalaunch.md),
+[workflow and launch contract](../../contexts/coga/megalaunch/SKILL.md).
 
 Compound Engineering also orchestrates work. Its `lfg` runs a hands-off
 software shipping pipeline and explicitly supports invocation by schedulers,
@@ -353,7 +355,7 @@ These use temporary repositories and mocked agent launches. They verify
 queue decisions, not live agent performance, terminal behavior or production
 Git publication. The installed Coga environment lacked pytest; the tests
 ran with the existing system Python and the checkout's `src` on `sys.path`.
-[Existing tests](../../tests/test_megalaunch.py).
+[Existing tests](../../../tests/test_megalaunch.py).
 
 An isolated September 11 probe called `compose_prompt_report` directly
 against temporary Markdown files and an in-memory configuration. It used
@@ -373,8 +375,8 @@ The last result weakens the current implementation of direct prompt control.
 Use the supported task sections today; this evaluation does not implement a
 fix. The probe verifies input delivery, not whether an agent follows the
 input, whether Dream extracts good lessons or whether later work improves.
-[Composition source](../../src/coga/compose.py),
-[composition contract](../contexts/coga/architecture/SKILL.md).
+[Composition source](../../../src/coga/compose.py),
+[composition contract](../../contexts/coga/architecture/SKILL.md).
 
 Dream's human merge requirement is an explicit operating contract backed by
 isolated proposal work. It is not a claim that no agent can ever write an
@@ -382,9 +384,9 @@ unapproved local document. Fair comparisons should inspect candidate work
 isolation and approved-source selection on both sides. Written state and
 context selection also take upkeep; more documents do not guarantee more
 useful context.
-[Coga principles](../contexts/coga/principles/SKILL.md),
-[Retro](../../src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md),
-[Dream](../../coga/recurring/dream/ticket.md).
+[Coga principles](../../contexts/coga/principles/SKILL.md),
+[Retro](../../../src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md),
+[Dream](../../../coga/recurring/dream/ticket.md).
 
 ## The combinations worth considering
 

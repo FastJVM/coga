@@ -39,7 +39,7 @@ Directory index: `v2/cleanup-core-commands/README`.
 `show` and `status` have already had render substance collapsed toward
 `coga.views` / `coga/show` according to the pre-split `coga/extension-model`
 command table (its verb inventory now lives in
-`docs/design/cli-extension-audit.md`); verify the
+`docs/archive/cli-extension-audit.md`); verify the
 current state before changing them. This ticket should classify the remaining
 read/report commands under the new smaller-core rule and migrate only the cases
 with a clear shape.

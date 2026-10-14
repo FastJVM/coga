@@ -1,5 +1,7 @@
 # Reproducing the research workflow with CE or Kortix
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **September 16, 2026.** CE plus a small coordinator instruction file reproduced
 the tested research handoff: discover a failed premise, preserve a human
 decision, continue independent work, and resume from revised files in a fresh
@@ -244,9 +246,9 @@ to the owner. The launcher chains agent steps as fresh processes and stops
 at a human handoff; the same ticket carries the definition and working record.
 The PR is an artifact of this particular workflow, not the universal unit of
 all Coga work.
-[Shipped workflow](../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md),
-[launcher](../../src/coga/commands/launch.py),
-[workflow contract](../contexts/coga/architecture/SKILL.md).
+[Shipped workflow](../../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md),
+[launcher](../../../src/coga/commands/launch.py),
+[workflow contract](../../contexts/coga/architecture/SKILL.md).
 
 CE's plan defines the requested work while its editable skill procedures
 direct execution. Kortix's project configures agents and its sessions and
@@ -301,7 +303,7 @@ platform. Coga's stated root is improving human judgment while keeping the
 system directly understandable and changeable. That is a difference in
 declared priorities, not proof that Kortix prevents human-led work.
 [Kortix's principles](https://kortix.com/about),
-[Coga's canonical principles](../contexts/coga/principles/SKILL.md).
+[Coga's canonical principles](../../contexts/coga/principles/SKILL.md).
 
 Coga's principles also constrain implementation: a small local substrate,
 directly editable operational instructions, agent-operable mechanisms,

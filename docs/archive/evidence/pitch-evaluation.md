@@ -1,5 +1,7 @@
 # Evaluating the current Coga pitch
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **September 13, 2026.** Evaluation of the pair the owner liked, with a draft
 explanatory paragraph for the Bookface/newsletter writing work:
 
@@ -11,7 +13,7 @@ explanatory paragraph for the Bookface/newsletter writing work:
 choosing the level and manner of delegated responsibility, and owning a
 system one can understand and change. This page is the record of that
 statement; the owner decision of 2026-09-21 in
-[positioning](../contexts/marketing/positioning/SKILL.md) supersedes it.
+[positioning](../../contexts/marketing/positioning/SKILL.md) supersedes it.
 Legible instructions, knowledge, state and tooling make control over
 delegation practical. Preserve this connection when developing the endorsed
 explanation below; the competitive findings remain evidence about its
@@ -19,7 +21,7 @@ distinctiveness, not a replacement for the product promise.
 
 **License update, 2026-10-02:** the owner changed Coga to Apache 2.0.
 The AGPL comparisons below describe the September evaluation; current
-licensing is defined by the repository [LICENSE](../../LICENSE).
+licensing is defined by the repository [LICENSE](../../../LICENSE).
 
 ## Research-work comparison — 2026-09-16
 
@@ -60,11 +62,11 @@ The concise expression of the intended benefit is **“Coga works on your
 schedule.”** This records the clarification, not approval of a final campaign.
 
 Implementation receipts: the selected-draft path groups authoring before
-execution in [`_run_selection`](../../src/coga/megalaunch.py); agent steps chain
+execution in [`_run_selection`](../../../src/coga/megalaunch.py); agent steps chain
 to a human handoff, terminal outcome or blocker; the unattended sweep advances
 other eligible tickets. Dependency handling includes
-[planned service order](../../src/coga/service_order.py) and a
-[dependency drain](../contexts/coga/megalaunch/SKILL.md)
+[planned service order](../../../src/coga/service_order.py) and a
+[dependency drain](../../contexts/coga/megalaunch/SKILL.md)
 that automatically resumes work after a named prerequisite finishes.
 The earlier assessment should not reduce this to merely launching jobs in
 order. These mechanisms support the Coga promise; they do not establish that
@@ -132,10 +134,10 @@ and eight restart/proposal checks are checks of one small fixture, not an
 attention or reliability benchmark.
 
 **What Coga demonstrably supplies:** megalaunch's
-[conduct instructions](../../src/coga/resources/prompt-megalaunch.md) tell the
+[conduct instructions](../../../src/coga/resources/prompt-megalaunch.md) tell the
 agent that a present terminal does not mean a human is available. On a new
 unresolvable need, it records the ask with `coga block`; the
-[runtime](../../src/coga/megalaunch.py) ends that session and advances eligible
+[runtime](../../../src/coga/megalaunch.py) ends that session and advances eligible
 prepared work. Simply asking a question or printing “blocked” is insufficient.
 The local supervisor must remain running, and useful progress still needs
 an eligible job. Coga makes that handoff a maintained part of the working
@@ -153,7 +155,7 @@ on unexpected blockers or human interruptions has not been demonstrated.
 **The owner's correction improves the explanation:** Coga concentrates
 human attention on defining, deciding and evaluating work, while agents
 and scripts handle the repeatable doing and coordination. This is supported
-by its [principles](../contexts/coga/principles/SKILL.md), and gives the
+by its [principles](../../contexts/coga/principles/SKILL.md), and gives the
 marketing ladder a clearer purpose than maximizing autonomy. The broad
 benefit has substantial precedents; the product case is the concrete method
 Coga supplies around the operator's existing agents.
@@ -194,8 +196,8 @@ License 2.0, which restricts offering substantial functionality as a hosted
 service and bypassing license-key restrictions, among other terms. Elastic
 identifies ELv2 as non-OSI-approved/source-available in its
 [licensing FAQ](https://www.elastic.co/pricing/faq/licensing). Coga declares
-AGPL-3.0-or-later in [its package metadata](../../pyproject.toml) and carries
-the [AGPL license](../../LICENSE). Do not equate their licensing on the basis
+AGPL-3.0-or-later in [its package metadata](../../../pyproject.toml) and carries
+the [AGPL license](../../../LICENSE). Do not equate their licensing on the basis
 of Kortix's README saying “open-source,” or conflate free access, readable
 source and open-source licensing. Neither license distinction establishes
 which working interface someone will prefer.
@@ -219,9 +221,9 @@ blockers. The inspected Zed panel procedure does not establish that same
 queue policy; it does establish that continuous human presence is optional.
 
 **“Coga lets you think, then move on”: supported as a working rhythm.** The
-[megalaunch conduct](../../src/coga/resources/prompt-megalaunch.md) instructs
+[megalaunch conduct](../../../src/coga/resources/prompt-megalaunch.md) instructs
 the agent to continue authorized work or record a real blocker, without
-assuming someone is waiting to answer. The [runtime](../../src/coga/megalaunch.py)
+assuming someone is waiting to answer. The [runtime](../../../src/coga/megalaunch.py)
 then progresses from task state. This is distinct from merely displaying
 a waiting notification. It still requires a running local process, future
 human decisions when needed, and an agent that reports the blocker through
@@ -268,13 +270,13 @@ transition to other prepared work.
 | Job B is ready but has not started | A completion/waiting notification does not itself select and launch B. Another thread, agent instruction or coordinator must start that work. | The sweep starts the next eligible prepared job, without the human having to answer A first. |
 | Return to A | Continue the conversation; Zed also supports saved history and starting a fresh thread from a summary. | Launch again from the current task, workflow step, selected context and blackboard. The work can continue in a new agent process. |
 
-The Coga code path is explicit: [block](../../src/coga/commands/block.py)
+The Coga code path is explicit: [block](../../../src/coga/commands/block.py)
 records the ask and blocked status, then emits the task-scoped done marker;
-the [supervisor](../../src/coga/repl_supervisor.py) terminates the process group;
-[`_launch_until_stop` and `_run_sweep`](../../src/coga/megalaunch.py) return the
+the [supervisor](../../../src/coga/repl_supervisor.py) terminates the process group;
+[`_launch_until_stop` and `_run_sweep`](../../../src/coga/megalaunch.py) return the
 blocked result and advance the queue. A later launch
-[composes](../../src/coga/compose.py) the task's current instructions and
-recorded work. [Agent launch](../../src/coga/commands/launch.py) builds a new
+[composes](../../../src/coga/compose.py) the task's current instructions and
+recorded work. [Agent launch](../../../src/coga/commands/launch.py) builds a new
 process invocation and, where configured, a new session identifier; Coga's
 resume mechanism does not depend on keeping the old conversation running.
 
@@ -347,7 +349,7 @@ limits.
 ## Marketing ladder assessment — 2026-09-14
 
 The owner asks for the whole message hierarchy (recorded only here; the
-2026-09-21 [positioning](../contexts/marketing/positioning/SKILL.md) supersedes it)
+2026-09-21 [positioning](../../contexts/marketing/positioning/SKILL.md) supersedes it)
 to be evaluated against the discussed tools. **Keep this ladder. It is the
 strongest marketing structure developed in this discussion:** a concrete
 reason to try, an explanation of how the operator shapes the work, and a
@@ -541,12 +543,12 @@ Read-only inspection on September 13; no upstream product was installed or
 executed. Downloaded files were checked against Git blob hashes at the
 following commits.
 
-- **Coga:** [composition](../../src/coga/compose.py),
-  [launch](../../src/coga/commands/launch.py), and the
-  [single-step body workflow](../../coga/workflows/direct/body.md) support the
+- **Coga:** [composition](../../../src/coga/compose.py),
+  [launch](../../../src/coga/commands/launch.py), and the
+  [single-step body workflow](../../../coga/workflows/direct/body.md) support the
   brief-to-existing-agent path. A workflow is required at activation but can
   be one step; a task need not become a reusable multi-stage process. The
-  [body skill](../../src/coga/resources/templates/coga/skills/direct/body/SKILL.md)
+  [body skill](../../../src/coga/resources/templates/coga/skills/direct/body/SKILL.md)
   has a product-code boundary: tracked product delivery uses the appropriate
   code workflow. This review does not propose changing those contracts.
 - **Superset, `00efaec882ebd2d2220f29fdef8837a593cae6a0`:**
@@ -618,7 +620,7 @@ on more responsibility while you keep directing the work through files you
 control.
 
 This page is the only record of this draft; the owner decision of
-2026-09-21 in [positioning](../contexts/marketing/positioning/SKILL.md) supersedes it.
+2026-09-21 in [positioning](../../contexts/marketing/positioning/SKILL.md) supersedes it.
 The owner also positively received this revised explanation on September 13.
 As of September 13 it was the leading working explanation for the writing
 ticket; that status ended with the 2026-09-21 decision. It
@@ -627,11 +629,11 @@ provider prompt or a universal enforcement boundary.
 
 ## What makes the explanation credible
 
-The [composition code](../../src/coga/compose.py) combines the brief, selected
+The [composition code](../../../src/coga/compose.py) combines the brief, selected
 context, current-step instructions and blackboard for an existing agent
-CLI. [Workflow handling](../../src/coga/workflow.py) and the
-[launcher](../../src/coga/commands/launch.py) carry task state and human handoffs.
-The [Dream procedure](../../src/coga/resources/templates/coga/recurring/dream/ticket.md)
+CLI. [Workflow handling](../../../src/coga/workflow.py) and the
+[launcher](../../../src/coga/commands/launch.py) carry task state and human handoffs.
+The [Dream procedure](../../../src/coga/resources/templates/coga/recurring/dream/ticket.md)
 proposes maintenance through the same task machinery, with human acceptance
 of changes to shared guidance. The thirteen earlier isolated Coga checks
 exercise composition and routing; they do not certify that every agent

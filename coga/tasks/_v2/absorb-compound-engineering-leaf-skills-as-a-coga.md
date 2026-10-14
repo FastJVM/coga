@@ -55,10 +55,10 @@ surface named below against `main` before pulling forward (see
 
 ### Evidence
 
-- Source-pinned CE comparisons already in the repo: `docs/evidence/adoption-trial.md`,
-  `docs/evidence/build-vs-adopt.md` (lists "Coga runs CE" under combinations worth
-  considering), `docs/evidence/continuity-comparison.md`,
-  `docs/evidence/research-work-comparison.md`, `docs/evidence/research-replacement-trial.md`.
+- Source-pinned CE comparisons already in the repo: `docs/archive/evidence/adoption-trial.md`,
+  `docs/archive/evidence/build-vs-adopt.md` (lists "Coga runs CE" under combinations worth
+  considering), `docs/archive/evidence/continuity-comparison.md`,
+  `docs/archive/evidence/research-work-comparison.md`, `docs/archive/evidence/research-replacement-trial.md`.
 - CE upstream inspected 2026-09-16: README (host list, 35-skill inventory,
   MIT), `skills/lfg/SKILL.md` (single request; stops on an unproducible work
   source, a non-complete child, or an invalidated decision; asks the human only
