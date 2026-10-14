@@ -589,6 +589,76 @@ def test_autofix_agent_non_string_rejected(repo: Path) -> None:
         load_config(repo)
 
 
+_CODEX_TABLE = '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+
+
+def _prepend_default_agent(path: Path, value: str) -> None:
+    """Put a top-level `default_agent = <value>` line (a TOML literal) first,
+    ahead of every table."""
+    path.write_text(f"default_agent = {value}\n" + path.read_text())
+
+
+def test_default_agent_unset_keeps_first_declared(repo: Path) -> None:
+    """Unset in both files: the first-declared table stays the default."""
+    (repo / "coga.toml").write_text((repo / "coga.toml").read_text() + _CODEX_TABLE)
+    cfg = load_config(repo)
+    assert cfg.default_agent_name is None
+    assert cfg.default_agent().name == "claude"
+
+
+def test_default_agent_shared_key_wins_over_declaration_order(repo: Path) -> None:
+    (repo / "coga.toml").write_text((repo / "coga.toml").read_text() + _CODEX_TABLE)
+    _prepend_default_agent(repo / "coga.toml", '"codex"')
+    cfg = load_config(repo)
+    assert cfg.default_agent_name == "codex"
+    assert cfg.default_agent().name == "codex"
+    assert list(cfg.agents) == ["claude", "codex"]
+
+
+def test_default_agent_local_overrides_shared(repo: Path) -> None:
+    (repo / "coga.toml").write_text((repo / "coga.toml").read_text() + _CODEX_TABLE)
+    _prepend_default_agent(repo / "coga.toml", '"claude"')
+    _prepend_default_agent(repo / "coga.local.toml", '"codex"')
+    assert load_config(repo).default_agent().name == "codex"
+
+
+def test_default_agent_local_may_name_a_local_only_type(repo: Path) -> None:
+    """Checked against the *effective* agents table, like `[autofix] agent`."""
+    _prepend_default_agent(repo / "coga.local.toml", '"codex"')
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text() + _CODEX_TABLE
+    )
+    assert load_config(repo).default_agent().name == "codex"
+
+
+@pytest.mark.parametrize("source", ["coga.toml", "coga.local.toml"])
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("1", r"must be a non-empty agent type name \(got 1\)"),
+        ('"  "', r"must be a non-empty agent type name \(got '  '\)"),
+        ('"codx"', r"names 'codx', which is not defined in \[agents\]"),
+    ],
+)
+def test_default_agent_bad_value_rejected(
+    repo: Path, source: str, value: str, message: str
+) -> None:
+    """Each bad value fails at load, naming the file and the known types."""
+    _prepend_default_agent(repo / source, value)
+    with pytest.raises(ConfigError, match=rf"default_agent in {source} {message}") as exc:
+        load_config(repo)
+    assert "Known: ['claude']" in str(exc.value)
+
+
+def test_default_agent_broken_shared_value_fails_even_when_local_wins(
+    repo: Path,
+) -> None:
+    _prepend_default_agent(repo / "coga.toml", '"codx"')
+    _prepend_default_agent(repo / "coga.local.toml", '"claude"')
+    with pytest.raises(ConfigError, match=r"default_agent in coga.toml names 'codx'"):
+        load_config(repo)
+
+
 def test_autofix_unknown_key_rejected(repo: Path) -> None:
     """One key, one branch: `[autofix]` is not a general agent-routing table."""
     (repo / "coga.toml").write_text(

@@ -11,7 +11,11 @@ from typer.testing import CliRunner
 
 from coga import git as git_module
 from coga.blackboard import append_blocker
-from coga.bump import OperatorResolutionError, resolve_other_agent
+from coga.bump import (
+    OperatorResolutionError,
+    resolve_main_agent,
+    resolve_other_agent,
+)
 from coga.commands import delete as delete_cmd
 from conftest import derived_operator
 from coga.cli import app
@@ -1983,6 +1987,21 @@ def test_declared_peer_beats_two_agent_inference(repo: Path) -> None:
     )
     cfg = load_config(repo)
     assert resolve_other_agent(cfg, "claude") == "codex"
+
+
+def test_absent_agent_resolves_the_default_agent_key_and_its_peer(
+    repo: Path,
+) -> None:
+    """A prospective default follows `default_agent`, and the peer flips with it."""
+    toml = repo / "coga.toml"
+    toml.write_text(
+        'default_agent = "codex"\n'
+        + toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\npeer = "claude"\n'
+    )
+    cfg = load_config(repo)
+    assert resolve_main_agent(cfg, None, allow_prospective_default=True) == "codex"
+    assert resolve_other_agent(cfg, None, allow_prospective_default=True) == "claude"
 
 
 def _strand_on_a_third_agent(repo: Path) -> tuple[str, Path]:

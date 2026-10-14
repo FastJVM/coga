@@ -93,7 +93,9 @@ draft is exactly those four (`status: draft`, `workflow: null`) plus a body.
 
 - `owner` is the human of record. `agent` is the optional **main-agent
   choice**, not the current operator: absent on drafts, filled once with
-  `Config.default_agent()` (first agent in merged config) at first activation,
+  `Config.default_agent()` at first activation (the `default_agent` key, local
+  over shared, else the first agent in merged config; see
+  [coga/agents](../agents/SKILL.md#the-default-agent)),
   then kept through pause, unblock, bump, peer review and terminal moves. A
   present value must name a configured agent; null, blank, unknown or
   since-removed agents fail loud. An activated task missing it is a validation
@@ -184,7 +186,8 @@ sections.
   `--pick-agent` answer; (2) `COGA_AUTHORING_AGENT`; (3) `[authoring] agent`
   in `coga.local.toml`; (4) the target ticket's `agent:`; (5)
   `bootstrap/ticket`'s `agent:`, the install-level default; (6)
-  `Config.default_agent()`. An unknown name from any term fails loud naming
+  `Config.default_agent()` (the `default_agent` key, else the first-declared
+  type). An unknown name from any term fails loud naming
   that term, never falling through. The choice selects the interviewer only
   and is never written to the ticket. `coga ticket --pick-agent` (TTY only;
   refused with `--agent`) lists the configured types in declaration order,

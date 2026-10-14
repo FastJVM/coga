@@ -168,10 +168,15 @@ class Config:
     # Agent type name for the recurring sweep's autofix analyst, from the
     # shared `[autofix]` table. None means unset and `default_agent()` applies.
     # It sits between the explicit `coga recurring --agent` override and that
-    # first-declared fallback so the meta-loop can use a different vendor than
-    # the work without reordering `[agents.*]` or rerouting the whole sweep.
+    # repo default so the meta-loop can use a different vendor than the work
+    # without changing the default or rerouting the whole sweep.
     # Read by `coga.recurring_autofix._analyze_agent`; nothing else does.
     autofix_agent: str | None = None
+    # Agent type named by top-level `default_agent`, machine-local
+    # `coga.local.toml` winning over shared `coga.toml`. None means unset in
+    # both and `default_agent()` falls back to the first-declared `[agents.*]`
+    # table. Named `_name` because `default_agent` is the resolver method.
+    default_agent_name: str | None = None
 
     # --- convenience accessors -------------------------------------------------
 
@@ -209,11 +214,15 @@ class Config:
         return self.agents[name]
 
     def default_agent(self) -> AgentType | None:
-        """First-declared agent type, used as the create-time default.
+        """The repo's default agent type, used as the create-time default.
 
-        TOML preserves declaration order, so the team puts their default
-        first in `coga.toml`.
+        Precedence: `default_agent` in `coga.local.toml`, then `default_agent`
+        in `coga.toml` (both resolved into `default_agent_name` at load), then
+        the first-declared `[agents.*]` table — TOML preserves declaration
+        order, so with the key unset the first table is the default.
         """
+        if self.default_agent_name is not None:
+            return self.agents[self.default_agent_name]
         if not self.agents:
             return None
         first = next(iter(self.agents))
@@ -372,6 +381,9 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     default_status = shared.get("default_status", "draft")
     owner = parse_owner(shared.get("owner"))
     agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
+    default_agent_name = _parse_default_agent(
+        shared.get("default_agent"), local.get("default_agent"), agents
+    )
     notification_channels = _resolve_notification_channels(
         shared.get("notification"),
         local.get("notification"),
@@ -457,6 +469,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         contexts_dir=contexts_dir,
         upstream_checkouts=upstream_checkouts,
         autofix_agent=autofix_agent,
+        default_agent_name=default_agent_name,
         authoring_agent=authoring_agent,
     )
 
@@ -502,6 +515,7 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "version",
     "default_status",
+    "default_agent",
     "owner",
     "agents",
     "notification",
@@ -515,8 +529,13 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "layout",
     "autofix",
 })
+# `default_agent` is deliberately in both files, unlike shared-only
+# `[autofix]`: which vendor a machine can run right now (quota, install) is an
+# operator fact, so one clone may override the team default. See
+# `_parse_default_agent`.
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
+    "default_agent",
     "agents",
     "notification",
     "git",
@@ -1684,6 +1703,38 @@ def _parse_autofix(shared: object, agents: dict[str, AgentType]) -> str | None:
             f"Known: {sorted(agents)}."
         )
     return name
+
+
+def _parse_default_agent(
+    shared: object, local: object, agents: dict[str, AgentType]
+) -> str | None:
+    """Parse top-level `default_agent` from both files; the winning name or None.
+
+    The machine-local value wins over the shared one. Both are validated even
+    when local wins, so a broken committed value still fails on the machine
+    that overrides it. Each must name a type in the effective (merged)
+    `[agents.*]` table, checked at load like `[autofix] agent`, so a typo fails
+    on the next command rather than mid-sweep. Unset in both, this returns None
+    and `Config.default_agent()` keeps the first-declared fallback.
+    """
+    resolved: str | None = None
+    for source, value in (("coga.local.toml", local), ("coga.toml", shared)):
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(
+                f"default_agent in {source} must be a non-empty agent type name "
+                f"(got {value!r}). Known: {sorted(agents)}."
+            )
+        name = value.strip()
+        if name not in agents:
+            raise ConfigError(
+                f"default_agent in {source} names {name!r}, which is not defined "
+                f"in [agents]. Known: {sorted(agents)}."
+            )
+        if resolved is None:
+            resolved = name
+    return resolved
 
 
 def _resolve_secret_value(value: str) -> str:
