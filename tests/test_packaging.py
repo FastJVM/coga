@@ -45,17 +45,12 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/retire.md",
     "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
-    "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
     "scan-protocol/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/browser/"
-    "build-automation/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/browser/"
-    "playwright/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
@@ -363,8 +358,6 @@ def test_intentional_divergences_stay_real_and_explained() -> None:
 # for a topic someone forgot to ship.
 REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
     {
-        "browser/api-first",
-        "browser/dom-backed",
         "coga/agents",
         "coga/architecture",
         "coga/blackboard",
@@ -610,15 +603,6 @@ def test_context_distribution_reports_an_unclassified_local_topic(
     ]
 
 
-def test_dochub_skill_keeps_portable_leaf_name() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    skill = (repo_root / "coga/skills/browser/dochub/SKILL.md").read_text()
-    frontmatter = skill.split("---", 2)[1]
-
-    assert '\nname: "dochub"\n' in frontmatter
-    assert "browser/dochub" not in frontmatter
-
-
 def test_executable_context_instructions_honor_layout_override() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     knowledge_scan = (
@@ -704,9 +688,9 @@ def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
     `paths.resolve_context_path` falls back to `bootstrap/contexts/` only.
     `templates/coga/contexts/**` is seeded into a repo once by `coga init`
     (`copy_fresh_templates`) and is never a runtime fallback, so a context that
-    lives only there is repo-owned and deletable — the shipped
-    `browser-automation` launcher once attached `browser/api-first` from that
-    tree and could not launch in a repo that had pruned it. The authoring rule
+    lives only there is repo-owned and deletable — a shipped
+    launcher that once attached a context from that tree could not launch in a
+    repo that had pruned it. The authoring rule
     is stated in `coga/codebase`; this is its enforcement.
     """
     bootstrap_root = REPO_ROOT / PACKAGED_ROOT / "bootstrap"

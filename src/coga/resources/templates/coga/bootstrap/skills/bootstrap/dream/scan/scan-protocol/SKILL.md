@@ -85,7 +85,7 @@ Shards read that line. Nothing re-derives it — not a shard, not a later phase.
 A client repo's `coga/` tree mixes the client's own knowledge with files the
 installed Coga package placed there: the shipped `coga/recurring/*/ticket.md`
 templates, the shipped `coga/workflows/*` files, `coga/skills/direct/body/`,
-the `coga/contexts/browser/*` contexts, and — on installs from before
+any `coga/contexts/browser/*` contexts left from older installs, and — on installs from before
 `bootstrap/` stopped being copied — `coga/contexts/coga/**`. Those files are
 Coga's explanation of itself, not the client's; every claim they make about
 `src/coga/*.py` is uncheckable in a checkout that has no `src/coga/`, and a

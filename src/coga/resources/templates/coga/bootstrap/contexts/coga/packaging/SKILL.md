@@ -25,7 +25,7 @@ downstream-only.
 ## Three distribution states for a context
 
 - **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
-  (`coga/*` bootstrap topics, `dev/*`, `browser/*`). `coga init` skips
+  (`coga/*` bootstrap topics, `dev/*`). `coga init` skips
   `bootstrap/`; `resolve_context_path` reads the package copy when the repo has
   no local `<ref>/SKILL.md`. A repo overrides by creating the local file.
 - **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds

@@ -6,6 +6,7 @@ from coga.paths import (
     bootstrap_context_path,
     bootstrap_skill_path,
     bootstrap_workflow_path,
+    missing_skill_message,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -46,6 +47,16 @@ def test_resolve_skill_path_falls_back_to_bootstrap(tmp_path):
     assert resolve_skill_path(cfg, "bootstrap/ticket") == bootstrap_skill_path(
         cfg, "bootstrap/ticket"
     )
+
+
+def test_removed_browser_skills_name_the_removal(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+
+    for ref in ("browser/build-automation", "browser/playwright", "browser/dochub"):
+        assert resolve_skill_path(cfg, ref) is None
+        message = missing_skill_message(cfg, ref, source="ticket")
+        assert f"removed bundled skill {ref!r}" in message
+        assert "browser automation was removed" in message
 
 
 def test_resolve_skill_path_prefers_local_over_bootstrap(tmp_path):

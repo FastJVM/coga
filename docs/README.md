@@ -60,8 +60,6 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
   [operator runbook](contexts/coga/telemetry/operations/SKILL.md) for release verification, read-back and
   deletion),
   [reusable patterns](contexts/coga/patterns/SKILL.md).
-- Browser work: [API first](contexts/browser/api-first/SKILL.md),
-  [DOM-backed runners](contexts/browser/dom-backed/SKILL.md).
 
 Internals — exact guarantees, for changing or debugging Coga:
 [launch internals index](contexts/coga/launch-internals/SKILL.md)
@@ -131,7 +129,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [market landscape](archive/market-landscape.md),
   [superseded decisions](archive/superseded-decisions.md),
   [launch programs](archive/launch-programs/README.md),
-  [Relay → Coga migration](archive/relay-migration.md).
+  [Relay → Coga migration](archive/relay-migration.md),
+  [browser automation](archive/browser-automation.md) (removed 2026-10-13).
 - [Context migration record](context-migration.md) — old paths and refs,
   where each went, and the cutover.
 - Team-specific: [Google Drive MCP](contexts/docs/gdrive-mcp/SKILL.md)

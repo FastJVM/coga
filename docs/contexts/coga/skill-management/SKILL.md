@@ -16,7 +16,7 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
 - **Repo-authored, namespaced**: `coga/skills/<ns>/<name>/`, copied from
   `_template/`. Frontmatter normally uses the Coga ref
   (`name: <ns>/<name>`); a skill meant to satisfy the portable Agent Skills
-  grammar may keep a leaf `name:` (`browser/dochub` keeps `name: dochub`).
+  grammar may keep a leaf `name:` (`ns/foo` may declare `name: foo`).
 - **GitHub-backed, flat**: `coga skill install <owner/repo> <skill>` lands
   `coga/skills/<ref>/` under its upstream name. Membership is provenance, not
   a list: a skill is GitHub-backed exactly when its `SKILL.md` frontmatter
@@ -40,9 +40,7 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
 - **Bundled**: package-backed under `bootstrap/skills/`; `coga skill` never
   writes into `coga/bootstrap/`. See [coga/packaging](../packaging/SKILL.md).
   A repo copy of a bundled skill shadows it and `coga skill status` reports it
-  as `local-override`: `browser/playwright/` is bundled (adapted upstream,
-  with `NOTICE.txt` and `LICENSE.txt`), and this repo's twin carries the same
-  files. Upgrading `coga` refreshes the package copy, not the repo twin.
+  as `local-override`. Upgrading `coga` refreshes the package copy, not the repo twin.
 
 ## `coga skill` commands
 
