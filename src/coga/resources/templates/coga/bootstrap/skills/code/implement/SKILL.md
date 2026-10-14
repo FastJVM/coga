@@ -101,8 +101,8 @@ later `code/open-pr` step does that, after review and fixes.
    interpreter named by the `coga` console script's shebang, and fails loud if
    no `coga` is on PATH.
    Resolve this skill local-first, falling back to the installed bundled
-   skill (see `dev/checkouts`, "What a fresh checkout lacks"). Stop on failure;
-   never synthesize an actor.
+   skill (see `dev/checkouts/sandbox-clone`, "What a fresh checkout
+   lacks"). Stop on failure; never synthesize an actor.
 
    **On a resumed session** where `## Dev` already records a `branch:`, reuse
    it: after the start check, `git switch <branch-name>`, then
