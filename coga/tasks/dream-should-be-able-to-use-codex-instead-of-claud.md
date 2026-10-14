@@ -361,6 +361,21 @@ tool for subagents) is a separate ticket — out of scope here.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: default-agent-key
+
+## Implementation plan (implement step, 2026-10-14)
+
+- Evaluator must-resolve 1 (init writer): `_write_default_agent` returns False
+  for a name not among the parsed `[agents.*]`. An existing top-level
+  `default_agent` with the same value succeeds without writing; a different
+  value is replaced in place. Otherwise it uncomments the template example, or
+  inserts before the first table. A tomllib guard requires
+  after == before | {default_agent: name}.
+- Evaluator must-resolve 2: every `default_agent` ConfigError (non-string,
+  blank, unknown) names the source file and lists the known types.
+
 ## Design notes (design step, 2026-10-14)
 
 - The spec lives under `## Description`: acceptance criteria, proposed shape,
