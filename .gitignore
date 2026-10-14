@@ -1,5 +1,5 @@
 # Coga local config — paths and secret references. Never commit.
-# (Root-only; the bundled `example/` ships a non-secret template.)
+# (Root-only; the seeded `tests/fixtures/seeded-repo/` fixture ships a non-secret template.)
 /coga.local.toml
 
 # Stale pre-rename workspace. Renamed to `coga/` in #454; any `relay-os/`

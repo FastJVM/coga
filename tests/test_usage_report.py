@@ -3,7 +3,7 @@
 The report is ticket-owned deterministic work at the edge, not a packaged
 template, so unlike `test_recurring_shims.py` this suite reads the *live*
 `coga/recurring/usage-report/` directory: it is the only copy. The end-to-end
-run still happens against a copy of the seeded `example/` repo.
+run still happens against a copy of the seeded `tests/fixtures/seeded-repo/` fixture.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from coga.usage import UsageRecord, append_record
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE = REPO_ROOT / "example"
+SEEDED_REPO = REPO_ROOT / "tests" / "fixtures" / "seeded-repo"
 TEMPLATE = REPO_ROOT / "coga" / "recurring" / "usage-report"
 WORKFLOW = REPO_ROOT / "coga" / "workflows" / "usage-report" / "post.md"
 SKILL = REPO_ROOT / "coga" / "skills" / "coga" / "usage-report" / "post" / "SKILL.md"
@@ -297,10 +297,10 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
 
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A throwaway copy of the seeded example repo (see `test_recurring_shims`)."""
+    """A throwaway copy of the seeded fixture repo (see `test_recurring_shims`)."""
     dest = tmp_path / "example"
     shutil.copytree(
-        EXAMPLE,
+        SEEDED_REPO,
         dest,
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,
