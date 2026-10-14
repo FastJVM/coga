@@ -191,7 +191,7 @@ def _running_version() -> str:
     try:
         return _pkg_version("coga")
     except PackageNotFoundError:
-        return getattr(coga, "__version__", "unknown")
+        return "unknown"
 
 
 def _is_within(path: Path, ancestor: Path) -> bool:

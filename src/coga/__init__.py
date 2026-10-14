@@ -30,4 +30,3 @@ def _require_supported_python(version_info: tuple[int, ...] = sys.version_info) 
 
 _require_supported_python()
 
-__version__ = "0.1.0"
