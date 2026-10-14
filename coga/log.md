@@ -8292,3 +8292,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 11:21 v1 [dream-should-be-able-to-use-codex-instead-of-claud] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-14 11:21 v1 [dream-should-be-able-to-use-codex-instead-of-claud] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-14 11:21 v1 [fix-git-sync-read-only-errors-after-successful-tra] [human:nicktoper] created (status=draft)
+2026-10-14 11:23 v1 [dream-should-be-able-to-use-codex-instead-of-claud] [agent:claude] advanced to step 2 (evaluate-design) → codex — Spec written; 4 open questions on blackboard (shared-value validation, bootstrap agent pins, clone init, template default)

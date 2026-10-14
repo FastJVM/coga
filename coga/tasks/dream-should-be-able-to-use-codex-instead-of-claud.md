@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 ---
 
 ## Description
@@ -65,6 +65,196 @@ reaching the Dream launch is covered by test (one already exists, see
 Context); the contexts, docs, and docstrings named under Context that describe
 the default are updated; `python -m pytest` passes and `coga validate --json`
 is clean.
+
+### Acceptance criteria
+
+- [ ] `coga.toml` and `coga.local.toml` both accept a top-level string
+      `default_agent`. It is in both `config._ALLOWED_SHARED_SECTIONS` and
+      `config._ALLOWED_LOCAL_SECTIONS`.
+- [ ] Precedence inside `Config.default_agent()`: local `default_agent`, then
+      shared `default_agent`, then the first-declared entry of the merged
+      `cfg.agents`. With the key unset in both files the result is identical to
+      today's (same `AgentType`, and no new output or warnings).
+- [ ] A non-string, blank, or unknown value raises `ConfigError` at
+      `load_config`. The message names the file that supplied it
+      (`coga.toml` / `coga.local.toml`) and lists the known types, so a typo
+      fails on the next command, not mid-sweep. The value is validated against
+      the **effective merged** `[agents]` table, like `[autofix] agent`.
+- [ ] With `default_agent = "codex"` in either file and `claude` declared
+      first, these all resolve `codex` with no table reorder (one test each, or
+      a parametrized test):
+      `coga mark active` stamps `agent: codex` (`mark._select_main_agent`);
+      `create_task(status="active")` without an explicit agent writes
+      `agent: codex` (`create._select_main_agent`);
+      `commands/retire._default_agent`;
+      `recurring_autofix._analyze_agent` when neither `--agent` nor
+      `[autofix] agent` is set;
+      `authoring.resolve_authoring_agent` when terms 1–5 are all absent;
+      `bump.resolve_main_agent(cfg, None, allow_prospective_default=True)`, and
+      `bump.resolve_other_agent` for an absent agent derives the peer of `codex`.
+- [ ] A local value overrides a shared one (shared `claude`, local `codex` →
+      `codex`). A local-only `[agents.<x>]` type may be named by a local
+      `default_agent`.
+- [ ] Dream: on `dream_repo` with `[agents.codex]` added and
+      `default_agent = "codex"`, a bare `coga recurring` sweep materializes the
+      Dream period ticket with `agent: codex`. A second test pins the freeze
+      rule: an already-materialized period ticket carrying `agent: claude`
+      keeps `claude` when a forced rerun in the same period reactivates it
+      (`recurring_runner` → `mark_active`), even after `default_agent = "codex"`
+      is set.
+- [ ] `tests/test_recurring.py::test_bare_recurring_passes_agent_override_to_agent_tasks`
+      stays as is (it already asserts `seen == ["codex"]`). No duplicate test.
+- [ ] Interactive `coga init` makes a chosen agent the default by writing
+      `default_agent = "<name>"` into the new `coga.toml`, not by reordering
+      `[agents.*]` tables. `_make_default_agent`'s reorder machinery is removed
+      along with its test. `_stamp_agent_into_delivered_tickets` still runs.
+- [ ] The packaged `coga init` template
+      `src/coga/resources/templates/coga/coga.toml` documents the key as a
+      commented example beside `default_status`, and mentions the local
+      override.
+- [ ] Docs and docstrings are updated (canonical topics and packaged twins
+      byte-identical): `coga/agents` owns the key's description, precedence,
+      the local override, the freeze rule, and its relationship to
+      `[authoring] agent` and `[autofix] agent`; `coga/configuration` lists the
+      key in both allowlists; `coga/tickets`, `coga/recurring/autofix`, and
+      `coga/init` stop saying "first-declared"/"first agent" as the whole rule;
+      so do the docstrings/comments in `config.py` (`Config.default_agent`,
+      the `autofix_agent` field comment, `_parse_autofix`), `create.py`
+      (`_select_main_agent`), `recurring_autofix.py` (`_analyze_agent`),
+      `authoring.py` (`resolve_authoring_agent`), `mark.py`
+      (`_select_main_agent`'s "reordering `[agents.*]`"), and
+      `commands/init.py`. A final grep for `first-declared`, `first declared`,
+      `first agent`, `lists its default first` and `reorder` across `docs/`,
+      `src/`, and `coga/` leaves only correct statements of the fallback.
+- [ ] `python -m pytest` passes; `coga validate --json` is clean.
+
+### Proposed shape
+
+**Spelling: top-level scalar `default_agent = "<type>"`.** It mirrors
+`default_status` (also top-level and also a create-time default). Two
+alternatives were considered and rejected:
+- `[agents] default = "codex"` puts a scalar inside a table whose keys are
+  agent type names. `_parse_agents` currently skips non-mapping entries
+  silently. This shape would make `default` a reserved type name and blur two
+  namespaces.
+- A new `[defaults] agent` table adds a section to hold one key.
+
+The top-level form is one more name in each allowlist, and nothing else
+changes.
+
+**`src/coga/config.py`**
+1. Add `"default_agent"` to `_ALLOWED_SHARED_SECTIONS` and
+   `_ALLOWED_LOCAL_SECTIONS`. Add a comment that it is deliberately local-
+   capable (unlike shared-only `[autofix]`), because which vendor a machine
+   can run right now (quota, install) is an operator fact.
+2. New `_parse_default_agent(shared: object, local: object, agents:
+   dict[str, AgentType]) -> str | None`, modelled on `_parse_autofix`. For each
+   of `("coga.local.toml", local)`, `("coga.toml", shared)`, in that order:
+   - skip `None`;
+   - require a non-blank `str`, else raise
+     `ConfigError(f"default_agent in {source} must be a non-empty agent type name (got {value!r})")`;
+   - strip it, and require it to be in `agents`, else raise
+     `ConfigError(f"default_agent in {source} names {name!r}, which is not defined in [agents]. Known: {sorted(agents)}.")`.
+
+   Validate **both** values even when local wins, so a broken shared value
+   still fails on the machine that overrides it. Return the local name if
+   set, else the shared name, else `None`.
+3. In `load_config`, call it right after `_parse_agents`:
+   `default_agent_name = _parse_default_agent(shared.get("default_agent"), local.get("default_agent"), agents)`.
+   Pass the result into `Config`.
+4. `Config` gets a field `default_agent_name: str | None = None`, with a
+   comment like the one on `autofix_agent`. `default_agent()` returns
+   `self.agents[self.default_agent_name]` when it is set, and otherwise keeps
+   today's first-entry code unchanged. Update its docstring to give the
+   precedence.
+   - Field name: a `default_agent` field would clash with the method.
+   - Check every direct `Config(...)` construction in tests. The field must
+     default to `None` so they keep working.
+
+No consumer changes. Every reader already goes through `default_agent()`.
+Do not add a parallel resolver.
+
+**`src/coga/commands/init.py`**
+- Replace `_make_default_agent(coga_toml, name)` with
+  `_write_default_agent(coga_toml, name) -> bool`. It inserts
+  `default_agent = "<name>"` as a top-level line.
+  - Where: if the template's commented example line
+    (`# default_agent = "claude"`) is present, replace that line. Otherwise
+    insert just before the first table header, because a top-level key must
+    precede every table.
+  - Guard: parse before and after with `tomllib`. Write only if the result
+    equals the original data plus exactly that key. Otherwise return False,
+    and keep the existing "did not … cleanly" warning path, reworded.
+- `_template_default_agent` returns the template's `default_agent` when set,
+  else the first-declared table, so that it matches `Config.default_agent()`.
+- Delete `_TABLE_HEADER` and the span logic if nothing else uses them.
+- Update `_offer_agent_cli`'s docstring and the confirm prompt wording if it
+  says "first".
+- The clone path (`_offer_agent_cli(None)`) is unchanged; see Out of scope.
+
+**Template**: in `src/coga/resources/templates/coga/coga.toml`, add a
+commented block after `default_status`:
+
+```toml
+# Optional: the agent type new tickets get when activated (and the fallback
+# for retire, autofix, and authoring). Unset, it's the first [agents.*]
+# table below. Set it in coga.local.toml to override it on one machine only.
+# default_agent = "claude"
+```
+
+The live `coga/coga.toml` is already in `INTENTIONALLY_DIVERGENT_TWINS`
+(`tests/test_packaging.py`), so it is not edited.
+
+**Tests**
+- `tests/test_config.py`: shared key; local override; unset fallback; local
+  names a local-only type; non-string, blank, and unknown values for each file
+  (the message names the file); a broken shared value fails even when local is
+  valid.
+- `tests/test_mark.py`, `test_create.py`, `test_retire.py`,
+  `test_recurring_autofix.py`, `test_authoring.py`: one assertion each that
+  the default key wins over declaration order.
+- Peer flip: wherever `resolve_other_agent` is tested, with
+  `[agents.codex] peer = "claude"`.
+- `tests/test_recurring.py`: the two Dream tests from the acceptance
+  criteria, reusing `dream_repo`, `_allow_interactive_recurring`, and
+  `_patch_recurring_command_launch`.
+- `tests/test_init.py`: replace
+  `test_make_default_agent_reorders_the_packaged_coga_toml` with an
+  equivalent test for `_write_default_agent`: the key is written, the
+  `[agents.*]` order is unchanged, it is idempotent, and an unknown name or
+  unparseable file is left untouched. Update any interactive-init test that
+  asserts the table order.
+
+**Docs** (canonical first, then `cp` to the packaged twin):
+`docs/contexts/coga/agents/SKILL.md` (primary), `configuration`, `tickets`,
+`recurring/autofix`, `init`.
+
+Order of work:
+1. config and its tests;
+2. the consumer tests and the Dream tests;
+3. init and its tests;
+4. the template;
+5. docs and twins, then the grep;
+6. the full pytest run and validate.
+
+### Out of scope
+
+- Making Dream's skills work under `codex` (subagent and Agent-tool
+  assumptions). That is a separate ticket.
+- Rewriting frozen `agent:` on already-activated tickets, including an
+  existing Dream period ticket, when the default changes.
+- Changing the `agent: claude` pins on packaged bootstrap tickets
+  (`bootstrap/ticket`, `bootstrap/orient`, `bootstrap/browser-automation`,
+  `tasks/coga-build.md`). Those pins outrank `Config.default_agent()` in
+  authoring precedence (term 5), so `coga ticket` and `coga chat` still open
+  `claude` under `default_agent = "codex"`. See Open Questions. Document this
+  in `coga/agents`. Do not change it here.
+- Having `coga init` on a clone write a local `default_agent` into
+  `coga.local.toml`.
+- Any new CLI flag. `coga recurring --agent` and
+  `coga recurring launch --agent` already exist.
+- Changing `[authoring] agent`, `COGA_AUTHORING_AGENT`, or `[autofix] agent`
+  semantics.
 
 ## Context
 
@@ -170,3 +360,43 @@ tool for subagents) is a separate ticket — out of scope here.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design notes (design step, 2026-10-14)
+
+- The spec lives under `## Description`: acceptance criteria, proposed shape,
+  and out of scope.
+- Spelling: top-level `default_agent`, readable from both files with local
+  winning, and validated at load against the merged `[agents]`. Rejected
+  alternatives: `[agents] default` (puts a scalar among the type-name tables;
+  `_parse_agents` currently skips scalars silently) and a new `[defaults]`
+  table.
+- Init: it writes the key instead of reordering tables, and the
+  `_make_default_agent` reorder machinery goes.
+- Gap found: packaged `bootstrap/ticket` and `bootstrap/orient` pin
+  `agent: claude`. That pin outranks `default_agent()` in authoring
+  precedence, so the key does **not** move the `coga ticket` or `coga chat`
+  interviewer. It does still move Dream, activation, retire, and autofix.
+- The existing test `test_bare_recurring_passes_agent_override_to_agent_tasks`
+  already asserts `seen == ["codex"]`, so no new `--agent` test is needed.
+
+## Open Questions
+
+1. **A shared value naming a local-only type.** Recommendation: validate
+   against the merged table and fail loud, naming `coga.toml`. This is the same
+   rule as `[autofix] agent`. A clone without that type breaks on every command
+   until fixed. That is visible immediately, which is better than silently
+   ignoring a committed setting. Alternative: validate a shared value against
+   shared tables only. That is stricter, and catches the problem on the
+   committer's machine. Which one?
+2. **Bootstrap `agent: claude` pins.** Should `default_agent = "codex"` also
+   move `coga ticket` and `coga chat`? Doing so means dropping the pins from
+   the packaged `bootstrap/ticket` and `bootstrap/orient` (and maybe
+   `coga-build`), which changes install-level authoring behaviour. Currently
+   out of scope. Is a follow-up ticket wanted?
+3. **Init on a clone.** Should init write `default_agent` into
+   `coga.local.toml` when the operator has only `codex` installed? Currently
+   out of scope.
+4. **Template default.** Should the template ship `default_agent = "claude"`
+   uncommented, to make the default explicit in new repos? The spec keeps it
+   commented, so unset repos stay byte-for-byte identical and init has one
+   line to uncomment.
