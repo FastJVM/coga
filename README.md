@@ -11,8 +11,7 @@ later run starts from the fix.
 Think of it as a workbench, not an assembly line: it's what you build with
 while you're still working out what to build. 
 
-Coga is a small overlay on
-top of what agents already provide, so it gets better when they do.
+Coga is a small overlay on top of what agents already provide, so it gets better when they do.
 
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
