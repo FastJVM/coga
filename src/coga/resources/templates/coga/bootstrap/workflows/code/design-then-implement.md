@@ -46,15 +46,18 @@ anything under `## Open Questions` on the blackboard. If an
 `## Evaluator review` section is present, resolve every must-fix finding; record
 a disposition when one is intentionally rejected. Edit the ticket directly to
 correct scope or approach. When the spec is right, run `coga bump` to hand off
-to `implement`. If the design is wrong enough to redo, relaunch the `design`
-step instead of bumping.
+to `implement`. If the design is wrong enough to redo, rewind with
+`coga bump <slug> --to design` instead of bumping; if the premise itself is
+wrong, cancel and open a new ticket (`coga/lifecycle`).
 
 ## implement
 
 Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
 so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
-in the ticket copy of the checkout the bump runs from — `main`, after the
-step pushes its branch and returns (`dev/checkouts`).
+in the ticket copy of the checkout the bump runs from — the feature branch
+after loading control's copy under `COGA_LAUNCH_RETURNS_CHECKOUT=1` (launch
+then returns the checkout), or `main` after a manual session's end-of-step
+return (`dev/checkouts`).
 
 ## open-pr
 

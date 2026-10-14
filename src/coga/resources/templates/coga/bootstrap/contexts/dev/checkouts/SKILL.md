@@ -12,11 +12,14 @@ while code is being changed. Under `coga launch` the launcher performs both
 moves; in any other session the agent does. Linked worktrees left over from an
 earlier layout are still disposed of by `coga retire` and autoclose
 ([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)); nothing creates new ones
-for ticket work. The owner-accepted exception is the recurring runner's
-temporary linked control worktree for a parked checkout
-([coga/internals/recurring-temp-worktrees](../../coga/internals/recurring-temp-worktrees/SKILL.md));
-revisit that decision if those worktrees leak or become operator-visible noise.
-The one alternative checkout is the sandbox clone fallback below.
+for ticket work. Two owner-accepted exceptions create linked worktrees: the
+recurring runner's temporary linked control worktree for a parked checkout
+([coga/internals/recurring-temp-worktrees](../../coga/internals/recurring-temp-worktrees/SKILL.md)),
+and Retro's dedicated isolated checkout, which the `retro/done-ticket` skill
+and `coga retire`'s task prompt create and remove for one Retro pass. Revisit
+either decision if those worktrees leak or become operator-visible noise.
+The one alternative checkout for ticket work is the sandbox clone fallback
+below.
 
 `origin` and `main` stand for the configured `[git].remote` and
 `[git].control_branch`; `coga/tasks/`, `coga/recurring/`, and `coga/log.md`

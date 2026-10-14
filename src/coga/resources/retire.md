@@ -9,8 +9,9 @@ direct-deletes the task via `coga delete` — no marker, no PR. This task is the
 ad-hoc shell that drives that single skill against the named slug. Do not
 invent additional steps. The complete Retro pass runs in one subagent inside a
 dedicated isolated checkout; do not run it in this retire task's checkout.
-Branch hygiene (local prune, stale-branch sweep) is a Dream concern, not
-retire's.
+`coga retire` already disposed of this ticket's own recorded checkout and
+branch before launching this task; other branch hygiene belongs to the
+`branch-sweep` and `autoclose-merged` recurring jobs, not this task.
 
 ### Console Progress
 

@@ -38,7 +38,9 @@ Tickets without a workflow move through statuses only via `coga mark`.
   it is the required audit reason, appended to `coga/log.md`. Cancellation
   leaves the body and blackboard (including open blocker text) untouched.
 - `done` and `canceled` are terminal: launch refuses them and nothing
-  reactivates a canceled ticket. A terminal transition deletes no branch or
+  reactivates a canceled ticket. The one exception is `coga recurring
+  --force`, which reactivates a `done` recurring period task
+  ([coga/recurring/scheduling](../recurring/scheduling/SKILL.md#variants)). A terminal transition deletes no branch or
   checkout. The ticket's owned branches are cleaned up later by `coga retire`
   and the daily autoclose branch pass, so nothing disappears beneath the
   session that finished it

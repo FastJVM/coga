@@ -38,6 +38,7 @@ What the agent should do once oriented:
 - If asked for a triage view, run `coga status` and summarize.
 
 This is a bootstrap ticket, not a `tasks/` ticket: stateless — no status,
-no owner, no log, no lock — every launch is independent and concurrent
-launches are safe. Don't edit this ticket except to swap `agent:` to
+no owner, no lock, no status or step transitions (launch and usage lines are
+still logged) — every launch is independent and concurrent launches are
+safe. Don't edit this ticket except to swap `agent:` to
 whichever agent type matches your `coga.toml`.

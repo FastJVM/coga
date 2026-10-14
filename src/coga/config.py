@@ -107,7 +107,7 @@ class Config:
     aliases: dict[str, str] = field(default_factory=dict)
     # Repo-owned free-form config namespace. coga does not interpret it; its
     # contents pass through verbatim for skills/scripts to read (e.g.
-    # `[extensions.patent] calendar_id = "..."`). Like `[aliases]`/`[secrets]`,
+    # `[extensions.patent] calendar_id = "..."`). Like `[aliases]`,
     # the keys are user data, not schema.
     extensions: dict[str, object] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
@@ -481,7 +481,7 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
     treating the real section as absent (the Slack-goes-dark footgun).
 
     A no-op on non-dicts, so the dedicated "must be a table" type errors keep
-    firing from their own call sites. Free-form maps — `[aliases]`, `[secrets]`,
+    firing from their own call sites. Free-form maps — `[aliases]`,
     `[extensions]`, `[notification.slack.gifs]`, `[notification.slack.users]` —
     do **not** call this: their keys are user-chosen data, not schema.
     """
@@ -496,7 +496,7 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 
 
 # Fixed-schema tables — every key not listed is rejected at load time. Free-form
-# maps (aliases, secrets, extensions, slack gifs/users) are deliberately absent;
+# maps (aliases, extensions, slack gifs/users) are deliberately absent;
 # their keys are data. Deprecated / known-rejected keys run their dedicated
 # migration errors before this generic check.
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({

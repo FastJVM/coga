@@ -9,9 +9,10 @@ softer, deferred failure at the point of need).
 anything, and `offer_install` / `packages` to offer installing a missing tool
 through the machine's package manager. Agent CLIs (`AGENT_CLIS`) carry
 `packages` and `login` for `coga.agent_cli_setup` instead, which offers them
-through brew or npm rather than the system package manager. The README's "Getting Started" section
-describes the same set for humans. Keeping the list here means the init check
-and the docs can't drift.
+through brew or npm rather than the system package manager. The
+`coga/install` topic (`docs/contexts/coga/install/SKILL.md`) describes the same
+set for humans. Keeping the list here means the init check and the docs can't
+drift.
 """
 
 from __future__ import annotations

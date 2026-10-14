@@ -47,8 +47,8 @@ After YAML frontmatter, a normal ticket has two regions separated by exactly
   reading.
 
 The append-only audit trail lives separately in repo-global `coga/log.md`.
-Do not edit it: `coga create`, `ticket`, `mark`, `launch`, `bump`, `block`, and
-`unblock` are its writers. Put your observations on the blackboard.
+Do not edit it: Coga commands write it. Put your observations on the
+blackboard.
 
 When editing frontmatter, preserve existing fields, order, and formatting. Do
 not invent fields. Write lists one item per line:

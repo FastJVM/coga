@@ -65,7 +65,8 @@ important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
   (`[slack] disabled (post suppressed): …`) and never crashes. It exists for
   solo, dev, test, and CI runs; the cost is leaving the team's sync loop.
 - **GIFs.** `[notification.slack.gifs]` may attach a random GIF per event
-  kind (`done`, `block`); omit a kind to stay text-only.
+  kind (`done`, `canceled`, `block`); a block post falls back to `panic` when
+  `block` is unset. Omit a kind to stay text-only.
 - **Checks.** Default `coga validate` does no network I/O and warns when
   Slack is selected and enabled but `important_webhook` is unresolved (the
   opt-out suppresses the warning). `coga validate --check-slack` probes the

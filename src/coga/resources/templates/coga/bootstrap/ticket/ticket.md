@@ -42,6 +42,7 @@ context owns the full order. A direct `coga launch bootstrap/ticket` reads
 none of these; it launches with this ticket's `agent:` unless given `--agent`.
 
 Don't add `status:` or `owner:` to this frontmatter. The ticket is
-intentionally stateless — no lock, no log, no `step` transitions — so
-every launch can run concurrently with no coordination. That's why it
+intentionally stateless — no lock, no status or `step` transitions (launch
+and usage lines are still logged) — so every launch can run concurrently with
+no coordination. That's why it
 diverges from the canonical `coga/tasks/_template/ticket.md` shape.
