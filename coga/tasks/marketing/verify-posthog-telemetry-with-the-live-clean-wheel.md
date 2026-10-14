@@ -198,3 +198,9 @@ rerun → Obs 3 `count()` query + automated no-worker/no-HTTP test → update
 ## Blockers
 
 - [ ] [2026-10-13 12:53] [agent:nicktoper] id=20261013T125319 Resume on 2026-10-20 (Tue): owner + attended agent run session 2 — project-get (606347) then Obs 1 query for repo 358bebae-feed-4234-8ed8-ca86cffc8f0a, Obs 2 advance+rerun, Obs 3 disable+count. Keep ~/coga-telemetry-proof/ intact. Then coga unblock + coga launch.
+
+---
+
+## Blocker reminders
+
+- 0da020cd6ef3 last_reminded: 2026-10-14 11:08
