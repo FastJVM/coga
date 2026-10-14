@@ -1,12 +1,32 @@
 ---
 title: Fix the README for the V1 instrument positioning
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
-  - marketing/plan
-  - marketing/positioning
-workflow: code/with-review
+- marketing/plan
+- marketing/positioning
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
