@@ -6,7 +6,7 @@ or publication instructions. Some text already contradicted later decisions:
 in particular the post-2 token-receipt sentence was stale when archived, and
 HN points never established observed front-page placement. Use the current
 [plan](../../contexts/marketing/plan/SKILL.md), [source limits](../../contexts/marketing/positioning/SKILL.md) and
-[dated distribution evidence](../../contexts/marketing/distribution/SKILL.md) when reusing material.
+[dated distribution evidence](../marketing-distribution.md) when reusing material.
 Existing task metadata and unrelated blackboard history remain in their tasks.
 
 ## build-the-launch-plan

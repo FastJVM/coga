@@ -39,7 +39,7 @@ Directory index: `v2/cleanup-core-commands/README`.
 
 This ticket exists because the first child-ticket split covered the obvious
 command groups but missed surfaces that are already partly extracted or hidden
-behind aliases. Read `src/coga/cli.py`, `docs/design/cli-extension-audit.md`,
+behind aliases. Read `src/coga/cli.py`, `docs/archive/cli-extension-audit.md`,
 `docs/contexts/coga/extension-model/SKILL.md`, and the `coga/cli` command
 index (`docs/contexts/coga/cli/SKILL.md`, packaged twin
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`).

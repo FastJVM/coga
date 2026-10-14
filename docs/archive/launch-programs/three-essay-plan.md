@@ -14,7 +14,7 @@ reuse in public claims. Do not automatically compose this reference.
 
 This is the starting point for marketing work. [marketing/map](../../contexts/marketing/map/SKILL.md)
 locates the documents; [marketing/positioning](../../contexts/marketing/positioning/SKILL.md) owns
-the pitch direction, audience and voice; [marketing/distribution](../../contexts/marketing/distribution/SKILL.md)
+the pitch direction, audience and voice; [marketing/distribution](../marketing-distribution.md)
 owns channels and audience measurement. `marketing/write-post` owns the
 writing and publication procedure. Product claims remain grounded in
 `docs/vision.md` and the relevant Coga contracts.

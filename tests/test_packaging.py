@@ -433,16 +433,10 @@ LOCAL_ONLY_CONTEXT_REFS = {
     "product/vision": "This repo's product thesis, not guidance for other repos.",
     "coga/current-direction": "Dated posture of this repo's own development.",
     "coga/project-stage": "Dated stage of this repo's own development.",
-    "coga/roadmap": "Sequencing of this repo's own backlog.",
-    "docs/gdrive-mcp": (
-        "A dated contract for one Google Drive MCP this team uses; not a "
-        "general Google Docs fact."
-    ),
     "marketing/map": "This project's own marketing material.",
     "marketing/positioning": "This project's own marketing material.",
     "marketing/strategy": "This project's own marketing material.",
     "marketing/plan": "This project's own marketing material.",
-    "marketing/distribution": "This project's own marketing material.",
 }
 
 BOOTSTRAP_CONTEXTS = Path("bootstrap/contexts")

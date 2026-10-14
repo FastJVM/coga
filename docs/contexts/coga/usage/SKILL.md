@@ -33,10 +33,8 @@ YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 
 - The log is append-only and `merge=union`, so concurrent sessions never
   conflict (`coga/internals/spool-merge`).
-- The log is never a prompt-composition layer. Records used to live under a
-  `## Usage` blackboard heading, which bloated every later prompt on the
-  ticket; they moved to the log, and the old blackboard records were dropped
-  rather than migrated.
+- The log is never a prompt-composition layer, so usage records never bloat a
+  ticket's later prompts.
 - The log outlives the task: `coga delete` and `coga retire` remove the task
   directory but not its usage history.
 

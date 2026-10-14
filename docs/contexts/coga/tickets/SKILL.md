@@ -5,7 +5,8 @@ description: The ticket file contract — task discovery and refs, file versus d
 
 # Tickets
 
-A ticket is one durable unit of work: YAML frontmatter, a body, the fence
+A ticket is one unit of work, git-backed while it lives and disposable once
+done (what it taught moves into contexts): YAML frontmatter, a body, the fence
 line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
 writer's contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).

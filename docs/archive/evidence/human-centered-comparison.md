@@ -1,5 +1,7 @@
 # Human control in practice: Coga and the alternatives
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **2026-09-15.** Follow-up to [who operates the agents in practice](pitch-evaluation.md#who-operates-the-agents-in-practice--2026-09-15).
 The question is whether Coga changes the person's working relationship with
 agents: define useful work, leave it progressing, and return to results and
@@ -47,11 +49,11 @@ an owner review step; drafting remains executable. In unattended megalaunch:
 
 These are maintained runtime and protocol behaviors, rather than a hope that
 one long conversation will remember the arrangement. See the
-[sweep and routing](../../src/coga/megalaunch.py),
-[unattended conduct](../../src/coga/resources/prompt-megalaunch.md),
-[block command](../../src/coga/commands/block.py),
-[supervisor](../../src/coga/repl_supervisor.py) and
-[prompt composition](../../src/coga/compose.py).
+[sweep and routing](../../../src/coga/megalaunch.py),
+[unattended conduct](../../../src/coga/resources/prompt-megalaunch.md),
+[block command](../../../src/coga/commands/block.py),
+[supervisor](../../../src/coga/repl_supervisor.py) and
+[prompt composition](../../../src/coga/compose.py).
 
 The boundaries matter. The local supervisor must remain running. Work needs
 an eligible next task. The model must report substantive blockers correctly;
@@ -65,7 +67,7 @@ task is a separate attended resolution path.
 This also concerns a particular Coga mode: ordinary attended launches support
 conversation and clarification. Human control means choosing the boundary,
 not making every task unattended. The shipped
-[design/implementation workflow](../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md)
+[design/implementation workflow](../../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md)
 makes this concrete: design and evaluation lead to owner approval, then
 implementation and a PR, then owner review. Workflow steps are snapshotted
 for a task; later template edits do not silently change its route. Selected
@@ -174,8 +176,8 @@ deterministic maintenance is a separate category. That is Coga's explicit
 policy, not an exclusive capability or a security boundary against an
 unrestricted agent. The stronger distinction here is local ownership of the
 coordination method and runtime.
-[Coga principles](../contexts/coga/principles/SKILL.md),
-[Dream procedure](../../coga/recurring/dream/ticket.md).
+[Coga principles](../../contexts/coga/principles/SKILL.md),
+[Dream procedure](../../../coga/recurring/dream/ticket.md).
 
 ### Compound Engineering: a method can supply much of the behavior
 
@@ -293,7 +295,7 @@ not become Coga-exclusive merely because they live in a Coga project.
 ### Existing public Coga records
 
 The method is used to maintain Coga itself. The completed
-[megalaunch activation ticket](../../coga/tasks/megalaunch-activates-picks-before-preflight.md)
+[megalaunch activation ticket](../../../coga/tasks/megalaunch-activates-picks-before-preflight.md)
 records implementation, peer evaluation, PR preparation and owner review.
 Its fix also illustrates why runtime details matter: a task must not be
 marked active before the promised preparation has actually succeeded.
@@ -302,8 +304,8 @@ The [existing upkeep audit](upkeep-audit.md) records a Dream batch producing
 13 merged proposal PRs and 18 draft tickets. Generation needed no additional
 genuine human instructions in the inspected transcript; merge counts and
 transcript turns do not measure human review time. The history also records
-[Dream scan agents returning without findings](../../coga/tasks/dream-phases-2-3-cannot-complete-scan-subagents-re.md)
-and [findings being lost between routing paths](../../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md).
+[Dream scan agents returning without findings](../../../coga/tasks/dream-phases-2-3-cannot-complete-scan-subagents-re.md)
+and [findings being lost between routing paths](../../../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md).
 Those are completed repair records, not claims that the old bugs remain.
 They show both real use and the maintenance needed to keep delegation useful.
 
@@ -312,7 +314,7 @@ separate level-two `Description`, `Acceptance Criteria`, `Proposed Shape`
 and `Context` sections, plus a blackboard, was passed directly to
 `compose_prompt(..., launch_context="megalaunch")`. Description, Context and
 blackboard markers appeared in the result. Acceptance Criteria and Proposed
-Shape markers did not. The [composer](../../src/coga/compose.py) extracts named
+Shape markers did not. The [composer](../../../src/coga/compose.py) extracts named
 sections and stops at the next level-two heading.
 
 The agent can still read the full original ticket, and relevant implementation

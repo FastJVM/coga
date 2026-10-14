@@ -1,9 +1,6 @@
----
-name: coga/roadmap
-description: Dated sequencing and deferral guidance for Coga work; live task state owns the board, and this context only records ordering decisions.
----
-
 # Coga roadmap
+
+> **History, archived 2026-10-13.** Formerly the local-only context `coga/roadmap`. Its guidance repeated owners elsewhere (sync rule: `coga/knowledge`; deletion over compatibility: `coga/project-stage`; parked `_v2/`: `coga/tickets` and `coga/tasks/_v2/README.md`), and its scheduling line predated `coga/recurring/scheduling`. Its one unique rule, reliability before convenience, moved to [`coga/current-direction`](../contexts/coga/current-direction/SKILL.md). Not instructions.
 
 Last updated: 2026-09-29 (sequence unchanged since 2026-09-02; v2 parking
 decision 2026-09-20).
@@ -30,7 +27,7 @@ not infer present work from ticket names in an older roadmap.
    before contexts, stored tickets or code are renamed. Whether a particular
    rename is on the path is a question for live task state.
 5. **Prefer deletion to compatibility layers**
-   ([`coga/project-stage`](../project-stage/SKILL.md)).
+   ([`coga/project-stage`](../contexts/coga/project-stage/SKILL.md)).
 
 Reliability bugs that block installation, launch, state sync or review take
 precedence over new convenience surfaces. Marketing and documentation work may
@@ -39,7 +36,7 @@ proceed independently when it does not change the core task model.
 ## Deferred work (`coga/tasks/_v2/`)
 
 `coga/tasks/_v2/` is a wish list, not a backlog. It is a parked directory
-(defined in [`coga/tickets`](../tickets/SKILL.md)): nothing lists, launches,
+(defined in [`coga/tickets`](../contexts/coga/tickets/SKILL.md)): nothing lists, launches,
 validates, or scans it, so what sits there may be stale, may contradict other
 wishes or `main`, and nobody reconciles it or owes a verdict on it. Capture a
 wish with `coga create "_v2/<title>"`; a bare title is enough. Everywhere
@@ -48,7 +45,7 @@ else a ticket carries its description from creation (`coga create
 title-only tickets as `empty-description`.
 
 Pull a wish forward only through an explicit decision: run the premise check
-in [`coga/tasks/_v2/README.md`](../../../../coga/tasks/_v2/README.md), then
+in [`coga/tasks/_v2/README.md`](../../coga/tasks/_v2/README.md), then
 `git mv` it out of the parked tree (or `coga create` a fresh ticket that
 cites it). Much of the directory predates the `relay` → `coga` rename, which
 was not a find-and-replace; the README's known-stale surface table covers it.
@@ -60,7 +57,7 @@ adjudicating its drafts one by one is wasted motion.
 ## Sources of truth
 
 - Live board and status: `coga status`
-- Current product decisions: [`coga/current-direction`](../current-direction/SKILL.md)
-- Stage posture: [`coga/project-stage`](../project-stage/SKILL.md)
-- Non-negotiables: [`coga/principles`](../principles/SKILL.md)
+- Current product decisions: [`coga/current-direction`](../contexts/coga/current-direction/SKILL.md)
+- Stage posture: [`coga/project-stage`](../contexts/coga/project-stage/SKILL.md)
+- Non-negotiables: [`coga/principles`](../contexts/coga/principles/SKILL.md)
 - Exact work: the relevant ticket body and blackboard

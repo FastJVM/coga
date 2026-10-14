@@ -7,31 +7,35 @@ description: Index of active V1 marketing work, product grounding and preserved 
 
 The [V1 plan](../plan/SKILL.md) was approved on 2026-09-21. This catalogue
 helps find support; reviewing it is not a separate execution step.
+[README.md](../../../../README.md) is the source of truth for concepts and
+positioning (2026-10-13).
 
 ## Current work and message
 
 | Material | Home |
 | --- | --- |
-| Approved positioning and claim limits | [Positioning](../positioning/SKILL.md) |
+| Public-claim limits and sources | [Positioning](../positioning/SKILL.md) |
 | Strategic argument | [Strategy](../strategy/SKILL.md) |
-| Publication and measurement policy | [Distribution](../distribution/SKILL.md) |
-| Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
-| One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
-| README opening and reader path | [README ticket](../../../../coga/tasks/marketing/readme-top.md) |
-| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
+| Publication and measurement policy | [Plan](../plan/SKILL.md#distribution-and-measurement) |
+| Launch readiness, Show HN and response triage | [Plan](../plan/SKILL.md#publication-sequence); current work: [launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
+| One argument with concrete proof | [Plan](../plan/SKILL.md#publication-sequence); current work: [idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
+| Concepts and positioning (source of truth) | [README](../../../../README.md) |
+| Installation through one useful task | [`coga/install`](../../coga/install/SKILL.md), [`coga/first-task`](../../coga/first-task/SKILL.md); current work: [installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Vision](../../product/vision/SKILL.md): purpose, audience, bet and limits;
-  the bet is a thesis, not measured productivity.
+- [Vision](../../product/vision/SKILL.md): purpose, audience, kind of work
+  and limits.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.
 - [Write-post](../../../../coga/skills/marketing/write-post/SKILL.md) and
   [Clarity](../../../../coga/skills/clarity/SKILL.md): production and prose craft.
+- [Agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md):
+  dated comparison with other tools (2026-10-13).
 - [Velocity evidence](../../../evidence/velocity.md) and the other
   [dated evidence pages](../../../evidence/): descriptive, not an efficiency
   multiplier.
@@ -45,6 +49,9 @@ All of these are history, not instructions:
 
 - [Launch-programs archive](../../../archive/launch-programs/README.md):
   previous programs and their dispositions.
+- [Positioning before the README reset](../../../archive/positioning-before-readme-2026-10-13.md):
+  sections archived 2026-10-13, including the bet, the work-kind mapping and
+  dated account observations.
 - [Market landscape](../../../archive/market-landscape.md): dated competitor
   research (2026-05-31) and the 2026-09-08 prompt-as-interface claim check.
 - [Earlier campaign briefs](../../../archive/launch-programs/campaign-ticket-briefs.md):

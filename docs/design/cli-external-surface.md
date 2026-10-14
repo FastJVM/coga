@@ -3,10 +3,10 @@
 **Status:** design only. This doc does not implement the verify hook, extract a
 command, or change the CLI.
 
-**Home:** `docs/`, paired with `coga/contexts/coga/extension-model/`. The
+**Home:** `docs/design/`, paired with `docs/contexts/coga/extension-model/`. The
 context is the durable rule agents should follow at launch; this document is the
 design rationale and implementation contract for the open mechanism that context
-names. The split matches `docs/cli-extension-audit.md`: evidence and design live
+names. The split matches the archived `docs/archive/cli-extension-audit.md`: evidence and design live
 in `docs/`, while the ratified behavioral contract stays in the context.
 
 ## Decision
@@ -19,7 +19,7 @@ of real command code that cannot live at the edge:
   `bump`.
 - Secret injection at launch time.
 - Notification dispatch used by launch/state transitions.
-- The ticket factory `create` / `draft`, because `launch` runs on tickets.
+- The ticket factory `create`, because `launch` runs on tickets.
 - Fresh `init`, because no launch can run before `coga/` exists.
 - Skill verify-at-compose, because trust is enforced at the moment a skill is
   loaded for use.
@@ -269,8 +269,8 @@ without weakening the moment-of-use check.
    the current deterministic Python behavior and tests. The extension owns
    `--force`, URL materialization, local-adaptation detection, conflict status,
    and PR-summary generation. Coga core may temporarily delegate raw argv.
-4. **Leave read-view migration to Pass 2.** `skill status` is a read view in the
-   companion plan. The acquirer may expose a status/debug command because it owns
+4. **Leave read-view migration to Pass 2.** `skill status` is a read view covered by
+   the parked `read-report-commands-as-ticket-workflows` review. The acquirer may expose a status/debug command because it owns
    provenance, but the Coga CLI's read-view cleanup should stay with
    `status`/`show`/`recurring list` unless explicitly greenlit.
 5. **`init --update` was removed.** Fresh `init` stays kernel; there is no
