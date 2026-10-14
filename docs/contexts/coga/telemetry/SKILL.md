@@ -34,7 +34,7 @@ and the selected implementation file are checked; with a stock shim the latter
 is the wheel module, while repo/cwd checks still cover the launching repo.
 Resolve symlinks;
 a development ancestor has `project.name = "coga"` in `pyproject.toml`,
-`src/coga/runner.py`, and `tests/`. A wheel targeting `example/` or a linked
+`src/coga/runner.py`, and `tests/`. A wheel targeting `tests/fixtures/seeded-repo/` or a linked
 source checkout is suppressed too. Editable installations intentionally do not
 contribute PMF data. There is no bypass flag, endpoint, host, or key option.
 Automated installed-wheel tests preserve CI/pytest gates and fake transport;

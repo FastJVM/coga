@@ -21,7 +21,7 @@ command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
 `python -m ensurepip` (or `uv pip install pip`) in it first. Run
 `coga validate --json` after config, workflow, or task-model changes.
 
-**Validate `example/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
+**Validate `tests/fixtures/seeded-repo/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
 when your shell exports that variable. The fixture has notifications off, and
 the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
@@ -76,7 +76,7 @@ an EC2 Mac dedicated host.
 ## Test-writing rules
 
 - Name tests after the command or module (`tests/test_launch.py`). Coga's own
-  bundled ticket scripts are exercised from `tests/` against `example/`.
+  bundled ticket scripts are exercised from `tests/` against `tests/fixtures/seeded-repo/`.
 - **Launch metadata is scrubbed for you.** `tests/conftest.py`
   `_clear_supervised_session_env` clears `LAUNCH_OWNED_ENV`, derived from
   `coga.task_env.TASK_ENV_KEYS`, so a worker cannot write into the outer
