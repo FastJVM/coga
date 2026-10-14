@@ -8326,3 +8326,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 12:13 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-14 12:13 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-14 12:13 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [megalaunch] launched via coga megalaunch
+2026-10-14 12:29 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [agent:claude] advanced to step 2 (peer-review) → codex
