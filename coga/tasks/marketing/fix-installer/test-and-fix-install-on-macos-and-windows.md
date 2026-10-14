@@ -1,6 +1,6 @@
 ---
 title: Test and fix install on macOS and Windows
-status: in_progress
+status: blocked
 owner: zach
 workflow:
   name: code/with-self-review
@@ -28,7 +28,6 @@ contexts:
 - coga/install
 - coga/testing/clean-install
 agent: claude
-launch_generation: 218aae5f-b128-4e00-86ea-8ce9da93162f
 ---
 
 ## Description
@@ -40,3 +39,23 @@ Zach (marketing) has a Mac and a Windows machine. Walk a clean install of coga o
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Session 2026-10-14 (megalaunch, Linux host)
+
+- Nothing done yet. This ticket is a hands-on walk on Zach's own Mac and
+  Windows machines with an attended agent there. A queued Linux session
+  can't reach either machine, and writing per-OS findings without the walk
+  would make them up.
+- Known items are already tracked elsewhere and were not duplicated here:
+  the Windows `fcntl`/pty port is in `make-coga-run-on-native-windows`; the
+  Python <3.11 fail-loud is in `marketing/fix-installer/fail-loud-on-python-older-than-3-11`
+  (blocked); the CLT stub doc is done (`coga/install` "macOS: install the
+  Command Line Tools first").
+- Next: run this ticket attended (`coga launch` from a coga checkout on
+  Zach's Mac, then on the Windows box) and record findings per OS here.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-14 13:19] [agent:claude] id=20261014T131919 Needs an attended session on Zach's own Mac and Windows machines: the ticket is a hands-on clean-install walk (uv tool install coga, coga init, coga build, first ticket) on those machines, which this queued Linux session cannot reach. Relaunch it attended on the Mac, then on Windows. The Windows fcntl port is tracked separately in make-coga-run-on-native-windows.
