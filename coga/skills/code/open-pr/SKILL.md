@@ -86,7 +86,8 @@ Alongside the "never hand-open the PR" guard in step 2, this step carries a
 second refusal: **a step must not be bumped, and `coga open-pr` must not run,
 while the review that step ordered is still in flight.** Mergeability belongs to
 the earlier implement / peer-review step, and that step is not complete when a
-review has been *started* — it is complete when the review has returned and its
+review has been *started* — it is complete when direct review has completed
+or an invoked review tool has returned, and its
 must-fix findings are addressed, or explicitly deferred by the owner. A green
 `python -m pytest` is not a substitute — `code/self-qa` already records why.
 
@@ -97,12 +98,14 @@ it can only refuse to publish. `code/self-qa` and the `with-review`
 `peer-review` section therefore carry the wait-before-bump rule at the point it
 can still be obeyed. What reaches this step is their durable evidence: a
 `## Self-QA` or `## Peer review` blackboard note stating which review form ran,
-that it **returned**, and what it found. Read that note before running
+that it **completed** (direct) or **returned** (tool), and what it found.
+Direct review by the launched reviewer is a valid review form; a second CLI
+process is not required. Read that note before running
 `coga open-pr` when the workflow ordered a code review. A workflow without
 such a step (for example design-then-implement) instead reports that no code
 review was performed; design review is not a substitute. If a required code
 review note is absent, or records a review as started without
-recording that it returned, treat the review as still in flight and escalate per
+recording completion or return, treat the review as still in flight and escalate per
 your launch mode instead of publishing.
 
 `reconcile-recurring-wrapper-tty-admission-guidance` is the worked case. PR #723
@@ -183,8 +186,9 @@ Fix the cause and re-run it — it is idempotent:
 
 ## Acceptance for this step
 
-- Any review the preceding step ordered has returned, and its must-fix findings
-  are addressed or explicitly deferred by the owner.
+- The preceding step's direct review has completed or its review tool has
+  returned, and its must-fix findings are addressed or explicitly deferred by
+  the owner.
 - `coga open-pr <slug>` has been run and `pr: <url>` is recorded under `## Dev`.
 - `coga bump <slug>` has advanced the workflow (its `requires: pr` gate passed).
 

@@ -69,12 +69,19 @@ configured peer, but peer selection alone does not prove independent
 authorship: an explicit launch override can make the same agent implement and
 review a change, so do not assume you did not write this diff.
 
-Review the change with whichever review tool you natively speak:
+Review the change in this fresh peer-review session:
 
 - **Claude**: run the `/code-review` slash command (default effort —
   *not* `ultra`) against the branch diff vs `main`.
-- **Codex**: run `codex review --base <branch you forked from>`
-  (usually `main`).
+- **Codex**: you are already the reviewer. Read the branch diff against its
+  base (usually `main`), inspect the affected code and contracts, and complete
+  the review yourself. Do not start another `codex review`, `codex exec`, or
+  interactive Codex through your shell tools. Coga's supervisor handles the
+  handoff between fresh agent sessions; a child CLI would instead nest inside
+  this session's command sandbox. See `coga/testing`, "Restricted sandboxes",
+  for the runtime limitation. Direct review satisfies this step; preserve
+  actual reviewer identity and independence rather than inferring either from
+  the configured peer.
 
 Start with the `dev/checkouts` start check on `main`, and read the change by
 name without switching (`git diff main...<branch>`, `git log
@@ -85,12 +92,15 @@ commit (e.g. `peer-review: apply review findings`), push, and run the
 `dev/checkouts` end-of-step return to a clean `main`. Write `## Peer review`
 and `## PR` there, then `coga bump <slug>` from `main`.
 
-**Wait for the review to return before you bump.** A review that has been
+**Complete the review before you bump.** Finish a direct review and record
+that it **completed**, its findings, and the head/base it covered. If a review
+tool was invoked, wait for it to **return** before bumping. A review that has been
 *started* is not a review that has returned. This step owns that wait: the
 `open-pr` step which follows is mechanical, and the workflow auto-chains a
 fresh agent the moment you bump, so nothing downstream can hold an in-flight
 review open. Record the outcome under `## Peer review` on the blackboard —
-which tool ran, that it **returned**, and what it found — because a fresh
+which review form ran, that it **completed** (direct) or **returned** (tool),
+and what it found — because a fresh
 session cannot otherwise distinguish a returned review from one still running,
 and that note is the only evidence that crosses the session boundary. If you
 cannot wait, escalate per your launch mode rather than bumping. If findings imply a design rethink, write to the
@@ -132,7 +142,7 @@ so anything needing review judgment must be done *here* before you bump:
   implementation/deviations/limitations, reasons for every current diff path,
   and exact check/review receipts. Preserve actual implementing identities;
   record who really reviewed, whether it was independent or self-review, that
-  it returned, and the head/base it covered. An override or peer configuration
+  it completed or returned, and the head/base it covered. An override or peer configuration
   does not prove independence. Explain omissions; never re-stamp stale results
   after fixes. The workflow's existing tests and review obligations still apply.
 

@@ -27,7 +27,13 @@ this step just makes sure the diff they see is already clean.
    on the branch. Without `COGA_LAUNCH_RETURNS_CHECKOUT=1`, also edit code
    only until you return to `main`, and keep review notes for the blackboard
    until then.
-2. **Run `/code-review`.** Invoke the `/code-review` slash command at
+2. **Review the diff.** As Codex, review the branch directly in this session:
+   inspect the diff, affected code and contracts, and look for regressions.
+   Do not start another Codex CLI through your shell tools; see
+   `coga/testing`, "Restricted sandboxes". Record this as direct review,
+   with the actual reviewer identity and whether it is self-review.
+
+   As Claude, invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
    you'll address them in step 4. Do not use `/code-review ultra` here —
    that's the cloud-billed deep pass, reserved for high-stakes PRs and
@@ -39,12 +45,10 @@ this step just makes sure the diff they see is already clean.
    tooling limit, not a waiver. Read the branch diff vs `main` directly and
    review it as a reader who did not write the change — that is the step's
    actual substance. Record in the `## Self-QA` note which form you used, so
-   the human reviewer knows what they are inheriting. `codex review --base
-   main` is the equivalent native command where available, but it fails inside
-   a restricted sandbox (see `coga/testing`), so rerun it unsandboxed rather
-   than reporting it as clean. Its own test attempt is expected to fail
-   collection (missing `tomlkit`); that is not a finding, and `coga/testing`
-   says which suite run to record instead.
+   the human reviewer knows what they are inheriting. A direct review must
+   still examine the change; neither a tool startup failure nor a green suite
+   is a completed review. `coga/testing` owns the verification environment and
+   the host-shell handoff if the human explicitly requires the CLI reviewer.
 
    A green suite is not this step. Two recent tickets shipped a full-green
    `python -m pytest` and the review still found must-fix bugs, because the
@@ -80,7 +84,8 @@ this step just makes sure the diff they see is already clean.
    already committed on its own, leave its commits as-is and add one more
    for the residual `/code-review` fixes (if any). Push the branch
    (`--force-with-lease` if you rebased it).
-7. **Wait for the review to return, then hand off and bump.** A
+7. **Complete the review, then hand off and bump.** Finish a direct review
+   before recording it as **completed**. For an invoked review tool, a
    review that has been *started* is not a review that has returned. If `/code-review` or `codex review --base main` is still running,
    wait for its findings and apply them (steps 4-6) before you bump. This is
    the step that owns that wait: the `pr` step which follows is mechanical, and
@@ -94,8 +99,8 @@ this step just makes sure the diff they see is already clean.
    “Presentation and review-depth rubric” and “Preparation record”, and refresh
    `## PR` in the live blackboard with the handoff. Preserve actual authorship;
    record the actual reviewing agent/tool, whether review was independent or
-   self-review, that it returned, and the exact reviewed head/base. Do not
-   present your own inspection as independent review. Include commands,
+   self-review, that it completed or returned, and the exact reviewed head/base.
+   Do not present your own inspection as independent review. Include commands,
    outcomes/counts and reasons for unrun checks, each tied to the revision it
    verified. Explain every current diff path, deviations and limitations; choose
    the advisory depth from the rubric. Fixes after review invalidate that
@@ -103,7 +108,8 @@ this step just makes sure the diff they see is already clean.
 
    Then record the outcome (below) in the `## Self-QA` note as
    durable evidence: which
-   review form ran, that it **returned**, and what it found. A fresh session
+   review form ran, that it **completed** (direct) or **returned** (tool), and
+   what it found. A fresh session
    cannot otherwise tell a returned review from one still in flight, and the
    note is the only thing that crosses the session boundary. If you cannot wait,
    escalate per your launch mode — ask the attending human, or `coga block` in a
@@ -117,18 +123,20 @@ this step just makes sure the diff they see is already clean.
 
 ## Acceptance for this step
 
-- `/code-review` and `/simplify` have both run against the branch.
+- The direct or `/code-review` pass is complete, and `/simplify` has run
+  against the branch.
 - Findings worth acting on are applied, committed, and tested.
 - Working tree is clean; tests pass.
-- Every review this step started has **returned** — none is still in
-  flight at the bump.
+- Direct review has **completed**, and every review tool this step started
+  has **returned** — none is still in flight at the bump.
 - Any surface automated tests cannot reach has been swept by hand, with the
   sizes or conditions tried and the outcome recorded — or the step escalated
   instead of bumping.
 - A short `## Self-QA` section on the blackboard notes what was
   changed (or "no findings" if both passes came back clean), and states
-  explicitly that the review returned. The `pr` step reads that line as its
-  evidence, so an absent or ambiguous note reads as "still running".
+  explicitly that direct review completed or the review tool returned. The
+  `pr` step reads that line as its evidence, so an absent or ambiguous note
+  reads as "still running".
 
 ## What this skill does NOT do
 
