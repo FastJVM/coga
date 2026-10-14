@@ -1,6 +1,6 @@
 ---
 title: Put into words why I would keep using Coga
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: draft-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (agent-produces)
 agent: claude
+launch_generation: pending:d12e45de-3781-463d-9b86-f8f37618b4c2
 ---
 
 ## Description
