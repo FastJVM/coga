@@ -744,7 +744,8 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .read_text()
         .split()
     )
-    assert "`retro/done-ticket` checks the scope against the tip" in lifecycle
+    assert "`done` means the work landed; `canceled` means it did not." in lifecycle
+    assert "a ticket whose work did not land must be canceled" in lifecycle
 
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
