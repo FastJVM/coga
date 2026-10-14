@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Read First
-Treat [product/vision](docs/contexts/product/vision/SKILL.md) as the product thesis and the topic library under `docs/contexts/` (this repo's `[layout] contexts` root) as the behavioral contract. Read the relevant topic before changing behavior; if behavior changes, update the owning topic in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction. [docs/README.md](docs/README.md) indexes the library.
+Treat [README.md](README.md) as the source of truth for concepts and positioning, [product/vision](docs/contexts/product/vision/SKILL.md) as the product thesis, and the topic library under `docs/contexts/` (this repo's `[layout] contexts` root) as the behavioral contract. Read the relevant topic before changing behavior; if behavior changes, update the owning topic in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction. [docs/README.md](docs/README.md) indexes the library.
 
 Canonical Coga topics (under `docs/contexts/`):
 

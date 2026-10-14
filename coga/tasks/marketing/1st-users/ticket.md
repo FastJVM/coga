@@ -94,8 +94,8 @@ the broad audience.
 Review notes (2026-09-29): the vision audience already covers much of the
 draft ("small technical teams… Claude Code or Codex… Git"), so the new
 context may end up thin. That is acceptable; keep only what narrows the
-vision. `product/vision` stays attached because the audit checks the bet and
-limits too, not only *Intended audience*. The dependency from
+vision. `product/vision` stays attached because the audit checks the kinds of
+work and limits too, not only *Intended audience*. The dependency from
 `marketing/recruit-first-users` exists only in prose; launch order does not
 enforce it.
 
