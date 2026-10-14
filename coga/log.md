@@ -8313,3 +8313,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 11:46 v1 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-14 11:46 v1 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [megalaunch] launched via coga megalaunch
 2026-10-14 11:51 v1 [dream-runs-a-full-documentation-consistency-audit] [human:nicktoper] created (status=draft)
+2026-10-14 11:57 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] activated (draft → active) — auto on launch

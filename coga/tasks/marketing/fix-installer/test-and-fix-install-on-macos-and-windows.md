@@ -1,6 +1,6 @@
 ---
 title: Test and fix install on macOS and Windows
-status: draft
+status: active
 owner: zach
 workflow:
   name: code/with-self-review
@@ -25,8 +25,9 @@ workflow:
     assignee: owner
 step: 1 (implement)
 contexts:
-  - coga/install
-  - coga/testing/clean-install
+- coga/install
+- coga/testing/clean-install
+agent: claude
 ---
 
 ## Description
