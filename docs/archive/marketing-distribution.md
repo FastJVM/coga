@@ -1,11 +1,8 @@
----
-name: marketing/distribution
-description: V1 publication and measurement policy, plus dated account observations.
----
-
 # Coga distribution
 
-**Owner decision, 2026-09-21:** the [V1 plan](../plan/SKILL.md) selects
+> **History, archived 2026-10-13.** Formerly the local-only context `marketing/distribution`. Its live policy (Show HN rules and measurement interpretation) was folded into [`marketing/plan`](../contexts/marketing/plan/SKILL.md). Not instructions.
+
+**Owner decision, 2026-09-21:** the [V1 plan](../contexts/marketing/plan/SKILL.md) selects
 publication of one argument followed by Show HN as the product launch.
 The idea piece's venue remains an owner editorial choice; no additional
 channel sequence is implied. The launch ticket records actual dates and the
@@ -17,19 +14,19 @@ let people try the product. Publish the argument as ordinary reading material,
 not as a Show HN. The owner approves and performs publication/personal-account
 actions. Share links without soliciting votes or comments to boost ranking.
 
-The [previous distribution runbook](../../../archive/launch-programs/three-essay-distribution.md)
+The [previous distribution runbook](launch-programs/three-essay-distribution.md)
 is historical; its channel order, YC timing and thresholds are not requirements.
 
 Dated account observations from the 2026-09 audit are archived in
-[`positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md);
+[`positioning-before-readme-2026-10-13.md`](positioning-before-readme-2026-10-13.md);
 recheck any of them before relying on it.
 
 ## Measurement and interpretation
 
-The measurement policy belongs to [`coga/principles`](../../coga/principles/SKILL.md)
+The measurement policy belongs to [`coga/principles`](../contexts/coga/principles/SKILL.md)
 (§5, "Yours"). The concrete
-[payload and sweep contract](../../coga/telemetry/SKILL.md) owns the weekly
-PostHog signal, opt-out and limits; [operator procedures](../../coga/telemetry/operations/SKILL.md)
+[payload and sweep contract](../contexts/coga/telemetry/SKILL.md) owns the weekly
+PostHog signal, opt-out and limits; [operator procedures](../contexts/coga/telemetry/operations/SKILL.md)
 cover queried-row acceptance in shared project 606347. This measures repos with
 active sweeps, not installs. Owner ingestion proof remains a release gate.
 

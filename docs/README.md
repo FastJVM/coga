@@ -109,8 +109,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),
-  [plan](contexts/marketing/plan/SKILL.md),
-  [distribution](contexts/marketing/distribution/SKILL.md).
+  [plan](contexts/marketing/plan/SKILL.md).
 - Dated evidence (read the date and scope on each page before reusing a
   claim): [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md),
   [velocity](evidence/velocity.md),
@@ -128,6 +127,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [browser automation](archive/browser-automation.md),
   [Google Doc workflow](archive/create-google-doc-workflow.md),
   [roadmap](archive/roadmap.md),
+  [marketing distribution](archive/marketing-distribution.md),
   [context migration record](archive/context-migration.md),
   [CLI extension audit](archive/cli-extension-audit.md),
   [Google Drive MCP observations](archive/gdrive-mcp.md),

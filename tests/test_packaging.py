@@ -437,7 +437,6 @@ LOCAL_ONLY_CONTEXT_REFS = {
     "marketing/positioning": "This project's own marketing material.",
     "marketing/strategy": "This project's own marketing material.",
     "marketing/plan": "This project's own marketing material.",
-    "marketing/distribution": "This project's own marketing material.",
 }
 
 BOOTSTRAP_CONTEXTS = Path("bootstrap/contexts")
