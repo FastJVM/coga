@@ -8340,3 +8340,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-14 14:25 v1 [marketing/why-i-would-keep-using-coga] [megalaunch] launched via coga megalaunch
+2026-10-14 14:26 v1 [marketing/why-i-would-keep-using-coga] [agent:claude] advanced to step 2 (human-owns-and-finishes) → zach — Final text (owner's cut of Draft E) is on the blackboard; claim check and copy nits noted under Open threads.
