@@ -43,6 +43,17 @@ what goes in. Sometimes that's worth it.
 - **Hackable and automated.** You want a feature in Coga? Start `coga chat` and build it from there. It's built on known agent conventions, so it can build itself and you can understand what's being built.
 
 
+## Key concepts
+
+- **Ticket**: one piece of work as a Markdown file: what to do, the context
+  blocks it needs, the workflow it follows. Disposable once done.
+  ([tickets](docs/contexts/coga/tickets/SKILL.md))
+- **Context block** (context for short): a durable fact about the project,
+  such as a behavior, a decision or an intent, with one owning file per topic.
+  ([knowledge](docs/contexts/coga/knowledge/SKILL.md))
+- **Workflow**: the steps for one kind of work, and which of them need you.
+  ([workflows](docs/contexts/coga/workflows/SKILL.md))
+
 ## Example
 
 I wanted a plugin that picks the model and reasoning level for each task, so
@@ -130,24 +141,9 @@ surface it.
   constraints.
 - [Contributing](CONTRIBUTING.md).
 - Limits: contexts go into the prompt as truth, so a stale one misleads, and
-  Dream catches drift once a week, not instantly. Managing prompts and
+  a weekly recurring check catches drift, not instantly. Managing prompts and
   instructions as files has close precedents; see the
   [evidence pages](docs/evidence/) for dated comparisons.
 
 Coga is free software licensed under
 [Apache-2.0](LICENSE).
-
-## Weekly telemetry
-
-By default, operator recurring sweeps attempt a weekly aggregate usage snapshot
-(counts, movement, bounded version/platform fields) to FastJVM’s US PostHog
-project, shared with Multiply. This measures repos with active sweeps, not
-installs: Coga installs no scheduler, and download/init send nothing. An opaque
-repo ID is committed and shared by synced clones. No task content is sent.
-The network peer sees source IP; project settings discard it and disable GeoIP.
-Editable/source installations do not report.
-
-Set `[telemetry] enabled = false` in shared or local config to stop sending and
-its Slack receipt. Disabling stops sending; movement from the gap may appear in
-the first count after re-enabling. See the [contract](docs/contexts/coga/telemetry/SKILL.md)
-and [operator runbook](docs/contexts/coga/telemetry/operations/SKILL.md) for the boundary, verification and deletion.
