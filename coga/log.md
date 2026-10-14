@@ -8255,3 +8255,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 21:35 v1 [make-coga-run-on-native-windows] [human:nicktoper] created (status=draft)
 2026-10-13 21:44 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-13 21:48 v1 [marketing/readme-top] [human:nicktoper] activated (draft → active)
+2026-10-13 21:48 v1 [marketing/readme-top] [human:nicktoper] task done — README rewritten by the owner on 2026-10-13; it is now the source of truth for concepts and positioning.

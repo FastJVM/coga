@@ -1,6 +1,6 @@
 ---
 title: Fix the README for the V1 instrument positioning
-status: active
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -26,7 +26,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
