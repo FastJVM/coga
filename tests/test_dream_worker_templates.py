@@ -89,6 +89,9 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "Extract durable knowledge from done tickets, then delete every eligible one." in text
     assert "its resolved task directory under `coga/tasks/` still exists" in text
     assert "records no **live checkout**" in " ".join(text.split())
+    assert "Check every real `branch:` line" in " ".join(text.split())
+    assert "check the branches in that repository" in " ".join(text.split())
+    assert "a branch held only in an independent sandbox clone still blocks Retro" in " ".join(text.split())
     assert (
         "A probe that cannot answer (an unreadable branch list, an unreachable "
         "remote) counts as live"

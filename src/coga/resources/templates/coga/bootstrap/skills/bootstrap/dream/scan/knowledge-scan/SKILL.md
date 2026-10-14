@@ -142,9 +142,11 @@ inside the subagent. Classify each finding as exactly one of:
   touches, and add a `source:` line that says who can consume it:
   - `source: done` — `status: done` and the blackboard's `## Dev` section
     records no live checkout, by the Dream template's Phase 4 rule: every
-    recorded `branch:` is gone locally and from the remote and every
-    recorded `worktree:` directory is gone (or is a primary checkout). A
-    written line naming a deleted branch is not live. Phase 4 Retro extracts
+    recorded `branch:` is gone from its owning repository and the configured
+    remote, and every recorded `worktree:` directory is gone (or is a primary
+    checkout). A foreign primary is exempt only from directory debt; check its
+    branches in that clone. Unknown probes count as live. A written line
+    naming a deleted branch is not live. Phase 4 Retro extracts
     it this run.
   - `source: done+checkout` — `status: done` with a live `## Dev` checkout.
     This is retirement debt that Phase 4 skips, and `coga retire <slug>`

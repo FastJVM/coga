@@ -255,17 +255,21 @@ runs and better at de-duplicating repeated facts.
 A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
-- its blackboard `## Dev` section records no **live checkout**: no recorded
-  `branch:` still exists as a local branch of this repository (linked
-  worktrees share it) or on the configured remote
-  (`git show-ref --verify refs/heads/<branch>`,
-  `git ls-remote --heads <remote> <branch>`), and no recorded `worktree:` path
-  is still a directory other than a repository's primary checkout. A line that
-  is written but names a branch and worktree already gone — the shape autoclose
-  leaves after it deletes a merged ticket's branch — does not block Retro, and
-  neither do absent, empty, or placeholder values such as `(not yet created)`.
-  A probe that cannot answer (an unreadable branch list, an unreachable remote)
-  counts as live; and
+- its blackboard `## Dev` section records no **live checkout**. Check every
+  real `branch:` line (`autoclose.parse_branch_names`), not just the first.
+  Use `retire_worklist.is_discharged`'s existence and ownership rule: resolve
+  `worktree:` relative to this repository's root, identify its owning
+  repository with `worktree_owner`, and check the branches in that repository
+  (`owner_branch_remains`), not only in Dream's checkout. A primary checkout
+  is exempt from directory debt, **not** from branch debt: a branch held only
+  in an independent sandbox clone still blocks Retro. Also require every
+  recorded branch to be absent from the configured remote
+  (`git ls-remote --heads <remote> refs/heads/<branch>`). A non-primary
+  worktree directory that still exists blocks Retro. A line naming a branch
+  and worktree already gone — the shape autoclose leaves after deleting a
+  merged ticket's branch — does not block Retro, and neither do absent, empty,
+  or placeholder values such as `(not yet created)`. A probe that cannot
+  answer (an unreadable branch list, an unreachable remote) counts as live; and
 - no open PR is adding its `## Retro` marker or deleting that resolved task
   directory.
 
