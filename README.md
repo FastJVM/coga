@@ -46,10 +46,10 @@ what goes in. Sometimes that's worth it.
 ## Key concepts
 
 - **Ticket**: one piece of work as a Markdown file: what to do, the context
-  blocks it needs, the workflow it follows. Disposable once done.
+  blocks it needs, the workflow it follows.
   ([tickets](docs/contexts/coga/tickets/SKILL.md))
 - **Context block** (context for short): a durable fact about the project,
-  such as a behavior, a decision or an intent, with one owning file per topic.
+  such as a behavior, a decision or an intent.
   ([knowledge](docs/contexts/coga/knowledge/SKILL.md))
 - **Workflow**: the steps for one kind of work, and which of them need you.
   ([workflows](docs/contexts/coga/workflows/SKILL.md))
