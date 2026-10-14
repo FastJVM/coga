@@ -1,6 +1,6 @@
 ---
 name: code/self-qa
-description: Agent QA pass on the implement step's commits. Runs `/code-review` and `/simplify` against the branch diff and commits fixes in place before the PR is opened.
+description: Agent QA pass on the implement step's commits. Reviews the branch diff (directly in a Codex session, through `/code-review` in Claude) and runs `/simplify`, committing fixes in place before the PR is opened.
 ---
 
 # Self-QA the diff
