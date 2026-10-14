@@ -142,23 +142,3 @@ tool for subagents) is a separate ticket — out of scope here.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-Cold evaluation, no edits. Overall: description/done/workflow/scope are good, code citations mostly accurate, but the docs-target list is substantially wrong and one claim about a related ticket is false — fix before launch.
-
-**must-fix**
-1. Docs targets are stale. `docs/contexts/coga/architecture/SKILL.md` (83 lines) contains neither the "first agent declared in the effective merged configuration" paragraph nor a fixed-schema table list; no file in the repo contains that phrase. The autofix precedence bullet is in `docs/contexts/coga/recurring/autofix/SKILL.md:83`, not `recurring/SKILL.md`. Packaged `bootstrap/contexts/coga/cli/SKILL.md` *does* have a live twin (`docs/contexts/coga/cli/SKILL.md`) and contains no "first-declared". Actual default-describing docs: `coga/agents/SKILL.md:10-11`, `coga/tickets/SKILL.md:96,187`, `coga/recurring/autofix/SKILL.md:83`, `coga/init/SKILL.md:89`, plus `coga/configuration/SKILL.md:60` which owns the fixed-schema/unknown-key rule. Each has a packaged twin.
-2. Related-ticket claim is wrong. `add-an-agent-picker-for-recurring` is `status: done`, not in progress, and `authoring.py:54,85` already falls back to `Config.default_agent()` as term 6. So the new key does change the authoring interviewer — say so and add it to the "every read flips" list.
-3. `coga init` missed. `commands/init.py` `_offer_agent_cli`/`_make_default_agent` make an agent the default by reordering `[agents.*]` tables. Design must decide whether init writes the new key instead. `coga/init/SKILL.md:89` documents the current behaviour.
-
-**should-fix**
-4. Activation stamping is `mark._select_main_agent` (`mark.py:454`), not `bump`; `resolve_main_agent` merely lives in `bump.py`. The `allow_prospective_default=True` readers also include `megalaunch`, `views`, `launch_script`, `commands/launch`.
-5. The `--agent` sweep is already tested: `tests/test_recurring.py` `test_bare_recurring_passes_agent_override_to_agent_tasks` runs `coga recurring --agent codex` on `dream_repo`. Point at it so the implementer doesn't duplicate.
-6. Docstrings saying "first-declared": `Config.default_agent`, `config.py` (~1666), `create.py:385`, `recurring_autofix.py:390`, `authoring.py:54`, plus `init.py` comments.
-
-**nit**
-7. Broken line wrap in "Done when".
-8. `dev/code` is sufficient; cite `coga/agents` and `coga/configuration` rather than attach.
-
-**Prompt size (~4461 tokens):** no layer over 40% (base_prompt 29%, task_context 28%).
