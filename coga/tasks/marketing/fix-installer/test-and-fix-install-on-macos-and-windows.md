@@ -1,6 +1,6 @@
 ---
 title: Test and fix install on macOS and Windows
-status: blocked
+status: active
 owner: zach
 workflow:
   name: code/with-self-review
@@ -58,7 +58,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-10-14 13:19] [agent:claude] id=20261014T131919 Needs an attended session on Zach's own Mac and Windows machines: the ticket is a hands-on clean-install walk (uv tool install coga, coga init, coga build, first ticket) on those machines, which this queued Linux session cannot reach. Relaunch it attended on the Mac, then on Windows. The Windows fcntl port is tracked separately in make-coga-run-on-native-windows.
+- [x] [2026-10-14 13:19] [agent:claude] id=20261014T131919 Needs an attended session on Zach's own Mac and Windows machines: the ticket is a hands-on clean-install walk (uv tool install coga, coga init, coga build, first ticket) on those machines, which this queued Linux session cannot reach. Relaunch it attended on the Mac, then on Windows. The Windows fcntl port is tracked separately in make-coga-run-on-native-windows.
+  resolved: [2026-10-14 16:45] [human:zach] Owner chose rented disposable AWS macOS and Windows hosts; the read-only Mac preflight is green, so the old own-machine attendance premise no longer blocks the ticket.
 
 ## Session 2026-10-14 (attended, Zach, WSL host) — supersedes the block premise
 
@@ -228,3 +229,16 @@ review):
 6. `teardown mac1` same day; `release mac1` after 24h (stops billing).
 Then the Windows day (no driver yet: manual console launch logged step by
 step, or build `aws-windows.sh` — owner undecided).
+
+## Session 2026-10-14 (attended, Zach, resumed)
+
+- Confirmed the AWS SSO session is active and reran the read-only macOS
+  preflight from the WSL checkout. Quota remains 1; `mac2.metal` is offered
+  in us-east-1a/b/c/d; there are no existing `mac2.metal` hosts; and the
+  newest arm64 AMI remains
+  `amzn-ec2-macos-27.0-20260918-030202-arm64`.
+- Confirmed the three harness files repaired in session 1 are plain LF/ASCII
+  in this worktree. No AWS resource was created and spend remains USD 0.
+- The next mutating step is still the explicitly gated Mac host allocation.
+  Do not run it until Zach approves the roughly USD 15.60 / 24-hour minimum
+  recorded above and Nico is available for the same-day fix/review loop.
