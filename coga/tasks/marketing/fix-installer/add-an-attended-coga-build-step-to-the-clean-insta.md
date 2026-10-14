@@ -185,3 +185,13 @@ checks:
     base: 42112951e57fb812d5c89f11bbad3cf7299027b2
     detail: Same image. Wheel from origin/main 42112951e, reports 0.4.0; init/validate passed. Attempt 1 the human exited at step 1; attempt 2 went step 1 -> step 2 -> done (7 drafts), exit 0. No Coga failures found, so no new tickets.
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+Recorded: 2026-10-14T19:12:43+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review kind must be independent, self, or none.
