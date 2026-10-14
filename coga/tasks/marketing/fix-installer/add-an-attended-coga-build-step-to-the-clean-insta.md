@@ -39,6 +39,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1012
 branch: clean-install-build
 
 Plan (agreed with the human): `coga-clean-install build [--agent NAME]` mirroring
@@ -161,8 +162,10 @@ files:
 review:
   reviewer: claude
   kind: self
-  status: returned
-  detail: Claude Code /code-review (claude-opus-5-5), default effort. Same agent family as the implementer, so not independent. Run 1 covered 08b32137b only. Run 2 covered the full branch vs main at head df5110fd3. Must-fix findings were applied in df5110fd3 and 0c80a081a; the last fix commit was not re-reviewed. Final head 3c3a239 differs from 0c80a081a only by a clean rebase.
+  status: failed
+  head: df5110fd343473f2ace5f9893886a2ba5f743f24
+  base: 64aba962d531cb276b2f29a70f676d18649a5323
+  detail: Claude Code /code-review (claude-opus-5-5), default effort. Same agent family as the implementer, so not independent. Run 1 covered 08b32137b only. Run 2 covered the full branch vs main at head df5110fd3. The review returned must-fix findings (status failed at that head). They were applied in df5110fd3 (run 1) and 0c80a081a (run 2); 0c80a081a was not re-reviewed. Final head 3c3a239 differs from 0c80a081a only by a clean rebase.
 checks:
   - command: .venv/bin/python -m pytest -q
     status: passed
