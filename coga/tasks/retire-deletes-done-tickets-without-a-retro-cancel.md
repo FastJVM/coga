@@ -36,3 +36,14 @@ Owner decision 2026-10-13. Done tickets pile up (136 done, 29 canceled): autoclo
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: retire-done-deterministic
+
+## Plan
+
+- `coga retire` on `done`: dispose checkout (same proofs), discharge worklist, then `delete_task` + sync. No retire task, no agent. A kept checkout exits 2 and leaves the ticket (it is the owner record).
+- `coga retire` on `canceled`: existing path (dispose, retire task running Retro), Retro extracts the cancellation reason / negative learning.
+- Dream Phase 4 gate: done ticket eligible unless its recorded branch/worktree still exists.
+- Backlog drain deferred until this merges (it needs the new retire).
