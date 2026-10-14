@@ -31,22 +31,24 @@ Done when: setting the key to `codex` (in either file) makes
 `Config.default_agent()` — and therefore ticket activation, `coga create` into
 a live status, `coga retire`'s default, the autofix fallback, and a
 `coga recurring` sweep's next newly materialized Dream period task — resolve
-`codex` without any
-`[agents.*]` reorder; a local value overrides the shared one; an unset key keeps
+`codex` without any `[agents.*]` reorder; a local value overrides the shared one; an unset key keeps
 today's first-declared behaviour byte-for-byte; `coga recurring --agent codex`
-is verified (by test) to launch the Dream period task as `codex`; the
-contexts and docs named under Context that describe the default are updated; `python -m pytest` passes and
-`coga validate --json` is clean.
+reaching the Dream launch is covered by test (one already exists, see
+Context); the contexts, docs, and docstrings named under Context that describe
+the default are updated; `python -m pytest` passes and `coga validate --json`
+is clean.
 
 ## Context
 
 **Current mechanism.** `config.Config.default_agent` returns the first entry of
 `cfg.agents` (TOML declaration order over the merged shared+local tables). Its
-consumers: `bump` (activation stamps `agent:` from it), `create._select_main_agent`
-(via `resolve_main_agent(..., allow_prospective_default=True)` for a live
-create), `commands/retire._default_agent`, and
-`recurring_autofix._analyze_agent` (the fallback after `--agent` and
-`[autofix] agent`). Routing the new key through `default_agent()` itself is the
+consumers: `mark._select_main_agent` (activation stamps `agent:` from it),
+`create._select_main_agent` (via `bump.resolve_main_agent(...,
+allow_prospective_default=True)` for a live create),
+`commands/retire._default_agent`, `recurring_autofix._analyze_agent` (the
+fallback after `--agent` and `[autofix] agent`), and
+`authoring.resolve_authoring_agent`'s last term (the `coga ticket`
+interviewer falls back to `Config.default_agent()`). Routing the new key through `default_agent()` itself is the
 intent, so every consumer changes together with one edit — do not add a
 parallel resolver.
 
@@ -56,9 +58,10 @@ local table cannot reorder shared ones. So today there is *no* machine-local way
 to change the default at all.
 
 **Every read of the default flips together.** Besides the consumers above,
-`validate` and `commands/common` call `resolve_main_agent(...,
-allow_prospective_default=True)`, so status/show/compose/validate report the
-new default, and `resolve_other_agent` derives the peer from the main agent, so
+`validate`, `commands/common`, `megalaunch`, `views`, `launch_script`, and
+`commands/launch` call `resolve_main_agent(...,
+allow_prospective_default=True)`, so status/show/compose/validate/launch
+report the new default, and `resolve_other_agent` derives the peer from the main agent, so
 the `other-agent` peer flips too. Cover these in tests and docs.
 
 **Frozen period tickets keep their agent.** The Dream template
@@ -87,8 +90,16 @@ shared-only, so a local-capable default key is a deliberate asymmetry.
 `commands/recurring.py` and threaded as `agent_override` through
 `recurring_runner`. `coga dream` is an alias for `coga recurring launch dream`.
 The human's ask is specifically the `coga recurring --agent` sweep form. No new
-flag is expected — verify and add test coverage if missing; if it turns out not
-to reach Dream, fix it.
+flag is expected. `tests/test_recurring.py::test_bare_recurring_passes_agent_override_to_agent_tasks`
+already runs `coga recurring --agent codex` on the `dream_repo` fixture and
+asserts the override reaches the launch — extend it only if it does not
+assert the launched agent is `codex`; do not duplicate it.
+
+**`coga init` reorders tables today.** `commands/init._offer_agent_cli` /
+`_make_default_agent` make a detected agent CLI the default by moving its
+`[agents.*]` table first in the new `coga.toml`. Design must decide whether
+init writes the new key instead (simpler, and the reason the key exists) or
+keeps reordering; `coga/init` documents the current behaviour.
 
 **Precedence with other agent knobs, for docs.** `--agent` > `[autofix] agent`
 > new default key > first-declared, for the autofix analyst. For a recurring
@@ -96,28 +107,58 @@ agent-backed launch: `--agent` > the period ticket's `agent:` (stamped from
 `default_agent()` at activation). Frozen `agent:` on already-activated tickets
 is not rewritten by changing the default — same rule as reordering today.
 
-**Contexts/docs to update (read and edit, not attached):**
-`docs/contexts/coga/architecture/SKILL.md` — the paragraph stating `agent` is
-filled from `Config.default_agent()` "the first agent declared in the effective
-merged configuration", and the section listing fixed-schema tables that raise
-on unknown keys. `docs/contexts/coga/recurring/SKILL.md` — the autofix
-"Which agent type analyzes" precedence bullet. Their packaged twins live under
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/` (byte-identity
-enforced by `tests/test_packaging.py`). The packaged-only
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md` says
-"first-declared" in two places (no live twin). The `coga init` template is
-`src/coga/resources/templates/coga/coga.toml` — add a commented example there.
-No `docs/` page currently describes the default. Grep for "first-declared" /
-"first agent declared" to catch any others.
+**Contexts/docs to update (read and edit, not attached).** Each has a packaged
+twin under `src/coga/resources/templates/coga/bootstrap/contexts/coga/`
+(byte-identity enforced by `tests/test_packaging.py`):
+- `docs/contexts/coga/agents/SKILL.md` — owns the default ("The first declared
+  type is the default … so a team lists its default first"). Primary owner of
+  the new key's description.
+- `docs/contexts/coga/configuration/SKILL.md` — owns the top-level key set and
+  the "Unknown keys fail loud" rule; add the key and its local/shared
+  precedence.
+- `docs/contexts/coga/tickets/SKILL.md` — the `agent` field paragraph
+  ("first agent in merged config") and the authoring-agent precedence list.
+- `docs/contexts/coga/recurring/autofix/SKILL.md` — the "Which agent type
+  analyzes" precedence bullet.
+- `docs/contexts/coga/init/SKILL.md` — the paragraph on init reordering the
+  chosen agent's table first.
+- `src/coga/resources/templates/coga/coga.toml` (the `coga init` template) —
+  add a commented example.
+- Docstrings/comments saying "first-declared": `Config.default_agent`,
+  `config.py` near the `[autofix]` parser, `create.py`, `recurring_autofix.py`,
+  `authoring.py`, `commands/init.py`.
+Grep `first-declared`, `first declared`, `first agent` across `docs/`, `src/`,
+and `coga/` before finishing.
 
-**Related, not in scope.** `add-an-agent-picker-for-recurring` (in progress,
-despite its title) adds a machine-local `[authoring] agent` key and
-`COGA_AUTHORING_AGENT` for the `coga ticket` interview only; its bottom
-fallback is the bootstrap ticket's `assignee:`, not `default_agent()`. Keep the
-two keys independent; mention the relationship in docs if both land.
+**Related, not in scope.** The landed `add-an-agent-picker-for-recurring` work
+added a machine-local `[authoring] agent` key and `COGA_AUTHORING_AGENT` for
+the `coga ticket` interviewer; its last fallback is `Config.default_agent()`,
+so the new key also changes the default interviewer when nothing more specific
+is set. Keep `[authoring] agent` independent and document the relationship in
+`coga/agents`.
 Making Dream's skills actually work under `codex` (they assume Claude's Agent
 tool for subagents) is a separate ticket — out of scope here.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+Cold evaluation, no edits. Overall: description/done/workflow/scope are good, code citations mostly accurate, but the docs-target list is substantially wrong and one claim about a related ticket is false — fix before launch.
+
+**must-fix**
+1. Docs targets are stale. `docs/contexts/coga/architecture/SKILL.md` (83 lines) contains neither the "first agent declared in the effective merged configuration" paragraph nor a fixed-schema table list; no file in the repo contains that phrase. The autofix precedence bullet is in `docs/contexts/coga/recurring/autofix/SKILL.md:83`, not `recurring/SKILL.md`. Packaged `bootstrap/contexts/coga/cli/SKILL.md` *does* have a live twin (`docs/contexts/coga/cli/SKILL.md`) and contains no "first-declared". Actual default-describing docs: `coga/agents/SKILL.md:10-11`, `coga/tickets/SKILL.md:96,187`, `coga/recurring/autofix/SKILL.md:83`, `coga/init/SKILL.md:89`, plus `coga/configuration/SKILL.md:60` which owns the fixed-schema/unknown-key rule. Each has a packaged twin.
+2. Related-ticket claim is wrong. `add-an-agent-picker-for-recurring` is `status: done`, not in progress, and `authoring.py:54,85` already falls back to `Config.default_agent()` as term 6. So the new key does change the authoring interviewer — say so and add it to the "every read flips" list.
+3. `coga init` missed. `commands/init.py` `_offer_agent_cli`/`_make_default_agent` make an agent the default by reordering `[agents.*]` tables. Design must decide whether init writes the new key instead. `coga/init/SKILL.md:89` documents the current behaviour.
+
+**should-fix**
+4. Activation stamping is `mark._select_main_agent` (`mark.py:454`), not `bump`; `resolve_main_agent` merely lives in `bump.py`. The `allow_prospective_default=True` readers also include `megalaunch`, `views`, `launch_script`, `commands/launch`.
+5. The `--agent` sweep is already tested: `tests/test_recurring.py` `test_bare_recurring_passes_agent_override_to_agent_tasks` runs `coga recurring --agent codex` on `dream_repo`. Point at it so the implementer doesn't duplicate.
+6. Docstrings saying "first-declared": `Config.default_agent`, `config.py` (~1666), `create.py:385`, `recurring_autofix.py:390`, `authoring.py:54`, plus `init.py` comments.
+
+**nit**
+7. Broken line wrap in "Done when".
+8. `dev/code` is sufficient; cite `coga/agents` and `coga/configuration` rather than attach.
+
+**Prompt size (~4461 tokens):** no layer over 40% (base_prompt 29%, task_context 28%).
