@@ -1,6 +1,6 @@
 ---
 title: Retire deletes done tickets without a retro; canceled tickets get one
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
