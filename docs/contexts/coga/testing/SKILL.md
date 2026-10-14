@@ -131,8 +131,19 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 
 ## Restricted sandboxes
 
-- `codex review --base main` fails in a read-only app-server sandbox; rerun
-  unsandboxed.
+- **Do not launch another Codex CLI from a Codex session's shell tools.**
+  This nests the child inside the command sandbox, unlike Coga's supervisor
+  starting the next agent after the current session exits. On Linux with
+  Codex 0.162.1, the outer sandbox masks `/tmp/codex-daemon-<uid>` with mode
+  `000`; the nested sandbox requires `0700` and fails before executing a
+  command ([upstream report](https://github.com/openai/codex/issues/53799)).
+  Retrying with escalation, `--no-daemon`, or another temporary directory did
+  not resolve the observed failure. Do not treat it as evidence that the host
+  socket needs a permission change. The review workflow and self-QA skill
+  specify direct review in the current session. If the human explicitly
+  requires the CLI reviewer, hand off for `codex review --base main` to run
+  from their host shell, then inspect its returned result; restarting the
+  agent and issuing the same nested command does not change the boundary.
 - **`codex review`'s own test attempt is expected to fail collection** (for
   example `No module named 'tomlkit'`): it runs pytest under an ambient
   interpreter without Coga's dependencies. That is not a finding against the

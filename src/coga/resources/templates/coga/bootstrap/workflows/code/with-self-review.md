@@ -1,6 +1,6 @@
 ---
 name: code/with-self-review
-description: Code change with an agent self-QA pass (/code-review + /simplify, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
+description: Code change with an agent self-QA pass (direct or /code-review review + /simplify, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
 steps:
   - name: implement
     assignee: agent
@@ -65,8 +65,9 @@ or a planned tool call is not evidence of independent review.
 ## review
 
 Owner-controlled gate. The human reviews the open PR on GitHub; the diff has
-already been through `/code-review` and `/simplify` in the `self-qa` step, so
-the agent QA is done. The human decides whether to edit, request changes, push
+already been through a direct or `/code-review` review and `/simplify` in the
+`self-qa` step, so the agent QA is done; the `## Self-QA` note records which
+review form ran. The human decides whether to edit, request changes, push
 fixes, or merge. An agent launched to assist here runs the
 `code/address-pr-comments` skill, which carries the do-not-merge and do-not-bump
 rules for that assist.
