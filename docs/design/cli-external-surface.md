@@ -9,7 +9,7 @@ design rationale and implementation contract for the open mechanism that context
 names. The split matches the archived `docs/archive/cli-extension-audit.md`: evidence and design live
 in `docs/`, while the ratified behavioral contract stays in the context.
 
-## Decision
+## Proposed decision
 
 Coga's kernel is `launch` and its dependency closure, plus two narrow classes
 of real command code that cannot live at the edge:
@@ -45,7 +45,8 @@ ticket must still prove whether its behavior belongs in core or can move.
 For Coga-authored stateless capabilities outside the kernel and ticket model,
 the first-class surface is a local external CLI. For the lead case, the skill
 acquirer, that CLI should be a `gh`-style extension because it wraps `gh skill`
-and the README already makes `gh` a normal operator dependency. This is not a
+and [coga/install](../contexts/coga/install/SKILL.md) already makes `gh` a
+recommended operator dependency. This is not a
 general plugin registry and not a `coga/scripts/` dispatcher.
 
 ## Core boundary

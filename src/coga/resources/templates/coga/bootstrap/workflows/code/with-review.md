@@ -59,8 +59,10 @@ owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or
 
 Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
 so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
-in the ticket copy of the checkout the bump runs from — `main`, after the
-step pushes its branch and returns (`dev/checkouts`).
+in the ticket copy of the checkout the bump runs from — the feature branch
+after loading control's copy under `COGA_LAUNCH_RETURNS_CHECKOUT=1` (launch
+then returns the checkout), or `main` after a manual session's end-of-step
+return (`dev/checkouts`).
 
 ## peer-review
 
@@ -88,9 +90,13 @@ name without switching (`git diff main...<branch>`, `git log
 main..<branch>`) when your tool allows it; a tool that reviews the checked-out
 branch needs the switch below first. To apply must-fix findings (skip nits)
 and freshen the branch, `git switch <branch>`, re-run `python -m pytest`,
-commit (e.g. `peer-review: apply review findings`), push, and run the
-`dev/checkouts` end-of-step return to a clean `main`. Write `## Peer review`
-and `## PR` there, then `coga bump <slug>` from `main`.
+commit (e.g. `peer-review: apply review findings`), and push. Then, with
+`COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load control's copy of
+the ticket (`dev/checkouts`, "In a launched session"), write `## Peer review`
+and `## PR`, and run `coga bump <slug>` last; launch returns the checkout.
+Without it, run the `dev/checkouts` end-of-step return to a clean `main`,
+write the notes there, and `coga bump <slug>` from `main`. If you never
+switched, write them on `main` and bump from there.
 
 **Complete the review before you bump.** Finish a direct review and record
 that it **completed**, its findings, and the head/base it covered. If a review
@@ -147,8 +153,8 @@ so anything needing review judgment must be done *here* before you bump:
   after fixes. The workflow's existing tests and review obligations still apply.
 
 Leave the branch committed and pushed with commits ahead of `main`, and the
-checkout back on a clean `main`; `coga open-pr` refuses to publish an empty
-branch.
+checkout back on a clean `main` unless launch returns it; `coga open-pr`
+refuses to publish an empty branch.
 
 ## open-pr
 

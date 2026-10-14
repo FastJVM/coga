@@ -19,8 +19,10 @@ The repo separates implementation from the OS it operates:
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
   the repo shim; [coga/telemetry](../telemetry/SKILL.md) owns its contract.
 
-- `src/coga/commands/`: one thin Typer entrypoint per command. No business
-  logic.
+- `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
+  with no business logic are the target; `launch.py` and `init.py` are the
+  current exceptions that still carry substantial logic. `update.py` (init's
+  template-copy helpers) and `common.py` are shared helpers, not commands.
 - `config.py` (shared/local TOML, fixed schema), `compose.py` (prompt layers),
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
   `workflow.py` / `bump.py` / `step_gate.py` / `mark.py` (steps, gates,

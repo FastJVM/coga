@@ -4,10 +4,12 @@ description: Docs/markdown change implemented by one agent, then peer-reviewed f
 steps:
   - name: implement
     assignee: agent
+    requires: branch
   - name: peer-review
     assignee: other-agent
   - name: open-pr
     assignee: agent
+    requires: pr
   - name: review
     assignee: owner
     skills:
@@ -58,7 +60,9 @@ state.
 ## implement
 
 Implement the docs change on a feature branch in the launch checkout,
-commit and push it, and return the checkout to `main`; stop before the PR.
+commit and push it, and hand off; stop before the PR. `coga launch` returns
+the checkout to `main` when the session has `COGA_LAUNCH_RETURNS_CHECKOUT=1`;
+otherwise you return it yourself.
 Follow `dev/checkouts` ("Start, work, end") — no linked worktrees. The mechanics match a code task, but the verification bar is
 docs-oriented: prove the changed markdown, workflow, context, or template is
 accurate and reachable rather than running tests that cover nothing.
@@ -84,8 +88,8 @@ accurate and reachable rather than running tests that cover nothing.
    The launch checkout then stays on `main`.
 3. **Edit on the feature branch.** Keep the diff scoped to the ticket; no
    opportunistic rewrites. Edit docs only while on the branch — note
-   adjacent cleanup for a follow-up and write it to the blackboard after
-   returning to `main`.
+   adjacent cleanup for a follow-up and write it to the blackboard with the
+   handoff (step 7).
 4. **Keep shipped copies in sync.** If you touched a shipped Coga context or
    template that has both a live copy under `coga/` and a packaged copy under
    `src/coga/resources/templates/coga/`, edit **both** in the same commit
@@ -100,13 +104,17 @@ accurate and reachable rather than running tests that cover nothing.
    - Run `python -m pytest` only if you actually touched code or a fixture.
      A pure prose edit does not require the full suite.
 
-6. **Commit, push, and return.** Use a short factual subject and mention the
-   ticket slug in the body. Push the branch, then run the `dev/checkouts`
-   end-of-step return to a clean `main`.
-7. **Bump from `main`.** Run `coga bump <slug>` only after the
-   blackboard is current. If you cannot reach a clean committed state, write
-   the blocker to the blackboard and escalate per your launch mode — ask the
-   attending human, or `coga block` in a queue run.
+6. **Commit and push.** Use a short factual subject and mention the
+   ticket slug in the body, then push the branch. Under the launch witness,
+   stay on the branch; launch returns the checkout after the session.
+   Otherwise run the `dev/checkouts` end-of-step return to a clean `main`.
+7. **Hand off and bump.** Under the launch witness, load control's copy of
+   the ticket on the feature branch (`dev/checkouts`, "In a launched
+   session") and write the handoff there; otherwise write it on `main`.
+   Confirm `## Dev` records `branch:`, then run `coga bump <slug>` last. If
+   you cannot reach a clean committed state, write the blocker to the
+   blackboard and escalate per your launch mode — ask the attending human,
+   or `coga block` in a queue run.
 
 ## peer-review
 
@@ -134,10 +142,19 @@ names) and check:
 - **Tests** — run `python -m pytest` **only if** the change actually
   touched code or a fixture; a pure prose edit does not need it.
 
+Record the outcome under `## Peer review` on the blackboard, and refresh the
+`## PR` preparation record there
+([coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+“Preparation record”) so the `open-pr` step has evidence to format.
+
 To apply must-fix findings (skip nits), follow `dev/checkouts`: switch to
-the recorded branch, commit (e.g. `peer-review: apply review findings`),
-push, return to a clean `main`, then write your notes and
-`coga bump <slug>` there. If the change reads as wrong
+the recorded branch, commit (e.g. `peer-review: apply review findings`), and
+push. Then, with `COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load
+control's copy of the ticket (`dev/checkouts`, "In a launched session"),
+write your notes, and run `coga bump <slug>` last; launch returns the
+checkout. Without it, return to a clean `main`, then write your notes and
+`coga bump <slug>` there. If you never switched, write them on `main` and
+bump from there. If the change reads as wrong
 in premise (documents behavior that doesn't exist, or contradicts a
 canonical context), write to the blackboard and escalate per your launch mode
 — ask the attending human, or `coga block` in a queue run — instead of patching
@@ -146,31 +163,38 @@ around it.
 ## open-pr
 
 Push the reviewed branch and open the PR. This step is still docs-oriented,
-but it owns the same publication and handoff guarantees as a code PR.
+but it owns the same publication and handoff guarantees as a code PR, and
+declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
 
-1. **Find the branch.** Run the `dev/checkouts` start check, then read
-   `branch:` under `## Dev` on the blackboard (and `worktree:`, present only
-   for a sandbox clone). Confirm the branch has commits ahead of `main`.
-2. **Push** the branch by name from `main` (`git push -u origin
-   <branch-name>`), or from the sandbox clone.
-3. **Open the PR** with `gh pr create --head <branch-name> --base <control-branch>`
-   (use the recorded branch and configured control branch, normally `main`).
-   If a draft PR already exists, mark it
-   ready instead. Title = ticket title. Body = short summary + "Closes
-   ticket: `<slug>`" + a one-line verification plan.
-4. **Record the URL in durable task state.** On `main`, add
-   `pr: <url>` under `## Dev` on the blackboard. Also add or update a `## PR`
-   section in the ticket body with the PR URL before you bump.
+1. **Find the branch.** Run the `dev/checkouts` start check (under
+   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already brought the checkout
+   there), then read `branch:` under `## Dev` on the blackboard (and
+   `worktree:`, present only for a sandbox clone). Confirm the branch has
+   commits ahead of `main`.
+2. **Run `coga open-pr <slug>` from `main`.** It pushes the recorded branch
+   by name, opens the PR (or readies a draft, or refreshes an open one),
+   formats the blackboard `## PR` preparation record into the body, and
+   writes `pr: <url>` under `## Dev` on the blackboard
+   ([coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md)).
+   Do not add a `## PR` section to the ticket body, and never hand-open the
+   PR with `gh pr create` to route around a refusal without explicit human
+   approval.
 
 After the PR is open, **resolve any merge conflicts with the base branch
 before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 <PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
 `main`, switch to the feature branch, merge/rebase `main` into it, resolve
-the conflicts, push, and return to a clean `main` (`dev/checkouts`) so the
-human reviewer receives a clean, mergeable PR.
+the conflicts, and push so the human reviewer receives a clean, mergeable
+PR. Under the launch witness, stay on the branch and load control's copy of
+the ticket before the bump; otherwise return to a clean `main`
+(`dev/checkouts`).
 If conflict resolution touches code or fixtures, run `python -m pytest`;
 otherwise re-run the docs-specific verification that applies to the changed
-files.
+files. A resolution push moves the head the PR body describes: refresh the
+`## PR` preparation record — new check receipts, and the review receipt
+marked as covering the pre-resolution revision — then rerun
+`coga open-pr <slug>` from `main` after the final push so the body matches
+the head the owner reviews.
 Only then `coga bump` to hand off to the owner. If a conflict needs a
 judgment call you can't make, write it to the blackboard and escalate per your
 launch mode — ask the attending human, or `coga block` in a queue run — instead

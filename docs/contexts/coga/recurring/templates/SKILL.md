@@ -52,7 +52,8 @@ creator. It:
 - copies the body above the fence verbatim and starts a fresh blackboard. Only
   `## Description` and `## Context` are composed into the prompt, so keep every
   other heading in the run instructions at `###`; a stray top-level `## `
-  (even inside a fenced example) ends the Description there;
+  ends the Description there (one inside a fenced example is text, not a
+  heading);
 - appends `coga/period-task` to `contexts:` (idempotently, always);
 - freezes `delegate:` and stamps a fresh `period_generation`;
 - copies only the reserved `ticket.py`; other siblings stay with the template;

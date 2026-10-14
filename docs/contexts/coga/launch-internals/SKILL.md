@@ -47,6 +47,21 @@ and the local state lock serializes only one checkout's writers.
   itself.
 - [Recurring admission](../internals/recurring-admission/SKILL.md): frozen
   period generations, the pre-spawn lease, and exact-ledger creation.
+- [Recurring control](../internals/recurring-control/SKILL.md): where
+  recurring runs may start, the off-branch relay into a control worktree, the
+  `--all` entry gate, and the owner gate read from the fetched control tip.
+- [Recurring temp worktrees](../internals/recurring-temp-worktrees/SKILL.md):
+  how an unattended `--all` child services a parked checkout from a temporary
+  linked worktree, and recovery of its survivors.
+- [Git refresh](../internals/git-refresh/SKILL.md): `git.refresh`,
+  `fast_forward_control`, the staleness probe, and stranded-ticket-write
+  detection.
+- [Git regressions](../internals/git-regressions/SKILL.md): why `git.publish`
+  refuses a state file, and shipping a stored-ticket schema conversion.
+- [Spool merge](../internals/spool-merge/SKILL.md): `merge=union` append-only
+  files, the one-line-per-event log encoding, and union publication.
+- [Activity capture](../internals/activity-capture/SKILL.md): the bounded,
+  secret-redacted usage record captured after each agent session.
 
 ## Not covered here
 

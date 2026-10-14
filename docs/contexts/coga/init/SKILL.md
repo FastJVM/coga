@@ -36,7 +36,8 @@ Then init:
    (`src/coga/commands/update.py` `copy_fresh_templates`). The result is
    `coga.toml`, `context.md`, `log.md`, `tasks/`, `recurring/`, `skills/`,
    `workflows/`, a `contexts/` holding only the `_template/` scaffold and its
-   `.gitignore`, plus `coga/.gitignore` wrapped in a coga-managed block.
+   `.gitignore`, `coga/.gitattributes` (`merge=union` for `log.md` and
+   `retires.md`), plus `coga/.gitignore` wrapped in a coga-managed block.
    Bundled contexts, skills and workflows are **not** copied. They resolve
    from the installed package after the local roots miss
    ([coga/context-layout](../context-layout/SKILL.md)).
