@@ -39,8 +39,10 @@ build_state() {
     fi | tee -a "$evidence/build.txt"
     if [[ $1 == after && -f coga/log.md ]]; then
         printf 'log:\n' | tee -a "$evidence/build.txt"
-        # Usage records embed request/outcome excerpts of the conversation.
-        grep -F '[coga-build]' coga/log.md | grep -vF '] [system] ' \
+        # Match the ref field, not a mention. System usage records (a JSON
+        # message) embed request/outcome excerpts of the conversation.
+        grep -E '^[0-9-]+ [0-9:]+ (v1 )?\[coga-build\] ' coga/log.md \
+            | grep -vE '^[^[]*\[coga-build\] \[system\] \{' \
             | tee -a "$evidence/build.txt" || true
     fi
 }

@@ -62,14 +62,15 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
             mkdir -p coga/tasks
             printf -- '---\nstatus: active\nstep: 1 (gather-and-spec)\n---\nstep: body\n' \
                 > coga/tasks/coga-build.md
-            echo '2026-10-13 10:00 [coga-build] [human:first-user] created' > coga/log.md
+            echo '2026-10-13 10:00 v1 [coga-build] [human:first-user] created' > coga/log.md
         fi
         if [ "$1" = build ]; then
             printf -- '---\nstatus: in_progress\nstep: 2 (generate-batch)\n---\n' \
                 > coga/tasks/coga-build.md
-            echo '2026-10-13 10:05 [coga-build] [agent:claude] bumped' >> coga/log.md
-            echo '2026-10-13 10:05 [other] [agent:claude] bumped' >> coga/log.md
-            echo '2026-10-13 10:05 [coga-build] [system] {"request":"secret idea"}' >> coga/log.md
+            echo '2026-10-13 10:05 v1 [coga-build] [agent:claude] bumped' >> coga/log.md
+            echo '2026-10-13 10:05 v1 [other] [agent:claude] waiting on [coga-build] idea' >> coga/log.md
+            echo '2026-10-13 10:05 v1 [coga-build] [system] {"request":"secret idea"}' >> coga/log.md
+            echo '2026-10-13 10:06 v1 [coga-build] [system] started via coga launch' >> coga/log.md
         fi
         printf 'coga stub: %s\\n' "$*"
     """)
@@ -208,11 +209,12 @@ def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, s
         "after_status=in_progress",
         "after_step=2 (generate-batch)",
         "log:",
-        "2026-10-13 10:00 [coga-build] [human:first-user] created",
-        "2026-10-13 10:05 [coga-build] [agent:claude] bumped",
+        "2026-10-13 10:00 v1 [coga-build] [human:first-user] created",
+        "2026-10-13 10:05 v1 [coga-build] [agent:claude] bumped",
+        "2026-10-13 10:06 v1 [coga-build] [system] started via coga launch",
         "build_exit_code=0",
     ]
-    assert "secret idea" not in (evidence / "build.txt").read_text()
+    assert "idea" not in (evidence / "build.txt").read_text()
 
 
 def test_clean_install_build_records_failure_and_removed_ticket(
