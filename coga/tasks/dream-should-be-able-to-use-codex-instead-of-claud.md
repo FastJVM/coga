@@ -1,6 +1,6 @@
 ---
 title: dream should be able to use codex instead of claude
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
