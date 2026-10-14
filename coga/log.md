@@ -8315,3 +8315,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 11:51 v1 [dream-runs-a-full-documentation-consistency-audit] [human:nicktoper] created (status=draft)
 2026-10-14 11:57 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] activated (draft → active) — auto on launch
 2026-10-14 11:57 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] started (active → in_progress) via coga launch
+2026-10-14 11:57 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] launched (operator=claude, agent=claude)
