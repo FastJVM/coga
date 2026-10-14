@@ -80,7 +80,9 @@ the last run's output into the next run's instructions.
   (default: the newest).
 - Analyst agent: `--agent` on `coga recurring` or `autofix-analyze`, else the
   shared-only `[autofix] agent` key in `coga.toml` (must name a configured
-  type; validated at config load), else the first-declared `[agents.*]` table.
+  type; validated at config load), else `Config.default_agent()`: the
+  `default_agent` key (local over shared), else the first-declared
+  `[agents.*]` table.
 - The one-shot argv is built in for `claude` and `codex`; another CLI needs
   `[agents.<name>].analyze` (e.g. `"-p {prompt}"`) or the loop skips loudly.
 - The analyst's stdin is `/dev/null` (`codex exec` would append piped stdin).

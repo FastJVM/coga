@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Read First
-Treat [product/vision](docs/contexts/product/vision/SKILL.md) as the product thesis and the topic library under `docs/contexts/` (this repo's `[layout] contexts` root) as the behavioral contract. Read the relevant topic before changing behavior; if behavior changes, update the owning topic in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction. [docs/README.md](docs/README.md) indexes the library.
+Treat [README.md](README.md) as the source of truth for concepts and positioning, [product/vision](docs/contexts/product/vision/SKILL.md) as the product thesis, and the topic library under `docs/contexts/` (this repo's `[layout] contexts` root) as the behavioral contract. Read the relevant topic before changing behavior; if behavior changes, update the owning topic in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction. [docs/README.md](docs/README.md) indexes the library.
 
 Canonical Coga topics (under `docs/contexts/`):
 
@@ -15,7 +15,7 @@ Canonical Coga topics (under `docs/contexts/`):
 Do not leave the durable explanation only in chat, PR comments, or task notes when it belongs in a topic, template, README, or spec. Which surface owns a fact — a topic under `docs/contexts/`, a skill, or a dated `docs/evidence/`, `docs/design/`, or `docs/archive/` page — is decided by `coga/knowledge` (`docs/contexts/coga/knowledge/SKILL.md`): one owner per fact, other surfaces may summarize and link but never restate the specification, and the same PR that changes the owner fixes the other surface.
 
 ## Project Structure & Module Organization
-Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `example/coga/` as the seeded fixture for end-to-end behavior.
+Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `tests/fixtures/seeded-repo/coga/` as the seeded fixture for end-to-end behavior.
 
 ### Keep core minimal — the microkernel rule
 Code earns a permanent home in `src/coga/` in **two ways**: (a) genuine **shared infra** — code with **≥2 real consumers** (compose, config, task/ticket IO, the launch machinery, shared parsers and gates); and (b) a reviewed command contract that must be co-versioned with the package. The second class contains the deliberately fixed `coga run` recipe registry (`open-pr`, `delete-task`, `publish-state`, and the recurring jobs) plus a command only when its contract names the package-private invariant or atomic transaction that an edge implementation using stable CLI/filesystem interfaces could not preserve. Python logic or inability to use an alias does not establish that home. Existing command heads with unresolved placement remain in the package pending review; [coga/extension-model](docs/contexts/coga/extension-model/SKILL.md#open-command-placements) owns their classification status and the deferred reviews.
@@ -34,7 +34,7 @@ When changing shipped Coga OS contexts or templates, check both the canonical re
 Target Python 3.11+, use 4-space indentation, `from __future__ import annotations`, and explicit type hints. Follow the current naming pattern: `snake_case` for modules/functions, `PascalCase` for dataclasses and exceptions. Prefer standard-library solutions, keep command handlers small, and preserve the spec’s distinctions between projects, skills, contexts, workflows, and tasks.
 
 ## Testing Guidelines
-Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `example/` repo or related fixtures so the smoke path remains representative.
+Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `tests/fixtures/seeded-repo/` repo or related fixtures so the smoke path remains representative.
 
 ## Commit & Pull Request Guidelines
 Recent commits use short, factual subjects, for example `Route recurring jobs through registered recipes` or `Drop redundant \`dream\` alias from coga.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.

@@ -34,11 +34,10 @@ within its first day.
 **Reusing an already-allocated host takes a manual step.** `provision` always
 calls `ec2 allocate-hosts` and has no option to target an existing host, so a
 later provision name cannot reuse a host that an earlier one allocated (for
-example one still inside its 24-hour minimum). The 2026-10-01 run reused
-`h-0833c01ac15e645ac` this way. The owner approved the reuse separately from
-the original allocation. The operator ran a temporary, untracked copy of
-`aws-mac.sh` that substituted the existing host ID for the allocation call,
-and left the tracked harness unchanged. The new provision's `resources.env`
+example one still inside its 24-hour minimum). Reuse needs owner approval
+separate from the original allocation and a temporary, untracked copy of
+`aws-mac.sh` that substitutes the existing host ID for the allocation call;
+the tracked harness stays unchanged. The new provision's `resources.env`
 then owns that host. Its standard `teardown <name>` released it, so that
 ledger, not the original one, must record `HOST_RELEASED`.
 
@@ -88,8 +87,7 @@ a fresh login shell resolves `git` to the `/usr/bin` shim. It never preinstalls
 CLT. A new Mac user meets the CLT prompt at their first `git` call, and so does
 the harness. The AMI's CLT receipts stay: they live under SIP in
 `/Library/Apple/System/Library/Receipts`, which `pkgutil --forget` does not
-touch. On the 2026-09-30 run they did not stop `softwareupdate` from offering
-the CLT again.
+touch, and they do not stop `softwareupdate` from offering the CLT again.
 
 ## Walk
 
@@ -117,8 +115,7 @@ not from your working tree, and copies only that wheel to the Mac.
 
 **The walk pins Python 3.11.** After the CLT install, the Mac's default
 `/usr/bin/python3` is 3.9.6, below Coga's 3.11 floor; a walk on it is not
-evidence about a supported interpreter (on 2026-10-01 an earlier walk that
-resolved the PyPI `0.0.1` placeholder was set aside for this reason). So the
+evidence about a supported interpreter. So the
 walk installs a uv-managed 3.11 for the walk user, and `container.sh` refuses
 to start unless `UV_PYTHON` and `UV_PYTHON_DOWNLOADS=never` are set, records
 the interpreter's path and version in the transcript, stops before the

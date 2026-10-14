@@ -190,7 +190,11 @@ the ticket before the bump; otherwise return to a clean `main`
 (`dev/checkouts`).
 If conflict resolution touches code or fixtures, run `python -m pytest`;
 otherwise re-run the docs-specific verification that applies to the changed
-files.
+files. A resolution push moves the head the PR body describes: refresh the
+`## PR` preparation record — new check receipts, and the review receipt
+marked as covering the pre-resolution revision — then rerun
+`coga open-pr <slug>` from `main` after the final push so the body matches
+the head the owner reviews.
 Only then `coga bump` to hand off to the owner. If a conflict needs a
 judgment call you can't make, write it to the blackboard and escalate per your
 launch mode — ask the attending human, or `coga block` in a queue run — instead

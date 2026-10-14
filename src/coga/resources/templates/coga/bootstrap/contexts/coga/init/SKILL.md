@@ -86,12 +86,13 @@ details), so an invocation that must exit changes nothing on the machine.
 At the same point, with no agent CLI on `PATH`, it asks which agent CLI to
 install (`claude`, `codex`, or skip) and offers its install and login. When
 exactly one agent CLI is then on `PATH` and it is not the packaged default
-(`claude`), init asks whether to make it the default agent; on a yes it moves
-that `[agents.*]` table first in the new `coga.toml` (the first-declared
-type is the default, see [coga/agents](../agents/SKILL.md)) and repoints
-delivered tickets naming the old default, such as the onboarding ticket's
-`agent:`, all before the commit. A reorder that would not parse back to the
-same config is skipped with a warning. A
+(`claude`), init asks whether to make it the default agent. On a yes it writes
+`default_agent = "<type>"` into the new `coga.toml` and leaves the
+`[agents.*]` table order alone (see
+[coga/agents](../agents/SKILL.md#the-default-agent)). It also repoints delivered
+tickets that name the old default, such as the onboarding ticket's `agent:`.
+Both happen before the commit. If the edit would not parse back to the same
+config plus that one key, init skips it and prints a warning. A
 non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
 edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).

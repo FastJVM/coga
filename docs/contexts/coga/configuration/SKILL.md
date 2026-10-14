@@ -18,12 +18,16 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 ## Allowlists
 
-`coga.toml` top level: `version` (must be `1`), `default_status`, `owner`,
-`agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
+`coga.toml` top level: `version` (must be `1`), `default_status`,
+`default_agent`, `owner`, `agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
 `extensions`, `layout`, `autofix`, `telemetry`, `recurring`.
 
-`coga.local.toml` top level: `user`, `agents`, `notification`, `git`,
-`upstream`, `telemetry`, `authoring`.
+`coga.local.toml` top level: `user`, `default_agent`, `agents`,
+`notification`, `git`, `upstream`, `telemetry`, `authoring`.
+
+`default_agent` is a string in both files. The local value wins, and each
+present value must name a type in the merged `[agents.*]`; it is validated at
+load ([coga/agents](../agents/SKILL.md#the-default-agent)).
 
 | Table | Keys | Where |
 |---|---|---|

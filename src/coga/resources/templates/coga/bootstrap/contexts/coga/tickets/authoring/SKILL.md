@@ -33,7 +33,8 @@ Part of [coga/tickets](../SKILL.md).
   `--pick-agent` answer; (2) `COGA_AUTHORING_AGENT`; (3) `[authoring] agent`
   in `coga.local.toml`; (4) the target ticket's `agent:`; (5)
   `bootstrap/ticket`'s `agent:`, the install-level default; (6)
-  `Config.default_agent()`. An unknown name from any term fails loud naming
+  `Config.default_agent()` (the `default_agent` key, else the first-declared
+  type). An unknown name from any term fails loud naming
   that term, never falling through. The choice selects the interviewer only
   and is never written to the ticket. `coga ticket --pick-agent` (TTY only;
   refused with `--agent`) lists the configured types in declaration order,

@@ -21,7 +21,7 @@ command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
 `python -m ensurepip` (or `uv pip install pip`) in it first. Run
 `coga validate --json` after config, workflow, or task-model changes.
 
-**Validate `example/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
+**Validate `tests/fixtures/seeded-repo/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
 when your shell exports that variable. The fixture has notifications off, and
 the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
@@ -30,7 +30,8 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 For artifact-level reproduction, use the
 [Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
-continuation for agent login and the first ticket. The
+continuation for agent login, the first-run `coga build`, and the first
+ticket. The
 [macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host.
 
@@ -76,7 +77,7 @@ an EC2 Mac dedicated host.
 ## Test-writing rules
 
 - Name tests after the command or module (`tests/test_launch.py`). Coga's own
-  bundled ticket scripts are exercised from `tests/` against `example/`.
+  bundled ticket scripts are exercised from `tests/` against `tests/fixtures/seeded-repo/`.
 - **Launch metadata is scrubbed for you.** `tests/conftest.py`
   `_clear_supervised_session_env` clears `LAUNCH_OWNED_ENV`, derived from
   `coga.task_env.TASK_ENV_KEYS`, so a worker cannot write into the outer
@@ -105,10 +106,9 @@ Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 validation are the release gate, and the pristine-tree wheel collision is
 caught only at release or by hand.
 
-On 2026-09-24, the owner declined a pytest CI gate: test verification belongs
-to Coga's implement / self-QA / review workflow steps. PR #894's Python
-3.11/3.12 GitHub Actions matrix was closed unmerged; the port survives as
-commit `58630a20f`. Reusable workflows cannot assume Python 3.11 is installed
+There is no pytest CI gate (owner decision, 2026-09-24): test verification
+belongs to Coga's implement / self-QA / review workflow steps; the history is
+in `docs/archive/superseded-decisions.md`. Reusable workflows cannot assume Python 3.11 is installed
 in a user's environment. Evidence for Coga's declared 3.11 floor requires a
 run on a real Python 3.11 interpreter; a green 3.12 run is not evidence for
 it. When 3.11 is unavailable, report that verification gap with the actual

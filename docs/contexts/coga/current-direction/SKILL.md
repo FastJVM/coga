@@ -5,22 +5,25 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-09-29.
+Last updated: 2026-10-13.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
-is `coga status` and the ticket bodies; sequencing is
-[`coga/roadmap`](../roadmap/SKILL.md); stage posture is
+is `coga status` and the ticket bodies; stage posture is
 [`coga/project-stage`](../project-stage/SKILL.md). Replaced decisions are in
 [`docs/archive/superseded-decisions.md`](../../../archive/superseded-decisions.md).
 
 ## In force
 
+- **README is the source of truth for concepts and positioning
+  (2026-10-13).** [README.md](../../../../README.md) owns them; stale
+  positioning sections were archived to
+  [`docs/archive/positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
-  contexts root. Ticket:
-  [`redo-documentation-dir-and-merge-it-with-context-b`](../../../../coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
+  contexts root. History:
+  [`docs/archive/context-migration.md`](../../../archive/context-migration.md).
   Authoring rule: [`coga/knowledge`](../knowledge/SKILL.md).
 - **V1 marketing is one idea piece, then Show HN (2026-09-21).** See
   [`marketing/plan`](../../marketing/plan/SKILL.md) and
@@ -32,8 +35,16 @@ is `coga status` and the ticket bodies; sequencing is
   the reversal is recorded in [`coga/principles`](../principles/SKILL.md) §5.
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
-  drafts may be stale or contradictory and owe no verdict. See
-  [`coga/roadmap`](../roadmap/SKILL.md) "Deferred work".
+  drafts may be stale or contradictory and owe no verdict. Pull one forward
+  only by explicit decision, through the premise check in
+  [`coga/tasks/_v2/README.md`](../../../../coga/tasks/_v2/README.md); the
+  parked-directory rule is [`coga/tickets`](../tickets/SKILL.md).
+- **Reliability before convenience (since 2026-09-02).** Bugs that block
+  installation, launch, state sync or review take precedence over new
+  convenience surfaces. Marketing and documentation work proceed
+  independently when they do not change the core task model. (The former
+  `coga/roadmap` is archived at
+  [`docs/archive/roadmap.md`](../../../archive/roadmap.md).)
 - **Recurring runs are ordinary tickets with a stable identity (by
   2026-09-02).** One `recurring/<name>` task per template, the serviced
   period recorded in `coga/log.md`, completed runs cleaned up by Dream,
@@ -73,8 +84,9 @@ is `coga status` and the ticket bodies; sequencing is
   [`coga/notifications`](../notifications/SKILL.md).
 - **Control and data planes stay split.** `coga launch` owns
   `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is
-  recovery for understood work and a normal move for unknown work. Contract:
-  [`coga/lifecycle`](../lifecycle/SKILL.md).
+  recovery when a step went wrong but the premise holds. When the premise is
+  wrong, cancel the ticket with its reason, fix the owning context and start
+  a new one. Contract: [`coga/lifecycle`](../lifecycle/SKILL.md).
 
 ## Open intent, not live direction
 

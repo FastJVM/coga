@@ -24,7 +24,7 @@ the whole abstraction. Git is the other sync layer (`coga/sync`).
   aggregates) or the important webhook (a human must act; see
   `coga/important`).
 - **Cadence** — every post is delivered live, one message per event. There is
-  no digest, batch, or spool (the daily digest was removed, #786), so there
+  no digest, batch, or spool, so there
   is no fallback queue: an event either posts now or is silent. Importance
   picks where a delivered post goes, never when. Commits that reach `main`
   without a Done ticket are never announced; `git log` and GitHub are the

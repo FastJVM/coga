@@ -1,4 +1,4 @@
-"""End-to-end smoke test: run the full lifecycle against the seeded `example/` repo.
+"""End-to-end smoke test: run the full lifecycle against `tests/fixtures/seeded-repo/`.
 
 Verifies:
 - task creating creates a task with a frozen workflow snapshot.
@@ -29,22 +29,22 @@ from coga.ticket import Ticket
 from coga.validate import run as validate_run
 
 
-EXAMPLE = Path(__file__).parent.parent / "example"
+SEEDED_REPO = Path(__file__).parent / "fixtures" / "seeded-repo"
 
 
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Copy the seeded example repo into tmp_path so the test doesn't mutate the source.
+    """Copy the seeded fixture repo into tmp_path so the test doesn't mutate the source.
 
     `.claude/` and `.codex/` are gitignored, agent-skill materializations that
     coga regenerates on demand — not part of the seeded fixture. They contain
     `skills/coga` symlinks into `.agent-skills`, which may be stale/dangling on
-    a developer's machine after running coga against `example/`. Excluding them
+    a developer's machine after running coga against the fixture. Excluding them
     keeps the copy reproducible (and avoids `shutil` choking on a dead symlink).
     """
     dest = tmp_path / "example"
     shutil.copytree(
-        EXAMPLE,
+        SEEDED_REPO,
         dest,
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,

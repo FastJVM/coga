@@ -5,7 +5,8 @@ description: The ticket file contract — canonical and extension frontmatter ke
 
 # Tickets
 
-A ticket is one durable unit of work: YAML frontmatter, a body, the fence
+A ticket is one unit of work, git-backed while it lives and disposable once
+done (what it taught moves into contexts): YAML frontmatter, a body, the fence
 line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
 writer's contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).
@@ -30,7 +31,9 @@ draft is exactly those four (`status: draft`, `workflow: null`) plus a body.
 
 - `owner` is the human of record. `agent` is the optional **main-agent
   choice**, not the current operator: absent on drafts, filled once with
-  `Config.default_agent()` (first agent in merged config) at first activation,
+  `Config.default_agent()` at first activation (the `default_agent` key, local
+  over shared, else the first agent in merged config; see
+  [coga/agents](../agents/SKILL.md#the-default-agent)),
   then kept through pause, unblock, bump, peer review and terminal moves. A
   present value must name a configured agent; null, blank, unknown or
   since-removed agents fail loud. An activated task missing it is a validation

@@ -2888,29 +2888,67 @@ def test_agent_offer_never_prompts_without_a_tty(
     assert offered == []
 
 
-def test_make_default_agent_reorders_the_packaged_coga_toml(tmp_path: Path) -> None:
-    """The default agent is the first-declared `[agents.*]` table; moving one
-    first keeps every table's comments and the config otherwise unchanged."""
+def test_write_default_agent_names_the_agent_in_the_packaged_coga_toml(
+    tmp_path: Path,
+) -> None:
+    """Init sets `default_agent` instead of reordering `[agents.*]`: the
+    template's commented example becomes the key, and nothing else changes."""
     coga_toml = tmp_path / "coga.toml"
     original = (
         update_cmd.packaged_template_root().joinpath("coga.toml").read_text()
     )
+    assert '# default_agent = "claude"' in original
     coga_toml.write_text(original)
 
-    assert init_cmd._make_default_agent(coga_toml, "codex")
+    assert init_cmd._write_default_agent(coga_toml, "codex")
 
     text = coga_toml.read_text()
-    assert list(tomllib.loads(text)["agents"]) == ["codex", "claude"]
-    assert tomllib.loads(text) == tomllib.loads(original)
-    assert sorted(text.splitlines()) == sorted(original.splitlines())
-    # Section comments stay where they were; claude's own comments move with it.
-    assert text.index("# --- Agents ---") < text.index("[agents.codex]")
-    assert text.index("[agents.claude]") < text.index("# `discussion` rides")
-    assert text.index("# `discussion` rides") < text.index(
-        "# --- Notification channels ---"
+    parsed = tomllib.loads(text)
+    assert parsed == {**tomllib.loads(original), "default_agent": "codex"}
+    assert list(parsed["agents"]) == ["claude", "codex"]
+    assert text == original.replace(
+        '# default_agent = "claude"', 'default_agent = "codex"', 1
     )
-    assert init_cmd._make_default_agent(coga_toml, "codex")  # already first
-    assert not init_cmd._make_default_agent(coga_toml, "unknown")
+    # Idempotent: the same name again succeeds without a second key.
+    assert init_cmd._write_default_agent(coga_toml, "codex")
+    assert coga_toml.read_text() == text
+    # An existing key is replaced in place.
+    assert init_cmd._write_default_agent(coga_toml, "claude")
+    assert coga_toml.read_text() == original.replace(
+        '# default_agent = "claude"', 'default_agent = "claude"', 1
+    )
+    # An unknown type is refused and leaves the file untouched.
+    before = coga_toml.read_text()
+    assert not init_cmd._write_default_agent(coga_toml, "unknown")
+    assert coga_toml.read_text() == before
+
+
+def test_write_default_agent_inserts_before_the_first_table(tmp_path: Path) -> None:
+    """Without the example line, the key goes ahead of the first table and
+    the comments that introduce it, since a top-level key must precede it."""
+    coga_toml = tmp_path / "coga.toml"
+    original = (
+        'version = 1\n\n# --- Agents ---\n[agents.claude]\ncli = "claude"\n'
+        '\n[agents.codex]\ncli = "codex"\n'
+    )
+    coga_toml.write_text(original)
+
+    assert init_cmd._write_default_agent(coga_toml, "codex")
+
+    assert coga_toml.read_text() == original.replace(
+        "# --- Agents ---", 'default_agent = "codex"\n\n# --- Agents ---', 1
+    )
+
+
+def test_write_default_agent_leaves_an_unparseable_file_untouched(
+    tmp_path: Path,
+) -> None:
+    coga_toml = tmp_path / "coga.toml"
+    original = '[agents.codex]\ncli = "codex"\n[[broken\n'
+    coga_toml.write_text(original)
+
+    assert not init_cmd._write_default_agent(coga_toml, "codex")
+    assert coga_toml.read_text() == original
 
 
 def test_init_writes_the_chosen_default_agent(
@@ -2929,7 +2967,9 @@ def test_init_writes_the_chosen_default_agent(
     assert result.exit_code == 0, result.output
 
     assert defaults == ["claude"]
-    assert load_config(target / "coga").default_agent().name == "codex"
+    cfg = load_config(target / "coga")
+    assert cfg.default_agent().name == "codex"
+    assert list(cfg.agents)[0] == "claude"  # named, not reordered
     onboarding = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
     assert onboarding.frontmatter["agent"] == "codex"
     assert "Made `codex` the default agent" in result.output

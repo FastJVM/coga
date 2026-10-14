@@ -47,7 +47,7 @@ until the original path is accessible again; otherwise its cleanup record may
 be discharged. This policy drops bookkeeping only; it never deletes a clone.
 
 This replaces the repeated-posting failure and manual workaround documented in
-[the September incident](../../../../evidence/independent-clone-worklist-2026-09.md).
+[the September incident](../../../../archive/evidence/independent-clone-worklist-2026-09.md).
 An independent fallback clone can still be removed deliberately by its operator
 (or vanish with `/tmp`), which also discharges its entry; the worklist tracks its
 branch rather than requiring removal of its primary directory. Publish ephemeral

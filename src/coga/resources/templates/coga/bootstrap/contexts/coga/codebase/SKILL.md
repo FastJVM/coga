@@ -44,7 +44,7 @@ The repo separates implementation from the OS it operates:
 - `resources/`: prompt resources and the packaged Coga OS under
   `resources/templates/coga/`; see [coga/packaging](../packaging/SKILL.md).
 - `tests/` (`tests/test_*.py`, named after the command or module) and
-  `example/coga/`, the seeded end-to-end fixture.
+  `tests/fixtures/seeded-repo/coga/`, the seeded end-to-end fixture.
 
 Module-level seams a new caller must respect (operator resolution, the
 `prepare_active` / `mark_active` split, blackboard writers, create guards) are
@@ -61,7 +61,7 @@ in [coga/codebase/gotchas](gotchas/SKILL.md).
   library first, small command handlers. Keep projects, skills, contexts,
   workflows, and tasks distinct.
 - **Fixtures.** Changes to prompt composition, workflow freezing, config
-  loading, or task creation update `example/` or related fixtures.
+  loading, or task creation update `tests/fixtures/seeded-repo/` or related fixtures.
 - **Docs travel with behavior.** A behavior change updates its owning topic in
   the same PR. One owner per fact; see
   [coga/knowledge](../knowledge/SKILL.md).

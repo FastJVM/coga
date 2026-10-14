@@ -2,7 +2,7 @@
 
 Coga's own bundled scripts are covered from `tests/`, never by collecting the
 live dogfooded `coga/` tree: the contract checks read the *packaged* templates,
-and the end-to-end run happens against a copy of the seeded `example/` repo.
+and the end-to-end run happens against a copy of the seeded `tests/fixtures/seeded-repo/` fixture.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from coga.tasks import read_ticket
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE = REPO_ROOT / "example"
+SEEDED_REPO = REPO_ROOT / "tests" / "fixtures" / "seeded-repo"
 PACKAGED = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 
 # Every template that used to declare `recipe: <name>`, and the registry entry
@@ -189,10 +189,10 @@ def test_autoclose_shim_sweeps_branches_before_bumping(
 
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A throwaway copy of the seeded example repo (see `test_smoke`)."""
+    """A throwaway copy of the seeded fixture repo (see `test_smoke`)."""
     dest = tmp_path / "example"
     shutil.copytree(
-        EXAMPLE,
+        SEEDED_REPO,
         dest,
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,

@@ -1,5 +1,7 @@
 # Context migration record — 2026-09-22
 
+> **History, archived 2026-10-13.** The 2026-09-22 documentation-library migration is complete (#875). Current layout and packaging classes live in [`coga/context-layout`](../contexts/coga/context-layout/SKILL.md) and [`coga/packaging`](../contexts/coga/packaging/SKILL.md). Not instructions.
+
 The documentation and the reusable contexts were merged into one library under
 `docs/`. Ticket: `redo-documentation-dir-and-merge-it-with-context-b`. The
 owner chose a single migration PR at the implement step (overriding the
@@ -37,7 +39,7 @@ the topics it links to.
 | `marketing/launch-history` | **Retired.** Moved to `docs/archive/launch-programs/` (a README index, not attachable) |
 
 New refs: `product/vision`, `coga/knowledge`, `marketing/strategy`, and every
-leaf listed in [docs/README.md](README.md). A `coga/digest` topic was planned,
+leaf listed in [docs/README.md](../README.md). A `coga/digest` topic was planned,
 but digest and the spool were removed from the product (#786), so it was never
 written. The notification pages carry the facts that still apply.
 
@@ -51,12 +53,12 @@ written. The notification pages carry the facts that still apply.
 | `docs/operations.md` | `coga/notifications`, `coga/sync`, `coga/recurring`, `coga/dream`, `coga/secrets`, `coga/first-task` (readiness) |
 | `docs/development.md` | `coga/codebase`, `coga/testing`, `coga/packaging`, `dev/*`, `coga/init`, `coga/configuration` |
 | `docs/releasing.md` | `coga/releasing` |
-| `docs/vision.md` | `product/vision`; normative rules in `coga/principles`; history in [archive/origins.md](archive/origins.md) |
-| `docs/market-thesis.md` | `marketing/strategy`; dated competitor research in [archive/market-landscape.md](archive/market-landscape.md) |
-| `docs/velocity-report.md` | [evidence/velocity.md](evidence/velocity.md) (experiment status corrected to shelved) |
-| `docs/{adoption-trial,build-vs-adopt,continuity-comparison,human-centered-comparison,pitch-evaluation,research-replacement-trial,research-work-comparison,upkeep-audit,usage-comparison,why-switch-to-coga}.md` | Same names under [evidence/](evidence/) |
-| `docs/cli-extension-audit.md`, `docs/cli-extension-external-surface.md` | [design/cli-extension-audit.md](design/cli-extension-audit.md), [design/cli-external-surface.md](design/cli-external-surface.md) |
-| `docs/migrating-to-coga.md` | [archive/relay-migration.md](archive/relay-migration.md), with the blanket rollback snippets replaced by targeted steps |
+| `docs/vision.md` | `product/vision`; normative rules in `coga/principles`; history in [archive/origins.md](origins.md) |
+| `docs/market-thesis.md` | `marketing/strategy`; dated competitor research in [archive/market-landscape.md](market-landscape.md) |
+| `docs/velocity-report.md` | [evidence/velocity.md](../evidence/velocity.md) (experiment status corrected to shelved) |
+| `docs/{adoption-trial,build-vs-adopt,continuity-comparison,human-centered-comparison,pitch-evaluation,research-replacement-trial,research-work-comparison,upkeep-audit,usage-comparison,why-switch-to-coga}.md` | Same names under [evidence/](../evidence/) |
+| `docs/cli-extension-audit.md`, `docs/cli-extension-external-surface.md` | [design/cli-extension-audit.md](cli-extension-audit.md), [design/cli-external-surface.md](../design/cli-external-surface.md) |
+| `docs/migrating-to-coga.md` | [archive/relay-migration.md](relay-migration.md), with the blanket rollback snippets replaced by targeted steps |
 | `coga/contexts/**` | `docs/contexts/**` |
 
 ## Cuts and history

@@ -12,7 +12,7 @@ rebuilds its prompt from files.
 ## Durable files
 
 - **Tickets** under `coga/tasks/`: frontmatter, body, and a blackboard of
-  working state composed into the next launch.
+  working state composed into the next launch; disposable once done.
   [tickets](../tickets/SKILL.md), [lifecycle](../lifecycle/SKILL.md),
   [blackboard](../blackboard/SKILL.md).
 - **Log**: append-only `coga/log.md`, CLI-written, never composed.
@@ -77,6 +77,8 @@ operating rules without a merge.
   [design-history](../../dev/design-history/SKILL.md),
   [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves.
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
-  by launch-internals, sync, recurring.
+  by launch-internals, sync, recurring; activity-capture by usage.
+- **Marketing** (local to the Coga repo): `marketing/*` topics, indexed by
+  `marketing/map`.
 - **Posture** (local): `coga/current-direction`,
-  `coga/project-stage`, `coga/roadmap`.
+  `coga/project-stage`.

@@ -7,11 +7,8 @@ description: Configuring agent types under `[agents.*]`, the shared-versus-local
 
 An agent type is a named `[agents.<name>]` table. Tickets name types directly
 in `agent:` (no per-user nickname layer), and `Config.agent_type` fails loud
-on an undefined name. The first declared type is the default for new tickets
-(`Config.default_agent`), so a team lists its default first. Interactive
-`coga init` may move one first in the `coga.toml` it creates, behind an
-explicit confirm, when the agent CLI it just installed or found is not the
-packaged default ([coga/init](../init/SKILL.md)).
+on an undefined name. Which type new tickets get is the default agent,
+described [below](#the-default-agent).
 
 ## Keys (`src/coga/config.py` `AgentType`)
 
@@ -38,6 +35,55 @@ both files. `_parse_agents` merges at the **key** level: a local table
 overrides individual keys of the shared one (for example a different `cli`
 path) and inherits the rest, and a local-only table appends a type installed
 only on this machine. Required-key and type checks run on the merged result.
+
+## The default agent
+
+`Config.default_agent()` is the type a ticket's `agent:` is stamped with at
+first activation (or at a create straight into a live status), and the
+fallback for `coga retire`, the autofix analyst, and the authoring
+interviewer. Precedence:
+
+1. top-level `default_agent = "<type>"` in `coga.local.toml`;
+2. top-level `default_agent` in `coga.toml`;
+3. the first-declared table in the merged `[agents.*]`.
+
+With the key unset in both files, the third term applies, which is the
+behaviour from before the key existed. Changing the default never needs a
+table reorder. The key is local-capable on purpose, unlike shared-only
+`[autofix]`: which vendor a machine can run right now (an exhausted quota, a
+missing install) is an operator fact, so one clone can switch to `codex`
+without editing committed config. A local table also cannot reorder the shared
+ones, so before the key existed a machine had no way to change its default.
+
+Each value present must be a non-empty string naming a type in the
+**merged** `[agents.*]` table. Otherwise config load fails, naming the file
+that supplied it and listing the known types. Both values are checked even
+when the local one wins. As with `[autofix] agent`, a shared value naming a
+type that some clone declares only locally breaks other clones on their next
+command. That failure is loud, not a silent fallback.
+
+The default is resolved once, then frozen. Activation writes it into `agent:`
+([coga/tickets](../tickets/SKILL.md)), so changing it later affects only
+tickets activated afterwards. A recurring period ticket that already exists
+keeps its agent even when a forced rerun in the same period reactivates it.
+The new default applies from the next newly materialized period. Read-only
+surfaces (status, show, compose, validate) report the default that activation
+*would* stamp, and the `other-agent` peer of an unactivated ticket is derived
+from it.
+
+More specific knobs win over it. A recurring agent-backed launch uses
+`--agent`, else the period ticket's `agent:`. The autofix analyst uses
+`--agent`, else `[autofix] agent`, else the default
+([coga/recurring/autofix](../recurring/autofix/SKILL.md)). The authoring
+interviewer reaches the default only as its last term, after
+`[authoring] agent`, `COGA_AUTHORING_AGENT`, and any ticket's own `agent:`
+([coga/tickets](../tickets/SKILL.md)). The packaged `bootstrap/ticket`,
+`bootstrap/orient`, and onboarding tickets pin `agent: claude`, and that pin
+outranks the default. So `default_agent = "codex"` does not by itself move
+`coga ticket` or `coga chat`. Use `[authoring] agent` or `--agent` for those.
+Interactive `coga init` sets the key in the `coga.toml` it creates, behind an
+explicit confirm, when the agent CLI it installed or found is not the packaged
+default ([coga/init](../init/SKILL.md)).
 
 ## `peer` routing
 

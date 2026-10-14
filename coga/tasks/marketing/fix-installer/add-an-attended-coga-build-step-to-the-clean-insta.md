@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: 6b9fac71-3690-4d3f-8130-d7155c5b8373
 ---
 
 ## Description
@@ -39,6 +38,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1012
 branch: clean-install-build
 
 Plan (agreed with the human): `coga-clean-install build [--agent NAME]` mirroring
@@ -95,102 +95,125 @@ Next step: PR description must include the per-artifact evidence above
 
 ## Peer review
 
-2026-10-13 resumed Codex session: human stopped ticket work to investigate
-Codex daemon/sandbox permissions; no bump. Start/end checks passed and the
-checkout returned to main. Rebased and force-with-lease pushed feature head
-`54f6859970be70892ef08449fd80cbec60b91cc1` onto base
-`a0101af52b3c43a6934ac06459883617c0aef0f5`; no code changes.
-`codex review --base main`, the escalated retry, `--no-daemon`, and a separate
-TMPDIR all failed before a verdict. `/proc/self/mountinfo` proves the session
-masks `/tmp/codex-daemon-1000` with read-only mode-000 tmpfs; the nested reviewer
-requires that path to be user-owned mode 0700. This is a masked runtime path,
-not proof that host directory permissions are wrong. Logs:
-`/tmp/coga-clean-install-build-review-resumed.log` and
-`/tmp/coga-clean-install-build-review-private-runtime.log`.
-`.venv/bin/python -m pytest -q` was interrupted (exit 130) at the human's stop
-request around 69%; no final-head suite receipt. Log:
-`/tmp/coga-clean-install-build-pytest-resumed.log`.
-Repeated Docker PTY completed-ticket checks at 80x24 and 120x40: readable
-already-done refusal, before/after done, expected exit 2; two more records
-appended in the main container. Re-read both host successful build receipts;
-both show advancement to step 2 then done. Topic twin comparison and
-`git diff --check` passed. PR preparation below is historical and must be
-refreshed after a returned review and completed suite on the final head.
+2026-10-14, Claude Code (claude-opus-5-5) session. Same agent family as the
+implementer (Claude), so this is **not independent** review. Two earlier
+Codex peer-review sessions (2026-10-13) never got a verdict: the nested
+`codex review` failed on a masked `/tmp/codex-daemon-1000` runtime dir. Their
+receipts are superseded by this session.
 
-2026-10-13, Codex session (independent of Claude implementation): review is
-**not complete; do not bump**. Start check passed on clean main. Rebased
-`clean-install-build` unconditionally onto fetched main
-`a01f3e9e8a428a531c630f629b9dbc4b2d6d0e85`; pushed with
-`git push --force-with-lease origin clean-install-build`. Final feature head:
-`a2f4ea70224699623a4e29a9bea71999853094c5`. No code fixes made.
+- Start check: clean `main`. Rebased the branch onto main `64aba962d` before review.
+- `/code-review` (default effort) **returned**, run 1: it covered only commit
+  08b32137b. Must-fix: the `grep -vF '] [system] '` filter dropped every system
+  lifecycle line (blocked/started), which contradicted the topic's "usage records".
+  The test fixture also lacked the real `v1` marker. Fixed in df5110fd3: anchor the
+  match on the ref field, drop only `[system] {` JSON usage records, and update the
+  fixtures and tests (a system lifecycle line is kept; a peer line mentioning
+  `[coga-build]` is excluded).
+- `/code-review` (default effort) **returned**, run 2: full branch vs main at
+  head df5110fd3. Must-fix:
+  - A bare `build` recorded `+ coga build ''`.
+  - The `log:` section re-appended the whole history on every re-run.
 
-`codex review --base main` failed before creating its review session:
-`app-server socket directory must be a user-owned directory with mode 0700`.
-The outside-sandbox retry and `codex --no-daemon review --base main` failed
-identically. No review verdict returned. `codex doctor --summary` found auth
-and connectivity available. Diagnostic log: `/tmp/coga-clean-install-build-review.log`.
-Human directed this session to exit so the CLI can restart it; fix/retry the
-runtime directly in the resumed session, then wait for the required review.
+  Both fixed in 0c80a081a (now 3c3a239): the log offset is taken before the launch
+  and only lines appended since then are kept. The tests now link `tail` and `wc`,
+  which the Debian image has. Documented in the topic and its twin rather than
+  filtered: agent and human audit lines (a bump message, a block reason, an unblock
+  answer) may name the operator's idea, so read `build.txt` before quoting it.
 
-`.venv/bin/python -m pytest -q` returned 3605 passed in 328.20s (Python
-3.12.12); log `/tmp/coga-clean-install-build-pytest.log`. This is not a clean
-final-head receipt: on the human's restart request, checkout returned to main
-while the last tests were still running. Re-run the suite on the feature
-branch before completing review. `git diff --check` passed on the feature.
-
-Terminal check performed here with real Docker PTY:
-`docker exec -it clean-main-1013h bash -lc 'stty rows 24 cols 80; coga-clean-install build --agent claude'`
-and again with `stty rows 40 cols 120`. Both visibly preserved the command's
-TTY, showed the expected already-done refusal, recorded before/after done,
-and propagated exit 2. Two refusal records appended to the retained main
-container's build.txt; existing host copies still contain the successful
-implementation runs. No new agent phase ran. Reviewed those host receipts:
-both artifacts advanced step 1 and completed, as recorded above. Successful
-interactive onboarding was exercised in implement; this session checked the
-completed-ticket terminal path, not another first-step interview.
-
-Remaining: returned Codex review, any must-fix findings, clean final-head test
-receipt, refresh PR preparation (historical receipts must stay historical),
-return clean main, then bump once. Current PR depth is deep solely because
-review is incomplete and the new head needs its verification receipts.
+  Skipped as nits: directory-form ticket path, the malformed-frontmatter range in
+  `sed`, `|| true` masking grep exit 2, reuse of `coga show`, and the `case`
+  dispatch refactor.
+- The fix commits were written by this session and were **not re-reviewed** by a tool.
+- Terminal surface: `docker cp` the final script into the retained
+  `clean-main-1013h` container, then
+  `script -qec "docker exec -it clean-main-1013h bash -lc 'stty rows 24 cols 80; bash /tmp/container-review.sh build'"`.
+  The TTY was preserved and the already-done refusal was readable. The record read
+  `+ coga build`, `before_status=done`, `after_status=done`, an empty `log:`
+  (nothing appended by this launch) and `build_exit_code=2`. One more record was
+  appended to that container's `build.txt`.
+- Freshened: main moved during review (PR #1004, which touched the macos-aws
+  topic and test_packaging, not the changed lines). Final rebase onto
+  `d9c9b7c66` was clean. Pushed with `--force-with-lease`; remote head is
+  `3c3a23955e64d5cdb9be4544fc6c5d4b123b8f13`.
+- `.venv/bin/python -m pytest -q` on the final head 3c3a239: 3599 passed in 335s.
+  `git diff --check` and the twin comparison passed.
+- End: checkout back on a clean `main`. Containers `clean-pypi-1013h` and
+  `clean-main-1013h` are still retained; remove them with `docker rm -f` after merge.
 
 ## PR
 
 ```yaml
 title: Add an attended coga build continuation to the clean-install harness
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended by the human.
-head: a2f4ea70224699623a4e29a9bea71999853094c5
-base: a01f3e9e8a428a531c630f629b9dbc4b2d6d0e85
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended by the human; peer-review fix commits by a Claude Code (claude-opus-5-5) session.
+head: 3c3a23955e64d5cdb9be4544fc6c5d4b123b8f13
+base: d9c9b7c66045726f60f9abd159b7a2f6cf929f95
 depth: deep
-rationale: Review could not start due to a Codex runtime error; rebased head still needs a clean final-head suite receipt. Resume peer-review before publishing.
-implementation: Adds `coga-clean-install build [--agent NAME]` sharing an attended helper with `ticket`; records command, coga-build status/step before and after, non-[system] coga-build log lines, and exit code in evidence/build.txt. Documents the attended build steps and `docker start` for stopped containers.
-deviations: Attended runs used COGA_CLEAN_INSTALL_NETWORK=host because the bridge network could not fetch curl inside the container; the main container ran the branch's container.sh via docker cp after the [system]-filter fix.
-limitations: macOS walk does not yet pass `build` through. The PyPI container's own build.txt predates the [system] filter; its host copy was filtered.
+rationale: Shell harness that records attended evidence; the review was same-family, not independent, and the final fix commit was not tool-reviewed. A human should read container.sh's evidence filtering and the attended-run receipts.
+implementation: Adds `coga-clean-install build [--agent NAME]`, which shares an attended helper with `ticket`. Records the command, coga-build status/step before and after, the coga-build audit-log lines appended during the launch (minus [system] JSON usage records), and the exit code in evidence/build.txt. Documents the attended build steps, which audit lines are kept, and `docker start` for stopped containers.
+deviations: Attended runs used COGA_CLEAN_INSTALL_NETWORK=host because the bridge network could not fetch curl inside the container. The main container ran the branch's container.sh via docker cp after the [system]-filter fix.
+limitations: The macOS walk does not yet pass `build` through. The attended runs predate the peer-review filter and log-offset fixes; the PyPI container's own build.txt predates the [system] filter, and its host copy was filtered by hand. Agent/human audit lines may quote the operator's idea (documented).
 files:
-  scripts/clean-install/container.sh: Add the attended build continuation and shared attended helper.
-  tests/test_clean_install_harness.py: Cover build evidence, failure/absent ticket, init requirement, and conversation exclusion.
+  scripts/clean-install/container.sh: Add the attended build continuation, shared attended helper, and per-launch log evidence.
+  tests/test_clean_install_harness.py: Cover build evidence, the bare-build record, failure and absent ticket, the init requirement, and log filtering (usage records out, lifecycle lines kept, peer mentions out).
   docs/contexts/coga/testing/clean-install/SKILL.md: Document attended coga build, its evidence, and docker start for stopped containers.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/testing/clean-install/SKILL.md: Packaged twin of the clean-install topic.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Codex review attempted but failed at session startup (app-server socket directory permissions); no review verdict returned. Peer-review remains in progress.
+  reviewer: claude
+  kind: self
+  status: failed
+  head: df5110fd343473f2ace5f9893886a2ba5f743f24
+  base: 64aba962d531cb276b2f29a70f676d18649a5323
+  detail: Claude Code /code-review (claude-opus-5-5), default effort. Same agent family as the implementer, so not independent. Run 1 covered 08b32137b only. Run 2 covered the full branch vs main at head df5110fd3. The review returned must-fix findings (status failed at that head). They were applied in df5110fd3 (run 1) and 0c80a081a (run 2); 0c80a081a was not re-reviewed. Final head 3c3a239 differs from 0c80a081a only by a clean rebase.
 checks:
   - command: .venv/bin/python -m pytest -q
     status: passed
-    head: 165c9b7a185ddce114fc1e8ad323805874bccc7d
-    base: 42112951e57fb812d5c89f11bbad3cf7299027b2
-    detail: 3603 passed in 316s on a clean tree at head.
+    head: 3c3a23955e64d5cdb9be4544fc6c5d4b123b8f13
+    base: d9c9b7c66045726f60f9abd159b7a2f6cf929f95
+    detail: 3599 passed in 335s.
+  - command: script -qec "docker exec -it clean-main-1013h bash -lc 'stty rows 24 cols 80; bash /tmp/container-review.sh build'" (final container.sh via docker cp)
+    status: passed
+    head: 0c80a081a1b30cd89c6033fcda6a548e6f6a0abc
+    base: 64aba962d531cb276b2f29a70f676d18649a5323
+    detail: Real PTY on a completed ticket; the record showed `+ coga build`, before/after done, an empty per-launch log, and exit 2 propagated.
   - command: ./scripts/clean-install/run.sh pypi clean-pypi-1013h alice (COGA_CLEAN_INSTALL_NETWORK=host), then attended coga-clean-install build --agent claude
     status: passed
     head: 165c9b7a185ddce114fc1e8ad323805874bccc7d
     base: 42112951e57fb812d5c89f11bbad3cf7299027b2
-    detail: Install/init/validate passed with coga 0.4.0; coga-build active step 1 -> step 2 -> done, exit 0. Harness at the first branch commit; build.txt host copy filtered per the second.
+    detail: Image sha256:149d59953fc7f50680cf914373e142951e99cbaeae3471e7a582de8e8cf694bf. Install/init/validate passed with coga 0.4.0; coga-build went active step 1 -> step 2 -> done (8 starter drafts), exit 0. Harness at the first branch commit.
   - command: ./scripts/clean-install/run.sh main clean-main-1013h alice (COGA_CLEAN_INSTALL_NETWORK=host), then attended coga-clean-install build --agent claude
     status: passed
     head: 165c9b7a185ddce114fc1e8ad323805874bccc7d
     base: 42112951e57fb812d5c89f11bbad3cf7299027b2
-    detail: Wheel from origin/main 42112951e, reports 0.4.0; init/validate passed; first attempt exited by human at step 1; second attempt step 1 -> step 2 -> done, exit 0.
+    detail: Same image. Wheel from origin/main 42112951e, reports 0.4.0; init/validate passed. Attempt 1 the human exited at step 1; attempt 2 went step 1 -> step 2 -> done (7 drafts), exit 0. No Coga failures found, so no new tickets.
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+Recorded: 2026-10-14T19:12:43+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review kind must be independent, self, or none.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+Recorded: 2026-10-14T19:12:51+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: reviewer must be a compact identity.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+Recorded: 2026-10-14T19:13:01+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid status 'returned'.

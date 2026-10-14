@@ -452,6 +452,20 @@ def test_without_the_key_the_analyst_keeps_the_first_declared_default(
     assert autofix._analyze_agent(cfg_repo, None).name == "claude"
 
 
+def test_without_the_autofix_key_the_analyst_follows_the_default_agent_key(
+    repo: Path,
+) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        'default_agent = "codex"\n'
+        + toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    cfg = load_config(repo)
+    assert cfg.autofix_agent is None
+    assert autofix._analyze_agent(cfg, None).name == "codex"
+
+
 def test_the_analysis_argv_follows_the_autofix_agent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

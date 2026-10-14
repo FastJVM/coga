@@ -11,11 +11,9 @@ sequence.
 
 Read the selected ticket and the relevant current homes:
 
-- `marketing/plan` — the selected deliverables, purpose, prerequisites and
-  owners.
+- `marketing/plan` — the selected deliverables, purpose, prerequisites,
+  owners, and the publication/measurement policy.
 - `marketing/positioning` — the reviewed message and source limits.
-- `marketing/distribution` — the selected channel/measurement policy and
-  dated account evidence, when channel work is needed.
 
 Use earlier campaign references (archived under
 `docs/archive/launch-programs/`, not attachable) for inspiration only. Never

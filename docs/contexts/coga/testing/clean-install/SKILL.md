@@ -1,6 +1,6 @@
 ---
 name: coga/testing/clean-install
-description: The Linux clean-install harness, artifact provenance, install/init evidence, and attended agent-login and first-ticket continuation.
+description: The Linux clean-install harness, artifact provenance, install/init evidence, and attended agent-login, coga build, and first-ticket continuations.
 ---
 
 # Linux clean-install harness
@@ -63,8 +63,16 @@ retained container, including after a failure, with:
 docker exec -it clean-pypi bash
 ```
 
-Install and authenticate an agent **inside that container** before the first
-ticket. For example, add curl for Claude Code's installer from the host:
+A retained container stops when the Docker daemon or host restarts; `docker
+exec` then fails with "container ... is not running". Start it first, then
+exec; its filesystem, evidence, and any saved agent login are intact:
+
+```sh
+docker start clean-pypi
+```
+
+Install and authenticate an agent **inside that container** before either
+attended continuation. For example, add curl for Claude Code's installer from the host:
 
 ```sh
 docker exec --user root clean-pypi apt-get update
@@ -80,16 +88,37 @@ curl -fsSL https://claude.ai/install.sh | bash
 claude --version
 claude
 # Complete browser login using the URL shown, then exit the agent.
+coga-clean-install build --agent claude
 coga-clean-install ticket "Write a hello-world script" --agent claude
 ```
 
 Use your authenticated agent's configured name with `--agent` if different.
-The final command changes into the scratch repo and runs `coga ticket` with
-the supplied title and options, preserving the real terminal. It records the
-command and exit code, not login output or the agent conversation. Complete
-the interview with the agent; its exit code alone does not prove a task was
-authored. Inspect `~/clean-install/repo/coga/tasks/` for that result. Repeat the
-attended continuation in the other artifact's container when needed.
+Each continuation changes into the scratch repo, refuses to run without
+`init-passed.txt`, and runs the named command with the supplied options,
+preserving the real terminal. Neither records login output or the agent
+conversation.
+
+`build` exercises the advertised first-run command, `coga build` (an alias for
+`launch coga-build`), against the `coga-build` ticket that init seeds active at
+step 1 (gather-and-spec). Answer the agent's question and let it work the
+step; under the launch supervisor it may chain into step 2. The record shows
+whether the step was reached and bumped: the ticket's `status:` and `step:`
+before and after the launch (a `done` ticket has no `step:`; `*_ticket=absent`
+if the file is gone), the `[coga-build]` audit-log lines the launch appended
+to the scratch repo, and the exit code. The `[system]` usage records (JSON
+messages) quote the conversation and are left out; agent and human lines are
+the audit trail and are kept, so a bump message, block reason, or unblock
+answer may name what the operator asked to build. Read `build.txt` before
+quoting it in a PR.
+
+`ticket` runs `coga ticket` with the supplied title and records the command and
+exit code. Complete the interview with the agent; its exit code alone does not
+prove a task was authored. Inspect `~/clean-install/repo/coga/tasks/` for that
+result.
+
+Run `build` first: it is the documented first step, and a ticket authored first
+would change the repo it onboards. Repeat the attended continuations in the
+other artifact's container when needed.
 
 ## Evidence and cleanup
 
@@ -97,6 +126,7 @@ Host receipts live in `.coga/clean-install/<container>/` (gitignored):
 `host.txt`, `image.txt`, `result.txt`, and, for `main`, `source.txt` and the wheel.
 The copied `container/` holds `transcript.txt`, ordered `steps.txt` with the
 first failing command and exit code, and `init-passed.txt` only after success.
+Attended continuations add `build.txt` and `ticket.txt`.
 Host preparation failures appear in `host.txt` even if no container was created.
 The wrapper returns non-zero on failure and leaves the container inspectable.
 After an attended continuation, refresh the copied evidence:
@@ -108,7 +138,8 @@ docker cp clean-main:/home/coga/clean-install/evidence/. .coga/clean-install/cle
 
 For each artifact, put the exact command, image ID, installed version (or
 failure before it), main SHA when applicable, and init outcome/failing command
-in the PR description. State whether the attended first-ticket step ran.
+in the PR description. State whether the attended `coga build` and first-ticket steps ran and, for
+`build`, whether it reached and bumped step 1.
 Recording a failure is evidence, not an installer fix. Keep issue filing and
 repairs in their own tickets.
 

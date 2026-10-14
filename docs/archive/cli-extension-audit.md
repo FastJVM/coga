@@ -1,5 +1,7 @@
 # CLI extension mechanisms — audit
 
+> **History, archived 2026-10-13.** A dated verb-by-verb CLI inventory (last revised 2026-09-28). The ratified rule and the open command placements live in [`coga/extension-model`](../contexts/coga/extension-model/SKILL.md); counts and rows here have drifted from the code. Not instructions.
+
 The foundational audit of the `cli-extension-model/` line. This is the verified
 reference the other tickets in the line (`add-recurring-launch-aliases`,
 `move-command-logic-to-tickets`, `design-external-script-service-mechanism`)

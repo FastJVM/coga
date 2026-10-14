@@ -553,8 +553,8 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
     PATH the user picks one of `AGENT_CLIS` (or skips) and
     `coga.agent_cli_setup.offer_agent_cli` offers its install and login. When
     exactly one agent CLI is then on PATH and it is not `default_agent` — the
-    first-declared agent of the coga.toml init is about to write — init asks
-    to make it the default and returns it on a yes. `default_agent` is None
+    default agent of the coga.toml init is about to write — init asks to make
+    it the default (written as `default_agent`) and returns it on a yes. `default_agent` is None
     where init must not edit coga.toml (a clone's machine-local setup), so
     nothing is returned there.
     """
@@ -591,75 +591,71 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
 
 
 def _template_default_agent(template_root: Traversable) -> str | None:
-    """First-declared `[agents.*]` type of the packaged coga.toml, or None."""
+    """The default agent type of the packaged coga.toml, or None.
+
+    Mirrors `Config.default_agent`: a top-level `default_agent` naming a
+    declared type wins, else the first-declared `[agents.*]` table.
+    """
     shared = tomllib.loads(template_root.joinpath("coga.toml").read_text())
     agents = shared.get("agents")
     if not isinstance(agents, dict) or not agents:
         return None
+    named = shared.get("default_agent")
+    if isinstance(named, str) and named.strip() in agents:
+        return named.strip()
     return next(iter(agents))
 
 
 _AGENT_LABELS = {"claude": "Claude Code", "codex": "Codex"}
 
-_TABLE_HEADER = re.compile(r"^[ \t]*\[\[?[ \t]*([^\]]+?)[ \t]*\]\]?[ \t]*(#.*)?$")
+_TABLE_START = re.compile(r"^[ \t]*\[")
+_DEFAULT_AGENT_KEY = re.compile(r"^[ \t]*default_agent[ \t]*=")
+_DEFAULT_AGENT_EXAMPLE = re.compile(r"^[ \t]*#[ \t]*default_agent[ \t]*=")
 
 
-def _make_default_agent(coga_toml: Path, name: str) -> bool:
-    """Move `[agents.<name>]` first among the agent tables; True on success.
+def _write_default_agent(coga_toml: Path, name: str) -> bool:
+    """Set top-level `default_agent = "<name>"` in coga.toml; True on success.
 
-    `Config.default_agent` is the first-declared agent type, so declaration
-    order is the default. The tables swap places as text rather than through a
-    TOML round trip, so each keeps its own comments and the comments between
-    sections stay put. The rewrite must parse to the same config with `name`
-    first, or coga.toml is left untouched and this returns False.
+    `Config.default_agent` honours the key over declaration order, so init
+    names the chosen agent rather than reordering the `[agents.*]` tables. A
+    key already naming `name` is left as is; an existing key is replaced in
+    place; otherwise the template's commented example is uncommented, or the
+    line goes ahead of the first table (and the comments that introduce it),
+    where a top-level key must sit. Only a type declared under `[agents.*]` is
+    written, and the rewrite must parse to the original config plus exactly
+    that key, or coga.toml is left untouched and this returns False.
     """
     text = coga_toml.read_text()
-    lines = text.splitlines(keepends=True)
-    headers = [
-        (index, match.group(1))
-        for index, line in enumerate(lines)
-        if (match := _TABLE_HEADER.match(line))
-    ]
-    spans: list[tuple[int, int, str]] = []
-    for position, (start, key) in enumerate(headers):
-        parts = key.split(".")
-        if len(parts) != 2 or parts[0] != "agents":
-            continue
-        end = next(
-            (
-                index
-                for index, other in headers[position + 1 :]
-                if not other.startswith(f"{key}.")
-            ),
-            len(lines),
-        )
-        # Trailing blank and comment lines introduce the next section.
-        while end > start + 1 and (
-            not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")
-        ):
-            end -= 1
-        spans.append((start, end, parts[1]))
-    order = [agent for _, _, agent in spans]
-    if name not in order:
-        return False
-    if order[0] == name:
-        return True
-    order = [name, *(agent for agent in order if agent != name)]
-    blocks = {agent: lines[start:end] for start, end, agent in spans}
-    out: list[str] = []
-    cursor = 0
-    for (start, end, _), agent in zip(spans, order):
-        out += lines[cursor:start]
-        out += blocks[agent]
-        cursor = end
-    out += lines[cursor:]
-    new_text = "".join(out)
     try:
         before = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return False
+    agents = before.get("agents")
+    if not isinstance(agents, dict) or name not in agents:
+        return False
+    if before.get("default_agent") == name:
+        return True
+    lines = text.splitlines(keepends=True)
+    top = next(
+        (index for index, line in enumerate(lines) if _TABLE_START.match(line)),
+        len(lines),
+    )
+    new_line = f"default_agent = {json.dumps(name)}\n"
+    existing = [i for i in range(top) if _DEFAULT_AGENT_KEY.match(lines[i])]
+    example = [i for i in range(top) if _DEFAULT_AGENT_EXAMPLE.match(lines[i])]
+    if existing or example:
+        lines[(existing or example)[0]] = new_line
+    else:
+        # The comment block directly above the first table introduces it.
+        while top > 0 and lines[top - 1].lstrip().startswith("#"):
+            top -= 1
+        lines.insert(top, new_line + "\n")
+    new_text = "".join(lines)
+    try:
         after = tomllib.loads(new_text)
     except tomllib.TOMLDecodeError:
         return False
-    if after != before or list(after.get("agents", {})) != order:
+    if after != {**before, "default_agent": name}:
         return False
     coga_toml.write_text(new_text)
     return True
@@ -1383,7 +1379,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         if pinned_branch is not None:
             _pin_control_branch(coga_os, pinned_branch, default_control_branch)
 
-        default_agent_set = default_agent is not None and _make_default_agent(
+        default_agent_set = default_agent is not None and _write_default_agent(
             coga_os / "coga.toml", default_agent
         )
         if default_agent_set and template_default_agent is not None:
@@ -1475,14 +1471,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
     if default_agent_set:
         typer.echo(
-            f"Made `{default_agent}` the default agent (declared first under "
-            f"[agents] in {coga_os / 'coga.toml'})."
+            f"Made `{default_agent}` the default agent (`default_agent` in "
+            f"{coga_os / 'coga.toml'})."
         )
     elif default_agent is not None:
         typer.secho(
             f"Could not make `{default_agent}` the default agent: "
-            f"{coga_os / 'coga.toml'} did not reorder cleanly. Move its "
-            f"[agents.{default_agent}] table above the other agent tables.",
+            f"{coga_os / 'coga.toml'} did not take a `default_agent` line "
+            f"cleanly. Add `default_agent = \"{default_agent}\"` near its top, "
+            f"before any [table].",
             fg=typer.colors.YELLOW,
         )
     if host_gitignore_changed:

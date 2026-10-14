@@ -1,6 +1,6 @@
 ---
 title: Stop creating linked worktrees for coga retire
-status: draft
+status: canceled
 owner: nicktoper
 workflow: code/design-then-implement
 ---

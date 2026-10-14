@@ -114,6 +114,26 @@ def test_retire_override_with_stray_brace_names_the_file(
     assert not (repo / "tasks" / "retire-fix-retry-logic.md").exists()
 
 
+def test_retire_defaults_to_the_default_agent_key(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        'default_agent = "codex"\n'
+        + toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "Retire: using main agent codex (agent type codex)" in result.output
+    ticket = Ticket.read(repo / "tasks" / "retire-fix-retry-logic.md")
+    assert ticket.agent == "codex"
+
+
 def test_retire_no_launch_creates_task_with_target_slug(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

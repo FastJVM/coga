@@ -5,6 +5,11 @@ version = 1
 # it without launching.
 default_status = "draft"
 
+# Optional: the agent type new tickets get when activated (and the fallback
+# for retire, autofix, and authoring). Unset, it's the first [agents.*]
+# table below. Set it in coga.local.toml to override it on one machine only.
+# default_agent = "claude"
+
 # Optional: the one operator who may run recurring sweeps in this repo.
 # Committed, so every clone agrees on it — with it set, `coga recurring`
 # (including `--force`) and `coga recurring launch` refuse to run for anyone
