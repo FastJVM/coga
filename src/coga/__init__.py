@@ -1,4 +1,4 @@
-"""Coga — the repo-level company OS (see docs/contexts/product/vision/SKILL.md)."""
+"""Coga — a repo-level workbench for directing coding agents (see README.md)."""
 
 from __future__ import annotations
 

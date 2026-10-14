@@ -529,7 +529,7 @@ def build_prompt(record_text: str, existing: list[tuple[str, str, str]]) -> str:
         listed = "(none)"
 
     return f"""You are Coga's recurring-sweep analyst. Coga is a markdown-first,
-git-backed company OS. `coga recurring` scans the templates under
+git-backed workbench for directing coding agents. `coga recurring` scans the templates under
 `coga/recurring/`, materializes each due period's task, and runs it — either as
 a deterministic registered recipe or as an agent session. Below is the record
 of one such sweep, followed by the autofix tickets that are already open.
