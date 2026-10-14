@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -400,3 +400,85 @@ The blackboard is a notepad to be written to often as the human and agent works 
    uncommented, to make the default explicit in new repos? The spec keeps it
    commented, so unset repos stay byte-for-byte identical and init has one
    line to uncomment.
+
+## Evaluator review
+
+Cold review completed 2026-10-14. The central design is sound and fits one
+coherent PR, but resolve the two specification inconsistencies below before
+implementation. This is evidence for owner review, not design approval.
+
+### Must resolve before implementation
+
+1. **Make the init writer's algorithm satisfy its stated tests.** Proposed
+   shape specifies replacing a commented example or inserting a new key before
+   the first table. After one successful call the comment is gone, so a second
+   call inserts a duplicate `default_agent`, fails `tomllib` parsing, and
+   returns False. That contradicts the required idempotency and the existing
+   success-on-repeat contract in
+   `tests/test_init.py::test_make_default_agent_reorders_the_packaged_coga_toml`.
+   The proposed before/after dictionary guard also does not reject an unknown
+   agent name, although the replacement test requires that rejection. Specify
+   an existing-key branch (same value succeeds without writing; define whether
+   a different value is replaced or refused) and validate membership in the
+   parsed agent tables before writing. Evidence: `commands/init.py`
+   `_make_default_agent` currently checks membership and returns True when the
+   requested agent is already first; `_do_init` uses the boolean to decide
+   whether to stamp delivered tickets and report success. Test both repeat
+   calls and an existing explicit key, preserving unrelated TOML and order.
+2. **Align the error-message requirement with the proposed parser.** Acceptance
+   criteria require every non-string, blank, or unknown-value error to name
+   the source file and list known agent types. The proposed non-string/blank
+   `ConfigError` does not list known types. Either include them in that branch
+   and assert them for both files, or narrow the acceptance criterion to
+   unknown names. Evidence: `config.py::_parse_autofix`, the stated model,
+   likewise lists known types only in its unknown-name branch. Copying its
+   messages as proposed cannot meet the current criterion.
+
+### Optional recommendations and owner decisions
+
+- Treat the final grep as a review of current default-agent claims, not a
+  requirement that every match describe the fallback. `service_order.py`
+  discusses reordering task queues, `coga/skills/clarity/SKILL.md` discusses
+  reordering prose, and `docs/archive/` and ticket blackboards contain dated
+  history. Those are legitimate matches and should not be rewritten for this
+  feature. Also update `_do_init`'s success text, which currently says
+  "declared first under [agents]" and is missed by the specified patterns.
+- Consider the existing `tomlkit` dependency and
+  `commands/init.py::_write_local_user` as an alternative to new line-editing
+  logic. It already edits a top-level scalar while retaining comments and
+  nested tables. Either implementation is compatible with the required
+  semantic guard; no new dependency is needed.
+- The body already selects merged-table validation, unchanged bootstrap pins,
+  no clone-path write, and a commented template example. The four Open
+  Questions should receive owner dispositions consistent with those choices
+  before handoff; they do not require expanding this PR's scope.
+
+### Verified evidence
+
+- All spec subsections are under `## Description`; `## Context` supplies the
+  implementation references. The frozen workflow matches the packaged
+  `code/design-then-implement` workflow and correctly hands this review to an
+  owner gate. The attached `dev/code` context and explicit topic read/update
+  list fit the work. Shared config resolution is established core
+  infrastructure; no new command or parallel resolver is needed.
+- `Config.default_agent` currently returns the first merged agent;
+  `_parse_agents` preserves shared order and appends local-only types. The
+  named mark/create/retire/autofix/authoring consumers and
+  `bump.resolve_main_agent` use this resolver. `resolve_other_agent` delegates
+  to it; an absent agent requires `allow_prospective_default=True` there too.
+  Existing direct peer tests are in `tests/test_commands.py`.
+- `recurring.py` creates active period tickets with the template's optional
+  agent; Dream's template has no agent pin. `recurring_runner.py`
+  `_prepare_forced_launch` reactivates existing tickets via `mark_active`, and
+  `mark._select_main_agent` retains an existing valid agent. The proposed
+  new-period and forced-rerun tests exercise distinct, real paths.
+- The existing override test asserts `seen == ["codex"]`, as claimed. The
+  packaged template and `tests/test_packaging.py`
+  `INTENTIONALLY_DIVERGENT_TWINS` match the proposed template-only edit.
+- Verification: `.venv/bin/python -m pytest -q
+  tests/test_recurring.py::test_bare_recurring_passes_agent_override_to_agent_tasks
+  tests/test_init.py::test_make_default_agent_reorders_the_packaged_coga_toml
+  tests/test_init.py::test_init_writes_the_chosen_default_agent` — **3 passed**.
+  The same invocation with ambient `python` failed collection because that
+  environment lacks `tomlkit`; the project virtualenv works. No implementation
+  changes were made, and the full suite was not run for this design review.
