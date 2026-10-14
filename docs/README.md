@@ -21,6 +21,12 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
 
 ## Understand
 
+- The three concepts, as the [project README](../README.md#key-concepts)
+  defines them: a [ticket](contexts/coga/tickets/SKILL.md) (one piece of
+  work, disposable once done), a [context block](contexts/coga/knowledge/SKILL.md)
+  (a durable fact with one owning file), and a
+  [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
+  work). The README is the source of truth for concepts and positioning.
 - [Principles](contexts/coga/principles/SKILL.md) — the seven constraints.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
@@ -56,9 +62,6 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
   [failures](contexts/coga/notifications/failures/SKILL.md)),
   [coga-important](contexts/coga/important/SKILL.md),
   [usage records](contexts/coga/usage/SKILL.md),
-  [weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out, and the
-  [operator runbook](contexts/coga/telemetry/operations/SKILL.md) for release verification, read-back and
-  deletion),
   [reusable patterns](contexts/coga/patterns/SKILL.md).
 
 Internals — exact guarantees, for changing or debugging Coga:
@@ -84,6 +87,9 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [gotchas](contexts/coga/codebase/gotchas/SKILL.md).
 - [Extension model](contexts/coga/extension-model/SKILL.md) — core versus
   edge, aliases, recipes. [Skill management](contexts/coga/skill-management/SKILL.md).
+- [Weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out) and its
+  [operator runbook](contexts/coga/telemetry/operations/SKILL.md) for release
+  verification, read-back and deletion.
 - [Testing](contexts/coga/testing/SKILL.md),
   [packaging](contexts/coga/packaging/SKILL.md),
   [releasing](contexts/coga/releasing/SKILL.md).
@@ -100,39 +106,42 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
 ## Evidence and positioning
 
 - [Product vision](contexts/product/vision/SKILL.md) — purpose, audience,
-  bet, limits.
+  kinds of work, limits.
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),
   [plan](contexts/marketing/plan/SKILL.md),
   [distribution](contexts/marketing/distribution/SKILL.md).
 - Dated evidence (read the date and scope on each page before reusing a
-  claim): [velocity](evidence/velocity.md),
-  [usage comparison](evidence/usage-comparison.md),
-  [build vs adopt](evidence/build-vs-adopt.md),
-  [why switch](evidence/why-switch-to-coga.md),
-  [pitch evaluation](evidence/pitch-evaluation.md),
-  [continuity](evidence/continuity-comparison.md),
-  [human-centred comparison](evidence/human-centered-comparison.md),
-  [research-work comparison](evidence/research-work-comparison.md),
-  [research replacement trial](evidence/research-replacement-trial.md),
-  [adoption trial](evidence/adoption-trial.md),
-  [upkeep audit](evidence/upkeep-audit.md),
-  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md),
-  [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md).
+  claim): [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md),
+  [velocity](evidence/velocity.md),
+  [admin and patent flexibility](evidence/admin-and-patent-flexibility-2026-09-12.md),
+  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md).
 
 ## Proposals and history
 
-- Unbuilt designs: [CLI extension audit](design/cli-extension-audit.md),
-  [CLI external surface](design/cli-external-surface.md).
+- Unbuilt design: [CLI external surface](design/cli-external-surface.md).
 - Archive: [origins](archive/origins.md),
   [market landscape](archive/market-landscape.md),
   [superseded decisions](archive/superseded-decisions.md),
   [launch programs](archive/launch-programs/README.md),
   [Relay → Coga migration](archive/relay-migration.md),
-  [browser automation](archive/browser-automation.md) and the
-  [Google Doc workflow](archive/create-google-doc-workflow.md) (removed 2026-10-13).
-- [Context migration record](context-migration.md) — old paths and refs,
-  where each went, and the cutover.
-- Team-specific: [Google Drive MCP](contexts/docs/gdrive-mcp/SKILL.md)
-  (dated 2026-06).
+  [browser automation](archive/browser-automation.md),
+  [Google Doc workflow](archive/create-google-doc-workflow.md),
+  [context migration record](archive/context-migration.md),
+  [CLI extension audit](archive/cli-extension-audit.md),
+  [Google Drive MCP observations](archive/gdrive-mcp.md),
+  [positioning before the README reset](archive/positioning-before-readme-2026-10-13.md).
+- Archived evidence from the September pitch and build-versus-adopt research:
+  [usage comparison](archive/evidence/usage-comparison.md),
+  [build vs adopt](archive/evidence/build-vs-adopt.md),
+  [why switch](archive/evidence/why-switch-to-coga.md),
+  [pitch evaluation](archive/evidence/pitch-evaluation.md),
+  [continuity](archive/evidence/continuity-comparison.md),
+  [human-centred comparison](archive/evidence/human-centered-comparison.md),
+  [research-work comparison](archive/evidence/research-work-comparison.md),
+  [research replacement trial](archive/evidence/research-replacement-trial.md),
+  [adoption trial](archive/evidence/adoption-trial.md),
+  [upkeep audit](archive/evidence/upkeep-audit.md),
+  [independent-clone incident](archive/evidence/independent-clone-worklist-2026-09.md),
+  [branch cleanup audit](archive/evidence/branch-cleanup-audit-2026-10-05.md).

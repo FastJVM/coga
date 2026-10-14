@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-09-29.
+Last updated: 2026-10-13.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -16,6 +16,10 @@ is `coga status` and the ticket bodies; sequencing is
 
 ## In force
 
+- **README is the source of truth for concepts and positioning
+  (2026-10-13).** [README.md](../../../../README.md) owns them; stale
+  positioning sections were archived to
+  [`docs/archive/positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
@@ -73,8 +77,9 @@ is `coga status` and the ticket bodies; sequencing is
   [`coga/notifications`](../notifications/SKILL.md).
 - **Control and data planes stay split.** `coga launch` owns
   `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is
-  recovery for understood work and a normal move for unknown work. Contract:
-  [`coga/lifecycle`](../lifecycle/SKILL.md).
+  recovery when a step went wrong but the premise holds. When the premise is
+  wrong, cancel the ticket with its reason, fix the owning context and start
+  a new one. Contract: [`coga/lifecycle`](../lifecycle/SKILL.md).
 
 ## Open intent, not live direction
 

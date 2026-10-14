@@ -1,7 +1,9 @@
 # Another clone's primary checkout on the autoclose worklist
 
+> **History, archived 2026-10-13.** The incident was fixed (PR #939); the durable rule lives in [`dev/checkout-cleanup`](../../contexts/dev/checkout-cleanup/SKILL.md). Not instructions.
+
 Evidence recorded 2026-09-29 for the known failure mode in
-[`dev/checkout-cleanup`](../contexts/dev/checkout-cleanup/SKILL.md)
+[`dev/checkout-cleanup`](../../contexts/dev/checkout-cleanup/SKILL.md)
 (*another clone's primary checkout never discharges*). These are
 point-in-time, machine-specific observations; the topic keeps only the
 durable failure mode and workaround.

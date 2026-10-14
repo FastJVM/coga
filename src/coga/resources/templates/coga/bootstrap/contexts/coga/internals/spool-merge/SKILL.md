@@ -11,8 +11,7 @@ cross-checkout coordination is the push compare-and-swap in
 [`coga/internals/state-publication`](../state-publication/SKILL.md). Files that
 many writers touch must therefore be correct **by shape**.
 
-**No spool exists.** The daily digest and its outcome spool were removed
-(#786); outcomes post live ([`coga/notifications`](../../notifications/SKILL.md)).
+**No spool exists.** Outcomes post live ([`coga/notifications`](../../notifications/SKILL.md)).
 There is no hidden queue, drain step, or high-water watermark for
 notifications. This page keeps the reusable merge rules that outlived it.
 

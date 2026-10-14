@@ -12,7 +12,7 @@ rebuilds its prompt from files.
 ## Durable files
 
 - **Tickets** under `coga/tasks/`: frontmatter, body, and a blackboard of
-  working state composed into the next launch.
+  working state composed into the next launch; disposable once done.
   [tickets](../tickets/SKILL.md), [lifecycle](../lifecycle/SKILL.md),
   [blackboard](../blackboard/SKILL.md).
 - **Log**: append-only `coga/log.md`, CLI-written, never composed.

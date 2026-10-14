@@ -24,16 +24,15 @@ API token is created, stored, or pasted anywhere.
 
 ## One-time setup per index
 
-Recorded as of 2026-09 (`pyproject.toml` version 0.3.2); re-check the index
-state before relying on it. A trusted publisher must be registered on each
-index before the workflow can publish. The form depends on whether the project
-already exists there:
+Both indexes already have trusted publishers for this repository; releases
+through 0.4.0 published with them. Repeat this only for a new index, or after
+renaming the repository, workflow or environment. The form depends on whether
+the project already exists on that index:
 
 - **Name not yet registered**: account-level pending publisher (Account
-  settings -> Publishing). This applied to TestPyPI.
+  settings -> Publishing).
 - **Project exists**: project-level form (Your projects -> `coga` -> Manage ->
-  Publishing -> Add a trusted publisher). This applies to PyPI, where `coga`
-  was reserved with a `0.0.1` placeholder.
+  Publishing -> Add a trusted publisher).
 
 | Field | TestPyPI | PyPI |
 | --- | --- | --- |

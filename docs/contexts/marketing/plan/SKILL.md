@@ -13,8 +13,9 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 
 ## Before launch
 
-- [README](../../../../coga/tasks/marketing/readme-top.md): explain the instrument
-  through concrete behavior and provide a clear next action.
+- [README](../../../../README.md): rewritten 2026-10-13 and now the source of
+  truth for concepts and positioning
+  ([ticket](../../../../coga/tasks/marketing/readme-top.md)).
 - [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer/):
   a clean installation reaches one useful completed task with human direction
   and review. Prove the actual installed-package path.
@@ -31,14 +32,15 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 **Final V1 release (owner decision, 2026-10-02).** Publish `1.0.0` as the
 last V1 product-delivery step, after the remaining V1 changes and readiness
 checks and before the public product launch. The published `0.4.0` is an
-interim release. The [final release ticket](../../../../coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md)
+interim release; `0.4.1` is in flight (set in `pyproject.toml`, not yet
+tagged). The [final release ticket](../../../../coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md)
 owns candidate preparation, publication and verification under the
 [release runbook](../../coga/releasing/SKILL.md).
 
 ## Publication sequence
 
 1. [One idea piece](../../../../coga/tasks/marketing/idea-piece.md) publishes the
-   argument, supported by megalaunch and one correction changing later work.
+   argument, supported by the README's thinkpick example.
    It is not a separate full product launch. The owner selects the venue,
    edits/approves the piece and publishes it.
 2. Let the argument circulate, collect objections and first-run feedback,

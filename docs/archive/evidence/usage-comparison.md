@@ -1,5 +1,7 @@
 # Coga and the competing ways of working
 
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+
 **Within the ten-tool usage comparison, Coga is moderately differentiated
 overall. Its strongest difference is the
 provided operating model for an ongoing collection of jobs: maintained work
@@ -55,14 +57,14 @@ and runs, even though all three can describe their work as orchestration.
    Description/Context and its blackboard. `_step_layers()` reads the selected
    skill files or current inline step text from disk. These are the inputs
    to execution, not documentation generated after an application runs.
-   [Composition source](../../src/coga/compose.py).
+   [Composition source](../../../src/coga/compose.py).
 2. **The worker is an existing agent CLI.** `build_agent_command()` builds
    argv beginning with the configured `agent.cli`. `spawn_agent_session()`
    passes the composed input to that command; the supervisor uses subprocess
    execution or a PTY and `exec`. Claude Code and Codex retain their own
    agent/tool loops. Coga supplies the surrounding work and lifecycle model.
-   [Launch source](../../src/coga/commands/launch.py),
-   [process supervisor](../../src/coga/repl_supervisor.py).
+   [Launch source](../../../src/coga/commands/launch.py),
+   [process supervisor](../../../src/coga/repl_supervisor.py).
 3. **The handoff belongs to the ticket.** `Workflow.load()` parses ordered
    steps with role tokens; `freeze()` records their sequence and references.
    `advance_step()` writes the new step/assignee through ticket IO, and
@@ -70,21 +72,21 @@ and runs, even though all three can describe their work as orchestration.
    configured agent or return to the human. Megalaunch applies corresponding
    eligibility and blocker checks. The enduring object is the job and its
    recorded progress through a human/agent procedure.
-   [Workflow](../../src/coga/workflow.py), [step movement](../../src/coga/bump.py),
-   [ticket IO](../../src/coga/ticket.py), [queue](../../src/coga/megalaunch.py).
+   [Workflow](../../../src/coga/workflow.py), [step movement](../../../src/coga/bump.py),
+   [ticket IO](../../../src/coga/ticket.py), [queue](../../../src/coga/megalaunch.py).
 4. **Chat is also a way to author that material.** Guided ticket authoring
    copies the ticket into an authoring view, substitutes the authoring skill
    and removes the current step from that view. It then uses the same agent
    launch machinery. The real workflow remains recorded on disk while the
    discussion helps revise the work definition.
-   [Authoring source, `_authoring_ticket()`](../../src/coga/commands/ticket.py).
+   [Authoring source, `_authoring_ticket()`](../../../src/coga/commands/ticket.py).
 5. **Deterministic work can use the same job container.** The exact sibling
    `ticket.py` selects a script phase, run in a subprocess before any agent
    phase. The runtime rereads the task afterward to decide what remains.
    The script is ordinary Python; a distinct name in the fixed recipe
    registry serves package-owned deterministic contracts.
-   [Script dispatch](../../src/coga/launch_script.py),
-   [fixed recipes](../../src/coga/runner.py).
+   [Script dispatch](../../../src/coga/launch_script.py),
+   [fixed recipes](../../../src/coga/runner.py).
 6. **The operating method includes its own maintenance.** The `dream` alias
    expands to `recurring launch dream`. Generic recurring code loads the
    named template and materializes an ordinary task, using `direct/body`
@@ -94,8 +96,8 @@ and runs, even though all three can describe their work as orchestration.
    through PRs and raise design tickets for missing methods. The human
    merge rule is in this operating protocol; the probe did not test agent
    adherence to it or execute a knowledge merge.
-   [Alias](../../src/coga/aliases.py), [materialization](../../src/coga/recurring.py),
-   [shipped Dream task](../../src/coga/resources/templates/coga/recurring/dream/ticket.md).
+   [Alias](../../../src/coga/aliases.py), [materialization](../../../src/coga/recurring.py),
+   [shipped Dream task](../../../src/coga/resources/templates/coga/recurring/dream/ticket.md).
 
 The distinctive relationship is that **the working instructions, the work
 record and the procedure for improving the instructions are all ordinary
@@ -136,7 +138,7 @@ change its next composition; later-step instructions stay out; the frozen
 step sequence stays intact; agent rotation selects another external CLI;
 and the human handoff returns to the caller. The reserved script was detected
 but never executed. No agent was launched and no Git publication occurred.
-[Recorded checks and source revision](../archive/launch-programs/phase-0-audit/source-inspection-results.json).
+[Recorded checks and source revision](../launch-programs/phase-0-audit/source-inspection-results.json).
 
 The supported marketing correction is substantial: **lead with operating
 work through existing agents from a shared, editable body of instructions**.
@@ -157,65 +159,7 @@ overlap is not erased by the stronger contrast with an application framework.
 
 ## Core flexibility across administrative and patent work
 
-**September 12, 2026 — owner-requested local source inspection.** The owner
-identified the admin and patents repositories as examples of flexibility in
-Coga's core. Read their workflows, recurring definitions, selected Python
-implementations and task metadata. This records generic operating structures;
-private business records and narrative quotations are not publication sources.
-No job, notification, financial action or filing was executed in this review.
-
-| Inspected example | What the implementation expresses | Implication for Coga's scope |
-|---|---|---|
-| Admin reminders and monthly routines | Repository scripts read maintained task/template state, calculate the relevant period and prepare notifications. A recurring workflow invokes the named script and records the run; the underlying business action remains with the human. | A completed task can mean that an obligation was surfaced, without claiming that the obligation itself was fulfilled. Recurrence and business completion are separate concepts. |
-| Admin preparation and human action | The local `human-gated` workflow specifies agent preparation, owner action, then agent verification and recording. Separate browser workflows describe unattended operation, human review/action, or human execution with agent support. | The repository defines procedures and responsibility boundaries appropriate to the operation. These are workflow definitions; their existence alone does not prove successful execution of every variant. |
-| Patent lifecycle | The local workflow represents idea, optional provisional, candidate and granted-utility stages. Domain fields record the case's facts. Separate local scripts inspect those fields, detect changes and identify items needing attention; stage advancement is assigned to human confirmation by the written method. | A task can represent a case maintained over years. A workflow stage can describe the condition of that case, with several kinds of work occurring within it. |
-| Proposed invention disclosures | A skill combines a deterministic source gatherer, agent screening and drafting, a human selection step and creation of approved candidate tasks. The gatherer's pending state is separate from its accepted scan state. | Domain judgment, ordinary scripts, human decisions and durable follow-up work can be composed into a repository-owned method. This inspection did not run the scanner or assess its output quality. |
-
-Local evidence locations: `admin/coga/workflows/{human-gated,surface-due-and-notify}.md`,
-`admin/coga/workflows/browser/`, the supplier-reminder and payroll-reconciliation
-scripts beside their tasks; `patents/coga/workflows/patent/lifecycle-v2.md`,
-the sweep/sync scripts under `patents/coga/tasks/repo/`, and
-`patents/coga/skills/coga/auto-disclosure/{SKILL.md,gather.py}`. These paths
-are relative to the owner's local directory of checkouts, not public links.
-Task frontmatter includes completed admin reminder instances and active
-patent lifecycle records; that is persisted usage evidence, not independent
-verification of the underlying business outcomes.
-
-The current Coga source supports the architectural explanation. Its
-[configuration parser](../../src/coga/config.py) accepts declared extension
-fields and repository-owned extension tables. The generic
-[workflow parser](../../src/coga/workflow.py), [composer](../../src/coga/compose.py)
-and [launcher](../../src/coga/commands/launch.py) operate on task state and
-selected instructions. The inspected domain calculations live in repository
-scripts using files and CLI calls; the core has no special dispatcher for
-these administrative or patent procedures. Coga still ships coding workflows
-and package commands such as PR handling. The supported claim is flexibility
-of the shared task/workflow machinery, not that the package contains no
-domain-oriented facilities.
-
-**Version boundary:** some patent recurring templates still use older inline
-script syntax. Current core instead recognizes the reserved sibling
-`ticket.py` for a deterministic launch phase. The examples establish actual
-authored methods and local implementations; this review does not certify that
-every checkout is migrated or runnable unchanged against current Coga.
-
-**Comparison with Compound Engineering:** its
-[published default loop](https://github.com/EveryInc/compound-engineering-plugin)
-centres on building and reviewing software. However, its explicit
-[non-code execution route](https://github.com/EveryInc/compound-engineering-plugin/blob/main/skills/ce-work/references/non-code-execution.md)
-produces knowledge-work deliverables while bypassing the coding/shipping
-stages. Our earlier CE trial also executed a non-code plan. “Engineering
-only” is therefore inaccurate. The defensible distinction is that CE supplies
-an engineering-centred method with broader routes, while Coga's common task
-runtime supports independently authored methods for recurring operations,
-ongoing cases and deliverables. This is a concrete product-scope distinction;
-it does not establish that CE cannot be extended to reproduce the examples.
-
-Together with the moving-frontier thesis, these examples supply two forms of
-adaptability: the method can vary with the domain of work and can be revised
-as the available agents become more capable. The interface for human
-direction remains useful across both changes. Neither future capability gains
-nor a matched cross-domain superiority claim was tested here.
+Moved to the live evidence page [admin and patent flexibility](../../evidence/admin-and-patent-flexibility-2026-09-12.md).
 
 ## What counts as a substantial difference
 
@@ -699,12 +643,12 @@ retrieved state, not a pinned release. Feature-preview labels are retained
 in the assessment. Local sources refer to the inspected Coga workspace;
 the CE trial separately records its pinned revision and verification receipts.
 
-[^1]: Coga, [principles](../contexts/coga/principles/SKILL.md), especially agents/humans, legibility and human-reviewed memory.
-[^2]: Coga, [architecture](../contexts/coga/architecture/SKILL.md), ticket state machines, launch, dependency drain, step gates and prompt composition.
-[^3]: Coga, [packaged design workflow](../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md).
-[^4]: Coga, [draft-for-human workflow](../../coga/workflows/draft-for-human.md) and [marketing audit ticket](../archive/launch-programs/phase-0-audit/audit-ticket.md), historical human-step snapshot archived on 2026-09-21.
+[^1]: Coga, [principles](../../contexts/coga/principles/SKILL.md), especially agents/humans, legibility and human-reviewed memory.
+[^2]: Coga, [architecture](../../contexts/coga/architecture/SKILL.md), ticket state machines, launch, dependency drain, step gates and prompt composition.
+[^3]: Coga, [packaged design workflow](../../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md).
+[^4]: Coga, [draft-for-human workflow](../../../coga/workflows/draft-for-human.md) and [marketing audit ticket](../launch-programs/phase-0-audit/audit-ticket.md), historical human-step snapshot archived on 2026-09-21.
 [^5]: Coga, [upkeep audit](upkeep-audit.md), September 11, 2026; [Dream run record](https://github.com/FastJVM/coga/blob/9cb722546/coga/tasks/recurring/dream/ticket.md#dream-run-summary), September 9, 2026 (the 2026-W37 period ticket as frozen at commit `9cb722546`; the live path is rewritten every period).
-[^6]: Coga, [prompt composer](../../src/coga/compose.py) and [composition probe](build-vs-adopt.md#coga-must-meet-the-same-standard).
+[^6]: Coga, [prompt composer](../../../src/coga/compose.py) and [composition probe](build-vs-adopt.md#coga-must-meet-the-same-standard).
 [^7]: Zed, [Agent Panel](https://zed.dev/docs/ai/agent-panel).
 [^8]: Zed, [Instructions](https://zed.dev/docs/ai/instructions).
 [^9]: Superset, [Tasks](https://docs.superset.sh/tasks).
@@ -743,4 +687,4 @@ the CE trial separately records its pinned revision and verification receipts.
 [^42]: EveryInc, Compound Engineering, [refresh protocol](https://github.com/EveryInc/compound-engineering-plugin/blob/main/skills/ce-compound-refresh/SKILL.md), especially Scope, Investigate and Classify; [mode behavior](https://github.com/EveryInc/compound-engineering-plugin/blob/main/skills/ce-compound-refresh/references/modes.md).
 [^43]: Anthropic, [Claude Code power user tips](https://support.claude.com/en/articles/14554000-claude-code-power-user-tips), contents and command appendix name auto-dream and `/dream`; the main memory section describes auto-memory. These references do not establish equivalence with Coga's Dream.
 [^44]: EveryInc, [Compound Engineering README](https://github.com/EveryInc/compound-engineering-plugin), standard loop, autonomous `/lfg`, separate plugin installation and experimental Compound Packs.
-[^45]: Coga, [recurring Dream template](../../coga/recurring/dream/ticket.md), run order and disposition rules for extraction, stale knowledge, contract drift and missing operating material.
+[^45]: Coga, [recurring Dream template](../../../coga/recurring/dream/ticket.md), run order and disposition rules for extraction, stale knowledge, contract drift and missing operating material.
