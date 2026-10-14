@@ -433,7 +433,6 @@ LOCAL_ONLY_CONTEXT_REFS = {
     "product/vision": "This repo's product thesis, not guidance for other repos.",
     "coga/current-direction": "Dated posture of this repo's own development.",
     "coga/project-stage": "Dated stage of this repo's own development.",
-    "coga/roadmap": "Sequencing of this repo's own backlog.",
     "marketing/map": "This project's own marketing material.",
     "marketing/positioning": "This project's own marketing material.",
     "marketing/strategy": "This project's own marketing material.",

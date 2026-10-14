@@ -78,4 +78,4 @@ operating rules without a merge.
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
   by launch-internals, sync, recurring.
 - **Posture** (local): `coga/current-direction`,
-  `coga/project-stage`, `coga/roadmap`.
+  `coga/project-stage`.

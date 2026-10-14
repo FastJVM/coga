@@ -13,27 +13,17 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 
 ## Before launch
 
-- [README](../../../../README.md): rewritten 2026-10-13 and now the source of
-  truth for concepts and positioning
-  ([ticket](../../../../coga/tasks/marketing/readme-top.md)).
 - [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer/):
   a clean installation reaches one useful completed task with human direction
   and review. Prove the actual installed-package path.
-- [PostHog](../../../../coga/tasks/marketing/add-telemetry.md): adoption/activity
-  measurement is implemented (PR #880, merged 2026-09-22). The owner explicitly
-  rejected replacing it with zero-telemetry measurement. The
-  [weekly snapshot contract](../../coga/telemetry/SKILL.md) owns the implemented
-  scope. The owner deferred the live clean-wheel proof in
-  [operator verification](../../coga/telemetry/operations/SKILL.md) at review.
-  It remains the one open PostHog launch gate, tracked in
-  [its own ticket](../../../../coga/tasks/marketing/verify-posthog-telemetry-with-the-live-clean-wheel.md).
-  Campaign simplification does not waive that gate.
+- PostHog live clean-wheel proof
+  ([ticket](../../../../coga/tasks/marketing/verify-posthog-telemetry-with-the-live-clean-wheel.md)):
+  the one open telemetry launch gate. The contract is
+  [`coga/telemetry`](../../coga/telemetry/SKILL.md).
 
 **Final V1 release (owner decision, 2026-10-02).** Publish `1.0.0` as the
 last V1 product-delivery step, after the remaining V1 changes and readiness
-checks and before the public product launch. The published `0.4.0` is an
-interim release; `0.4.1` is in flight (set in `pyproject.toml`, not yet
-tagged). The [final release ticket](../../../../coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md)
+checks and before the public product launch. The [final release ticket](../../../../coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md)
 owns candidate preparation, publication and verification under the
 [release runbook](../../coga/releasing/SKILL.md).
 
@@ -54,21 +44,11 @@ readiness evidence, publication coordination, the Show HN package, response
 triage and recorded outcomes. [Distribution](../distribution/SKILL.md) owns
 channel and measurement policy. Publication remains an owner action.
 
-## Scope
+## Out of scope for V1
 
-The remaining marketing work is launch execution, the idea piece, the README,
-the `fix-installer/` ticket group, PostHog live-wheel verification, the final
-V1 release and first-user targeting. First-user targeting is two draft
-tickets the owner agreed on 2026-09-29: the
-[first-user ICP audit](../../../../coga/tasks/marketing/1st-users/ticket.md)
-records a `marketing/first-users` context before the idea piece is
-published, so the piece and Show HN can target it, and
-[recruiting first users](../../../../coga/tasks/marketing/recruit-first-users.md)
-follows it. Neither gates Show HN. There is no separate audience/story/pitch
-pipeline, three-essay commitment, Discord/community prerequisite, domain
-purchase or additional channel campaign for V1. The writing ticket settles
-editorial details directly with the owner. The old numeric scorecard,
-day-14 gate and token/time experiment are not revived.
-
-Preserved audit evidence and earlier ideas are references, not launch gates.
-Product fixes outside the chosen first-run path retain their own scope.
+No separate audience/story/pitch pipeline, three-essay campaign,
+Discord/community prerequisite, domain purchase or extra channel campaign.
+The old numeric scorecard, day-14 gate and token/time experiment are not
+revived. First-user targeting (the `marketing/1st-users/` and
+`recruit-first-users` tickets) does not gate Show HN. Live ticket state is
+`coga status`, not this page.
