@@ -8257,3 +8257,12 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 21:48 v1 [marketing/readme-top] [human:nicktoper] activated (draft → active)
 2026-10-13 21:48 v1 [marketing/readme-top] [human:nicktoper] task done — README rewritten by the owner on 2026-10-13; it is now the source of truth for concepts and positioning.
 2026-10-13 22:14 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [human:nicktoper] created (status=draft)
+2026-10-14 10:56 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-14 10:56 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-14
+2026-10-14 10:56 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-14
+2026-10-14 10:56 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-14 10:56 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-14
+2026-10-14 10:56 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-14
+2026-10-14 10:56 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-14 10:56 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-14
+2026-10-14 10:56 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-14
