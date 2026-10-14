@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -497,3 +497,139 @@ implementation. This is evidence for owner review, not design approval.
   The same invocation with ambient `python` failed collection because that
   environment lacks `tomlkit`; the project virtualenv works. No implementation
   changes were made, and the full suite was not run for this design review.
+
+## Implement handoff (2026-10-14)
+
+Branch `default-agent-key` is pushed. It has one commit, `b6db4b68e`, rebased
+onto `origin/main` `05dca2a74`.
+
+- **Config.** `config._parse_default_agent` reads top-level `default_agent`
+  from both files, local first. It validates each present value against the
+  merged `[agents]`, so a broken shared value fails even when local wins.
+  Every error names its file and lists the known types (evaluator item 2).
+  The result is stored on `Config.default_agent_name`. `Config.default_agent()`
+  returns that type when it is set, and otherwise runs the first-entry code
+  unchanged. The key is in both allowlists. No consumer changed.
+- **Init.** `_make_default_agent` and `_TABLE_HEADER` are replaced by
+  `commands/init._write_default_agent`, which resolves evaluator item 1:
+  - an unknown name, or a file that will not parse, returns False and the
+    file is untouched;
+  - the same value already set returns True without a write;
+  - an existing key is replaced in place;
+  - otherwise it uncomments the template's `# default_agent = "claude"`, or
+    inserts the key above the comment block that introduces the first table;
+  - a tomllib guard requires the result to equal the original plus that one
+    key.
+
+  `_template_default_agent` mirrors `Config.default_agent`. The success and
+  warning texts no longer mention reordering.
+- **Template.** The commented `default_agent` block follows `default_status`
+  in the packaged `coga.toml`.
+- **Docs.** `coga/agents` gains a `## The default agent` section covering
+  precedence, why the key is local-capable, validation, the freeze rule, the
+  peer and read-only surfaces, the other knobs, and the bootstrap
+  `agent: claude` pins that outrank it. The `configuration`, `tickets`,
+  `recurring/autofix`, and `init` topics are updated too. Twins were copied
+  byte-identical. The final grep left only correct fallback statements and
+  unrelated "reorder" prose.
+- **Tests.** In `test_config` there are 10 tests: shared, local override,
+  unset fallback, a local-only type, bad values × file, and a broken shared
+  value under a local win. Each consumer has one test:
+  - `test_mark`, parametrized over both files;
+  - `test_create`, a live create;
+  - `test_retire`;
+  - `test_recurring_autofix`;
+  - `test_ticket`, the authoring term-6 fallback with no bootstrap pin;
+  - `test_commands`, `resolve_main_agent` plus the peer flip.
+
+  `test_recurring` has the two Dream tests: a new period gets codex, and a
+  forced rerun keeps the frozen claude. The three init writer tests replace
+  the reorder test, and the interactive init test now asserts the table order
+  is unchanged. The existing `--agent codex` sweep test is unchanged.
+- **Owner dispositions.** The Open Questions were applied as the body chose:
+  merged-table validation, unchanged bootstrap pins, no clone-path write, and
+  a commented template example. No human objected in this session.
+- **Adjacent bugs.** None found.
+- **Local quirk.** `coga validate` in `example/coga` fails if the shell
+  exports a bare `SLACK_WEBHOOK_URL`, which this machine does. That is the
+  intended migration error, not a regression; I ran it with the variable
+  unset.
+
+## PR
+
+```yaml
+title: Add a top-level default_agent config key
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5); coga-launch 20aee5c8-666e-4f25-b949-ae43885d19e2.
+head: b6db4b68ec3ff6e98b416b56a99ac089ad396f4b
+base: 05dca2a74d53326e8ba946043188d700ca0f3c52
+depth: deep
+rationale: >-
+  Changes config parsing, which every command runs, and the default agent
+  that activation, retire, autofix, authoring, and recurring resolve. It also
+  replaces init's coga.toml rewrite. No code review has run yet.
+implementation: >-
+  New top-level default_agent, local over shared, validated at load against
+  the merged [agents] table. Config.default_agent() honours it before the
+  first-declared fallback, so every consumer follows with no per-consumer
+  change. Interactive init writes the key instead of reordering [agents.*]
+  tables. Docs and twins are updated.
+deviations: >-
+  Two choices resolve the evaluator's open points. All three default_agent
+  error kinds list the known types. The init writer replaces an existing
+  key and returns True without writing when the value already matches.
+limitations: >-
+  The packaged bootstrap/ticket, bootstrap/orient, and onboarding tickets
+  still pin agent: claude, so coga ticket and coga chat do not follow the
+  key; this is documented in coga/agents and was out of scope. Already
+  activated tickets keep their frozen agent. Dream's skills under codex are
+  a separate ticket.
+files:
+  docs/contexts/coga/agents/SKILL.md: Own the default_agent key, its precedence, local override, validation, freeze rule, and its relation to the other agent knobs.
+  docs/contexts/coga/configuration/SKILL.md: List default_agent in both top-level allowlists.
+  docs/contexts/coga/init/SKILL.md: Init writes default_agent instead of reordering tables.
+  docs/contexts/coga/recurring/autofix/SKILL.md: The analyst fallback is default_agent() with the key, not only first-declared.
+  docs/contexts/coga/tickets/SKILL.md: The activation default and authoring term 6 now name the key.
+  src/coga/authoring.py: Docstring for term 6.
+  src/coga/commands/init.py: Replace the table-reorder writer with _write_default_agent; _template_default_agent mirrors Config; new messages.
+  src/coga/config.py: Parse, validate, and store default_agent; allowlists; default_agent() precedence.
+  src/coga/create.py: Docstring for the live-create default.
+  src/coga/mark.py: Docstring on the activation freeze.
+  src/coga/recurring_autofix.py: Docstring for the analyst fallback.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/agents/SKILL.md: Byte-identical packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Byte-identical packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Byte-identical packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: Byte-identical packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Byte-identical packaged twin.
+  src/coga/resources/templates/coga/coga.toml: Commented default_agent example after default_status.
+  tests/test_commands.py: The prospective default and the other-agent peer follow the key.
+  tests/test_config.py: Parsing, precedence, and the error matrix for both files.
+  tests/test_create.py: A live create stamps the key's agent.
+  tests/test_init.py: _write_default_agent behaviour; init names the agent without reordering.
+  tests/test_mark.py: Activation stamps the key's agent from either file.
+  tests/test_recurring.py: Dream new-period ticket gets codex; a forced rerun keeps the frozen agent.
+  tests/test_recurring_autofix.py: The analyst falls back to the key.
+  tests/test_retire.py: Retire defaults to the key's agent.
+  tests/test_ticket.py: The authoring term-6 fallback follows the key.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review yet; design approval is not code review. The workflow's next step is open-pr.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: b6db4b68ec3ff6e98b416b56a99ac089ad396f4b
+    base: 05dca2a74d53326e8ba946043188d700ca0f3c52
+    detail: 3618 passed, on the clean committed tree after the rebase.
+  - command: cd example/coga && env -u SLACK_WEBHOOK_URL ../../.venv/bin/coga validate --json
+    status: passed
+    head: b6db4b68ec3ff6e98b416b56a99ac089ad396f4b
+    base: 05dca2a74d53326e8ba946043188d700ca0f3c52
+    detail: ok_count 4, 0 issues.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: b6db4b68ec3ff6e98b416b56a99ac089ad396f4b
+    base: 05dca2a74d53326e8ba946043188d700ca0f3c52
+    detail: 0 errors; the 40 warnings are pre-existing ticket-state warnings (idle and unfrozen tickets) that this change did not cause.
+```
