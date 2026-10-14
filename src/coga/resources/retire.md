@@ -1,16 +1,21 @@
-Retire the done ticket `{slug}`.
+Retire the canceled ticket `{slug}`.
 
-Retire is the slug-targeted launcher for `retro/done-ticket`: extract durable
-knowledge from one finished task, then delete it. When new durable knowledge
-exists, Retro opens a PR that records the `## Retro` marker, edits the knowledge
-base, and deletes the source task directory in the same PR. When no new durable
+Retire is the slug-targeted launcher for `retro/done-ticket` on a canceled
+ticket. A done ticket never reaches this task: its positive learning landed
+with its merged PR, so `coga retire` deletes it deterministically. A canceled
+ticket's learning is negative — the cancellation reason in `coga/log.md` and
+anything its body or blackboard records about what did not work, what was
+declined and why, and what would reopen it — and nothing has landed it. Retro
+extracts that, then deletes the ticket. When new durable knowledge exists,
+Retro opens a PR that records the `## Retro` marker, edits the knowledge base,
+and deletes the source task directory in the same PR. When no new durable
 knowledge exists, there is no PR to bundle the deletion into, so Retro
 direct-deletes the task via `coga delete` — no marker, no PR. This task is the
 ad-hoc shell that drives that single skill against the named slug. Do not
 invent additional steps. The complete Retro pass runs in one subagent inside a
 dedicated isolated checkout; do not run it in this retire task's checkout.
-Branch hygiene (local prune, stale-branch sweep) is a Dream concern, not
-retire's.
+`coga retire` already disposed of the ticket's checkout before creating this
+task.
 
 ### Console Progress
 
@@ -23,7 +28,7 @@ for the human watching the run.
 
 Run these in order. Stop and ask if any precondition fails — do not improvise.
 
-1. **Run `retro/done-ticket` against `{slug}`.**
+1. **Run `retro/done-ticket` against canceled `{slug}`.**
    First copy the source task's complete resolved artifact (its bare Markdown
    file or its whole directory, including sibling attachments), repo-global
    `coga/log.md`, and current local contexts/skills into a read-only `evidence/`
@@ -80,8 +85,8 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 
 ### Stop conditions
 
-- Source task is not `status: done` → escalate via `coga block` with the
-  reason. Retire only operates on done tickets.
+- Source task is not `status: canceled` → escalate via `coga block` with the
+  reason. This task only runs Retro on a canceled ticket.
 - Source task is missing → first decide **which** kind of missing. If the slug
   is wrong or unknown, escalate.
 

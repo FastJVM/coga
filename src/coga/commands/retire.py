@@ -1,4 +1,4 @@
-"""`coga retire` — run Retro against a done task."""
+"""`coga retire` — dispose of a finished task: delete a done one, retro a canceled one."""
 
 from __future__ import annotations
 
@@ -18,9 +18,10 @@ from coga.branchcleanup import WorktreeCleanupResult
 from coga.checkout_disposal import CheckoutDisposal, dispose_checkout
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
+from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.git import GitError
 from coga.mark import mark_blocked
-from coga.paths import RepoResourceUnreadable, load_resource
+from coga.paths import RepoResourceUnreadable, load_resource, log_path
 from coga.retire_worklist import RetireWorklistError, discharge_slug
 from coga.slugify import slugify
 from coga.taskfile import TaskFileError, read_blackboard
@@ -34,7 +35,7 @@ from coga.validate import TaskValidationError
 
 
 def retire(
-    task: str = typer.Argument(..., help="Done task ID or id-slug to retire."),
+    task: str = typer.Argument(..., help="Done or canceled task ID or id-slug to retire."),
     agent: str | None = typer.Option(
         None,
         "--agent",
@@ -43,20 +44,26 @@ def retire(
     no_launch: bool = typer.Option(
         False,
         "--no-launch",
-        help="Create the retire task but do not launch it.",
+        help="Canceled tickets only: create the retire task but do not launch it.",
     ),
 ) -> None:
-    """Wrap up a done task by running retro/done-ticket against it.
+    """Wrap up a finished task: delete a done one, run Retro on a canceled one.
 
-    Validates the named task is `status: done`, then creates a one-shot
-    ad-hoc task whose body invokes the `retro/done-ticket` skill against it.
-    The retro skill opens a PR when it extracts new durable knowledge; that PR
-    records the `## Retro` marker, edits the knowledge base, and deletes the
-    source task directory in the same PR. If no new durable knowledge exists,
-    Retro direct-deletes the task via `coga delete` (no PR, no marker; recover
-    with `git restore`).
+    A `done` ticket's positive learning already landed with its merged PR (the
+    owning topic changes in the same PR), so retiring it is deterministic: no
+    agent runs. Retire disposes of its checkout and then deletes the task and
+    syncs the removal, exactly as `coga delete` does (recover with
+    `git restore`).
 
-    Before launching that retro pass, retire disposes of the ticket's feature
+    A `canceled` ticket's learning is negative — the cancellation reason and
+    whatever the blackboard says did not work — and nothing landed it. Retire
+    creates a one-shot ad-hoc task whose body invokes the `retro/done-ticket`
+    skill against it. Retro opens a PR when it extracts new durable knowledge;
+    that PR records the `## Retro` marker, edits the knowledge base, and deletes
+    the source task directory in the same PR. If no new durable knowledge
+    exists, Retro direct-deletes the task via `coga delete`.
+
+    Before deleting the task or launching that retro pass, retire disposes of the ticket's feature
     checkout and git branch, both read from the `## Dev` blackboard section
     while the ticket (and thus the `worktree:` / `branch:` lines) still exists.
     The recorded linked worktree is removed first — which also unpins the branch
@@ -84,22 +91,25 @@ def retire(
 
     typer.echo(f"Retire: target task {ref.id_slug} at {ref.path}")
     source = read_ticket(ref)
-    if source.status != "done":
+    if source.status not in {"done", "canceled"}:
         _bail(
-            f"Retire only operates on done tickets — {ref.id_slug} is "
-            f"{source.status!r}. Bump it to done first."
+            f"Retire only operates on done or canceled tickets — {ref.id_slug} "
+            f"is {source.status!r}. Finish or cancel it first."
         )
 
     # Prune the ticket's worktree and branches while the task (and its `## Dev`
-    # `worktree:`/`branch:`/`pr:` lines) still exists — the retro pass below
-    # deletes the directory. Anything the proofs kept is a bug: the ticket is
-    # the checkout's only owner record, so the retire task below is created
-    # blocked and Retro never runs.
+    # `worktree:`/`branch:`/`pr:` lines) still exists — the deletion or retro
+    # pass below removes the directory. Anything the proofs kept is a bug: the
+    # ticket is the checkout's only owner record, so it must survive.
     disposal = _cleanup_checkout(cfg, ref)
     refusal = _kept_checkout_refusal(disposal)
     checkout = disposal.worktree_result if disposal is not None else None
     if refusal is None:
         _discharge_worklist_entry(cfg, ref)
+
+    if source.status == "done":
+        _delete_done_task(cfg, ref, refusal)
+        return
 
     try:
         main_agent = agent or _default_agent(cfg)
@@ -158,6 +168,34 @@ def retire(
         agent_override=None,
         prompt_report=False,
     )
+
+
+def _delete_done_task(cfg: Config, ref: TaskRef, refusal: str | None) -> None:
+    """Delete a done task and sync the removal, with no retro agent.
+
+    A kept checkout refuses before anything is deleted: the ticket is that
+    checkout's only owner record, so it stays on disk with its `## Dev` lines
+    and retire exits 2. Nothing else is created; the owner fixes the checkout
+    by hand and runs `coga retire` again.
+    """
+    if refusal is not None:
+        _bail(
+            f"Retire refused: {refusal} {ref.id_slug} was not deleted; fix the "
+            f"checkout, then run `coga retire {ref.id_slug}` again."
+        )
+    try:
+        output = run_delete_task(cfg, ref)
+    except DeleteTaskError as exc:
+        _bail(str(exc))
+    typer.echo(f"Retire: {output}", nl=False)
+    try:
+        git.publish(
+            cfg,
+            [ref.path, log_path(cfg)],
+            f"Ticket: {ref.id_slug} — deleted (retire)",
+        )
+    except GitError as exc:
+        typer.secho(f"[git] sync failed: {exc}", fg=typer.colors.YELLOW, err=True)
 
 
 def _cleanup_checkout(cfg: Config, ref: TaskRef) -> CheckoutDisposal | None:

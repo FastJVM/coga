@@ -90,8 +90,9 @@ Reach for the lowest tier the shape allows:
 - **Stateful ticket or workflow**: reviewable work that wants its own
   blackboard, log, and often a PR. Its deterministic half can be a `ticket.py`
   without a registry entry. State decides between ticket and command, not
-  parameters: `coga retire <slug>` creates a retire task because the retro is
-  multi-step reviewed work.
+  parameters: `coga retire <slug>` creates a retire task for a canceled
+  ticket because the retro is multi-step reviewed work, and deletes a done
+  ticket in place because that is not.
 - **Kernel**: launch/compose and what launch calls mid-flight (`mark`, `bump`,
   secret injection, notify dispatch), what must exist before any launch
   (`create`, fresh `init`), the `block`/`unblock` state transitions, the fixed

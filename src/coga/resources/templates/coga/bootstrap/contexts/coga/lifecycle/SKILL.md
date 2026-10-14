@@ -41,7 +41,10 @@ Tickets without a workflow move through statuses only via `coga mark`.
   reactivates a canceled ticket. A terminal transition deletes no branch or
   checkout. The ticket's owned branches are cleaned up later by `coga retire`
   and the daily autoclose branch pass, so nothing disappears beneath the
-  session that finished it
+  session that finished it. `coga retire` then removes the ticket: a done one
+  is deleted with no retro agent, because its positive learning landed in its
+  merged PR; a canceled one goes through Retro first, which extracts the
+  cancellation reason and any other negative learning
   ([dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs)).
   `mark done --force` / final-step `bump --force` finish a `direct/body`
   ticket while acknowledging product code stranded off the control branch.
