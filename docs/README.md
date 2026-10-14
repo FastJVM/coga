@@ -114,7 +114,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   claim): [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md),
   [velocity](evidence/velocity.md),
   [admin and patent flexibility](evidence/admin-and-patent-flexibility-2026-09-12.md),
-  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md).
+  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md),
+  [macOS clean-install runs](evidence/macos-clean-install-runs-2026-10.md).
 
 ## Proposals and history
 

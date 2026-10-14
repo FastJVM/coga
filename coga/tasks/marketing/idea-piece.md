@@ -37,8 +37,9 @@ work using it. A newly recorded public demonstration is valid; an authored
 illustration must be labeled and cannot substitute for observed proof of reuse.
 Use public Coga evidence only and no productivity multiplier.
 
-The opening candidate is: “Everyone is building infrastructure for agents.
-Coga is building an instrument for the human using them.” Treat the first
+The opening candidate is the README's: “Most tools are building
+infrastructure for agents. Coga is an instrument for the human using them.”
+README.md is the source of truth for positioning (2026-10-13). Treat the first
 sentence as rhetorical positioning, not a researched claim about every
 competitor; qualify it if necessary in publishable copy. Explain the behavior
 immediately. The owner supplies editorial judgment and publication approval
