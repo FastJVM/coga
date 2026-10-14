@@ -1,6 +1,6 @@
 ---
 title: Put into words why I would keep using Coga
-status: draft
+status: active
 owner: zach
 workflow:
   name: draft-for-human
@@ -15,6 +15,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
