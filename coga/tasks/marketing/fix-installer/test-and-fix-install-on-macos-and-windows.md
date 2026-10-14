@@ -28,7 +28,7 @@ contexts:
 - coga/install
 - coga/testing/clean-install
 agent: claude
-launch_generation: pending:218aae5f-b128-4e00-86ea-8ce9da93162f
+launch_generation: 218aae5f-b128-4e00-86ea-8ce9da93162f
 ---
 
 ## Description
