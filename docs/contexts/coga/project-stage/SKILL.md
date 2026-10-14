@@ -5,7 +5,7 @@ description: Dated posture for Coga's current stage — pre-product, testers onl
 
 # Coga — project stage
 
-Last reviewed: 2026-09-22. **Pre-product. Testers only (the owner and a small
+Last reviewed: 2026-10-13. **Pre-product. Testers only (the owner and a small
 crew). No real users.** The owner verifies this premise; the planned V1
 Show HN launch ([`marketing/plan`](../../marketing/plan/SKILL.md)) is the
 expected point at which the expiry below trips.
