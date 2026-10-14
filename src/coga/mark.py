@@ -458,7 +458,8 @@ def _select_main_agent(cfg: Config, ticket: Ticket) -> None:
     an omitted choice becomes a concrete, stable identity: the configured
     default is resolved once and persisted in `agent:`. Everything afterwards —
     pause/resume, peer review, unblock, terminal transitions — retains it, so
-    reordering `[agents.*]` between launches changes only *future* activations
+    changing the default (the `default_agent` key, or `[agents.*]` order when
+    it is unset) between launches changes only *future* activations
     and can never turn a ticket's `main -> peer -> main` rotation into
     `main -> peer -> peer`.
 

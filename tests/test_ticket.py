@@ -834,6 +834,27 @@ def test_ticket_bare_interview_uses_bootstrap_agent(
     assert captured["cmd"][0] == "codex"
 
 
+def test_ticket_bare_interview_falls_back_to_the_default_agent_key(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With terms 1–5 absent, the last fallback is `Config.default_agent()`,
+    which honours `default_agent` over declaration order (claude first)."""
+    _authoring_setup(
+        repo,
+        bootstrap_agent=None,
+        agents_toml=_TWO_AGENT_TOML.replace(
+            "version = 1", 'version = 1\n    default_agent = "codex"', 1
+        ),
+    )
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket"])
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][0] == "codex"
+
+
 @pytest.mark.parametrize(
     ("args", "env_agent", "local_agent", "expected"),
     [

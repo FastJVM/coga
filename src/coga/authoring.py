@@ -51,7 +51,8 @@ def resolve_authoring_agent(
     4. the target ticket's own `agent:` (skipped when the target *is* the
        bootstrap ticket, as on a bare `coga ticket`);
     5. `bootstrap/ticket`'s `agent:` — the install-level default;
-    6. `Config.default_agent()`, the first declared `[agents.*]` type.
+    6. `Config.default_agent()`: the top-level `default_agent` key, else the
+       first declared `[agents.*]` type.
 
     The winner must name a configured agent type. An unknown or malformed name
     fails loud with the term that supplied it rather than falling through to a

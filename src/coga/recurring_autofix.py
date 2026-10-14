@@ -387,8 +387,8 @@ def _analyze_agent(cfg: Config, agent_override: str | None) -> AgentType:
     than "analyze with a different vendor". The `[autofix].agent` key is the
     narrow spelling of that intent — a second opinion from a CLI other than
     the one that ran the sweep, on an auth path that did not just break —
-    and `default_agent()` (the create-time default, first `[agents.*]` table)
-    remains the fallback when neither is set.
+    and `default_agent()` (the create-time default: the `default_agent` key,
+    else the first `[agents.*]` table) remains the fallback when neither is set.
     """
     if agent_override:
         return cfg.agent_type(agent_override)
