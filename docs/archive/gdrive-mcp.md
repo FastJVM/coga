@@ -1,6 +1,6 @@
 # Google Drive MCP capability contract (observed 2026-06)
 
-> **History, archived 2026-10-13.** Formerly the local-only context `docs/gdrive-mcp`; no ticket attached it and its 2026-06 observations predate the current Drive, Docs and Sheets connectors. The operative Google Docs steps live in the bundled `docs/create-google-doc` workflow. Not instructions.
+> **History, archived 2026-10-13.** Formerly the local-only context `docs/gdrive-mcp`; no ticket attached it and its 2026-06 observations predate the current Drive, Docs and Sheets connectors. The bundled `docs/create-google-doc` workflow was also removed; see its [archive record](create-google-doc-workflow.md). Not instructions.
 
 **Scope and date.** These are observations of the particular Google Drive MCP
 server connected in June 2026 (conductor-report, 2026-06; coga-crm,
