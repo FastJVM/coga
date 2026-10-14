@@ -17,9 +17,8 @@ carry more work forward without surrendering direction and judgment. The
 piece should make the interaction understandable and invite objections;
 it precedes the product's Show HN launch rather than being a full launch.
 
-Done means an owner-approved publishable argument, one concrete demonstration
-of megalaunch plus a correction changing later work, checked claims, and
-prepared replies. The owner selects the venue and publishes; record the final
+Done means an owner-approved publishable argument built on the README's
+thinkpick example, checked claims, and prepared replies. The owner selects the venue and publishes; record the final
 artifact/URL and hand the response to the launch ticket.
 
 ## Context
@@ -30,11 +29,11 @@ than recreating story/pitch/narrative tickets. Read marketing/positioning for
 the agreed line and behavioral explanation, and marketing/plan for sequence.
 
 Use `coga/skills/marketing/write-post/SKILL.md` for production and claim/craft
-checks. This is the only V1 idea piece. Make megalaunch concrete: a task needing
-human judgment waits while the queue moves to other eligible work; it does
-not continue through that human gate. Show a governing correction and later
-work using it. A newly recorded public demonstration is valid; an authored
-illustration must be labeled and cannot substitute for observed proof of reuse.
+checks. This is the only V1 idea piece. The proof is the README's thinkpick
+example: writing the plan down in tickets exposed a wrong assumption, the
+replacement research plan ran as tickets, and the resulting decision became
+a context every later ticket starts from. Link the public thinkpick tickets
+the README cites; do not substitute an authored illustration for them.
 Use public Coga evidence only and no productivity multiplier.
 
 The opening candidate is the README's: “Most tools are building

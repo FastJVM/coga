@@ -16,6 +16,11 @@ is right. Choose the owner by what the knowledge is:
 | Execution history | `coga/log.md`, written only by CLI commands |
 | Dated evidence, proposals, retired history | `docs/evidence/`, `docs/design/`, `docs/archive/` pages |
 
+In the Coga repository, the root `README.md` owns Coga's concepts and
+positioning (owner decision, 2026-10-13). Topics such as `product/vision` and
+`marketing/positioning` point to it. Links never load content, so a ticket
+that needs the positioning in its prompt cites `README.md` in its body.
+
 Humans and agents read the same topic file. Do not keep a short agent
 rendition beside a longer human one: that is two owners of one fact, and the
 copies drift independently. Pick the topic whose subject already covers the
