@@ -19,7 +19,7 @@ positioning (2026-10-13).
 | Publication and measurement policy | [Distribution](../distribution/SKILL.md) |
 | Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
 | One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
-| Concepts and positioning (source of truth) | [README](../../../../README.md); [README ticket](../../../../coga/tasks/marketing/readme-top.md) |
+| Concepts and positioning (source of truth) | [README](../../../../README.md) |
 | Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 

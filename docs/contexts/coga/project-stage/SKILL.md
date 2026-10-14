@@ -70,5 +70,4 @@ Retire or rewrite this context when either holds:
   is genuinely needed.
 
 Until then: ship the right design, edit the few tickets that exist, move on.
-Current work is in [`coga/current-direction`](../current-direction/SKILL.md)
-and [`coga/roadmap`](../roadmap/SKILL.md).
+Current work is in [`coga/current-direction`](../current-direction/SKILL.md).

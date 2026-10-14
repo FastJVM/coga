@@ -102,8 +102,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md).
 - This repo's posture (dated, local to this repo):
   [current direction](contexts/coga/current-direction/SKILL.md),
-  [project stage](contexts/coga/project-stage/SKILL.md),
-  [roadmap](contexts/coga/roadmap/SKILL.md).
+  [project stage](contexts/coga/project-stage/SKILL.md).
 
 ## Evidence and positioning
 
@@ -128,6 +127,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [superseded decisions](archive/superseded-decisions.md),
   [launch programs](archive/launch-programs/README.md),
   [Relay → Coga migration](archive/relay-migration.md),
+  [roadmap](archive/roadmap.md),
   [context migration record](archive/context-migration.md),
   [CLI extension audit](archive/cli-extension-audit.md),
   [Google Drive MCP observations](archive/gdrive-mcp.md),

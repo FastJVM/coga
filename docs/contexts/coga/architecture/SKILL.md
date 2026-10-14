@@ -80,4 +80,4 @@ operating rules without a merge.
 - **Browser work**: [api-first](../../browser/api-first/SKILL.md),
   [dom-backed](../../browser/dom-backed/SKILL.md).
 - **Posture** (local): `coga/current-direction`,
-  `coga/project-stage`, `coga/roadmap`.
+  `coga/project-stage`.

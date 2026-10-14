@@ -9,8 +9,7 @@ Last updated: 2026-10-13.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
-is `coga status` and the ticket bodies; sequencing is
-[`coga/roadmap`](../roadmap/SKILL.md); stage posture is
+is `coga status` and the ticket bodies; stage posture is
 [`coga/project-stage`](../project-stage/SKILL.md). Replaced decisions are in
 [`docs/archive/superseded-decisions.md`](../../../archive/superseded-decisions.md).
 
@@ -36,8 +35,16 @@ is `coga status` and the ticket bodies; sequencing is
   the reversal is recorded in [`coga/principles`](../principles/SKILL.md) §5.
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
-  drafts may be stale or contradictory and owe no verdict. See
-  [`coga/roadmap`](../roadmap/SKILL.md) "Deferred work".
+  drafts may be stale or contradictory and owe no verdict. Pull one forward
+  only by explicit decision, through the premise check in
+  [`coga/tasks/_v2/README.md`](../../../../coga/tasks/_v2/README.md); the
+  parked-directory rule is [`coga/tickets`](../tickets/SKILL.md).
+- **Reliability before convenience (since 2026-09-02).** Bugs that block
+  installation, launch, state sync or review take precedence over new
+  convenience surfaces. Marketing and documentation work proceed
+  independently when they do not change the core task model. (The former
+  `coga/roadmap` is archived at
+  [`docs/archive/roadmap.md`](../../../archive/roadmap.md).)
 - **Recurring runs are ordinary tickets with a stable identity (by
   2026-09-02).** One `recurring/<name>` task per template, the serviced
   period recorded in `coga/log.md`, completed runs cleaned up by Dream,

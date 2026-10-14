@@ -22,8 +22,8 @@ directory whose name starts with `_` is parked and ignored.
 Coga installs no scheduler: point one cron entry at `coga recurring` (or
 `--all <path>`). There is deliberately no separate headless runbook: unattended
 operation is covered here and in [coga/secrets](../secrets/SKILL.md)
-(service-account auth), and a dedicated runbook waits on an approved scheduling
-design (`coga/roadmap`).
+(service-account auth), and scheduling behavior is
+[coga/recurring/scheduling](scheduling/SKILL.md).
 
 ## Commands
 
