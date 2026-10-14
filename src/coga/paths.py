@@ -14,6 +14,13 @@ _REMOVED_BUNDLED_SKILL_MESSAGES = {
         "megalaunch is now on-demand only; delete "
         "`coga/recurring/megalaunch/` and `coga/workflows/megalaunch/`"
     ),
+    **{
+        ref: (
+            "browser automation was removed from Coga; drop the ref or keep a "
+            f"local copy under `coga/skills/{ref}/`"
+        )
+        for ref in ("browser/build-automation", "browser/playwright", "browser/dochub")
+    },
 }
 
 

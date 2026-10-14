@@ -557,37 +557,6 @@ def test_stock_step_prompt_escalates_per_launch_mode(
     assert legacy_direction not in normalized_prompt
 
 
-def test_compose_browser_automation_bootstrap_uses_bundled_router_skill(
-    repo: Path,
-) -> None:
-    """The browser entry point composes package-backed orchestration without
-    creating a standing task or loading the lower-level runner prematurely."""
-    _write(
-        repo / "contexts" / "browser" / "api-first" / "SKILL.md",
-        "---\nname: browser/api-first\n---\n\nPrefer the API marker.\n",
-    )
-    cfg = load_config(repo)
-    ref = resolve_bootstrap(cfg, "browser-automation")
-    ticket = read_ticket(ref)
-
-    composition = compose_prompt_report(cfg, ref, ticket)
-    prompt = composition.prompt
-    normalized_prompt = " ".join(prompt.split())
-    layers = {(layer.layer, layer.ref) for layer in composition.layers}
-
-    assert ticket.status == ""
-    assert ticket.workflow is None
-    assert ticket.step is None
-    assert ("ticket_context", "browser/api-first") in layers
-    assert ("top_level_skill", "browser/build-automation") in layers
-    assert "Coga task — bootstrap/browser-automation" in prompt
-    assert "Prefer the API marker." in prompt
-    assert "Skill: browser/build-automation" in prompt
-    assert "The skill does not drive the browser itself" in normalized_prompt
-    assert "# Playwright CLI Skill" not in prompt
-    assert list_tasks(cfg) == []
-
-
 def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
     cfg = load_config(repo)
     _write_workflow_less_task(repo, title="Fix retry logic")
@@ -1171,7 +1140,7 @@ def test_compose_uses_repo_conduct_override_for_its_context_only(
 def test_compose_applies_repo_overrides_to_bootstrap_launches(repo: Path) -> None:
     _write(repo / "resources" / "prompt.md", "Repo base prompt marker.\n")
     cfg = load_config(repo)
-    ref = resolve_bootstrap(cfg, "browser-automation")
+    ref = resolve_bootstrap(cfg, "orient")
 
     composition = compose_prompt_report(cfg, ref, read_ticket(ref))
 

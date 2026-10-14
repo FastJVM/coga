@@ -77,7 +77,5 @@ operating rules without a merge.
   [design-history](../../dev/design-history/SKILL.md)).
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
   by launch-internals, sync, recurring.
-- **Browser work**: [api-first](../../browser/api-first/SKILL.md),
-  [dom-backed](../../browser/dom-backed/SKILL.md).
 - **Posture** (local): `coga/current-direction`,
   `coga/project-stage`, `coga/roadmap`.

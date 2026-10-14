@@ -23,9 +23,7 @@ from coga.commands import update as update_cmd
 from coga.config import ConfigError, load_config
 from coga.notification import post
 from coga.paths import (
-    bootstrap_context_path,
     bootstrap_workflow_path,
-    resolve_context_path,
     resolve_workflow_path,
 )
 from coga.ticket import Ticket
@@ -1102,15 +1100,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     tasks = target / "coga" / "tasks"
     assert (tasks / "coga-build.md").is_file()
     assert not (tasks / "browser-automation.md").exists()
-    # The browser contexts are bootstrap batteries, not seeded copies: the
-    # bundled `browser-automation` launcher attaches `browser/api-first`, so
-    # it must resolve from the package even in a repo that never had a copy.
-    assert not (target / "coga" / "contexts" / "browser").exists()
     cfg = load_config(target / "coga")
-    for ref in ("browser/api-first", "browser/dom-backed"):
-        resolved = resolve_context_path(cfg, ref)
-        assert resolved is not None
-        assert resolved == bootstrap_context_path(cfg, ref)
     # The human-owned workflows are bootstrap batteries too: Dream files
     # drafts with `--workflow brief-for-human`, so they must resolve from the
     # package in a repo that never had a seeded copy.
@@ -1121,13 +1111,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
         )
     assert not (target / "coga" / "workflows" / "autonomy").exists()
     assert not (target / "coga" / "contexts" / "autonomy").exists()
-    assert not (
-        target / "coga" / "workflows" / "browser" / "build-automation.md"
-    ).exists()
-    assert (
-        target / "coga" / ".agent-skills" / "browser" / "build-automation"
-    ).is_symlink()
-    assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
+    assert not (target / "coga" / ".agent-skills" / "browser").exists()
     assert "Run `coga build`" in result.output
     assert 'coga ticket "' not in result.output
     assert "Skipped the onboarding ticket" not in result.output
@@ -1148,15 +1132,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     tasks = target / "coga" / "tasks"
     assert not (tasks / "coga-build.md").exists()  # onboarding pruned
     assert not (tasks / "browser-automation.md").exists()
-    assert not (target / "coga" / "contexts" / "browser").exists()
-    assert (
-        resolve_context_path(load_config(target / "coga"), "browser/api-first")
-        is not None
-    )
-    assert (
-        target / "coga" / ".agent-skills" / "browser" / "build-automation"
-    ).is_symlink()
-    assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
+    assert not (target / "coga" / ".agent-skills" / "browser").exists()
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
