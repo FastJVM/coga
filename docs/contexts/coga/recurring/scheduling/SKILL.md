@@ -1,38 +1,18 @@
 ---
 name: coga/recurring/scheduling
-description: How a recurring sweep decides and runs due work — period keys and the log ledger, launch order, per-status handling, --force, named and --all launches, the owner gate, TTY admission, unfinished runs, and the sweep's exit code.
+description: How a recurring sweep runs due work — per-template status handling, phased launch order, `--force`, named, interactive and `--all` launches, and the owner gate; period keys and the ledger, repo inactivity, and admission, unfinished runs and failures live in its leaves.
 ---
 
 # Recurring scheduling and sweeps
 
-## Periods and the serviced-period ledger
+## Leaves
 
-The scan takes each template's last firing strictly before now
-(`recurring._last_firing`) and buckets it (`_period_key`): hourly →
-`YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly (day-of-week set) → `YYYY-Www`,
-monthly (day-of-month set) → `YYYY-MM`, anything else → `YYYYMMDDTHHMM`.
-
-The high-water mark is a `created|reused <task-ref> for <period>` line tagged
-`recurring/<name>` in the repo-global `coga/log.md` — one writer and one parser
-(`format_serviced_log`, `parse_serviced_period_entries`), pinned by a test. It
-is not in the template blackboard, where any run rewriting a region could erase
-it and re-fire the period. The line is append-only, union-merged, outlives the
-reaped task, and is never composed into prompts.
-
-Records are validated for exact shape and calendar values and compared by
-calendar position. A malformed record is a template error in the sweep,
-`coga recurring list` and `coga status`, never "ran this period". A period at
-or below the newest valid record is not re-created or re-launched.
-`read_serviced_ledger` reads the log **backwards** and stops once every
-requested ref has a valid record at or after its target period; because
-`merge=union` can put a newer record above an older one, an older hit never
-stops the read. The first scan of a new period therefore walks the whole log;
-later scans resolve from the tail. Malformed history older than the stop point
-is allowed to heal. Freshness against control at publication is in
-[recurring-admission](../../internals/recurring-admission/SKILL.md).
-
-Current period only: missed periods are not chased, so a monthly run of a
-weekly template produces one run.
+- [coga/recurring/scheduling/ledger](ledger/SKILL.md) — period keys and the
+  serviced-period ledger.
+- [coga/recurring/scheduling/inactivity](inactivity/SKILL.md) — the
+  repo-inactivity gate and `run_when_inactive`.
+- [coga/recurring/scheduling/failures](failures/SKILL.md) — TTY admission,
+  unfinished and watchdog-paused runs, failures and the sweep's exit code.
 
 ## What a sweep does per template
 
@@ -47,9 +27,9 @@ This deliberately replaces the daily-recorded/weekly-unrecorded cleanup split:
 unclaimed landed branches are checked daily at the cost of extra GitHub API
 calls. The standalone Monday `branch-sweep` schedule remains an independent
 retry and manual entry point. Both use the existing
-[checkout cleanup proofs](../../../dev/checkout-cleanup/SKILL.md); daily
+[checkout cleanup proofs](../../../dev/checkout-cleanup/proofs/SKILL.md); daily
 frequency grants no new deletion authority. That includes the
-[terminal-owner rule](../../../dev/checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs):
+[terminal-owner rule](../../../dev/checkout-cleanup/terminal-owners/SKILL.md):
 a branch whose PR closed unmerged is released only when a done or canceled
 ticket owns it. The daily pass is the integration point for terminal
 transitions, which delete nothing themselves; a refusal is reported under
@@ -73,73 +53,6 @@ most-overdue first — and the cleanup template, Dream, always **last**
 (`_order_for_launch`), even as an orphan, so its retro pass sees the period
 tasks this sweep just finished. Launches are sequential. The sweep prints a scan
 table before launching.
-
-## Repo inactivity
-
-Scheduled sweeps check human activity after control-branch catch-up, owner
-admission and agent-override validation, before `scan_due`. The shared
-[`[recurring].idle_days`](../../configuration/SKILL.md) window defaults to 14.
-Let `last` be the local calendar date of the newest human committer timestamp:
-the repo is inactive when `(today - last).days >= idle_days`. Thirteen days is
-active at the default; fourteen is inactive. A new human commit wakes the
-repo automatically; there is no persisted dormant state.
-
-The signal is first-parent history of both resolving refs,
-`refs/heads/<control_branch>` and `refs/remotes/<remote>/<control_branch>`,
-using configured Git names. The newest human timestamp across both wins,
-even with out-of-order clocks. The check performs no fetch. Missing both refs
-or a Git failure treats the repo as active and prints one yellow note.
-Git-disabled repos are silently active. Resolved history with no human commit
-is inactive and displays `never` as its last activity.
-
-`recurring_activity.is_machine_commit` classifies subjects as machine when:
-
-- they start with `Log:`, `Sync coga state`, `Dream`, `Ticket: recurring/`,
-  `Autofix:`, `Ticket: autofix/`, or `Update Coga-managed skills` (including
-  squash-merge suffixes); `Log: bootstrap/*` is an explicit human exception;
-- they end with `— blocker reminder`;
-- they are `Merge pull request #N from <owner>/<branch>` with a branch starting
-  `claude/dream-`, `coga/dream`, `dream/`, or `coga/skill-update`.
-
-Everything else is human, including ordinary `Ticket: <slug> — …` events.
-Authors do not matter. Unmerged branches, worktrees and GitHub review comments
-are invisible. Consequently `address-pr-comments` and `resolve-conflicts`
-pause during prolonged reviews without control commits. Hand edits published
-as `Sync coga state` do not keep a repo awake, and the broad `Dream` prefix can
-misclassify a human title. Conversely, agent-created ordinary tickets and
-Dream merges from unlisted branches count as human. These are accepted limits
-of subject-based classification; an ordinary commit or explicit override
-recovers from false inactivity.
-
-On an inactive, non-forced sweep each template's frontmatter is read
-leniently for `run_when_inactive` and its schedule
-(`recurring._read_inactivity_fields`); a template not setting
-`run_when_inactive: true` is skipped before strict `Template.load`, period or
-ledger handling. A stale or rejected key on a non-exempt template therefore
-raises no template error and no alert while the repo is dormant; it surfaces
-when the repo wakes, under `--force`, or in `coga validate`. The ledger
-pre-pass applies the same gate, excluding non-exempt templates before strict
-loading or ledger reads. Malformed YAML, frontmatter that is not a mapping,
-a missing `ticket.md`, or a non-boolean `run_when_inactive` leaves the
-exemption undecidable and is still a template error; the scan reports it and
-continues with the other templates. An
-unparseable schedule gets the skip row with `-` as its firing. No period is
-created, resumed, re-launched or watchdog-escalated; existing bytes remain
-untouched. Exempt templates are fully validated and retain normal creation,
-resume, launch and watchdog escalation. The table prints one row per non-exempt template:
-`skip (repo inactive since YYYY-MM-DD)` (or `never`), after one header naming
-the last human date, days idle and configured window. Run-record scan lines
-carry the same rows.
-
-Inactivity skips are not problems or unlaunched creates. An all-skipped sweep
-exits 0, and `--all` counts its child as swept. On an inactive repo autofix runs
-only if an exempt template recorded a launch outcome: errors and watchdog
-escalation without a launch do not reach the analyst. An all-skipped sweep
-writes no autofix run log, makes no analyst call and creates no ticket.
-
-`--force` bypasses the check entirely, including every `--all` child. Named
-launches (`coga recurring launch <name>` and aliases such as `coga dream`)
-never consult it. `idle_days = 0` disables it.
 
 ## Variants
 
@@ -172,57 +85,3 @@ Every launching entry point runs from the control branch and honors the
 committed `owner = "<name>"` gate: a policy gate against two operators racing,
 not a lock, with no override flag. `coga recurring list` and `promote` are
 ungated.
-
-## Admission and unfinished runs
-
-Agent-backed periods (including `delegate:`) need stdin and stdout TTYs; a
-headless sweep skips them with a warning, before creating a period or leaving a
-materialized one untouched, and continues. The skipped template keeps its scan
-row, `skip (agent needs a TTY)`, rather than a `## Template errors` entry; this
-headless skip is not counted in `problems:`. A current period that is not
-launchable (`canceled`, `blocked`, ...) is never refused: a durable checkout
-would not launch it either. A `ticket.py` period runs headless
-and is the shape for unattended schedulers.
-
-A scheduled agent run must reach `done` in one launch. When an agent launch
-returns unfinished — including a human/unassigned handoff or a `coga block` —
-the sweep pauses it before continuing. The blocker-reminder job keeps open
-asks on paused periods visible under its
-[eligibility and deduplication contract](../../notifications/producers/SKILL.md#blocker-reminders-one-attempt-per-blocker);
-it does not resume them. Keep human gates and expected blockers out of scheduled
-workflows. A **watchdog** pause (latest pause audit actor `system:watchdog`, not
-superseded by a later human pause or creation) stays an unresolved failure:
-every sweep that admits the template through the inactivity gate shows `needs attention (watchdog timeout)` with the resume command,
-counts it in `problems:`, notifies, and exits non-zero after other work. Resume
-with `coga launch recurring/<name>` or `coga mark active recurring/<name>`.
-
-## Failures and exit code
-
-One template's failure never cancels the rest: the sweep records it, runs every
-later due template, names all failures, and exits with the first failing code.
-A template that cannot be scanned (`## Template errors`: unloadable, bad ledger
-record, failed create) is named on stderr, in the Slack alert, and in
-`problems:`; on its own it does not change the exit code. A sweep with any
-refused or errored template never reports "No recurring tasks due".
-Two exits stop immediately: **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`,
-retained assist state needing reconciliation) and **≥ 128** (interrupt). Whatever
-stops the loop, `recurring_runner._record_abandoned_due` names the stopping task
-and each due task "admitted as due but never launched" in `problems:`. Absence
-is a failure: an admitted watchdog recovery or a created period with no launch
-outcome makes the sweep exit 2, except `skip (already handled on control)`.
-A create sync to control that fails is non-fatal for the task — the created
-period still launches — but it is named in `problems:` and exits 2. If the
-created ticket then changed under that failed sync, the scan prints
-`error (…)` for the template instead of any skip, and it never launches;
-`--force` keeps the ordinary admission skip. A period adopted from control
-stays `skip (already handled on control)` even when publishing its log line
-fails; that failure is still named in `problems:`.
-All of this is the sweep path. A named `coga recurring launch <name>` (hence
-`coga dream`, `coga autoclose`, `coga skill-update`) is a known gap:
-`run_recurring_named` calls `_sync_recurring_create` with no `sync_failures`
-sink, so a failed create sync there is only the `[git] sync failed` stderr
-line and a global-log note — it never reaches the run record or the exit code,
-and if the created ticket then changed, the launch prints the "changed on the
-control branch during recurring admission; not launching" line and exits 0
-rather than `error (…)`. No ticket owns wiring the sink in yet.
-The [autofix](../autofix/SKILL.md) loop runs afterwards without changing the code.

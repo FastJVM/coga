@@ -65,7 +65,7 @@ is `coga status` and the ticket bodies; sequencing is
   `bootstrap/import`) or by Dream/Retro, not by a lint.
 - **`coga create` makes a raw, Slack-silent draft; `coga ticket` runs the
   guided interview** on a new or existing ticket. Contract:
-  [`coga/tickets`](../tickets/SKILL.md).
+  [`coga/tickets/authoring`](../tickets/authoring/SKILL.md).
 - **Aliases are positional pass-through only** and print their expansion.
   Contract: [`coga/configuration`](../configuration/SKILL.md).
 - **Manual edits stay silent.** Editing a ticket, blackboard or context does

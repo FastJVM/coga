@@ -52,7 +52,7 @@ The procedure, proof rules, and exemptions (bootstrap targets,
 `--prompt-report`, Git-disabled, non-Git, or
 remote-less workspaces, the recorded assist or sandbox-clone checkout, a
 released megalaunch witness) are owned by
-[dev/checkouts](../../dev/checkouts/SKILL.md). Exempt launches keep the
+[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md). Exempt launches keep the
 teardown refresh below.
 
 ## Status is the signal

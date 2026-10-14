@@ -56,7 +56,7 @@ what `mkdir`, `mv`, `rm` or `git` already do.
 
 **Receipt:** SKILL.md is the Claude Code / Codex format; validation and prompt
 composition are plain file reads; task directories nest and move like any
-directory ([`coga/tickets`](../tickets/SKILL.md)).
+directory ([`coga/tickets/discovery`](../tickets/discovery/SKILL.md)).
 
 ## 4. Memory via Git — visible, correctable, never opaque
 

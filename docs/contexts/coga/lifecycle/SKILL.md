@@ -44,7 +44,7 @@ Tickets without a workflow move through statuses only via `coga mark`.
   checkout. The ticket's owned branches are cleaned up later by `coga retire`
   and the daily autoclose branch pass, so nothing disappears beneath the
   session that finished it
-  ([dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs)).
+  ([dev/checkout-cleanup/terminal-owners](../../dev/checkout-cleanup/terminal-owners/SKILL.md)).
   `mark done --force` / final-step `bump --force` finish a `direct/body`
   ticket while acknowledging product code stranded off the control branch.
 - `done` is a control-plane transition, not a receipt: a done ticket's own

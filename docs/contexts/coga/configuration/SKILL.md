@@ -38,7 +38,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
 | `[autofix]` | `agent` | shared only |
 | `[upstream]` | `checkouts` | local only |
-| `[authoring]` | `agent` | local only ([coga/tickets](../tickets/SKILL.md)) |
+| `[authoring]` | `agent` | local only ([coga/tickets/authoring](../tickets/authoring/SKILL.md)) |
 | `[telemetry]` | `enabled` (boolean only) | both; local overrides shared, including local true over shared false |
 
 The split is deliberate. `[layout]` and `[autofix]` are team policy: one
@@ -104,4 +104,4 @@ independent.
 `[recurring].idle_days` is team policy and cannot be overridden locally.
 Booleans, negative values and non-integers raise `ConfigError`. The activity
 signal, calendar boundary and sweep overrides are owned by
-[recurring scheduling](../recurring/scheduling/SKILL.md).
+[recurring scheduling](../recurring/scheduling/inactivity/SKILL.md).

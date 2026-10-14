@@ -295,7 +295,7 @@ def is_parked_dir(directory: str | None) -> bool:
 
     A parked directory has a `_`-prefixed component. Task discovery skips it
     at every level, so a ticket created there is kept on disk and published
-    but never listed, launched, or validated (contract: `coga/tickets`).
+    but never listed, launched, or validated (contract: `coga/tickets/discovery`).
     """
     return directory is not None and any(
         part.startswith("_") for part in directory.split("/")

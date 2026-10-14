@@ -58,7 +58,7 @@ operating rules without a merge.
   [launch-internals](../launch-internals/SKILL.md).
 - **Recurring and maintenance**: [recurring](../recurring/SKILL.md)
   ([templates](../recurring/templates/SKILL.md),
-  [scheduling](../recurring/scheduling/SKILL.md),
+  [scheduling](../recurring/scheduling/SKILL.md) and its leaves,
   [delegation](../recurring/delegation/SKILL.md),
   [autofix](../recurring/autofix/SKILL.md)),
   [period-task](../period-task/SKILL.md), [dream](../dream/SKILL.md).
@@ -74,7 +74,8 @@ operating rules without a merge.
   code-task conventions [dev/code](../../dev/code/SKILL.md)
   ([checkouts](../../dev/checkouts/SKILL.md),
   [dev-record](../../dev/dev-record/SKILL.md),
-  [design-history](../../dev/design-history/SKILL.md)).
+  [design-history](../../dev/design-history/SKILL.md),
+  [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves.
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
   by launch-internals, sync, recurring.
 - **Posture** (local): `coga/current-direction`,

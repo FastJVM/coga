@@ -29,7 +29,7 @@ it). There is no starter directory — copy an existing template.
 - `title` (else the humanized name), `owner`, `agent`, `contexts`, `secrets` —
   passed to each period task. `agent` omitted means the repo default agent.
 - `run_when_inactive` — optional boolean, default false; exempts the template
-  from the [repo inactivity gate](../scheduling/SKILL.md). Only the shipped
+  from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). Only the shipped
   `autoclose-merged` opts in. Non-booleans fail `Template.load` with
   `RecurringError` and are reported by the sweep (inactive or not) and
   `coga validate`. On an inactive sweep, a template without the exemption is
@@ -96,7 +96,7 @@ to one of: the template blackboard (cursors, `state_keys`); a machine-written
 template sibling in a fixed shape (`autoclose-merged/retires.md`, owned by
 `src/coga/retire_worklist.py`, `merge=union`, CAS-written; rules in the
 `coga/autoclose/sweep` skill); or one-line facts in `coga/log.md`. The schedule
-high-water mark lives only in the log (see [scheduling](../scheduling/SKILL.md)).
+high-water mark lives only in the log (see [scheduling](../scheduling/ledger/SKILL.md)).
 A repo initialized before `retires.md` shipped needs `**/retires.md
 merge=union` in `coga/.gitattributes` (fresh `coga init` writes it) and
 refreshed local copies of the packaged `autoclose-merged` template and

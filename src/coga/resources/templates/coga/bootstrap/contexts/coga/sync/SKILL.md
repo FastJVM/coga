@@ -58,7 +58,7 @@ transition.
 | Which producers post on which surface | [`coga/notifications/producers`](../notifications/producers/SKILL.md) |
 | What happens when a post fails; preflight; redaction | [`coga/notifications/failures`](../notifications/failures/SKILL.md) |
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
-| `publish`, the sweep, strict versus best-effort paths | [`coga/internals/state-publication`](../internals/state-publication/SKILL.md) |
+| `publish`, the sweep, strict versus best-effort paths | [`coga/internals/state-publication`](../internals/state-publication/SKILL.md) and its [`publish`](../internals/state-publication/publish/SKILL.md), [`sweep`](../internals/state-publication/sweep/SKILL.md) and [`authoring`](../internals/state-publication/authoring/SKILL.md) leaves |
 | Why a publish is refused; stale generations; schema conversions | [`coga/internals/git-regressions`](../internals/git-regressions/SKILL.md) |
 | `refresh`, fast-forward and realignment, staleness and stranded writes | [`coga/internals/git-refresh`](../internals/git-refresh/SKILL.md) |
 | Append-only files, `merge=union`, and concurrent writers | [`coga/internals/spool-merge`](../internals/spool-merge/SKILL.md) |
@@ -76,7 +76,7 @@ A command that changes state others need to know about reaches both layers:
    policy — described in `coga/notifications`.
 2. Publish its task through `git.sync_task_state` at the logic boundary where
    the write, validation, log append, and notification post have all
-   finalized (`coga/internals/state-publication`). The end-of-command sweep
+   finalized (`coga/internals/state-publication/publish`). The end-of-command sweep
    is a backstop with a generic message, not a substitute for the readable,
    individually attributed publish.
 3. Echo the local outcome to stdout before posting, so it stays visible

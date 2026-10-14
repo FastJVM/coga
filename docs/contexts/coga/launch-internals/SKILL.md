@@ -41,10 +41,14 @@ and the local state lock serializes only one checkout's writers.
   witness; retained evidence.
 - [PR publication](../internals/pr-publication/SKILL.md): `coga open-pr`'s
   checkout gate, freshness and stranded-ticket checks,
-  leased push, and control-only `pr:` record.
+  leased push, and control-only `pr:` record
+  ([preparation](../internals/pr-publication/preparation/SKILL.md),
+  [existing PR](../internals/pr-publication/existing-pr/SKILL.md)).
 - [State publication](../internals/state-publication/SKILL.md): strict
   versus best-effort publication, the provenance check, and the state lock
-  itself.
+  itself ([publish](../internals/state-publication/publish/SKILL.md),
+  [sweep](../internals/state-publication/sweep/SKILL.md),
+  [authoring](../internals/state-publication/authoring/SKILL.md)).
 - [Recurring admission](../internals/recurring-admission/SKILL.md): frozen
   period generations, the pre-spawn lease, and exact-ledger creation.
 - [Recurring control](../internals/recurring-control/SKILL.md): where

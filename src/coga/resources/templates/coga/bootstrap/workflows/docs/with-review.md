@@ -144,7 +144,7 @@ names) and check:
 
 Record the outcome under `## Peer review` on the blackboard, and refresh the
 `## PR` preparation record there
-([coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+([coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
 “Preparation record”) so the `open-pr` step has evidence to format.
 
 To apply must-fix findings (skip nits), follow `dev/checkouts`: switch to

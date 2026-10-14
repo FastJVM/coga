@@ -95,7 +95,7 @@ Coga mechanism carries it:
   ([`coga/blackboard`](../../coga/blackboard/SKILL.md),
   [`coga/prompt-composition`](../../coga/prompt-composition/SKILL.md)),
   `coga ticket` re-authoring at
-  any status ([`coga/tickets`](../../coga/tickets/SKILL.md)), and
+  any status ([`coga/tickets/authoring`](../../coga/tickets/authoring/SKILL.md)), and
   [Dream](../../coga/dream/SKILL.md) for the maintenance that follows.
   A wrong premise is usually cancelled and restarted rather than rewound
   ([`coga/lifecycle`](../../coga/lifecycle/SKILL.md) owns the rule).

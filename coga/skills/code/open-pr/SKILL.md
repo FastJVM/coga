@@ -65,8 +65,8 @@ gate, not your say-so.
    no empty PR), a stale branch, or a `git push` / `gh` auth failure *before*
    the PR exists.
 
-   Read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md), “Preparation record” and
-   “Updating an existing PR”. The command formats the preceding judgment
+   Read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md), “Preparation record”, and
+   [coga/internals/pr-publication/existing-pr](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/existing-pr/SKILL.md), “Updating an existing PR”. The command formats the preceding judgment
    step's `## PR` evidence, includes the literal ticket snapshot, and refreshes
    intact generated title/body on reruns. Missing/stale evidence stays visible
    as a conservative fallback, never as a passed test/review. This does not

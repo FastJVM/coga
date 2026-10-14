@@ -152,7 +152,7 @@ later `code/open-pr` step does that, after review and fixes.
    escalate — never discard unpublished state. In the
    sandbox clone layout, push from the clone; the launch checkout never left
    `main`.
-10. **Prepare publication evidence.** Read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+10. **Prepare publication evidence.** Read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
     “Presentation and review-depth rubric” and “Preparation record”. Before the
     handoff, retain the actual implementing agent identity from this session
     (including overrides), exact check commands/results/counts and omission

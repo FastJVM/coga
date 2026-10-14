@@ -39,7 +39,7 @@ proceed independently when it does not change the core task model.
 ## Deferred work (`coga/tasks/_v2/`)
 
 `coga/tasks/_v2/` is a wish list, not a backlog. It is a parked directory
-(defined in [`coga/tickets`](../tickets/SKILL.md)): nothing lists, launches,
+(defined in [`coga/tickets/discovery`](../tickets/discovery/SKILL.md)): nothing lists, launches,
 validates, or scans it, so what sits there may be stale, may contradict other
 wishes or `main`, and nobody reconciles it or owes a verdict on it. Capture a
 wish with `coga create "_v2/<title>"`; a bare title is enough. Everywhere

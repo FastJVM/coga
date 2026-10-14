@@ -284,7 +284,7 @@ class CheckoutOutcome:
                 return (
                     f"`{self.worktree_path}` is a primary checkout — preserve it; "
                     "inspect the recorded branch in that repository "
-                    "(see `dev/checkout-cleanup`)"
+                    "(see `dev/checkout-cleanup/foreign-ownership`)"
                 )
             what = "not a git worktree git can read"
             return (

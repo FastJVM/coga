@@ -21,6 +21,6 @@ only Coga state commits beyond the merged head. A landed branch held by a
 live worktree preserves both refs and reports `skipped-worktree-pinned`;
 incomplete worktree state fails the sweep. Every deletion first passes the
 retirement-tag publication gate in
-[dev/checkout-cleanup](context:dev/checkout-cleanup). A failed archive keeps
+[dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep). A failed archive keeps
 the refs and worktree and makes the recipe fail with a recorded reason. The
 run's report lands on this period task's blackboard.
