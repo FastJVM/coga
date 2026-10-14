@@ -16,8 +16,9 @@ for ticket work. Two owner-accepted exceptions create linked worktrees: the
 recurring runner's temporary linked control worktree for a parked checkout
 ([coga/internals/recurring-temp-worktrees](../../coga/internals/recurring-temp-worktrees/SKILL.md)),
 and Retro's dedicated isolated checkout, which the `retro/done-ticket` skill
-and `coga retire`'s task prompt create and remove for one Retro pass. Revisit
-either decision if those worktrees leak or become operator-visible noise.
+and `coga retire`'s task prompt create and remove for one Retro pass, so
+Retro runs while the operator keeps working in the main tree (owner decision,
+2026-10-14). Revisit either decision if those worktrees leak or become operator-visible noise.
 The one alternative checkout for ticket work is the sandbox clone fallback
 below.
 
