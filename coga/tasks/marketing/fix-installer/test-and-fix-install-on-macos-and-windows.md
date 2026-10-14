@@ -24,6 +24,9 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+contexts:
+  - coga/install
+  - coga/testing/clean-install
 ---
 
 ## Description
