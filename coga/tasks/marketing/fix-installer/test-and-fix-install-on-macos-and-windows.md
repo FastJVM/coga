@@ -26,21 +26,141 @@ workflow:
 step: 1 (implement)
 contexts:
 - coga/install
-- coga/testing/clean-install
 agent: claude
 ---
 
 ## Description
 
-Zach (marketing) has a Mac and a Windows machine. Walk a clean install of coga on each, the way a new user would (uv tool install coga, then coga init, coga build, a first ticket), and fix what breaks with the agent in the same session. macOS works but has known first-run problems: the Xcode Command Line Tools git stub, and the system Python 3.9 being below the 3.11 floor. Native Windows does not start at all: src/coga/git.py imports fcntl at module top, so even coga --help fails, and repl_supervisor.py and megalaunch.py also need pty/termios/tty. The deep Windows port is tracked in make-coga-run-on-native-windows (owner decision 2026-10-13: README claims Windows support, so port it). This ticket is the hands-on test-and-fix pass that feeds it. Deliverables: a findings list per OS on the blackboard, fixes as PRs, and docs/contexts/coga/install/SKILL.md updated to match what actually works.
+A human test, not an automated one. Zach (marketing) installs coga himself,
+on a fresh macOS and a fresh Windows environment on his own hardware, the way
+a first-time user would: follow the README / `coga/install` docs only, then
+`uv tool install coga`, `coga init`, `coga build`, and a first `coga ticket`.
+The agent session (run from Zach's usual coga checkout, not inside the fresh
+environment) records every point where he gets stuck, confused, or has to
+guess, and fixes what it can in the same session.
+
+Known going in: on macOS, the Xcode Command Line Tools git stub and the
+system Python 3.9 (below the 3.11 floor). Native Windows does not start at
+all: `coga.git` imports `fcntl` at module top, so even `coga --help` fails,
+and `repl_supervisor` / `megalaunch` need pty/termios/tty. The deep Windows
+port is `make-coga-run-on-native-windows` (owner decision 2026-10-13); this
+ticket feeds it findings and does not duplicate it.
+
+Done when: both walks are done and their findings are listed per OS on the
+blackboard (each tagged fixed-in-PR, tracked-elsewhere, or open); fixes that
+fit this ticket are merged as PRs; and `docs/contexts/coga/install/SKILL.md`
+matches what actually worked, including the fresh-environment setup below if
+it proved useful.
 
 ## Context
 
+### Getting a fresh machine (do this before the walk)
+
+Zach's everyday accounts already have coga, uv and git state, so he must not
+walk there. Pick option A per OS where possible; B is the fallback.
+
+**macOS**
+
+- **A. Fresh macOS VM (recommended; Apple Silicon only, free, ~1 h mostly
+  download).** Install UTM from https://mac.getutm.app. Create a New Virtual
+  Machine -> Virtualize -> macOS 12+ -> let it download the latest restore
+  image (~15 GB) -> 4 CPU, 8 GB RAM, 64 GB disk -> start it and finish Setup
+  Assistant (skip the Apple ID). This is a factory-new Mac: no Command Line
+  Tools, no Homebrew, so the git stub and Python 3.9 issues show up for real.
+  On an Intel Mac this is not possible; use B.
+- **B. New user account (~5 min).** System Settings -> Users & Groups -> Add
+  User -> Administrator, name `cogatest`. Log out, log in as `cogatest`.
+  Clean home, PATH and caches, but machine-wide installs leak in: the Command
+  Line Tools (so the git stub will NOT appear), Homebrew under `/opt/homebrew`
+  (off PATH unless `/etc/paths.d` adds it), python.org Python in
+  `/usr/local/bin`. Findings that depend on these get flagged.
+
+**Windows (tester PC is Windows 11 Home: no Sandbox, no Hyper-V Manager)**
+
+- **A. Fresh Windows 11 VM (free, ~1 h).** Install VirtualBox 7
+  (https://www.virtualbox.org). Download the Windows 11 ISO from
+  https://www.microsoft.com/software-download/windows11. New VM from the ISO,
+  4 CPU, 8 GB RAM, 64 GB disk (VirtualBox 7 provides EFI + TPM 2.0). At the
+  product-key screen choose "I don't have a product key" and pick Windows 11
+  Home; it runs unactivated, which is fine for this. Sign in with any
+  Microsoft account. If WSL2 is enabled on the host, VirtualBox runs slowly
+  on top of it; that is expected.
+- **B. New local user (~5 min).** Settings -> Accounts -> Other users -> Add
+  account -> "I don't have this person's sign-in information" -> "Add a user
+  without a Microsoft account" -> `cogatest`. Then Change account type ->
+  Administrator. Sign out, sign in as `cogatest`. Leaks: Git for Windows,
+  any "all users" Python, machine-wide winget packages.
+
+**Record a baseline before installing anything** and paste it on the
+blackboard, so findings can be told apart from leftovers:
+
+- macOS (Terminal): `sw_vers; uname -m; xcode-select -p; which -a git python3
+  brew uv coga claude gh`. Do NOT run `git --version` yet: on a fresh Mac it
+  triggers the CLT install, which is itself the first finding to observe.
+- Windows (PowerShell): `[Environment]::OSVersion; Get-ExecutionPolicy;
+  Get-Command git,python,py,uv,coga,claude,gh,winget -ErrorAction
+  SilentlyContinue | Format-Table Name,Source`.
+
+### Walk rules
+
+- Zach acts as a new user: docs only, no help from the agent unless he is
+  stuck, and a needed hint is itself a finding.
+- Per step, note: the exact command, what happened, what he expected, and
+  how long he was stuck.
+- Fix loop: finding -> PR -> merge -> re-walk the affected step in a fresh
+  environment (VM snapshot taken right after the baseline, or a new user
+  account).
+- `coga/testing/clean-install/macos-aws` already covers the automated
+  fresh-Mac harness on EC2; this ticket is the human counterpart and does not
+  rent machines.
+- Repo is public: no account IDs, emails or keys on the blackboard.
+
 <!-- coga:blackboard -->
+# Test and fix install on macOS and Windows
+
+## Plan (2026-10-14, attended)
+
+Human walk on Zach's own hardware in a fresh VM or fresh user account (see
+Context). Steps: pick A/B per OS -> baseline -> walk macOS -> findings and
+fixes -> walk Windows -> findings and fixes -> update `coga/install`.
+
+## New-user walk: macOS
+
+(not started)
+
+## New-user walk: Windows
+
+(not started)
+
+## Carried-over finding
+
+- This WSL checkout has 654 tracked files with CRLF in the worktree (index is
+  LF; `core.autocrlf=input` hides it from `git status`). `aws-mac.sh` then
+  fails `env: 'bash\r': No such file or directory`. Converted only
+  `scripts/clean-install/{aws-mac.sh,run.sh,Dockerfile}` back to LF in place.
+  Root cause unknown (likely a Windows-side git/editor touched the tree).
+  Relevance to Windows users: a repo cloned with Windows git
+  `core.autocrlf=true` would CRLF any shell scripts too; check whether coga
+  ships/executes `.sh` or `ticket.py` with shebangs on that path.
+
+## Blockers
+
+- [x] [2026-10-14 13:19] [agent:claude] id=20261014T131919 Needs an attended session on Zach's own Mac and Windows machines: the ticket is a hands-on clean-install walk (uv tool install coga, coga init, coga build, first ticket) on those machines, which this queued Linux session cannot reach. Relaunch it attended on the Mac, then on Windows. The Windows fcntl port is tracked separately in make-coga-run-on-native-windows.
+  resolved: [2026-10-14 16:45] [human:zach] Owner chose rented disposable AWS macOS and Windows hosts; the read-only Mac preflight is green, so the old own-machine attendance premise no longer blocks the ticket.
+
+## Superseded designs
+
+### 2026-10-14 — walk on rented AWS hosts (superseded same day)
+
+Superseded because the ticket is a human test of a real user's experience;
+the automated fresh-Mac case is already covered by
+`coga/testing/clean-install/macos-aws`. No AWS host was allocated and no
+money was spent; the SSO profile `coga-test` and the budget alert exist and
+can be removed with the steps below.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Session 2026-10-14 (megalaunch, Linux host)
+#### Session 2026-10-14 (megalaunch, Linux host)
 
 - Nothing done yet. This ticket is a hands-on walk on Zach's own Mac and
   Windows machines with an attended agent there. A queued Linux session
@@ -54,14 +174,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Next: run this ticket attended (`coga launch` from a coga checkout on
   Zach's Mac, then on the Windows box) and record findings per OS here.
 
----
 
-## Blockers
+#### Blockers
 
 - [x] [2026-10-14 13:19] [agent:claude] id=20261014T131919 Needs an attended session on Zach's own Mac and Windows machines: the ticket is a hands-on clean-install walk (uv tool install coga, coga init, coga build, first ticket) on those machines, which this queued Linux session cannot reach. Relaunch it attended on the Mac, then on Windows. The Windows fcntl port is tracked separately in make-coga-run-on-native-windows.
   resolved: [2026-10-14 16:45] [human:zach] Owner chose rented disposable AWS macOS and Windows hosts; the read-only Mac preflight is green, so the old own-machine attendance premise no longer blocks the ticket.
 
-## Session 2026-10-14 (attended, Zach, WSL host) — supersedes the block premise
+#### Session 2026-10-14 (attended, Zach, WSL host) — supersedes the block premise
 
 The blocker above assumed the walk must run on Zach's own machines. The owner
 decided instead (see Decisions) to walk on rented fresh AWS machines, driven
@@ -69,7 +188,7 @@ from this WSL checkout, because his own machines already carry coga/uv/git
 state and can't show a first-time user's experience. The ask is answered;
 the owner can clear it with `coga unblock` before the next launch.
 
-## Decisions
+#### Decisions
 
 - 2026-10-14: test on rented/disposable machines, not Zach's own (already has
   coga/uv/git state, so not a first-time user). macOS = EC2 Mac via
@@ -100,7 +219,7 @@ the owner can clear it with `coga unblock` before the next launch.
   then Windows walk. No Windows EC2 driver exists yet in
   `scripts/clean-install/`.
 
-## Test-path log (reproducible steps)
+#### Test-path log (reproducible steps)
 
 Two separate tracks; do not mix them:
 - **Operator setup (A, B, ...)**: what the tester does once to get fresh
@@ -108,7 +227,7 @@ Two separate tracks; do not mix them:
 - **New-user walk (per OS)**: exactly what a first-time coga user does on the
   fresh machine. This is what findings and coga/install docs come from.
 
-### Operator setup A. AWS account access (one-time, console as root)
+##### Operator setup A. AWS account access (one-time, console as root)
 1. IAM Identity Center (top search "Identity Center"; NOT the "IAM" page).
    Region switcher (top right) -> US East (N. Virginia) us-east-1.
 2. Enable -> "Enable with AWS Organizations".
@@ -133,7 +252,7 @@ Two separate tracks; do not mix them:
    Result: account page shows user -> AdministratorAccess; the access portal
    (signed in as the new user) lists the account after refresh.
 
-### Operator setup: cost guard and removal
+##### Operator setup: cost guard and removal
 - Cost so far: USD 0 (Identity Center, Organizations, permission sets, CLI,
   `aws configure sso`, `aws-mac.sh preflight` are all free).
 - Spend happens only at: Mac host allocation (gated by
@@ -150,7 +269,7 @@ Two separate tracks; do not mix them:
   Delete; AWS Organizations -> delete organization; `rm -rf ~/.aws` plus the
   CLI paths in B.
 
-### Operator setup B. Tester workstation (WSL Ubuntu, x86_64)
+##### Operator setup B. Tester workstation (WSL Ubuntu, x86_64)
 9. AWS CLI v2, user-local, no sudo (no `unzip` here, so Python extracts):
    ```sh
    d=$(mktemp -d) && cd "$d"
@@ -167,7 +286,7 @@ Two separate tracks; do not mix them:
     `json`, profile `coga-test`. Later logins: `aws sso login --profile coga-test`.
 
 
-### Operator setup C. Preflight (2026-10-14, read-only, USD 0)
+##### Operator setup C. Preflight (2026-10-14, read-only, USD 0)
 11. `aws sso login` needs no TTY with `--use-device-code --no-browser`
     (`aws configure sso` fails under Claude Code's `!`: "Input is not a
     terminal"). Profile `coga-test` written by hand to `~/.aws/config`
@@ -185,7 +304,7 @@ Two separate tracks; do not mix them:
     m1ultra) -> Request increase at account level -> 1 -> Request. Submitted
     2026-10-14; track under Quota request history.
 
-### Operator-side finding (not a coga-user finding)
+##### Operator-side finding (not a coga-user finding)
 - This WSL checkout has 654 tracked files with CRLF in the worktree (index is
   LF; `core.autocrlf=input` hides it from `git status`). `aws-mac.sh` then
   fails `env: 'bash\r': No such file or directory`. Converted only
@@ -195,15 +314,15 @@ Two separate tracks; do not mix them:
   `core.autocrlf=true` would CRLF any shell scripts too; check whether coga
   ships/executes `.sh` or `ticket.py` with shebangs on that path.
 
-## New-user walk: macOS (fresh EC2 Mac)
+#### New-user walk: macOS (fresh EC2 Mac)
 
 (not started)
 
-## New-user walk: Windows (fresh EC2 Windows Server 2025)
+#### New-user walk: Windows (fresh EC2 Windows Server 2025)
 
 (not started)
 
-## Handoff (implement, session 1, 2026-10-14) — attended, no branch yet
+#### Handoff (implement, session 1, 2026-10-14) — attended, no branch yet
 
 Done: operator setup A–C (AWS Identity Center login, CLI profile
 `coga-test`, USD 50 budget alert, mac2 quota 1 approved, preflight OK);
@@ -230,7 +349,7 @@ review):
 Then the Windows day (no driver yet: manual console launch logged step by
 step, or build `aws-windows.sh` — owner undecided).
 
-## Session 2026-10-14 (attended, Zach, resumed)
+#### Session 2026-10-14 (attended, Zach, resumed)
 
 - Confirmed the AWS SSO session is active and reran the read-only macOS
   preflight from the WSL checkout. Quota remains 1; `mac2.metal` is offered
