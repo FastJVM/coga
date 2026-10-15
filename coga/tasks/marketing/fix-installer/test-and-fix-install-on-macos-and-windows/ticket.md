@@ -43,7 +43,7 @@ Known going in: on macOS, the Xcode Command Line Tools git stub and the
 system Python 3.9 (below the 3.11 floor). Native Windows does not start at
 all: `coga.git` imports `fcntl` at module top, so even `coga --help` fails,
 and `repl_supervisor` / `megalaunch` need pty/termios/tty. The deep Windows
-port is `make-coga-run-on-native-windows` (owner decision 2026-10-13); this
+port is `windows-native/port-coga-to-native-windows-and-verify-on-ec2` (owner decision 2026-10-13); this
 ticket feeds it findings and does not duplicate it.
 
 Done when: both walks are done and their findings are listed per OS on the
@@ -52,7 +52,7 @@ fit this ticket are merged as PRs; and `docs/contexts/coga/install/SKILL.md`
 says, step by step, what Zach ran and saw on each OS, including the
 fresh-environment setup from the guide if it proved useful. Windows is expected to stop
 at `coga --help` (`fcntl`); for Windows, done means the findings up to that
-point are recorded and handed to `make-coga-run-on-native-windows`, not that
+point are recorded and handed to `windows-native/port-coga-to-native-windows-and-verify-on-ec2`, not that
 coga runs there.
 
 ## Context
