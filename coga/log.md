@@ -8429,3 +8429,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 10:01 v1 [recurring/address-pr-comments] [system] completed (delegated bootstrap/address-pr-comments run finished) via coga recurring
 2026-10-15 10:01 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-15 10:01 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-10-15 10:02 v1 [dream-should-be-able-to-use-codex-instead-of-claud] [human:nicktoper] auto-bumped on merge of PR #1009 → done
