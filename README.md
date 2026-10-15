@@ -8,6 +8,10 @@ repo. Every launch assembles those files into the agent's opening task
 prompt. When an agent gets something wrong, you correct the relevant file,
 and future work starts from the updated instructions.
 
+**Text above code.** The text is the source of truth for intent, knowledge,
+and decisions. Code implements that understanding and can be rewritten as
+we learn.
+
 Think of it as a workbench, not an assembly line: it's what you build with
 while you're still working out what to build. 
 
@@ -19,9 +23,6 @@ the full history in [`coga/log.md`](coga/log.md).
 ## The problem
 
 On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent only skims it. There are various techniques to mitigate this problem: auto-memories, scoped `AGENTS.md` files, MCP servers. Coga's solution is to make all this explicit while keeping intact the search capabilities of the agent. Each launch injects what you decided the task needs. In our use, the skimming problem never came up.
-
-As a consequence, the source of truth is the text, not the code, so treat the text as a first-class citizen: above the code.
-
 
 ## Key ideas
 
@@ -59,6 +60,26 @@ see what goes in. For intensive use, we find that easier to manage.
   `coga recurring`, due templates become tasks and run through the ordinary
   task lifecycle — for maintenance, reviews, or other work worth repeating.
   ([recurring](docs/contexts/coga/recurring/SKILL.md))
+
+## Principles
+
+- **Hackable:** change the prompts, knowledge, and ways of working by editing
+  files you own.
+- **Agents do, humans think:** delegate mechanizable work so people can
+  concentrate on purpose, judgment, and correction.
+- **Obvious:** use familiar files and tools; keep the mechanisms understandable.
+- **Memory via Git:** make accumulated knowledge visible, versioned, and
+  correctable.
+- **Yours:** keep your work in your repository and choose which agents run it.
+- **Fail loud:** surface missing context and failed operations so they can be
+  corrected.
+- **Ticketed:** give substantive work a durable task that a person can direct
+  and an agent can resume.
+
+The [principles topic](docs/contexts/coga/principles/SKILL.md) defines the
+constraints behind these summaries. The
+[philosophical manifesto](docs/contexts/product/vision/SKILL.md) explains
+why they matter.
 
 ## Example
 
