@@ -7,9 +7,9 @@ link never loads anything — a task gets exactly the refs it lists. How a
 fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
 Pages outside `contexts/` are for reading, never composed into prompts:
-[`design/`](#proposals-and-history) (unbuilt proposals) and
-[`archive/`](#proposals-and-history) (history, including dated measurements
-and comparisons in [`archive/evidence/`](archive/evidence/)).
+[`archive/`](#proposals-and-history) holds history, including dated
+measurements and comparisons in [`archive/evidence/`](archive/evidence/)
+and unimplemented proposals in [`archive/design/`](archive/design/).
 
 ## Start
 
@@ -138,7 +138,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [admin and patent flexibility](archive/evidence/admin-and-patent-flexibility-2026-09-12.md),
   [Claude cache TTL survey](archive/evidence/claude-cache-ttl-survey.md),
   [macOS clean-install runs](archive/evidence/macos-clean-install-runs-2026-10.md).
-- Unbuilt design: [CLI external surface](design/cli-external-surface.md).
+- Archived, unimplemented design: [CLI external surface](archive/design/cli-external-surface.md).
 - Archive: [origins](archive/origins.md),
   [market landscape](archive/market-landscape.md),
   [superseded decisions](archive/superseded-decisions.md),
