@@ -8451,3 +8451,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 10:50 v1 [SKILL] [git] sync refused: docs/contexts/coga/releasing/SKILL.md: control copy changed since this checkout last saw it; take control's copy with `git checkout origin/main -- docs/contexts/coga/releasing/SKILL.md` and redo the edit
 2026-10-15 10:50 v1 [SKILL] [git] sync refused: docs/contexts/coga/testing/clean-install/SKILL.md: control copy changed since this checkout last saw it; take control's copy with `git checkout origin/main -- docs/contexts/coga/testing/clean-install/SKILL.md` and redo the edit
 2026-10-15 10:53 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-15 10:57 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
