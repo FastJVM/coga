@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -154,3 +154,72 @@ None in the current Description/Context contract. Acceptance criteria are observ
 branch: git-sync-object-write-diagnostics
 
 Plan (owner-confirmed 2026-10-14): `ObjectWriteError(GitError)` from `_hash_blob` with post-failure object-dir probe; shared stderr formatter in `git.py` used by `sync_task_state` (`command=` keyword; bump passes `"bump"`), `sync_coga_state`, `sync_log`, `mark._publish`, `delete`; guarded failure-log appends. Recurring/promote/retire stay neutral but inherit the enriched error text.
+
+## Implement handoff — 2026-10-14
+
+Commit `a9bda396e` on `git-sync-object-write-diagnostics`. It is rebased on `origin/main` `474230256` and pushed. No PR yet.
+
+- **Source.** `git._hash_blob` raises `ObjectWriteError(GitError)` with `rel`, the absolute `checkout`, `object_dir` and `detail`. `git._object_dir` probes `rev-parse --path-format=absolute --git-path objects` after the failure, with the same `_run`/`_git_env`. A probe failure gives `None`, reported as "unavailable". The Git stderr is summarized and redacted. The error names the operation, never a cause.
+- **Shared reporter.** `git.sync_failure_report` builds the stderr text and `git.record_sync_failure` writes the audit line, turning an `OSError` into a stderr note.
+  - Adopted by `sync_task_state` (new `command=` keyword), `sync_coga_state`, `sync_log`, `mark._publish` and `commands/delete.py`. `bump.advance_step` passes `command="bump"`.
+  - The audit line is recorded before the report, so the recovery hint can name the log that was just written.
+  - Strict calls give the neutral line only. A refusal gets no retry hint. An uncertain push reads "could not be confirmed". Only an object-write failure gets the conditional "restore access" step.
+  - Recurring, promote and retire are unchanged. They now carry the enriched exception text.
+- **Recovery hint.** `coga run publish-state <ticket file> <log>`, shell-quoted and relative to the stated Coga root. A task directory uses its `ticket.md`, and missing paths are dropped (no-path form). It says that all eligible state is published.
+- **Docs.** Updated the `publish` topic (new "Failure reporting" section, `command=` in the Wrappers line) and the `sweep` topic (new "Recovering a failed publication" section). Extended the `testing` "Restricted sandboxes" bullet on checkout, object and index-lock writes. Updated the `dev/checkouts` handoff ("never bump again"). Packaged twins copied; all four were byte-identical before.
+- **Tests.**
+  - `tests/test_git.py`: object-directory resolution for ordinary storage, a linked checkout with spaces in its path, and a relative override from another cwd. A real denied-store failure (permission-denied observation; skipped for root). EROFS by injection. A failed probe. A failing clean filter (no permission claim). Best-effort vs strict wording. Quoting and dropped paths. Uncertain vs refused. A failing log write across task sync, sweep and strict. The `sync_log` regression now also checks the retained wording.
+  - `tests/test_mark.py`: failing failure-log write on best-effort and strict `mark`.
+  - `tests/test_publish_state.py`: real-Git subprocess test. `bump` exits 0 with two failures and one audit line. Recovery while still denied exits 1 and keeps state. Recovery after restoring access publishes the ticket and log. A repeat reports `already on` with no new commit.
+- **Reproduction note.** The real-Git denial is permission-denied (`insufficient permission for adding an object`). EROFS is covered only by injection.
+- **Adjacent, not fixed.** The sweep hint says "Do not rerun the command", even after commands that made no transition. This is harmless but generic.
+
+## PR
+
+```yaml
+title: Name the Git storage and recovery when state publication fails
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended, coga-launch b711c234-2e74-4854-ac08-52e1372aec45.
+head: a9bda396eea64bedd7463d9c3c9b1065ea3362ce
+base: 474230256bcf3b6f1b9a3358aa3f3aeeadd6becd
+depth: deep
+rationale: Changes publication failure reporting across task sync, sweep, mark and delete, and adds an exception subclass in the publish path; no code review has run yet.
+implementation: _hash_blob raises ObjectWriteError with the checkout and the Git-resolved object directory (probed after failure). A shared sync_failure_report separates saved local state from failed publication on best-effort paths, says not to rerun the command, and points to coga run publish-state. record_sync_failure keeps a failing audit append from masking the error.
+deviations: Recurring create/adoption, promote and retire keep their existing neutral wording rather than adopting the formatter; they inherit the enriched exception text.
+limitations: EROFS is covered by injection only; the real-Git denial is permission-denied. The sweep's hint is generic ("the command") because it cannot know which command preceded it.
+files:
+  src/coga/git.py: ObjectWriteError, _object_dir probe, sync_failure_report, record_sync_failure, and their adoption in sync_task_state/sync_log/sync_coga_state.
+  src/coga/bump.py: Pass command="bump" so the hint names the command not to rerun.
+  src/coga/mark.py: _publish uses the shared report (neutral when strict) and guarded audit append.
+  src/coga/commands/delete.py: Deletion failure uses the shared report with the no-path recovery.
+  tests/test_git.py: Object-dir resolution, real and injected object-write failures, wording policy, quoting, and log-failure regressions.
+  tests/test_mark.py: Best-effort and strict mark survive an unwritable failure log.
+  tests/test_publish_state.py: Real-Git CLI bump-failure-then-recovery integration test.
+  docs/contexts/coga/internals/state-publication/publish/SKILL.md: Own the failure-reporting contract.
+  docs/contexts/coga/internals/state-publication/sweep/SKILL.md: Own the publish-state recovery contract.
+  docs/contexts/coga/testing/SKILL.md: Restricted sandboxes distinguish checkout, object and index-lock writes.
+  docs/contexts/dev/checkouts/SKILL.md: A failed handoff publication never authorizes another bump.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/publish/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/sweep/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/testing/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/SKILL.md: Packaged twin.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to the later workflow steps. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: a9bda396eea64bedd7463d9c3c9b1065ea3362ce
+    base: 474230256bcf3b6f1b9a3358aa3f3aeeadd6becd
+    detail: 3625 passed in 277.09s on the clean committed head after rebase (includes tests/test_packaging.py twin checks).
+  - command: git diff --check
+    status: passed
+    head: a9bda396eea64bedd7463d9c3c9b1065ea3362ce
+    base: 474230256bcf3b6f1b9a3358aa3f3aeeadd6becd
+    detail: No whitespace errors (run before commit on the identical tree).
+  - command: coga validate --json
+    status: not-run
+    detail: Validation behavior unchanged.
+```
