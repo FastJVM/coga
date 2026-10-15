@@ -223,6 +223,48 @@ def test_agent_session_id_flag_must_be_string(repo: Path) -> None:
         load_config(repo)
 
 
+def test_agent_launch_args_default_to_empty(repo: Path) -> None:
+    assert load_config(repo).agent_type("claude").launch_args == ""
+
+
+def test_agent_launch_args_load_from_shared_config(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'launch_args = "--no-daemon"\n')
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").launch_args == "--no-daemon"
+
+
+def test_agent_launch_args_local_overrides_shared(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'launch_args = "--no-daemon"\n')
+    local = (repo / "coga.local.toml").read_text()
+    (repo / "coga.local.toml").write_text(
+        local + "\n[agents.claude]\nlaunch_args = \"--profile 'two words'\"\n"
+    )
+    agent = load_config(repo).agent_type("claude")
+    assert agent.launch_args == "--profile 'two words'"
+    assert agent.cli == "claude"
+
+
+def test_agent_launch_args_local_empty_string_clears_shared(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'launch_args = "--no-daemon"\n')
+    local = (repo / "coga.local.toml").read_text()
+    (repo / "coga.local.toml").write_text(
+        local + '\n[agents.claude]\nlaunch_args = ""\n'
+    )
+    assert load_config(repo).agent_type("claude").launch_args == ""
+
+
+def test_agent_launch_args_must_be_string(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'launch_args = ["--no-daemon"]\n')
+    with pytest.raises(
+        ConfigError, match="agents.claude.launch_args must be a string"
+    ):
+        load_config(repo)
+
+
 def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'skip_permissions = "auto"\n')
@@ -718,6 +760,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         mode = "local"
         name_flag = "-n"
         session_id_flag = "--session-id"
+        launch_args = "--no-daemon"
         discussion = "--append-system-prompt {prompt}"
 
         [notification]

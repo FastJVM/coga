@@ -90,6 +90,7 @@ def _agent(
     name_flag: str = "",
     session_id_flag: str = "",
     discussion: str = "",
+    launch_args: str = "",
 ) -> AgentType:
     return AgentType(
         name="x",
@@ -99,6 +100,7 @@ def _agent(
         name_flag=name_flag,
         session_id_flag=session_id_flag,
         discussion=discussion,
+        launch_args=launch_args,
     )
 
 
@@ -130,6 +132,69 @@ def test_build_command_injects_session_id_after_name_flag() -> None:
         "--session-id",
         "session-123",
         "full prompt text",
+    ]
+
+
+def test_build_command_inserts_launch_args_right_after_cli() -> None:
+    agent = AgentType(
+        name="codex",
+        cli="codex",
+        file="AGENTS.md",
+        mode="local",
+        name_flag="-n",
+        session_id_flag="--session-id",
+        launch_args="--no-daemon",
+    )
+    cmd = build_agent_command(
+        agent,
+        prompt="full prompt text",
+        name="Fix retry backoff",
+        session_id="session-123",
+    )
+    assert cmd == [
+        "codex",
+        "--no-daemon",
+        "-n",
+        "Fix retry backoff",
+        "--session-id",
+        "session-123",
+        "full prompt text",
+    ]
+
+
+def test_build_command_discussion_inserts_launch_args_right_after_cli() -> None:
+    agent = AgentType(
+        name="codex",
+        cli="codex",
+        file="AGENTS.md",
+        mode="local",
+        launch_args="--no-daemon",
+    )
+    cmd = build_agent_command(agent, prompt="orient body", discussion=True)
+    assert cmd == [
+        "codex",
+        "--no-daemon",
+        "-c",
+        "developer_instructions=orient body",
+    ]
+
+
+def test_build_command_launch_args_keep_quoted_token_boundaries() -> None:
+    cmd = build_agent_command(
+        _agent(launch_args="--profile 'two words' -x"),
+        prompt="full prompt text",
+    )
+    assert cmd == ["my-cli", "--profile", "two words", "-x", "full prompt text"]
+
+
+def test_build_command_unset_launch_args_leave_argv_unchanged() -> None:
+    agent = AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local")
+    assert agent.launch_args == ""
+    assert build_agent_command(agent, prompt="p") == ["codex", "p"]
+    assert build_agent_command(agent, prompt="p", discussion=True) == [
+        "codex",
+        "-c",
+        "developer_instructions=p",
     ]
 
 
@@ -3512,6 +3577,133 @@ def test_launch_blocked_timeout_reblocks_unresolved_ask(
     assert ticket.status == "blocked"
     assert ticket.step == "1 (implement)"
     assert "- [ ]" in read_blackboard(Path(ref["path"]))
+
+
+# --- unsignalled-advance advisory (coga/agents) ---------------------------------
+
+_UNSIGNALLED = "but the supervisor saw no done signal"
+
+
+def _session_edits_ticket(
+    monkeypatch: pytest.MonkeyPatch,
+    ref: dict[str, object],
+    outcome: ReplOutcome,
+    edit=None,  # type: ignore[no-untyped-def]
+) -> None:
+    """Run the real spawn path with a fake supervisor that edits the ticket.
+
+    The real `spawn_agent_session` still calls its `before_spawn` boundary, so
+    the pre-session snapshot is frozen exactly where production freezes it.
+    """
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def fake_supervisor(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        if edit is not None:
+            edit(Path(ref["path"]))
+        return outcome
+
+    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", fake_supervisor)
+
+
+def _advance_to_owner_review(path: Path) -> None:
+    ticket = Ticket.read(path)
+    ticket.frontmatter["step"] = "3 (review)"
+    ticket.write(path)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "exit_code", "warns"),
+    [
+        (ReplOutcome(0, "natural"), 0, True),
+        (ReplOutcome(0, "done", None, True), 0, False),
+        (ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout", "idle"), _TIMEOUT_EXIT_CODE, True),
+        (ReplOutcome(3, "natural"), 3, True),
+        # Done signal followed by a real crash: the crash result stands, but
+        # the observed signal suppresses the advisory.
+        (ReplOutcome(128 + 11, "crash", None, True), 128 + 11, False),
+    ],
+)
+def test_launch_warns_when_ticket_advances_without_done_signal(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: ReplOutcome,
+    exit_code: int,
+    warns: bool,
+) -> None:
+    ref = _create_chain_task(active_task)
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _session_edits_ticket(monkeypatch, ref, outcome, _advance_to_owner_review)
+
+    result = CliRunner().invoke(app, ["launch", str(ref["slug"])])
+
+    assert result.exit_code == exit_code, result.output
+    assert (_UNSIGNALLED in result.output) is warns
+    if warns:
+        assert f"Warning: {ref['slug']} changed from in_progress @ 1 (implement)" in (
+            result.output
+        )
+        assert "to in_progress @ 3 (review)" in result.output
+        assert "coga/agents" in result.output
+    assert Ticket.read(Path(ref["path"])).step == "3 (review)"
+
+
+def test_launch_does_not_warn_when_ticket_is_unchanged(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _create_chain_task(active_task)
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _session_edits_ticket(monkeypatch, ref, ReplOutcome(0, "natural"))
+
+    result = CliRunner().invoke(app, ["launch", str(ref["slug"])])
+
+    assert result.exit_code == 0, result.output
+    assert _UNSIGNALLED not in result.output
+
+
+@pytest.mark.parametrize(
+    ("edit", "exit_code"),
+    [
+        (lambda path: path.unlink(), 0),
+        (lambda path: path.write_text("not a ticket\n"), 3),
+    ],
+    ids=["removed", "unreadable"],
+)
+def test_launch_skips_the_advisory_when_post_session_state_is_unavailable(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    edit,  # type: ignore[no-untyped-def]
+    exit_code: int,
+) -> None:
+    ref = _create_chain_task(active_task)
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _session_edits_ticket(monkeypatch, ref, ReplOutcome(exit_code, "natural"), edit)
+
+    result = CliRunner().invoke(app, ["launch", str(ref["slug"])])
+
+    assert result.exit_code == exit_code, result.output
+    assert _UNSIGNALLED not in result.output
+
+
+def test_launch_supervisor_reblock_is_not_reported_as_an_agent_change(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _block_task(slug)
+    _session_edits_ticket(monkeypatch, ref, ReplOutcome(0, "natural"))
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(Path(ref["path"])).status == "blocked"
+    assert _UNSIGNALLED not in result.output
 
 
 def test_launch_blocked_without_tty_still_refuses(
@@ -6910,6 +7102,70 @@ def test_launch_returns_the_checkout_after_a_failed_session(
     assert result.exit_code == 3, result.output
     assert len(session.seen) == 1
     _assert_clean_control(git_repo)
+
+
+class _UnsignalledCheckoutSession(_CheckoutSession):
+    """A `_CheckoutSession` that crosses the real pre-spawn boundary and whose
+    first session reports no done signal (as with a lost `COGA_*` env)."""
+
+    def __call__(self, cfg, ref, ticket, agent, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("before_spawn") is not None:
+            kwargs["before_spawn"]()
+        first = not self.seen
+        result = super().__call__(cfg, ref, ticket, agent, *args, **kwargs)
+        return result._replace(done_signalled=not first)
+
+
+def test_launch_advisory_reads_state_refreshed_by_the_checkout_return(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+
+    def leave_on_a_stale_branch(_ref: TaskRef) -> bool:
+        # The session's own start state, already published by launch.
+        pre_bump = git_repo.git("rev-parse", "HEAD").strip()
+        assert Ticket.read(_ref.ticket_path).status == "in_progress"
+        prev = os.getcwd()
+        os.chdir(git_repo.coga_os)
+        try:
+            bumped = CliRunner().invoke(app, ["bump", _ref.id_slug])
+        finally:
+            os.chdir(prev)
+        assert bumped.exit_code == 0, bumped.output
+        # Only control carries the advance; this checkout's copy predates it
+        # until launch returns the checkout.
+        git_repo.git("switch", "-c", "feature/stale", pre_bump)
+        return False
+
+    session = _UnsignalledCheckoutSession(
+        git_repo, actions=[leave_on_a_stale_branch]
+    )
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.count(_UNSIGNALLED) == 1
+    assert "to in_progress @ 2 (review)" in result.output
+    _assert_clean_control(git_repo)
+
+
+def test_launch_advisory_is_skipped_when_the_checkout_return_refuses(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    session = _UnsignalledCheckoutSession(
+        git_repo,
+        actions=[_work_on_feature_branch(git_repo, handoff="done", leave="notes.txt")],
+    )
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert "Checkout return after" in result.output
+    assert len(session.seen) == 1
+    assert _UNSIGNALLED not in result.output
 
 
 def test_launch_keeps_the_recorded_checkout_on_its_recorded_branch(
