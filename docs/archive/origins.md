@@ -5,8 +5,8 @@
 > archived 2026-09-22 during the documentation-library migration. Statements
 > such as "six months ago" or "at month six" are relative to that essay, not to
 > today. Current product definitions and fit are in the [README](../../README.md);
-> the philosophical manifesto is
-> [`product/vision`](../contexts/product/vision/SKILL.md). The enduring
+> the [philosophical manifesto](../contexts/product/vision/SKILL.md) and its
+> [reading list](../contexts/product/vision/reading-list.md) explain the influences. The enduring
 > constraints are in [`coga/principles`](../contexts/coga/principles/SKILL.md).
 > Nothing here is a behavioral contract.
 

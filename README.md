@@ -143,7 +143,7 @@ surface it.
 
 - [Documentation index](docs/README.md): start, understand, operate and
   develop.
-- [Manifesto](docs/contexts/product/vision/SKILL.md): the philosophy behind
+- [Philosophical manifesto](docs/contexts/product/vision/SKILL.md): the philosophy behind
   human–agent collaboration.
 - [Principles](docs/contexts/coga/principles/SKILL.md): the design
   constraints.

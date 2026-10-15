@@ -3,7 +3,6 @@ title: Audit and record the first-user ICP
 status: draft
 owner: nicktoper
 contexts:
-  - product/vision
   - marketing/positioning
 workflow: draft-for-human
 ---
@@ -20,10 +19,11 @@ candidate teams.
 
 The audit checks the draft on four points:
 
-1. **Consistency with the owning topics.** `product/vision` → *Intended
-   audience* already owns Coga's broad audience. The ICP must narrow it, not
-   restate or contradict it. `marketing/positioning` owns the public-claim
-   limits. Flag wording that crosses them, e.g. "never have to explain it
+1. **Consistency with the owning topics.** Read the root `README.md`,
+   especially *Who it is for, and its limits*, for Coga's broad audience and
+   fit. It is cited here, not attached; links do not load their targets.
+   The ICP must narrow that audience, not restate or contradict it.
+   `marketing/positioning` owns the public-claim limits. Flag wording that crosses them, e.g. "never have to explain it
    again" implies automatic learning, which positioning rules out;
    corrections become durable only through reviewed file edits.
 2. **Product support today.** Check each fit signal against what Coga ships
@@ -45,7 +45,7 @@ The audit checks the draft on four points:
 Done means `marketing/first-users` exists with the owner's approval, and
 every audit finding has been either applied or explicitly overruled by the
 owner (record which). The context contains the beachhead, fit signals,
-qualifying questions and anti-targets, and links to `product/vision` for the
+qualifying questions and anti-targets, and links to the root `README.md` for the
 broad audience instead of repeating it. The same change registers the new
 topic in `marketing/map`, indexes it in `docs/README.md` beside the other
 marketing topics, and adds `"marketing/first-users"` to
@@ -72,9 +72,9 @@ Scope boundaries:
 - Recruiting first users (target list, outreach, done criteria for "we have
   users") is out of scope. That is the separate draft
   `marketing/recruit-first-users`, which depends on this ticket.
-- Do not edit `product/vision` or `marketing/positioning` without asking. If
-  the audit shows the vision audience itself should change, propose it as a
-  finding for the owner to decide.
+- Do not edit `README.md`, `product/vision`, or `marketing/positioning`
+  without asking. If the audit shows the broad audience itself should change,
+  propose it as a finding for the owner to decide.
 
 Sequencing (owner-agreed 2026-09-29):
 
@@ -88,14 +88,15 @@ Sequencing (owner-agreed 2026-09-29):
   work forward without surrendering direction and judgment").
 
 Knowledge placement follows `coga/knowledge` (one owner per fact): the ICP is
-marketing targeting, so it lives under `marketing/`, and the vision keeps
-the broad audience.
+marketing targeting, so it lives under `marketing/`; the README owns the
+broad audience and fit. Read its *Key ideas* and *Who it is for, and its
+limits* sections before drafting the audit. `product/vision` is the
+philosophical manifesto, not the audience specification.
 
-Review notes (2026-09-29): the vision audience already covers much of the
-draft ("small technical teams… Claude Code or Codex… Git"), so the new
-context may end up thin. That is acceptable; keep only what narrows the
-vision. `product/vision` stays attached because the audit checks the kinds of
-work and limits too, not only *Intended audience*. The dependency from
+Review note updated for the ownership move (2026-10-15): the broad audience
+already covers much of the draft (small technical teams using CLI agents,
+Git, and the shell), so the new context may end up thin. That is acceptable;
+keep only what narrows the README's audience. The dependency from
 `marketing/recruit-first-users` exists only in prose; launch order does not
 enforce it.
 

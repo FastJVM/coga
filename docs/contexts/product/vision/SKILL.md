@@ -1,9 +1,9 @@
 ---
 name: product/vision
-description: Coga's short manifesto — human–AI collaboration, amplification, hackable tools, and knowledge people can understand and shape.
+description: Coga's short philosophical manifesto — human–AI collaboration, amplification, hackable tools, and knowledge people can understand and shape.
 ---
 
-# Coga manifesto
+# Coga's philosophical manifesto
 
 Coga explores a way for humans and agents to discover problems, challenge
 assumptions, and build together, with human purpose and judgment at the center.
@@ -29,9 +29,16 @@ rewrite it as we learn.
 
 Coga gives that collaboration a shared record in files you own. What you
 learn can change the next task, the instructions agents work from, and the
-way you work together. The aim is to finish with useful work, clearer
-understanding, and tools you can adapt to the next question.
+way you work together.
+
+**Small improvements compound.** A clearer instruction, a corrected
+assumption, or a better method can help the next task and become the starting
+point for another improvement. Keep what proves useful and revise what
+stops working. The aim is to finish with useful work, clearer understanding,
+and tools you can adapt to the next question.
 
 These are our interpretations of the influences and our design ambitions.
 The [README](../../../../README.md) owns product definitions and fit;
 [principles](../../coga/principles/SKILL.md) owns the design constraints.
+
+Explore the influences in the [reading list](reading-list.md).
