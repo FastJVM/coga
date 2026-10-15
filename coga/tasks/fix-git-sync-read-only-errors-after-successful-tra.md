@@ -51,7 +51,3 @@ The end-of-command sweep is documented as the retry for every earlier miss. The 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-Verdict: Ready to launch after minor edits. Code claims accurate (`_hash_blob`, `sync_task_state`, `sync_coga_state`, `mark._publish`, four `recurring_runner` sites, `run_publish_state_recipe`). Gaps applied: missing callers `commands/delete.py` and `commands/recurring.py`; existing Restricted-sandboxes `.git/index.lock` bullet and `dev/checkouts` cited; exit sweep is the automatic retry (the observed "Sync coga state" failure was that retry); "whole repo read-only" clause made concrete; synthetic repro declared acceptable; second-failure paragraph trimmed. Workflow fits; cite-not-attach correct; no layer over 40% of the ~3.5k-token prompt; scope fine as one ticket.
