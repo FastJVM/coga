@@ -164,3 +164,16 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: windows-ec2-harness
+
+Plan (agreed with owner 2026-10-15): `aws-windows.sh` modeled on `aws-mac.sh`
+plus `windows-walk.ps1` (PowerShell 5.1; modes setup/baseline/adduser/walk/checkout).
+RSA key pair (get-password-data needs RSA). User data only enables sshd + admin key;
+git, uv, Python 3.11 for Administrator and baseline over SSH. Remote default shell
+stays cmd.exe so `ssh NAME CMD` returns the real exit code. Walk users log in over
+SSH with a generated password via SSH_ASKPASS. t3.large + 50 GB gp3 default.
+Owner approved the first provision (2026-10-15). AWS: `coga-test` profile to be
+added on the existing `fastjvm` SSO session (owner's suggestion).
