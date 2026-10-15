@@ -7,8 +7,8 @@ description: Index of active V1 marketing work, product grounding and preserved 
 
 The [V1 plan](../plan/SKILL.md) was approved on 2026-09-21. This catalogue
 helps find support; reviewing it is not a separate execution step.
-[README.md](../../../../README.md) is the source of truth for concepts and
-positioning (2026-10-13).
+[README.md](../../../../README.md) explains concepts and positioning from the
+[manifesto](../../product/vision/SKILL.md) (owner decision, 2026-10-15).
 
 ## Current work and message
 
@@ -19,7 +19,7 @@ positioning (2026-10-13).
 | Publication and measurement policy | [Plan](../plan/SKILL.md#distribution-and-measurement) |
 | Launch readiness, Show HN and response triage | [Plan](../plan/SKILL.md#publication-sequence); current work: [launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
 | One argument with concrete proof | [Plan](../plan/SKILL.md#publication-sequence); current work: [idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
-| Concepts and positioning (source of truth) | [README](../../../../README.md) |
+| Public concepts and positioning | [README](../../../../README.md) |
 | Installation through one useful task | [`coga/install`](../../coga/install/SKILL.md), [`coga/first-task`](../../coga/first-task/SKILL.md); current work: [installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
@@ -27,8 +27,8 @@ Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Philosophical manifesto](../../product/vision/SKILL.md): philosophical intent and
-  influences behind human–agent collaboration.
+- [Manifesto](../../product/vision/SKILL.md): philosophy and design principles;
+  the README derives from it.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.

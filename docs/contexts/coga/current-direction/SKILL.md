@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-15.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -15,9 +15,12 @@ is `coga status` and the ticket bodies; stage posture is
 
 ## In force
 
-- **README is the source of truth for concepts and positioning
-  (2026-10-13).** [README.md](../../../../README.md) owns them; stale
-  positioning sections were archived to
+- **The manifesto owns philosophy and design principles (2026-10-15).**
+  [`product/vision`](../../product/vision/SKILL.md) merges the manifesto and
+  old principles. The README derives from it. Inclusion in every Coga-repo
+  task and the authoring rule are owned by
+  [`coga/knowledge`](../knowledge/SKILL.md). This supersedes the 2026-10-13
+  README-first ownership decision; earlier positioning remains in
   [`docs/archive/positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
@@ -32,7 +35,7 @@ is `coga status` and the ticket bodies; stage posture is
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
   instrumentation ban. Contract: [`coga/telemetry`](../telemetry/SKILL.md);
-  the reversal is recorded in [`coga/principles`](../principles/SKILL.md) §5.
+  the reversal is recorded in that topic.
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
   drafts may be stale or contradictory and owe no verdict. Pull one forward

@@ -20,8 +20,15 @@ never report: these are repos with active sweeps, **not install counts**.
 
 ## Admission and configuration
 
-Architecture owns the config precedence and repo identity model; principles
-owns the dated policy reversal. `[telemetry] enabled = false` suppresses both
+Owner decision (2026-09-20, clarified 2026-09-22): permit default-on,
+opt-out weekly aggregate usage snapshots to measure product-market fit,
+reversing the earlier instrumentation ban. Accept a small biased sample of
+repos with active sweeps and lost events without retries. No per-command or
+agent/session/token instrumentation is authorized. Operational state remains
+local and Git-backed; snapshots do not host it.
+
+Configuration and repo identity are owned by [configuration](../configuration/SKILL.md).
+`[telemetry] enabled = false` suppresses both
 capture and its Slack receipt before identity minting or worker creation.
 This is not a global network-off switch: git sync and lifecycle notifications
 retain their own switches.

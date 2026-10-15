@@ -18,7 +18,7 @@ from coga.compose import (
 )
 from conftest import hold_by_agent, hold_by_owner
 from coga.config import load_config
-from coga.tasks import list_tasks, read_ticket, resolve_bootstrap
+from coga.tasks import list_tasks, read_ticket, resolve_bootstrap, resolve_task
 from coga.taskfile import replace_blackboard
 from coga.ticket import Ticket
 
@@ -318,7 +318,7 @@ _PACKAGED_PROMPT_LAYERS = (
 @pytest.mark.parametrize("resource", _PACKAGED_PROMPT_LAYERS)
 def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> None:
     """Every repo composes these layers from the installed package, so a rule
-    about Coga's own source tree belongs in this repo's `coga/context.md`."""
+    about Coga's own source tree belongs in its repository instructions."""
     text = files("coga.resources").joinpath(resource).read_text()
 
     for marker in (
@@ -331,18 +331,52 @@ def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> Non
         assert marker not in text, (resource, marker)
 
 
-def test_coga_repo_context_carries_the_minimal_core_boundary() -> None:
-    """The rule moved out of `prompt.md` still reaches Coga's own tickets."""
+@pytest.mark.parametrize("instructions", ["AGENTS.md", "CLAUDE.md"])
+def test_coga_repo_instructions_carry_the_minimal_core_boundary(
+    instructions: str,
+) -> None:
+    """The source-tree boundary remains in each agent's repository instructions."""
     repo_root = Path(__file__).resolve().parents[1]
-    text = " ".join((repo_root / "coga" / "context.md").read_text().split())
+    text = (repo_root / instructions).read_text()
 
-    assert "## Keep Coga small and legible" in text
-    assert "shared infrastructure with at least two real consumers" in text
-    assert "registered in `runner.RECIPES` behind" in text
-    assert "reviewed, co-versioned command contracts" in text
-    assert "Python logic or inability to use an alias does not establish a core home" in text
-    assert "argv rewrite in `[aliases]`" in text
-    assert "When changing Coga itself" not in text
+    assert "Keep core minimal" in text
+    assert "≥2 real consumers" in text
+    assert "reviewed command contract" in text
+    assert "runner.RECIPES" in text
+    assert "Python logic or inability to use an alias" in text
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
+def test_coga_repo_manifesto_reaches_launches_without_ticket_attachment(
+    repo: Path, bootstrap: bool
+) -> None:
+    """Both launch entry paths receive the checked copy of the canonical manifesto."""
+    repo_root = Path(__file__).resolve().parents[1]
+    source = repo_root / "coga/context.md"
+    manifesto = repo_root / "docs/contexts/product/vision/SKILL.md"
+    assert not source.is_symlink()
+    comment, separator, mirrored = source.read_text().partition("\n\n")
+    assert comment == (
+        "<!-- Generated from docs/contexts/product/vision/SKILL.md; "
+        "edit that owner and refresh this copy. -->"
+    )
+    assert separator
+    assert mirrored == manifesto.read_text()
+    (repo / "context.md").write_text(source.read_text())
+
+    cfg = load_config(repo)
+    if bootstrap:
+        ref = resolve_bootstrap(cfg, "orient")
+    else:
+        slug = _write_workflow_less_task(repo, title="Manifesto inclusion")
+        ref = resolve_task(cfg, slug)
+    ticket = read_ticket(ref)
+    assert "product/vision" not in ticket.contexts
+    report = compose_prompt_report(cfg, ref, ticket)
+    layers = [layer for layer in report.layers if layer.layer == "repo_context"]
+    assert len(layers) == 1
+    assert layers[0].text == source.read_text()
+    assert report.prompt.count(manifesto.read_text()) == 1
 
 
 @pytest.mark.parametrize(

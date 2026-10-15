@@ -170,9 +170,9 @@ INTENTIONALLY_DIVERGENT_TWINS = {
         "fresh repo starts from."
     ),
     "coga/context.md": (
-        "The live copy is this repo's real repo context, including the Coga "
-        "source-tree rules moved out of the shipped base prompt; the packaged "
-        "copy is the stub a fresh repo starts from."
+        "The live copy carries a checked copy of this repo's manifesto so "
+        "every launch reads the same canonical philosophy; the packaged copy is the stub a "
+        "fresh repo starts from."
     ),
     "coga/log.md": (
         "The live copy is this repo's append-only audit trail; the packaged "

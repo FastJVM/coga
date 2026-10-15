@@ -1,6 +1,6 @@
 ---
 name: marketing/positioning
-description: Public-claim limits and sources for Coga's V1 instrument positioning; the positioning itself is README.md.
+description: Public-claim limits and sources for Coga's V1 instrument positioning; the README explains the product from the manifesto.
 ---
 
 # Coga positioning
@@ -9,8 +9,9 @@ description: Public-claim limits and sources for Coga's V1 instrument positionin
 agents. Its purpose is to strengthen human direction and judgment, not to
 make agent autonomy the objective.
 
-[README.md](../../../../README.md) is the source of truth for concepts and
-positioning; this page records claim limits and sources.
+[README.md](../../../../README.md) explains concepts and positioning, derived
+from the [manifesto](../../product/vision/SKILL.md). This page owns claim limits
+and sources; README edits must remain aligned with the manifesto.
 
 ## Opening
 
@@ -28,7 +29,7 @@ bypass a gate. The earlier approved opening copy is in
 The proof is the README's thinkpick example: a written plan exposed a wrong
 premise and was replaced by a research plan in tickets.
 
-Philosophical intent lives in the [philosophical manifesto](../../product/vision/SKILL.md),
+Philosophy and design principles live in the [manifesto](../../product/vision/SKILL.md),
 product definitions and fit in the [README](../../../../README.md), behavior
 in Coga's contracts, and the longer strategic argument in
 [strategy](../strategy/SKILL.md). Earlier positioning is

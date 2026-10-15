@@ -8,7 +8,7 @@ description: Rules of thumb for composing a new feature from Coga's core primiti
 Compositions of the core primitives (`coga/architecture`) recur often enough
 to be worth naming, so a new feature reaches for the established shape instead
 of re-deriving it — or inventing a hidden `.queue` dotfile that breaks Coga's
-no-hidden-state rule (`coga/principles`).
+durable-file model (`coga/architecture`).
 
 ## Rules of thumb for a new composition
 

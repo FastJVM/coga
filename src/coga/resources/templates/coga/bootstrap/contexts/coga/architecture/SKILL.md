@@ -47,8 +47,8 @@ operating rules without a merge.
 - **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
   [first-task](../first-task/SKILL.md), [uninstall](../uninstall/SKILL.md),
   [cli](../cli/SKILL.md); manifesto: `product/vision`.
-- **Understand**: [principles](../principles/SKILL.md), knowledge and the
-  model topics linked above.
+- **Understand**: [knowledge](../knowledge/SKILL.md) and the model topics
+  linked above. Coga's philosophy and design principles live in its manifesto.
 - **Configure**: [configuration](../configuration/SKILL.md),
   [context-layout](../context-layout/SKILL.md), [agents](../agents/SKILL.md),
   [secrets](../secrets/SKILL.md).

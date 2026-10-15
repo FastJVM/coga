@@ -159,7 +159,7 @@ Rules:
 - Attach only context refs whose full body the future launched agent needs to
   do this task correctly.
 - Do not attach broad orientation contexts by default. Use contexts like
-  `coga/architecture`, `coga/principles`, `coga/current-direction`, or
+  `coga/architecture`, `coga/current-direction`, or
   `coga/project-stage` only when the task directly depends on that knowledge.
 - If the task needs one fact from a broad context, copy that specific fact into
   the ticket's `## Context` body instead of attaching the whole context.

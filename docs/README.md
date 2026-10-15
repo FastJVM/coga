@@ -3,7 +3,8 @@
 One library for people and agents. Every reusable topic is a file under
 [`contexts/`](contexts/): you read it here, and a ticket attaches the same
 file by ref (`contexts: [coga/launch]`) to put it in an agent's prompt. A
-link never loads anything — a task gets exactly the refs it lists. How a
+link never loads anything — ticket contexts include exactly the refs listed.
+Coga's own repo context also supplies the manifesto to every task launch. How a
 fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
 Pages outside `contexts/` are for reading, never composed into prompts:
@@ -26,8 +27,8 @@ and unimplemented proposals in [`archive/design/`](archive/design/).
   work, disposable once done), a [context block](contexts/coga/knowledge/SKILL.md)
   (a durable fact with one owning file), and a
   [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
-  work). The README is the source of truth for concepts and positioning.
-- [Principles](contexts/coga/principles/SKILL.md) — the seven constraints.
+  work). The README explains the product and derives from the manifesto.
+- [Manifesto](contexts/product/vision/SKILL.md) — philosophy and design principles.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
 - The work unit: [tickets](contexts/coga/tickets/SKILL.md)
@@ -123,8 +124,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
 
 ## Product and positioning
 
-- [Philosophical manifesto](contexts/product/vision/SKILL.md) — human–agent collaboration,
-  understanding, and ownership of the tools.
+- [Manifesto](contexts/product/vision/SKILL.md) — the foundation for the README
+  and Coga development tasks.
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),

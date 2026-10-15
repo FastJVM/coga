@@ -24,6 +24,11 @@ Both layers treat a failed announcement or push of a durable write alike:
 surface the miss, keep the file as written, and never let it undo the
 transition.
 
+Read-only commands such as `status`, `show`, and `validate` must neither
+mutate state nor touch the network. In particular, displaying state must not
+trigger a publication sweep; the command exclusions are owned by
+[the sweep contract](../internals/state-publication/sweep/SKILL.md).
+
 ## Control versus feature checkouts
 
 - A **control checkout** (HEAD is the control branch) stays clean and level:

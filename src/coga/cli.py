@@ -104,7 +104,7 @@ app.command(
 
 
 # Commands that must NOT trigger the end-of-command `coga/` state sweep.
-# Read-only commands are excluded because `coga/principles` #6 forbids a render
+# Read-only commands are excluded because `coga/sync` forbids a read-only command
 # from mutating as a side effect (committing dirty OS state *is* a mutation).
 # `init`/`uninstall` are excluded because they create or remove the repo itself
 # and run with a possibly-absent config — not the steady-state boundary the

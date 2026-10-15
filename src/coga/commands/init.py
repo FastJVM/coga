@@ -373,7 +373,7 @@ Coga's own contexts are package-backed; a repo can override one by adding a
 local file at the same ref under `<contexts-dir>/` (by default,
 `coga/contexts/`). The orientation set:
 
-- `coga/principles` — the seven non-negotiables
+- `coga/principles` — navigation to Coga's manifesto and operational contracts
 - `coga/architecture` — overview of the primitives, the correction loop, and
   a map of the focused topic refs (tickets, lifecycle, launch, sync, ...)
 - `coga/cli` — command index pointing at each command's owning topic
