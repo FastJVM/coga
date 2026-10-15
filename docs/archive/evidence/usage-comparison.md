@@ -159,7 +159,7 @@ overlap is not erased by the stronger contrast with an application framework.
 
 ## Core flexibility across administrative and patent work
 
-Moved to the live evidence page [admin and patent flexibility](admin-and-patent-flexibility-2026-09-12.md).
+Moved to the archived evidence page [admin and patent flexibility](admin-and-patent-flexibility-2026-09-12.md).
 
 ## What counts as a substantial difference
 
