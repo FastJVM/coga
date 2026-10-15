@@ -62,7 +62,11 @@ it prepared the checkout and will return it.
    last; it publishes the ticket and log. Do not return to `main`: launch
    does that after the session. A bump that prints `[git] sync failed` or
    `sync refused` left the handoff unpublished, and launch's return will
-   refuse over it; say so in the session rather than discarding it.
+   refuse over it; say so in the session rather than discarding it. The bump
+   itself was recorded, so never bump again to publish it: after a
+   `sync failed`, once Git access is restored, run the `coga run
+   publish-state` recovery the report prints
+   ([sweep](../../coga/internals/state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
 
 ### Manual or API sessions, megalaunch picks, and exempt checkouts
 

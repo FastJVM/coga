@@ -69,7 +69,13 @@ def delete(
             fast_forward=not keep_control_checkout,
         )
     except git.GitError as exc:
-        typer.secho(f"[git] sync failed: {exc}", fg=typer.colors.YELLOW, err=True)
+        typer.secho(
+            git.sync_failure_report(
+                cfg, exc, retained="The local deletion was retained"
+            ).rstrip("\n"),
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
 
 
 def _bail(msg: str) -> None:

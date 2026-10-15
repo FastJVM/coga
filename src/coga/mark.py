@@ -235,8 +235,12 @@ def _publish(
         if strict:
             raise
     except git.GitError as exc:
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        append_log(cfg, ref.id_slug, "git", f"sync failed: {exc}")
+        git.record_sync_failure(cfg, ref.id_slug, exc)
+        sys.stderr.write(git.sync_failure_report(
+            cfg, exc, message=message,
+            retained=None if strict else "Local task state was saved",
+            recovery_paths=paths,
+        ))
         if strict:
             raise
 

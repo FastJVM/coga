@@ -50,6 +50,7 @@ import fcntl
 import hashlib
 import os
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -118,6 +119,31 @@ class UncertainPublishError(GitError):
     """The push reported failure and control could not be re-read to tell."""
 
 
+class ObjectWriteError(GitError):
+    """`git hash-object -w` could not store a blob for a checkout file.
+
+    Writing the checkout file and writing Git's object storage are separate
+    operations, so the working copy can be written while this fails. Carries
+    where Git was writing — the absolute checkout and the object directory Git
+    itself resolves, looked up only after the failure (`None` when that lookup
+    failed too). It names the operation, not a cause: a clean filter applied
+    through `--path` fails here as well, so permission is never implied.
+    """
+
+    def __init__(
+        self, *, rel: str, checkout: Path, object_dir: Path | None, detail: str
+    ) -> None:
+        self.rel = rel
+        self.checkout = checkout
+        self.object_dir = object_dir
+        self.detail = detail
+        location = str(object_dir) if object_dir is not None else "unavailable"
+        super().__init__(
+            f"`git hash-object -w` failed for {rel} (checkout {checkout}; "
+            f"object directory {location}): {detail}"
+        )
+
+
 # --- lock ---------------------------------------------------------------------
 
 _HELD_LOCKS: dict[tuple[str, int], list[int]] = {}
@@ -184,12 +210,16 @@ def sync_task_state(
     message: str,
     expect: Mapping[Path, bytes | None] | None = None,
     strict: bool = False,
+    command: str | None = None,
 ) -> bool | None:
     """Publish one task (file or directory) plus `coga/log.md`.
 
     Non-fatal by default: a refusal or failure is written to stderr and the
     task's log, then swallowed, so the local transition stands. `strict=True`
-    re-raises after reporting, for callers that gate later work on it.
+    re-raises after reporting, for callers that gate later work on it; its
+    report stays neutral because the caller may still restore state.
+    `command` names the CLI spelling (`"bump"`) the best-effort recovery hint
+    tells the operator not to rerun.
     """
     try:
         return publish(cfg, [task_path, log_path(cfg)], message, expect=expect)
@@ -198,8 +228,14 @@ def sync_task_state(
         if strict:
             raise
     except GitError as exc:
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        append_log(cfg, ref_tag_for_path(cfg, task_path), "git", f"sync failed: {exc}")
+        # Log first, so the recovery hint can name the log it just wrote.
+        record_sync_failure(cfg, ref_tag_for_path(cfg, task_path), exc)
+        sys.stderr.write(sync_failure_report(
+            cfg, exc, message=message,
+            retained=None if strict else "Local task state was saved",
+            command=command,
+            recovery_paths=(task_path, log_path(cfg)),
+        ))
         if strict:
             raise
     return None
@@ -210,7 +246,10 @@ def sync_log(cfg: Config, *, message: str) -> bool:
     try:
         return bool(publish(cfg, [log_path(cfg)], message))
     except GitError as exc:
-        sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
+        sys.stderr.write(sync_failure_report(
+            cfg, exc, message=message, label="log sync failed",
+            retained="The local log was retained",
+        ))
         return False
 
 
@@ -237,8 +276,78 @@ def sync_coga_state(
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
-        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        append_log(cfg, ref_tag_for_path(cfg, cfg.repo_root), "git", f"sync failed: {exc}")
+        sys.stderr.write(sync_failure_report(
+            cfg, exc, message=message, retained="Local Coga files were retained",
+        ))
+        record_sync_failure(cfg, ref_tag_for_path(cfg, cfg.repo_root), exc)
+
+
+def sync_failure_report(
+    cfg: Config,
+    exc: GitError,
+    *,
+    message: str | None = None,
+    label: str = "sync failed",
+    retained: str | None = None,
+    command: str | None = None,
+    recovery_paths: Iterable[Path] = (),
+) -> str:
+    """The stderr text for a failed state publication; policy stays with the caller.
+
+    The first line is the recognizable `[git] <label>: <exc>`, with the
+    publication subject when given. `retained` is for best-effort callers
+    whose local write stands: a second line separates that kept local state
+    from the failed Git publication, says not to repeat the command (`coga
+    <command>` when named), and points to `coga run publish-state` from this
+    checkout. Strict and adoption callers omit it and get the neutral line
+    alone. A refusal never gets the retry hint (its own reconciliation
+    guidance governs), an uncertain push is "could not be confirmed", and only
+    an `ObjectWriteError` adds the conditional restore-access step.
+    `recovery_paths` become the recipe's required files where each still is
+    a regular file (a task directory contributes its `ticket.md`); deleted or
+    missing paths drop out, leaving the no-path form, which sweeps them anyway.
+    """
+    text = f"[git] {label}: {exc}."
+    if message:
+        text += f" Message was: {message}"
+    text += "\n"
+    if retained is None or isinstance(exc, StateRegressionError):
+        return text
+    outcome = "could not be confirmed" if isinstance(exc, UncertainPublishError) else "failed"
+    rerun = f"`coga {command}`" if command else "the command"
+    required: list[str] = []
+    for path in recovery_paths:
+        if path.is_dir():
+            path = path / "ticket.md"
+        if path.is_file() and not path.is_symlink():
+            required.append(shlex.quote(os.path.relpath(path, cfg.repo_root)))
+    recipe = " ".join(["coga run publish-state", *required])
+    run = f"run `{recipe}` from {shlex.quote(str(Path(os.path.abspath(cfg.repo_root))))}"
+    if isinstance(exc, ObjectWriteError):
+        step = (
+            "If Git could not write to the object storage shown above, restore "
+            f"permitted access to it first, then {run}"
+        )
+    else:
+        step = run[0].upper() + run[1:]
+    return text + (
+        f"[git] {retained}; Git publication {outcome}. Do not rerun {rerun} to "
+        f"recover. {step}; it publishes all eligible Coga state without another "
+        "transition.\n"
+    )
+
+
+def record_sync_failure(cfg: Config, tag: str, exc: GitError) -> None:
+    """Append the concise `sync failed` audit line, never masking `exc`.
+
+    A failure handler that cannot write the log (the same restricted checkout
+    can refuse it) reports that on stderr and returns, so the original
+    failure still propagates or is swallowed per the caller's policy.
+    """
+    try:
+        append_log(cfg, tag, "git", f"sync failed: {exc}")
+    except OSError as log_exc:
+        sys.stderr.write(f"[git] could not record the sync failure in the log: {log_exc}\n")
 
 
 def coga_root_paths(
@@ -2078,8 +2187,37 @@ def _hash_blob(root: Path, data: bytes, rel: str) -> str:
         input=data,
     )
     if result.returncode != 0:
-        raise GitError(f"`git hash-object` failed: {result.stderr.decode(errors='replace').strip()}")
+        args = ("hash-object", "-w", f"--path={rel}", "--stdin")
+        stderr = _redact(result.stderr.decode(errors="replace"), args)
+        raise ObjectWriteError(
+            rel=rel,
+            checkout=Path(os.path.abspath(root)),
+            object_dir=_object_dir(root),
+            detail=summarize_git_failure(stderr) or f"exit {result.returncode}",
+        )
     return result.stdout.decode().strip()
+
+
+def _object_dir(root: Path) -> Path | None:
+    """The object directory Git writes to from `root`, or `None` if unknowable.
+
+    Asked of Git with the same inherited environment as the failed write, so a
+    linked checkout's shared store and an absolute or relative
+    `GIT_OBJECT_DIRECTORY` resolve exactly as the write saw them. Only a
+    diagnostic: any failure here yields `None` rather than replacing the
+    original error.
+    """
+    try:
+        result = _run(
+            ["git", "-C", str(root), "rev-parse", "--path-format=absolute",
+             "--git-path", "objects"]
+        )
+    except (GitError, OSError):
+        return None
+    out = result.stdout.decode(errors="replace").strip()
+    if result.returncode != 0 or not out or "\n" in out:
+        return None
+    return Path(out)
 
 
 def _ref_present(root: Path, ref: str) -> bool:
@@ -2167,6 +2305,7 @@ __all__ = [
     "CheckoutRelation",
     "GitError",
     "MAX_PUBLISH_ATTEMPTS",
+    "ObjectWriteError",
     "PUBLISHED_REF",
     "RETRY_WITHOUT_SWEEP_EXIT_CODE",
     "STALE_CONTROL_EXIT_CODE",
@@ -2185,6 +2324,7 @@ __all__ = [
     "refresh",
     "relative_to_root",
     "remote_branch_oid",
+    "record_sync_failure",
     "remote_configured",
     "run_git",
     "stale_coga_task_rels",
@@ -2193,6 +2333,7 @@ __all__ = [
     "summarize_git_failure",
     "symbolic_head",
     "sync_coga_state",
+    "sync_failure_report",
     "sync_log",
     "sync_task_state",
     "ticket_regression_reason",

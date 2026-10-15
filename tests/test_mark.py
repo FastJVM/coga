@@ -924,6 +924,47 @@ def test_strict_mark_in_progress_publishes_before_announcing(
     assert events == ["publish"]
 
 
+def test_mark_publish_failure_survives_an_unwritable_failure_log(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Best-effort stays nonfatal and strict re-raises the publication error,
+    even when the failure's own audit line cannot be written."""
+    slug, task_path = _make_task(repo, status="active")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+
+    def fail_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        raise git_module.GitError("`git push origin` failed (exit 1): fatal: offline")
+
+    def unwritable_log(*args):  # type: ignore[no-untyped-def]
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr("coga.mark.git.publish", fail_publish)
+    monkeypatch.setattr("coga.git.append_log", unwritable_log)
+
+    mark_in_progress(
+        cfg, ref, read_ticket(ref), actor="human:marc", log_message="started"
+    )
+    err = capsys.readouterr().err
+    assert "[git] sync failed: `git push origin` failed" in err
+    assert "could not record the sync failure in the log" in err
+    assert "Local task state was saved; Git publication failed." in err
+    assert Ticket.read(task_path).status == "in_progress"
+
+    with pytest.raises(git_module.GitError, match="git push origin"):
+        mark_in_progress(
+            cfg,
+            ref,
+            Ticket.read(task_path),
+            actor="system",
+            log_message="started again",
+            strict=True,
+        )
+    err = capsys.readouterr().err
+    assert "[git] sync failed: `git push origin` failed" in err
+    assert "saved" not in err
+
+
 # --- --message ----------------------------------------------------------------
 
 
