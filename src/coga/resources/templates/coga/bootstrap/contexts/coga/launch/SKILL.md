@@ -30,6 +30,10 @@ Trailing positional arguments reach an agent prompt as an ordered JSON
 An ordinary task launch and direct `bootstrap/orient` (`coga chat`) run from a
 clean, current control checkout. Orientation prepares before even resolving
 its bootstrap target, so a repo-local override is read from current control.
+Direct chats in one Git checkout are serialized by a nonblocking occupancy
+guard; a second chat refuses before publishing or preparing anything. Its
+scope and lifetime are owned by
+[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md).
 For ordinary tasks, target
 resolution and the recorded-checkout test only classify; then launch
 publishes Coga state (the sweep over the Coga roots) and prepares the

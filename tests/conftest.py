@@ -282,6 +282,11 @@ def _stub_git(monkeypatch, request):
     monkeypatch.setattr(
         "coga.commands.launch._checkout_exemption", lambda *a, **k: None
     )
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        "coga.commands.launch._orientation_checkout_guard", lambda cfg: nullcontext()
+    )
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
     # `views` binds the probe at import time, so patch its name too.
     monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])

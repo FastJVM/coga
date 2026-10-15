@@ -18,15 +18,21 @@ composes and starts the agent.
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import json
+import os
 import shlex
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
+from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, NamedTuple, TypeVar
+from typing import Callable, Iterator, NamedTuple, TypeVar
 from uuid import uuid4
 
 import typer
@@ -126,6 +132,72 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 }
 _ASSIST_ALIGNMENT_ATTEMPTS = 3
 _T = TypeVar("_T")
+_CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
+    "checkout_guard_scope", default=None
+)
+
+
+@contextmanager
+def checkout_guard_scope() -> Iterator[None]:
+    """Keep launch's checkout guard through the CLI's final state sweep."""
+    with ExitStack() as stack:
+        token = _CHECKOUT_GUARD_SCOPE.set(stack)
+        try:
+            yield
+        finally:
+            _CHECKOUT_GUARD_SCOPE.reset(token)
+
+
+@contextmanager
+def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
+    """Refuse a second direct chat before it can publish or move this checkout.
+
+    Unlike the short publication lock, this nonblocking lock spans the whole
+    command. It is keyed by Git toplevel, so nested Coga roots share it while
+    separate checkouts do not. The kernel releases it on process exit; the
+    file is deliberately never unlinked (which would permit two lock inodes).
+    """
+    if not cfg.git_enabled:
+        yield
+        return
+    try:
+        root = git.toplevel(cfg.repo_root)
+    except git.GitError as exc:
+        _bail(
+            f"Cannot guard this chat's checkout: {exc}. No work was started.",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+        )
+    if root is None:
+        yield
+        return
+    try:
+        checkout = hashlib.sha256(os.fsencode(root.resolve())).hexdigest()
+        lock_root = Path(tempfile.gettempdir()) / f"coga-orientation-{os.getuid()}"
+        lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(lock_root / f"{checkout}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    except OSError as exc:
+        _bail(
+            f"Cannot guard this chat's checkout: {exc}. No work was started.",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+        )
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            _bail(
+                "Cannot launch bootstrap/orient: another chat is using this "
+                f"checkout ({root}). Finish that chat or use a separate "
+                "checkout. No work was started and the checkout was not changed.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        except OSError as exc:
+            _bail(
+                f"Cannot guard this chat's checkout: {exc}. No work was started.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        yield
+    finally:
+        os.close(fd)
 
 
 class _RecomposeAfterLaunchPublication(RuntimeError):
@@ -210,25 +282,35 @@ def launch(
     delegated period only on its done signal; public CLI timeouts exit with the
     supervisor's non-zero timeout code.
     """
-    return _launch(
-        task,
-        args=args,
-        agent_override=agent_override,
-        prompt_report=prompt_report,
-        idle_timeout=idle_timeout,
-        max_session=max_session,
-        return_timeout=return_timeout,
-        script_failure_important=script_failure_important,
-        # The public CLI spelling is always attended: a human typed it and is
-        # in the REPL. Queue conduct is selected by the in-process seams
-        # below, never by a flag an ordinary launch could pass.
-        launch_context="attended",
-        before_recompose=None,
-        before_final_spawn=None,
-        require_agent_target=False,
-        record_launch=True,
-        recurring_authorized=False,
-    )
+    with ExitStack() as local_scope:
+        if task == "bootstrap/orient" and not prompt_report:
+            try:
+                cfg = load_config()
+            except ConfigError as exc:
+                _bail(str(exc))
+            # CLI dispatch owns cleanup through its exit sweep. Direct Python
+            # callers have no outer sweep, so their guard ends with this call.
+            scope = _CHECKOUT_GUARD_SCOPE.get() or local_scope
+            scope.enter_context(_orientation_checkout_guard(cfg))
+        return _launch(
+            task,
+            args=args,
+            agent_override=agent_override,
+            prompt_report=prompt_report,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=return_timeout,
+            script_failure_important=script_failure_important,
+            # The public CLI spelling is always attended: a human typed it and is
+            # in the REPL. Queue conduct is selected by the in-process seams
+            # below, never by a flag an ordinary launch could pass.
+            launch_context="attended",
+            before_recompose=None,
+            before_final_spawn=None,
+            require_agent_target=False,
+            record_launch=True,
+            recurring_authorized=False,
+        )
 
 
 class RecurringPeriodLaunchResult(NamedTuple):
