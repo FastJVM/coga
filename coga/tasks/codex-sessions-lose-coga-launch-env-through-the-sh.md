@@ -167,3 +167,9 @@ The owner replied "ok" to the explicit request to approve the revised design, th
 ## Dev
 
 branch: codex-no-daemon-launch-args
+
+## Owner review discussion — 2026-10-14
+
+- Later owner feedback in the evaluator conversation: crashes are rare enough that the false-positive warning in finding 1 is acceptable for now. The owner accepts the simpler termination-outcome heuristic rather than requiring separate sentinel observation solely for that case. This concerns warning accuracy, not crash recovery or durable-state guarantees. The implementation specification currently requires independent sentinel observation from the separately approved revision; reconcile that requirement with this later owner feedback before treating the extra machinery as mandatory.
+- On finding 2, the owner asks why tickets are not committed immediately and notes concurrent races are rare. Explanation supplied: lifecycle transitions already attempt immediate commit/push via `advance_step` and `git.sync_task_state`; refreshing brings a different checkout up to date. Handling a deleted ticket is a separate issue from concurrent races. No new owner decision on that handling was inferred.
+- This conversation discovered that control had already advanced to step 4 with an implementation branch recorded. Preserved that current state and all other-session edits; this note makes no workflow transition and performs no implementation work.
