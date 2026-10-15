@@ -8351,3 +8351,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 16:45 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] unblocked (blocked → active): Owner chose rented disposable AWS macOS and Windows hosts; the read-only Mac preflight is green, so the old own-machine attendance premise no longer blocks the ticket.
 2026-10-14 17:32 v1 [retire-canceled-tickets-without-retro] [human:nicktoper] created (status=draft)
 2026-10-14 17:33 v1 [retire-canceled-tickets-without-retro] [human:nicktoper] canceled (draft → canceled): Superseded: owner chose a separate failed status over no-Retro-for-canceled (2026-10-14); see add-a-failed-terminal-status.
+2026-10-14 17:33 v1 [add-a-failed-terminal-status] [human:nicktoper] created (status=draft)
