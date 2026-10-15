@@ -150,8 +150,18 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   branch and does not void the review verdict. Run the suite yourself with a
   Coga-capable interpreter (`PYTHONPATH=$PWD/src .venv/bin/python -m pytest`)
   and record that command and count as the evidence.
-- State-changing commands (`create`, `bump`, `mark`) fail when the sandbox
-  forbids `.git/index.lock`; rerun unsandboxed or grant `.git` write access.
+- State-changing commands (`create`, `bump`, `mark`) write in three places a
+  sandbox can treat differently: the checkout files (ticket, log), Git's
+  object database (`git hash-object -w`), and the index lock
+  (`.git/index.lock`). A writable checkout with unwritable Git storage saves
+  the transition and fails only its publication: the `[git] sync failed`
+  report names the checkout and the object directory Git resolved, which may
+  be a linked checkout's shared store or a `GIT_OBJECT_DIRECTORY` override
+  rather than `<checkout>/.git/objects`. Do not rerun the command. With the
+  operator's authorization, rerun unsandboxed or grant write access to that
+  destination (the Codex grant below covers the Git common directory), then
+  run the `coga run publish-state` recovery the report prints
+  ([sweep](../internals/state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
 - When `git worktree add` cannot write the primary `.git`, use the
   independent-clone fallback in [dev/checkouts/sandbox-clone](../../dev/checkouts/sandbox-clone/SKILL.md).
 

@@ -376,6 +376,7 @@ def advance_step(
             ref.path,
             message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
             strict=rewind,
+            command="bump",
         )
 
     if rewind:

@@ -63,3 +63,21 @@ Only the explicit recipe publishes, so no fallback can publish tickets
 separately from a required context the strict transaction refused.
 `build/onboarding` runs it before offering `coga launch` for its
 starter tickets and neither hands over nor bumps on a non-zero exit.
+
+### Recovering a failed publication
+
+A failed best-effort publication keeps the local write, and the transition it
+recorded has already happened: rerunning `bump` (or any lifecycle command)
+would advance again, never republish. Recover with the same recipe, from the
+same checkout, once Git can write where the failure said it was writing
+(including an external object directory). The report names the command,
+run from the Coga root it prints: `coga run publish-state <ticket file>
+<log>` after task sync (a directory-form task names its `ticket.md`), or the
+no-path form after the sweep, log-only sync, or a deletion (a deleted path is
+not a valid argument, but the root sweep includes it). The named files are
+only the ones that must land; the recipe publishes every eligible file under
+the Coga roots. It adds no transition, an immediate repeat is a no-op
+(`already on`), and while access is still denied it exits 1 with the files
+kept. Coga never changes permissions, sandbox configuration, Git environment
+routing, or object storage to recover; restoring access is the operator's
+call ([coga/testing](../../../testing/SKILL.md#restricted-sandboxes)).

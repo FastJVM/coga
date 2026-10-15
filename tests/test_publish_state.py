@@ -10,6 +10,7 @@ starter ticket whose vision context never reached Git.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -280,3 +281,107 @@ def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
     assert "user" in result.stderr
     assert _git(origin, "rev-parse", "main") == published_before
     assert [path.read_bytes() for path in files] == bytes_before
+
+
+_RESTRICTED_TICKET = """---
+title: demo
+status: in_progress
+owner: marc
+agent: claude
+workflow:
+  name: code
+  steps:
+  - name: implement
+    assignee: agent
+  - name: review
+    assignee: agent
+step: 1 (implement)
+---
+
+## Description
+
+Demo.
+
+<!-- coga:blackboard -->
+
+notes
+"""
+
+
+def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
+    git_repo, tmp_path: Path
+) -> None:
+    """One transition, two failed publications, then recovery without another bump."""
+    ticket = git_repo.coga_os / "tasks" / "demo.md"
+    ticket.write_text(_RESTRICTED_TICKET)
+    git_repo.git("add", "--", "coga/tasks/demo.md")
+    git_repo.git("commit", "-qm", "seed demo")
+    git_repo.git("push", "-q", "origin", "main")
+    store = tmp_path / "restricted objects"
+    store.mkdir()
+    store.chmod(0o555)
+    if os.access(store, os.W_OK):
+        store.chmod(0o755)
+        pytest.skip("chmod does not restrict this user (e.g. root)")
+    # The checkout stays writable; only the object database Git writes to is not.
+    denied = {
+        **os.environ,
+        "GIT_OBJECT_DIRECTORY": str(store),
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(git_repo.root / ".git" / "objects"),
+    }
+
+    def cli(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "coga.cli", *args],
+            capture_output=True, text=True, env=env,
+        )
+
+    def origin_ticket() -> str:
+        return _git(git_repo.origin, "show", "main:coga/tasks/demo.md")
+
+    def origin_log() -> str:
+        return _git(git_repo.origin, "show", "main:coga/log.md")
+
+    try:
+        bumped = cli("bump", "demo", env=denied)
+
+        assert bumped.returncode == 0, bumped.stdout + bumped.stderr
+        assert "review" in bumped.stdout
+        # Task sync and the exit sweep each fail once, naming the destination.
+        assert bumped.stderr.count("[git] sync failed: `git hash-object -w` failed") == 2
+        assert f"object directory {store}" in bumped.stderr
+        assert "Message was: Sync coga state" in bumped.stderr
+        assert "Local task state was saved; Git publication failed." in bumped.stderr
+        assert "Do not rerun `coga bump` to recover." in bumped.stderr
+        assert "coga run publish-state tasks/demo.md log.md" in bumped.stderr
+        assert "step: 2 (review)" in ticket.read_text()
+        assert "step: 1 (implement)" in origin_ticket()
+        local_log = (git_repo.coga_os / "log.md").read_text()
+        assert local_log.count("advanced to step 2") == 1
+
+        # Recovery while access is still denied fails loudly and keeps state.
+        still_denied = cli("run", "publish-state", "tasks/demo.md", "log.md", env=denied)
+        assert still_denied.returncode == 1, still_denied.stdout + still_denied.stderr
+        assert "publication failed" in still_denied.stderr
+        assert "step: 2 (review)" in ticket.read_text()
+        assert "step: 1 (implement)" in origin_ticket()
+    finally:
+        store.chmod(0o755)
+
+    subjects = len(git_repo.origin_subjects())
+    recovered = cli("run", "publish-state", "tasks/demo.md", "log.md")
+
+    assert recovered.returncode == 0, recovered.stdout + recovered.stderr
+    assert "published to origin/main" in recovered.stdout
+    assert "step: 2 (review)" in origin_ticket()
+    assert "step: 2 (review)" in ticket.read_text()
+    assert origin_log().count("advanced to step 2") == 1
+    assert len(git_repo.origin_subjects()) == subjects + 1
+
+    repeated = cli("run", "publish-state", "tasks/demo.md", "log.md")
+
+    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+    assert "already on origin/main" in repeated.stdout
+    assert len(git_repo.origin_subjects()) == subjects + 1
+    assert origin_log().count("advanced to step 2") == 1
+    assert "step: 2 (review)" in ticket.read_text()

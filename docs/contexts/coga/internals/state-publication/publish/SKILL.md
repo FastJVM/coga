@@ -56,7 +56,7 @@ control branch missing locally and on the remote
    the write stays dirty.
 
 Wrappers: `sync_task_state(cfg, task_path, *, message, expect=None,
-strict=False)` publishes one task plus the log; `sync_log(cfg, *, message)`
+strict=False, command=None)` publishes one task plus the log; `sync_log(cfg, *, message)`
 publishes the log alone with stderr-only failures (stateless launches, usage
 records); `sync_coga_state(cfg)` is the sweep.
 
@@ -73,6 +73,42 @@ lines (`logfile.retract_log_lines`) on `StateRegressionError` and
 reconciliation. A strict `mark done` publishes before announcing; the
 ordinary path announces, then publishes. Launch-specific strict publication
 is `coga/internals/launch-claims` and `coga/internals/pr-publication`.
+
+## Failure reporting
+
+Writing a checkout file and writing Git's object database are separate
+operations; a sandbox can permit one and deny the other. When `_hash_blob`'s
+`git hash-object -w` fails (from `_guard`'s candidate blobs, `expect`, or tree
+construction), it raises `ObjectWriteError(GitError)` carrying the relative
+file, the absolute checkout, and the effective object directory, resolved
+only after the failure with `git rev-parse --path-format=absolute --git-path
+objects` under the same inherited environment. That is the write destination
+Git actually used: `<checkout>/.git/objects`, a linked checkout's shared
+store, or a `GIT_OBJECT_DIRECTORY` override, never assumed. A failed lookup
+reports the directory as `unavailable` and keeps the original error. The
+summarized Git stderr is kept and redacted like any `run_git` failure. The
+error names the operation, not a cause: a failing clean filter reaches the same
+branch, so permission or sandbox causation is never asserted.
+
+`git.sync_failure_report` formats the stderr for the sync handlers
+(`sync_task_state`, `sync_coga_state`, `sync_log`, `mark._publish`, `coga
+delete`); each caller keeps its own logging, raising, and sinks. The first
+line keeps the recognizable `[git] sync failed:` / `[git] log sync failed:`
+prefix and the publication subject (`Message was: ...`), which tells task
+sync from the `Sync coga state` sweep. A best-effort caller adds a second
+line: local state was saved (task sync, `mark`) or retained (sweep, log,
+deletion); Git publication failed, or "could not be confirmed" for
+`UncertainPublishError`; do not rerun the command (`coga bump` names itself
+through `command=`); then the [recovery](../sweep/SKILL.md#recovering-a-failed-publication).
+Only an `ObjectWriteError` adds the conditional step "if Git could not write to
+the object storage shown above, restore permitted access to it first". A
+refusal keeps its own reconciliation guidance and gets no retry hint. Strict
+callers and recurring create/adoption print only the neutral first line, since
+they may still restore or replace the local write. The `git` audit line stays
+`sync failed: <error>`; remedy prose goes only to stderr.
+`record_sync_failure` writes that audit line and turns its own `OSError` into
+a stderr note, so a log that cannot be written never masks the original
+failure or makes a best-effort sync fatal.
 
 ## `state_lock`
 

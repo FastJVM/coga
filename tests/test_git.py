@@ -17,6 +17,7 @@ stub.
 from __future__ import annotations
 
 import itertools
+import os
 import shutil
 import subprocess
 from collections import Counter
@@ -1601,6 +1602,213 @@ def test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory(git_r
     assert not git_repo.origin_tracks("coga/recurring/weekly/ticket.md")
 
 
+# --- object-write failures: where Git was writing, and the recovery -----------
+
+
+def _failing_hash_object(monkeypatch, stderr: bytes, *, probe_fails: bool = False):
+    """Inject a `hash-object -w` failure (and optionally a failed location probe)."""
+    real_run = git._run
+
+    def fake(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "hash-object" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", stderr)
+        if probe_fails and "--git-path" in argv:
+            raise git.GitError("`git` not found on PATH")
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", fake)
+
+
+_EROFS = (
+    b"error: unable to create temporary file: Read-only file system\n"
+    b"fatal: Unable to add coga/tasks/demo.md to database.\n"
+)
+
+
+def test_object_dir_is_the_ordinary_git_objects(git_repo):
+    assert git._object_dir(git_repo.root) == (git_repo.root / ".git" / "objects").resolve()
+
+
+def test_object_dir_of_a_linked_checkout_is_the_shared_store(git_repo):
+    linked = git_repo.origin.parent / "linked checkout"
+    git_repo.git("worktree", "add", "-b", "side", str(linked))
+
+    assert git._object_dir(linked) == (git_repo.root / ".git" / "objects").resolve()
+
+
+def test_object_dir_follows_a_relative_override_from_another_cwd(
+    git_repo, tmp_path, monkeypatch
+):
+    store = git_repo.root / "alt objects"
+    store.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    # Relative to the checkout: Git resolves it after `-C`, as the write does.
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", "alt objects")
+
+    assert git._object_dir(git_repo.root) == store.resolve()
+
+
+def test_unwritable_object_dir_names_checkout_destination_and_cause(
+    git_repo, tmp_path, monkeypatch
+):
+    store = tmp_path / "restricted objects"
+    store.mkdir()
+    store.chmod(0o555)
+    try:
+        if os.access(store, os.W_OK):
+            pytest.skip("chmod does not restrict this user (e.g. root)")
+        monkeypatch.setenv("GIT_OBJECT_DIRECTORY", str(store))
+
+        with pytest.raises(git.ObjectWriteError) as caught:
+            git._hash_blob(git_repo.root, b"x\n", "coga/tasks/demo.md")
+    finally:
+        store.chmod(0o755)
+
+    exc = caught.value
+    assert exc.rel == "coga/tasks/demo.md"
+    assert exc.checkout == git_repo.root
+    assert exc.object_dir == store
+    # Observed as permission denied, not EROFS (that is covered by injection).
+    assert "insufficient permission" in exc.detail
+    assert f"object directory {store}" in str(exc)
+
+
+def test_erofs_hash_failure_keeps_git_stderr_and_the_location(git_repo, monkeypatch):
+    _failing_hash_object(monkeypatch, _EROFS)
+
+    with pytest.raises(git.ObjectWriteError) as caught:
+        git._hash_blob(git_repo.root, b"x\n", "coga/tasks/demo.md")
+
+    message = str(caught.value)
+    assert "`git hash-object -w` failed for coga/tasks/demo.md" in message
+    assert f"checkout {git_repo.root}" in message
+    assert f"object directory {(git_repo.root / '.git' / 'objects').resolve()}" in message
+    assert "Read-only file system" in message
+    assert "Unable to add coga/tasks/demo.md to database" in message
+
+
+def test_failed_location_probe_keeps_the_original_error(git_repo, monkeypatch):
+    _failing_hash_object(monkeypatch, _EROFS, probe_fails=True)
+
+    with pytest.raises(git.ObjectWriteError) as caught:
+        git._hash_blob(git_repo.root, b"x\n", "coga/tasks/demo.md")
+
+    assert caught.value.object_dir is None
+    assert "object directory unavailable" in str(caught.value)
+    assert "Read-only file system" in str(caught.value)
+
+
+def test_a_failing_clean_filter_is_an_object_write_failure_without_a_cause(git_repo):
+    git_repo.git("config", "filter.broken.clean", "false")
+    git_repo.git("config", "filter.broken.required", "true")
+    (git_repo.root / ".gitattributes").write_text("*.md filter=broken\n")
+
+    with pytest.raises(git.ObjectWriteError) as caught:
+        git._hash_blob(git_repo.root, b"x\n", "coga/tasks/demo.md")
+
+    assert "filter" in caught.value.detail
+    assert "permission" not in str(caught.value).lower()
+
+
+def test_best_effort_task_sync_separates_saved_state_from_failed_publication(
+    git_repo, monkeypatch, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.write_text(_ticket_text(step="2 (review)"))
+    written = ticket.read_bytes()
+    _failing_hash_object(monkeypatch, _EROFS)
+
+    assert git.sync_task_state(
+        cfg, ticket, message="Ticket: demo — step 2 (review)", command="bump"
+    ) is None
+
+    err = capsys.readouterr().err
+    assert "[git] sync failed: `git hash-object -w` failed" in err
+    assert "Message was: Ticket: demo — step 2 (review)" in err
+    assert "Local task state was saved; Git publication failed." in err
+    assert "Do not rerun `coga bump` to recover." in err
+    assert "If Git could not write to the object storage shown above" in err
+    assert f"`coga run publish-state tasks/demo.md log.md` from {git_repo.coga_os}" in err
+    assert ticket.read_bytes() == written
+    # The audit line stays concise: the failure, not the remedy.
+    log = _global_log(cfg)
+    assert "sync failed: `git hash-object -w` failed" in log
+    assert "publish-state" not in log
+
+
+def test_strict_task_sync_stays_neutral_and_raises(git_repo, monkeypatch, capsys):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.write_text(_ticket_text(step="2 (review)"))
+    _failing_hash_object(monkeypatch, _EROFS)
+
+    with pytest.raises(git.ObjectWriteError):
+        git.sync_task_state(cfg, ticket, message="Ticket: demo — step 1", strict=True)
+
+    err = capsys.readouterr().err
+    assert "[git] sync failed: `git hash-object -w` failed" in err
+    assert "saved" not in err
+    assert "publish-state" not in err
+
+
+def test_failure_report_quotes_recovery_paths_and_drops_missing_ones(tmp_path):
+    root = tmp_path / "my repo" / "coga"
+    task = root / "tasks" / "with space"
+    task.mkdir(parents=True)
+    (task / "ticket.md").write_text("x\n")
+    exc = git.GitError("`git push origin` failed (exit 1): fatal: unreachable")
+
+    text = git.sync_failure_report(
+        _cfg(root), exc, message="m", retained="Local task state was saved",
+        recovery_paths=(task, root / "log.md"),
+    )
+
+    assert "coga run publish-state 'tasks/with space/ticket.md'`" in text
+    assert f"from '{root}'" in text
+    assert "Do not rerun the command to recover." in text
+    # A transport failure gets no storage-access diagnosis.
+    assert "object storage" not in text
+
+
+def test_failure_report_keeps_uncertainty_and_refusal_distinct(tmp_path):
+    cfg = _cfg(tmp_path)
+    uncertain = git.sync_failure_report(
+        cfg, git.UncertainPublishError("control unreadable"), retained="Kept"
+    )
+    refused = git.sync_failure_report(
+        cfg, git.StateRegressionError("stale"), label="sync refused", retained="Kept"
+    )
+
+    assert "Git publication could not be confirmed" in uncertain
+    assert "Git publication failed" not in uncertain
+    assert refused == "[git] sync refused: stale.\n"
+
+
+def test_failed_failure_log_never_masks_the_sync_failure(git_repo, monkeypatch, capsys):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.write_text(_ticket_text(step="2 (review)"))
+    _failing_hash_object(monkeypatch, _EROFS)
+
+    def unwritable_log(*args):  # type: ignore[no-untyped-def]
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr(git, "append_log", unwritable_log)
+
+    assert git.sync_task_state(cfg, ticket, message="Ticket: demo — step 2") is None
+    git.sync_coga_state(cfg)
+    with pytest.raises(git.ObjectWriteError):
+        git.sync_task_state(cfg, ticket, message="Ticket: demo — step 2", strict=True)
+
+    err = capsys.readouterr().err
+    assert err.count("[git] sync failed: `git hash-object -w` failed") == 3
+    assert err.count("could not record the sync failure in the log") == 3
+    assert "Local Coga files were retained" in err
+
+
 # --- soft skips ---------------------------------------------------------------
 
 
@@ -1665,7 +1873,9 @@ def test_sync_log_reports_on_stderr_only(git_repo, capsys):
     git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
 
     assert git.sync_log(cfg, message="Log: bootstrap/orient") is False
-    assert "log sync failed" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "log sync failed" in err
+    assert "The local log was retained" in err
     assert "sync failed" not in _global_log(cfg)
 
 
