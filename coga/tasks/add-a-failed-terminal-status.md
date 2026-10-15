@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -328,3 +328,80 @@ across `src/coga`, `src/coga_edge`, docs, resources, and the #1014 diff.
 5. **Telemetry.** `tickets_failed` appears automatically in the closed
    PostHog property set. The telemetry topic says to query stored keys at
    acceptance; confirm a new count key needs no separate approval.
+
+## Evaluator review
+
+Cold review, 2026-10-14. **Needs owner resolution before implementation.**
+The status split and reuse of the existing finalizer/retirement paths are
+coherent and fit the kernel boundary. The spec uses the correct composed body
+regions. The frozen workflow matches the shipped design-then-implement
+workflow and sends this review to the owner next. No code or spec edits made.
+
+### Must resolve before implementation
+
+1. **Resolve “nothing reactivates” versus blocked-launch recovery.** Proposed
+   shape 4 says `commands/launch.py` needs no behavior change, but
+   `_reblock_unresolved_resume()` restores a cleared step and calls
+   `mark_blocked()` even after a terminal transition when `resume_step` is
+   supplied and an unanswered blocker remains. `reblock_after_script()`
+   supplies that argument. An interactively resumed blocked ticket whose
+   `ticket.py` invokes `mark failed` would therefore become blocked again.
+   This is existing policy, owned by `coga/lifecycle` “Blocking and resume”
+   and covered for terminal completion by
+   `tests/test_launch_script.py::test_blocked_script_termination_reblocks_unresolved_ask`
+   and `test_reblock_restores_the_original_position_not_an_assignment`.
+   Choose whether this rollback also applies to failed/canceled (qualify the
+   absolute acceptance criterion), or those verdicts override unresolved-ask
+   recovery (name the code and contract change). Add regression cases for
+   failed and canceled; refusal to launch an already-terminal ticket does
+   not cover this path.
+
+2. **Scope the no-stale-Retro check to maintained instructions.** Grepping all
+   of `coga/` includes this ticket's old-path references, the historical spec
+   and receipts in
+   `coga/tasks/retire-deletes-done-tickets-without-a-retro-cancel.md`, and
+   `coga/log.md` records. These cannot all become “canceled does not get Retro”
+   through the planned edits; the log is append-only and historical claims
+   are evidence, not current policy. Explicitly exclude task history/logs
+   while retaining live skills, workflows, recurring templates, resources
+   and topics. Treat grep hits as a reviewed candidate list: same-line
+   matching also misses multiline promises.
+
+3. **Include the shipped design-then-implement retirement instructions.**
+   `src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`,
+   `## review`, still says that after a ticket is done, `coga retire`
+   scaffolds and launches `retro/done-ticket`. This contradicts the
+   deterministic done path in `commands/retire.py::retire` retained by this
+   design. Step 6 names `code/with-review` and `docs/with-review` but omits
+   this active workflow; a canceled-only grep cannot catch it. Include it
+   in the retirement-semantics audit, preferably replacing the duplicated
+   procedure with a short link to `dev/checkout-cleanup` per `coga/knowledge`.
+
+### Optional recommendations and owner choices
+
+- Include `src/coga/commands/megalaunch.py` in the wording inventory: its
+  picker help and empty-picker message explicitly say “done/canceled”.
+- Extend `tests/test_mark.py::test_transition_refuses_to_bury_terminal_control_copy`
+  with failed as both the landed verdict and proposed local verdict. This
+  checks the publication invariant behind its Git rank, beyond the constant.
+- Resolve the five existing Open Questions at the owner gate. Telemetry's
+  count derives automatically from `VALID_STATUSES`, and
+  `tests/test_telemetry.py::test_inventory_scope_and_exact_zero_statuses`
+  iterates that set. Decide whether the `coga/telemetry` “Closed wire contract”
+  stored-key acceptance is required here or explicitly deferred; documenting
+  a key and verifying ingestion are different checks. No external telemetry
+  was sent during this review.
+
+### Verification
+
+Inspected lifecycle, mark, retire, launch recovery, megalaunch, recurring,
+notifications, Git ranking, telemetry, Dream routing, packaging and workflow
+surfaces, plus the #1014 change inventory. Current-behavior checks:
+
+```sh
+PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q tests/test_launch_script.py::test_blocked_script_termination_reblocks_unresolved_ask tests/test_launch_script.py::test_reblock_restores_the_original_position_not_an_assignment tests/test_retire.py::test_retire_deletes_a_done_ticket_without_a_retro_task tests/test_retire.py::test_retire_no_launch_creates_task_with_target_slug tests/test_telemetry.py::test_inventory_scope_and_exact_zero_statuses
+```
+
+**8 passed in 7.76s.** These verify existing behavior used as review evidence,
+not an implementation of failed. Full-suite and repo-validation acceptance
+remain implementation work.
