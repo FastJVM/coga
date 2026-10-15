@@ -13,8 +13,9 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 
 - A task by any unique prefix of its ref. A nested task is its path under
   `tasks/` (`marketing/coga-crm`), exactly as `coga status` prints it.
-- `bootstrap/<name>` — a stateless target: no lifecycle, no chaining,
-  concurrent launches safe. Its launch log line publishes immediately.
+- `bootstrap/<name>` — a stateless target: no lifecycle or chaining.
+  Its launch log line publishes immediately; sessions in one checkout still
+  share its branch and files.
   `coga chat` is the default alias for `launch bootstrap/orient`.
 - A `recurring/<name>` period is gated first (control branch, owner,
   verified control catch-up, exit 75 when stale) and a frozen `delegate:`
@@ -26,7 +27,14 @@ Trailing positional arguments reach an agent prompt as an ordered JSON
 
 ## Checkout boundary
 
-An ordinary task launch runs from a clean, current control checkout. Target
+An ordinary task launch and direct `bootstrap/orient` (`coga chat`) run from a
+clean, current control checkout. Orientation prepares before even resolving
+its bootstrap target, so a repo-local override is read from current control.
+Direct chats in one Git checkout are serialized by a nonblocking occupancy
+guard; a second chat refuses before publishing or preparing anything. Its
+scope and lifetime are owned by
+[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md).
+For ordinary tasks, target
 resolution and the recorded-checkout test only classify; then launch
 publishes Coga state (the sweep over the Coga roots) and prepares the
 invoking checkout (`git.prepare_control_checkout`) before the delegation
@@ -48,7 +56,8 @@ Recurring periods keep their own entry gates and get only the return half,
 in the checkout the runner selected, delegated periods included; a refused
 return there exits 75 so the sweep stops instead of pausing the period and
 launching the next.
-The procedure, proof rules, and exemptions (bootstrap targets,
+The procedure, proof rules, refusal recovery, and exemptions (other bootstrap
+targets and delegated bootstrap sessions,
 `--prompt-report`, Git-disabled, non-Git, or
 remote-less workspaces, the recorded assist or sandbox-clone checkout, a
 released megalaunch witness) are owned by

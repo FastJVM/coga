@@ -39,6 +39,8 @@ What the agent should do once oriented:
 
 This is a bootstrap ticket, not a `tasks/` ticket: stateless — no status,
 no owner, no lock, no status or step transitions (launch and usage lines are
-still logged) — every launch is independent and concurrent launches are
-safe. Don't edit this ticket except to swap `agent:` to
+still logged). Direct chats allow one session per Git checkout: a second
+chat refuses before publishing or switching branches. Use separate checkouts
+for concurrent chats; see `dev/checkouts/launch-boundary` for the guard's
+scope and exemptions. Don't edit this ticket except to swap `agent:` to
 whichever agent type matches your `coga.toml`.
