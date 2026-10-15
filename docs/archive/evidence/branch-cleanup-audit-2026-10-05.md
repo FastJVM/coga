@@ -104,7 +104,7 @@ Post-cleanup `git for-each-ref` and fresh `git ls-remote --heads --tags origin` 
 - `.venv/bin/python -m pytest tests/test_branchcleanup.py tests/test_branchsweep.py -q`: 146 passed after correcting the deletion diagnostic for closed PRs.
 - `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json` from `example/coga`: four valid tickets, no issues.
 - This pass ran from the parallel implementation on the `terminal-branch-cleanup` branch. Preview used its `sweep_branches(..., dry_run=True)`, and the application rechecked the 31 eligible names with `branches={...}, remove_worktrees=False`. Those parameters are not part of the implementation that carries this page. Its successful archive and deletion outcomes are recorded above.
-- Recovery uses the recorded remote retirement tag with ordinary `git fetch origin tag <tag>` and `git switch -c <new-branch> <tag>`. The archive contract belongs to [dev/checkout-cleanup](../../contexts/dev/checkout-cleanup/SKILL.md).
+- Recovery uses the recorded remote retirement tag with ordinary `git fetch origin tag <tag>` and `git switch -c <new-branch> <tag>`. The archive contract belongs to [dev/checkout-cleanup/branch-sweep](../../contexts/dev/checkout-cleanup/branch-sweep/SKILL.md).
 
 The application run began before a wording-only diagnostic correction: its low-level helper called authorized force-deletions “PR merged.” The PR state and terminal owner in this table distinguish the two closed-unmerged cases (`usage-report-flow`, `v2-premise-adjudication`); neither was represented as landed work by the eligibility proof.
 

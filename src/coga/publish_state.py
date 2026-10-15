@@ -11,7 +11,7 @@ This recipe is that strict check. It runs the shared `git.publish` over
 `git.coga_root_paths` (the sweep's membership: the Coga root and the contexts
 root) and requires every named path to be on control afterwards, either landed
 by this publication or already matching. It adds no publication policy of its
-own; `coga/internals/state-publication` owns that.
+own; `coga/internals/state-publication/sweep` owns that.
 """
 
 from __future__ import annotations

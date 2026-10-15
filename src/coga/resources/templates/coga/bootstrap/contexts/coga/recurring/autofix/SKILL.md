@@ -23,7 +23,7 @@ The console output is unchanged.
    periods created but never launched, watchdog pauses) under
    `## Unresolved recurring failures`, and sweep notes. A named launch does
    not yet record a failed create sync; see
-   [scheduling](../scheduling/SKILL.md#failures-and-exit-code). Tee-ing
+   [scheduling](../scheduling/failures/SKILL.md#failures-and-exit-code). Tee-ing
    fd 1 would make `isatty` false and break every agent launch, so the
    blackboard — the only durable per-run channel — is what carries detail.
    A launch that refuses before `ticket.py` runs leaves that blackboard

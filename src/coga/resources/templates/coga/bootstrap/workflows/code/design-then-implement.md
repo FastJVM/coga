@@ -66,7 +66,7 @@ recorded branch, opens the PR, and writes `pr:` back under `## Dev`. It declares
 `requires: pr`, so `coga bump` holds the step until that line exists.
 
 There is no peer/self-review step in this workflow. The implement step prepares
-`## PR` using the [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md)
+`## PR` using the [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md)
 rubric/schema and explicitly reports that code review was not performed.
 Owner approval of the design is not implementation review. The publication
 command renders that evidence and a verbatim ticket snapshot; missing evidence

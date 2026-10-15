@@ -1,6 +1,6 @@
 ---
 name: dev/checkouts
-description: Where code-ticket work runs: the launch checkout, launch's boundary that prepares and returns it, the manual start check and end-of-step return to `main`, the sandbox clone fallback, seeding a fresh clone, and which checkout to invoke Coga from.
+description: Where code-ticket work runs: the launch checkout, the start check and end-of-step return to `main` in launched and manual sessions, publishing pre-branch ticket edits, and which checkout to invoke Coga from; the launch boundary and the sandbox clone fallback live in its leaves.
 ---
 
 # Feature checkouts
@@ -18,9 +18,9 @@ recurring runner's temporary linked control worktree for a parked checkout
 and Retro's dedicated isolated checkout, which the `retro/done-ticket` skill
 and `coga retire`'s task prompt create and remove for one Retro pass, so
 Retro runs while the operator keeps working in the main tree (owner decision,
-2026-10-14). Revisit either decision if those worktrees leak or become operator-visible noise.
-The one alternative checkout for ticket work is the sandbox clone fallback
-below.
+2026-10-14). Revisit either decision if those worktrees leak or become
+operator-visible noise.
+The one alternative checkout for ticket work is the [sandbox clone fallback](sandbox-clone/SKILL.md).
 
 `origin` and `main` stand for the configured `[git].remote` and
 `[git].control_branch`; `coga/tasks/`, `coga/recurring/`, and `coga/log.md`
@@ -29,77 +29,13 @@ roots** are the Coga root plus the configured contexts root
 (`git.coga_root_paths`); every eligible (unignored) file there is Coga state
 that publication carries ([coga/internals/state-publication](../../coga/internals/state-publication/SKILL.md)).
 
-## The launch boundary
+## Leaves
 
-An ordinary ticket launch prepares the invoking checkout before it reads the
-ticket to compose, run `ticket.py`, or activate, and returns it after every
-agent session or `ticket.py` phase and at teardown. Where the boundary sits in
-dispatch and chaining is owned by [coga/launch](../../coga/launch/SKILL.md).
-On return, reload and validate the on-disk configuration before publishing or
-preparing the checkout, so a session's new contexts root is included. Keep the
-previous contexts root in that return's publication and cleanup membership
-too, so a relocation publishes both sides together. The boundary captures that
-root at admission and each successful return; a script's own config reload
-before its return callback cannot replace it. Invalid
-configuration or a changed Git destination stops the return and withholds the
-final sweep, preserving the session's edits. Each time it:
-
-1. **Publishes Coga state.** The ordinary state sweep (`sync_coga_state`)
-   lands any dirty file under the Coga roots — tickets, log, recurring
-   templates, contexts, skills, workflows, config — that the session or
-   script did not publish, plus eligible committed state such as a hand
-   commit on local `main` whose control copy has not moved since. Only what
-   publication cannot land stays dirty or unpublished.
-2. **Pins control.** `git fetch origin main` and pin that commit. Local
-   `main` must exist and be equal to or behind it, or carry only commits of
-   Coga state whose content is already on the pinned commit (proved commit
-   by commit and path by path; [coga/internals/git-refresh](../../coga/internals/git-refresh/SKILL.md)),
-   in which case it is realigned rather than fast-forwarded. A detached HEAD,
-   a merge, rebase, cherry-pick, revert, or bisect in progress, `main` checked
-   out in another worktree, or any other ahead or diverged `main` refuses.
-   Remedies: for local commits of Coga state not yet on control, run
-   `git pull --rebase --autostash origin main` on `main` (switch to `main`
-   first from a feature branch) and retry the command; for local commits
-   touching anything else, reconcile them (`git pull --rebase --autostash
-   origin main` and push); otherwise `git worktree remove <path>`, or finish
-   or abort the operation.
-3. **Proves every change.** Staged, tracked, and untracked changes anywhere
-   in the checkout are examined. Only files under the Coga roots may be
-   discarded, and only when already on the pinned `origin/main`: the same existence, file mode,
-   and bytes, or, for a `merge=union` file such as `coga/log.md`, every working
-   line already on control (union-merging it onto control changes nothing).
-   A staged copy must equal HEAD's or the published one. Deletions and both
-   sides of a rename count separately. Symlinks, submodules, and mode
-   changes refuse even with equal bytes. Ignored files are never candidates;
-   one the move would overwrite refuses.
-4. **Mutates only after full proof.** The whole plan is re-observed just
-   before the first write, and changed evidence refuses. Then proven tracked
-   paths are restored to HEAD, proven untracked files removed, HEAD switched
-   to `main`, and `main` fast-forwarded to the pinned commit — or realigned
-   to it (`read-tree -m -u` and an old-value-guarded `update-ref`), with the
-   dropped commits named on stderr and kept in the reflog. The result is
-   verified clean at that commit. It never stashes, rebases, resets hard,
-   force-switches, commits, deletes a branch, or pushes code. The feature
-   branch stays.
-
-An entry refusal names the blocking paths or branch and the remedy, starts no
-work, changes no checkout contents or local ref, and exits 75 so the outer
-sweep does not publish the rejected dirt. A refusal after a session is a
-prominent warning: the remaining work and the session's own result stand,
-chaining stops, and that command's end sweep is withheld. An unexpected Git
-or I/O failure after mutation began reports where it stopped; nothing is
-rolled back. A killed launch is recovered by the next entry.
-
-The boundary is skipped, and the checkout left as it is, for Git-disabled,
-non-Git, and remote-less workspaces (no freshness is claimed); bootstrap and
-chat targets, including delegated bootstrap sessions; `--prompt-report`; a
-launch from the ticket's recorded `worktree:` on its recorded `branch:` (the
-recorded human assist and the sandbox clone); a ticket holding a released
-megalaunch admission; and megalaunch picks. Recurring periods keep their own
-entry gates, which already require control, and get the return half,
-including a period that delegates to a bootstrap target: the delegated
-session itself is exempt, but its period settles once that session ends. A
-refusal there exits 75 so the recurring sweep stops launching templates.
+- [dev/checkouts/launch-boundary](launch-boundary/SKILL.md) — what an
+  ordinary launch does to prepare and return the invoking checkout, its
+  refusals, and which launches skip it.
+- [dev/checkouts/sandbox-clone](sandbox-clone/SKILL.md) — the sandbox clone
+  fallback and seeding what a fresh checkout lacks.
 
 ## Start, work, end
 
@@ -151,7 +87,7 @@ Without the witness, the agent performs both moves:
    - `git fetch origin main`;
    - for every dirty path under the Coga roots, verify it is already on
      `origin/main` by the rules of
-     the launch boundary above (`git diff --quiet origin/main -- <path>`;
+     [the launch boundary](launch-boundary/SKILL.md) (`git diff --quiet origin/main -- <path>`;
      for `coga/log.md`, every added line is on `origin/main`) and discard it
      (`git restore --source=HEAD --staged --worktree -- <path>`). `git diff`
      skips untracked files, so compare an untracked one with
@@ -199,61 +135,6 @@ the ticket edit on the feature branch. The same publication applies to a
 sandbox clone's `worktree:` record in the primary checkout, before starting
 work in the clone.
 
-**Sandbox clone fallback.** When the sandbox mounts the primary `.git`
-read-only so `git switch -c` fails, make `git clone --no-hardlinks` under
-`/tmp`, repoint `origin` at the real remote, fetch the control branch, create
-the branch there, and record the clone's path in `worktree:`
-([dev/dev-record](../dev-record/SKILL.md)). Ticket state, `coga bump`, and
-`coga open-pr` stay in the primary checkout on `main`; `open-pr` runs its git
-checks inside the recorded clone. Do not force writes through protected
-metadata or stop to ask when this fallback is available. A `/tmp` clone dies
-at reboot, so push the branch before ending the session.
-
-## What a fresh checkout lacks
-
-A fresh sandbox clone has nothing Git ignores:
-
-- **`coga.local.toml`: hard error.** Commands that act as someone (`bump`,
-  `block`, `create`, `mark`, `launch`, `run`, `slack`, ...) load with
-  `require_user=True` and exit 2 before acting; read-only views (`status`,
-  `show`, `validate`, `usage`, `skill status`, `recurring list`,
-  `secret get`) tolerate it. No variable or flag substitutes. Seed it
-  immediately after creating the checkout and on every resumed session:
-
-  ```bash
-  python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo
-  ```
-
-  Resolve the attachment from the primary checkout's local skills, else the
-  package (`python -c 'from coga.paths import packaged_template_path;
-  print(packaged_template_path("bootstrap", "skills", "code", "implement"))'`
-  under an interpreter that imports `coga`). Start the helper with Python
-  3.11+; it imports `tomllib` before reaching the re-exec fallback. If `coga`
-  cannot be imported, it re-execs under the `coga` script's interpreter. The
-  source config must parse with a nonempty `user`; an absent destination is copied
-  byte-for-byte with mode `0600`; an existing one must have the same actor and
-  is tightened to `0600`. It verifies the file is ignored and untracked; never
-  symlink, print, stage, or commit it. Remove it on teardown only for
-  disposable checkouts whose owning flow removes the checkout.
-- **Agent discovery links do not self-heal.** Launch rebuilds
-  `coga/.agent-skills/`, but the ignored `.claude/skills/coga` and
-  `.codex/skills/coga` links are created only by `coga init`. From this repo's
-  checkout root, inspecting existing paths first:
-
-  ```sh
-  mkdir -p .claude/skills .codex/skills
-  ln -s ../../coga/.agent-skills .claude/skills/coga
-  ln -s ../../coga/.agent-skills .codex/skills/coga
-  ```
-
-- **`.coga/` is created on demand** (run records, megalaunch selection).
-  `.venv/`, `.env*`, `.secrets/` are not needed: `coga` runs from its own
-  install and `env:` refs read the process environment.
-
-A rebuilt `.agent-skills/` and an unedited copy of `coga.local.toml` do not
-block `coga retire` of a leftover linked worktree; an edited copy and discovery
-links are ignored, non-regenerable state, so they make it preserve the checkout.
-
 ## Which checkout you invoke Coga from
 
 - **Mutating commands publish from wherever they run.** The exit sweep
@@ -269,7 +150,7 @@ links are ignored, non-regenerable state, so they make it preserve the checkout.
   and regenerates `.agent-skills/`. For a write-free view call
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.
 - **Launch and megalaunch compose from the invoking checkout.** An ordinary
-  ticket launch brings it to a fresh control checkout first (the launch
-  boundary above). Run megalaunch and exempt launches only from a control
+  ticket launch brings it to a fresh control checkout first (the [launch
+  boundary](launch-boundary/SKILL.md)). Run megalaunch and exempt launches only from a control
   checkout freshly synced to `origin/<control>`; a stale one re-dispatches
   merged work.

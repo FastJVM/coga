@@ -66,7 +66,7 @@ Git delete), and `status [--check] [--json]`.
 - `--pr` requires `--all` and opens or updates one draft PR after running the
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the
-  [branch-sweep cleanup contract](../../dev/checkout-cleanup/SKILL.md#branch-sweep-protection-and-archive).
+  [branch-sweep cleanup contract](../../dev/checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
 

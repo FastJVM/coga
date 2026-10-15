@@ -153,7 +153,7 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 - State-changing commands (`create`, `bump`, `mark`) fail when the sandbox
   forbids `.git/index.lock`; rerun unsandboxed or grant `.git` write access.
 - When `git worktree add` cannot write the primary `.git`, use the
-  independent-clone fallback in [dev/checkouts](../../dev/checkouts/SKILL.md).
+  independent-clone fallback in [dev/checkouts/sandbox-clone](../../dev/checkouts/sandbox-clone/SKILL.md).
 
 ### Codex sandbox grant
 

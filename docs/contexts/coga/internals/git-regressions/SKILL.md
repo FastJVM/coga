@@ -6,7 +6,7 @@ description: Why `git.publish` refuses to land a Coga state file — the provena
 # Publication refusals and state regressions
 
 Part of `publish` step 3 (`src/coga/git.py` `_guard`); the surrounding flow is
-[`coga/internals/state-publication`](../state-publication/SKILL.md).
+[`coga/internals/state-publication/publish`](../state-publication/publish/SKILL.md).
 
 ## The provenance check
 
@@ -62,7 +62,7 @@ provenance check and is removed from the new tree.
 Every refusal is collected, logged as `sync refused: …` (except as above),
 and raised together as `StateRegressionError` before any push; the file stays
 as written. Best-effort callers report and continue; strict callers restore
-and retract (`coga/internals/state-publication`). A refused `bump` rewind
+and retract (`coga/internals/state-publication/publish`). A refused `bump` rewind
 exits 75 so the sweep does not republish the retained local rewind.
 
 ## Shipping a stored-ticket schema conversion

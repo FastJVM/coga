@@ -101,8 +101,8 @@ later `code/open-pr` step does that, after review and fixes.
    interpreter named by the `coga` console script's shebang, and fails loud if
    no `coga` is on PATH.
    Resolve this skill local-first, falling back to the installed bundled
-   skill (see `dev/checkouts`, "What a fresh checkout lacks"). Stop on failure;
-   never synthesize an actor.
+   skill (see `dev/checkouts/sandbox-clone`, "What a fresh checkout
+   lacks"). Stop on failure; never synthesize an actor.
 
    **On a resumed session** where `## Dev` already records a `branch:`, reuse
    it: after the start check, `git switch <branch-name>`, then
@@ -152,7 +152,7 @@ later `code/open-pr` step does that, after review and fixes.
    escalate — never discard unpublished state. In the
    sandbox clone layout, push from the clone; the launch checkout never left
    `main`.
-10. **Prepare publication evidence.** Read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+10. **Prepare publication evidence.** Read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
     “Presentation and review-depth rubric” and “Preparation record”. Before the
     handoff, retain the actual implementing agent identity from this session
     (including overrides), exact check commands/results/counts and omission

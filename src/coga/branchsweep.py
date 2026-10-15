@@ -42,7 +42,7 @@ ticket explicitly owns — a `## Dev` `branch:` line, or an open `retires.md`
 entry autoclose recorded for a ticket it closed (`_terminal_owners`) — and
 only once no live ticket in any workspace records it (`_closed_pr_claim`).
 Source commits added after the PR closed keep the ref and are reported. The
-`dev/checkout-cleanup` context owns that rule; `only=` lets ticket-scoped
+`dev/checkout-cleanup/terminal-owners` context owns that rule; `only=` lets ticket-scoped
 disposal run it for one finished ticket's branches.
 
 The shared skill-update branch is always protected. Before deleting any other
@@ -59,7 +59,7 @@ worktree is, by default, preserved deliberately and reported as
 worktree-pinned instead of falling through to a failed `git branch -d`/`-D`.
 With `[git].worktrees_ticket_owned = true` the repo has declared that every
 linked worktree of this repository belongs to a Coga ticket (the
-`dev/checkout-cleanup` context owns that assumption), so a landed, pristine
+`dev/checkout-cleanup/branch-sweep` context owns that assumption), so a landed, pristine
 one no live ticket claims is finished work: the sweep removes the worktree first
 (`branchcleanup.inspect_worktree_for_removal` — same-repo linked worktree,
 checked out on that branch, no tracked or untracked local state; then

@@ -214,7 +214,7 @@ This is the same rule `code/review-design` applies to evaluator findings.
 The same holds for a ticket cited in `## Context`: copy the substance this
 task needs, and cite the slug only for provenance. Retro and `coga retire` may
 delete it first. When the source is already gone, recover its body with the
-retired-task recipe in `coga/tickets` (`Where tasks live and how they are
+retired-task recipe in `coga/tickets/discovery` (`Where tasks live and how they are
 named`), which also searches the pre-rename `relay-os/tasks/` tree.
 
 ## Step 3 — Interview the human
@@ -377,10 +377,10 @@ Hand the evaluator the path to the ticket and ask it to assess:
   it, and does any cite quote a size or token count as its justification?
 - Is the scope reasonable, or does it bundle multiple tickets' worth of
   work? If so, recommend a split into sibling tickets in a plain directory,
-  never a parent ticket (`coga/tickets`). The evaluator only recommends; it
+  never a parent ticket (`coga/tickets/discovery`). The evaluator only recommends; it
   does not create tickets. Apply an agreed split yourself, after the human
   confirms it, with `coga create "<group>/<title>"` and the disposal
-  sequence in `coga/tickets`.
+  sequence in `coga/tickets/discovery`.
 - Any assumptions that should be questioned before launch?
 
 Also hand the evaluator the composed prompt's size breakdown, which the

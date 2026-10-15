@@ -122,7 +122,7 @@ class Config:
     # worktree of its git repository belongs to a Coga ticket, so the weekly
     # branch sweep may remove a landed, pristine one no live ticket claims
     # (`branchsweep`). Off by default — destructive behavior is never implicit;
-    # the `dev/checkout-cleanup` context states the assumption a repo opts into.
+    # the `dev/checkout-cleanup/branch-sweep` context states the assumption a repo opts into.
     git_worktrees_ticket_owned: bool = False
     # Liveness limits for the interactive REPLs `coga recurring` spawns, from
     # the shared `[launch]` table. None = no limit from config. The idle timeout
