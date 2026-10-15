@@ -8412,3 +8412,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 21:56 v1 [windows-native/core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] created (status=draft)
 2026-10-14 21:56 v1 [windows-native/interactive-coga-launch-on-native-windows] [human:nicktoper] created (status=draft)
 2026-10-14 21:56 v1 [windows-native/pr-ci-with-linux-and-windows-test-jobs] [human:nicktoper] created (status=draft)
+2026-10-14 21:56 v1 [codex-sessions-lose-coga-launch-env-through-the-sh] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
