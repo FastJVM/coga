@@ -25,6 +25,7 @@ from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
+    EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
@@ -245,6 +246,7 @@ def run_script_phase(
     env.pop(SENTINEL_ENV, None)
     env.pop(EXPECTED_TASK_ENV, None)
     env.pop(EXPECTED_STEP_ENV, None)
+    env.pop(EXPECTED_AGENT_ENV, None)
     env[SCRIPT_TASK_ENV] = str(ref.path.resolve())
     if strict_assist:
         env[EXPECTED_TASK_ENV] = str(ref.path.resolve())

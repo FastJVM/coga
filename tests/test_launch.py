@@ -37,6 +37,7 @@ from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
+    EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
@@ -5011,6 +5012,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
 
     def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
+        captured["env"] = env
         return _Result()
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
@@ -5029,6 +5031,10 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     cmd = captured["cmd"]
     assert isinstance(cmd, list)
     assert cmd[0] == "codex"
+    # Completion attribution credits the agent that ran, not the routed one.
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env[EXPECTED_AGENT_ENV] == "codex"
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]

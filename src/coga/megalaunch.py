@@ -2076,6 +2076,7 @@ def _preflight_agent_launch(
             build_launch_env(cfg, launch_ticket.secrets),
             task_path=ref.path,
             step=launch_ticket.step,
+            agent=launch_agent,
         )
     except FileNotFoundError as exc:
         return missing_launch_file_message(exc)

@@ -46,7 +46,8 @@ lookup, skill refresh, or push probe.
 4. The child runs as `[sys.executable, ticket.py]` from the host repository
    root with no operands. Its environment gets fresh `COGA_TASK_*`,
    `COGA_SCRIPT_TASK=<absolute target path>`, and loses `COGA_SUPERVISED`,
-   `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, and `COGA_EXPECTED_STEP`, so a
+   `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
+   `COGA_EXPECTED_AGENT`, so a
    child completion cannot finish an outer agent session.
 5. `script exited with code N` is logged even if the script deleted or broke
    its ticket. A non-zero exit posts `💥 script failed` (non-fatal to the

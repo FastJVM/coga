@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from coga.repl_supervisor import EXPECTED_TASK_ENV
+from coga.repl_supervisor import EXPECTED_AGENT_ENV, EXPECTED_TASK_ENV
 from coga.task_env import is_script_task
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -78,5 +78,8 @@ def completion_identity(
         except OperatorResolutionError:
             operator = None
         if operator is not None and operator.is_agent:
-            return f"agent:{operator.name}", operator.name
+            # Credit the agent the supervisor spawned; the routed operator is
+            # only who the step was assigned to.
+            ran = os.environ.get(EXPECTED_AGENT_ENV, "").strip() or operator.name
+            return f"agent:{ran}", ran
     return f"human:{cfg.current_user}", cfg.current_user
