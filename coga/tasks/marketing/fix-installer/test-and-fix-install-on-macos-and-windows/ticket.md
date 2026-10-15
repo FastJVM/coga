@@ -1,6 +1,6 @@
 ---
 title: Test and fix install on macOS and Windows
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: code/with-self-review
