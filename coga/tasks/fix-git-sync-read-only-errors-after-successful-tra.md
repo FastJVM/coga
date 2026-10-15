@@ -1,6 +1,6 @@
 ---
 title: Fix Git sync read-only errors after successful transitions
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
