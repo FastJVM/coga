@@ -749,6 +749,12 @@ def _launch(
     boundary = _CheckoutBoundary()
     may_normalize = not prompt_report and not recurring_authorized
 
+    # Chat/orientation must compose from current control too, including its
+    # repo-local bootstrap override. Other bootstrap commands may deliberately
+    # operate on a PR branch; delegated sessions keep their caller's boundary.
+    if may_normalize and not require_agent_target and task == "bootstrap/orient":
+        cfg = boundary.enter(cfg, task)
+
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
@@ -2715,6 +2721,14 @@ def _checkout_refusal_message(
         f"at {cfg.git_remote}/{cfg.git_control_branch} {what}: {outcome.reason}"
     ]
     lines.extend(f"  - {item}" for item in outcome.blocking)
+    lines.append(
+        "Before changing this checkout, identify its branch's ticket and check "
+        f"the ticket on current {cfg.git_remote}/{cfg.git_control_branch} and "
+        "the PR's merge status. Inspect uncommitted changes separately; a "
+        "merged PR does not prove those edits are finished. Do not automatically "
+        "stash or discard them. Follow dev/checkouts/launch-boundary's "
+        "checkout recovery procedure."
+    )
     return "\n".join(lines)
 
 

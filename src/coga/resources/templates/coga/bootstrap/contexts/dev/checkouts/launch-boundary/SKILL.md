@@ -1,14 +1,15 @@
 ---
 name: dev/checkouts/launch-boundary
-description: The launch boundary: how an ordinary ticket launch publishes Coga state, pins control, proves every change and only then moves the invoking checkout to `main` before and after each session, how it refuses, and which launches skip it.
+description: Preparation and return to current control for ordinary tickets and chat/orientation, refusal recovery, and exemptions.
 ---
 
 # The launch boundary
 
 Part of [dev/checkouts](../SKILL.md).
 
-An ordinary ticket launch prepares the invoking checkout before it reads the
-ticket to compose, run `ticket.py`, or activate, and returns it after every
+An ordinary ticket launch and a direct `bootstrap/orient` launch (`coga chat`)
+prepare the invoking checkout before reading the ticket to compose, run
+`ticket.py`, or activate, and return it after every
 agent session or `ticket.py` phase and at teardown. Where the boundary sits in
 dispatch and chaining is owned by [coga/launch](../../../coga/launch/SKILL.md).
 On return, reload and validate the on-disk configuration before publishing or
@@ -67,8 +68,9 @@ or I/O failure after mutation began reports where it stopped; nothing is
 rolled back. A killed launch is recovered by the next entry.
 
 The boundary is skipped, and the checkout left as it is, for Git-disabled,
-non-Git, and remote-less workspaces (no freshness is claimed); bootstrap and
-chat targets, including delegated bootstrap sessions; `--prompt-report`; a
+non-Git, and remote-less workspaces (no freshness is claimed); bootstrap targets
+other than direct `bootstrap/orient`, including all delegated bootstrap
+sessions; `--prompt-report`; a
 launch from the ticket's recorded `worktree:` on its recorded `branch:` (the
 recorded human assist and the sandbox clone); a ticket holding a released
 megalaunch admission; and megalaunch picks. Recurring periods keep their own
@@ -76,3 +78,36 @@ entry gates, which already require control, and get the return half,
 including a period that delegates to a bootstrap target: the delegated
 session itself is exempt, but its period settles once that session ends. A
 refusal there exits 75 so the recurring sweep stops launching templates.
+
+## Checkout recovery
+
+When preparation refuses, or an agent finds an unexpected starting checkout,
+investigate before changing it. A stale branch's ticket is not current task
+state, and a merged PR does not establish that uncommitted edits are finished.
+
+1. Inspect HEAD, staged and unstaged diffs, and untracked files. Identify the
+   branch's associated ticket from its recorded `branch:` or `pr:`, commit
+   history, and PR metadata. Do not infer a ticket solely from the branch name;
+   report an unknown or ambiguous association.
+2. Fetch the configured remote control branch and read that revision's ticket
+   without replacing local files. Check the linked PR's current state and
+   merge evidence. Report the ticket, current lifecycle status, and whether
+   its work merged; distinguish that from any stale local status. If access
+   prevents verification, report the uncertainty rather than calling it done.
+3. Account for uncommitted changes separately. Compare them with current
+   control and the associated branch, preserving unique work. State which
+   changes are already incorporated, which remain needed, and whose purpose
+   or ownership is unknown. A stash preserves bytes but does not answer these
+   questions; never automatically stash, reset, or discard edits to clear the
+   refusal. Do not switch another task's occupied checkout.
+4. Explain the proposed recovery and its effect on remaining work. Resolve
+   unclear intent, ownership, or permissions through session conduct before
+   mutation; then perform the authorized recovery and retry the normal launch.
+   Never mark a ticket done or replay a workflow transition merely because
+   its PR merged. Launch itself does not query GitHub or make these judgments.
+
+The base prompt links this procedure for agent-led investigation; launch's
+refusal prints the key checks before exiting 75 without spawning an agent.
+Direct orientation uses the same preparation and return guarantees as ordinary
+tickets, not an automatic stash or a recovery-session bypass. Concurrent
+sessions still share the invoking checkout; statelessness is not isolation.
