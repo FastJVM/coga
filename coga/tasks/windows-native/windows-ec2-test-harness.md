@@ -1,6 +1,6 @@
 ---
 title: Windows EC2 test harness
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
