@@ -64,8 +64,8 @@ see what goes in. For intensive use, we find that easier to manage.
 ## Philosophy
 
 Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. The [manifesto](docs/contexts/product/vision/SKILL.md)
-describes the philosophy and design principles behind Coga.
+into the next task. The [design principles](docs/contexts/coga/principles/SKILL.md)
+describe the philosophy behind Coga.
 
 ## Example
 
@@ -150,7 +150,7 @@ surface it.
 
 - [Documentation index](docs/README.md): start, understand, operate and
   develop.
-- [Manifesto](docs/contexts/product/vision/SKILL.md): the philosophy and design
+- [Design principles](docs/contexts/coga/principles/SKILL.md): the philosophy and design
   principles behind Coga.
 - [Contributing](CONTRIBUTING.md).
 - Limits: contexts go into the prompt as truth, so a stale one misleads.

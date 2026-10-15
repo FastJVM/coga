@@ -1,7 +1,7 @@
-# Reading behind Coga's philosophical manifesto
+# Reading behind Coga's design principles
 
-A companion to the [manifesto](SKILL.md), kept separate so the manifesto
-stays short enough to include in a task's context. These are influences and
+A companion to the [principles](SKILL.md), kept separate so they
+stay short enough to include in a task's context. These are influences and
 related readings, not evidence that Coga has achieved its ambitions.
 
 - **Steve Jobs — [Make Something Wonderful](https://book.stevejobsarchive.com/).**
@@ -24,4 +24,4 @@ human capability as a system of people, tools, language, methods, and
 training, with improvements that can enable further improvements.
 
 The [origins essay](../../../archive/origins.md) preserves Coga's earlier
-founding narrative; it is historical context, not the current manifesto.
+founding narrative; it is historical context, not the current design principles.

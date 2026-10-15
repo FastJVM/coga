@@ -27,7 +27,7 @@ and unimplemented proposals in [`archive/design/`](archive/design/).
   (a durable fact with one owning file), and a
   [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
   work).
-- [Manifesto](contexts/product/vision/SKILL.md) — philosophy and design principles.
+- [Design principles](contexts/coga/principles/SKILL.md) — philosophy and design principles.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
 - The work unit: [tickets](contexts/coga/tickets/SKILL.md)
@@ -123,7 +123,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
 
 ## Product and positioning
 
-- [Manifesto](contexts/product/vision/SKILL.md) — philosophy and design principles.
+- [Design principles](contexts/coga/principles/SKILL.md) — philosophy and design principles.
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),

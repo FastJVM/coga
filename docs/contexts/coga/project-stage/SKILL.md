@@ -11,7 +11,7 @@ Show HN launch ([`marketing/plan`](../../marketing/plan/SKILL.md)) is the
 expected point at which the expiry below trips.
 
 This context governs *posture*, not principles. The principles
-([`product/vision`](../../product/vision/SKILL.md)) are permanent; this posture
+([`coga/principles`](../principles/SKILL.md)) are permanent; this posture
 expires.
 
 ## Move fast

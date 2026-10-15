@@ -170,7 +170,7 @@ INTENTIONALLY_DIVERGENT_TWINS = {
         "fresh repo starts from."
     ),
     "coga/context.md": (
-        "The live copy carries a checked copy of this repo's manifesto so "
+        "The live copy carries a checked copy of this repo's principles so "
         "every launch reads the same canonical philosophy; the packaged copy is the stub a "
         "fresh repo starts from."
     ),
@@ -451,7 +451,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
 REQUIRED_INIT_CONTEXT_FILES = frozenset({".gitignore", "_template/SKILL.md"})
 
 LOCAL_ONLY_CONTEXT_REFS = {
-    "product/vision": "This repo's philosophical manifesto, not guidance for other repos.",
     "coga/current-direction": "Dated posture of this repo's own development.",
     "coga/project-stage": "Dated stage of this repo's own development.",
     "marketing/map": "This project's own marketing material.",

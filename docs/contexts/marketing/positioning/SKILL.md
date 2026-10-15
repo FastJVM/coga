@@ -38,10 +38,10 @@ premise and was replaced by a research plan in tickets.
   enough to throw away", never free.
 
 - **Owner clarification, 2026-10-15.** The
-  [philosophical manifesto](../../product/vision/SKILL.md) may describe human
+  [design principles](../../coga/principles/SKILL.md) may describe human
   purpose and judgment as being at the center, and small improvements as
   compounding. These express philosophical intent, not measured results.
-  This exception is for the manifesto; the marketing-copy restrictions above
+  This exception is for the design principles; the marketing-copy restrictions above
   still apply to other surfaces.
 
 - Use public support for claims about actual Coga work: dated tickets, log

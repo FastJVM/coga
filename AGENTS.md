@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Read First
-Read the [manifesto](docs/contexts/product/vision/SKILL.md) for Coga's philosophy and design principles. When editing [README.md](README.md), keep it aligned with the manifesto. Read the relevant topic under `docs/contexts/` before changing behavior, and update it in the same PR. [docs/README.md](docs/README.md) indexes the library.
+Start with [Coga's design principles](docs/contexts/coga/principles/SKILL.md). When editing [README.md](README.md), keep it aligned with the principles. Read the relevant topic under `docs/contexts/` before changing behavior, and update it in the same PR. [docs/README.md](docs/README.md) indexes the library.
 
 Canonical Coga topics (under `docs/contexts/`):
 

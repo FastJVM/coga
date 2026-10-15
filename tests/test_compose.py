@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from importlib.resources import files
 from pathlib import Path
 from textwrap import dedent
@@ -347,36 +348,47 @@ def test_coga_repo_instructions_carry_the_minimal_core_boundary(
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])
-def test_coga_repo_manifesto_reaches_launches_without_ticket_attachment(
+def test_coga_repo_principles_reach_launches_without_ticket_attachment(
     repo: Path, bootstrap: bool
 ) -> None:
-    """Both launch entry paths receive the checked copy of the canonical manifesto."""
+    """Both launch entry paths receive the checked copy of the canonical principles."""
     repo_root = Path(__file__).resolve().parents[1]
     source = repo_root / "coga/context.md"
-    manifesto = repo_root / "docs/contexts/product/vision/SKILL.md"
+    principles = repo_root / "docs/contexts/coga/principles/SKILL.md"
     assert not source.is_symlink()
     comment, separator, mirrored = source.read_text().partition("\n\n")
     assert comment == (
-        "<!-- Generated from docs/contexts/product/vision/SKILL.md; "
+        "<!-- Generated from docs/contexts/coga/principles/SKILL.md; "
         "edit that owner and refresh this copy. -->"
     )
     assert separator
-    assert mirrored == manifesto.read_text()
+    assert mirrored == principles.read_text()
+    github_root = "https://github.com/FastJVM/coga/blob/main/"
+    for document in (source, principles):
+        links = re.findall(r"\]\(([^)]+)\)", document.read_text())
+        assert links
+        for link in links:
+            target = (
+                repo_root / link.removeprefix(github_root)
+                if link.startswith(github_root)
+                else document.parent / link
+            )
+            assert target.is_file(), (document, link)
     (repo / "context.md").write_text(source.read_text())
 
     cfg = load_config(repo)
     if bootstrap:
         ref = resolve_bootstrap(cfg, "orient")
     else:
-        slug = _write_workflow_less_task(repo, title="Manifesto inclusion")
+        slug = _write_workflow_less_task(repo, title="Principles inclusion")
         ref = resolve_task(cfg, slug)
     ticket = read_ticket(ref)
-    assert "product/vision" not in ticket.contexts
+    assert "coga/principles" not in ticket.contexts
     report = compose_prompt_report(cfg, ref, ticket)
     layers = [layer for layer in report.layers if layer.layer == "repo_context"]
     assert len(layers) == 1
     assert layers[0].text == source.read_text()
-    assert report.prompt.count(manifesto.read_text()) == 1
+    assert report.prompt.count(principles.read_text()) == 1
 
 
 @pytest.mark.parametrize(

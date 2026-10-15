@@ -1,19 +1,20 @@
-<!-- Generated from docs/contexts/product/vision/SKILL.md; edit that owner and refresh this copy. -->
+<!-- Generated from docs/contexts/coga/principles/SKILL.md; edit that owner and refresh this copy. -->
 
 ---
-name: product/vision
-description: Coga's manifesto and design principles — the shared foundation for developing Coga and writing its README.
+name: coga/principles
+description: Coga's design principles — the shared foundation for developing Coga and writing its README.
 ---
 
-# Coga's manifesto
+# Coga's design principles
 
 Coga is an instrument for the human using agents: a workbench for work where
 building helps us discover what to build. Its purpose is useful work, clearer
 understanding, and tools we can reshape as we learn.
 
-- **Human judgment leads.** People choose purpose, attention, and direction.
-  Agents help discover problems, challenge assumptions, explore, and build.
-  Automate mechanical work to leave more attention for judgment.
+- **Expand human capacity.** Expand people's ability to think, explore, and
+  create. People choose purpose and direction; agents help discover problems,
+  challenge assumptions, and build. Automate mechanical work to leave more
+  attention for judgment.
 - **Text above code.** Readable text carries intent, knowledge, and decisions.
   Code implements that understanding and can be rewritten as we learn.
 - **Context is explicit.** People can find, question, correct, and choose the
@@ -31,7 +32,7 @@ understanding, and tools we can reshape as we learn.
 - **The task outlives the session.** Give substantive work a durable record
   that people can direct and agents can resume.
 
-This manifesto owns Coga's philosophy and design principles. The
-[README](../../../../README.md) derives from it; edits to the README must stay
+These principles guide Coga's design. The
+[README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them; edits to the README must stay
 aligned. Behavioral topics own current implementation contracts, including
-Git. The [reading list](reading-list.md) records our influences.
+Git. The [reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/principles/reading-list.md) records our influences.

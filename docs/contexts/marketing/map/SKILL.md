@@ -25,7 +25,7 @@ Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Manifesto](../../product/vision/SKILL.md): philosophy and design principles.
+- [Design principles](../../coga/principles/SKILL.md): philosophy and design principles.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.

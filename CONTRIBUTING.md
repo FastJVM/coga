@@ -11,7 +11,7 @@ Use an issue to describe a bug or propose a change. A small reproduction or a
 concrete use case is enough to start the conversation.
 
 Substantive work belongs in a [Coga ticket](coga/tasks/), following the repo's
-[manifesto](docs/contexts/product/vision/SKILL.md).
+[design principles](docs/contexts/coga/principles/SKILL.md).
 If there is no ticket for your change, open an issue first so maintainers can
 help agree on scope and create or identify the ticket. You do not need to set
 up Coga to file an issue. Small typo fixes can go straight to a pull request.
