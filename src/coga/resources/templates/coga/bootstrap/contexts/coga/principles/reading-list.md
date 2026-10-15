@@ -8,6 +8,10 @@ related readings, not evidence that Coga has achieved its ambitions.
   The Steve Jobs Archive's collection of speeches, interviews, and writing
   provides a starting point for the bicycle-for-the-mind metaphor and the
   ambition to amplify what people can do with computers.
+- **Tim O’Reilly — [Jensen Huang Gets It Wrong, Claude Gets It Right (2025)](https://www.oreilly.com/radar/jensen-huang-gets-it-wrong/).**
+  An argument for designing AI tools that expand human capability and agency.
+  Useful for asking whether a feature helps people pursue new possibilities,
+  beyond automating existing work.
 - **Robert M. Pirsig — [Zen and the Art of Motorcycle Maintenance](https://www.penguin.co.uk/books/431040/zen-and-the-art-of-motorcycle-maintenance-by-pirsig-robert/9780099598169).**
   Read for the relationship between quality, care, and understanding the
   tools you use. Coga's commitment to hackability is our interpretation of
