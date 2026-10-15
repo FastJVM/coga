@@ -9,8 +9,8 @@ The Python package (`src/coga/`) is a microkernel. Everything else user-facing
 is a ticket, a command ticket, a skill describing how to invoke something, or
 an external tool. Aliases are argv sugar, not a home. The dated verb-by-verb
 inventory is in `docs/archive/cli-extension-audit.md`;
-the unshipped external-surface proposal (verify-at-compose, extraction) is in
-`docs/design/cli-external-surface.md`. Neither is settled rule.
+the archived, unimplemented external-surface proposal (verify-at-compose, extraction) is in
+`docs/archive/design/cli-external-surface.md`. Neither is settled rule.
 
 ## The microkernel rule
 

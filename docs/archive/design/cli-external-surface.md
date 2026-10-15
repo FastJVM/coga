@@ -1,13 +1,15 @@
 # Core boundary and external-script surface
 
-**Status:** design only. This doc does not implement the verify hook, extract a
-command, or change the CLI.
+**Status:** archived, unimplemented proposal. The verify-at-compose hook and
+skill-acquirer extraction described here have not shipped. Archiving this
+proposal records neither approval nor rejection of that work.
 
-**Home:** `docs/design/`, paired with `docs/contexts/coga/extension-model/`. The
-context is the durable rule agents should follow at launch; this document is the
-design rationale and implementation contract for the open mechanism that context
-names. The split matches the archived `docs/archive/cli-extension-audit.md`: evidence and design live
-in `docs/`, while the ratified behavioral contract stays in the context.
+**Home:** `docs/archive/design/`. This document preserves the proposed design
+and its rationale. Current rules and open command placements belong to
+[`coga/extension-model`](../../contexts/coga/extension-model/SKILL.md); this
+proposal is not an implementation contract or authority to migrate commands.
+The related inventory is archived in
+[`cli-extension-audit.md`](../cli-extension-audit.md).
 
 ## Proposed decision
 
@@ -45,7 +47,7 @@ ticket must still prove whether its behavior belongs in core or can move.
 For Coga-authored stateless capabilities outside the kernel and ticket model,
 the first-class surface is a local external CLI. For the lead case, the skill
 acquirer, that CLI should be a `gh`-style extension because it wraps `gh skill`
-and [coga/install](../contexts/coga/install/SKILL.md) already makes `gh` a
+and [coga/install](../../contexts/coga/install/SKILL.md) already makes `gh` a
 recommended operator dependency. This is not a
 general plugin registry and not a `coga/scripts/` dispatcher.
 

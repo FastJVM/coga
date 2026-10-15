@@ -15,7 +15,7 @@ is right. Choose the owner by what the knowledge is:
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
 | Dated evidence and completed investigations | `docs/archive/evidence/` pages |
-| Unbuilt proposals | `docs/design/` pages |
+| Archived, unimplemented proposals | `docs/archive/design/` pages |
 | Other retired history | `docs/archive/` pages |
 
 In the Coga repository, the root `README.md` owns Coga's concepts and

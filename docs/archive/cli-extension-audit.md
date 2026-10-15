@@ -7,7 +7,7 @@ reference the other tickets in the line (`add-recurring-launch-aliases`,
 `move-command-logic-to-tickets`, `design-external-script-service-mechanism`)
 consume — so its classification has to be right, not assumed.
 
-**Home: `docs/design/` (audit rationale), paired with a context (contract).**
+**Home: `docs/archive/` (audit rationale), paired with a context (contract).**
 This document records implementation mechanisms and the evidence behind the
 extension-model work. The rule and current placement status belong to
 [`coga/extension-model`](../contexts/coga/extension-model/SKILL.md), with its
