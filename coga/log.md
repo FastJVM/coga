@@ -8433,3 +8433,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 10:02 v1 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [human:nicktoper] auto-bumped on merge of PR #1012 → done
 2026-10-15 10:02 v1 [retire-deletes-done-tickets-without-a-retro-cancel] [human:nicktoper] auto-bumped on merge of PR #1014 → done
 2026-10-15 10:02 v1 [recurring/autoclose-merged] [system] task done
+2026-10-15 10:02 v1 [recurring/autoclose-merged] [system] script exited with code 0
