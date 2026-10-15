@@ -255,19 +255,34 @@ runs and better at de-duplicating repeated facts.
 A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
-- its blackboard `## Dev` section has no real `branch:` or `worktree:` value
-  (absent, empty, and placeholder values such as `(not yet created)` do not
-  block Retro); and
+- its blackboard `## Dev` section records no **live checkout**. Check every
+  real `branch:` line (`autoclose.parse_branch_names`), not just the first.
+  Use `retire_worklist.is_discharged`'s existence and ownership rule: resolve
+  `worktree:` relative to this repository's root, identify its owning
+  repository with `worktree_owner`, and check the branches in that repository
+  (`owner_branch_remains`), not only in Dream's checkout. A primary checkout
+  is exempt from directory debt, **not** from branch debt: a branch held only
+  in an independent sandbox clone still blocks Retro. Also require every
+  recorded branch to be absent from the configured remote
+  (`git ls-remote --heads <remote> refs/heads/<branch>`). A non-primary
+  worktree directory that still exists blocks Retro. A line naming a branch
+  and worktree already gone — the shape autoclose leaves after deleting a
+  merged ticket's branch — does not block Retro, and neither do absent, empty,
+  or placeholder values such as `(not yet created)`. A probe that cannot
+  answer (an unreadable branch list, an unreachable remote) counts as live; and
 - no open PR is adding its `## Retro` marker or deleting that resolved task
   directory.
 
-A checkout-bearing done ticket is retirement debt, not Retro input. Do not
-delegate it to `retro/done-ticket` and do not invoke `coga retire` from Dream:
-leave the ticket and its `## Dev` evidence on disk so the exact human-typed
-`coga retire <slug>` command remains valid. List it as deferred retirement debt
-in the run summary. After retirement consumes that evidence and removes the
-source ticket, the ordinary existence gate makes it disappear from Dream's
-candidate set.
+A done ticket with a live checkout is retirement debt, not Retro input. Do
+not delegate it to `retro/done-ticket` and do not invoke `coga retire` from
+Dream: leave the ticket and its `## Dev` evidence on disk so the exact
+human-typed `coga retire <slug>` command remains valid. That command disposes
+of the checkout and deletes the done ticket without a retro agent. A canceled
+ticket is retirement debt too: Phase 4 never takes it, and `coga retire <slug>`
+runs Retro on it for its cancellation reason and other negative learning. List
+both kinds as deferred retirement debt in the run summary. After retirement
+removes the source ticket, the ordinary existence gate makes it disappear from
+Dream's candidate set.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -570,7 +585,16 @@ Route each remaining Phase 2 and Phase 3 finding by class:
     because an open PR already edits that ticket, it is in flight; report the
     PR and do nothing.
   - `done+checkout` — the source ticket is retirement debt, deliberately left
-    on disk so the human-typed `coga retire <slug>` stays valid. That ticket
+    on disk so the human-typed `coga retire <slug>` stays valid. `coga retire`
+    deletes a done ticket without Retro, so this finding is the only route
+    for what it saw. Apply the proposal-ownership rule above before opening
+    anything. Open a proposal PR that edits the target context or skill with
+    the durable fact when no existing proposal or overlap draft owns it,
+    citing the source ticket by slug. The PR is `pr-required` like `stale`,
+    and Dream leaves the ticket on disk. Also list the ticket under the run
+    summary's retirement-debt section so the human can retire it.
+  - `canceled` — the source ticket is retirement debt, deliberately left on
+    disk so the human-typed `coga retire <slug>` stays valid. That ticket
     is the durable artifact and retirement is its consumer: `coga retire`
     runs Retro over the ticket and extracts what this finding saw. Open no PR
     and file no carrier ticket — a second copy decays while the source stays
@@ -579,12 +603,6 @@ Route each remaining Phase 2 and Phase 3 finding by class:
     retirements by the knowledge they unlock. This is a standing condition
     while the retirement backlog exists; the same findings recur until the
     tickets are retired, and reporting them again each run is correct.
-  - `canceled` — Retro refuses a ticket that is not `done`, so nothing else
-    will ever consume it. Apply the proposal-ownership check above before
-    opening anything. Open a proposal PR that edits the target context or
-    skill with the durable fact when no existing proposal or overlap draft
-    owns it, citing the source ticket by slug. The PR is `pr-required` like
-    `stale`, and Dream leaves the canceled ticket on disk.
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. Apply the

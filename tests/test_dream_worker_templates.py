@@ -88,7 +88,14 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every eligible one." in text
     assert "its resolved task directory under `coga/tasks/` still exists" in text
-    assert "has no real `branch:` or `worktree:` value" in " ".join(text.split())
+    assert "records no **live checkout**" in " ".join(text.split())
+    assert "Check every real `branch:` line" in " ".join(text.split())
+    assert "check the branches in that repository" in " ".join(text.split())
+    assert "a branch held only in an independent sandbox clone still blocks Retro" in " ".join(text.split())
+    assert (
+        "A probe that cannot answer (an unreadable branch list, an unreachable "
+        "remote) counts as live"
+    ) in " ".join(text.split())
     assert "leave the ticket and its `## Dev` evidence on disk" in " ".join(text.split())
     assert "do not invoke `coga retire` from Dream" in " ".join(text.split())
     assert "Retro never leaves a processed done ticket on" in " ".join(text.split())
@@ -280,7 +287,8 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
     assert "`done+checkout` — the source ticket is retirement debt" in norm
     assert "Open no PR and file no carrier ticket" in norm
     assert "retirement is its consumer" in norm
-    assert "`canceled` — Retro refuses a ticket that is not `done`" in norm
+    assert "`coga retire` deletes a done ticket without Retro, so this finding is the only route" in norm
+    assert "`canceled` — the source ticket is retirement debt" in norm
     assert "Open a proposal PR that edits the target context or skill" in norm
     assert "a done or canceled ticket holds durable knowledge" in scan_norm
     assert "abandoned design is not durable knowledge" in scan_norm
@@ -736,7 +744,8 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .read_text()
         .split()
     )
-    assert "`retro/done-ticket` checks the scope against the tip" in lifecycle
+    assert "`done` means the work landed; `canceled` means it did not." in lifecycle
+    assert "a ticket whose work did not land must be canceled" in lifecycle
 
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:

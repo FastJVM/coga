@@ -31,7 +31,7 @@ Part of [coga/tickets](../SKILL.md).
   status, owner, or completion. There is no parent or umbrella ticket: when
   splitting work, give every deliverable to a real sibling ticket, then remove
   the original with `coga delete` rather than keeping it as a parent
-  (`coga retire` accepts only a `done` ticket). Pick a group path other than
+  (`coga retire` accepts only a `done` or `canceled` ticket). Pick a group path other than
   the original's own path: `coga create` refuses to nest a ticket inside a
   directory-form task. Do not put `ticket.md` at a group root; that makes it a
   task, and discovery stops there.

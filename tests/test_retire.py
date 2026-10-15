@@ -58,7 +58,9 @@ def repo(tmp_path: Path) -> Path:
     return coga_os
 
 
-def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
+def _seed_finished_task(
+    repo: Path, slug: str = "fix-retry-logic", status: str = "canceled"
+) -> Path:
     task_dir = repo / "tasks" / slug
     task_dir.mkdir(parents=True)
     _write(
@@ -66,7 +68,7 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
         f"""
         ---
         title: Fix retry logic
-        status: done
+        status: {status}
         owner: marc
         ---
 
@@ -84,7 +86,7 @@ def test_retire_uses_repo_retire_template_override(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
     _write(repo / "resources" / "retire.md", "Repo retire pass for `{slug}`.\n")
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
@@ -92,7 +94,7 @@ def test_retire_uses_repo_retire_template_override(
     assert result.exit_code == 0, result.output
     body = Ticket.read(repo / "tasks" / "retire-fix-retry-logic.md").body
     assert "Repo retire pass for `fix-retry-logic`." in body
-    assert "Retire the done ticket" not in body
+    assert "Retire the canceled ticket" not in body
 
 
 @pytest.mark.parametrize(
@@ -102,7 +104,7 @@ def test_retire_override_with_stray_brace_names_the_file(
     repo: Path, monkeypatch: pytest.MonkeyPatch, placeholder: str,
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
     override = repo / "resources" / "retire.md"
     _write(override, "Retire {slug} using " + placeholder + ".\n")
 
@@ -124,7 +126,7 @@ def test_retire_defaults_to_the_default_agent_key(
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
     )
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
 
@@ -138,7 +140,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
 
@@ -161,7 +163,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert "mode" not in ticket.frontmatter
     assert ticket.agent == "claude"
     assert ticket.workflow["name"] == "direct/body"
-    assert "Retire the done ticket `fix-retry-logic`" in ticket.body
+    assert "Retire the canceled ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body
     body_norm = " ".join(ticket.body.split())
     assert "delegate the complete pass to one subagent inside" in body_norm
@@ -188,7 +190,7 @@ def test_retire_reports_created_task_validation_failure(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
 
     def reject_created_task(  # type: ignore[no-untyped-def]
         cfg, ref, *, action: str
@@ -243,17 +245,38 @@ def test_retire_refuses_non_done_target(
     result = CliRunner().invoke(app, ["retire", "in-flight", "--no-launch"])
 
     assert result.exit_code == 2
-    assert "Retire only operates on done tickets" in result.output
+    assert "Retire only operates on done or canceled tickets" in result.output
     assert "is 'active'" in result.output
     # Refused — no retire create task created.
     assert not (repo / "tasks" / "retire-in-flight").exists()
+
+
+def test_retire_deletes_a_done_ticket_without_a_retro_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A done ticket's learning landed with its PR, so retire just deletes it."""
+    monkeypatch.chdir(repo)
+    task_dir = _seed_finished_task(repo, "fix-retry-logic", status="done")
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.launch", lambda slug, **_kw: launched.append(slug)
+    )
+
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Retire: fix-retry-logic: deleted {task_dir}" in result.output
+    assert not task_dir.exists()
+    assert not (repo / "tasks" / "retire-fix-retry-logic.md").exists()
+    assert "Retire: creating task" not in result.output
+    assert launched == []
 
 
 def test_retire_refuses_unknown_slug(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "real-task")
+    _seed_finished_task(repo, "real-task")
 
     result = CliRunner().invoke(app, ["retire", "no-such-task", "--no-launch"])
 
@@ -265,7 +288,7 @@ def test_retire_launches_after_create(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
     calls: list[dict[str, object]] = []
 
     def fake_launch(
@@ -362,7 +385,7 @@ def test_retire_prunes_merged_branch_before_launch(
         f"""
         ---
         title: Fix retry logic
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -443,7 +466,7 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
         """
         ---
         title: Fix retry logic
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -488,14 +511,73 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
     )
 
 
+def test_retire_keeps_a_done_ticket_whose_owned_branch_survives_cleanup(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A kept branch refuses the delete: the done ticket is its owner record.
+
+    No retire task is created for a done ticket, so the refusal is the exit
+    code and message; the ticket stays for `coga retire` to retry.
+    """
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    _git(repo, "checkout", "-b", "leftover")
+    (repo / "extra.txt").write_text("extra")
+    _git(repo, "add", "extra.txt")
+    _git(repo, "commit", "-m", "extra")
+    _git(repo, "checkout", "main")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        """
+        ---
+        title: Fix retry logic
+        status: done
+        owner: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: leftover
+        """,
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug])
+
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept branch `leftover`" in result.output
+    assert f"{slug} was not deleted" in result.output
+    assert (task_dir / "ticket.md").is_file()
+    assert not (repo / "tasks" / f"retire-{slug}.md").exists()
+
+
 def _retire_status(repo: Path, slug: str) -> str:
     return Ticket.read(repo / "tasks" / f"retire-{slug}.md").frontmatter["status"]
 
 
 def _merged_worktree_ticket(
-    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str = "canceled",
 ) -> tuple[str, Path]:
-    """A done ticket whose merged branch is still checked out in a linked worktree.
+    """A finished ticket whose merged branch is still checked out in a linked worktree.
 
     Returns `(slug, feature_worktree)`; the checkout is what retire's cleanup
     is expected to dispose of.
@@ -525,7 +607,7 @@ def _merged_worktree_ticket(
         f"""
         ---
         title: Fix retry logic
-        status: done
+        status: {status}
         owner: marc
         ---
 
@@ -606,6 +688,27 @@ def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_
     assert [e.slug for e in entries] == ["other"]
 
 
+def test_retire_disposes_of_a_done_tickets_checkout_then_deletes_it(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, feature = _merged_worktree_ticket(
+        repo, tmp_path, monkeypatch, status="done"
+    )
+    worklist = _seed_retire_worklist(
+        repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug])
+
+    assert result.exit_code == 0, result.output
+    assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
+    assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
+    assert f"Retire: dropped {slug} from {worklist}." in result.output
+    assert not feature.exists()
+    assert not (repo / "tasks" / slug).exists()
+    assert not (repo / "tasks" / f"retire-{slug}.md").exists()
+
+
 def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -667,7 +770,7 @@ def test_retire_leaves_dirty_worktree_in_place(
         f"""
         ---
         title: Fix retry logic
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -727,7 +830,7 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
         f"""
         ---
         title: Fix retry logic
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -792,7 +895,7 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
         f"""
         ---
         title: Finished half
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -888,7 +991,7 @@ def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
         f"""
         ---
         title: Finished
-        status: done
+        status: canceled
         owner: marc
         ---
 
@@ -956,7 +1059,7 @@ def test_retire_resolves_unique_prefix(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
 
     result = CliRunner().invoke(app, ["retire", "fix-retr", "--no-launch"])
 

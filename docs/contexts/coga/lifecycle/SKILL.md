@@ -43,14 +43,21 @@ Tickets without a workflow move through statuses only via `coga mark`.
   ([coga/recurring/scheduling](../recurring/scheduling/SKILL.md#variants)). A terminal transition deletes no branch or
   checkout. The ticket's owned branches are cleaned up later by `coga retire`
   and the daily autoclose branch pass, so nothing disappears beneath the
-  session that finished it
+  session that finished it. `coga retire` then removes the ticket: a done one
+  is deleted with no retro agent, because its positive learning landed in its
+  merged PR; a canceled one goes through Retro first, which extracts the
+  cancellation reason and any other negative learning
   ([dev/checkout-cleanup/terminal-owners](../../dev/checkout-cleanup/terminal-owners/SKILL.md)).
   `mark done --force` / final-step `bump --force` finish a `direct/body`
   ticket while acknowledging product code stranded off the control branch.
-- `done` is a control-plane transition, not a receipt: a done ticket's own
-  verification prose is no proof that the change its `## Description` scoped
-  reached the control branch. `retro/done-ticket` checks the scope against the
-  tip before extracting it.
+- **Convention: `done` means the work landed; `canceled` means it did not.**
+  Mark a ticket `done` only when the change its `## Description` scoped
+  reached the control branch; work that is abandoned, superseded, or left
+  stranded off the control branch ends `canceled`, with the reason. The CLI
+  does not verify this, and `mark done --force` / final-step `bump --force`
+  override its stranded-code guard, so the operator upholds the convention.
+  `coga retire` relies on it: a done ticket is deleted with no Retro pass,
+  so a ticket whose work did not land must be canceled to keep its learning.
 - A terminal transition is a verdict about the ticket, never a repair of
   validator output. "Clears a validate error" is not a cancellation reason:
   cancelling parked drafts is the cheapest route to a green gate and trades

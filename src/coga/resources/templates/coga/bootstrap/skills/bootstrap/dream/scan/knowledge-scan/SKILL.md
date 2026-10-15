@@ -140,14 +140,20 @@ inside the subagent. Classify each finding as exactly one of:
 - `extract` — a done or canceled ticket holds durable knowledge that belongs
   in a context or skill. Record the ticket slug and the context/skill area it
   touches, and add a `source:` line that says who can consume it:
-  - `source: done` — `status: done` and the blackboard's `## Dev` section has
-    no real `branch:` or `worktree:` value (absent, empty, or a placeholder
-    such as `(not yet created)`). Phase 4 Retro extracts it this run.
-  - `source: done+checkout` — `status: done` with a real `## Dev` checkout.
-    This is retirement debt: Retro does not touch it, and `coga retire <slug>`
-    is what will. Phase 6 lists it under retirement debt instead of losing it.
-  - `source: canceled` — `status: canceled`. Retro refuses non-done tickets,
-    so Phase 6 opens the knowledge PR itself. A canceled ticket's abandoned
+  - `source: done` — `status: done` and the blackboard's `## Dev` section
+    records no live checkout, by the Dream template's Phase 4 rule: every
+    recorded `branch:` is gone from its owning repository and the configured
+    remote, and every recorded `worktree:` directory is gone (or is a primary
+    checkout). A foreign primary is exempt only from directory debt; check its
+    branches in that clone. Unknown probes count as live. A written line
+    naming a deleted branch is not live. Phase 4 Retro extracts
+    it this run.
+  - `source: done+checkout` — `status: done` with a live `## Dev` checkout.
+    This is retirement debt that Phase 4 skips, and `coga retire <slug>`
+    deletes it without Retro, so Phase 6 opens the proposal PR for it.
+  - `source: canceled` — `status: canceled`. This is retirement debt:
+    `coga retire <slug>` runs Retro on it, and Phase 6 lists the finding under
+    retirement debt rather than opening a PR. A canceled ticket's abandoned
     design is not durable knowledge; only a reusable fact it discovered along
     the way — a gotcha, a verified behavior, a measured limit — qualifies.
     So does an owner decision *not* to act that the ticket recorded (what was

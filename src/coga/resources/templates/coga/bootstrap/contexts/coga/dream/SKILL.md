@@ -65,9 +65,17 @@ fix is a corpus decision for both, not a per-phase patch.
 
 ## Retro and deletion
 
-A done ticket is eligible when its directory exists, its `## Dev` has no real
-`branch:`/`worktree:`, and no open PR is already adding its `## Retro` marker or
-deleting it. A ticket that contributed knowledge is deleted inside its theme's
+A done ticket is eligible when its directory exists, its `## Dev` records no
+**live checkout**, and no open PR is already adding its `## Retro` marker or
+deleting it. Live means any recorded `branch:` still exists in its owning
+repository or on the configured remote, or a recorded `worktree:` path is
+still a directory other than a primary checkout. Apply the existence and
+ownership rule in `retire_worklist.is_discharged`, plus the remote check, to
+every branch from `autoclose.parse_branch_names`. A foreign primary's directory
+is exempt, but its branches are checked in that clone, not Dream's repository;
+relative worktree paths resolve against the ticket's repository root. A written
+line naming a branch autoclose already deleted does not block Retro; a probe
+that cannot answer counts as live. A ticket that contributed knowledge is deleted inside its theme's
 **knowledge PR** (which records the marker); one carrying nothing durable is
 **direct-deleted** (`coga delete`, no PR, no marker). Recurring period tickets
 are usually nothing-durable, but read the blackboard (`## Gotchas`) before
@@ -75,9 +83,13 @@ deleting — never decide by class alone. An unresolved adjacent bug or unshippe
 scope on a done ticket's blackboard that the context/skill corpus does not
 already preserve is durable knowledge, never grounds for a direct delete: it
 leaves only in a knowledge PR (the `retro/done-ticket` skill owns the rule and
-its deduplication exception). Checkout-bearing done tickets are
-**deferred retirement debt**: Dream lists them and never runs `coga retire`
-(see [dev/checkouts](../../dev/checkouts/SKILL.md)). Dream never deletes its own
+its deduplication exception). Done tickets with a live checkout, and every
+canceled ticket, are **deferred retirement debt**: Dream lists them and never
+runs `coga retire`, which deletes a done ticket without Retro and runs Retro on
+a canceled one ([dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)).
+A knowledge-scan finding on a done ticket with a live checkout therefore gets a
+proposal PR, since retirement will not extract it; a finding on a canceled
+ticket is listed with its retirement debt, since retirement will. Dream never deletes its own
 predecessor; the scanner removes it before creating the next Dream period.
 
 ## Results and safety

@@ -56,15 +56,27 @@ landed. Recover from the primary checkout after refreshing `main` from `origin`
 
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
-Refuses unless the ticket is `status: done`. It first disposes of the
-checkout and every owned branch under the
-[checkout proofs](proofs/SKILL.md). A worktree or owned
-branch the proofs kept is a bug: the ticket is its only owner record, so Retro
-must not delete it. Retire then skips the worklist discharge, creates the retire task
-already `blocked` with what it kept and why (which notifies the owner
-on Slack, as `coga block` does), launches nothing and exits 2. The owner fixes
-the checkout by hand, then runs `coga unblock` and `coga launch` on the retire
-task. Run it from a checkout on `[git].control_branch`:
+Refuses unless the ticket is `status: done` or `status: canceled`. Owner
+decision, 2026-10-13: positive learning already landed in the merged PR (the
+same PR updates the owning topic), and negative learning lives in the ticket,
+usually as the cancellation reason. So a **done** ticket is retired
+deterministically, with no agent: disposal, worklist discharge, then the
+`coga delete` removal and sync (commit `Ticket: <slug> — deleted (retire)`;
+recover with `git restore`). A **canceled** ticket gets the Retro task
+described below, which extracts the cancellation reason and any other
+negative learning before deleting it. `--agent` and `--no-launch` apply only to
+that task.
+
+Retire first disposes of the checkout and every owned branch under the
+[checkout proofs](proofs/SKILL.md). A worktree or owned branch the proofs kept is a bug: the ticket is its
+only owner record, so nothing may delete it. Retire then skips the worklist
+discharge and exits 2. For a done ticket it deletes nothing and creates
+nothing; the owner fixes the checkout by hand and runs `coga retire` again.
+For a canceled ticket it creates the retire task already `blocked` with what
+it kept and why (which notifies the owner on Slack, as `coga block` does) and
+launches nothing; the owner fixes the checkout by hand, then runs
+`coga unblock` and `coga launch` on the retire task. Run it from a checkout on
+`[git].control_branch`:
 off control (or with `[git].enabled` false, or outside a git work tree) it
 skips disposal and says so (`Retire: checkout cleanup skipped ...`) rather
 than failing, leaving the checkout and branch to autoclose or `branch-sweep`.
@@ -72,7 +84,8 @@ It then drops the slug from any recurring template's
 `retires.md` worklist, but only once its local branch is gone (judged in the
 owning repository when the entry records another clone as `owner`) and its recorded
 worktree directory is gone or is a repository's primary checkout (which
-nobody disposes of). Finally it scaffolds a `retire-<slug>` task straight to `active`,
+nobody disposes of). Finally, for a done ticket, it deletes the task; for a
+canceled one it scaffolds a `retire-<slug>` task straight to `active`,
 whose body invokes the `retro/done-ticket` skill; that skill opens the PR that
 records `## Retro`, edits knowledge if warranted, and deletes the source task
 in the same PR. Retire launches the task unless `--no-launch`, which prints the

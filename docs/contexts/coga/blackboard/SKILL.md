@@ -101,8 +101,8 @@ same-named heading holding only the pointer, so references to it (an
 evaluator review citing `## Design`) still resolve.
 
 The remedy is for live tickets. A flagged `done` ticket is not trimmed: one
-with no recorded checkout is left to Dream's retro pass, and one with a
-recorded checkout is retirement debt that `coga retire <slug>` extracts and
+with no live recorded checkout is left to Dream's retro pass, and one with a
+live checkout is retirement debt that `coga retire <slug>` disposes of and
 deletes ([coga/dream](../dream/SKILL.md) owns that split). A section a writer rewrites
 every run (a recurring template's state, Dream's own per-run report) is not
 trimmed by hand either: the next run overwrites the edit, and
