@@ -30,7 +30,8 @@ step: 1 (implement)
 Build the Windows counterpart of the macOS EC2 clean-install harness so an
 agent can rent a fresh native Windows machine, drive it over SSH, and throw it
 away. It is the test bed for the sibling ticket
-`windows-native/port-coga-to-native-windows-and-verify-on-ec2`, which runs its
+`windows-native/core-port-cli-and-test-suite-pass-on-native-window` and its
+siblings, which run their
 fix loop and acceptance checks on this box. This ticket builds the harness
 only. It does not port Coga, so a walk is expected to stop at
 `coga --version` with the `fcntl` import error.
@@ -156,7 +157,8 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
   changes to `coga/install`.
 - This ticket absorbs the parked draft `_v2/windows-native-clean-install`,
   which was deleted when this subproject was created. That draft's Windows
-  install baseline for `coga/install` moved to the port ticket.
+  install baseline for `coga/install` moved to
+  `windows-native/interactive-coga-launch-on-native-windows`.
 
 <!-- coga:blackboard -->
 
