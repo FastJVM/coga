@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -47,16 +47,16 @@ Root cause (confirmed in design, see Context): Codex 0.162.x's interactive TUI a
 ### Acceptance criteria
 
 - [x] Reproduce with a real interactive Codex launch and show which launch configuration preserves `COGA_*` in Codex's shell commands. Done in design (Context, "Reproduction"); verification against the implemented argv follows the manual-verification criterion below, including its host-shell fallback.
-- [ ] `AgentType` gains one optional, vendor-neutral key, `launch_args` (string, `shlex`-split, default `""`). `build_agent_command` inserts its tokens immediately after `agent.cli` in **both** the positional and the discussion argv shapes. `analyze` (the one-shot autofix argv) is unaffected.
-- [ ] The seeded template `src/coga/resources/templates/coga/coga.toml` sets `launch_args = "--no-daemon"` under `[agents.codex]`, with a comment explaining why. This repo's live `coga/coga.toml` gets the same line (owner approved a narrow exception allowing the implementer to add this line and its explanatory comment).
-- [ ] Unit test: with `launch_args = "--no-daemon"`, `build_agent_command` yields `["codex", "--no-daemon", ..., prompt]` for a launch and `["codex", "--no-daemon", "-c", "developer_instructions=..."]` for discussion. With the key unset, argv is byte-identical to today's.
-- [ ] Config test: `launch_args` parses from shared and local tables and follows the existing key-level local-over-shared merge in `_parse_agents`. A non-string value fails config load the way other validated string keys do. An explicit local empty string clears the shared value; quoted multi-token arguments retain their token boundaries.
-- [ ] Fail loud: after a supervised session ends, when a readable post-session ticket has a different `(status, step)` from the immutable pre-spawn snapshot and no matching done sentinel was observed, `coga launch` and megalaunch print a yellow stderr warning. Carry sentinel observation independently of exit classification, including a final check after child exit and before sentinel cleanup. A done signal followed by a crash must suppress this warning while retaining the crash result. The warning names the task and points to `coga/agents`; it says missing `COGA_*` **may** explain the change and **could** cause human attribution and a skipped stale-step guard. Human or concurrent-session edits are also possible. Never assert who made the change from this observation alone.
-- [ ] Warning observation is advisory: use refreshed state after launch's existing checkout settle/reload, before timeout/nonzero result handling. Skip detection if checkout return/reload refuses, the target is removed, or the diagnostic ticket read fails with an expected filesystem/parsing/validation error. Exempt checkouts use their current ref. Do not introduce another checkout operation or change existing exit codes, chaining, or error handling. Megalaunch observes its existing post-session state before reblocking/result handling; diagnostic failure must not replace its existing handling. Supervisor-owned reblocking must not itself be mistaken for an agent's change (see Proposed shape).
-- [ ] Warning tests cover changed/unchanged state, matching/nonmatching sentinel, done-signal followed by crash, a late matching sentinel seen only after child exit, timeout/nonzero exits, checkout-refreshed advances, refused return, and removed/unreadable tickets. Exercise both callers' wiring, with a shared helper's truth table where useful.
-- [ ] Docs: `docs/contexts/coga/agents/SKILL.md` owns the `launch_args` Keys entry, env-inheritance requirement, Codex daemon remedy, existing-repo config migration, and advisory warning with its observation limits. Update `docs/contexts/coga/testing/SKILL.md` Restricted sandboxes with a link to that remedy and correct its Codex sandbox grant argv summary. Update `docs/contexts/coga/internals/agent-spawn/SKILL.md` argv and sentinel-observation/result contracts. Sync all packaged twins (`tests/test_packaging.py` passes).
+- [x] `AgentType` gains one optional, vendor-neutral key, `launch_args` (string, `shlex`-split, default `""`). `build_agent_command` inserts its tokens immediately after `agent.cli` in **both** the positional and the discussion argv shapes. `analyze` (the one-shot autofix argv) is unaffected.
+- [x] The seeded template `src/coga/resources/templates/coga/coga.toml` sets `launch_args = "--no-daemon"` under `[agents.codex]`, with a comment explaining why. This repo's live `coga/coga.toml` gets the same line (owner approved a narrow exception allowing the implementer to add this line and its explanatory comment).
+- [x] Unit test: with `launch_args = "--no-daemon"`, `build_agent_command` yields `["codex", "--no-daemon", ..., prompt]` for a launch and `["codex", "--no-daemon", "-c", "developer_instructions=..."]` for discussion. With the key unset, argv is byte-identical to today's.
+- [x] Config test: `launch_args` parses from shared and local tables and follows the existing key-level local-over-shared merge in `_parse_agents`. A non-string value fails config load the way other validated string keys do. An explicit local empty string clears the shared value; quoted multi-token arguments retain their token boundaries.
+- [x] Fail loud: after a supervised session ends, when a readable post-session ticket has a different `(status, step)` from the immutable pre-spawn snapshot and no matching done sentinel was observed, `coga launch` and megalaunch print a yellow stderr warning. Carry sentinel observation independently of exit classification, including a final check after child exit and before sentinel cleanup. A done signal followed by a crash must suppress this warning while retaining the crash result. The warning names the task and points to `coga/agents`; it says missing `COGA_*` **may** explain the change and **could** cause human attribution and a skipped stale-step guard. Human or concurrent-session edits are also possible. Never assert who made the change from this observation alone.
+- [x] Warning observation is advisory: use refreshed state after launch's existing checkout settle/reload, before timeout/nonzero result handling. Skip detection if checkout return/reload refuses, the target is removed, or the diagnostic ticket read fails with an expected filesystem/parsing/validation error. Exempt checkouts use their current ref. Do not introduce another checkout operation or change existing exit codes, chaining, or error handling. Megalaunch observes its existing post-session state before reblocking/result handling; diagnostic failure must not replace its existing handling. Supervisor-owned reblocking must not itself be mistaken for an agent's change (see Proposed shape).
+- [x] Warning tests cover changed/unchanged state, matching/nonmatching sentinel, done-signal followed by crash, a late matching sentinel seen only after child exit, timeout/nonzero exits, checkout-refreshed advances, refused return, and removed/unreadable tickets. Exercise both callers' wiring, with a shared helper's truth table where useful.
+- [x] Docs: `docs/contexts/coga/agents/SKILL.md` owns the `launch_args` Keys entry, env-inheritance requirement, Codex daemon remedy, existing-repo config migration, and advisory warning with its observation limits. Update `docs/contexts/coga/testing/SKILL.md` Restricted sandboxes with a link to that remedy and correct its Codex sandbox grant argv summary. Update `docs/contexts/coga/internals/agent-spawn/SKILL.md` argv and sentinel-observation/result contracts. Sync all packaged twins (`tests/test_packaging.py` passes).
 - [ ] Verification (manual, recorded on the blackboard): with a Codex daemon running, verify the exact implemented `build_agent_command` argv in a real interactive session and run `coga launch` on a throwaway Codex ticket step. Its `coga bump` must be credited `agent:codex`, and the session must end on bump with outcome `done`. One full launch may establish both checks if its actual argv and shell-env evidence are captured. If the implementation session cannot run nested Codex under `coga/testing` constraints, do not retry through a PTY or escalation: record the exact built argv and automated results, and hand both real-TUI checks to the owner's host shell. Keep this criterion unchecked until the owner supplies a receipt with tested revision, Codex version, running-daemon evidence, actual argv, relevant `COGA_*` values (no secrets), bump attribution, and supervisor outcome. This receipt is required before final acceptance; implementation may hand off with this explicit verification gap.
-- [ ] `python -m pytest` and `coga validate --json` pass.
+- [x] `python -m pytest` and `coga validate --json` pass.
 
 ### Proposed shape
 
@@ -173,3 +173,71 @@ branch: codex-no-daemon-launch-args
 - Later owner feedback in the evaluator conversation: crashes are rare enough that the false-positive warning in finding 1 is acceptable for now. The owner accepts the simpler termination-outcome heuristic rather than requiring separate sentinel observation solely for that case. This concerns warning accuracy, not crash recovery or durable-state guarantees. The implementation specification currently requires independent sentinel observation from the separately approved revision; reconcile that requirement with this later owner feedback before treating the extra machinery as mandatory.
 - On finding 2, the owner asks why tickets are not committed immediately and notes concurrent races are rare. Explanation supplied: lifecycle transitions already attempt immediate commit/push via `advance_step` and `git.sync_task_state`; refreshing brings a different checkout up to date. Handling a deleted ticket is a separate issue from concurrent races. No new owner decision on that handling was inferred.
 - This conversation discovered that control had already advanced to step 4 with an implementation branch recorded. Preserved that current state and all other-session edits; this note makes no workflow transition and performs no implementation work.
+
+## Implement handoff (2026-10-14, Claude)
+
+Branch `codex-no-daemon-launch-args` pushed; one commit `4b813c74e` on top of `origin/main` `2634ad64e` (later control commits are Coga state only). No PR yet.
+
+- **Config/argv.** `config.AgentType.launch_args` (validated string, in `_ALLOWED_AGENT_KEYS`, key-level merge; local `""` clears). `commands/launch.build_agent_command` inserts `shlex.split(launch_args)` right after `cli` in both shapes; `recurring_autofix.build_analyze_command` untouched. Grep confirmed it is the only interactive argv builder.
+- **Config files.** Template and live `coga/coga.toml` `[agents.codex]` gain `launch_args = "--no-daemon"` plus comment (the narrow owner exception). Committed with the code, not swept.
+- **Sentinel observation.** `repl_supervisor.ReplOutcome.done_signalled` (default False) → `AgentSessionResult.done_signalled`. Latched while polling, including mid-teardown, plus a final check after `waitpid` and before sentinel cleanup; cleanup moved into an outer `finally`. `_classify_exit` unchanged.
+- **Detector.** Pure `repl_supervisor.unsignalled_advance_warning` (two consumers). Launch freezes `(status, step)` by wrapping `before_spawn` (after any assist lifecycle publication), observes after `boundary.settle`/`reload` and before timeout/nonzero branches, and skips on a refused return, a removed target, an unreadable ticket, a non-TaskRef target, or when `_reblock_unresolved_resume` actually changed the ticket bytes. Megalaunch uses its existing post-session `after` read, before `_reblock_unresolved`.
+- **Owner decision (this session).** Later owner feedback (control commit `2634ad64e`) allowed the simpler `termination_kind` heuristic; asked in-session, the owner chose **keep the independent `done_signalled` observation**.
+- **Docs.** `coga/agents` (Keys row, new "Launch environment inheritance" section: requirement, Codex remedy, migration, warning limits), `coga/testing` (Restricted sandboxes bullet linking there; corrected Codex sandbox grant argv), `coga/internals/agent-spawn` (argv, `kind` as teardown cause, `done_signalled` contract). Bootstrap twins byte-synced. The `ReplOutcome` docstring no longer calls `timeout` proof that no signal ever came.
+- **Test doubles.** 36 megalaunch `_Session` classes and one `_Outcome` gained an explicit `done_signalled = False`.
+
+### Manual verification gap (criterion left unchecked)
+
+The base prompt forbids `coga launch` inside an agent launch, so this session did not run the real-TUI checks. Evidence at implement time: codex-cli 0.162.1, daemon running (`pgrep` showed pid 9982 `codex app-server … --managed-daemon`). The live config builds `['codex', '--no-daemon', '<prompt>']` (launch) and `['codex', '--no-daemon', '-c', 'developer_instructions=<prompt>']` (discussion); claude stays `['claude', '-n', T, '--session-id', S, '<prompt>']`. **Owner host-shell receipt still needed** before final acceptance: tested revision, Codex version, running-daemon evidence, actual argv, relevant `COGA_*` values seen in the agent shell, the bump credited `agent:codex`, and supervisor outcome `done` with the session ending on bump.
+
+## PR
+
+```yaml
+title: Keep COGA_* launch env in Codex sessions and warn on silent ticket advances
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5), launched by coga launch with agent=claude; see the implement handoff above.
+head: 4b813c74ecd56cc8217ce9c8862fd4b4ae5f5e87
+base: 2634ad64ec57f61366a25c3e17e803fde518b864
+depth: deep
+rationale: Changes the shared PTY supervisor's sentinel/cleanup flow and both launch supervisors' post-session paths, has no independent code review yet, and the real-TUI receipt is outstanding.
+implementation: Adds a vendor-neutral launch_args agent key inserted after the CLI in both interactive argv shapes, ships --no-daemon for codex in the template and live config, carries an independent done_signalled observation from the supervisor to callers, and prints an advisory yellow warning from launch and megalaunch when a ticket's (status, step) changed without a done signal.
+deviations: None from the approved design. The owner reconfirmed in this session that the independent sentinel observation stays despite later feedback allowing the simpler heuristic.
+limitations: The real interactive Codex launch and bump-attribution check is not done; owner host-shell receipt pending. The warning is skipped for unavailable post-state and for sessions the supervisor reblocks. Existing repos must add launch_args themselves (no core default).
+files:
+  coga/coga.toml: Live repo config gains launch_args = "--no-daemon" for codex with its comment (owner-approved exception).
+  src/coga/resources/templates/coga/coga.toml: Seeded template ships the same codex launch_args and comment.
+  src/coga/config.py: AgentType.launch_args field, allowed key, string validation, merge-through parse.
+  src/coga/commands/launch.py: launch_args in build_agent_command; done_signalled on AgentSessionResult; pre-spawn freeze, post-refresh advisory, reblock suppression helpers.
+  src/coga/megalaunch.py: Advisory on the existing post-session read before reblocking.
+  src/coga/repl_supervisor.py: ReplOutcome.done_signalled latch, final post-exit check, cleanup in outer finally, pure unsignalled_advance_warning.
+  tests/test_config.py: launch_args default, shared, local override, local clear, non-string rejection, all-keys load.
+  tests/test_launch.py: argv for both shapes, quoted tokens, unchanged default; launch advisory truth table across natural/done/timeout/nonzero/crash, unchanged, removed, unreadable, reblock, refreshed-only advance, refused return.
+  tests/test_megalaunch.py: Megalaunch advisory cases, unchanged, reblock silence; explicit done_signalled on existing doubles.
+  tests/test_repl_supervisor.py: done observation, no observation, non-TTY, signal-then-crash, signal during timeout teardown, late signal after exit, warning truth table.
+  docs/contexts/coga/agents/SKILL.md: Owns launch_args, env-inheritance requirement, Codex remedy, migration, advisory and its limits.
+  docs/contexts/coga/testing/SKILL.md: Restricted-sandbox link to the remedy; corrected Codex sandbox grant argv.
+  docs/contexts/coga/internals/agent-spawn/SKILL.md: Argv shape, kind as teardown cause, done_signalled contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/agents/SKILL.md: Packaged twin of coga/agents.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/testing/SKILL.md: Packaged twin of coga/testing.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/agent-spawn/SKILL.md: Packaged twin of agent-spawn.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review has run yet; the workflow's later review steps own it. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: 4b813c74ecd56cc8217ce9c8862fd4b4ae5f5e87
+    base: 2634ad64ec57f61366a25c3e17e803fde518b864
+    detail: 3642 passed in 302.37s (Python 3.12.12), run on the rebased committed head.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: 4b813c74ecd56cc8217ce9c8862fd4b4ae5f5e87
+    base: 2634ad64ec57f61366a25c3e17e803fde518b864
+    detail: ok_count 254, 0 fixes, 40 pre-existing warn-level issues on unrelated tickets, no errors.
+  - command: Real interactive codex launch + coga bump attribution (manual)
+    status: not-run
+    detail: Agent sessions may not run coga launch; owner host-shell receipt required (see Manual verification gap).
+```
+

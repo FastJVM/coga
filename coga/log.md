@@ -8407,3 +8407,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 21:30 v1 [make-coga-run-on-native-windows] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-14 21:44 v1 [windows-native/windows-ec2-test-harness] [human:nicktoper] created (status=draft)
 2026-10-14 21:44 v1 [windows-native/port-coga-to-native-windows-and-verify-on-ec2] [human:nicktoper] created (status=draft)
+2026-10-14 21:47 v1 [codex-sessions-lose-coga-launch-env-through-the-sh] [agent:claude] advanced to step 5 (open-pr)
