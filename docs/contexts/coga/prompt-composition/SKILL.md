@@ -18,7 +18,8 @@ Each layer is a `PromptLayer`; in order:
 
 1. **Header**: task ref, title, exact task directory, status.
 2. **Base prompt** (resource `prompt.md`): the operating loop; neutral on
-   conduct.
+   conduct. Its shared reconciliation checkpoint directs agents to
+   [dev/checkouts/reconciliation](../../dev/checkouts/reconciliation/SKILL.md).
 3. **Session conduct**: exactly one resource chosen by launch context
    ([coga/session-conduct](../session-conduct/SKILL.md)).
 4. **Blocker preamble** (`prompt-blocker-resolution.md`), only when the

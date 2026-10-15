@@ -36,6 +36,8 @@ Target Python 3.11+, use 4-space indentation, `from __future__ import annotation
 Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `tests/fixtures/seeded-repo/` repo or related fixtures so the smoke path remains representative.
 
 ## Commit & Pull Request Guidelines
+Before publishing or handing off edits, follow [dev/checkouts/reconciliation](docs/contexts/dev/checkouts/reconciliation/SKILL.md), including in sessions outside `coga launch`.
+
 Recent commits use short, factual subjects, for example `Route recurring jobs through registered recipes` or `Drop redundant \`dream\` alias from coga.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.
 
 ## Configuration & Security
