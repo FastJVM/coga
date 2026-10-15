@@ -28,16 +28,26 @@ Reconciliation preserves main's newer work and the still-needed local intent:
   workflow's procedure ([code branch procedure](../SKILL.md#start-work-end)).
   Resolve straightforward conflicts yourself; a clean Git merge still needs
   inspection for changes in meaning or assumptions.
-- For uncommitted edits or a stale publication refusal, inspect the local
-  diff and main's intervening changes first. Preserve unique edits in a patch
-  or file copy before replacing any working file, including untracked files.
-  Take main's version and reapply only the changes still needed. If the work
-  already landed, prove that from history and content before dropping the
-  duplicate. Keep canonical and packaged copies consistent.
-- Refresh the ticket from control before writing a handoff, preserving any
-  unpublished notes and respecting CLI-owned lifecycle fields. Never replay
-  a transition merely because its publication failed; use the publication
-  recovery described in the [handoff procedure](../SKILL.md#in-a-launched-session).
+- For uncommitted edits, inspect the branch's committed changes as well as
+  its staged and unstaged deltas and main's intervening changes. Preserve the
+  dirty deltas in patches or file copies, including untracked files, and
+  record the original branch HEAD. Verify those backups before clearing any
+  dirty files. Restore tracked files and the index from the branch's own
+  HEAD, merge or rebase current main, then reapply the still-needed dirty
+  deltas onto the resulting branch, resolving conflicts there. Do not replace
+  a feature file with main's version first: that also removes committed
+  branch work which a working-tree patch does not contain.
+- For a stale ticket publication or a handoff, preserve unpublished prose
+  and blackboard notes before refreshing the ticket from control. Account
+  for committed local intent as well as dirty edits; reconcile the intended
+  changes onto control's current ticket while respecting CLI-owned lifecycle
+  fields. This ticket-specific recovery is not a recipe for replacing code
+  files with main's version. Never replay a transition merely because its
+  publication failed; use the publication recovery described in the
+  [handoff procedure](../SKILL.md#in-a-launched-session).
+
+If any work already landed, prove that from history and content before dropping
+the duplicate. Keep canonical and packaged copies consistent.
 
 ## Verify and escalate
 
