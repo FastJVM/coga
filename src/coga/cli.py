@@ -405,32 +405,33 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
-    relay_token = control_relay_started.set(False)
-    withheld_token = git.state_sweep_withheld.set(False)
-    try:
-        app()
-    except SystemExit as exc:
-        # End-of-command boundary (failure half): still sweep on an ordinary
-        # non-zero exit, but not when the command deliberately retained
-        # retryable local state (a stale control checkout in the recurring
-        # gate), where the sweep would publish exactly the bytes the command
-        # intentionally left dirty.
-        if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+    with launch_cmd.checkout_guard_scope():
+        relay_token = control_relay_started.set(False)
+        withheld_token = git.state_sweep_withheld.set(False)
+        try:
+            app()
+        except SystemExit as exc:
+            # End-of-command boundary (failure half): still sweep on an ordinary
+            # non-zero exit, but not when the command deliberately retained
+            # retryable local state (a stale control checkout in the recurring
+            # gate), where the sweep would publish exactly the bytes the command
+            # intentionally left dirty.
+            if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                _sweep_coga_state(cfg)
+            raise
+        except BaseException:
             _sweep_coga_state(cfg)
-        raise
-    except BaseException:
-        _sweep_coga_state(cfg)
-        raise
-    else:
-        # End-of-command boundary: publish any dirty task/log/recurring state
-        # the command itself didn't sync (a side-effect write, an earlier
-        # offline miss). The on-disk markdown is the source of truth, and
-        # atomic writes mean a mid-command crash never leaves a half-written
-        # file to publish.
-        _sweep_coga_state(cfg)
-    finally:
-        git.state_sweep_withheld.reset(withheld_token)
-        control_relay_started.reset(relay_token)
+            raise
+        else:
+            # End-of-command boundary: publish any dirty task/log/recurring state
+            # the command itself didn't sync (a side-effect write, an earlier
+            # offline miss). The on-disk markdown is the source of truth, and
+            # atomic writes mean a mid-command crash never leaves a half-written
+            # file to publish.
+            _sweep_coga_state(cfg)
+        finally:
+            git.state_sweep_withheld.reset(withheld_token)
+            control_relay_started.reset(relay_token)
 
 
 if __name__ == "__main__":

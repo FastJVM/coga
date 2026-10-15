@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from importlib.resources import files
 from pathlib import Path
 from textwrap import dedent
@@ -7190,7 +7191,12 @@ def test_launch_keeps_the_recorded_checkout_on_its_recorded_branch(
     assert _branch_and_tip(git_repo)[0] == "feature/clone"
 
 
-def test_launch_prompt_report_and_bootstrap_keep_the_checkout(
+@pytest.mark.parametrize("argv", [
+    ["launch", "bootstrap/orient", "--prompt-report"],
+    ["launch", "bootstrap/resolve-conflicts"],
+])
+def test_launch_prompt_report_and_other_bootstrap_keep_the_checkout(
+    argv: list[str],
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ref = _published_checkout_task(git_repo)
@@ -7200,15 +7206,238 @@ def test_launch_prompt_report_and_bootstrap_keep_the_checkout(
     before = _branch_and_tip(git_repo)
 
     report = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
-    orient = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+    bootstrap = CliRunner().invoke(app, argv)
 
     assert report.exit_code == 0, report.output
-    assert orient.exit_code == 0, orient.output
-    assert [seen[:2] for seen in session.seen] == [("feature/x", None)]
+    assert bootstrap.exit_code == 0, bootstrap.output
+    expected = [] if "--prompt-report" in argv else [("feature/x", None)]
+    assert [seen[:2] for seen in session.seen] == expected
     assert _branch_and_tip(git_repo) == before
 
 
+def test_orientation_prepares_control_before_resolving_local_override(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.checkout_branch("feature/stale")
+    # This override exists only on remote main, not in the invoking checkout.
+    git_repo.push_competing_commit(
+        "coga/bootstrap/orient/ticket.md",
+        "---\ntitle: Current orientation\nagent: claude\n---\n\n"
+        "## Description\n\nInstructions from current control.\n",
+    )
+
+    def inspect(ref: BootstrapRef) -> bool:
+        assert ref.ticket_path == git_repo.coga_os / "bootstrap/orient/ticket.md"
+        assert "Instructions from current control." in Ticket.read(ref.ticket_path).body
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[inspect])
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert result.exit_code == 0, result.output
+    assert [seen[:2] for seen in session.seen] == [("main", "1")]
+    _assert_clean_control(git_repo)
+    assert list_tasks(load_config(git_repo.coga_os)) == []
+
+
+def test_orientation_refusal_preserves_edits_and_explains_investigation(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.checkout_branch("feature/unfinished")
+    tracked = git_repo.root / "work.py"
+    tracked.write_text("original\n")
+    git_repo.git("add", "work.py")
+    git_repo.git("commit", "-m", "Unfinished work")
+    tracked.write_text("staged\n")
+    git_repo.git("add", "work.py")
+    tracked.write_text("unstaged\n")
+    untracked = git_repo.root / "notes.txt"
+    untracked.write_text("Unpublished notes\n")
+    before = _branch_and_tip(git_repo)
+    status = git_repo.git("status", "--porcelain")
+    stash = git_repo.git("stash", "list")
+    session = _CheckoutSession(git_repo)
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert result.exit_code == 75, result.output
+    assert not session.seen
+    assert "ticket on current origin/main" in result.output
+    assert "PR's merge status" in result.output
+    assert "merged PR does not prove those edits are finished" in result.output
+    assert "Do not automatically stash or discard" in result.output
+    assert "No work was started" in result.output
+    assert _branch_and_tip(git_repo) == before
+    assert git_repo.git("status", "--porcelain") == status
+    assert git_repo.git("show", ":work.py") == "staged\n"
+    assert tracked.read_text() == "unstaged\n"
+    assert untracked.read_text() == "Unpublished notes\n"
+    assert git_repo.git("stash", "list") == stash
+
+
+def test_orientation_returns_to_control_after_session_changes_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def work(_ref: BootstrapRef) -> bool:
+        git_repo.checkout_branch("feature/from-chat")
+        (git_repo.root / "work.py").write_text("committed work\n")
+        git_repo.git("add", "work.py")
+        git_repo.git("commit", "-m", "Work from chat")
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[work])
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert result.exit_code == 0, result.output
+    assert len(session.seen) == 1
+    _assert_clean_control(git_repo)
+    assert git_repo.git("show", "feature/from-chat:work.py") == "committed work\n"
+
+
+def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga import cli as cli_module
+
+    phases: list[str] = []
+
+    def competing_chat(phase: str) -> None:
+        before = _branch_and_tip(git_repo)
+        origin_before = _origin_main(git_repo)
+        status = git_repo.git("status", "--porcelain")
+        rival = subprocess.run(
+            [sys.executable, "-m", "coga.cli", "chat"],
+            cwd=git_repo.coga_os,
+            env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
+            capture_output=True, text=True, timeout=20,
+        )
+        assert rival.returncode == 75, rival.stdout + rival.stderr
+        assert "another chat is using this checkout" in rival.stderr
+        assert _branch_and_tip(git_repo) == before
+        assert _origin_main(git_repo) == origin_before
+        assert git_repo.git("status", "--porcelain") == status
+        phases.append(phase)
+
+    def work(_ref: BootstrapRef) -> bool:
+        git_repo.checkout_branch("feature/active-chat")
+        (git_repo.root / "work.py").write_text("first chat's committed work\n")
+        git_repo.git("add", "work.py")
+        git_repo.git("commit", "-m", "Active chat work")
+        assert git_repo.git("status", "--porcelain") == ""
+        competing_chat("session")
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[work])
+    _checkout_launch_env(monkeypatch, session)
+    original_sweep = cli_module._sweep_coga_state
+
+    def sweep(cfg) -> None:  # type: ignore[no-untyped-def]
+        competing_chat("exit sweep")
+        original_sweep(cfg)
+
+    monkeypatch.setattr(cli_module, "_sweep_coga_state", sweep)
+    monkeypatch.setattr(sys, "argv", ["coga", "chat"])
+    with pytest.raises(SystemExit) as exited:
+        cli_module.main()
+    assert exited.value.code == 0
+    assert phases == ["session", "exit sweep"]
+    _assert_clean_control(git_repo)
+
+    # A later launch succeeds without deleting a stale lock file.
+    _checkout_launch_env(
+        monkeypatch, _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    )
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+    assert result.exit_code == 0, result.output
+
+
+def test_orientation_guard_is_released_when_its_process_dies(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.checkout_branch("feature/occupied")
+    script = (
+        "from coga.config import load_config\n"
+        "from coga.commands.launch import _orientation_checkout_guard\n"
+        "import sys\n"
+        "with _orientation_checkout_guard(load_config()):\n"
+        "    print('guard held', flush=True)\n"
+        "    sys.stdin.read()\n"
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", script],
+        cwd=git_repo.coga_os,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline() == "guard held\n"
+        session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+        _checkout_launch_env(monkeypatch, session)
+        before = _branch_and_tip(git_repo)
+        refused = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+        assert refused.exit_code == 75, refused.output
+        assert not session.seen
+        assert _branch_and_tip(git_repo) == before
+    finally:
+        holder.kill()
+        holder.communicate(timeout=10)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+    assert result.exit_code == 0, result.output
+    _assert_clean_control(git_repo)
+
+
+def test_orientation_guard_is_per_git_checkout_not_coga_root(
+    git_repo, tmp_path: Path
+) -> None:
+    from dataclasses import replace
+    from conftest import init_git_repo
+
+    cfg = load_config(git_repo.coga_os)
+    other = init_git_repo(tmp_path / "other")
+    with launch_module._orientation_checkout_guard(cfg):
+        with launch_module._orientation_checkout_guard(load_config(other.coga_os)):
+            pass  # Independent checkout, even for the same user.
+        nested_cfg = replace(cfg, repo_root=git_repo.coga_os / "nested")
+        nested_cfg.repo_root.mkdir()
+        with pytest.raises(SystemExit) as refused:
+            with launch_module._orientation_checkout_guard(nested_cfg):
+                pytest.fail("a nested Coga root shares the occupied Git checkout")
+        assert refused.value.code == 75
+
+
+def test_delegated_orientation_keeps_callers_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.checkout_branch("feature/delegated")
+    before = _branch_and_tip(git_repo)
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    _checkout_launch_env(monkeypatch, session)
+
+    launch_module.launch_with_before_spawn(
+        "bootstrap/orient",
+        agent_override=None,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=True,
+        launch_context="recurring",
+        before_spawn=lambda: None,
+    )
+
+    assert [seen[:2] for seen in session.seen] == [("feature/delegated", None)]
+    assert _branch_and_tip(git_repo) == before
+
+
+@pytest.mark.parametrize("target", ["task", "bootstrap/orient"])
 def test_launch_without_a_remote_keeps_its_checkout(
+    target: str,
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ref = _published_checkout_task(git_repo)
@@ -7217,7 +7446,9 @@ def test_launch_without_a_remote_keeps_its_checkout(
     session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
     _checkout_launch_env(monkeypatch, session)
 
-    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+    result = CliRunner().invoke(
+        app, ["launch", ref.id_slug if target == "task" else target]
+    )
 
     assert result.exit_code == 0, result.output
     assert session.seen[0][:2] == ("feature/x", None)

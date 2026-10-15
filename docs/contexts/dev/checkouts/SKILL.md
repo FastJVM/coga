@@ -33,9 +33,9 @@ that publication carries ([coga/internals/state-publication](../../coga/internal
 
 - [dev/checkouts/reconciliation](reconciliation/SKILL.md) — keeping all agent
   edits current with main while preserving unique work.
-- [dev/checkouts/launch-boundary](launch-boundary/SKILL.md) — what an
-  ordinary launch does to prepare and return the invoking checkout, its
-  refusals, and which launches skip it.
+- [dev/checkouts/launch-boundary](launch-boundary/SKILL.md) — how ordinary
+  ticket launches and chat/orientation prepare and return the invoking
+  checkout, how to investigate refusals, and which launches skip it.
 - [dev/checkouts/sandbox-clone](sandbox-clone/SKILL.md) — the sandbox clone
   fallback and seeding what a fresh checkout lacks.
 
@@ -160,7 +160,7 @@ work in the clone.
   and regenerates `.agent-skills/`. For a write-free view call
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.
 - **Launch and megalaunch compose from the invoking checkout.** An ordinary
-  ticket launch brings it to a fresh control checkout first (the [launch
+  ticket launch or direct chat/orientation brings it to a fresh control checkout first (the [launch
   boundary](launch-boundary/SKILL.md)). Run megalaunch and exempt launches only from a control
   checkout freshly synced to `origin/<control>`; a stale one re-dispatches
   merged work.

@@ -5,6 +5,21 @@ workbench for directing coding agents. The ticket, its contexts, and the current
 do; everything below says how to operate. Work from the task files: durable
 state, not session memory, is the source of truth.
 
+## Check the starting checkout
+
+Before treating local ticket state as current, inspect the branch and working
+tree. Ordinary ticket launches and `bootstrap/orient` (`coga chat`) prepare
+the configured control branch (`main` by default) before composition; recorded
+ticket checkouts and other bootstrap commands have deliberate exemptions.
+If the checkout is unexpected or preparation failed, read
+`dev/checkouts/launch-boundary` from the configured contexts root or bundled
+package and follow its checkout recovery procedure. Identify the branch's
+ticket, verify its current control-copy status and PR merge status, and inspect
+uncommitted edits separately before proposing changes. Explain what is finished
+and what remains unknown. Do not automatically stash, discard edits, or switch
+an occupied checkout merely to get onto `main`; resolve unclear ownership or
+intent through session conduct.
+
 ## The loop
 
 1. **Start from the blackboard.** It is composed into this prompt below, not
