@@ -1,92 +1,44 @@
 ---
 name: product/vision
-description: Coga's purpose, intended audience, the kind of work it fits, and operating limitations; the product thesis, not a behavioral contract or measured result.
+description: Coga's short philosophical manifesto — human–AI collaboration, amplification, hackable tools, and knowledge people can understand and shape.
 ---
 
-# Coga vision
+# Coga's philosophical manifesto
 
-Authority: purpose, audience, and limits. Enduring design constraints
-belong to [`coga/principles`](../../coga/principles/SKILL.md); shipped behavior
-belongs to the focused `coga/*` contracts; positioning itself is
-[README.md](../../../../README.md), and public-claim limits and sources belong
-to [`marketing/positioning`](../../marketing/positioning/SKILL.md). Founding history
-and the original essay's arguments are in
-[`docs/archive/origins.md`](../../../archive/origins.md).
-[README.md](../../../../README.md) is the source of truth for concepts and
-positioning; the earlier bet and work-kind mapping are in
-[`docs/archive/positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md).
+Coga explores a way for humans and agents to discover problems, challenge
+assumptions, and build together, with human purpose and judgment at the center.
+The person chooses what matters, where to give attention, and when to change
+course.
 
-## Purpose
+We draw on three influences:
 
-Coga is a way to work with AI by managing what it works from. The person and
-the AI maintain the intent, instructions, relevant knowledge and working state
-as files in a Git repository; Coga assembles that material into the prompt for
-the next session. Work moves from an incomplete idea through clarification,
-directed execution and inspection, and the correction is made to the files
-that direct later work rather than to a transcript.
+- **Bicycle for the mind:** amplify human ability to think, explore, and
+  create.
+- **Pirsig:** understand and care for your tools — keep them yours, legible,
+  and hackable.
+- **Kay:** computing as a medium for expanding human cognition, which people
+  can reshape as they work and think.
 
-Coga exists so that the operator keeps understanding and owning the material
-their agents work from. Every file the agent reads, the operator can read; every rule it
-follows, the operator can edit. When an agent is wrong, the durable fix is a
-reviewed change to a context, skill, workflow or ticket, and the next stateless
-session starts from it. That short correction loop is the mechanism the rest of
-the design serves: corrections are cheap enough to make routinely, so the
-maintained material improves with use.
+Editable memory can still be opaque in practice: hard to navigate, hard to
+understand, or applied indiscriminately across tasks. Knowledge should be
+something you can find, question, correct, and choose for the work at hand.
 
-Coga began as the tool FastJVM, a two-person technical company, used to run
-its agent work, and it runs the work that builds Coga. It is published as open source
-(Apache-2.0) as a field report from that use.
+**Text above code.** The text carries the intent, knowledge, and decisions
+behind the work. Code is an implementation of that understanding, and we can
+rewrite it as we learn.
 
-## Intended audience
+Coga gives that collaboration a shared record in files you own. What you
+learn can change the next task, the instructions agents work from, and the
+way you work together.
 
-Small technical teams that already use CLI agents (Claude Code or Codex), are
-comfortable with Git, the shell and markdown, and want to understand and correct
-the material their agents work from. It fits when writing down how work should happen
-costs less than supervising the same work indefinitely, and when the operator
-can evaluate the result.
+**Small improvements compound.** A clearer instruction, a corrected
+assumption, or a better method can help the next task and become the starting
+point for another improvement. Keep what proves useful and revise what
+stops working. The aim is to finish with useful work, clearer understanding,
+and tools you can adapt to the next question.
 
-It is not for teams that want a managed service, an SLA, zero setup, a hosted
-dashboard, or a delegate-and-forget substitute for an employee.
+These are our interpretations of the influences and our design ambitions.
+The [README](../../../../README.md) owns product definitions and fit;
+[principles](../../coga/principles/SKILL.md) owns the design constraints.
 
-## Kind of work
-
-Coga is built for work you learn by doing, where you are still working out
-what to build while you build it; the README's "Who it is for, and its
-limits" owns the fit. The correction loop in `## Purpose` exists to serve it.
-
-## Operating model
-
-- **Local and attended by default.** The correction loop closes cheaply when the
-  human is present while the context is fresh. Mature, stable automations may
-  run with less attention, or elsewhere, only if their prompts, blackboards and
-  decisions stay inspectable.
-- **One ambient notification channel.** Urgent events and outcomes are posted
-  where a small team already reads; see
-  [`coga/notifications`](../../coga/notifications/SKILL.md).
-- **Discipline substitutes for enforcement.** Update the governing file in the
-  session where a mistake is seen; tune blocking per task; review maintenance
-  proposals; keep contexts and skills separate and short; give every script an
-  owner; ship imperfect first versions and correct them in use.
-
-## Operating limitations
-
-- **Scale ceiling.** One task per worker, status-as-signal coordination and Git
-  as the sync layer are designed for a handful of people and break around ten.
-  Past that, the internals would need replacing.
-- **Discipline dependence.** Flexible plain files drift without sustained
-  review. Without the practices above, Coga degrades into a task list.
-- **Silent wrong answers, context drift, calibration rot, and skill/context
-  conflation** are the watched failure modes; they are discipline issues, not
-  automated checks.
-- **Adoption cost.** Coga works best when its files are where the work's
-  instructions and knowledge actually live, not a parallel copy layered over
-  established tools and tribal knowledge.
-- **Linear workflows.** Dynamic or parallel orchestration belongs in an agent
-  framework.
-- **Self-hosted and self-supported.** There is no hosted service or support
-  contract.
-- **A small overlay.** Coga sits on top of what agents already provide, so it
-  gets better when they do; [`marketing/strategy`](../../marketing/strategy/SKILL.md)
-  says when to re-check build versus adopt.
-- **Not an agent.** Coga does not generate the work or make the judgments; it is
-  what the agents and the humans operate on.
+Explore the influences in the [reading list](reading-list.md).

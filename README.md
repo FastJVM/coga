@@ -4,9 +4,13 @@
 > for the human using them.
 
 Coga is a CLI that runs your coding agent from Markdown files in your Git
-repo. Every launch rebuilds the agent's prompt from those
-files. When an agent gets something wrong, you fix the file once, and every
-later run starts from the fix.
+repo. Every launch assembles those files into the agent's opening task
+prompt. When an agent gets something wrong, you correct the relevant file,
+and future work starts from the updated instructions.
+
+**Text above code.** The text is the source of truth for intent, knowledge,
+and decisions. Code implements that understanding and can be rewritten as
+we learn.
 
 Think of it as a workbench, not an assembly line: it's what you build with
 while you're still working out what to build. 
@@ -20,18 +24,18 @@ the full history in [`coga/log.md`](coga/log.md).
 
 On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent only skims it. There are various techniques to mitigate this problem: auto-memories, scoped `AGENTS.md` files, MCP servers. Coga's solution is to make all this explicit while keeping intact the search capabilities of the agent. Each launch injects what you decided the task needs. In our use, the skimming problem never came up.
 
-As a consequence, the source of truth is the text, not the code, so treat the text as a first-class citizen: above the code.
-
-
 ## Key ideas
 
-Each of these follows from one premise: you learn by doing; agents don't. An
-LLM has no state between sessions; memory features add it back as hidden
-state, written by the agent and kept outside your repo, that every later
-launch depends on. That's a leaky abstraction. Coga drops it: each launch is
-built only from files you own and can read. It's like writing SQL instead of
-going through an ORM: more of the work is in your hands, and you see exactly
-what goes in. Sometimes that's worth it.
+Treating an agent as a person who remembers is a convenient abstraction.
+Under heavy use, it can get in the way: you need to know what was kept,
+where it applies, and how to correct it. Even editable memory isn't
+necessarily organized for that work.
+
+Coga drops that abstraction. You maintain the knowledge and
+instructions explicitly, and choose what each task needs. Each launch
+assembles that material into its opening prompt. It's like writing SQL
+instead of going through an ORM: more of the work is in your hands, and you
+see what goes in. For intensive use, we find that easier to manage.
 
 - **The unit is the task, not the session.** Each launch builds a fresh
   prompt from what that task needs: the ticket, the contexts it attaches, the
@@ -52,6 +56,30 @@ what goes in. Sometimes that's worth it.
   ([knowledge](docs/contexts/coga/knowledge/SKILL.md))
 - **Workflow**: the steps for one kind of work, and which of them need you.
   ([workflows](docs/contexts/coga/workflows/SKILL.md))
+- **Recurring work**: reusable task templates with a schedule. When you run
+  `coga recurring`, due templates become tasks and run through the ordinary
+  task lifecycle — for maintenance, reviews, or other work worth repeating.
+  ([recurring](docs/contexts/coga/recurring/SKILL.md))
+
+## Principles
+
+- **Hackable:** change the prompts, knowledge, and ways of working by editing
+  files you own.
+- **Agents do, humans think:** delegate mechanizable work so people can
+  concentrate on purpose, judgment, and correction.
+- **Obvious:** use familiar files and tools; keep the mechanisms understandable.
+- **Memory via Git:** make accumulated knowledge visible, versioned, and
+  correctable.
+- **Yours:** keep your work in your repository and choose which agents run it.
+- **Fail loud:** surface missing context and failed operations so they can be
+  corrected.
+- **Ticketed:** give substantive work a durable task that a person can direct
+  and an agent can resume.
+
+The [principles topic](docs/contexts/coga/principles/SKILL.md) defines the
+constraints behind these summaries. The
+[philosophical manifesto](docs/contexts/product/vision/SKILL.md) explains
+why they matter.
 
 ## Example
 
@@ -136,12 +164,13 @@ surface it.
 
 - [Documentation index](docs/README.md): start, understand, operate and
   develop.
+- [Philosophical manifesto](docs/contexts/product/vision/SKILL.md): the philosophy behind
+  human–agent collaboration.
 - [Principles](docs/contexts/coga/principles/SKILL.md): the design
   constraints.
 - [Contributing](CONTRIBUTING.md).
-- Limits: contexts go into the prompt as truth, so a stale one misleads, and
-  a weekly recurring check catches drift, not instantly. Managing prompts and
-  instructions as files has close precedents; see the
+- Limits: contexts go into the prompt as truth, so a stale one misleads.
+  Managing prompts and instructions as files has close precedents; see the
   [evidence pages](docs/archive/evidence/) for dated comparisons.
 
 Coga is free software licensed under

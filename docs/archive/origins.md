@@ -4,8 +4,9 @@
 > (`docs/vision.md`, first written 2026-04-24 and revised through 2026-09-11),
 > archived 2026-09-22 during the documentation-library migration. Statements
 > such as "six months ago" or "at month six" are relative to that essay, not to
-> today. The current purpose, audience, bet and limits are in
-> [`product/vision`](../contexts/product/vision/SKILL.md); the enduring
+> today. Current product definitions and fit are in the [README](../../README.md);
+> the [philosophical manifesto](../contexts/product/vision/SKILL.md) and its
+> [reading list](../contexts/product/vision/reading-list.md) explain the influences. The enduring
 > constraints are in [`coga/principles`](../contexts/coga/principles/SKILL.md).
 > Nothing here is a behavioral contract.
 

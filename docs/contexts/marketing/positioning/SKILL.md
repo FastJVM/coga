@@ -28,8 +28,9 @@ bypass a gate. The earlier approved opening copy is in
 The proof is the README's thinkpick example: a written plan exposed a wrong
 premise and was replaced by a research plan in tickets.
 
-Product purpose remains in [vision](../../product/vision/SKILL.md), behavior in
-Coga's contracts, and the longer strategic argument in
+Philosophical intent lives in the [philosophical manifesto](../../product/vision/SKILL.md),
+product definitions and fit in the [README](../../../../README.md), behavior
+in Coga's contracts, and the longer strategic argument in
 [strategy](../strategy/SKILL.md). Earlier positioning is
 [historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 
@@ -46,6 +47,13 @@ Coga's contracts, and the longer strategic argument in
   "progressive disclosure". Reading is chosen per pull request; never imply
   the human reads everything or that Coga forces a review. Code is "cheap
   enough to throw away", never free.
+
+- **Owner clarification, 2026-10-15.** The
+  [philosophical manifesto](../../product/vision/SKILL.md) may describe human
+  purpose and judgment as being at the center, and small improvements as
+  compounding. These express philosophical intent, not measured results.
+  This exception is for the manifesto; the marketing-copy restrictions above
+  still apply to other surfaces.
 
 - Use public support for claims about actual Coga work: dated tickets, log
   entries, contexts, diffs, PRs or a newly recorded public demonstration.

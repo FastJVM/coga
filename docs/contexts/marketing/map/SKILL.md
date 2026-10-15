@@ -27,8 +27,8 @@ Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Vision](../../product/vision/SKILL.md): purpose, audience, kind of work
-  and limits.
+- [Philosophical manifesto](../../product/vision/SKILL.md): philosophical intent and
+  influences behind human–agent collaboration.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.
