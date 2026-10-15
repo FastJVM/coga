@@ -9,7 +9,7 @@ Distilled from the market thesis first written 2026-05-30. This is argument,
 not positioning ([README.md](../../../../README.md); claim limits in
 [positioning](../positioning/SKILL.md)), not the campaign
 ([plan](../plan/SKILL.md)), and not product behavior. Dated competitor
-facts live in the [agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md)
+facts live in the [agent memory landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md)
 (older: [`docs/archive/market-landscape.md`](../../../archive/market-landscape.md));
 re-verify any of them before a public claim.
 
@@ -87,7 +87,7 @@ owned, legible, vendor-neutral, human-gated correction — chosen while the fiel
 moves toward absorption. Competitors can build any piece; model vendors are
 poorly placed to center "depend on vendors less". Original in stance, freely
 copyable for the same reason. See the dated
-[landscape](../../../evidence/agent-memory-landscape-2026-10-13.md) before
+[landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md) before
 saying "first" or "only": neither is supported.
 
 ## Strategic posture

@@ -7,9 +7,9 @@ link never loads anything — a task gets exactly the refs it lists. How a
 fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
 Pages outside `contexts/` are for reading, never composed into prompts:
-[`evidence/`](#evidence-and-positioning) (dated measurements and
-comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
-[`archive/`](#proposals-and-history) (history).
+[`design/`](#proposals-and-history) (unbuilt proposals) and
+[`archive/`](#proposals-and-history) (history, including dated measurements
+and comparisons in [`archive/evidence/`](archive/evidence/)).
 
 ## Start
 
@@ -121,7 +121,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [current direction](contexts/coga/current-direction/SKILL.md),
   [project stage](contexts/coga/project-stage/SKILL.md).
 
-## Evidence and positioning
+## Product and positioning
 
 - [Product vision](contexts/product/vision/SKILL.md) — purpose, audience,
   kind of work, limits.
@@ -129,15 +129,15 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),
   [plan](contexts/marketing/plan/SKILL.md).
-- Dated evidence (read the date and scope on each page before reusing a
-  claim): [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md),
-  [velocity](evidence/velocity.md),
-  [admin and patent flexibility](evidence/admin-and-patent-flexibility-2026-09-12.md),
-  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md),
-  [macOS clean-install runs](evidence/macos-clean-install-runs-2026-10.md).
 
 ## Proposals and history
 
+- Archived evidence (read the date and scope on each page before reusing a
+  claim): [agent memory landscape](archive/evidence/agent-memory-landscape-2026-10-13.md),
+  [velocity](archive/evidence/velocity.md),
+  [admin and patent flexibility](archive/evidence/admin-and-patent-flexibility-2026-09-12.md),
+  [Claude cache TTL survey](archive/evidence/claude-cache-ttl-survey.md),
+  [macOS clean-install runs](archive/evidence/macos-clean-install-runs-2026-10.md).
 - Unbuilt design: [CLI external surface](design/cli-external-surface.md).
 - Archive: [origins](archive/origins.md),
   [market landscape](archive/market-landscape.md),

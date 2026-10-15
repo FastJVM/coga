@@ -1,6 +1,6 @@
 # Does Coga's automated upkeep repay human attention?
 
-> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning. Not instructions.
 
 Evidence reviewed on 2026-09-11. This answers the owner's challenge to the
 overhead discussion in [the switching evaluation](build-vs-adopt.md).

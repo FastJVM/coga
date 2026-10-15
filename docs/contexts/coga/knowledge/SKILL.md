@@ -14,7 +14,9 @@ is right. Choose the owner by what the knowledge is:
 | Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
-| Dated evidence, proposals, retired history | `docs/evidence/`, `docs/design/`, `docs/archive/` pages |
+| Dated evidence and completed investigations | `docs/archive/evidence/` pages |
+| Unbuilt proposals | `docs/design/` pages |
+| Other retired history | `docs/archive/` pages |
 
 In the Coga repository, the root `README.md` owns Coga's concepts and
 positioning (owner decision, 2026-10-13). Topics such as `product/vision` and

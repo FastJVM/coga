@@ -1,6 +1,6 @@
 # Trying a Coga replacement — 2026-09-11
 
-> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning. Not instructions.
 
 **Observed so far:** unmodified Compound Engineering skills, a short queue
 instruction file and ordinary Git reproduced the small prepared-work queue,

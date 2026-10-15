@@ -68,7 +68,7 @@ The tracked apparatus that remains available is:
   gap, 2-minute floor, 5-minute sensitivity floor);
 - the same script's machine-token ledger, read from schema-2 usage records;
   and
-- [`docs/evidence/velocity.md`](../../evidence/velocity.md), section "Why there is no multiplier here": the
+- [`docs/archive/evidence/velocity.md`](../evidence/velocity.md), section "Why there is no multiplier here": the
   pre-registration and intention-to-treat rule that every completed, blocked,
   rescued, or abandoned attempt must be counted and linked to its receipt.
 

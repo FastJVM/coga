@@ -142,7 +142,7 @@ surface it.
 - Limits: contexts go into the prompt as truth, so a stale one misleads, and
   a weekly recurring check catches drift, not instantly. Managing prompts and
   instructions as files has close precedents; see the
-  [evidence pages](docs/evidence/) for dated comparisons.
+  [evidence pages](docs/archive/evidence/) for dated comparisons.
 
 Coga is free software licensed under
 [Apache-2.0](LICENSE).

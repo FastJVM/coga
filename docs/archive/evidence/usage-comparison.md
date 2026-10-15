@@ -1,6 +1,6 @@
 # Coga and the competing ways of working
 
-> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning. Not instructions.
 
 **Within the ten-tool usage comparison, Coga is moderately differentiated
 overall. Its strongest difference is the
@@ -159,7 +159,7 @@ overlap is not erased by the stronger contrast with an application framework.
 
 ## Core flexibility across administrative and patent work
 
-Moved to the live evidence page [admin and patent flexibility](../../evidence/admin-and-patent-flexibility-2026-09-12.md).
+Moved to the live evidence page [admin and patent flexibility](admin-and-patent-flexibility-2026-09-12.md).
 
 ## What counts as a substantial difference
 

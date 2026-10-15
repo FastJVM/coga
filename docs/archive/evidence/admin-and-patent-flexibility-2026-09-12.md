@@ -1,6 +1,6 @@
 # Core flexibility across administrative and patent work
 
-Dated evidence, split out of the archived [ten-tool usage comparison](../archive/evidence/usage-comparison.md) on 2026-10-13 because [`marketing/positioning`](../contexts/marketing/positioning/SKILL.md) still cites it.
+Dated evidence, split out of the archived [ten-tool usage comparison](usage-comparison.md) on 2026-10-13 because [`marketing/positioning`](../../contexts/marketing/positioning/SKILL.md) still cites it.
 
 **September 12, 2026 — owner-requested local source inspection.** The owner
 identified the admin and patents repositories as examples of flexibility in
@@ -27,10 +27,10 @@ patent lifecycle records; that is persisted usage evidence, not independent
 verification of the underlying business outcomes.
 
 The current Coga source supports the architectural explanation. Its
-[configuration parser](../../src/coga/config.py) accepts declared extension
+[configuration parser](../../../src/coga/config.py) accepts declared extension
 fields and repository-owned extension tables. The generic
-[workflow parser](../../src/coga/workflow.py), [composer](../../src/coga/compose.py)
-and [launcher](../../src/coga/commands/launch.py) operate on task state and
+[workflow parser](../../../src/coga/workflow.py), [composer](../../../src/coga/compose.py)
+and [launcher](../../../src/coga/commands/launch.py) operate on task state and
 selected instructions. The inspected domain calculations live in repository
 scripts using files and CLI calls; the core has no special dispatcher for
 these administrative or patent procedures. Coga still ships coding workflows

@@ -56,7 +56,7 @@ README's concrete behavior leads with and how it is worded.
   copies, and no way to tell which copies are still true.
 - **Scoping.** Contexts are scoped by what the task is, not by where the code
   is, and the agent can still look up the rest. Comparisons with other tools
-  cite the dated [agent memory landscape](../evidence/agent-memory-landscape-2026-10-13.md).
+  cite the dated [agent memory landscape](evidence/agent-memory-landscape-2026-10-13.md).
 - **The unit is the task, not the session.** Lead the key ideas with this,
   in plain words rather than "one owner per fact" vocabulary: a ticket holds
   the goal, contexts, step and working notes, and every launch rebuilds from
@@ -151,7 +151,7 @@ on three conditions:
 
 Given those conditions, the limit is whether there is a substrate that captures
 the leverage. The dated operating observations
-([velocity evidence](../evidence/velocity.md)) count agent-operated
+([velocity evidence](evidence/velocity.md)) count agent-operated
 workstreams; they do not measure productivity, and the human-minutes experiment
 is shelved.
 

@@ -34,10 +34,10 @@ Live ticket status is in `coga status marketing`, not here.
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.
 - [Write-post](../../../../coga/skills/marketing/write-post/SKILL.md) and
   [Clarity](../../../../coga/skills/clarity/SKILL.md): production and prose craft.
-- [Agent memory landscape](../../../evidence/agent-memory-landscape-2026-10-13.md):
+- [Agent memory landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md):
   dated comparison with other tools (2026-10-13).
-- [Velocity evidence](../../../evidence/velocity.md) and the other
-  [dated evidence pages](../../../evidence/): descriptive, not an efficiency
+- [Velocity evidence](../../../archive/evidence/velocity.md) and the other
+  [dated evidence pages](../../../archive/evidence/): descriptive, not an efficiency
   multiplier.
 - [Cleanup index](../../../../coga/tasks/cleanup/README.md): existing product
   fixes; confirm their current state rather than inheriting the whole list as a
