@@ -108,6 +108,10 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
   disk until termination).
 - Still keep an explicit opt-in like `COGA_CLEAN_INSTALL_ALLOCATE=yes`, and
   ask the owner before the first real provision.
+- Owner decision 2026-10-14: after the owner approves the first provision,
+  agents may provision and tear down Windows instances for the
+  `windows-native/` tickets without asking again, as long as every session
+  ends with teardown. Record this rule in the runbook.
 - Write every resource ID to `.coga/clean-install/<name>/resources.env`
   (gitignored) as soon as it exists, so a failed provision can still be torn
   down, and make `teardown` safe to rerun.
@@ -157,32 +161,3 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-Cold review of both `windows-native/` tickets (2026-10-14). Already folded into
-the bodies: the uv install order, the fix-loop user, RDP confirmed by the owner,
-`atomicio.fchmod`, `update.py` chmod, no second lock consumer, PR CI created from
-scratch, a separate walk user, and SSH+ConPTY as the primary launch path. Still
-open, for the owner to decide: split the port further; a step of its own for
-Zach's walk; a standing spend approval; encoding the dependency (Coga has no
-`depends_on` field, so it is prose only).
-
-- Harness HIGH: paid live run plus RDP check inside the agent implement step; uv
-  `UV_PYTHON_DOWNLOADS=never` ordering ambiguous.
-- Harness MED: no user/uv named for `checkout`; code/implement layer is 48% of
-  prompt (bundled skill, not trimmable here).
-- Port HIGH: scope too big — suggests split into (1) core port + suite green,
-  (2) interactive supervisor + attended launch, (3) windows CI (no PR CI exists
-  today), (4) docs + Zach walk. Fix loop with paid EC2 is one implement step;
-  Zach's walk has no step of its own. Agent can't drive RDP.
-- Port MED: `atomicio.py` `os.fchmod` missing on Windows <3.13 (every write
-  path); `update.py` chmod; lock-helper "two consumers" claim false (supervisor
-  only uses `fcntl.ioctl`).
-- Port note: consider attaching `coga/launch` to the design step for the
-  teardown contract.
-- Cross: decide once whether the agent may provision after first approval;
-  encode the dependency; walk-vs-fix-loop on same box must not collide.
-- Verified accurate: README:88, install SKILL Windows text, git.py fcntl/getuid,
-  supervisor pty/fork/killpg/TIOCSWINSZ, megalaunch termios, recurring_runner
-  start_new_session/killpg, init geteuid guard, provenance refs in log.
