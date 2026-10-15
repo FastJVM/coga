@@ -58,8 +58,9 @@ ticket or intentionally overrides a shipped one. This repo overrides
 ## Canonical copies and twins
 
 This repo's canonical contexts live under its configured root, `docs/contexts/`
-(`[layout] contexts` in `coga/coga.toml`). Each packaged context pairs with
-exactly one canonical file:
+(`[layout] contexts` in `coga/coga.toml`). Packaged contexts map to canonical
+files as follows; the starter `contexts/_template/SKILL.md` is package-only
+scaffolding and has no docs twin:
 
 ```text
 templates/coga/bootstrap/contexts/<ref>/SKILL.md -> docs/contexts/<ref>/SKILL.md
@@ -70,10 +71,13 @@ templates/coga/bootstrap/{skills,workflows}/<p>  -> coga/{skills,workflows}/<p>
 
 `tests/test_packaging.py` derives the pairs from the packaged tree (nothing to
 register) and requires byte-identity. For contexts it is stricter than for
-other areas: every packaged context file must have its canonical counterpart,
-every canonical topic must be classified as bootstrap, init-seeded, or in an
-explicit local-only exception set, and `REQUIRED_BOOTSTRAP_CONTEXT_REFS`
+other areas: every packaged context file except the starter template must
+have its canonical counterpart, every canonical topic must be classified as
+bootstrap, init-seeded, or in an explicit local-only exception set, and
+`REQUIRED_BOOTSTRAP_CONTEXT_REFS`
 fails the suite if a required bootstrap topic disappears from both trees.
+`REQUIRED_INIT_CONTEXT_FILES` still requires the packaged starter to ship;
+a copy under `docs/contexts/_template/` is unnecessary.
 Discovery skips `.coga/`, `.venv/`, `.agent-skills/`, `.claude/`, `.codex/`,
 bytecode caches, and `coga.local.toml`. A deliberate difference goes in
 `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the suite fails once the

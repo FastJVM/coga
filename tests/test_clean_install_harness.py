@@ -39,7 +39,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     bin_dir.mkdir()
     _checksum_stub(bin_dir)
     # Keep the host's installed coga out of PATH; only installation exposes it.
-    for name in ("bash", "git", "grep", "mkdir", "sed", "tail", "tee", "wc"):
+    for name in ("bash", "cat", "git", "grep", "mkdir", "sed", "tail", "tee", "wc"):
         (bin_dir / name).symlink_to(shutil.which(name))
     # The pinned interpreter reports a version without running a real Python.
     _executable(bin_dir / "python3.11", """
@@ -76,6 +76,10 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     """)
     _executable(bin_dir / "uv", """
         #!/bin/sh
+        if [ "$1 $2" = 'tool dir' ]; then
+            printf '%s\\n' "$COGA_TEST_TOOL_DIR"
+            exit
+        fi
         if [ "$1 $2" = 'python find' ]; then
             [ "$3" = 3.11 ] || exit 21
             printf '%s\\n' "$COGA_TEST_BIN/python3.11"
@@ -87,6 +91,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
         fi
         printf 'uv stub: %s\\n' "$*"
     """)
+    monkeypatch.delenv("COGA_CLEAN_INSTALL_VERSION", raising=False)
     monkeypatch.setenv("PATH", str(bin_dir))
     monkeypatch.setenv("UV_PYTHON", "3.11")
     monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
@@ -528,3 +533,132 @@ def test_macos_walk_provisions_and_pins_python_311(tmp_path: Path, monkeypatch) 
         "uv python install 3.11 UV_PYTHON=",
         "container.sh pypi installer UV_PYTHON=3.11 UV_PYTHON_DOWNLOADS=never",
     ]
+
+
+def test_clean_install_can_pin_a_pypi_release(install_env: dict[str, str]) -> None:
+    install_env["COGA_CLEAN_INSTALL_VERSION"] = "0.4.0"
+    result = _run(install_env, "pypi", "installer")
+    assert result.returncode == 0, result.stdout + result.stderr
+    steps = (Path(install_env["HOME"]) / "clean-install/evidence/steps.txt").read_text()
+    assert "uv tool install --python 3.11 coga==0.4.0" in steps
+
+
+@pytest.fixture
+def release_env(install_env: dict[str, str], tmp_path: Path) -> dict[str, str]:
+    assert _run(install_env, "pypi", "installer").returncode == 0
+    tool_dir = tmp_path / "tools"
+    python = tool_dir / "coga/bin/python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    install_env["COGA_TEST_TOOL_DIR"] = str(tool_dir)
+    metadata_root = tmp_path / "metadata"
+    metadata = metadata_root / "coga-0.4.0.dist-info/METADATA"
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text("Metadata-Version: 2.1\nName: coga\nVersion: 0.4.0\n")
+    install_env["PYTHONPATH"] = os.pathsep.join((str(metadata_root), str(ROOT / "src")))
+    _executable(Path(install_env["COGA_TEST_BIN"]) / "claude", "#!/bin/sh\nexit 0\n")
+    _executable(Path(install_env["COGA_TEST_STUB"]), f'''
+        #!{sys.executable}
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+
+        command = sys.argv[1]
+        failure = os.environ.get("COGA_TEST_RELEASE_FAIL")
+        ticket = Path("coga/tasks/verify-first-launch/ticket.md")
+        log = Path("coga/log.md")
+        if command == "create":
+            ticket.parent.mkdir(parents=True)
+            ticket.write_text("---\\nstatus: draft\\n---\\n")
+        elif command == "launch":
+            assert os.isatty(0) and os.isatty(1), "agent lost terminal"
+            if failure == "launch":
+                sys.exit(17)
+            status = "blocked" if failure == "incomplete" else "done"
+            ticket.write_text("---\\nstatus: " + status + "\\n---\\n")
+            entry = ("2026-10-14 12:00 [other] [installer] mentions [verify-first-launch]\\n"
+                     if failure == "log" else
+                     "2026-10-14 12:00 v1 [verify-first-launch] [installer] task done\\n")
+            log.write_text(log.read_text() + entry +
+                           '2026-10-14 12:00 v1 [verify-first-launch] [system] {{"request":"secret idea"}}\\n')
+            subprocess.run(["git", "add", "coga"], check=True)
+            subprocess.run(["git", "commit", "-m", "Complete first task"], check=True)
+            if failure == "dirty":
+                Path("uncommitted.txt").write_text("dirty")
+        elif command == "validate" and failure == "validate":
+            sys.exit(17)
+    ''')
+    return install_env
+
+
+def _release(env: dict[str, str]) -> int:
+    master, slave = os.openpty()
+    try:
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "release", "claude"], env=env,
+            stdin=slave, stdout=slave, stderr=slave,
+        )
+        if result.returncode:
+            print(os.read(master, 65536).decode())
+        return result.returncode
+    finally:
+        os.close(slave)
+        os.close(master)
+
+
+def test_release_check_requires_completed_logged_clean_task(release_env) -> None:
+    assert _release(release_env) == 0
+    evidence = Path(release_env["HOME"]) / "clean-install/evidence"
+    assert (evidence / "release-passed.txt").is_file()
+    assert "status: done" in (evidence / "release-task.md").read_text()
+    audit = (evidence / "release-log.md").read_text()
+    assert "[verify-first-launch]" in audit
+    assert "[coga-build]" not in audit
+    assert "secret idea" not in audit
+    assert "installed=" in (evidence / "release-environment.txt").read_text()
+    assert "Complete first task" in (evidence / "release-git-log.txt").read_text()
+    assert _release(release_env) != 0  # Existing success cannot pass as a new run.
+
+
+@pytest.mark.parametrize("failure", ["launch", "incomplete", "log", "dirty", "validate"])
+def test_release_check_does_not_claim_success_after_failure(release_env, failure) -> None:
+    release_env["COGA_TEST_RELEASE_FAIL"] = failure
+    assert _release(release_env) != 0
+    evidence = Path(release_env["HOME"]) / "clean-install/evidence"
+    assert not (evidence / "release-passed.txt").exists()
+
+
+def test_release_check_requires_successful_init(install_env) -> None:
+    result = _run(install_env, "release", "claude")
+    assert result.returncode == 2
+    assert "Run the install/init phase" in result.stderr
+
+
+@pytest.mark.parametrize("mode", ["pypi", "main"])
+def test_clean_install_host_applies_release_pin_only_to_pypi(
+    git_repo, tmp_path: Path, monkeypatch, mode: str,
+) -> None:
+    script = git_repo.root / "scripts/clean-install/run.sh"
+    script.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / "scripts/clean-install/run.sh", script)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _executable(bin_dir / "docker", """
+        #!/bin/sh
+        [ "$1 $2" != 'container inspect' ] || exit 1
+        printf 'docker stub: %s\\n' "$*"
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("COGA_CLEAN_INSTALL_VERSION", "0.4.0")
+    monkeypatch.setenv("COGA_CLEAN_INSTALL_IMAGE", "test-image")
+    result = subprocess.run(
+        ["bash", str(script), mode, "release-040"], capture_output=True, text=True,
+    )
+    if mode == "main":
+        assert result.returncode == 2
+        assert "applies only to pypi mode" in result.stderr
+        assert not (git_repo.root / ".coga/clean-install/release-040").exists()
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "docker stub: exec -e COGA_CLEAN_INSTALL_VERSION=0.4.0 release-040 coga-clean-install pypi installer" in result.stdout

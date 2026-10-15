@@ -60,17 +60,17 @@ megalaunch use. That sequence is now historical; any future measurement
 proposal needs its own owner decision and brief. The marketing token
 experiment remains dropped.
 
-The tracked apparatus that remains available is:
+The experiment's `scripts/human_minutes.py`, its dedicated tests, and its
+log fixture have been retired; they remain recoverable from Git history.
+They estimated human-attention episodes from public timestamps and read a
+machine-token ledger from schema-2 usage records. They are not maintained
+measurement tools. Any future experiment must revalidate that method and its
+inputs rather than treating the old estimator as current infrastructure.
 
-- `scripts/human_minutes.py`, covered by
-  `tests/test_human_minutes_script.py`: human-attention episodes computed from
-  public timestamps with its measurement parameters pinned in code (10-minute
-  gap, 2-minute floor, 5-minute sensitivity floor);
-- the same script's machine-token ledger, read from schema-2 usage records;
-  and
-- [`docs/archive/evidence/velocity.md`](../evidence/velocity.md), section "Why there is no multiplier here": the
-  pre-registration and intention-to-treat rule that every completed, blocked,
-  rescued, or abandoned attempt must be counted and linked to its receipt.
+The [velocity report](../evidence/velocity.md), section "Why there is no
+multiplier here", retains the pre-registration and intention-to-treat rule
+that every completed, blocked, rescued, or abandoned attempt must be counted
+and linked to its receipt.
 
 The fallback what-broke field-report framing and the old demo brief exist only
 in the deleted tickets' git history. A future proof-post ticket must re-decide

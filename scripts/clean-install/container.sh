@@ -5,6 +5,93 @@ work_root="$HOME/clean-install"
 evidence="$work_root/evidence"
 repo="$work_root/repo"
 
+if [[ ${1:-} == release && $# -eq 2 ]]; then
+    if [[ ! -f $evidence/init-passed.txt ]]; then
+        echo "Run the install/init phase successfully before the release check" >&2
+        exit 2
+    fi
+    # Use the installed tool's interpreter, not the container's base Python.
+    tool_python="$(uv tool dir)/coga/bin/python"
+    exec "$tool_python" -c "$(cat <<'PYTHON'
+from importlib.metadata import version
+from importlib.resources import files
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+import yaml
+
+agent, repo_arg, evidence_arg = sys.argv[1:]
+repo, evidence = Path(repo_arg), Path(evidence_arg)
+slug = "verify-first-launch"
+
+
+def run(*args: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    print("+ " + " ".join(args), flush=True)
+    return subprocess.run(args, cwd=repo, check=True, text=True,
+                          stdout=subprocess.PIPE if capture else None)
+
+
+try:
+    if not shutil.which(agent):
+        raise RuntimeError(f"Install and authenticate {agent} before the release check")
+    candidates = [repo / "coga/tasks" / f"{slug}.md",
+                  repo / "coga/tasks" / slug / "ticket.md"]
+    if any(path.exists() for path in candidates) or (evidence / "release-passed.txt").exists():
+        raise RuntimeError("Release check already attempted; use a fresh install run")
+    bundled = files("coga.resources").joinpath("templates/coga/bootstrap")
+    for resource in ("workflows/code/with-review.md", "skills/code/implement/SKILL.md"):
+        if not bundled.joinpath(resource).is_file():
+            raise RuntimeError(f"Installed artifact is missing {resource}")
+    for legacy in ("coga/.git", "coga/.coga/.venv", "coga/.coga/bin"):
+        if (repo / legacy).exists():
+            raise RuntimeError(f"Unexpected legacy installation: {legacy}")
+    (evidence / "release-environment.txt").write_text(
+        f"installed={version('coga')}\npython={sys.version}\nagent={agent}\n")
+    run("coga", "create", "Verify first launch", "--workflow", "direct/body",
+        "--description", "Verify this installation by recording success on the blackboard, "
+        "then run coga bump verify-first-launch as the final action.")
+    ticket = next(path for path in candidates if path.is_file())
+    run("git", "add", str(ticket.relative_to(repo)))
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo)
+    if staged.returncode == 1:
+        run("git", "commit", "-m", "Describe first launch check")
+    elif staged.returncode:
+        raise RuntimeError("Could not inspect staged install-check ticket")
+    log = repo / "coga/log.md"
+    log_seen = len(log.read_text().splitlines()) if log.exists() else 0
+    # Python's code comes from -c, leaving stdin attached to the real terminal.
+    run("coga", "launch", slug, "--agent", agent)
+    shutil.copyfile(ticket, evidence / "release-task.md")
+    # Save only this task's new audit entries, excluding system usage JSON
+    # whose request/outcome fields may contain conversation excerpts.
+    audit = [line for line in log.read_text().splitlines()[log_seen:]
+             if re.match(r"^[0-9-]+ [0-9:]+ (?:v1 )?\[" + slug + r"\] ", line)
+             and not re.match(r"^[^[]*\[" + slug + r"\] \[system\] \{", line)]
+    (evidence / "release-log.md").write_text("\n".join(audit) + "\n")
+    (evidence / "release-git-log.txt").write_text(
+        run("git", "log", "--oneline", capture=True).stdout)
+    parts = ticket.read_text().split("---", 2)
+    if len(parts) != 3 or not isinstance(metadata := yaml.safe_load(parts[1]), dict):
+        raise RuntimeError("Release-check ticket has invalid frontmatter")
+    if metadata.get("status") != "done":
+        raise RuntimeError("Agent exited without completing the release-check ticket")
+    if not audit:
+        raise RuntimeError("Release-check task has no audit-log entry")
+    run("coga", "validate", "--json")
+    if run("git", "status", "--porcelain", "--untracked-files=all", capture=True).stdout.strip():
+        raise RuntimeError("Release-check repository is not clean")
+    (evidence / "release-passed.txt").write_text("Real-agent first-task verification passed\n")
+    print("Release check passed; receipts saved in " + str(evidence))
+except (OSError, RuntimeError, subprocess.CalledProcessError, StopIteration, yaml.YAMLError) as exc:
+    print(f"Release check failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PYTHON
+)" "$2" "$repo" "$evidence"
+fi
+
 # Attended continuations keep both descriptors on the terminal: coga ticket
 # and coga build require a real TTY. Login and agent conversation are
 # deliberately outside the evidence; only the command and outcome are kept.
@@ -62,7 +149,7 @@ if [[ ${1:-} == build ]]; then
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || ! $1 =~ ^(pypi|wheel)$ ]]; then
-    echo "usage: coga-clean-install pypi USER | wheel USER WHEEL | ticket TITLE [--agent NAME] | build [--agent NAME]" >&2
+    echo "usage: coga-clean-install pypi USER | wheel USER WHEEL | ticket TITLE [--agent NAME] | build [--agent NAME] | release AGENT" >&2
     exit 2
 fi
 mode=$1
@@ -124,7 +211,11 @@ run uv --version
 run uv python find "$UV_PYTHON"
 run check_python "$(uv python find "$UV_PYTHON")"
 if [[ $mode == pypi ]]; then
-    run uv tool install --python "$UV_PYTHON" coga
+    requirement=coga
+    if [[ -n ${COGA_CLEAN_INSTALL_VERSION:-} ]]; then
+        requirement="coga==$COGA_CLEAN_INSTALL_VERSION"
+    fi
+    run uv tool install --python "$UV_PYTHON" "$requirement"
 else
     run checksum "$3"
     run uv tool install --python "$UV_PYTHON" "$3"
