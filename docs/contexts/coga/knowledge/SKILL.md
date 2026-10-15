@@ -18,26 +18,6 @@ is right. Choose the owner by what the knowledge is:
 | Archived, unimplemented proposals | `docs/archive/design/` pages |
 | Other retired history | `docs/archive/` pages |
 
-In the Coga repository, `product/vision` owns the philosophy and design
-principles (owner decision, 2026-10-15). The root `README.md` derives from that
-manifesto and explains the product, concepts, and fit to prospective users.
-Read the manifesto before editing the README and keep the explanation aligned;
-change the manifesto when an agreed philosophical decision changes. Behavioral
-topics own implementation contracts, not the manifesto.
-
-This repo's `coga/context.md` carries the manifesto after a source comment,
-so the existing repo-context layer includes it in every task launch, including
-bootstrap launches. Edit `docs/contexts/product/vision/SKILL.md` and refresh
-that copy in the same PR; `tests/test_compose.py` requires byte-identical
-content after the comment. Like a packaged twin, this is one owned text with
-a checked distribution copy, not an independently authored summary. Keep the
-repo context a regular file: state publication refuses symlinks. Source-tree
-rules remain in `AGENTS.md` and `CLAUDE.md`.
-
-This inclusion is local to Coga's repository, not a default for downstream
-projects. No README attachment is needed. Markdown links still never load
-content. A topic under the contexts root is a context block.
-
 Humans and agents read the same topic file. Do not keep a short agent
 rendition beside a longer human one: that is two owners of one fact, and the
 copies drift independently. Pick the topic whose subject already covers the

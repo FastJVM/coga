@@ -12,17 +12,6 @@ inventory is in `docs/archive/cli-extension-audit.md`;
 the archived, unimplemented external-surface proposal (verify-at-compose, extraction) is in
 `docs/archive/design/cli-external-surface.md`. Neither is settled rule.
 
-## Editable, text-accessible capabilities
-
-Every operation must be available through a text command or file edit, so an
-agent can perform it as a human does. A UI may expose capabilities, but must
-not be the only way to act. Keep prompts, contexts, skills, and workflows
-editable in files the operator owns; a plugin or configuration surface must
-not hide the behavior from inspection and correction.
-
-Reuse ordinary filesystem, Git, and shell operations instead of adding Coga
-commands that reproduce `mkdir`, `mv`, `rm`, or `git`.
-
 ## The microkernel rule
 
 Code earns a permanent home in `src/coga/` in two ways. Existing command

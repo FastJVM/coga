@@ -1,17 +1,11 @@
 ---
 name: marketing/positioning
-description: Public-claim limits and sources for Coga's V1 instrument positioning; the README explains the product from the manifesto.
+description: Public-claim limits and sources for Coga's V1 instrument positioning.
 ---
 
 # Coga positioning
 
-**Owner decision, 2026-09-21:** Coga is an instrument for the human using
-agents. Its purpose is to strengthen human direction and judgment, not to
-make agent autonomy the objective.
-
-[README.md](../../../../README.md) explains concepts and positioning, derived
-from the [manifesto](../../product/vision/SKILL.md). This page owns claim limits
-and sources; README edits must remain aligned with the manifesto.
+Claim limits and sources for the public positioning in [README.md](../../../../README.md).
 
 ## Opening
 
@@ -28,12 +22,6 @@ bypass a gate. The earlier approved opening copy is in
 
 The proof is the README's thinkpick example: a written plan exposed a wrong
 premise and was replaced by a research plan in tickets.
-
-Philosophy and design principles live in the [manifesto](../../product/vision/SKILL.md),
-product definitions and fit in the [README](../../../../README.md), behavior
-in Coga's contracts, and the longer strategic argument in
-[strategy](../strategy/SKILL.md). Earlier positioning is
-[historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 
 ## Source and claim limits
 

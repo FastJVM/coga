@@ -1,11 +1,10 @@
 # Repository Guidelines
 
 ## Read First
-Treat [product/vision](docs/contexts/product/vision/SKILL.md) as the owner of Coga's philosophy and design principles, [README.md](README.md) as their public explanation and the guide to product concepts and fit, and the topic library under `docs/contexts/` (this repo's `[layout] contexts` root) as the behavioral contract. When editing the README, read the manifesto first and keep the README aligned with it. Read the relevant topic before changing behavior; if behavior changes, update the owning topic in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction. [docs/README.md](docs/README.md) indexes the library.
+Read the [manifesto](docs/contexts/product/vision/SKILL.md) for Coga's philosophy and design principles. When editing [README.md](README.md), keep it aligned with the manifesto. Read the relevant topic under `docs/contexts/` before changing behavior, and update it in the same PR. [docs/README.md](docs/README.md) indexes the library.
 
 Canonical Coga topics (under `docs/contexts/`):
 
-- `product/vision/SKILL.md` is the short manifesto and shared design foundation. This repo's `coga/context.md` carries a checked copy of it, so every task launch receives it without including the README.
 - `coga/architecture/SKILL.md` is a short overview of the primitives and the correction loop plus a topic map; the detailed contracts live in the child topics it links (for example `coga/tickets`, `coga/lifecycle`, `coga/prompt-composition`, `coga/launch`).
 - `coga/knowledge/SKILL.md` decides where a fact lives and when to attach versus cite a topic.
 - `coga/extension-model/SKILL.md` owns the microkernel rule summarized below.

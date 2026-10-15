@@ -7,8 +7,6 @@ description: Index of active V1 marketing work, product grounding and preserved 
 
 The [V1 plan](../plan/SKILL.md) was approved on 2026-09-21. This catalogue
 helps find support; reviewing it is not a separate execution step.
-[README.md](../../../../README.md) explains concepts and positioning from the
-[manifesto](../../product/vision/SKILL.md) (owner decision, 2026-10-15).
 
 ## Current work and message
 
@@ -27,8 +25,7 @@ Live ticket status is in `coga status marketing`, not here.
 
 ## Product grounding and writing
 
-- [Manifesto](../../product/vision/SKILL.md): philosophy and design principles;
-  the README derives from it.
+- [Manifesto](../../product/vision/SKILL.md): philosophy and design principles.
 - [README](../../../../README.md), [install](../../coga/install/SKILL.md),
   [first task](../../coga/first-task/SKILL.md) and
   [releasing](../../coga/releasing/SKILL.md): the existing reader path.

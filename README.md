@@ -64,10 +64,8 @@ see what goes in. For intensive use, we find that easier to manage.
 ## Philosophy
 
 Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. Its [manifesto](docs/contexts/product/vision/SKILL.md)
-owns the philosophy and design principles behind this README: explicit
-knowledge, tools people can reshape, and mechanisms that stay understandable.
-When editing this README, keep it aligned with the manifesto.
+into the next task. The [manifesto](docs/contexts/product/vision/SKILL.md)
+describes the philosophy and design principles behind Coga.
 
 ## Example
 
