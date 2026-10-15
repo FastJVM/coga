@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 agent: claude
 ---
 
@@ -224,3 +224,8 @@ checks:
     status: not-run
     detail: Validation behavior unchanged.
 ```
+
+## Open-PR — 2026-10-14
+
+- `coga open-pr` opened https://github.com/FastJVM/coga/pull/1017 from `main` (head `a9bda396e`). origin/main had advanced only through unrelated Coga task/log state.
+- No code review has run: `code/design-then-implement` has no review step before open-pr. The owner's `review` step is next.
