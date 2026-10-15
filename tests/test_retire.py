@@ -126,7 +126,7 @@ def test_retire_defaults_to_the_default_agent_key(
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
     )
     monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
+    _seed_finished_task(repo, "fix-retry-logic")
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
 
