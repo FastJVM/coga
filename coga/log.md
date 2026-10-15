@@ -8354,3 +8354,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 17:33 v1 [add-a-failed-terminal-status] [human:nicktoper] created (status=draft)
 2026-10-14 17:33 v1 [add-a-failed-terminal-status] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-14 17:33 v1 [add-a-failed-terminal-status] [human:nicktoper] started (active → in_progress) via coga launch
+2026-10-14 17:33 v1 [add-a-failed-terminal-status] [human:nicktoper] launched (operator=claude, agent=claude)
