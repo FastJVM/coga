@@ -41,12 +41,31 @@ and the local state lock serializes only one checkout's writers.
   witness; retained evidence.
 - [PR publication](../internals/pr-publication/SKILL.md): `coga open-pr`'s
   checkout gate, freshness and stranded-ticket checks,
-  leased push, and control-only `pr:` record.
+  leased push, and control-only `pr:` record
+  ([preparation](../internals/pr-publication/preparation/SKILL.md),
+  [existing PR](../internals/pr-publication/existing-pr/SKILL.md)).
 - [State publication](../internals/state-publication/SKILL.md): strict
   versus best-effort publication, the provenance check, and the state lock
-  itself.
+  itself ([publish](../internals/state-publication/publish/SKILL.md),
+  [sweep](../internals/state-publication/sweep/SKILL.md),
+  [authoring](../internals/state-publication/authoring/SKILL.md)).
 - [Recurring admission](../internals/recurring-admission/SKILL.md): frozen
   period generations, the pre-spawn lease, and exact-ledger creation.
+- [Recurring control](../internals/recurring-control/SKILL.md): where
+  recurring runs may start, the off-branch relay into a control worktree, the
+  `--all` entry gate, and the owner gate read from the fetched control tip.
+- [Recurring temp worktrees](../internals/recurring-temp-worktrees/SKILL.md):
+  how an unattended `--all` child services a parked checkout from a temporary
+  linked worktree, and recovery of its survivors.
+- [Git refresh](../internals/git-refresh/SKILL.md): `git.refresh`,
+  `fast_forward_control`, the staleness probe, and stranded-ticket-write
+  detection.
+- [Git regressions](../internals/git-regressions/SKILL.md): why `git.publish`
+  refuses a state file, and shipping a stored-ticket schema conversion.
+- [Spool merge](../internals/spool-merge/SKILL.md): `merge=union` append-only
+  files, the one-line-per-event log encoding, and union publication.
+- [Activity capture](../internals/activity-capture/SKILL.md): the bounded,
+  secret-redacted usage record captured after each agent session.
 
 ## Not covered here
 

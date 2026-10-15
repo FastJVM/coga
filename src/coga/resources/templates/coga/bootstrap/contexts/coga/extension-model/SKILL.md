@@ -62,7 +62,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | none yet |
 
 These reviews live under the parked `coga/tasks/_v2/cleanup-core-commands/`,
-off the execution path (parked directories: `coga/tickets`). Commands stay where they are
+off the execution path (parked directories: `coga/tickets/discovery`). Commands stay where they are
 until a reviewed change settles their placement. The parked drafts are dated
 proposals, not authority to migrate them or to replace the current kernel
 boundary below. Shared helpers and launch-time trust hooks retain their own
@@ -132,7 +132,7 @@ task ref; see [dev/dev-record](../../dev/dev-record/SKILL.md) and
 in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know
 its files reached control (`build/onboarding`); its contract is in
-[coga/internals/state-publication](../internals/state-publication/SKILL.md).
+[coga/internals/state-publication/sweep](../internals/state-publication/sweep/SKILL.md).
 
 ## Aliases
 

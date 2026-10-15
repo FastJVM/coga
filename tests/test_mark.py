@@ -1239,6 +1239,28 @@ def test_activation_selects_and_freezes_the_default_main_agent(repo: Path) -> No
     assert Ticket.read(path).agent == "claude"
 
 
+@pytest.mark.parametrize("source", ["coga.toml", "coga.local.toml"])
+def test_activation_stamps_the_default_agent_key_over_declaration_order(
+    repo: Path, source: str
+) -> None:
+    """`default_agent` in either file moves the default with no table reorder."""
+    _add_codex(repo)
+    config_file = repo / source
+    config_file.write_text('default_agent = "codex"\n' + config_file.read_text())
+    cfg = load_config(repo)
+    assert list(cfg.agents) == ["claude", "codex"]
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    assert CliRunner().invoke(app, ["mark", "active", created["slug"]]).exit_code == 0
+    assert Ticket.read(created["path"]).agent == "codex"
+
+
 def test_activation_keeps_an_explicit_choice(repo: Path) -> None:
     _add_codex(repo)
     cfg = load_config(repo)

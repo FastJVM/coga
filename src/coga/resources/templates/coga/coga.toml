@@ -5,6 +5,11 @@ version = 1
 # it without launching.
 default_status = "draft"
 
+# Optional: the agent type new tickets get when activated (and the fallback
+# for retire, autofix, and authoring). Unset, it's the first [agents.*]
+# table below. Set it in coga.local.toml to override it on one machine only.
+# default_agent = "claude"
+
 # Optional: the one operator who may run recurring sweeps in this repo.
 # Committed, so every clone agrees on it — with it set, `coga recurring`
 # (including `--force`) and `coga recurring launch` refuse to run for anyone
@@ -137,8 +142,8 @@ channels = []
 # linked worktree of this git repository belongs to a Coga ticket, so the
 # weekly branch sweep may remove a landed, locally pristine worktree that no
 # live ticket records before deleting its branch. Off, such a worktree keeps
-# pinning its branch (`skipped-worktree-pinned`). The `dev/checkout-cleanup`
-# context states the assumption; set it only once everyone on the repo works
+# pinning its branch (`skipped-worktree-pinned`). The
+# `dev/checkout-cleanup/branch-sweep` context states the assumption; set it only once everyone on the repo works
 # that way.
 #   [git]
 #   worktrees_ticket_owned = true
@@ -170,7 +175,7 @@ dream = "recurring launch dream"
 # --- Extensions ---
 # A repo-owned, free-form namespace coga does not interpret. Put repo-specific
 # config your own skills/scripts read here — anything that isn't part of coga's
-# fixed schema. coga accepts it verbatim (like [aliases]/[secrets]) and never
+# fixed schema. coga accepts it verbatim (like [aliases]) and never
 # validates the keys, so nested tables and arbitrary values are fine. Read it
 # via `load_config().extensions["<ns>"]` or by parsing coga.toml directly.
 # [extensions.patent]

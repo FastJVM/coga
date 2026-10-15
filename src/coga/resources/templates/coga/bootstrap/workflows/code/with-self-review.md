@@ -46,8 +46,10 @@ real blocker (`coga block`), not an already-satisfied closure.
 
 Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
 so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
-in the ticket copy of the checkout the bump runs from — `main`, after the
-step pushes its branch and returns (`dev/checkouts`).
+in the ticket copy of the checkout the bump runs from — the feature branch
+after loading control's copy under `COGA_LAUNCH_RETURNS_CHECKOUT=1` (launch
+then returns the checkout), or `main` after a manual session's end-of-step
+return (`dev/checkouts`).
 
 ## pr
 
@@ -58,7 +60,7 @@ line exists.
 
 The command is deterministic and has no judgment of its own, which is why the
 preceding `self-qa` step prepares the evidence and advisory review depth under
-[coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md)
+[coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md)
 and rebases the branch. Self-review is reported explicitly; a configured peer
 or a planned tool call is not evidence of independent review.
 

@@ -37,11 +37,12 @@ To switch the authoring agent for one run or one session — for example while
 one agent's quota is exhausted — don't edit this file. Use, highest first:
 `coga ticket --agent <name>` (or `coga megalaunch --agent`),
 `coga ticket --pick-agent`, `COGA_AUTHORING_AGENT=<name>`, or
-`[authoring] agent = "<name>"` in `coga.local.toml`. The `coga/tickets`
-context owns the full order. A direct `coga launch bootstrap/ticket` reads
+`[authoring] agent = "<name>"` in `coga.local.toml`. The
+`coga/tickets/authoring` context owns the full order. A direct `coga launch bootstrap/ticket` reads
 none of these; it launches with this ticket's `agent:` unless given `--agent`.
 
 Don't add `status:` or `owner:` to this frontmatter. The ticket is
-intentionally stateless — no lock, no log, no `step` transitions — so
-every launch can run concurrently with no coordination. That's why it
+intentionally stateless — no lock, no status or `step` transitions (launch
+and usage lines are still logged) — so every launch can run concurrently with
+no coordination. That's why it
 diverges from the canonical `coga/tasks/_template/ticket.md` shape.

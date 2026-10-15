@@ -5,26 +5,64 @@ work_root="$HOME/clean-install"
 evidence="$work_root/evidence"
 repo="$work_root/repo"
 
-if [[ ${1:-} == ticket && $# -ge 2 ]]; then
+# Attended continuations keep both descriptors on the terminal: coga ticket
+# and coga build require a real TTY. Login and agent conversation are
+# deliberately outside the evidence; only the command and outcome are kept.
+attended() {
+    local name=$1 record=$evidence/$1.txt status=0
     shift
     if [[ ! -f $evidence/init-passed.txt ]]; then
-        echo "Run the install/init phase successfully before the attended ticket step" >&2
+        echo "Run the install/init phase successfully before the attended $name step" >&2
         exit 2
     fi
     cd "$repo"
-    # Keep both descriptors on the terminal: coga ticket requires a real TTY.
-    # Login and agent conversation are deliberately outside the install transcript.
-    printf '+ coga ticket' | tee -a "$evidence/ticket.txt"
-    printf ' %q' "$@" | tee -a "$evidence/ticket.txt"
-    printf '\n' | tee -a "$evidence/ticket.txt"
-    status=0
-    coga ticket "$@" || status=$?
-    printf 'ticket_exit_code=%s\n' "$status" | tee -a "$evidence/ticket.txt"
+    printf '+ coga %s' "$name" | tee -a "$record"
+    (($# == 0)) || printf ' %q' "$@" | tee -a "$record"
+    printf '\n' | tee -a "$record"
+    [[ $name != build ]] || build_state before
+    coga "$name" "$@" || status=$?
+    [[ $name != build ]] || build_state after
+    printf '%s_exit_code=%s\n' "$name" "$status" | tee -a "$record"
     exit "$status"
+}
+
+# Where the seeded onboarding ticket stands, and the audit-log lines this
+# launch appended; an exit code alone does not show whether coga build bumped
+# a step.
+build_state() {
+    local ticket=coga/tasks/coga-build.md
+    if [[ -f $ticket ]]; then
+        # Frontmatter only; portable to the macOS walk's BSD sed.
+        sed -n -e "2,/^---\$/s/^status: /$1_status=/p" \
+            -e "2,/^---\$/s/^step: /$1_step=/p" "$ticket"
+    else
+        printf '%s_ticket=absent\n' "$1"
+    fi | tee -a "$evidence/build.txt"
+    if [[ $1 == before ]]; then
+        log_seen=0
+        [[ ! -f coga/log.md ]] || log_seen=$(wc -l < coga/log.md)
+    elif [[ -f coga/log.md ]]; then
+        printf 'log:\n' | tee -a "$evidence/build.txt"
+        # Match the ref field, not a mention. System usage records (a JSON
+        # message) embed request/outcome excerpts of the conversation.
+        tail -n "+$((log_seen + 1))" coga/log.md \
+            | grep -E '^[0-9-]+ [0-9:]+ (v1 )?\[coga-build\] ' \
+            | grep -vE '^[^[]*\[coga-build\] \[system\] \{' \
+            | tee -a "$evidence/build.txt" || true
+    fi
+}
+
+if [[ ${1:-} == ticket && $# -ge 2 ]]; then
+    shift
+    attended ticket "$@"
+fi
+if [[ ${1:-} == build ]]; then
+    shift
+    attended build "$@"
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || ! $1 =~ ^(pypi|wheel)$ ]]; then
-    echo "usage: coga-clean-install pypi USER | wheel USER WHEEL | ticket TITLE [--agent NAME]" >&2
+    echo "usage: coga-clean-install pypi USER | wheel USER WHEEL | ticket TITLE [--agent NAME] | build [--agent NAME]" >&2
     exit 2
 fi
 mode=$1
@@ -99,6 +137,7 @@ run git config --local user.name "Coga install harness"
 run git config --local user.email "install-harness@example.invalid"
 run coga init --user "$operator"
 run coga validate --json
-printf 'coga init passed; attended coga ticket has not run\n' | tee "$evidence/init-passed.txt"
-echo 'Install and authenticate an agent in this container, then run:'
+printf 'coga init passed; attended coga ticket and coga build have not run\n' | tee "$evidence/init-passed.txt"
+echo 'Install and authenticate an agent in this container, then run either:'
+echo '  coga-clean-install build --agent claude'
 echo '  coga-clean-install ticket "Write a hello-world script" --agent claude'

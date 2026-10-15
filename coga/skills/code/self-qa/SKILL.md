@@ -95,7 +95,7 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
-   After all fixes and any rebase, read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+   After all fixes and any rebase, read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
    “Presentation and review-depth rubric” and “Preparation record”, and refresh
    `## PR` in the live blackboard with the handoff. Preserve actual authorship;
    record the actual reviewing agent/tool, whether review was independent or

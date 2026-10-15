@@ -14,8 +14,12 @@ direct-deletes the task via `coga delete` — no marker, no PR. This task is the
 ad-hoc shell that drives that single skill against the named slug. Do not
 invent additional steps. The complete Retro pass runs in one subagent inside a
 dedicated isolated checkout; do not run it in this retire task's checkout.
-`coga retire` already disposed of the ticket's checkout before creating this
-task.
+`coga retire` tries to dispose of this ticket's own recorded checkout and
+branch before launching this task, but skips that cleanup when Git is
+disabled or absent, when it runs off the control branch, or after a Git or
+read error. Do not assume the recorded checkout or branch is gone.
+Other branch hygiene belongs to the `branch-sweep` and `autoclose-merged`
+recurring jobs, not this task.
 
 ### Console Progress
 

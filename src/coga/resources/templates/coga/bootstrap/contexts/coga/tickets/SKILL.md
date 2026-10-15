@@ -1,6 +1,6 @@
 ---
 name: coga/tickets
-description: The ticket file contract — task discovery and refs, file versus directory form, canonical and extension frontmatter keys, who may write which part, the body regions that compose, and creating, authoring and showing tickets.
+description: The ticket file contract — canonical and extension frontmatter keys, who may write which part, and the body regions that compose; task discovery and refs, creating and authoring tickets, and ownership live in its leaves.
 ---
 
 # Tickets
@@ -11,78 +11,15 @@ line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
 writer's contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).
 
-## Where tasks live and how they are named
+## Leaves
 
-`src/coga/tasks.py` `list_tasks` walks `coga/tasks/` at any depth:
-
-- **Directory form**: a directory holding `ticket.md`, plus any attachments.
-  A task directory is never recursed into (no task inside a task).
-- **File form**: a bare `tasks/<slug>.md`, for a self-contained task with no
-  siblings. Promote with `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md`.
-- `<slug>.md` and `<slug>/` must not both exist (`DuplicateTaskSlugError`).
-- `README.md` is never a task; it documents its directory. Names starting
-  with `_` are skipped at every level: `_template/` holds the canonical
-  ticket shape, and any other `_`-prefixed directory is **parked**.
-- A **parked** directory (such as `_v2/`) keeps files Coga never lists,
-  launches, validates, or scans for Dream, while state sync still publishes
-  them. It holds captures and wishes that need not be current or consistent.
-  `coga create "_v2/<title>"` writes there, title-only is fine, and `coga
-  ticket` refuses a parked target. `_template` is reserved at every level:
-  `coga/.gitignore` ignores it, so `coga create` refuses it as a component. Pull an item forward with `git mv` out of
-  the parked tree; it is then an ordinary ticket and must pass validation.
-- Other directories are plain folders managed with `mkdir`/`mv`/`rm`; Coga
-  has no command for them.
-- **The directory is the group.** Related tickets sit side by side in a plain
-  folder whose `README.md` holds shared material; the folder has no workflow,
-  status, owner, or completion. There is no parent or umbrella ticket: when
-  splitting work, give every deliverable to a real sibling ticket, then remove
-  the original with `coga delete` rather than keeping it as a parent
-  (`coga retire` accepts only a `done` or `canceled` ticket). Pick a group path other than
-  the original's own path: `coga create` refuses to nest a ticket inside a
-  directory-form task. Do not put `ticket.md` at a group root; that makes it a
-  task, and discovery stops there.
-  Owner decision (2026-09-25): there is deliberately no split contract (no
-  split skill, `## Split` roster, or `Split from` cross-link convention; #889
-  closed) and no oversized-ticket instruction in the `code/*` step skills
-  (#899, then removed in `2ffcd4f8b`): agents almost never split or escalated,
-  so the text was prompt noise. Splitting stays the ad-hoc sibling practice
-  above; reopen only on evidence of repeated oversized-ticket failures.
-
-A task's identity is its **path under `tasks/`**: the bare leaf at top level,
-otherwise the relative path (`marketing/social/relaunch`). `resolve_task`
-accepts an exact ref or a unique prefix; a nested task's bare leaf does not
-resolve, and ambiguous prefixes fail listing the matches. Agents use the exact
-task directory printed in the composed prompt header rather than rebuilding it
-from the ref. Log lines are tagged with the ref and never rewritten, so moving
-a task orphans its history under the old tag: record the prior ref in the body
-and grep for it.
-
-A retired or deleted task (`coga retire`, `delete-task`, Retro) leaves its
-body and blackboard only as a Git blob; `coga show` no longer finds it. Find
-the deleting commit on the control ref, then read the file from its parent.
-`<control>` is `<remote>/<control_branch>` from `coga.toml` `[git]`
-([coga/configuration](../configuration/SKILL.md) owns the keys and defaults),
-or the local `<control_branch>` in a repo with no remote:
-
-```bash
-git log <control> --diff-filter=D --name-only -- \
-  ':(glob)coga/tasks/**/<slug>.md' ':(glob)coga/tasks/**/<slug>/**' \
-  ':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'
-git show <commit>^:<path>
-```
-
-The pathspecs name the slug exactly, in both the `<slug>.md` and `<slug>/`
-forms at any group depth, so a task whose slug merely starts with `<slug>` is
-not matched. Search both trees: the tree was `relay-os/tasks/` before the
-relay → coga rename (`d0645a197`, #454), so a `coga/tasks/`-only search misses
-earlier deletions. The newest hit that deletes `<slug>.md` or
-`<slug>/ticket.md` is the retirement; older hits are a `.md` ↔ `<slug>/`
-format conversion or an attachment removed earlier. Older directory-form
-tasks kept the blackboard in a sibling `blackboard.md`; read it the same way.
-
-A directory-form task may reserve the exact sibling `ticket.py` as its
-deterministic phase ([coga/script-tickets](../script-tickets/SKILL.md)); no
-other attachment changes dispatch. Attachments are never composed.
+- [coga/tickets/discovery](discovery/SKILL.md) — where tasks live, file
+  versus directory form, parked and group directories, task refs, and
+  finding a retired task in Git.
+- [coga/tickets/authoring](authoring/SKILL.md) — `coga create`, the guided
+  `coga ticket` interview and its authoring agent, and `coga show`.
+- [coga/tickets/ownership](ownership/SKILL.md) — `owner:` reassignment and
+  ticket-to-ticket relationships.
 
 ## Frontmatter
 
@@ -94,7 +31,9 @@ draft is exactly those four (`status: draft`, `workflow: null`) plus a body.
 
 - `owner` is the human of record. `agent` is the optional **main-agent
   choice**, not the current operator: absent on drafts, filled once with
-  `Config.default_agent()` (first agent in merged config) at first activation,
+  `Config.default_agent()` at first activation (the `default_agent` key, local
+  over shared, else the first agent in merged config; see
+  [coga/agents](../agents/SKILL.md#the-default-agent)),
   then kept through pause, unblock, bump, peer review and terminal moves. A
   present value must name a configured agent; null, blank, unknown or
   since-removed agents fail loud. An activated task missing it is a validation
@@ -156,79 +95,3 @@ a `##` inside a backtick or tilde code fence is text, a fence never closed is
 not a fence, a heading may be indented up to three spaces and carry a closing
 `#` run, and the region below the blackboard fence is never read as body
 sections.
-
-## Creating, authoring, showing
-
-- `coga create "<dir/>Title"` writes a raw `draft` (no Slack, no launch). A
-  `/` separates an optional sub-directory prefix (created if missing) from
-  the title leaf, which is slugified for the ref and kept verbatim as the
-  title. It fails on `..`, nesting inside an existing task, or a non-slug-like
-  prefix component (a literal slash in a title); a `_`-prefixed segment makes
-  the target parked.
-  `--workflow` is optional in draft ([coga/workflows](../workflows/SKILL.md)).
-  `--description` fills `## Description` and rejects a `##` line outside a
-  code fence or an own-line fence (`create_task` applies the same guard for
-  every programmatic caller); blank capture is intended only in a parked directory, and
-  `coga validate` warns `empty-description` on non-terminal tickets. `--owner` overrides the local
-  `user`; empty fails.
-- `coga ticket [title|ref]` runs the guided `bootstrap/ticket` interview on a
-  new draft or an existing ticket at any status. It chooses workflow, contexts
-  and main agent with the human, repairs an out-of-vocabulary status, and
-  validates afterwards: a draft left without a workflow is rejected there.
-  `bootstrap/ticket` is injected only into that prompt, never persisted in
-  `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
-  `claude`/`codex` receive the prompt as system/developer context
-  (`[agents.<type>].discussion` overrides the argv template).
-- **Authoring agent.** `authoring.resolve_authoring_agent` picks who runs
-  the interview, for `coga ticket` and megalaunch's picked drafts alike;
-  the first set term wins: (1) `--agent`, `coga megalaunch --agent`, or the
-  `--pick-agent` answer; (2) `COGA_AUTHORING_AGENT`; (3) `[authoring] agent`
-  in `coga.local.toml`; (4) the target ticket's `agent:`; (5)
-  `bootstrap/ticket`'s `agent:`, the install-level default; (6)
-  `Config.default_agent()`. An unknown name from any term fails loud naming
-  that term, never falling through. The choice selects the interviewer only
-  and is never written to the ticket. `coga ticket --pick-agent` (TTY only;
-  refused with `--agent`) lists the configured types in declaration order,
-  marks the would-be default, and takes Enter for it; with no valid default,
-  Enter re-prompts. One configured type is used without asking; none fails.
-  It prints how to make the choice stick and writes no config. Megalaunch
-  never prompts: an unresolvable agent is reported and the draft left.
-- `coga show <ref>` renders the ticket and its `coga/log.md` history for
-  humans; bootstrap targets show only `ticket.md`. Read files directly for
-  scripting.
-
-Installed `coga <cmd> --help` is the syntax authority.
-
-## Ownership and ticket relationships
-
-`owner:` is the human of record: owner steps route to that person, megalaunch
-filters by owner, and notifications mention them. Reassign with
-`coga owner <slug> <name>`. There is no independent `assignee:` or legacy
-`human:` field to update. The command preserves status, step, and body, rejects
-blank or unchanged names and terminal records, and writes an audit line without
-a Slack post.
-
-An `in_progress` agent step must stop and be paused before reassignment. An
-`in_progress` **owner-held gate** instead requires `--assist-stopped`: the
-human confirms any assisting agent has stopped, from outside that ticket's
-supervised session. This preserves the gate so its new owner can still bump
-it. Coga has no cross-checkout live-session registry; the flag is an explicit
-human attestation, not an automatic liveness check. A supervised session cannot
-reassign its own ticket, and an outstanding `launch_generation` is refused;
-stop the session and follow [claim recovery](../internals/claim-recovery/SKILL.md)
-first. Reassignment never clears or invalidates a launch claim.
-
-The package-private transaction is why this command lives in core: it holds
-`git.state_lock` across the read, prospective validation, local byte comparison,
-write, audit, and strict publication with the original ticket bytes as `expect`.
-A concurrent local edit is preserved. A definite publication failure restores
-only the command's own ticket bytes and retracts its audit; an uncertain push
-keeps the write for reconciliation. Both failures exit 75 to suppress the generic
-sweep. Refresh/reconcile control before retrying. With Git disabled or unavailable
-through a documented soft-skip, the local write remains the result
-([state publication](../internals/state-publication/SKILL.md)).
-
-Ticket-to-ticket relationships use the dependency and supersession conventions
-in [coga/lifecycle](../lifecycle/SKILL.md), rather than new `dependencies:` or
-`superseded_by:` frontmatter. Successor-side “this blocks X” prose is a human
-pointer, not machine-readable ordering.

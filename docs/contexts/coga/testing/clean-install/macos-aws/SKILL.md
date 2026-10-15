@@ -17,6 +17,11 @@ installed with Coga:
   CLI, SSH and the build of the `main` wheel.
 - `scripts/clean-install/macos-walk.sh` runs on the Mac as `ec2-user`.
 
+**Size exception.** This runbook stays one topic past the 200-line review
+line ([coga/knowledge](../../../knowledge/SKILL.md)) because its sections are
+one ordered procedure from a paid host allocation to its release, and a leaf
+attached without the teardown and release steps would leave a host billing.
+
 ## Cost and approval
 
 An EC2 Mac runs only on a **dedicated host**. The host bills for at least 24

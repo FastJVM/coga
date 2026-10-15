@@ -8707,6 +8707,69 @@ def test_bare_recurring_passes_agent_override_to_agent_tasks(
     assert seen == ["codex"]
 
 
+def _dream_with_codex(dream_repo: Path, *, default_agent: str | None) -> None:
+    """Declare codex after claude; optionally name a `default_agent`."""
+    coga_toml = dream_repo / "coga.toml"
+    text = coga_toml.read_text() + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    if default_agent is not None:
+        text = f'default_agent = "{default_agent}"\n' + text
+    coga_toml.write_text(text)
+
+
+def _record_dream_agent(
+    monkeypatch: pytest.MonkeyPatch, dream_repo: Path, seen: list[str | None]
+) -> None:
+    """Fake the child launch: record the period ticket's agent, then finish it."""
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        path = dream_repo / "tasks" / task / "ticket.md"
+        ticket = Ticket.read(path)
+        seen.append(ticket.agent)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(path)
+
+    _patch_recurring_command_launch(monkeypatch, dream_repo, fake_launch)
+
+
+def test_bare_recurring_materializes_dream_with_the_default_agent_key(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`default_agent = "codex"` moves Dream to codex with no `[agents.*]`
+    reorder and no `--agent`: the new period ticket is stamped at create."""
+    _dream_with_codex(dream_repo, default_agent="codex")
+    _allow_interactive_recurring(monkeypatch)
+    seen: list[str | None] = []
+    _record_dream_agent(monkeypatch, dream_repo, seen)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == ["codex"]
+
+
+def test_forced_dream_rerun_keeps_the_frozen_agent_after_the_default_changes(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An already-materialized period ticket keeps its `agent:` when a forced
+    rerun reactivates it; the new default applies from the next new period."""
+    _dream_with_codex(dream_repo, default_agent=None)
+    _allow_interactive_recurring(monkeypatch)
+    seen: list[str | None] = []
+    _record_dream_agent(monkeypatch, dream_repo, seen)
+
+    first = CliRunner().invoke(app, ["recurring"])
+    assert first.exit_code == 0, first.output
+    assert seen == ["claude"]
+
+    coga_toml = dream_repo / "coga.toml"
+    coga_toml.write_text('default_agent = "codex"\n' + coga_toml.read_text())
+    assert load_config(dream_repo).default_agent().name == "codex"
+
+    rerun = CliRunner().invoke(app, ["recurring", "--force"])
+    assert rerun.exit_code == 0, rerun.output
+    assert seen == ["claude", "claude"]
+
+
 def test_bare_recurring_skips_interactive_without_tty_and_continues(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

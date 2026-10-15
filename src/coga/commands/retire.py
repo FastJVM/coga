@@ -39,7 +39,10 @@ def retire(
     agent: str | None = typer.Option(
         None,
         "--agent",
-        help="Agent nickname to assign. Defaults to the current user's first configured agent.",
+        help=(
+            "Agent nickname to assign. Defaults to the configured "
+            "`default_agent`, else the first declared `[agents.*]` type."
+        ),
     ),
     no_launch: bool = typer.Option(
         False,

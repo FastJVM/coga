@@ -11,7 +11,7 @@ the PR's feature branch. That checkout's copy of the ticket is the live one,
 yet nothing the assist generates is committed to that branch. Every write
 goes through the same `git.publish` path as any other checkout and lands on
 the control branch only (`coga/sync`; the strict-versus-best-effort split is
-in `coga/internals/state-publication`).
+in `coga/internals/state-publication/publish`).
 
 ## What is published, and where
 

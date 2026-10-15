@@ -62,7 +62,7 @@ Do not edit that separate repo as part of this implementation.
 Automated tests use fake transport and preserve pytest/CI suppression. The live
 proof below is owner-run from an ordinary shell with no test/CI environment,
 outside all Coga source trees. Do not unset test gates inside automation to make
-it deliver. Do not use an editable installation or target `example/`.
+it deliver. Do not use an editable installation or target `tests/fixtures/seeded-repo/`.
 
 Record the evidence in the ticket or PR that carries the proof; this runbook
 owns the procedure. For the shipped weekly snapshot, the current work is the

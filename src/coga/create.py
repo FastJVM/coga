@@ -295,7 +295,7 @@ def is_parked_dir(directory: str | None) -> bool:
 
     A parked directory has a `_`-prefixed component. Task discovery skips it
     at every level, so a ticket created there is kept on disk and published
-    but never listed, launched, or validated (contract: `coga/tickets`).
+    but never listed, launched, or validated (contract: `coga/tickets/discovery`).
     """
     return directory is not None and any(
         part.startswith("_") for part in directory.split("/")
@@ -382,9 +382,9 @@ def _select_main_agent(cfg: Config, agent: str | None, *, status: str) -> str | 
     choice that happens to equal today's default, which is a decision, not a
     coincidence. Without one, a draft keeps the field absent and defers the
     decision to activation, while a create straight into a live status performs
-    that same selection now: `Config.default_agent()` is the first agent
-    declared in the effective merged configuration (TOML preserves declaration
-    order), so the team's default is whichever block appears first.
+    that same selection now from `Config.default_agent()`: the top-level
+    `default_agent` key (`coga.local.toml` over `coga.toml`), else the first
+    agent declared in the effective merged configuration.
 
     Raises `OperatorResolutionError` for an unconfigured explicit choice, or
     when a live create finds no agents declared at all.

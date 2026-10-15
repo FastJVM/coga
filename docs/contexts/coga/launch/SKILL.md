@@ -52,7 +52,7 @@ The procedure, proof rules, and exemptions (bootstrap targets,
 `--prompt-report`, Git-disabled, non-Git, or
 remote-less workspaces, the recorded assist or sandbox-clone checkout, a
 released megalaunch witness) are owned by
-[dev/checkouts](../../dev/checkouts/SKILL.md). Exempt launches keep the
+[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md). Exempt launches keep the
 teardown refresh below.
 
 ## Status is the signal
@@ -107,18 +107,12 @@ agent ([coga/internals/human-assist](../internals/human-assist/SKILL.md)).
 Agent type and CLI lookup (`shutil.which`), a full prompt composition (a
 missing layer refuses), declared secrets (`build_launch_env`), push auth
 (`git push --dry-run`; skipped for bootstrap targets, `[git].enabled = false`,
-or no resolvable remote), then a warn-only installed-versus-source skew check.
+or no resolvable remote).
 Only then is the deferred activation written and `active` flipped to
 `in_progress` (posting `▶️`). Launch never probes `gh` for PR state
 (`coga autoclose` handles merged PRs). Git runs non-interactively, so a
 credential-less remote fails fast; this entry gate is fatal, while a later
 mid-session sync miss is reported and non-fatal.
-
-The skew check (`version_skew.warn_if_installed_predates_source`, also run by
-`coga validate`) compares the installed package's mtime with the last commit
-touching `src/coga/` in a Coga source checkout. It never blocks; it skips
-non-Coga repos, missing git metadata, bad timestamps, and editable installs,
-and cannot see uncommitted `src/coga` edits (it uses commit time).
 
 ## The step chain
 

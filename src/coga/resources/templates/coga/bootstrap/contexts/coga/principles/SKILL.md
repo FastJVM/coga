@@ -55,7 +55,7 @@ what `mkdir`, `mv`, `rm` or `git` already do.
 
 **Receipt:** SKILL.md is the Claude Code / Codex format; validation and prompt
 composition are plain file reads; task directories nest and move like any
-directory ([`coga/tickets`](../tickets/SKILL.md)).
+directory ([`coga/tickets/discovery`](../tickets/discovery/SKILL.md)).
 
 ## 4. Memory via Git — visible, correctable, never opaque
 
@@ -67,12 +67,12 @@ the directory boundary in the state-publication contract.
 behavior out of sight; silent knowledge updates.
 
 **Receipt:** Every knowledge edit is a visible Git commit. Owner decision
-(2026-10-07): edits inside the Coga root and the contexts root publish
-automatically through the guarded state path, with no separate knowledge PR;
-Git history is the record and the correction mechanism, and source outside
-those roots keeps its PR gate
-([publication contract](../internals/state-publication/SKILL.md)). Dream
-proposes knowledge changes as reviewable PRs
+(2026-10-07): state writes (tickets, the log, the blackboard) and human or
+session edits inside the Coga root and the contexts root publish directly
+through the guarded state path; Git history is the record and the correction
+mechanism, and source outside those roots keeps its PR gate
+([publication contract](../internals/state-publication/SKILL.md)). Dream's
+knowledge and doc changes stay PR-gated: it proposes them as reviewable PRs
 ([`coga/dream`](../dream/SKILL.md)). Sessions are stateless: the prompt is a
 function of the files on disk now, so an edit between runs takes full,
 inspectable effect. The blackboard is working memory; contexts are long-term

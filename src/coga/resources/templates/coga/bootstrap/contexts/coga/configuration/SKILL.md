@@ -18,12 +18,16 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 ## Allowlists
 
-`coga.toml` top level: `version` (must be `1`), `default_status`, `owner`,
-`agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
+`coga.toml` top level: `version` (must be `1`), `default_status`,
+`default_agent`, `owner`, `agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
 `extensions`, `layout`, `autofix`, `telemetry`, `recurring`.
 
-`coga.local.toml` top level: `user`, `agents`, `notification`, `git`,
-`upstream`, `telemetry`, `authoring`.
+`coga.local.toml` top level: `user`, `default_agent`, `agents`,
+`notification`, `git`, `upstream`, `telemetry`, `authoring`.
+
+`default_agent` is a string in both files. The local value wins, and each
+present value must name a type in the merged `[agents.*]`; it is validated at
+load ([coga/agents](../agents/SKILL.md#the-default-agent)).
 
 | Table | Keys | Where |
 |---|---|---|
@@ -38,7 +42,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
 | `[autofix]` | `agent` | shared only |
 | `[upstream]` | `checkouts` | local only |
-| `[authoring]` | `agent` | local only ([coga/tickets](../tickets/SKILL.md)) |
+| `[authoring]` | `agent` | local only ([coga/tickets/authoring](../tickets/authoring/SKILL.md)) |
 | `[telemetry]` | `enabled` (boolean only) | both; local overrides shared, including local true over shared false |
 
 The split is deliberate. `[layout]` and `[autofix]` are team policy: one
@@ -104,4 +108,4 @@ independent.
 `[recurring].idle_days` is team policy and cannot be overridden locally.
 Booleans, negative values and non-integers raise `ConfigError`. The activity
 signal, calendar boundary and sweep overrides are owned by
-[recurring scheduling](../recurring/scheduling/SKILL.md).
+[recurring scheduling](../recurring/scheduling/inactivity/SKILL.md).

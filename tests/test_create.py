@@ -248,6 +248,26 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
     assert Ticket.read(live["path"]).agent == "claude"
 
 
+def test_create_live_uses_the_default_agent_key_over_declaration_order(
+    repo: Path,
+) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        'default_agent = "codex"\n'
+        + toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    live = create_task(
+        cfg=load_config(repo),
+        title="Live now",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner=None,
+        status="active",
+    )
+    assert Ticket.read(live["path"]).agent == "codex"
+
+
 def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
     _write(
         repo / "coga.toml",

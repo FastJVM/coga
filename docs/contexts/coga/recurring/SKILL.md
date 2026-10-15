@@ -50,7 +50,9 @@ launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
 - [coga/recurring/scheduling](scheduling/SKILL.md) — period keys and the
   serviced-period ledger, sweep order (Dream last), status handling, `--force`,
   named launches, `--all`, the `owner` gate, TTY admission, unfinished runs and
-  exit codes.
+  exit codes; its leaves are [ledger](scheduling/ledger/SKILL.md),
+  [inactivity](scheduling/inactivity/SKILL.md) and
+  [failures](scheduling/failures/SKILL.md).
 - [coga/recurring/delegation](delegation/SKILL.md) — `delegate:` periods
   serviced by one bootstrap agent launch; never a nested `coga launch`.
 - [coga/recurring/autofix](autofix/SKILL.md) — the post-sweep run record,

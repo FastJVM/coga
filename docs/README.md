@@ -30,7 +30,10 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
 - [Principles](contexts/coga/principles/SKILL.md) — the seven constraints.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
-- The work unit: [tickets](contexts/coga/tickets/SKILL.md),
+- The work unit: [tickets](contexts/coga/tickets/SKILL.md)
+  ([discovery](contexts/coga/tickets/discovery/SKILL.md),
+  [authoring](contexts/coga/tickets/authoring/SKILL.md),
+  [ownership](contexts/coga/tickets/ownership/SKILL.md)),
   [lifecycle](contexts/coga/lifecycle/SKILL.md),
   [workflows](contexts/coga/workflows/SKILL.md),
   [blackboard](contexts/coga/blackboard/SKILL.md).
@@ -51,7 +54,10 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
   [megalaunch queue](contexts/coga/megalaunch/SKILL.md).
 - Recurring jobs: [overview](contexts/coga/recurring/SKILL.md),
   [templates](contexts/coga/recurring/templates/SKILL.md),
-  [scheduling](contexts/coga/recurring/scheduling/SKILL.md),
+  [scheduling](contexts/coga/recurring/scheduling/SKILL.md)
+  ([ledger](contexts/coga/recurring/scheduling/ledger/SKILL.md),
+  [inactivity](contexts/coga/recurring/scheduling/inactivity/SKILL.md),
+  [failures](contexts/coga/recurring/scheduling/failures/SKILL.md)),
   [delegation](contexts/coga/recurring/delegation/SKILL.md),
   [autofix](contexts/coga/recurring/autofix/SKILL.md),
   [period tasks](contexts/coga/period-task/SKILL.md),
@@ -71,11 +77,16 @@ Internals — exact guarantees, for changing or debugging Coga:
 [assist publication](contexts/coga/internals/assist-publication/SKILL.md),
 [launch claims](contexts/coga/internals/launch-claims/SKILL.md),
 [claim recovery](contexts/coga/internals/claim-recovery/SKILL.md),
-[PR publication](contexts/coga/internals/pr-publication/SKILL.md));
+[PR publication](contexts/coga/internals/pr-publication/SKILL.md):
+[preparation](contexts/coga/internals/pr-publication/preparation/SKILL.md),
+[existing PR](contexts/coga/internals/pr-publication/existing-pr/SKILL.md));
 recurring ([admission](contexts/coga/internals/recurring-admission/SKILL.md),
 [control](contexts/coga/internals/recurring-control/SKILL.md),
 [temporary worktrees](contexts/coga/internals/recurring-temp-worktrees/SKILL.md));
-Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
+Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
+[publish](contexts/coga/internals/state-publication/publish/SKILL.md),
+[sweep](contexts/coga/internals/state-publication/sweep/SKILL.md),
+[authoring](contexts/coga/internals/state-publication/authoring/SKILL.md);
 [regressions](contexts/coga/internals/git-regressions/SKILL.md),
 [refresh](contexts/coga/internals/git-refresh/SKILL.md),
 [union merges](contexts/coga/internals/spool-merge/SKILL.md));
@@ -96,10 +107,16 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [packaging](contexts/coga/packaging/SKILL.md),
   [releasing](contexts/coga/releasing/SKILL.md).
 - Code-task conventions: [overview](contexts/dev/code/SKILL.md),
-  [checkouts](contexts/dev/checkouts/SKILL.md),
+  [checkouts](contexts/dev/checkouts/SKILL.md)
+  ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
+  [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
   [the `## Dev` record](contexts/dev/dev-record/SKILL.md),
   [design history](contexts/dev/design-history/SKILL.md),
-  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md).
+  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
+  ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
+  [foreign ownership](contexts/dev/checkout-cleanup/foreign-ownership/SKILL.md),
+  [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
+  [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
 - This repo's posture (dated, local to this repo):
   [current direction](contexts/coga/current-direction/SKILL.md),
   [project stage](contexts/coga/project-stage/SKILL.md).

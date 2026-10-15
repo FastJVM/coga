@@ -23,7 +23,7 @@ The console output is unchanged.
    periods created but never launched, watchdog pauses) under
    `## Unresolved recurring failures`, and sweep notes. A named launch does
    not yet record a failed create sync; see
-   [scheduling](../scheduling/SKILL.md#failures-and-exit-code). Tee-ing
+   [scheduling](../scheduling/failures/SKILL.md#failures-and-exit-code). Tee-ing
    fd 1 would make `isatty` false and break every agent launch, so the
    blackboard — the only durable per-run channel — is what carries detail.
    A launch that refuses before `ticket.py` runs leaves that blackboard
@@ -80,7 +80,9 @@ the last run's output into the next run's instructions.
   (default: the newest).
 - Analyst agent: `--agent` on `coga recurring` or `autofix-analyze`, else the
   shared-only `[autofix] agent` key in `coga.toml` (must name a configured
-  type; validated at config load), else the first-declared `[agents.*]` table.
+  type; validated at config load), else `Config.default_agent()`: the
+  `default_agent` key (local over shared), else the first-declared
+  `[agents.*]` table.
 - The one-shot argv is built in for `claude` and `codex`; another CLI needs
   `[agents.<name>].analyze` (e.g. `"-p {prompt}"`) or the loop skips loudly.
 - The analyst's stdin is `/dev/null` (`codex exec` would append piped stdin).

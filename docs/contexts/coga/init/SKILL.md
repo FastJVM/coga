@@ -36,7 +36,8 @@ Then init:
    (`src/coga/commands/update.py` `copy_fresh_templates`). The result is
    `coga.toml`, `context.md`, `log.md`, `tasks/`, `recurring/`, `skills/`,
    `workflows/`, a `contexts/` holding only the `_template/` scaffold and its
-   `.gitignore`, plus `coga/.gitignore` wrapped in a coga-managed block.
+   `.gitignore`, `coga/.gitattributes` (`merge=union` for `log.md` and
+   `retires.md`), plus `coga/.gitignore` wrapped in a coga-managed block.
    Bundled contexts, skills and workflows are **not** copied. They resolve
    from the installed package after the local roots miss
    ([coga/context-layout](../context-layout/SKILL.md)).
@@ -85,12 +86,13 @@ details), so an invocation that must exit changes nothing on the machine.
 At the same point, with no agent CLI on `PATH`, it asks which agent CLI to
 install (`claude`, `codex`, or skip) and offers its install and login. When
 exactly one agent CLI is then on `PATH` and it is not the packaged default
-(`claude`), init asks whether to make it the default agent; on a yes it moves
-that `[agents.*]` table first in the new `coga.toml` (the first-declared
-type is the default, see [coga/agents](../agents/SKILL.md)) and repoints
-delivered tickets naming the old default, such as the onboarding ticket's
-`agent:`, all before the commit. A reorder that would not parse back to the
-same config is skipped with a warning. A
+(`claude`), init asks whether to make it the default agent. On a yes it writes
+`default_agent = "<type>"` into the new `coga.toml` and leaves the
+`[agents.*]` table order alone (see
+[coga/agents](../agents/SKILL.md#the-default-agent)). It also repoints delivered
+tickets that name the old default, such as the onboarding ticket's `agent:`.
+Both happen before the commit. If the edit would not parse back to the same
+config plus that one key, init skips it and prints a warning. A
 non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
 edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).

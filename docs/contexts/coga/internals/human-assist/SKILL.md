@@ -29,7 +29,7 @@ launch handling with no alignment and no assist identity.
 
 Launch's checkout boundary never moves this checkout: a launch from the
 ticket's recorded `worktree:` on its recorded `branch:` is exempt
-([dev/checkouts](../../../dev/checkouts/SKILL.md)).
+([dev/checkouts/launch-boundary](../../../dev/checkouts/launch-boundary/SKILL.md)).
 
 Before any skill refresh, config, ticket, secret, expected-step, or prompt
 derivation, for draft, active, in_progress, paused, and blocked tickets:

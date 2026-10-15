@@ -21,7 +21,7 @@ command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
 `python -m ensurepip` (or `uv pip install pip`) in it first. Run
 `coga validate --json` after config, workflow, or task-model changes.
 
-**Validate `example/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
+**Validate `tests/fixtures/seeded-repo/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
 when your shell exports that variable. The fixture has notifications off, and
 the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
@@ -30,7 +30,8 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 For artifact-level reproduction, use the
 [Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
-continuation for agent login and the first ticket. The
+continuation for agent login, the first-run `coga build`, and the first
+ticket. The
 [macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host.
 
@@ -76,7 +77,7 @@ an EC2 Mac dedicated host.
 ## Test-writing rules
 
 - Name tests after the command or module (`tests/test_launch.py`). Coga's own
-  bundled ticket scripts are exercised from `tests/` against `example/`.
+  bundled ticket scripts are exercised from `tests/` against `tests/fixtures/seeded-repo/`.
 - **Launch metadata is scrubbed for you.** `tests/conftest.py`
   `_clear_supervised_session_env` clears `LAUNCH_OWNED_ENV`, derived from
   `coga.task_env.TASK_ENV_KEYS`, so a worker cannot write into the outer
@@ -152,7 +153,7 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 - State-changing commands (`create`, `bump`, `mark`) fail when the sandbox
   forbids `.git/index.lock`; rerun unsandboxed or grant `.git` write access.
 - When `git worktree add` cannot write the primary `.git`, use the
-  independent-clone fallback in [dev/checkouts](../../dev/checkouts/SKILL.md).
+  independent-clone fallback in [dev/checkouts/sandbox-clone](../../dev/checkouts/sandbox-clone/SKILL.md).
 
 ### Codex sandbox grant
 

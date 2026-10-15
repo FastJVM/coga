@@ -8,7 +8,7 @@ description: How concurrent writers to shared Coga state files stay correct — 
 Coga lets several processes, worktrees, and clones write state at once. No
 lock spans them: `git.state_lock` serializes one checkout only, and
 cross-checkout coordination is the push compare-and-swap in
-[`coga/internals/state-publication`](../state-publication/SKILL.md). Files that
+[`coga/internals/state-publication/publish`](../state-publication/publish/SKILL.md). Files that
 many writers touch must therefore be correct **by shape**.
 
 **No spool exists.** Outcomes post live ([`coga/notifications`](../../notifications/SKILL.md)).

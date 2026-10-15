@@ -61,7 +61,7 @@ carries its reason into every surface below:
    (which ignored entries are deleted with it — the regenerable caches and a
    byte-identical copy of the operator's `coga.local.toml` — and which
    preserve it is owned by
-   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Ignored state*). No PR is open for the branch, and the branch has
+   [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs), *Ignored state*). No PR is open for the branch, and the branch has
    landed on the control branch or its local and remote tips equal the merged
    PR's exact head. Then `git worktree remove`, unforced.
 3. *The local branch.* Plain `git branch -d` when the tip is reachable from
@@ -78,7 +78,7 @@ carries its reason into every surface below:
    release a branch whose PR closed unmerged, because the ticket is terminal.
    It archives as `retired/<branch>` first, and it keeps and reports
    post-closure source commits. The rule is in
-   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Terminal owners and
+   [dev/checkout-cleanup/terminal-owners](context:dev/checkout-cleanup/terminal-owners), *Terminal owners and
    closed PRs*. A kept local ref leaves the checkout pending.
 
 The merge signal is the ticket's `pr:` link. A worklist entry whose ticket
@@ -168,7 +168,7 @@ no checkout; the fourth is the durable worklist:
   optional ``, branches `<second>`, `<third>` `` for additional branch debt.
   Old single-branch lines remain valid. Keep every additional branch listed
   until disposal is proved; the multi-branch discharge and backfill rules
-  are owned by [dev/checkout-cleanup](context:dev/checkout-cleanup).
+  are owned by [dev/checkout-cleanup/terminal-owners](context:dev/checkout-cleanup/terminal-owners).
   Field values use UTF-8 percent
   encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
   percent is `%25`, and a space is `%20`. Decode the fields before using the
@@ -178,13 +178,13 @@ no checkout; the fourth is the durable worklist:
 
 ### The primary checkout is not debt
 
-Apply `dev/checkout-cleanup`, "Primary checkouts and foreign branch ownership": preserve primary directories
+Apply `dev/checkout-cleanup/foreign-ownership`, "Primary checkouts and foreign branch ownership": preserve primary directories
 in every clone and judge each branch in its owning repository. Independent
 sandbox clones receive the same protection. Closure captures the owner before
 filtering its primary path; legacy worklist entries infer missing ownership
 before disposal or discharge. A cleared branch clears the entry automatically.
 Unknown paths remain pending except for the missing self-owned clone policy
-in `dev/checkout-cleanup`.
+in `dev/checkout-cleanup/foreign-ownership`.
 
 ### A branch in another clone
 
@@ -203,7 +203,7 @@ sweeping repository judges the entry like any other; an owner path that is
 gone or that git cannot read is an unknown and keeps the entry — except an
 independent clone recorded as its own owner (the line keeps its primary path
 as `worktree:`), whose missing directory is treated as deletion, so the entry
-clears. Apply `dev/checkout-cleanup`, "Accepted disappearance policy", for the
+clears. Apply `dev/checkout-cleanup/foreign-ownership`, "Accepted disappearance policy", for the
 accepted relocation/unmount risk and the operator procedure before moving a
 clone or making its filesystem unavailable.
 Once the

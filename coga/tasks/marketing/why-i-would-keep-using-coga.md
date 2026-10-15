@@ -1,6 +1,6 @@
 ---
 title: Put into words why I would keep using Coga
-status: draft
+status: in_progress
 owner: zach
 workflow:
   name: draft-for-human
@@ -14,7 +14,8 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
+agent: claude
 ---
 
 ## Description
@@ -188,5 +189,7 @@ Two other things support this. When I hit a block, mine or someone else's, I can
 
 - ~~Pick a spine~~: owner picked C's style; Final text recorded above; Drafts A to E are history.
 - Check each claim against the product as it stands, for example whether the Xero task is a real `coga/recurring/` job and whether to name the `coga block` command for the password story.
+  - 2026-10-14 agent check (in this repo): `coga status`, `coga block`, `coga create`, and `coga recurring` all exist (`src/coga/commands/`), so the Final text's mechanisms (status board, ticket on the spot, exploration → recurring task) match the product. The Final text names no command, which keeps it readable for non-engineers. Not verifiable from here: the Xero, Patent Center, and TSDR jobs live in the owner's work repos, not in `coga/recurring/` of this repo. Confirm there before publishing.
+- Copy nits in the Final text, left for the owner: the heading "What makes Coga Unique to me" has a capital U mid-phrase; "Two other things support this" now follows the bridge sentence rather than the exploration story, so "this" reads slightly loose.
 - Drafts A to C added a detail that isn't in the notes ("what 'reconciled' actually means for us"); Draft D leaves it out.
 - Decide whether naming Nico and Linear is right for the audience.
