@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 agent: claude
 ---
 
@@ -242,3 +242,10 @@ checks:
     detail: Agent sessions may not run coga launch; owner host-shell receipt required (see Manual verification gap).
 ```
 
+
+## Open-PR handoff (2026-10-14, Codex)
+
+- Confirmed the launch checkout was clean on `main` at `origin/main`; feature head `4b813c74ecd56cc8217ce9c8862fd4b4ae5f5e87` and merge base match the implementation receipts. The publication command accepted subsequent control drift as non-overlapping task/log state.
+- Ran `coga open-pr codex-sessions-lose-coga-launch-env-through-the-sh`; opened https://github.com/FastJVM/coga/pull/1021 and verified its URL is recorded under `## Dev`. GitHub confirms the PR is open from `codex-no-daemon-launch-args` to `main`, with the `deep` recommendation.
+- This frozen design-then-implement workflow has no pre-publication code-review step. The PR explicitly discloses no code review and the pending owner host-shell verification receipt. Existing automated receipts were preserved; no tests or interactive Codex probes were rerun in this mechanical step. The manual criterion remains unchecked and required before final acceptance.
+- Handing off to owner review; no merge or final acceptance performed.
