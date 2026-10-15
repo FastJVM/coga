@@ -45,8 +45,10 @@ Deliverables:
 - A PowerShell walk script that runs as a new local user on the box and does
   the same steps as `container.sh`:
   1. `whoami`, then `git --version`;
-  2. install uv with its official installer, then `uv python install 3.11`
-     with `UV_PYTHON=3.11` and `UV_PYTHON_DOWNLOADS=never`;
+  2. install uv with its official installer and run `uv python install 3.11`
+     first; only then export `UV_PYTHON=3.11` and
+     `UV_PYTHON_DOWNLOADS=never`. Setting `never` before the install blocks
+     it, and the macOS walk uses the same order;
   3. `uv tool install` Coga from PyPI or from the `main` wheel;
   4. `coga --version`;
   5. `git init`, then `coga init --user <operator>`;
@@ -56,6 +58,10 @@ Deliverables:
 - `checkout NAME REF` clones the public repo at a given branch or SHA on the
   box, then runs `uv sync --extra test`. This is what the port's fix loop
   uses. `ssh NAME <cmd>` must run a command there and return its exit code.
+  The fix loop runs as the SSH admin account in its own work directory, and
+  provision installs uv and Python 3.11 for that account. Walk users are
+  always new local users, so a fix-loop install never leaks into a walk:
+  `uv tool install` is per user.
 - A runbook topic, `coga/testing/clean-install/windows-aws`. It covers cost,
   credentials, provision, walk, the fix-loop helpers, RDP and teardown. Link
   it from the parent `coga/testing/clean-install` topic.
@@ -72,7 +78,9 @@ the walk result, and the teardown time:
    prints `win32`;
 4. a `walk` records its first failure at `coga --version` (expected:
    `fcntl`);
-5. `rdp` opens a desktop session through the tunnel;
+5. `rdp` retrieves the admin password and prints a working tunnel command.
+   An agent can't look at a desktop, so the owner confirms that a desktop
+   session opens during the `review` step;
 6. `teardown` leaves nothing billing, confirmed by `status` and
    `aws ec2 describe-instances`.
 
@@ -149,3 +157,32 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+Cold review of both `windows-native/` tickets (2026-10-14). Already folded into
+the bodies: the uv install order, the fix-loop user, RDP confirmed by the owner,
+`atomicio.fchmod`, `update.py` chmod, no second lock consumer, PR CI created from
+scratch, a separate walk user, and SSH+ConPTY as the primary launch path. Still
+open, for the owner to decide: split the port further; a step of its own for
+Zach's walk; a standing spend approval; encoding the dependency (Coga has no
+`depends_on` field, so it is prose only).
+
+- Harness HIGH: paid live run plus RDP check inside the agent implement step; uv
+  `UV_PYTHON_DOWNLOADS=never` ordering ambiguous.
+- Harness MED: no user/uv named for `checkout`; code/implement layer is 48% of
+  prompt (bundled skill, not trimmable here).
+- Port HIGH: scope too big — suggests split into (1) core port + suite green,
+  (2) interactive supervisor + attended launch, (3) windows CI (no PR CI exists
+  today), (4) docs + Zach walk. Fix loop with paid EC2 is one implement step;
+  Zach's walk has no step of its own. Agent can't drive RDP.
+- Port MED: `atomicio.py` `os.fchmod` missing on Windows <3.13 (every write
+  path); `update.py` chmod; lock-helper "two consumers" claim false (supervisor
+  only uses `fcntl.ioctl`).
+- Port note: consider attaching `coga/launch` to the design step for the
+  teardown contract.
+- Cross: decide once whether the agent may provision after first approval;
+  encode the dependency; walk-vs-fix-loop on same box must not collide.
+- Verified accurate: README:88, install SKILL Windows text, git.py fcntl/getuid,
+  supervisor pty/fork/killpg/TIOCSWINSZ, megalaunch termios, recurring_runner
+  start_new_session/killpg, init geteuid guard, provenance refs in log.

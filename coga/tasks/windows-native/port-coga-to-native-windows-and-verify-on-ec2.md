@@ -64,15 +64,21 @@ and `ssh` commands for the loop below.
    natively. Each test skipped as POSIX-only is listed in the PR with its
    reason. A skip must not hide a Windows code path that users reach.
 2. On the same box, the harness `walk` with the branch wheel passes every
-   step through `coga validate --json`.
+   step through `coga validate --json`. The walk runs as a new local user,
+   separate from the fix-loop account.
 3. **The agent itself runs an attended `coga launch`** on the box with
-   Claude Code, in a real console over RDP or SSH with ConPTY. The REPL
+   Claude Code, primarily over `ssh -t` (Windows OpenSSH gives the session a
+   ConPTY). Whether Claude Code's TUI behaves there is something the design
+   step must check early. If it doesn't, the fallback is the owner running
+   the same check over RDP. The REPL
    starts, the agent's `coga bump` ends the session, and the supervisor tears
    the child down cleanly with no orphaned processes. A `coga mark done`
    path works the same way.
 4. A `windows-latest` GitHub Actions job runs the pytest suite on every PR,
    so Windows can't silently break again. The interactive launch stays an
-   EC2-only check.
+   EC2-only check. There is no PR CI today (`.github/workflows/` holds only
+   `release.yml`), so this means creating a new PR workflow. Run it on
+   `ubuntu-latest` as well.
 5. The Linux suite still passes, and the instance is torn down.
 6. `docs/contexts/coga/install/SKILL.md` and its packaged twin list native
    Windows as supported. They add a Windows baseline: Python 3.11+ through
@@ -93,8 +99,13 @@ and `ssh` commands for the loop below.
 - `git.py`: `import fcntl` at module top. `fcntl.flock` takes the
   state-publication lock, and the lock directory name uses `os.getuid()`.
   Both run for ordinary commands, not just launch, so this needs a portable
-  lock (for example `msvcrt.locking`, or a small shared lock helper), not
-  only an import guard.
+  lock (for example `msvcrt.locking`), not only an import guard.
+- `atomicio.py`: `os.fchmod`, which doesn't exist on Windows before Python
+  3.13. Every atomic write goes through it, so once the imports are fixed,
+  every state write would fail on 3.11.
+- `commands/update.py`: `_chmod_executable` sets `0o755` on packaged
+  scripts. On Windows this is harmless but meaningless; decide whether to
+  skip it.
 - `repl_supervisor.py`: `pty`, `fork`, `termios`, `tty`, `select`, `fcntl`
   (a `TIOCSWINSZ` window-size ioctl), `killpg`, SIGTERM→SIGKILL escalation,
   and a SIGINT/SIGTERM masking window. This is the supervisor that runs the
@@ -129,8 +140,10 @@ and `ssh` commands for the loop below.
   scripts (`ticket.py`, skill scripts) or assumes `/` paths, and check
   CRLF handling when Git for Windows uses `core.autocrlf=true`.
 - **Microkernel boundary.** Platform helpers go in core only if they are
-  shared infrastructure (`coga/extension-model`). The lock helper qualifies
-  because both `git.py` and the supervisor need it. Don't grow new
+  shared infrastructure with two or more real consumers
+  (`coga/extension-model`). The supervisor takes no lock; it only uses
+  `fcntl.ioctl` for the window size. So unless the design finds a second
+  real consumer, the portable lock stays inside `git.py`. Don't grow new
   machinery for the sake of it.
 
 ### Topics to update in the same PR
@@ -154,3 +167,32 @@ and `ssh` commands for the loop below.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+Cold review of both `windows-native/` tickets (2026-10-14). Already folded into
+the bodies: the uv install order, the fix-loop user, RDP confirmed by the owner,
+`atomicio.fchmod`, `update.py` chmod, no second lock consumer, PR CI created from
+scratch, a separate walk user, and SSH+ConPTY as the primary launch path. Still
+open, for the owner to decide: split the port further; a step of its own for
+Zach's walk; a standing spend approval; encoding the dependency (Coga has no
+`depends_on` field, so it is prose only).
+
+- Harness HIGH: paid live run plus RDP check inside the agent implement step; uv
+  `UV_PYTHON_DOWNLOADS=never` ordering ambiguous.
+- Harness MED: no user/uv named for `checkout`; code/implement layer is 48% of
+  prompt (bundled skill, not trimmable here).
+- Port HIGH: scope too big — suggests split into (1) core port + suite green,
+  (2) interactive supervisor + attended launch, (3) windows CI (no PR CI exists
+  today), (4) docs + Zach walk. Fix loop with paid EC2 is one implement step;
+  Zach's walk has no step of its own. Agent can't drive RDP.
+- Port MED: `atomicio.py` `os.fchmod` missing on Windows <3.13 (every write
+  path); `update.py` chmod; lock-helper "two consumers" claim false (supervisor
+  only uses `fcntl.ioctl`).
+- Port note: consider attaching `coga/launch` to the design step for the
+  teardown contract.
+- Cross: decide once whether the agent may provision after first approval;
+  encode the dependency; walk-vs-fix-loop on same box must not collide.
+- Verified accurate: README:88, install SKILL Windows text, git.py fcntl/getuid,
+  supervisor pty/fork/killpg/TIOCSWINSZ, megalaunch termios, recurring_runner
+  start_new_session/killpg, init geteuid guard, provenance refs in log.
