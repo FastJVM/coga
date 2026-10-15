@@ -137,7 +137,8 @@ later `code/open-pr` step does that, after review and fixes.
    ticket slug in the body. One commit per logical change is fine.
 8. **Freshen against `main`.** On the clean feature branch,
    `git fetch origin main && git rebase FETCH_HEAD`; if commits came in,
-   re-run the tests and fix what broke. The later `coga open-pr` refuses a
+   re-run the tests and fix what broke. Apply `dev/checkouts/reconciliation`
+   when reconciling changes or deciding what needs human input. The later `coga open-pr` refuses a
    branch missing material commits from `origin/main`, and as a script it
    has no judgment to rebase with — freshness lands in the agent steps,
    while judgment is available.

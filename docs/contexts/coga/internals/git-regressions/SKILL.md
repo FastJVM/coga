@@ -24,6 +24,10 @@ A stale checkout therefore cannot overlay a ticket another checkout advanced.
 The refusal names the fix: "control copy changed since this checkout last saw
 it (control: status=… step=…; here: …); take control's copy with
 `git checkout <remote>/<control> -- <path>` and redo the edit".
+Before applying that remedy, follow
+[reconciliation](../../../dev/checkouts/reconciliation/SKILL.md)
+to preserve unique edits and reconcile them with control. A refusal is not
+permission to discard the local version wholesale.
 
 ## Hooks
 

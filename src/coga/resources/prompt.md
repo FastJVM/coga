@@ -14,12 +14,19 @@ state, not session memory, is the source of truth.
 2. **Do the current step.** Follow the ticket, contexts, and step skill. Record
    useful findings and decisions, with reasons, on the blackboard as you go.
    Keep it concise enough to compose into the next launch.
-3. **Run `bump` as the *last* thing in the current step, then stop.**
+3. **Reconcile with current main before publishing or handing off edits.**
+   Main is the shared source of truth and is expected to move during your
+   work. Read and follow `dev/checkouts/reconciliation` from
+   the configured contexts root or the bundled package; it applies to code,
+   documentation, ticket edits, and ad-hoc sessions alike. Resolve ordinary
+   drift yourself; escalate unclear intent or unavailable access per session
+   conduct. Preserve unique work throughout reconciliation.
+4. **Run `bump` as the *last* thing in the current step, then stop.**
    `coga bump <id>` is the only command that advances a workflow. Run it after
    the work is complete and the blackboard is current.
    On the final step, `coga bump` marks the task `done`. At an owner-controlled
    gate, bump only when the human explicitly asks you to advance or close it.
-4. **Never stop silently.** If you cannot reach the transition, escalate the
+5. **Never stop silently.** If you cannot reach the transition, escalate the
    way the `Session conduct` layer in this prompt directs. Do not leave
    completed or blocked work invisible.
 
