@@ -104,30 +104,74 @@ Agent-side facts the guide simplifies:
 <!-- coga:blackboard -->
 # Test and fix install on macOS and Windows
 
-## Plan (2026-10-14, attended)
+## Dev
 
-Human walk on Zach's own hardware in a fresh VM or fresh user account,
-following `guide-for-zach.md`. Steps: pick A/B per OS -> baseline -> walk macOS -> findings and
-fixes -> walk Windows -> findings and fixes -> update `coga/install`.
+branch: install-walk-findings
+
+## Plan (2026-10-15, attended)
+
+Owner chose the UTM VM as the primary macOS environment because it is the
+most faithful, with a new `cogatest` user account as the cheap re-walk
+environment after fixes. The VM walk goes first and cold. Order: VM walk ->
+findings -> fixes -> re-walk fixed steps in a new user account -> Windows
+walk -> update `coga/install`.
+
+Decision: the doc fixes below are held until after the macOS walk, so Zach
+hits the same docs a real new user hits today. If he gets stuck where
+finding 1-3 predicts, the walk confirms them; if he sails past, the reading
+was wrong.
+
+## Host facts (Zach's Mac, 2026-10-15)
+
+- Apple M2, arm64, so the guide's UTM route applies. UTM not installed at
+  session start. 65 GiB free of 228 GiB.
+- That is enough for one VM but not for a clone unless the 15 GB installer is
+  deleted first. The guide now sequences baseline -> delete installer ->
+  clone -> walk.
+- Machine-wide, so invisible to a new user account: Xcode CLT at
+  `/Library/Developer/CommandLineTools`, making `/usr/bin/git` real git; and
+  python.org Python 3.13 in `/usr/local/bin`, which is on every account's
+  default PATH from `/etc/paths`, along with node and npm.
+- Per-user, so genuinely clean in a new account: `uv`, `brew`, `claude`,
+  `gh`, git identity and agent logins. All resolve from `/opt/homebrew/bin`,
+  which a new account's PATH lacks because `~/.zprofile` adds it.
+- Consequence: a new user account cannot reproduce the git-popup or
+  Python-floor steps. Both are already documented in `coga/install`, so the
+  walk does not need to rediscover them.
+
+## Pre-walk findings (from the docs, no walk needed)
+
+1. open — `README.md:116` says "Coga runs on Linux, Windows or macOS", while
+   `coga/install` says native Windows is unsupported because `coga.git`
+   imports `fcntl` at module top, so even `coga --help` fails. The guide
+   sends the new user to the README alone, so the README is what walks a
+   Windows user into the crash. The claim entered in `cc9c54e9c` ("Revise
+   README for clarity"), not from any Windows-support decision.
+2. open — Nothing gives a fresh machine a route to `uv` or Python 3.11. The
+   README opens with `uv tool install coga`; `coga/install` links uv's
+   homepage without an install command and says "Install Python 3.11+
+   separately (`uv tool install` can manage its own Python)", which is
+   circular when neither is present. On a fresh Mac this is `command not
+   found: uv`.
+3. open — The macOS Command Line Tools prerequisite is absent from the
+   README, which says only "needs ... Git". `coga/install` owns the detail
+   including the headless route.
+
+## Carried-over finding — answered, close it
+
+- The CRLF worry does not reach installed users. `launch_script.py` runs the
+  deterministic phase as `[sys.executable, str(entry)]`, so a `ticket.py`
+  shebang is never used, and no `.sh` ships under `src/coga/resources/`. The
+  breakage was confined to this checkout's `scripts/clean-install/` dev
+  scripts, which an installed user never touches.
 
 ## New-user walk: macOS
 
-(not started)
+In progress 2026-10-15. Zach is downloading UTM. Awaiting the VM baseline.
 
 ## New-user walk: Windows
 
 (not started)
-
-## Carried-over finding
-
-- This WSL checkout has 654 tracked files with CRLF in the worktree (index is
-  LF; `core.autocrlf=input` hides it from `git status`). `aws-mac.sh` then
-  fails `env: 'bash\r': No such file or directory`. Converted only
-  `scripts/clean-install/{aws-mac.sh,run.sh,Dockerfile}` back to LF in place.
-  Root cause unknown (likely a Windows-side git/editor touched the tree).
-  Relevance to Windows users: a repo cloned with Windows git
-  `core.autocrlf=true` would CRLF any shell scripts too; check whether coga
-  ships/executes `.sh` or `ticket.py` with shebangs on that path.
 
 ## Blockers
 

@@ -18,6 +18,11 @@ people too, and that's a finding. You aren't being tested; the installer is.
 
 You do this twice: once on the Mac, once on Windows. Do the Mac first.
 
+If you test with both a VM and a new user account, do the VM walk first and
+do it cold. Whichever walk you do first is the only one that captures your
+genuine first reaction. After that you know the answers, and the confusion we
+are looking for is gone.
+
 ## What you need
 
 - Your Mac and your Windows PC.
@@ -43,8 +48,14 @@ follow "Option B".
 
 **Option A: a fresh Mac in a window (preferred)**
 
-1. Download **UTM** (free) from https://mac.getutm.app and drag it into
-   Applications. Open it.
+First check you have room: Apple menu → About This Mac → More Info →
+Storage. You need about 45 GB free. The VM grows to roughly 25 GB once macOS
+is installed, on top of the 15 GB download, even though you set its disk size
+to 64 GB.
+
+1. Download **UTM** (free) from https://mac.getutm.app — the grey
+   **Download** button, not the $9.99 Mac App Store one. They are the same
+   app. Drag it into Applications and open it.
 2. Click **Create a New Virtual Machine** → **Virtualize** → **macOS 12+**.
 3. Leave the install file empty so UTM downloads the latest macOS for you
    (about 15 GB; this is the slow part).
@@ -52,18 +63,33 @@ follow "Option B".
    Save.
 5. Press play. Go through the setup screens like a new Mac. **Skip the Apple
    ID** sign-in. Name the user `cogatest`.
-6. Do Part 2 (the baseline). Then shut the VM down, right-click it in UTM,
-   and choose **Clone**. The clone is your spare clean copy for later
-   re-tests. Run the original, not the clone.
+6. Do Part 2 (the baseline) and paste it to your helper.
+7. Shut the VM down. **Delete the macOS installer file UTM downloaded** —
+   that is 15 GB you need back. Then right-click the VM in UTM and choose
+   **Clone**, while it is still small. The clone is your spare clean copy for
+   later re-tests. Run the original, not the clone.
 
-**Option B: a fresh user account (Intel Mac, or if A fails)**
+Do step 7 in that order. Cloning before you delete the installer can fill
+your disk partway through the walk, which looks like a coga failure and costs
+you the afternoon.
+
+**Option B: a fresh user account (Intel Mac, if A fails, or for re-tests)**
 
 1. System Settings → Users & Groups → **Add User…**
 2. Type: Administrator. Name: `cogatest`. Set a password.
 3. Log out of your account (Apple menu → Log Out) and log in as `cogatest`.
 
-This is less clean (some tools installed on your Mac are shared by every
-account), so mention in your notes that you used Option B.
+A new account is instant and uses no disk, which makes it the right place to
+re-test a single step after we fix something.
+
+It is not as clean as the VM. Two steps will look easier than they really
+are: `git` will already work, and `python3` will already be a new enough
+version, because both are installed for the whole machine rather than per
+account. On a real fresh Mac, `git` opens an install popup and `python3` is
+too old for coga. If you use Option B, write "already installed on this
+machine, not a real test" next to those two steps instead of "worked fine".
+Everything else is genuinely clean: no `uv`, no `brew`, no `coga`, no
+`claude`, no `gh`, and no sign-ins.
 
 ### On Windows
 
