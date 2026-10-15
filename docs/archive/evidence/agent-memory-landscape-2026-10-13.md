@@ -25,7 +25,7 @@ line in a public claim. These facts change fast.
   session rather than per kind of work.
 
 These are dated observations, not "first" or "only" claims; see
-[`marketing/positioning`](../contexts/marketing/positioning/SKILL.md) for the
+[`marketing/positioning`](../../contexts/marketing/positioning/SKILL.md) for the
 claim limits.
 
 ## Spec-driven tools, graduated autonomy and team workspaces (checked 2026-10-13)

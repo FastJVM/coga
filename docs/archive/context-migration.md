@@ -55,8 +55,8 @@ written. The notification pages carry the facts that still apply.
 | `docs/releasing.md` | `coga/releasing` |
 | `docs/vision.md` | `product/vision`; normative rules in `coga/principles`; history in [archive/origins.md](origins.md) |
 | `docs/market-thesis.md` | `marketing/strategy`; dated competitor research in [archive/market-landscape.md](market-landscape.md) |
-| `docs/velocity-report.md` | [evidence/velocity.md](../evidence/velocity.md) (experiment status corrected to shelved) |
-| `docs/{adoption-trial,build-vs-adopt,continuity-comparison,human-centered-comparison,pitch-evaluation,research-replacement-trial,research-work-comparison,upkeep-audit,usage-comparison,why-switch-to-coga}.md` | Same names under [evidence/](../evidence/) |
+| `docs/velocity-report.md` | [evidence/velocity.md](evidence/velocity.md) (experiment status corrected to shelved) |
+| `docs/{adoption-trial,build-vs-adopt,continuity-comparison,human-centered-comparison,pitch-evaluation,research-replacement-trial,research-work-comparison,upkeep-audit,usage-comparison,why-switch-to-coga}.md` | Same names under [evidence/](evidence/) |
 | `docs/cli-extension-audit.md`, `docs/cli-extension-external-surface.md` | [design/cli-extension-audit.md](cli-extension-audit.md), [design/cli-external-surface.md](../design/cli-external-surface.md) |
 | `docs/migrating-to-coga.md` | [archive/relay-migration.md](relay-migration.md), with the blanket rollback snippets replaced by targeted steps |
 | `coga/contexts/**` | `docs/contexts/**` |

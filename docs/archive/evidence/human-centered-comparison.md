@@ -1,6 +1,6 @@
 # Human control in practice: Coga and the alternatives
 
-> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning; live dated evidence stays in [`docs/evidence/`](../../evidence/). Not instructions.
+> **History, archived 2026-10-13.** Dated research from the pitch and build-versus-adopt programme that preceded the 2026-09-21 positioning decision and the 2026-10-13 README reset. [README.md](../../../README.md) is the source of truth for concepts and positioning. Not instructions.
 
 **2026-09-15.** Follow-up to [who operates the agents in practice](pitch-evaluation.md#who-operates-the-agents-in-practice--2026-09-15).
 The question is whether Coga changes the person's working relationship with

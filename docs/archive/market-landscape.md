@@ -11,7 +11,7 @@
 > [`marketing/strategy`](../contexts/marketing/strategy/SKILL.md), approved
 > public claims in
 > [`marketing/positioning`](../contexts/marketing/positioning/SKILL.md), and
-> later dated comparisons in [`docs/evidence/`](../evidence/).
+> later dated comparisons in [`docs/archive/evidence/`](evidence/).
 
 ## Prompt-as-interface claim check — 2026-09-08
 

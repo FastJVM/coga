@@ -1,8 +1,8 @@
 # Coga velocity report (through 2026-07-05)
 
 Dated operating facts about Coga working on Coga, cited by
-[`coga/usage`](../contexts/coga/usage/SKILL.md) and
-[`marketing/map`](../contexts/marketing/map/SKILL.md). It deliberately reports operating facts, not a
+[`coga/usage`](../../contexts/coga/usage/SKILL.md) and
+[`marketing/map`](../../contexts/marketing/map/SKILL.md). It deliberately reports operating facts, not a
 productivity multiplier. There is no control group, task sizes vary, and Coga
 working on Coga is not an external benchmark.
 
@@ -10,7 +10,7 @@ working on Coga is not an external benchmark.
 
 ### Agent-operated work
 
-The append-only [`coga/log.md`](../../coga/log.md) identifies who launched and
+The append-only [`coga/log.md`](../../../coga/log.md) identifies who launched and
 advanced each task. Entries tagged `agent:claude` or `agent:codex` show steps
 advanced by an agent; `system` entries show deterministic automation, while
 `human:*` and `megalaunch` entries show human- and scheduler-initiated
@@ -31,7 +31,7 @@ through those review-bearing workflows during the reported period—not every
 docs-only, direct-body, or administrative commit in git history.
 
 The contract is inspectable in the workflow snapshots under
-[`coga/tasks/`](../../coga/tasks/) and the reusable workflow definitions installed
+[`coga/tasks/`](../../../coga/tasks/) and the reusable workflow definitions installed
 with Coga. Search the snapshots with:
 
 ```sh
@@ -47,7 +47,7 @@ it does not mean 31 processes ran at the same instant. The reporting window ends
 2026-07-05, the end of ISO week 27; the peak through that date was 31. Task size
 and lines changed are intentionally not inputs.
 
-The source ledger is [`coga/log.md`](../../coga/log.md). Recompute the number from
+The source ledger is [`coga/log.md`](../../../coga/log.md). Recompute the number from
 the repository root with this standard-library-only script:
 
 ```sh
@@ -99,7 +99,7 @@ attempt—completed, blocked, rescued, or abandoned—and link each row to its
 receipt. **Status (2026-09-22): shelved.** No run is scheduled, no ticket owns
 it, and no result exists; the tracked apparatus and the history of the shelved
 proof-post option are indexed in
-[the launch-programs archive](../archive/launch-programs/README.md). Any future
+[the launch-programs archive](../launch-programs/README.md). Any future
 run needs its own owner decision. The two-person/output-of-ten statement was
 the vision's bet, now archived in
-[positioning before the README reset](../archive/positioning-before-readme-2026-10-13.md).
+[positioning before the README reset](../positioning-before-readme-2026-10-13.md).

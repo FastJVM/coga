@@ -39,7 +39,7 @@ Coga's contracts, and the longer strategic argument in
   governance or compliance tool, and do not use those words. No novelty or
   priority words ("first", "only", "new", "unique"): individual features have
   close prior art (see the dated
-  [landscape](../../../evidence/agent-memory-landscape-2026-10-13.md)). Avoid
+  [landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md)). Avoid
   category words that file Coga under shared AI knowledge: "knowledge
   compounds", "learn once", "multiplayer", "company brain". Do not say
   "human at the center", "human-centered", "human-in-the-loop" or
@@ -68,7 +68,7 @@ Coga's contracts, and the longer strategic argument in
 - Do not say Coga forces the reader to read a ticket: `coga launch` activates
   a draft. Say instead that what you read is what the agent gets.
 - Admin and patent use may be cited through
-  [admin and patent flexibility](../../../evidence/admin-and-patent-flexibility-2026-09-12.md);
+  [admin and patent flexibility](../../../archive/evidence/admin-and-patent-flexibility-2026-09-12.md);
   do not describe the operator beyond what the public record states.
 - Statements about what other tools do not do are dated observations ("at the
   2026-10-13 check"), never "nobody else".

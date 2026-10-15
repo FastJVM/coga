@@ -78,7 +78,7 @@ which estimates the prompt side before a run.
 - `human_turns` / `agent_turns` count explicit messages only.
 - Sessions observed in the same window are workstreams, not proof of
   simultaneous processes or a productivity multiplier. The dated analysis
-  built on these records is `docs/evidence/velocity.md`.
+  built on these records is `docs/archive/evidence/velocity.md`.
 
 ## Facts a future price table needs
 
@@ -92,7 +92,7 @@ rather than rediscover them.
   `cache_creation_input_tokens`, so a record cannot tell which write rate
   applied. Both TTLs occur in practice and the two rates differ, so no single
   rate is both exact and a guaranteed lower bound. A dated one-machine survey
-  of the mix is `docs/evidence/claude-cache-ttl-survey.md`.
+  of the mix is `docs/archive/evidence/claude-cache-ttl-survey.md`.
 - **A Codex `cache_creation_input_tokens: null` means "no split exposed", not
   "no charge".** OpenAI charges cache writes on GPT-5.6-and-later models, and
   `_parse_codex_rollout` subtracts only cached-read tokens from input, so any

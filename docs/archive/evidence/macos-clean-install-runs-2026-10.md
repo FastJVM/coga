@@ -1,8 +1,8 @@
 # macOS clean-install runs — 2026-09-30 and 2026-10-01
 
 Dated run observations moved out of the
-[macOS AWS runbook](../contexts/coga/testing/clean-install/macos-aws/SKILL.md)
-and [`coga/install`](../contexts/coga/install/SKILL.md) on 2026-10-13, so the
+[macOS AWS runbook](../../contexts/coga/testing/clean-install/macos-aws/SKILL.md)
+and [`coga/install`](../../contexts/coga/install/SKILL.md) on 2026-10-13, so the
 runbook states procedure only. Point-in-time and machine-specific.
 
 - **2026-09-30:** the AMI's CLT receipts did not stop `softwareupdate` from

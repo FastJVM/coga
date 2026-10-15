@@ -1,7 +1,7 @@
 # Claude cache-write TTL survey (2026-09-13)
 
 Point-in-time evidence behind the cache-write fact in
-[`coga/usage`](../contexts/coga/usage/SKILL.md#facts-a-future-price-table-needs).
+[`coga/usage`](../../contexts/coga/usage/SKILL.md#facts-a-future-price-table-needs).
 It is one machine's measurement and can change with Claude Code releases or
 workloads; re-measure before relying on the ratio.
 
