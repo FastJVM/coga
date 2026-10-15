@@ -166,6 +166,7 @@ The owner replied "ok" to the explicit request to approve the revised design, th
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1021
 branch: codex-no-daemon-launch-args
 
 ## Owner review discussion — 2026-10-14
