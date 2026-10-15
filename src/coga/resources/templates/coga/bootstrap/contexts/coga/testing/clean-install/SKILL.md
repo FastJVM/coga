@@ -1,6 +1,6 @@
 ---
 name: coga/testing/clean-install
-description: The Linux clean-install harness, artifact provenance, install/init evidence, and attended agent-login, coga build, and first-ticket continuations.
+description: The Linux clean-install harness, artifact provenance, install/init evidence, and attended build, first-ticket, and release verification.
 ---
 
 # Linux clean-install harness
@@ -8,9 +8,8 @@ description: The Linux clean-install harness, artifact provenance, install/init 
 Repository tooling lives in `scripts/clean-install/`; it is not installed with
 Coga. It exercises the documented [install](../../install/SKILL.md),
 [init](../../init/SKILL.md), and [first-task](../../first-task/SKILL.md) path
-against an installed artifact. The separate
-[release gate](../../releasing/SKILL.md#clean-first-install-gate) checks a pinned
-release and a completed agent launch. The
+against an installed artifact. The release continuation below also checks a
+pinned release and a completed agent launch. The
 [macOS harness on AWS](macos-aws/SKILL.md) runs the same walk script as a fresh
 user on an EC2 Mac.
 
@@ -35,8 +34,9 @@ On a Linux host with Bash, Git and Docker available, from the Coga checkout:
 `main` mode also needs host uv. It fetches `origin/main`, exports that exact
 commit, runs `uv build --wheel --no-sources`, and copies only the resulting
 wheel into the container. It does not switch branches or build the working
-tree. `pypi` runs the unpinned `uv tool install coga`; `main` uses the wheel
-path with the same tool installer. Both then check the CLI version, initialize
+tree. `pypi` installs the latest Coga unless `COGA_CLEAN_INSTALL_VERSION` is
+set, in which case it installs `coga==<version>`; `main` uses the wheel
+path with the same tool installer and refuses that version override. Both then check the CLI version, initialize
 a scratch Git repo with a local test identity, run `coga init --user alice`,
 and run `coga validate --json`.
 The optional third argument is the Coga user name (default `installer`).
@@ -120,6 +120,38 @@ Run `build` first: it is the documented first step, and a ticket authored first
 would change the repo it onboards. Repeat the attended continuations in the
 other artifact's container when needed.
 
+## Verify a published release
+
+Start a fresh pinned PyPI run (replace the example version with the release):
+
+```sh
+COGA_CLEAN_INSTALL_VERSION=0.4.0 ./scripts/clean-install/run.sh pypi release-040 installer
+```
+
+Install and authenticate the chosen agent inside the retained container as
+above. Then run the release continuation on a real terminal:
+
+```sh
+docker exec -it release-040 coga-clean-install release claude
+```
+
+The command uses the Python environment installed by uv for Coga to check
+bundled workflow/skill resources. It refuses legacy nested Git, vendored venv,
+or shim directories, creates a minimal `direct/body` ticket, and launches the
+chosen agent. The ticket tells the agent to record success and finish with
+`coga bump`. Completion requires `status: done`, a matching audit-log entry,
+validation success, and a clean scratch repository. An agent exit code alone
+is insufficient. A repeated attempt in the same scratch repository refuses;
+start a fresh install run after a failed release check.
+
+Only full success writes `release-passed.txt`. The evidence directory also
+holds `release-environment.txt` (installed version, Python, agent),
+`release-task.md`, `release-log.md`, and `release-git-log.txt`. The log receipt
+contains only this task's new audit entries, excluding system usage JSON as
+in `build.txt`. Login and the agent conversation stay on the terminal. Refresh
+the host copy after this continuation as described below. The obsolete
+`verify-clean-install*.sh` gate is replaced by this path.
+
 ## Evidence and cleanup
 
 Host receipts live in `.coga/clean-install/<container>/` (gitignored):
@@ -138,8 +170,9 @@ docker cp clean-main:/home/coga/clean-install/evidence/. .coga/clean-install/cle
 
 For each artifact, put the exact command, image ID, installed version (or
 failure before it), main SHA when applicable, and init outcome/failing command
-in the PR description. State whether the attended `coga build` and first-ticket steps ran and, for
-`build`, whether it reached and bumped step 1.
+in the PR description. State whether the attended `coga build`, first-ticket,
+and release checks ran and, for `build`, whether it reached and bumped step 1.
+Init success alone is not a release pass.
 Recording a failure is evidence, not an installer fix. Keep issue filing and
 repairs in their own tickets.
 

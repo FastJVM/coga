@@ -8,6 +8,10 @@ fi
 artifact=$1
 container=$2
 operator=${3:-installer}
+if [[ -n ${COGA_CLEAN_INSTALL_VERSION:-} && $artifact != pypi ]]; then
+    echo "COGA_CLEAN_INSTALL_VERSION applies only to pypi mode" >&2
+    exit 2
+fi
 if [[ ! $container =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
     echo "CONTAINER must be a Docker name, not a path" >&2
     exit 2
@@ -88,7 +92,8 @@ if [[ $artifact == main ]]; then
 fi
 run docker start "$container"
 if [[ $artifact == pypi ]]; then
-    run docker exec "$container" coga-clean-install pypi "$operator"
+    run docker exec -e "COGA_CLEAN_INSTALL_VERSION=${COGA_CLEAN_INSTALL_VERSION:-}" \
+        "$container" coga-clean-install pypi "$operator"
 else
     run docker exec "$container" coga-clean-install wheel "$operator" "$container_wheel"
 fi

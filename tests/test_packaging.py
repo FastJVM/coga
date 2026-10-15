@@ -127,9 +127,9 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 #   templates/coga/contexts/<path>            -> <contexts-root>/<path>
 #   templates/coga/bootstrap/contexts/<path>  -> <contexts-root>/<path>
 #
-# Unlike the other areas, every packaged context file must have its canonical
-# counterpart, and every canonical topic must be classified as bootstrap,
-# init-seeded, or local-only — see "Context distribution" below.
+# The starter template is package-only scaffolding, not a canonical topic.
+# Every other packaged context file must have its canonical counterpart, and
+# every canonical topic must be classified as bootstrap, init-seeded, or local-only — see "Context distribution" below.
 # A packaged file with no live counterpart under either mapping is a curated
 # battery the source repo does not install into itself — `bootstrap/orient/`,
 # `bootstrap/skills/bootstrap/**`, the `bootstrap/workflows/` fallbacks,
@@ -204,6 +204,8 @@ def _canonical_contexts_root() -> Path:
 
 def _live_counterparts(relative: Path) -> tuple[Path, ...]:
     """Live paths a packaged template file could mirror, best guess first."""
+    if relative == Path("contexts/_template/SKILL.md"):
+        return ()  # Author the starter only in the package, outside the topic library.
     parts = relative.parts
     if len(parts) > 1 and parts[0] == "contexts":
         return (_canonical_contexts_root().joinpath(*parts[1:]),)
@@ -279,7 +281,8 @@ def test_twin_discovery_still_walks_the_packaged_tree() -> None:
     assert "coga/skills/code/implement/SKILL.md" in live_paths
     contexts_root = _canonical_contexts_root().as_posix()
     assert f"{contexts_root}/coga/sync/SKILL.md" in live_paths
-    assert f"{contexts_root}/_template/SKILL.md" in live_paths
+    assert f"{contexts_root}/.gitignore" in live_paths
+    assert f"{contexts_root}/_template/SKILL.md" not in live_paths
 
 
 def test_twin_discovery_ignores_generated_installation_artifacts(
@@ -288,8 +291,8 @@ def test_twin_discovery_ignores_generated_installation_artifacts(
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     expected = (
         (
-            "coga/contexts/_template/SKILL.md",
-            "src/coga/resources/templates/coga/contexts/_template/SKILL.md",
+            "coga/contexts/.gitignore",
+            "src/coga/resources/templates/coga/contexts/.gitignore",
         ),
         (
             "coga/skills/new-skill/attachment.py",
@@ -484,12 +487,12 @@ def _context_distribution_problems() -> list[str]:
     problems = []
     for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
         for relative in _packaged_template_files(subdir):
-            [canonical] = _live_counterparts(relative)
-            if not (REPO_ROOT / canonical).is_file():
-                problems.append(
-                    f"{(PACKAGED_ROOT / relative).as_posix()} has no canonical "
-                    f"counterpart at {canonical.as_posix()}"
-                )
+            for canonical in _live_counterparts(relative):
+                if not (REPO_ROOT / canonical).is_file():
+                    problems.append(
+                        f"{(PACKAGED_ROOT / relative).as_posix()} has no canonical "
+                        f"counterpart at {canonical.as_posix()}"
+                    )
 
     canonical_refs = _canonical_context_refs()
     bootstrap_refs = _packaged_context_refs(BOOTSTRAP_CONTEXTS)
@@ -540,7 +543,10 @@ def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"{ref}\n")
     for name in REQUIRED_INIT_CONTEXT_FILES:
-        for base in (canonical, packaged / SEEDED_CONTEXTS):
+        bases = [packaged / SEEDED_CONTEXTS]
+        if name != "_template/SKILL.md":
+            bases.append(canonical)
+        for base in bases:
             path = base / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"{name}\n")
@@ -561,7 +567,8 @@ def test_context_distribution_follows_the_configured_root(
     assert _context_distribution_problems() == []
     live_paths = {live for live, _ in _discover_live_packaged_twins()}
     assert "docs/contexts/coga/sync/SKILL.md" in live_paths
-    assert "docs/contexts/_template/SKILL.md" in live_paths
+    assert "docs/contexts/.gitignore" in live_paths
+    assert "docs/contexts/_template/SKILL.md" not in live_paths
     assert not any(path.startswith("coga/contexts/") for path in live_paths)
 
 
@@ -571,11 +578,11 @@ def test_context_distribution_reports_a_missing_canonical_counterpart(
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
     (canonical / "coga/sync/SKILL.md").unlink()
-    (canonical / "_template/SKILL.md").unlink()
+    (canonical / ".gitignore").unlink()
 
     problems = "\n".join(_context_distribution_problems())
     assert "bootstrap/contexts/coga/sync/SKILL.md has no canonical" in problems
-    assert "templates/coga/contexts/_template/SKILL.md has no canonical" in problems
+    assert "templates/coga/contexts/.gitignore has no canonical" in problems
 
 
 def test_context_distribution_reports_a_topic_deleted_from_both_copies(
@@ -586,7 +593,6 @@ def test_context_distribution_reports_a_topic_deleted_from_both_copies(
     packaged = tmp_path / PACKAGED_ROOT
     (canonical / "coga/sync/SKILL.md").unlink()
     (packaged / BOOTSTRAP_CONTEXTS / "coga/sync/SKILL.md").unlink()
-    (canonical / "_template/SKILL.md").unlink()
     (packaged / SEEDED_CONTEXTS / "_template/SKILL.md").unlink()
 
     problems = _context_distribution_problems()

@@ -93,22 +93,8 @@ version such as `0.2.0.dev1`. A bad release can be yanked, not deleted.
 
 ## Clean first-install gate
 
-After publishing, run the public install and first-task path in a disposable
-Linux container with `scripts/verify-clean-install.sh`. It installs the given
-version from PyPI, initializes an ordinary Git repository, checks bundled
-batteries, launches a minimal task with a real authenticated agent CLI,
-validates the repo, and saves a transcript plus markdown and Git evidence.
-
-```sh
-COGA_GATE_AGENT=codex \
-COGA_GATE_AGENT_INSTALL='npm install -g @openai/codex' \
-./scripts/verify-clean-install.sh 0.3.0 -- --env OPENAI_API_KEY
-```
-
-- `COGA_GATE_AGENT_INSTALL` is required and must install the chosen agent CLI
-  in the container; the script exits 2 without it or without the engine.
-- Arguments after `--` go to `docker run` before the image (credential mounts,
-  environment variables). Nothing from the host is forwarded implicitly.
-- Defaults: `COGA_GATE_AGENT=codex`, `COGA_GATE_IMAGE=python:3.11-slim`,
-  `COGA_GATE_CONTAINER_ENGINE=docker` (or `podman`),
-  `COGA_GATE_EVIDENCE_DIR=./coga-install-gate-evidence`.
+After publishing, use the [clean-install harness release continuation](../testing/clean-install/SKILL.md#verify-a-published-release)
+with the exact published version. It combines a fresh install with an attended,
+authenticated agent launch and verifies that the task finished with durable
+state and a clean repository. Keep the resulting receipts with the release
+verification. Install/init success alone does not satisfy this gate.
