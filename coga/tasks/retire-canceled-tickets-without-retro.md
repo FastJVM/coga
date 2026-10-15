@@ -1,6 +1,6 @@
 ---
 title: Retire canceled tickets without Retro
-status: draft
+status: canceled
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
