@@ -48,6 +48,13 @@ class AgentType:
     # the CLI does not expose one; Coga then falls back to provider-specific
     # transcript matching.
     session_id_flag: str = ""
+    # Optional argv tokens inserted right after `cli` for every interactive
+    # spawn (positional and discussion shapes alike). Split with shlex. Used
+    # for launch-mode flags the agent needs so its shell commands inherit
+    # Coga's launch env — e.g. `--no-daemon` for Codex, whose shared
+    # app-server daemon otherwise runs shell commands with its own env. Not
+    # applied to the one-shot `analyze` argv.
+    launch_args: str = ""
     # Optional argv override for discussion prompts (`coga chat`, `coga ticket`):
     # the composed prompt rides as system/developer context instead of becoming
     # the agent's first user message. Parsed via `shlex.split`; the literal
@@ -549,6 +556,7 @@ _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "mode",
     "name_flag",
     "session_id_flag",
+    "launch_args",
     "discussion",
     "analyze",
     "peer",
@@ -701,6 +709,12 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.session_id_flag must be a string "
                 f"(got {type(session_id_flag).__name__})"
             )
+        launch_args = data.get("launch_args", "")
+        if not isinstance(launch_args, str):
+            raise ConfigError(
+                f"agents.{name}.launch_args must be a string "
+                f"(got {type(launch_args).__name__})"
+            )
         analyze = data.get("analyze", "")
         if not isinstance(analyze, str):
             raise ConfigError(
@@ -720,6 +734,7 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
             session_id_flag=session_id_flag,
+            launch_args=launch_args,
             discussion=discussion,
             analyze=analyze,
             peer=peer,

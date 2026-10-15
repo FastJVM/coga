@@ -19,6 +19,7 @@ described [below](#the-default-agent).
 | `mode` | Defaults to `local`, the only mode that exists. |
 | `name_flag` | Flag that sets the session display name (claude: `-n`); the ticket title follows it. Skipped for discussion launches. |
 | `session_id_flag` | Flag that pins the session id (claude: `--session-id`); without it Coga falls back to provider transcript matching for usage. |
+| `launch_args` | Extra argv tokens (a string, `shlex`-split; default `""`) inserted right after `cli` in every interactive spawn, positional and discussion shapes alike: launch, megalaunch, `coga ticket`, and `coga chat`. Not applied to `analyze`. The shipped template sets `--no-daemon` for codex; see [Launch environment inheritance](#launch-environment-inheritance). |
 | `discussion` | argv template for `coga chat` / `coga ticket`, with `{prompt}` replaced, so the prompt rides as system or developer context. Empty uses built-in defaults for known CLIs, then positional. |
 | `analyze` | One-shot argv for the recurring autofix analyst, with a `{prompt}` token. `claude` and `codex` have built-in defaults; an unknown CLI with no override skips the analysis loudly. |
 | `peer` | The reviewer type an `other-agent` workflow step selects. |
@@ -35,6 +36,60 @@ both files. `_parse_agents` merges at the **key** level: a local table
 overrides individual keys of the shared one (for example a different `cli`
 path) and inherits the rest, and a local-only table appends a type installed
 only on this machine. Required-key and type checks run on the merged result.
+An explicit local `launch_args = ""` clears a shared value.
+
+## Launch environment inheritance
+
+A supervised session works only if the agent's **shell commands** inherit
+the environment Coga hands the agent process: `COGA_SUPERVISED`,
+`COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, `COGA_DONE_SENTINEL`, and
+`COGA_TASK_*` ([coga/internals/agent-spawn](../internals/agent-spawn/SKILL.md)).
+Without them, an in-session `coga bump` is credited `human:<user>` rather than
+`agent:<type>`, the stale-step guard in `coga bump` does not run, and the done
+sentinel never fires. The session then stays open after the bump until the
+human exits it.
+
+**Codex remedy.** By default the interactive Codex TUI (observed in
+codex-cli 0.162.x) attaches to a shared, long-lived `codex app-server`
+daemon. That daemon spawns the model's shell commands with *its own*
+environment, not the launching TUI's, so nothing Coga sets reaches them.
+`codex --no-daemon` runs the app server in-process and restores inheritance.
+Disabling the `daemon_auto_start` feature is not enough while a daemon is
+already running. The shipped `coga.toml` therefore sets, with a comment:
+
+```toml
+[agents.codex]
+launch_args = "--no-daemon"
+```
+
+Core adds no built-in default. **Existing repositories** created before the
+template change must add that line to `[agents.codex]` in `coga/coga.toml`,
+or per machine in `coga.local.toml`. Remove it only for a Codex that predates
+the flag (Codex rejects it only with `--remote` and with the `agents`,
+`queue`, and `remote-control` subcommands, none of which Coga uses). The
+one-shot `analyze` argv (`codex exec`) already inherits the environment.
+
+**Advisory warning.** After a supervised session ends, `coga launch` and
+`coga megalaunch` compare the ticket's `(status, step)` frozen immediately
+before spawn with its post-session state. If they differ and the supervisor
+observed no matching done signal, they print a yellow stderr warning naming
+the task and pointing here. Missing `COGA_*` is the likely cause, but the
+warning says only that it *may* be. A human or another session could also
+have moved the ticket, so the observation never establishes who did.
+Observation limits:
+
+- Launch reads state after its checkout return and reload, so an advance
+  published from elsewhere is seen. It skips the check when the return or
+  reload refuses, the target was removed, or the ticket cannot be read or
+  parsed. Exempt checkouts read their current copy. Megalaunch uses its
+  existing post-session read.
+- A session whose unresolved blocked resume launch reblocks itself is not
+  diagnosed, so the supervisor's own write is never attributed to the agent.
+  Megalaunch observes before its reblock.
+- The warning appears only after the session ends. It never changes exit
+  codes, chaining, or result handling. Bump-time detection (sniffing vendor
+  environment markers) is deliberately out of scope: it would put vendor
+  knowledge in core and misfire on unsupervised sessions.
 
 ## The default agent
 

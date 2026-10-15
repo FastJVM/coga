@@ -10,6 +10,7 @@ import pytest
 
 from conftest import hold_by_agent, hold_by_owner
 from coga.cli import app
+from coga.commands.launch import AgentSessionResult
 from coga.compose import compose_prompt
 from coga.config import load_config
 from coga.create import create_task
@@ -109,6 +110,7 @@ def test_megalaunch_runs_active_agent_task(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
@@ -127,6 +129,96 @@ def test_megalaunch_runs_active_agent_task(
     assert run.counts["completed"] == 1
     assert run.results[0].slug == ref["slug"]
     assert Ticket.read(ref["path"]).status == "done"
+
+
+_UNSIGNALLED = "but the supervisor saw no done signal"
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "kind", "done_signalled", "result_status", "warns"),
+    [
+        (0, "natural", False, "completed", True),
+        (0, "done", True, "completed", False),
+        (124, "timeout", False, "failed", True),
+        (3, "natural", False, "failed", True),
+        # Done signal followed by a real crash: still a failed session, but
+        # the observed signal suppresses the advisory.
+        (139, "crash", True, "failed", False),
+    ],
+)
+def test_megalaunch_warns_when_ticket_changes_without_done_signal(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    exit_code: int,
+    kind: str,
+    done_signalled: bool,
+    result_status: str,
+    warns: bool,
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Silent bump",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return AgentSessionResult(exit_code, kind, None, done_signalled)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    err = capsys.readouterr().err
+    assert run.results[0].outcome == result_status
+    assert (_UNSIGNALLED in err) is warns
+    if warns:
+        assert f"Warning: {ref['slug']} changed from in_progress @ 1 (implement)" in err
+        assert "to done during this session" in err
+        assert "coga/agents" in err
+
+
+def test_megalaunch_does_not_warn_when_ticket_is_unchanged(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Idle session",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.spawn_agent_session",
+        lambda *args, **kwargs: AgentSessionResult(0, "natural"),
+    )
+
+    run = run_megalaunch(cfg)
+
+    assert run.results[0].detail == "agent exited without changing task state"
+    assert _UNSIGNALLED not in capsys.readouterr().err
 
 
 def test_megalaunch_spawns_with_materialized_preflight_inputs(
@@ -160,6 +252,7 @@ def test_megalaunch_spawns_with_materialized_preflight_inputs(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         _cfg, ref_obj, ticket, agent, **kwargs
@@ -228,6 +321,7 @@ def test_megalaunch_resolves_op_secret_and_scrubs_1password_auth(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     captured_env: dict[str, str] = {}
 
@@ -271,6 +365,7 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     captured_env: dict[str, str] = {}
 
@@ -315,6 +410,7 @@ def test_megalaunch_step_env_refuses_stale_step_bump(
 
     class _Session:
         termination_kind = "natural"
+        done_signalled = False
 
         def __init__(self, exit_code: int) -> None:
             self.exit_code = exit_code
@@ -370,6 +466,7 @@ def test_megalaunch_records_cancellation_as_distinct_outcome(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
@@ -425,6 +522,7 @@ def test_megalaunch_skips_task_deleted_mid_sweep(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
@@ -490,6 +588,7 @@ def test_megalaunch_chains_agent_owned_steps(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     seen_steps: list[str] = []
 
@@ -550,6 +649,7 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     launched: list[tuple[str, str]] = []
 
@@ -612,6 +712,7 @@ def test_megalaunch_only_sweeps_current_users_tickets(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     launched: list[str] = []
 
@@ -677,6 +778,7 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     seen: list[tuple[str, str]] = []
 
@@ -727,6 +829,7 @@ def test_megalaunch_cli_accepts_agent_override(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     launched_cli: list[str] = []
 
@@ -812,6 +915,7 @@ def test_megalaunch_directory_scopes_the_sweep(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
@@ -876,6 +980,7 @@ def test_megalaunch_cli_accepts_directory(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
@@ -934,6 +1039,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     class _Session:
         exit_code = 0
         termination_kind = "done"
+        done_signalled = False
 
     seen: dict[str, object] = {}
 
@@ -1004,6 +1110,7 @@ def test_megalaunch_timeout_teardown_names_exact_limit(
     class _Session:
         exit_code = 124
         termination_kind = "timeout"
+        done_signalled = False
 
         def __init__(self, reason: str) -> None:
             self.termination_reason = reason
@@ -1343,6 +1450,7 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -1404,6 +1512,7 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -1542,6 +1651,7 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -1589,6 +1699,7 @@ def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -1996,6 +2107,7 @@ def test_megalaunch_drain_never_relaunches_same_ticket_twice(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -2153,6 +2265,7 @@ def test_megalaunch_services_tasks_oldest_first(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
@@ -2214,6 +2327,7 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
@@ -2273,6 +2387,7 @@ def _done_on_spawn(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -2488,6 +2603,7 @@ def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, launched, agent, **kwargs):  # type: ignore[no-untyped-def]
         calls.append((agent.name, launched.current_step()["assignee"]))
@@ -2695,6 +2811,7 @@ def test_megalaunch_selection_commits_the_preflighted_workflow_snapshot(
     class _Session:
         exit_code = 1
         termination_kind = "natural"
+        done_signalled = False
 
     seen_workflow: dict[str, object] = {}
 
@@ -2904,6 +3021,7 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def outer_spawn(
         _cfg, _ref, claimed: Ticket, _agent, **kwargs
@@ -3010,6 +3128,7 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(
         _cfg, ref_obj, claimed, _agent, **_kwargs
@@ -3152,6 +3271,7 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def one_peer_spawn(
         _cfg, ref, claimed: Ticket, _agent, **_kwargs
@@ -3562,6 +3682,7 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def spawn_after_peer_attempt(
         _cfg,
@@ -3663,6 +3784,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
         exit_code = 0
         kind = "natural"
         reason = None
+        done_signalled = False
 
     def race_after_final_fetch(
         _cmd,
@@ -3822,6 +3944,7 @@ def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_la
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -3883,6 +4006,7 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
@@ -4191,6 +4315,7 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         events.append(("launch", ref_obj.id_slug))
@@ -4463,7 +4588,9 @@ def test_megalaunch_authoring_reports_unknown_agent_and_continues(
 
 
 def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A picked blocked ticket resumes; an unresolved exit re-blocks it."""
     from coga.blackboard import append_blocker
@@ -4490,6 +4617,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         # The agent session exits without resolving the ask.
@@ -4517,6 +4645,8 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     assert "Which region?" in run.results[0].detail
     # The unresolved ask returns the ticket to the blocked queue.
     assert Ticket.read(ref["path"]).status == "blocked"
+    # The supervisor's own reblock is never reported as the agent's change.
+    assert _UNSIGNALLED not in capsys.readouterr().err
 
 
 def test_megalaunch_selection_blocked_resume_resolves_and_completes(
@@ -4546,6 +4676,7 @@ def test_megalaunch_selection_blocked_resume_resolves_and_completes(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         # The session resolves the ask and finishes the task.
@@ -5487,6 +5618,7 @@ def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
     class _Session:
         exit_code = 0
         termination_kind = "natural"
+        done_signalled = False
 
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)

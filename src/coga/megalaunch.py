@@ -101,7 +101,10 @@ from coga.mark import (
     prepare_active,
 )
 from coga.paths import RepoResourceUnreadable, log_path
-from coga.repl_supervisor import build_supervised_step_env
+from coga.repl_supervisor import (
+    build_supervised_step_env,
+    unsignalled_advance_warning,
+)
 from coga.workflow import WorkflowError
 from coga.taskfile import (
     TaskFileError,
@@ -1493,6 +1496,17 @@ def _launch_until_stop(
 
         launched = True
         after = read_ticket(ref)
+        # Advisory only, observed on the existing post-session read and before
+        # any supervisor-owned reblock, so it can neither change the result
+        # below nor mistake that reblock for the agent's change.
+        warning = unsignalled_advance_warning(
+            ref.id_slug,
+            (before.status, before.step),
+            (after.status, after.step),
+            done_signalled=session.done_signalled,
+        )
+        if warning:
+            typer.secho(warning, fg=typer.colors.YELLOW, err=True)
         if blocked_resume:
             # A resumed blocked launch may run to `in_progress` so the session
             # can discuss, `coga unblock`, and continue. If it exited with the

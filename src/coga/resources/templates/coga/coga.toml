@@ -49,6 +49,11 @@ cli = "codex"
 file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"
+# Codex's shared app-server daemon runs shell commands with its own env, so
+# the `COGA_*` launch variables never reach the agent (bumps get credited to
+# a human and the done sentinel never fires); `--no-daemon` keeps them.
+# Remove only if your Codex predates the flag. See `coga/agents`.
+launch_args = "--no-daemon"
 
 # --- Notification channels ---
 # Coga's notification system is the team sync point. It is optional on first
