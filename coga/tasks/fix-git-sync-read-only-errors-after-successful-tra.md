@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -141,3 +141,10 @@ None in the current Description/Context contract. Acceptance criteria are observ
 - `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_publish_state.py tests/test_git.py::test_sync_log_reports_on_stderr_only tests/test_git.py::test_a_push_failure_control_cannot_be_reread_is_uncertain` — **13 passed in 7.29s**. These verify existing recovery and caller contracts; the proposed diagnostic regressions remain implementation work.
 - Review changed only this blackboard; no ticket-body edits, source/test changes, branch, or PR.
 - `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task fix-git-sync-read-only-errors-after-successful-tra --json` — 1 OK, no issues. `git diff --check` passed; compared the pre-fence content with HEAD and confirmed ticket body/frontmatter unchanged and exactly one evaluator review.
+
+## Owner design approval — 2026-10-14
+
+- Owner approved the current diagnostic and recovery scope and explicitly authorized advancing to `implement` in the attended review session.
+- Launcher prevention remains outside this change; pursuing it requires a separate capability design. This accepts improved diagnosis and recovery without automatic prevention.
+- The evaluator's later setup evidence supersedes the earlier missing-grant conclusion: the grants were subsequently installed. Neither their presence nor the historical failures establish the original process's effective permissions or prove subsequent publication succeeded.
+- Carry the evaluator's implementation guidance forward: structured object-operation context, non-permission hash/filter failure coverage, and diagnostic-log failure coverage for task sync, sweep, and mark reporting. No blocking findings remain; the ticket body is approved unchanged.
