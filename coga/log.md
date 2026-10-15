@@ -8422,3 +8422,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 09:54 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-15
 2026-10-15 09:54 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-15
 2026-10-15 09:54 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-15 09:54 v1 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
