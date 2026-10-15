@@ -8375,3 +8375,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-14 20:17 v1 [fix-git-sync-read-only-errors-after-successful-tra] [human:nicktoper] launched (operator=nicktoper, launch_agent=codex, agent=codex)
 2026-10-14 20:17 v1 [codex-sessions-lose-coga-launch-env-through-the-sh] [human:nicktoper] created (status=draft)
 2026-10-14 20:23 v1 [codex-sessions-lose-coga-launch-env-through-the-sh] [human:nicktoper] activated (draft → active) — auto on launch
+2026-10-14 20:23 v1 [codex-sessions-lose-coga-launch-env-through-the-sh] [human:nicktoper] started (active → in_progress) via coga launch
