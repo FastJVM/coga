@@ -1,6 +1,6 @@
 ---
 name: dev/checkouts
-description: Where code-ticket work runs: the launch checkout, the start check and end-of-step return to `main` in launched and manual sessions, publishing pre-branch ticket edits, and which checkout to invoke Coga from; the launch boundary and the sandbox clone fallback live in its leaves.
+description: Reconciling all agent work with moving main, where code-ticket work runs, the start check and end-of-step return, publishing pre-branch ticket edits, and which checkout to invoke Coga from; the launch boundary and sandbox clone fallback live in its leaves.
 ---
 
 # Feature checkouts
@@ -31,6 +31,8 @@ that publication carries ([coga/internals/state-publication](../../coga/internal
 
 ## Leaves
 
+- [dev/checkouts/reconciliation](reconciliation/SKILL.md) — keeping all agent
+  edits current with main while preserving unique work.
 - [dev/checkouts/launch-boundary](launch-boundary/SKILL.md) — what an
   ordinary launch does to prepare and return the invoking checkout, its
   refusals, and which launches skip it.
@@ -38,6 +40,10 @@ that publication carries ([coga/internals/state-publication](../../coga/internal
   fallback and seeding what a fresh checkout lacks.
 
 ## Start, work, end
+
+Main can advance during any session. Follow
+[reconciliation](reconciliation/SKILL.md) for the shared freshness and conflict
+policy, including documentation, ticket edits, and ad-hoc work.
 
 ### In a launched session
 
