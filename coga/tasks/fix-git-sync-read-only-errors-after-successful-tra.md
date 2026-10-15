@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -118,3 +118,26 @@ Owner reports this failure happens on **every** Codex step, not occasionally. Th
 - So every Codex session that bumps fails to publish. The local transition survives, and a later Claude-side sweep publishes it (for example `a5df77e37`).
 
 Design implication for the evaluator: diagnostics and recovery guidance are still useful, but on their own they leave a failure that is guaranteed on every Codex step. Consider adding prevention: a `coga launch` preflight for Codex agents that warns, or refuses, when the Git common dir is not writable or the grant is missing. Dream's capability preflight already does this. That reopens the documented decision that "Coga ships no launch machinery for it" (`coga/testing`), which is the owner's call.
+
+## Evaluator review
+
+Cold review — 2026-10-14. **Ready for owner approval as the bounded diagnostic and recovery change specified in the body.** This is not approval on the owner's behalf, nor a verdict on an expanded launcher-prevention design.
+
+### Must resolve before implementation
+
+None in the current Description/Context contract. Acceptance criteria are observable and agree with Proposed shape and Out of scope. Required body regions are correctly nested. The frozen workflow matches the packaged `code/design-then-implement` workflow and routes next to the owner. Explicit section-level context citations are sufficient for this work. Shared reporting has multiple existing consumers, satisfying `coga/extension-model`; no new command or publication abstraction is needed.
+
+### Recommendations and owner disposition
+
+1. **Supersede the stale operational conclusion before treating prevention as required scope.** Read-only inspection during this review found `.codex/config.toml` present in both `/home/n/Code/claude/coga` and `/home/n/Code/codex/multiply`, each declaring `sandbox_mode = "workspace-write"`, network access, and its absolute `.git` directory in `writable_roots`. `coga/log.md`'s 2026-10-14 18:00 `bootstrap/orient` usage record (session `a0ac366e-bdb4-41f0-87e5-40cefe7a568c`) also reports that setup completed for both checkouts and takes effect on the next session. Thus the preceding blackboard's missing-grant claim is historical, not current. This does not establish the original process's effective policy or prove a subsequent publication succeeded; retain that distinction. Recommend keeping this PR's diagnostic scope and recording the owner's disposition of prevention rather than silently expanding implementation.
+2. **A launcher preflight needs a separate, explicit capability contract if pursued.** `commands/launch.py::build_agent_command` constructs the agent argv without sandbox flags; `spawn_agent_session` subsequently starts the child through the supervisor. Dream's `Agent capability preflight` runs *inside* the launched agent. A write probe in the parent proves parent access only; checking for a project config file also cannot establish effective child permissions. Config may come from other layers or permission profiles ([official configuration precedence](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence)). A common-directory probe alone also misses the external object directory this ticket explicitly supports. Prevention would need decisions about where the probe runs, warning versus refusal, effective object storage, and compliant alternate configurations. That is broader than the present acceptance criteria and the standing `coga/testing` “Codex sandbox grant” contract. Keeping it separate preserves a small implementable PR, while giving up automatic prevention in this change.
+3. **Make error classification explicit in implementation.** `_hash_blob` applies clean filters through `--path`; not every nonzero result proves a storage-permission failure. Prefer structured object-operation context over recognizing human-readable exception strings, and include a non-permission hash/filter failure regression alongside injected EROFS. Preserve the ticket's conditional causation rule and neutral strict/uncertain messages. Also exercise diagnostic-log failure in both task sync and sweep: their current unprotected `append_log` calls can otherwise mask the original failure (`git.py::sync_task_state`, `sync_coga_state`; similarly `mark.py::_publish`). The spec already requires these protections; this is test guidance, not extra scope.
+
+### Evidence and verification
+
+- Verified `bump.py::advance_step` writes ticket and transition audit, announces, then calls non-strict `sync_task_state`; `cli.py::main` performs the separate sweep and excludes `run publish-state`. `_guard` and `_build_tree` both reach `_hash_blob`; `_run`/`_git_env` preserve inherited Git overrides.
+- Verified `publish_state.py::_publish_state` validates required regular files, fetches, and publishes all Coga roots without advancing. It distinguishes refusal, uncertainty, failure, and Git-disabled local-only success. Existing subprocess tests exercise the CLI exit boundary. Reviewed the seeded real-Git fixture and the stderr-only delete/promote handlers, recurring adoption and `_append_sync_failure` sink behavior, and strict mark reporting against the cited publication contracts.
+- Disposable real-Git path probes passed for ordinary storage, linked checkout shared storage, and a relative `GIT_OBJECT_DIRECTORY` from a different process cwd; checkout/override paths included spaces. Scratch repositories were cleaned up. No live settings or permissions changed. The earlier permission-failure reproduction was inspected as design evidence, not rerun or claimed as a new EROFS reproduction.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_publish_state.py tests/test_git.py::test_sync_log_reports_on_stderr_only tests/test_git.py::test_a_push_failure_control_cannot_be_reread_is_uncertain` — **13 passed in 7.29s**. These verify existing recovery and caller contracts; the proposed diagnostic regressions remain implementation work.
+- Review changed only this blackboard; no ticket-body edits, source/test changes, branch, or PR.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task fix-git-sync-read-only-errors-after-successful-tra --json` — 1 OK, no issues. `git diff --check` passed; compared the pre-fence content with HEAD and confirmed ticket body/frontmatter unchanged and exactly one evaluator review.
