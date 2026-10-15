@@ -123,8 +123,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
 
 ## Product and positioning
 
-- [Product vision](contexts/product/vision/SKILL.md) — purpose, audience,
-  kind of work, limits.
+- [Manifesto](contexts/product/vision/SKILL.md) — human–agent collaboration,
+  understanding, and ownership of the tools.
 - Marketing: [map](contexts/marketing/map/SKILL.md),
   [positioning](contexts/marketing/positioning/SKILL.md),
   [strategy](contexts/marketing/strategy/SKILL.md),

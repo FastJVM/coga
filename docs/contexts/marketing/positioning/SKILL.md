@@ -28,8 +28,9 @@ bypass a gate. The earlier approved opening copy is in
 The proof is the README's thinkpick example: a written plan exposed a wrong
 premise and was replaced by a research plan in tickets.
 
-Product purpose remains in [vision](../../product/vision/SKILL.md), behavior in
-Coga's contracts, and the longer strategic argument in
+Philosophical intent lives in the [manifesto](../../product/vision/SKILL.md),
+product definitions and fit in the [README](../../../../README.md), behavior
+in Coga's contracts, and the longer strategic argument in
 [strategy](../strategy/SKILL.md). Earlier positioning is
 [historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 

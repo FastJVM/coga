@@ -450,7 +450,7 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
 REQUIRED_INIT_CONTEXT_FILES = frozenset({".gitignore", "_template/SKILL.md"})
 
 LOCAL_ONLY_CONTEXT_REFS = {
-    "product/vision": "This repo's product thesis, not guidance for other repos.",
+    "product/vision": "This repo's philosophical manifesto, not guidance for other repos.",
     "coga/current-direction": "Dated posture of this repo's own development.",
     "coga/project-stage": "Dated stage of this repo's own development.",
     "marketing/map": "This project's own marketing material.",

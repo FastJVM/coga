@@ -46,7 +46,7 @@ operating rules without a merge.
 
 - **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
   [first-task](../first-task/SKILL.md), [uninstall](../uninstall/SKILL.md),
-  [cli](../cli/SKILL.md); purpose: `product/vision`.
+  [cli](../cli/SKILL.md); manifesto: `product/vision`.
 - **Understand**: [principles](../principles/SKILL.md), knowledge and the
   model topics linked above.
 - **Configure**: [configuration](../configuration/SKILL.md),
