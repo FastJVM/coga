@@ -33,7 +33,9 @@ and a wheel from `main` in a fresh Python 3.11 container, with an attended
 continuation for agent login, the first-run `coga build`, and the first
 ticket. The
 [macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
-an EC2 Mac dedicated host.
+an EC2 Mac dedicated host, and the
+[Windows harness on AWS](clean-install/windows-aws/SKILL.md) on EC2 Windows
+Server.
 
 ## Which code you are actually testing
 

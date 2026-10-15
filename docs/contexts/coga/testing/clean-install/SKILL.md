@@ -11,7 +11,9 @@ Coga. It exercises the documented [install](../../install/SKILL.md),
 against an installed artifact. The release continuation below also checks a
 pinned release and a completed agent launch. The
 [macOS harness on AWS](macos-aws/SKILL.md) runs the same walk script as a fresh
-user on an EC2 Mac.
+user on an EC2 Mac. The [Windows harness on AWS](windows-aws/SKILL.md) runs the
+same walk steps natively on EC2 Windows Server and backs the native-port fix
+loop.
 
 The image starts from `python:3.11-slim-bookworm`, adds Git, TLS certificates
 and uv, and creates an empty non-root `coga` home. Coga, agent CLIs, `gh` and
