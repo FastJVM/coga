@@ -32,8 +32,8 @@ agent: claude
 ## Description
 
 A human test, not an automated one. Zach (marketing) installs coga himself,
-on a fresh macOS and a fresh Windows environment on his own hardware, the way
-a first-time user would: follow the README / `coga/install` docs only, then
+on a fresh macOS and a fresh Windows environment on his own hardware
+(following `guide-for-zach.md`, attached), the way a first-time user would: follow the README / `coga/install` docs only, then
 `uv tool install coga`, `coga init`, `coga build`, and a first `coga ticket`.
 The agent session (run from Zach's usual coga checkout, not inside the fresh
 environment) records every point where he gets stuck, confused, or has to
@@ -49,57 +49,39 @@ ticket feeds it findings and does not duplicate it.
 Done when: both walks are done and their findings are listed per OS on the
 blackboard (each tagged fixed-in-PR, tracked-elsewhere, or open); fixes that
 fit this ticket are merged as PRs; and `docs/contexts/coga/install/SKILL.md`
-matches what actually worked, including the fresh-environment setup below if
-it proved useful.
+says, step by step, what Zach ran and saw on each OS, including the
+fresh-environment setup from the guide if it proved useful. Windows is expected to stop
+at `coga --help` (`fcntl`); for Windows, done means the findings up to that
+point are recorded and handed to `make-coga-run-on-native-windows`, not that
+coga runs there.
 
 ## Context
 
-### Getting a fresh machine (do this before the walk)
+### Zach's guide (attachment)
 
-Zach's everyday accounts already have coga, uv and git state, so he must not
-walk there. Pick option A per OS where possible; B is the fallback.
+Zach is not an engineer. He follows `guide-for-zach.md` beside this ticket:
+plain-language steps to make a fresh VM (UTM macOS VM on Apple Silicon,
+VirtualBox Windows 11 VM) or, as fallback B, a new `cogatest` user account;
+a baseline command; the install walk from the public README; a per-step note
+template (command, time, what he saw vs expected, weird/slow, needed help);
+and three wrap-up questions. The goal is human signal: lag (waits with no
+feedback), idiosyncrasies (confusing text, surprise popups/warnings, guessed
+steps), and whether each step works. Keep the guide in sync if the walk
+changes, and fold what proves useful into `coga/install`.
 
-**macOS**
+Agent-side facts the guide simplifies:
 
-- **A. Fresh macOS VM (recommended; Apple Silicon only, free, ~1 h mostly
-  download).** Install UTM from https://mac.getutm.app. Create a New Virtual
-  Machine -> Virtualize -> macOS 12+ -> let it download the latest restore
-  image (~15 GB) -> 4 CPU, 8 GB RAM, 64 GB disk -> start it and finish Setup
-  Assistant (skip the Apple ID). This is a factory-new Mac: no Command Line
-  Tools, no Homebrew, so the git stub and Python 3.9 issues show up for real.
-  On an Intel Mac this is not possible; use B.
-- **B. New user account (~5 min).** System Settings -> Users & Groups -> Add
-  User -> Administrator, name `cogatest`. Log out, log in as `cogatest`.
-  Clean home, PATH and caches, but machine-wide installs leak in: the Command
-  Line Tools (so the git stub will NOT appear), Homebrew under `/opt/homebrew`
-  (off PATH unless `/etc/paths.d` adds it), python.org Python in
-  `/usr/local/bin`. Findings that depend on these get flagged.
-
-**Windows (tester PC is Windows 11 Home: no Sandbox, no Hyper-V Manager)**
-
-- **A. Fresh Windows 11 VM (free, ~1 h).** Install VirtualBox 7
-  (https://www.virtualbox.org). Download the Windows 11 ISO from
-  https://www.microsoft.com/software-download/windows11. New VM from the ISO,
-  4 CPU, 8 GB RAM, 64 GB disk (VirtualBox 7 provides EFI + TPM 2.0). At the
-  product-key screen choose "I don't have a product key" and pick Windows 11
-  Home; it runs unactivated, which is fine for this. Sign in with any
-  Microsoft account. If WSL2 is enabled on the host, VirtualBox runs slowly
-  on top of it; that is expected.
-- **B. New local user (~5 min).** Settings -> Accounts -> Other users -> Add
-  account -> "I don't have this person's sign-in information" -> "Add a user
-  without a Microsoft account" -> `cogatest`. Then Change account type ->
-  Administrator. Sign out, sign in as `cogatest`. Leaks: Git for Windows,
-  any "all users" Python, machine-wide winget packages.
-
-**Record a baseline before installing anything** and paste it on the
-blackboard, so findings can be told apart from leftovers:
-
-- macOS (Terminal): `sw_vers; uname -m; xcode-select -p; which -a git python3
-  brew uv coga claude gh`. Do NOT run `git --version` yet: on a fresh Mac it
-  triggers the CLT install, which is itself the first finding to observe.
-- Windows (PowerShell): `[Environment]::OSVersion; Get-ExecutionPolicy;
-  Get-Command git,python,py,uv,coga,claude,gh,winget -ErrorAction
-  SilentlyContinue | Format-Table Name,Source`.
+- Option B (new user account) leaks machine-wide installs: on macOS the CLT
+  (git stub won't appear), Homebrew under `/opt/homebrew`, python.org Python
+  in `/usr/local/bin`; on Windows, Git for Windows, "all users" Python,
+  machine-wide winget packages. Flag findings that depend on these.
+- On a fresh Mac both `/usr/bin/git` and `/usr/bin/python3` are CLT stubs;
+  Python 3.9 appears only after CLT installs. The baseline avoids invoking
+  them.
+- UTM cannot snapshot macOS guests (the guide uses Clone); VirtualBox needs
+  "Skip Unattended Installation" or it bypasses OOBE and creates `vboxuser`.
+- Zach pastes baselines and errors into this session; record them on the
+  blackboard under the matching walk section.
 
 ### Walk rules
 
@@ -108,8 +90,12 @@ blackboard, so findings can be told apart from leftovers:
 - Per step, note: the exact command, what happened, what he expected, and
   how long he was stuck.
 - Fix loop: finding -> PR -> merge -> re-walk the affected step in a fresh
-  environment (VM snapshot taken right after the baseline, or a new user
-  account).
+  environment (VM clone/snapshot taken right after the baseline, or a new
+  user account). `uv tool install coga` installs from PyPI, so a merged fix
+  is not there until a release. For a re-walk, install from main instead:
+  `uv tool install git+https://github.com/FastJVM/coga@main`, and note in
+  the finding that it was checked against main, not a release. Doc-only fixes
+  need no reinstall.
 - `coga/testing/clean-install/macos-aws` already covers the automated
   fresh-Mac harness on EC2; this ticket is the human counterpart and does not
   rent machines.
@@ -120,8 +106,8 @@ blackboard, so findings can be told apart from leftovers:
 
 ## Plan (2026-10-14, attended)
 
-Human walk on Zach's own hardware in a fresh VM or fresh user account (see
-Context). Steps: pick A/B per OS -> baseline -> walk macOS -> findings and
+Human walk on Zach's own hardware in a fresh VM or fresh user account,
+following `guide-for-zach.md`. Steps: pick A/B per OS -> baseline -> walk macOS -> findings and
 fixes -> walk Windows -> findings and fixes -> update `coga/install`.
 
 ## New-user walk: macOS
@@ -156,7 +142,8 @@ Superseded because the ticket is a human test of a real user's experience;
 the automated fresh-Mac case is already covered by
 `coga/testing/clean-install/macos-aws`. No AWS host was allocated and no
 money was spent; the SSO profile `coga-test` and the budget alert exist and
-can be removed with the steps below.
+can be removed with the steps below. Archived history only: do not act on
+the Decisions or Handoff below (do not allocate any EC2 host).
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
