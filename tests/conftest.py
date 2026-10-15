@@ -24,6 +24,7 @@ import pytest
 
 from coga.repl_supervisor import (
     CHECKOUT_RETURN_ENV,
+    EXPECTED_AGENT_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
@@ -41,6 +42,7 @@ LAUNCH_OWNED_ENV = (
     CHECKOUT_RETURN_ENV,
     EXPECTED_TASK_ENV,
     EXPECTED_STEP_ENV,
+    EXPECTED_AGENT_ENV,
     *TASK_ENV_KEYS,
 )
 

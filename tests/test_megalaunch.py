@@ -252,7 +252,11 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Each spawned step carries the witness `coga bump` checks it against."""
-    from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
+    from coga.repl_supervisor import (
+        EXPECTED_AGENT_ENV,
+        EXPECTED_STEP_ENV,
+        EXPECTED_TASK_ENV,
+    )
 
     cfg = load_config(repo)
     ref = create_task(
@@ -289,6 +293,7 @@ def test_megalaunch_step_env_pins_expected_task_and_step(
     assert run.counts["completed"] == 1
     assert captured_env[EXPECTED_TASK_ENV] == str(Path(ref["path"]).resolve())
     assert captured_env[EXPECTED_STEP_ENV] == "1 (implement)"
+    assert captured_env[EXPECTED_AGENT_ENV] == "claude"
 
 
 def test_megalaunch_step_env_refuses_stale_step_bump(

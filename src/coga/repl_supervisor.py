@@ -52,6 +52,11 @@ SENTINEL_ENV = "COGA_DONE_SENTINEL"
 # must keep naming the session's own task.
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
+# The agent nickname the supervisor actually spawned for that step. Routing
+# derives the step's *assigned* operator from the ticket; an ephemeral
+# `--agent` override (or a role resolved differently at spawn) can run someone
+# else, and completion attribution must name who ran, not who was assigned.
+EXPECTED_AGENT_ENV = "COGA_EXPECTED_AGENT"
 
 # Minted only by `coga launch` for a step whose invoking checkout it prepared
 # on entry and will return to a clean control branch when the session ends
@@ -66,13 +71,15 @@ def build_supervised_step_env(
     *,
     task_path: Path,
     step: str | None,
+    agent: str | None = None,
 ) -> dict[str, str]:
     """Copy ``env`` and pin the ownership witnesses for one composed step.
 
     Both interactive launch supervisors must mint this exact contract before
     handing an environment to ``spawn_agent_session``. The spawn boundary may
     re-derive ``COGA_TASK_*`` for nested work, but it deliberately leaves this
-    outer session's task/step pair untouched.
+    outer session's task/step/agent witnesses untouched. ``agent`` is the
+    nickname actually being spawned; without one, no inherited value survives.
     """
     step_env = dict(env)
     # Only launch's normalizing path may grant the return witness; never let
@@ -81,6 +88,10 @@ def build_supervised_step_env(
     step_env["COGA_SUPERVISED"] = "1"
     step_env[EXPECTED_TASK_ENV] = str(task_path.resolve())
     step_env[EXPECTED_STEP_ENV] = step or ""
+    if agent:
+        step_env[EXPECTED_AGENT_ENV] = agent
+    else:
+        step_env.pop(EXPECTED_AGENT_ENV, None)
     return step_env
 
 
@@ -773,6 +784,7 @@ __all__ = [
     "ASSIST_PR_ENV",
     "SENTINEL_ENV",
     "EXPECTED_STEP_ENV",
+    "EXPECTED_AGENT_ENV",
     "EXPECTED_TASK_ENV",
     "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",

@@ -40,7 +40,10 @@ rotation, `COGA_SUPERVISED`, respawn) wraps this call and stays launch-only.
 (absolute task path), and `COGA_EXPECTED_STEP` per step; the spawn never
 reassigns that pair, so it keeps naming the outer session for `coga bump`'s
 stale-session guard and the other lifecycle commands that scope their
-authority to it. Megalaunch mints the same pair. Only `coga launch` adds
+authority to it. Megalaunch mints the same pair. Both also pin
+`COGA_EXPECTED_AGENT`, the agent nickname actually spawned (an `--agent`
+override included), so `bump` and `mark done` from that session credit
+`agent:<who ran>` rather than the step's routed operator. Only `coga launch` adds
 `COGA_LAUNCH_RETURNS_CHECKOUT=1`, and only when its checkout boundary
 prepared the invoking checkout. The boundary itself (publish, prepare,
 return) runs in `_launch` around this call, never inside it, because

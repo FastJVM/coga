@@ -714,3 +714,21 @@ def test_emit_done_marker_no_env_is_silent(
     monkeypatch.delenv(SENTINEL_ENV, raising=False)
     emit_done_marker()
     assert capsys.readouterr().out == ""
+
+
+def test_supervised_step_env_pins_spawned_agent_and_drops_inherited(
+    tmp_path: Path,
+) -> None:
+    from coga.repl_supervisor import EXPECTED_AGENT_ENV, build_supervised_step_env
+
+    task = tmp_path / "t.md"
+    env = build_supervised_step_env(
+        {EXPECTED_AGENT_ENV: "claude"}, task_path=task, step="1 (a)", agent="codex"
+    )
+    assert env[EXPECTED_AGENT_ENV] == "codex"
+
+    # A spawn that names no agent must not let an outer session's value leak.
+    env = build_supervised_step_env(
+        {EXPECTED_AGENT_ENV: "claude"}, task_path=task, step="1 (a)"
+    )
+    assert EXPECTED_AGENT_ENV not in env

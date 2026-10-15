@@ -1808,6 +1808,7 @@ def _launch(
                 env,
                 task_path=ref.path,
                 step=spawn_ticket.step,
+                agent=step_agent or launch_agent,
             )
             if boundary.armed:
                 step_env[CHECKOUT_RETURN_ENV] = "1"

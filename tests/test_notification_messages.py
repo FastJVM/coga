@@ -284,6 +284,7 @@ def test_bump_message_posts_live_fyi(
         ("human", "human:marc", "marc"),
         ("metadata", "human:marc", "marc"),
         ("supervised", "agent:claude", "claude"),
+        ("override-supervised", "agent:codex", "codex"),
         ("other-supervised", "human:marc", "marc"),
         ("script", "system", "system"),
         ("other-script", "human:marc", "marc"),
@@ -306,9 +307,15 @@ def test_completion_identity_requires_matching_execution_context(
         monkeypatch.setenv("COGA_SUPERVISED", "1")
         monkeypatch.setenv(
             "COGA_EXPECTED_TASK",
-            str(path if caller == "supervised" else repo / "tasks" / "other.md"),
+            str(
+                repo / "tasks" / "other.md"
+                if caller == "other-supervised"
+                else path
+            ),
         )
         monkeypatch.setenv("COGA_EXPECTED_STEP", Ticket.read(path).step)
+        if caller == "override-supervised":
+            monkeypatch.setenv("COGA_EXPECTED_AGENT", "codex")
     elif caller.endswith("script"):
         monkeypatch.setenv(
             "COGA_SCRIPT_TASK",
