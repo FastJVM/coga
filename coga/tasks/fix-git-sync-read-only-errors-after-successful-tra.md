@@ -107,3 +107,14 @@ Read `coga/internals/state-publication/publish` (`docs/contexts/coga/internals/s
 ## Open Questions
 
 None blocking the proposed implementation. The original session's exact denied path and policy remain unknown; the ticket explicitly accepts synthetic reproduction, and the observed mechanism plus verified recovery establishes the bounded design without that attribution.
+
+## Root cause evidence — 2026-10-14 (orient session, owner-directed)
+
+Owner reports this failure happens on **every** Codex step, not occasionally. The evidence supports a deterministic cause and overturns the "do not turn the sandbox hypothesis into a diagnosis" premise:
+
+- `coga/log.md` has 201 `Read-only file system` sync failures since 2026-07 (`FETCH_HEAD`, then `index.lock`, then `hash-object`). Every one was a Git write into `.git`. The 17:39 pair follows a Codex `evaluate-design` bump of `add-a-failed-terminal-status`, and that session's own outcome says "object storage is read-only".
+- `coga launch` runs plain `codex <prompt>`. For a trusted project Codex defaults to `workspace-write`: the checkout can be written, `.git` cannot, and network is off. This is documented in `docs/contexts/coga/testing/SKILL.md` "Codex sandbox grant".
+- The documented project-local grant (`.codex/config.toml` with `writable_roots = ["<git common dir>"]`, `network_access = true`) is **absent** in `/home/n/Code/claude/coga` and in `/home/n/Code/codex/multiply`, the observed checkout. Both are marked trusted in `~/.codex/config.toml`, so Codex would read the grant if it were there.
+- So every Codex session that bumps fails to publish. The local transition survives, and a later Claude-side sweep publishes it (for example `a5df77e37`).
+
+Design implication for the evaluator: diagnostics and recovery guidance are still useful, but on their own they leave a failure that is guaranteed on every Codex step. Consider adding prevention: a `coga launch` preflight for Codex agents that warns, or refuses, when the Git common dir is not writable or the grant is missing. Dream's capability preflight already does this. That reopens the documented decision that "Coga ships no launch machinery for it" (`coga/testing`), which is the owner's call.
