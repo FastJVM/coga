@@ -22,6 +22,7 @@ from coga.repl_supervisor import (
     ReplOutcome,
     emit_done_marker,
     run_with_done_marker,
+    unsignalled_advance_warning,
 )
 
 
@@ -557,6 +558,140 @@ def test_session_id_mismatch_is_ignored(
         session_id="/repo/tasks/mine",
     )
     assert (outcome.exit_code, outcome.kind) == (5, "natural")
+
+
+def test_done_signal_is_observed_independently_of_teardown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcome = _run_through_pty(
+        monkeypatch,
+        ["bash", "-c", f'printf done > "${SENTINEL_ENV}"; sleep 30'],
+    )
+    assert (outcome.kind, outcome.done_signalled) == ("done", True)
+
+
+def test_no_done_signal_reports_no_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    natural = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
+    assert (natural.kind, natural.done_signalled) == ("natural", False)
+
+    mismatched = _run_through_pty(
+        monkeypatch,
+        ["bash", "-c", f'printf "/tmp/fixture/other" > "${SENTINEL_ENV}"; exit 5'],
+        session_id="/repo/tasks/mine",
+    )
+    assert (mismatched.kind, mismatched.done_signalled) == ("natural", False)
+
+
+def test_no_tty_fallback_has_no_done_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    assert run_with_done_marker(["true"], env={}).done_signalled is False
+
+
+def test_done_signal_followed_by_crash_keeps_crash_and_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A matching done signal whose teardown races a real crash stays a
+    `crash` (exit and kind unchanged) while still recording the signal."""
+    outcome = _run_through_pty(
+        monkeypatch,
+        [
+            "bash",
+            "-c",
+            "trap 'trap - USR1; kill -USR1 $$' TERM; "
+            f'printf done > "${SENTINEL_ENV}"; sleep 30 & wait',
+        ],
+    )
+    assert (outcome.exit_code, outcome.kind) == (128 + signal.SIGUSR1, "crash")
+    assert outcome.done_signalled is True
+
+
+def test_done_signal_during_timeout_teardown_keeps_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A done signal that arrives only after a liveness stop is observed, but
+    the teardown cause stays the timeout."""
+    outcome = _run_through_pty_idle(
+        monkeypatch,
+        [
+            "bash",
+            "-c",
+            f"trap 'printf done > \"${SENTINEL_ENV}\"; sleep 0.6; exit 0' TERM; "
+            "sleep 30 & wait",
+        ],
+        idle_timeout=0.5,
+    )
+    assert (outcome.exit_code, outcome.kind) == (_TIMEOUT_EXIT_CODE, "timeout")
+    assert outcome.done_signalled is True
+
+
+def test_late_done_signal_is_seen_after_child_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A signal the polling loop missed is still observed once the child has
+    exited and before its sentinel is cleaned up — without changing the
+    natural exit classification."""
+    import coga.repl_supervisor as supervisor
+
+    real_signals_done = supervisor._sentinel_signals_done
+    real_waitpid = os.waitpid
+    child_reaped = False
+
+    def waitpid(pid: int, options: int):  # type: ignore[no-untyped-def]
+        nonlocal child_reaped
+        result = real_waitpid(pid, options)
+        child_reaped = True
+        return result
+
+    def signals_done_after_exit(path: str, session_id: str | None) -> bool:
+        return child_reaped and real_signals_done(path, session_id)
+
+    monkeypatch.setattr(supervisor, "_sentinel_signals_done", signals_done_after_exit)
+    monkeypatch.setattr(supervisor.os, "waitpid", waitpid)
+    outcome = _run_through_pty(
+        monkeypatch,
+        ["bash", "-c", f'printf done > "${SENTINEL_ENV}"; exit 3'],
+    )
+    assert (outcome.exit_code, outcome.kind) == (3, "natural")
+    assert outcome.done_signalled is True
+
+
+def test_unsignalled_advance_warning_truth_table() -> None:
+    before = ("in_progress", "1 (implement)")
+    advanced = ("in_progress", "2 (review)")
+
+    assert unsignalled_advance_warning(
+        "t", before, before, done_signalled=False
+    ) is None
+    assert unsignalled_advance_warning(
+        "t", before, advanced, done_signalled=True
+    ) is None
+    assert unsignalled_advance_warning(
+        "t", before, None, done_signalled=False
+    ) is None
+    assert unsignalled_advance_warning(
+        "t", before, before, done_signalled=True
+    ) is None
+
+    warning = unsignalled_advance_warning(
+        "fix-retry", before, advanced, done_signalled=False
+    )
+    assert warning is not None
+    assert "fix-retry" in warning
+    assert "in_progress @ 1 (implement)" in warning
+    assert "in_progress @ 2 (review)" in warning
+    assert "coga/agents" in warning
+    assert "may have run without the COGA_*" in warning
+    assert "could credit" in warning
+    assert "a human or another session may" in warning
+
+    done = unsignalled_advance_warning(
+        "t", before, ("done", None), done_signalled=False
+    )
+    assert done is not None and "to done during" in done
 
 
 def _run_through_pty_capture(

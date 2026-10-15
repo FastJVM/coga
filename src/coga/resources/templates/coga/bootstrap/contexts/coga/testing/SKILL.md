@@ -150,6 +150,12 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   branch and does not void the review verdict. Run the suite yourself with a
   Coga-capable interpreter (`PYTHONPATH=$PWD/src .venv/bin/python -m pytest`)
   and record that command and count as the evidence.
+- **A launched Codex session's shell may lack `COGA_*`.** Codex's shared
+  app-server daemon runs shell commands with its own environment, so bumps
+  get credited to a human and the done sentinel never fires. That is distinct
+  from the nested-CLI failure above. The remedy, `launch_args = "--no-daemon"`
+  under `[agents.codex]`, and the post-session warning are owned by
+  [coga/agents](../agents/SKILL.md#launch-environment-inheritance).
 - State-changing commands (`create`, `bump`, `mark`) write in three places a
   sandbox can treat differently: the checkout files (ticket, log), Git's
   object database (`git hash-object -w`), and the index lock
@@ -167,8 +173,9 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 
 ### Codex sandbox grant
 
-`coga launch` spawns plain `codex <prompt>`, so a codex session's sandbox
-comes entirely from codex's own config layers. In a trusted project that is
+`coga launch` spawns `codex <launch_args> <prompt>` (the shipped
+`launch_args` is `--no-daemon`, which selects no sandbox policy), so a codex
+session's sandbox comes entirely from codex's own config layers. In a trusted project that is
 `workspace-write`: the checkout and temp dirs are writable, `.git` is
 read-only, and network is off. Git sync, `git worktree add`, fetch, push,
 `gh`, and `coga slack` then fail. Dream's agent capability preflight checks

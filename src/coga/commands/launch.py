@@ -93,6 +93,7 @@ from coga.repl_supervisor import (
     AgentCliNotFound,
     build_supervised_step_env,
     run_with_done_marker,
+    unsignalled_advance_warning,
 )
 from coga.recurring import PeriodLease, local_period_lease, same_period_lease
 from coga.task_env import apply_task_env
@@ -1804,6 +1805,21 @@ def _launch(
 
                 session_before_spawn = invoke_final_spawn_guard
 
+            # Freeze the pre-session `(status, step)` at the last boundary
+            # before the PTY spawn, after every start-state write (including an
+            # assist's lifecycle publication in the caller's guard), so the
+            # session's own activation can never read as an agent change.
+            state_before_session: tuple[str | None, str | None] | None = None
+
+            def freeze_state_before_session(
+                guard: Callable[[], None] | None = session_before_spawn,
+                spawn_ref: TargetRef = ref,
+            ) -> None:
+                nonlocal state_before_session
+                if guard is not None:
+                    guard()
+                state_before_session = _diagnostic_ticket_state(spawn_ref)
+
             step_env = build_supervised_step_env(
                 env,
                 task_path=ref.path,
@@ -1847,7 +1863,7 @@ def _launch(
                         else None
                     ),
                     before_recompose=session_before_recompose,
-                    before_spawn=session_before_spawn,
+                    before_spawn=freeze_state_before_session,
                     record_launch=record_launch,
                 )
             except ComposeError as exc:
@@ -1858,9 +1874,16 @@ def _launch(
                 _bail(missing_launch_file_message(exc))
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
+            supervisor_reblocked = False
             if blocked_resume:
                 blocked_resume = False
+                bytes_before_reblock = _diagnostic_ticket_bytes(ref)
                 _reblock_unresolved_resume(cfg, ref, step_agent or launch_agent)
+                # A supervisor-owned reblock is not an agent's change; give up
+                # the diagnostic for this session rather than misattribute it.
+                supervisor_reblocked = (
+                    _diagnostic_ticket_bytes(ref) != bytes_before_reblock
+                )
             # Return the checkout after every started session (usage already
             # published by the spawn), before deciding whether to chain. A
             # refusal keeps this session's own result below and stops chaining.
@@ -1875,6 +1898,19 @@ def _launch(
                     target_removed = True
                 else:
                     ref = returned_ref
+            # Advisory only: observe refreshed state before the result
+            # branches below, and skip when that state is unavailable.
+            if (
+                checkout_returned
+                and not target_removed
+                and not supervisor_reblocked
+                and isinstance(ref, TaskRef)
+            ):
+                _warn_unsignalled_advance(
+                    ref,
+                    state_before_session,
+                    done_signalled=session.done_signalled,
+                )
             if session.termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
                 # agent never signalled done. Don't chain to the next step.
@@ -2315,6 +2351,48 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     prior = ticket.status
     _prepare_auto_activate(cfg, ref, ticket)
     _commit_auto_activate(cfg, ref, ticket, prior=prior)
+
+
+def _diagnostic_ticket_state(
+    ref: TargetRef,
+) -> tuple[str | None, str | None] | None:
+    """Best-effort `(status, step)` for the unsignalled-advance diagnostic.
+
+    None when the ticket is missing or unreadable: the diagnostic is advisory
+    and must never change a launch's result, so expected read, parse, and
+    validation failures mean "no observation" rather than an error.
+    """
+    try:
+        ticket = read_ticket(ref)
+    except (OSError, UnicodeError, TaskFileError, TicketError):
+        return None
+    return ticket.status, ticket.step
+
+
+def _diagnostic_ticket_bytes(ref: TargetRef) -> bytes | None:
+    try:
+        return ref.ticket_path.read_bytes()
+    except OSError:
+        return None
+
+
+def _warn_unsignalled_advance(
+    ref: TargetRef,
+    before: tuple[str | None, str | None] | None,
+    *,
+    done_signalled: bool,
+) -> None:
+    """Print the yellow advisory when the ticket moved without a done signal."""
+    if before is None:
+        return
+    warning = unsignalled_advance_warning(
+        ref.id_slug,
+        before,
+        _diagnostic_ticket_state(ref),
+        done_signalled=done_signalled,
+    )
+    if warning:
+        typer.secho(warning, fg=typer.colors.YELLOW, err=True)
 
 
 def _reblock_unresolved_resume(
@@ -2852,8 +2930,11 @@ def build_agent_command(
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
-    Default shape: `<cli> <prompt>` — agent opens its REPL with the prompt as
-    the first user message.
+    Default shape: `<cli> <launch_args...> <prompt>` — agent opens its REPL
+    with the prompt as the first user message. The agent's `launch_args`
+    tokens (shlex-split, empty by default) follow `<cli>` in both this and
+    the discussion shape, so launch-mode flags such as Codex's `--no-daemon`
+    apply to every interactive spawn.
 
     When the agent declares `name_flag` and a non-empty `name` is passed,
     `<name_flag> <name>` is inserted right after the CLI so the spawned
@@ -2871,13 +2952,14 @@ def build_agent_command(
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
     """
+    launch_args = shlex.split(agent.launch_args)
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template:
         tokens = [
             tok.replace("{prompt}", prompt)
             for tok in shlex.split(discussion_template)
         ]
-        return [agent.cli, *tokens]
+        return [agent.cli, *launch_args, *tokens]
     name_args: list[str] = []
     if name and agent.name_flag:
         name_args = [*shlex.split(agent.name_flag), name]
@@ -2886,6 +2968,7 @@ def build_agent_command(
         session_id_args = [*shlex.split(agent.session_id_flag), session_id]
     return [
         agent.cli,
+        *launch_args,
         *name_args,
         *session_id_args,
         prompt,
@@ -2896,6 +2979,10 @@ class AgentSessionResult(NamedTuple):
     exit_code: int
     termination_kind: str
     termination_reason: str | None = None
+    # Whether the supervisor observed a matching done signal, independent of
+    # `termination_kind` (a signal followed by a crash is still a `crash`).
+    # False also means "no sentinel channel"; see `ReplOutcome`.
+    done_signalled: bool = False
 
 
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
@@ -3231,7 +3318,12 @@ def spawn_agent_session(
             ),
         )
         outcome_status = _session_outcome_status(outcome)
-        return AgentSessionResult(outcome.exit_code, outcome.kind, outcome.reason)
+        return AgentSessionResult(
+            outcome.exit_code,
+            outcome.kind,
+            outcome.reason,
+            outcome.done_signalled,
+        )
     except KeyboardInterrupt:
         outcome_status = "interrupted"
         raise

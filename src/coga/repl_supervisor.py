@@ -95,6 +95,46 @@ def build_supervised_step_env(
     return step_env
 
 
+def unsignalled_advance_warning(
+    task: str,
+    before: tuple[str | None, str | None],
+    after: tuple[str | None, str | None] | None,
+    *,
+    done_signalled: bool,
+) -> str | None:
+    """Warning text when a supervised session moved its ticket silently.
+
+    Shared by both interactive launch supervisors. ``before`` is the
+    ``(status, step)`` frozen immediately before spawn; ``after`` the same
+    pair read from post-session state, or None when that state is
+    unavailable (the caller skips diagnosis rather than guessing). Warns only
+    when the pair changed *and* no matching done signal was observed: the
+    lifecycle commands that move a ticket also signal done, so a change with
+    no signal suggests the session's shell never saw ``COGA_*``. The change
+    alone does not say who made it — a human or a concurrent session may
+    have — so the wording stays conditional. Callers own the ticket IO and
+    printing; this stays pure.
+    """
+    if after is None or done_signalled or after == before:
+        return None
+    return (
+        f"Warning: {task} changed from {_state_label(before)} to "
+        f"{_state_label(after)} during this session, but the supervisor saw "
+        "no done signal. The agent's shell may have run without the COGA_* "
+        "launch environment, which could credit its lifecycle commands to a "
+        "human and skip the stale-step guard; a human or another session may "
+        "also have made the change. See coga/agents (launch_args, "
+        "environment inheritance)."
+    )
+
+
+def _state_label(state: tuple[str | None, str | None]) -> str:
+    status, step = state
+    if step:
+        return f"{status or '?'} @ {step}"
+    return status or "?"
+
+
 # A human-step assist may run from the recorded PR checkout itself. Launch
 # exports this capability only after proving that checkout is on the recorded
 # branch and aligned with its live remote tip. In-session state commands pair it
@@ -173,8 +213,10 @@ class ReplOutcome:
 
     - `"natural"` — the child exited on its own; we never signalled it.
     - `"done"` — we tore it down after a sentinel-file done signal.
-    - `"timeout"` — we tore it down on a liveness limit (idle / max-session);
-      the agent never signalled done. This is the wedge the watchdog catches.
+    - `"timeout"` — we tore it down on a liveness limit (idle / max-session)
+      before any done signal. This is the wedge the watchdog catches; a
+      signal arriving during that teardown is reported by `done_signalled`
+      and does not change the kind.
     - `"crash"` — a death by a signal we did **not** send, surfaced rather than
       masked even when it raced our own teardown.
 
@@ -182,11 +224,21 @@ class ReplOutcome:
     child (for example, `idle-timeout (no REPL activity for 900s)`). It stays
     `None` for natural exits and real crashes, so callers can report the exact
     liveness limit without re-deriving it from configuration or elapsed time.
+
+    `done_signalled` records, independently of `kind`, whether a matching
+    done signal was ever observed on the sentinel channel — while polling,
+    during a teardown already under way, or in one last check after the child
+    exited. It never changes `kind`, `exit_code`, or `reason`: a done signal
+    followed by a real crash stays a `crash`, and a timeout teardown whose
+    child signalled done late stays a `timeout`. Paths without a sentinel
+    channel (the non-TTY fallback) report False — no observation, not proof
+    that no signal was sent.
     """
 
     exit_code: int
     kind: str
     reason: str | None = None
+    done_signalled: bool = False
 
 
 # Terminal-sanitizing reset, emitted to the real terminal only when *we* tore
@@ -542,6 +594,7 @@ def run_with_done_marker(
     term_reason: str | None = None
     term_deadline: float | None = None
     sent_kill = False
+    done_signalled = False
     session_start = time.monotonic()
     last_activity = session_start
 
@@ -564,93 +617,114 @@ def run_with_done_marker(
             pass
 
     try:
-        while True:
-            # After SIGTERM, give the child a grace period to exit; if it
-            # ignores SIGTERM, escalate to SIGKILL so the sweep can move on.
-            if sent_term and not sent_kill:
-                timeout: float = max(0.0, (term_deadline or 0) - time.monotonic())
-            else:
-                timeout = _SENTINEL_POLL_INTERVAL
-            try:
-                rlist, _, _ = select.select(
-                    [master_fd, stdin_fd], [], [], timeout
-                )
-            except OSError as exc:
-                if exc.errno == errno.EINTR:
-                    continue
-                raise
-
-            if sent_term and not sent_kill and time.monotonic() >= (term_deadline or 0):
-                sent_kill = True
-                _notify(
-                    f"child still alive after {_KILL_GRACE_SECONDS}s — "
-                    "escalating to SIGKILL"
-                )
+        try:
+            while True:
+                # After SIGTERM, give the child a grace period to exit; if it
+                # ignores SIGTERM, escalate to SIGKILL so the sweep can move on.
+                if sent_term and not sent_kill:
+                    timeout: float = max(0.0, (term_deadline or 0) - time.monotonic())
+                else:
+                    timeout = _SENTINEL_POLL_INTERVAL
                 try:
-                    os.killpg(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                    rlist, _, _ = select.select(
+                        [master_fd, stdin_fd], [], [], timeout
+                    )
+                except OSError as exc:
+                    if exc.errno == errno.EINTR:
+                        continue
+                    raise
 
-            if not sent_term and _sentinel_signals_done(sentinel_path, session_id):
-                _trigger_term(
-                    "sentinel-file (COGA_DONE_SENTINEL touched)", kind="done"
-                )
+                if (
+                    sent_term
+                    and not sent_kill
+                    and time.monotonic() >= (term_deadline or 0)
+                ):
+                    sent_kill = True
+                    _notify(
+                        f"child still alive after {_KILL_GRACE_SECONDS}s — "
+                        "escalating to SIGKILL"
+                    )
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
-            if (
-                idle_timeout is not None
-                and not sent_term
-                and time.monotonic() - last_activity >= idle_timeout
-            ):
-                _trigger_term(
-                    f"idle-timeout (no REPL activity for {idle_timeout:g}s)",
-                    kind="timeout",
-                )
+                # Latch the observation even mid-teardown: a liveness stop can
+                # race the agent's own done signal, and that evidence is kept
+                # apart from the teardown cause.
+                if not done_signalled and _sentinel_signals_done(
+                    sentinel_path, session_id
+                ):
+                    done_signalled = True
+                    if not sent_term:
+                        _trigger_term(
+                            "sentinel-file (COGA_DONE_SENTINEL touched)",
+                            kind="done",
+                        )
 
-            if (
-                max_session is not None
-                and not sent_term
-                and time.monotonic() - session_start >= max_session
-            ):
-                _trigger_term(
-                    f"max-session (wall-clock exceeded {max_session:g}s)",
-                    kind="timeout",
-                )
+                if (
+                    idle_timeout is not None
+                    and not sent_term
+                    and time.monotonic() - last_activity >= idle_timeout
+                ):
+                    _trigger_term(
+                        f"idle-timeout (no REPL activity for {idle_timeout:g}s)",
+                        kind="timeout",
+                    )
 
-            if master_fd in rlist:
-                try:
-                    chunk = os.read(master_fd, 4096)
-                except OSError:
-                    chunk = b""
-                if not chunk:
-                    break
-                last_activity = time.monotonic()
-                try:
-                    os.write(out_fd, chunk)
-                except OSError:
-                    pass
-            if stdin_fd in rlist:
-                try:
-                    data = os.read(stdin_fd, 4096)
-                except OSError:
-                    data = b""
-                if data:
-                    os.write(master_fd, data)
+                if (
+                    max_session is not None
+                    and not sent_term
+                    and time.monotonic() - session_start >= max_session
+                ):
+                    _trigger_term(
+                        f"max-session (wall-clock exceeded {max_session:g}s)",
+                        kind="timeout",
+                    )
+
+                if master_fd in rlist:
+                    try:
+                        chunk = os.read(master_fd, 4096)
+                    except OSError:
+                        chunk = b""
+                    if not chunk:
+                        break
                     last_activity = time.monotonic()
+                    try:
+                        os.write(out_fd, chunk)
+                    except OSError:
+                        pass
+                if stdin_fd in rlist:
+                    try:
+                        data = os.read(stdin_fd, 4096)
+                    except OSError:
+                        data = b""
+                    if data:
+                        os.write(master_fd, data)
+                        last_activity = time.monotonic()
+        finally:
+            if old_attrs is not None:
+                try:
+                    termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+                except termios.error:
+                    pass
+            # A child we signalled never ran its own terminal cleanup, so undo the
+            # output-side DEC private modes it may have left enabled (see
+            # `_TTY_SANITIZE`) — otherwise the shell underneath looks hung.
+            if sent_term:
+                try:
+                    os.write(out_fd, _TTY_SANITIZE)
+                except OSError:
+                    pass
+            signal.signal(signal.SIGWINCH, prev_winch)
+
+        _, status = os.waitpid(pid, 0)
+        # One last look once the child is gone: a signal written just before
+        # exit (or after the last poll) is still evidence the agent signalled
+        # done. Observation only — it does not feed `_classify_exit`.
+        if not done_signalled and _sentinel_signals_done(sentinel_path, session_id):
+            done_signalled = True
     finally:
-        if old_attrs is not None:
-            try:
-                termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
-            except termios.error:
-                pass
-        # A child we signalled never ran its own terminal cleanup, so undo the
-        # output-side DEC private modes it may have left enabled (see
-        # `_TTY_SANITIZE`) — otherwise the shell underneath looks hung.
-        if sent_term:
-            try:
-                os.write(out_fd, _TTY_SANITIZE)
-            except OSError:
-                pass
-        signal.signal(signal.SIGWINCH, prev_winch)
         try:
             os.unlink(sentinel_path)
         except OSError:
@@ -660,12 +734,11 @@ def run_with_done_marker(
         except OSError:
             pass
 
-    _, status = os.waitpid(pid, 0)
     code, kind, notes = _classify_exit(status, term_kind)
     for note in notes:
         _notify(note)
     reason = term_reason if kind == term_kind else None
-    return ReplOutcome(code, kind, reason)
+    return ReplOutcome(code, kind, reason, done_signalled)
 
 
 def _classify_exit(
@@ -792,4 +865,5 @@ __all__ = [
     "build_supervised_step_env",
     "emit_done_marker",
     "run_with_done_marker",
+    "unsignalled_advance_warning",
 ]

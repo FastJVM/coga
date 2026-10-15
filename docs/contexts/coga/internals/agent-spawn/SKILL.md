@@ -68,7 +68,11 @@ Secrets are minted per step from the freshly read config and ticket.
   (`coga/session-conduct`); `commit_log` publishes the audit immediately
   (bootstrap targets).
 
-Otherwise argv is `<cli> [name_flag title] [session_id_flag uuid] <prompt>`.
+Otherwise argv is
+`<cli> [launch_args...] [name_flag title] [session_id_flag uuid] <prompt>`.
+The agent's `launch_args` tokens (`shlex`-split, empty by default) also follow
+`<cli>` in the discussion shape, so every interactive spawn carries them; the
+recurring `analyze` argv does not ([coga/agents](../../agents/SKILL.md)).
 
 ## Large prompts
 
@@ -89,7 +93,21 @@ sends SIGTERM then SIGKILL after 2 s. Without the variable nothing is written.
 
 `ReplOutcome.kind`: `natural` (own exit, own code), `done` (0), `timeout`
 (124, idle or max-session with the exact trigger in `reason`), or `crash`
-(`128 + signal` for any signal Coga did not send). After a Coga teardown the
+(`128 + signal` for any signal Coga did not send). `kind` is the *teardown
+cause*: `timeout` means a liveness limit started the teardown, not proof
+that no done signal ever arrived.
+
+`ReplOutcome.done_signalled`, carried to callers as
+`AgentSessionResult.done_signalled`, is a separate observation. It is set
+when a matching sentinel is seen while polling, during a teardown already
+under way, or in one final check after the child exits and before the
+sentinel is deleted (cleanup runs on every path). It never feeds exit
+classification, so a done signal followed by a real crash stays a `crash`
+with `done_signalled` true. The non-TTY path has no sentinel channel and
+reports false (no observation). Launch and megalaunch freeze `(status, step)`
+immediately before spawn. They compare it with post-session state through
+`repl_supervisor.unsignalled_advance_warning` to print the advisory owned by
+[coga/agents](../../agents/SKILL.md#launch-environment-inheritance). After a Coga teardown the
 terminal's input modes are reset. A stateless bootstrap target has no
 lifecycle: its final `coga slack --task bootstrap/<name>` FYI is the
 completion signal, attributed to its explicit agent or the configured
