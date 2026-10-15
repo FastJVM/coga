@@ -163,3 +163,7 @@ Verification: `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytes
 ## Owner approval and implementation handoff
 
 The owner replied "ok" to the explicit request to approve the revised design, the three decisions above, and advancement to implementation. All evaluator must-fix findings are resolved in the revised specification; none was rejected. The earlier owner-review preparation notes describe the pre-approval state. Implement the current Description/Proposed shape, including independent sentinel observation, advisory post-refresh detection, regression coverage, and documentation twins. Preserve the manual verification gap until the required host-shell receipt is available. The narrow live-config exception is now granted. Review-design is complete; advance once to implement and stop this session.
+
+## Dev
+
+branch: codex-no-daemon-launch-args
