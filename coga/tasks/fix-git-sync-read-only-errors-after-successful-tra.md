@@ -151,6 +151,7 @@ None in the current Description/Context contract. Acceptance criteria are observ
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1017
 branch: git-sync-object-write-diagnostics
 
 Plan (owner-confirmed 2026-10-14): `ObjectWriteError(GitError)` from `_hash_blob` with post-failure object-dir probe; shared stderr formatter in `git.py` used by `sync_task_state` (`command=` keyword; bump passes `"bump"`), `sync_coga_state`, `sync_log`, `mark._publish`, `delete`; guarded failure-log appends. Recurring/promote/retire stay neutral but inherit the enriched error text.
