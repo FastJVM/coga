@@ -161,9 +161,20 @@ switch ($Mode) {
             Log "`n+ $Label"
             $global:LASTEXITCODE = 0
             $code = 0
+            $script:stepCmdletFailed = $false
             try {
-                & $Body 2>&1 | ForEach-Object { Log "$_" }
+                & $Body 2>&1 | ForEach-Object {
+                    # PowerShell 5.1 wraps native stderr in ErrorRecords too;
+                    # those are diagnostic output, judged by LASTEXITCODE.
+                    # A cmdlet's non-terminating error must still fail the step.
+                    if ($_ -is [System.Management.Automation.ErrorRecord] -and
+                        $_.FullyQualifiedErrorId -notin @('NativeCommandError', 'NativeCommandErrorMessage')) {
+                        $script:stepCmdletFailed = $true
+                    }
+                    Log "$_"
+                }
                 $code = $global:LASTEXITCODE
+                if ($code -eq 0 -and $script:stepCmdletFailed) { $code = 1 }
             } catch {
                 Log "$_"
                 $code = 1

@@ -102,30 +102,46 @@ ssh_args() {
     target="Administrator@$PUBLIC_IP"
 }
 
-win_quote() {
-    # One argv word for the remote cmd.exe and the C runtime's parser:
-    # backslashes double only before a quote or at the end of a quoted word.
-    local word=$1
-    if [[ -n $word && ! $word =~ [[:space:]\"] ]]; then
-        printf '%s' "$word"
-        return
-    fi
-    word=$(printf '%s' "$word" | sed -E 's/(\\*)"/\1\1\\"/g; s/(\\+)$/\1\1/')
-    printf '"%s"' "$word"
-}
-
 win_line() {
-    local line= word
+    # cmd.exe parses SSH commands before the executable sees them. Encode the
+    # payload so metacharacters and %variables% never reach that parser. Start
+    # the child directly: PowerShell 5.1's native invocation also loses empty
+    # arguments and embedded quotes, so use ProcessStartInfo with CRT quoting.
+    local words= word payload encoded
     for word in "$@"; do
-        line+="${line:+ }$(win_quote "$word")"
+        word=${word//\'/\'\'}
+        words+="${words:+,}'$word'"
     done
-    printf '%s' "$line"
+    payload="\$words = @($words)"$'\n'
+    payload+=$(cat <<'PS'
+$ErrorActionPreference = 'Stop'
+try {
+    $start = New-Object System.Diagnostics.ProcessStartInfo
+    $start.FileName = $words[0]
+    $quoted = @($words | Select-Object -Skip 1 | ForEach-Object {
+        '"' + [regex]::Replace([regex]::Replace($_, '(\\*)"', '$1$1\"'), '(\\+)$', '$1$1') + '"'
+    })
+    $start.Arguments = $quoted -join ' '
+    $start.UseShellExecute = $false
+    $start.WorkingDirectory = (Get-Location).ProviderPath
+    $child = [System.Diagnostics.Process]::Start($start)
+    $child.WaitForExit()
+    exit $child.ExitCode
+} catch {
+    [Console]::Error.WriteLine($_)
+    exit 1
+}
+PS
+)
+    encoded=$(printf '%s' "$payload" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n') || return
+    printf 'powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand %s' "$encoded"
 }
 
 win() {
-    # The remote default shell is cmd.exe, which returns the command's own
-    # exit code (powershell -Command would collapse failures to 1).
-    ssh "${ssh_opts[@]}" "$target" "$(win_line "$@")"
+    # The wrapper explicitly exits with the child's code, including non-1 codes.
+    local line
+    line=$(win_line "$@") || return
+    ssh "${ssh_opts[@]}" "$target" "$line"
 }
 
 walk_ps() {
@@ -304,11 +320,11 @@ EOF
     ssh_args
     echo 'Waiting for SSH (first boot and the OpenSSH install take about 5-15 minutes)'
     local tries=0
-    until win exit 0 2>/dev/null; do
+    until win cmd.exe /c 'exit 0' 2>/dev/null; do
         (( ++tries < ${COGA_WIN_SSH_TRIES:-80} )) || { echo 'SSH never came up' >&2; false; }
         sleep "${COGA_WIN_SSH_WAIT:-15}"
     done
-    run win mkdir "$remote_dir"
+    run win cmd.exe /c "mkdir $remote_dir"
     run scp "${ssh_opts[@]}" "$script_dir/windows-walk.ps1" "$target:C:/coga-clean-install/"
     {
         echo '## As launched'
@@ -358,9 +374,10 @@ walk() {
     fi
     # The password goes on stdin, never into a command line or host.txt.
     printf '%s\n' "$password" | run walk_ps adduser "$user"
-    local status=0
-    as_user ssh "$user@$PUBLIC_IP" "$(win_line powershell.exe -NoProfile \
-        -ExecutionPolicy Bypass -File "$walk_ps1" walk "$mode" "$operator" ${remote_wheel:+"$remote_wheel"})" ||
+    local status=0 line
+    line=$(win_line powershell.exe -NoProfile \
+        -ExecutionPolicy Bypass -File "$walk_ps1" walk "$mode" "$operator" ${remote_wheel:+"$remote_wheel"})
+    as_user ssh "$user@$PUBLIC_IP" "$line" ||
         status=$?
     mkdir -p "$out/windows"
     as_user scp -r "$user@$PUBLIC_IP:clean-install/evidence" "$out/windows/" ||
@@ -439,8 +456,8 @@ ssh)
     if [[ $# -eq 0 ]]; then
         exec ssh -t "${ssh_opts[@]}" "$target"
     fi
-    # Each word stays one argv word on Windows; see win_quote.
-    exec ssh "${ssh_opts[@]}" "$target" "$(win_line "$@")"
+    # Each word stays one argv word on Windows; see win_line.
+    win "$@"
     ;;
 *) usage ;;
 esac

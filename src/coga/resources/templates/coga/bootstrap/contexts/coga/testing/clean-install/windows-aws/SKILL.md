@@ -54,7 +54,7 @@ quota, the zones offering the instance type, any harness instances not yet
 terminated, and the newest `Windows_Server-2025-English-Full-Base-*` AMI.
 
 The host needs Bash, the AWS CLI v2, OpenSSH 8.4 or newer (walk logons use
-`SSH_ASKPASS_REQUIRE`), `ssh-keygen`, `openssl`, `curl`, and uv for `main`
+`SSH_ASKPASS_REQUIRE`), `ssh-keygen`, `openssl`, `curl`, `iconv`, `base64`, and uv for `main`
 walks.
 
 ## Provision
@@ -129,6 +129,8 @@ Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
 `result.txt` (exit code), the wheel and `source.txt` for `main`, and
 `windows/evidence/`, which holds `transcript.txt`, `steps.txt` (`PASS` lines
 and the first `FAIL (exit N)`), and `init-passed.txt` when init succeeds.
+Native commands retain their exit code; cmdlet errors fail with code 1,
+including non-terminating errors. Native stderr alone is not a failure.
 Before the native port lands, a walk stops at `coga --version` with an
 `fcntl` import error; that stop is the expected finding.
 
@@ -150,10 +152,12 @@ overrides it) on first use. It fetches the ref, detaches at it, and runs
 changes: push fixes from the host and check out again, rather than editing on
 the box.
 
-`ssh NAME CMD…` runs one command as Administrator from its home directory and
-**exits with the command's exit code**. The remote shell is `cmd.exe`; each
-word you pass stays one Windows argv word. For a compound line, pass it to
-`cmd /c` as one word. `ssh NAME` alone opens an interactive `cmd` prompt.
+`ssh NAME CMD…` runs one executable as Administrator from its home directory
+and **exits with its exit code**. An encoded PowerShell wrapper starts the
+process directly, preserving empty arguments, embedded quotes, and literal
+shell characters such as `&` and `%`. For shell builtins or a compound line,
+pass the line to `cmd /c` as one word (that explicitly requests shell parsing).
+`ssh NAME` alone opens an interactive `cmd` prompt.
 
 ## RDP
 
