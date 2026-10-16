@@ -130,22 +130,54 @@ def _describe(node: ast.expr) -> str:
 
 
 @pytest.mark.parametrize(("template", "recipe_name"), CLONE_SHIMMED_TEMPLATES)
-def test_clone_shim_runs_the_registered_recipe_and_never_bumps(
-    template: str, recipe_name: str
+@pytest.mark.parametrize(
+    ("slug", "recipe_code", "expected", "exit_code"),
+    [
+        # Clone scope: no period task, so the recipe's exit is the outcome.
+        (None, 0, ["recipe"], 0),
+        (None, 2, ["recipe"], 2),
+        # A Coga that predates clone scope runs it as a period task; the
+        # script must still close that step itself.
+        ("recurring/branch-sweep", 0, ["recipe", "bump"], 0),
+        ("recurring/branch-sweep", 2, ["recipe"], 2),
+    ],
+)
+def test_clone_shim_bumps_only_when_run_as_a_period_task(
+    seeded, monkeypatch, template, recipe_name, slug, recipe_code, expected, exit_code,
 ) -> None:
-    """A clone-scoped run has no period task; a bump would have no target."""
     script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
-    source = script.read_text()
-    tree = ast.parse(source, filename=str(script))
     assert "scope: clone" in (script.parent / "ticket.md").read_text()
-    assert '"bump"' not in source
-    assert not [
-        node for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute) and node.attr == "run"
-        and isinstance(node.value, ast.Name) and node.value.id == "subprocess"
-    ]
     assert recipe_name in RECIPES
-    assert f'sys.exit(run_recipe(load_config(), "{recipe_name}", []))' in source
+    assert f'run_recipe(load_config(), "{recipe_name}", [])' in script.read_text()
+    cfg = load_config(seeded)
+    calls = []
+
+    def recipe(cfg, argv):
+        calls.append("recipe")
+        assert argv == []
+        return recipe_code
+
+    run = subprocess.run
+
+    def bump(argv, **kwargs):
+        if argv[1:4] != ["-m", "coga.cli", "bump"]:
+            return run(argv, **kwargs)
+        calls.append("bump")
+        assert argv[4] == slug
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setitem(RECIPES, recipe_name, recipe)
+    monkeypatch.delenv("COGA_TASK_BLACKBOARD", raising=False)
+    if slug is None:
+        monkeypatch.delenv("COGA_TASK_SLUG", raising=False)
+    else:
+        monkeypatch.setenv("COGA_TASK_SLUG", slug)
+    monkeypatch.setattr(subprocess, "run", bump)
+    monkeypatch.setattr("coga.config.load_config", lambda: cfg)
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(script))
+    assert exc.value.code == exit_code
+    assert calls == expected
 
 
 def test_every_shimmed_template_dropped_the_recipe_field() -> None:
