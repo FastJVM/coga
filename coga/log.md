@@ -8560,3 +8560,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 15:42 v1 [discharge-retires-md-entries-in-the-clone-that-own] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-16 15:42 v1 [discharge-retires-md-entries-in-the-clone-that-own] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-16 15:42 v1 [discharge-retires-md-entries-in-the-clone-that-own] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 15:59 v1 [discharge-retires-md-entries-in-the-clone-that-own] [agent:claude] advanced to step 2 (peer-review) → codex
