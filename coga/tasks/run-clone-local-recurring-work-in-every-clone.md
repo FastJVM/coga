@@ -44,6 +44,7 @@ Recurring period tickets are shared through main and serviced once per period by
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/1033
 branch: clone-scoped-recurring
 
 ## Plan (agreed with owner 2026-10-16)
