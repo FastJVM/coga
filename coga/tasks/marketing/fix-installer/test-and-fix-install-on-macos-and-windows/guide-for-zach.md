@@ -71,10 +71,16 @@ to 64 GB.
 5. Press play. Go through the setup screens like a new Mac. **Skip the Apple
    ID** sign-in. Name the user `cogatest`.
 6. Do Part 2 (the baseline) and paste it to your helper.
-7. Shut the VM down. **Delete the macOS installer file UTM downloaded** —
-   that is 15 GB you need back. Then right-click the VM in UTM and choose
-   **Clone**, while it is still small. The clone is your spare clean copy for
-   later re-tests. Run the original, not the clone.
+7. Shut the VM down. **Delete the macOS installer UTM downloaded** — about
+   18 GB you need back. It is a cache and UTM re-fetches it if ever needed:
+
+   ```
+   rm ~/Library/Containers/com.utmapp.UTM/Data/Library/Caches/*.ipsw
+   ```
+
+   Then right-click the VM in UTM and choose **Clone**, while it is still
+   small. The clone is your spare clean copy for later re-tests. Run the
+   original, not the clone.
 
 Do step 7 in that order. Cloning before you delete the installer can fill
 your disk partway through the walk, which looks like a coga failure and costs
