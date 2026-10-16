@@ -42,3 +42,20 @@ Recurring period tickets are shared through main and serviced once per period by
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: clone-scoped-recurring
+
+## Plan (agreed with owner 2026-10-16)
+- `scope: repo | clone` template field (default repo). Clone scope requires
+  `ticket.py`, rejects `delegate:`; no period task, no commit, no log ledger.
+- Per-clone ledger + report under the primary checkout's `.coga/recurring/`
+  (resolved via git common dir so temp control worktrees record against the
+  real clone). Runner sets `COGA_RECURRING_SCOPE=clone`, no `COGA_TASK_SLUG`.
+- Runs after shared launches in `run_recurring_scan`; same owner/control/
+  inactivity gates; outcomes go to the RunRecord.
+- `--all`: duplicate-remote clones get a clone-only child sweep.
+- Flip `branch-sweep` (daily) and `upstream-coga` to `scope: clone`; drop
+  branch-sweep from `autoclose-merged/ticket.py`.
+- Owner decision: per-clone `retires.md` worklist discharge is a follow-up
+  ticket (needs its own publish design), not this PR.
