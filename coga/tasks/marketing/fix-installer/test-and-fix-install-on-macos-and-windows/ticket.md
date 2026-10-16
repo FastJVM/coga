@@ -168,6 +168,20 @@ was wrong.
    3.11 floor. Completing step one requires leaving Coga's documentation
    for a third-party site.
 
+   The handoff to that site then fails three ways, walked 2026-10-15. The
+   link is a bare `uv` inside a sentence with no statement that it must be
+   installed, so the requirement is inferred rather than told. It targets
+   `https://docs.astral.sh/uv/`, the project root, landing the reader on
+   Introduction rather than the installation page. And that page offers
+   nine methods — standalone, PyPI, Homebrew, MacPorts, WinGet, Scoop,
+   Docker, GitHub Releases, Cargo — of which only the standalone `curl`
+   installer works from nothing; PyPI needs the absent Python, Homebrew and
+   MacPorts need a package manager the user lacks, and Cargo needs Rust.
+   Several documented doors lead back to the problem being escaped. uv's
+   docs are not at fault: they address readers who already know their
+   package manager. Coga delegated a mandatory step without naming the
+   door, so its own page should carry the command.
+
 5. open — `coga/install` describes its prerequisites instead of supplying
    them, and the gap falls exactly on the blocking ones. Of its six
    prerequisites only Git is genuinely taught, through the CLT section; the
