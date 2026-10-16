@@ -119,9 +119,17 @@ try {
     $start = New-Object System.Diagnostics.ProcessStartInfo
     $start.FileName = $words[0]
     $quoted = @($words | Select-Object -Skip 1 | ForEach-Object {
-        '"' + [regex]::Replace([regex]::Replace($_, '(\\*)"', '$1$1\"'), '(\\+)$', '$1$1') + '"'
+        if ($_ -ne '' -and $_ -notmatch '[\s"]') { $_ } else {
+            '"' + [regex]::Replace([regex]::Replace($_, '(\\*)"', '$1$1\"'), '(\\+)$', '$1$1') + '"'
+        }
     })
     $start.Arguments = $quoted -join ' '
+    # cmd uses its own parser, not the CRT. An explicit single /c line is
+    # shell source: preserve its inner quotes and strip only our outer pair.
+    if ([IO.Path]::GetFileName($words[0]) -in @('cmd', 'cmd.exe') -and
+        $words.Count -eq 3 -and $words[1] -eq '/c') {
+        $start.Arguments = '/d /s /c "' + $words[2] + '"'
+    }
     $start.UseShellExecute = $false
     $start.WorkingDirectory = (Get-Location).ProviderPath
     $child = [System.Diagnostics.Process]::Start($start)
