@@ -8526,3 +8526,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 09:42 v1 [recurring/autoclose-merged] [system] script exited with code 0
 2026-10-16 10:44 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] created (status=draft)
 2026-10-16 10:46 v1 [marketing/demo-hackability-ask-claude-to-add-a-command-live] [human:nicktoper] created (status=draft)
+2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] activated (draft → active) — auto on launch

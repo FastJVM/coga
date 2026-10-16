@@ -1,6 +1,6 @@
 ---
 title: Run clone-local recurring work in every clone
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,12 +24,13 @@ workflow:
     assignee: owner
 step: 1 (implement)
 contexts:
-  - coga/recurring
-  - coga/recurring/scheduling
-  - coga/recurring/templates
-  - dev/checkout-cleanup
-  - dev/checkout-cleanup/branch-sweep
-  - dev/checkout-cleanup/foreign-ownership
+- coga/recurring
+- coga/recurring/scheduling
+- coga/recurring/templates
+- dev/checkout-cleanup
+- dev/checkout-cleanup/branch-sweep
+- dev/checkout-cleanup/foreign-ownership
+agent: claude
 ---
 
 ## Description
