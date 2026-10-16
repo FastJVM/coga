@@ -54,3 +54,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blocker reminders
 
 - cdbf327e37e9 last_reminded: 2026-10-16 09:31
+
+
+## Dev
+
+branch: fix-old-python-install
+
+## Implementation plan (2026-10-16)
+
+- Owner yanked 0.0.1; both release files verified `yanked: true` through https://pypi.org/pypi/coga/0.0.1/json. `coga unblock` recorded the resolution.
+- Follow the agreed documentation plan: README summary plus canonical install topic and its packaged twin; explain uv-managed Python and explicit pipx interpreter selection, and why a venv alone does not upgrade Python.
+- Keep the optional Linux harness extension out of this documentation change. Verify live installer behavior in isolated temporary directories and run the required suite; retain commands and results in the handoff.
