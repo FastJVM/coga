@@ -103,7 +103,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   verification, read-back and deletion.
 - [Testing](contexts/coga/testing/SKILL.md) and its clean-install harnesses
   ([Linux](contexts/coga/testing/clean-install/SKILL.md),
-  [macOS on AWS](contexts/coga/testing/clean-install/macos-aws/SKILL.md)),
+  [macOS on AWS](contexts/coga/testing/clean-install/macos-aws/SKILL.md),
+  [Windows on AWS](contexts/coga/testing/clean-install/windows-aws/SKILL.md)),
   [packaging](contexts/coga/packaging/SKILL.md),
   [releasing](contexts/coga/releasing/SKILL.md).
 - Code-task conventions: [overview](contexts/dev/code/SKILL.md),

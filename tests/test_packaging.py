@@ -424,6 +424,7 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/testing",
         "coga/testing/clean-install",
         "coga/testing/clean-install/macos-aws",
+        "coga/testing/clean-install/windows-aws",
         "coga/tickets",
         "coga/tickets/authoring",
         "coga/tickets/discovery",

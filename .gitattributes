@@ -1,0 +1,4 @@
+# Shell and PowerShell scripts run on Linux, macOS and Windows hosts; a CRLF
+# checkout breaks the shebang (env: 'bash\r').
+*.sh text eol=lf
+*.ps1 text eol=lf
