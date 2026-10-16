@@ -5,22 +5,15 @@ description: Produce one selected Coga post from an approved brief — objection
 
 # Write a Coga post
 
-This skill produces a post after the owner has selected it in the current
-campaign. It does not select the campaign or inherit the previous essay
-sequence.
+This skill produces one owner-selected post. Read its ticket for the reader,
+argument, evidence, wording constraints, venue and publication boundary, and
+the README for Coga's public presentation. For the V1 idea piece those
+choices live in `marketing/idea-piece`; publication sequencing lives in
+`marketing/build-the-launch-plan`.
 
-Read the selected ticket and the relevant current homes:
-
-- `marketing/plan` — the selected deliverables, purpose, prerequisites,
-  owners, and the publication/measurement policy.
-- `marketing/positioning` — the reviewed message and source limits.
-
-Earlier campaign references under `docs/archive/launch-programs/` are
-available only on explicit human request, under
+Archives require an explicit human request under
 [the archive access rule](../../../../docs/contexts/coga/knowledge/SKILL.md#archive-access).
-When requested, use them for inspiration only. Never
-promote their post numbers, strategic fork, channel ordering, scorecard or
-gates into the current brief.
+They do not supply defaults for a new brief.
 
 ## Entry condition
 
@@ -55,7 +48,7 @@ Do not make a new campaign decision inside the writing task.
 
 Write the strongest relevant reader objection and the actual product
 limitation that bears on this idea. Check the product references and source
-limits in positioning; do not invent a weaker objection.
+limits in the selected brief; do not invent a weaker objection.
 
 For each, decide whether the post answers it, concedes it or leaves it out
 with a reason. Identify where each answer or concession will appear before
@@ -105,7 +98,7 @@ Read the publishable draft for factual claims and numbers. Check that each
 source supports the claim at its stated scope and date. Separate observation,
 interpretation, product thesis and illustration.
 
-Use `marketing/positioning` for the source limits: private-repo quotations,
+Apply the selected brief's source limits: private-repo quotations,
 invented results, unsupported efficiency claims and measured productivity
 multipliers are excluded. The token/time experiment remains dropped.
 A public context example does not establish a comparative saving. Preserve
@@ -118,16 +111,16 @@ or title.
 ## Step 7 — Prepare replies
 
 Write full replies for the objections identified in step 2 and the obvious
-questions the chosen piece raises. The previous campaign's standing replies
-are available as inspiration; inherit only what fits the new piece.
+questions the chosen piece raises. Base replies on this piece's evidence and
+the current product.
 
 Finish the replies before publication. A reply must meet the same source
 and claim checks as the post.
 
 ## Step 8 — Prepare selected channels and verify publication
 
-Read the current campaign and selected distribution policy. Prepare the
-owner-approved titles, channel copy, links, order and timing for this piece.
+Read the ticket's publication decisions and any named launch ticket. Prepare
+the owner-approved titles, channel copy, links, order and timing for this piece.
 Do not assume a blog-first or Bookface-before-HN sequence unless the new plan
 chooses it. If channels or order are undecided, resolve them with the owner.
 
@@ -151,7 +144,5 @@ Do not create the former day-14 gate or retrofit its numeric thresholds.
 - Publication follows the selected plan and explicit authorization.
 - Observations are handed to the owner of the selected measurement plan.
 
-The current plan owns campaign choices, positioning owns the reviewed
-message and source limits, and distribution owns selected channel policy.
-General prose craft stays in clarity. Historical campaigns remain linked
-references outside the current brief.
+The selected ticket owns the brief; its named launch ticket owns publication
+coordination. General prose craft stays in clarity.

@@ -78,7 +78,5 @@ operating rules without a merge.
   [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves.
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
   by launch-internals, sync, recurring; activity-capture by usage.
-- **Marketing** (local to the Coga repo): `marketing/*` topics, indexed by
-  `marketing/map`.
 - **Posture** (local): `coga/current-direction`,
   `coga/project-stage`.
