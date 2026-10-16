@@ -73,7 +73,7 @@ in [coga/codebase/gotchas](gotchas/SKILL.md).
   ([coga/testing](../testing/SKILL.md)).
 - **Legibility.** Changes that hide state, move logic into opaque services,
   or blur the correction loop are usually wrong
-  ([coga/principles](../principles/SKILL.md)).
+  ([coga/architecture](../architecture/SKILL.md)).
 
 ## Related topics
 

@@ -61,25 +61,11 @@ see what goes in. For intensive use, we find that easier to manage.
   task lifecycle — for maintenance, reviews, or other work worth repeating.
   ([recurring](docs/contexts/coga/recurring/SKILL.md))
 
-## Principles
+## Philosophy
 
-- **Hackable:** change the prompts, knowledge, and ways of working by editing
-  files you own.
-- **Agents do, humans think:** delegate mechanizable work so people can
-  concentrate on purpose, judgment, and correction.
-- **Obvious:** use familiar files and tools; keep the mechanisms understandable.
-- **Memory via Git:** make accumulated knowledge visible, versioned, and
-  correctable.
-- **Yours:** keep your work in your repository and choose which agents run it.
-- **Fail loud:** surface missing context and failed operations so they can be
-  corrected.
-- **Ticketed:** give substantive work a durable task that a person can direct
-  and an agent can resume.
-
-The [principles topic](docs/contexts/coga/principles/SKILL.md) defines the
-constraints behind these summaries. The
-[philosophical manifesto](docs/contexts/product/vision/SKILL.md) explains
-why they matter.
+Coga helps people direct work, question assumptions, and carry what they learn
+into the next task. The [design principles](docs/contexts/coga/principles/SKILL.md)
+describe the philosophy behind Coga.
 
 ## Example
 
@@ -164,10 +150,8 @@ surface it.
 
 - [Documentation index](docs/README.md): start, understand, operate and
   develop.
-- [Philosophical manifesto](docs/contexts/product/vision/SKILL.md): the philosophy behind
-  human–agent collaboration.
-- [Principles](docs/contexts/coga/principles/SKILL.md): the design
-  constraints.
+- [Design principles](docs/contexts/coga/principles/SKILL.md): the philosophy and design
+  principles behind Coga.
 - [Contributing](CONTRIBUTING.md).
 - Limits: contexts go into the prompt as truth, so a stale one misleads.
   Managing prompts and instructions as files has close precedents; see the

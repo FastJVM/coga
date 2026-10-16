@@ -138,7 +138,7 @@ def _seed_fake_templates(templates: Path) -> None:
         / "sweep"
         / "SKILL.md"
     ).write_text("---\nname: coga/autoclose/sweep\n---\nsweep\n")
-    for ctx in ("architecture", "principles", "cli"):
+    for ctx in ("architecture", "cli"):
         (templates / "bootstrap" / "contexts" / "coga" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").write_text(
             f"coga/{ctx} context\n"

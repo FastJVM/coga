@@ -373,12 +373,11 @@ Coga's own contexts are package-backed; a repo can override one by adding a
 local file at the same ref under `<contexts-dir>/` (by default,
 `coga/contexts/`). The orientation set:
 
-- `coga/principles` — the seven non-negotiables
 - `coga/architecture` — overview of the primitives, the correction loop, and
   a map of the focused topic refs (tickets, lifecycle, launch, sync, ...)
 - `coga/cli` — command index pointing at each command's owning topic
 
-`bootstrap/orient` attaches exactly these three. No context is composed into
+`bootstrap/orient` attaches these contexts. No context is composed into
 every ticket: a launched ticket composes only the refs in its own `contexts:`
 list, and a link inside a context never loads the linked page. Attach the
 focused topic a task needs rather than a broad overview.

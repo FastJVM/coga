@@ -93,4 +93,4 @@ completed work. States and gates: [coga/lifecycle](../lifecycle/SKILL.md).
 - **Composition**: each prompt is rebuilt from files on disk at launch.
 - **Correction loop**: when an agent is misled, fix and commit the context
   or workflow that misled it; the next launch composes the fix
-  ([coga/principles](../principles/SKILL.md)).
+  ([coga/architecture](../architecture/SKILL.md)).

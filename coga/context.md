@@ -1,26 +1,38 @@
-# Context
+<!-- Generated from docs/contexts/coga/principles/SKILL.md; edit that owner and refresh this copy. -->
 
-This repo is Coga itself: the source of the `coga` package, its packaged
-resources, and the canonical topic library under `docs/contexts/`. Root
-`CLAUDE.md`/`AGENTS.md` carry the full repository guidelines.
+---
+name: coga/principles
+description: Coga's design principles — the shared foundation for developing Coga and writing its README.
+---
 
-## Keep Coga small and legible
+# Coga's design principles
 
-Preserve Coga's microkernel boundary. `src/coga/` contains only:
+Coga is an instrument for the human using agents: a workbench for work where
+building helps us discover what to build. Its purpose is useful work, clearer
+understanding, and tools we can reshape as we learn.
 
-1. shared infrastructure with at least two real consumers; and
-2. reviewed, co-versioned command contracts: the fixed functions registered
-   in `runner.RECIPES` behind `coga run`, or commands whose contracts name a
-   package-private invariant or atomic transaction that an edge implementation
-   using stable CLI and filesystem interfaces could not preserve. Python
-   logic or inability to use an alias does not establish a core home.
+- **Expand human capacity.** Expand people's ability to think, explore, and
+  create. People choose purpose and direction; agents help discover problems,
+  challenge assumptions, and build. Automate mechanical work to leave more
+  attention for judgment.
+- **Text above code.** Readable text carries intent, knowledge, and decisions.
+  Code implements that understanding and can be rewritten as we learn.
+- **Context is explicit.** People can find, question, correct, and choose the
+  knowledge each task needs. Make what an agent works from understandable.
+- **Small improvements compound.** Correct the instructions behind an error
+  so later work starts from better understanding. Keep changes visible and
+  correctable; retain what proves useful and revise what stops working.
+- **Yours and hackable.** People own their knowledge and tools. They can
+  inspect, change, and move them, reshape how they work, and replace agents.
+  The mechanisms serving those freedoms can change too.
+- **Small and obvious.** Keep Coga a thin overlay on agent capabilities. Use
+  familiar tools and legible mechanisms that people can understand and adapt.
+- **Fail loud.** Surface missing knowledge and failed operations so people
+  can correct them. Never present an unnoticed failure as success.
+- **The task outlives the session.** Give substantive work a durable record
+  that people can direct and agents can resume.
 
-Everything else stays at the edge: process knowledge and reusable recipes in
-skills, ticket-owned deterministic work in its exact sibling `ticket.py`
-(which may call a wheel-owned edge module; see `coga/packaging`), and
-launch-target spellings as aliases. Backing a CLI spelling is not by itself a
-pass into core — a launch-target command is an argv rewrite in `[aliases]`,
-whereas a registered `coga run` name is a real package implementation with a
-stable argv, stdout, and exit contract. Prefer plain markdown, Python, git,
-and shell operations over hidden state or new machinery. `coga/extension-model`
-owns the full rule.
+These principles guide Coga's design. The
+[README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them; edits to the README must stay
+aligned. Behavioral topics own current implementation contracts, including
+Git. The [reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/principles/reading-list.md) records our influences.

@@ -1,13 +1,17 @@
-# Reading behind Coga's philosophical manifesto
+# Reading behind Coga's design principles
 
-A companion to the [manifesto](SKILL.md), kept separate so the manifesto
-stays short enough to include in a task's context. These are influences and
+A companion to the [principles](SKILL.md), kept separate so they
+stay short enough to include in a task's context. These are influences and
 related readings, not evidence that Coga has achieved its ambitions.
 
 - **Steve Jobs — [Make Something Wonderful](https://book.stevejobsarchive.com/).**
   The Steve Jobs Archive's collection of speeches, interviews, and writing
   provides a starting point for the bicycle-for-the-mind metaphor and the
   ambition to amplify what people can do with computers.
+- **Tim O’Reilly — [Jensen Huang Gets It Wrong, Claude Gets It Right (2025)](https://www.oreilly.com/radar/jensen-huang-gets-it-wrong/).**
+  An argument for designing AI tools that expand human capability and agency.
+  Useful for asking whether a feature helps people pursue new possibilities,
+  beyond automating existing work.
 - **Robert M. Pirsig — [Zen and the Art of Motorcycle Maintenance](https://www.penguin.co.uk/books/431040/zen-and-the-art-of-motorcycle-maintenance-by-pirsig-robert/9780099598169).**
   Read for the relationship between quality, care, and understanding the
   tools you use. Coga's commitment to hackability is our interpretation of
@@ -24,4 +28,4 @@ human capability as a system of people, tools, language, methods, and
 training, with improvements that can enable further improvements.
 
 The [origins essay](../../../archive/origins.md) preserves Coga's earlier
-founding narrative; it is historical context, not the current manifesto.
+founding narrative; it is historical context, not the current design principles.

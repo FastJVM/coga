@@ -3,7 +3,6 @@ title: Orient an agent in this coga/ repo
 agent: claude
 contexts:
   - coga/architecture
-  - coga/principles
   - coga/cli
 ---
 
@@ -11,7 +10,7 @@ contexts:
 
 Stateless launch target. `coga launch bootstrap/orient` drops an agent
 into a fully-composed coga-aware session — global rules, repo context,
-and the orientation contexts (principles, architecture overview, cli index).
+and the orientation contexts (architecture overview and cli index).
 No ticket, no workflow, no lock.
 
 The point: skip the "open `claude` in the repo and re-explain the
@@ -25,8 +24,8 @@ There is no task-ownership lock — see `coga/architecture`.
 
 What the agent should do once oriented:
 
-- The composed prompt already includes three short orientation contexts
-  (principles, the architecture overview, and the `coga/cli` command index)
+- The composed prompt already includes the architecture overview and the
+  `coga/cli` command index
   because this ticket's own `contexts:` list names them — a ticket loads only
   the contexts it lists. The overview and index link the focused topics
   (`coga/lifecycle`, `coga/launch`, `coga/sync`, ...) that own each detailed

@@ -1,16 +1,11 @@
 ---
 name: marketing/positioning
-description: Public-claim limits and sources for Coga's V1 instrument positioning; the positioning itself is README.md.
+description: Public-claim limits and sources for Coga's V1 instrument positioning.
 ---
 
 # Coga positioning
 
-**Owner decision, 2026-09-21:** Coga is an instrument for the human using
-agents. Its purpose is to strengthen human direction and judgment, not to
-make agent autonomy the objective.
-
-[README.md](../../../../README.md) is the source of truth for concepts and
-positioning; this page records claim limits and sources.
+Claim limits and sources for the public positioning in [README.md](../../../../README.md).
 
 ## Opening
 
@@ -28,12 +23,6 @@ bypass a gate. The earlier approved opening copy is in
 The proof is the README's thinkpick example: a written plan exposed a wrong
 premise and was replaced by a research plan in tickets.
 
-Philosophical intent lives in the [philosophical manifesto](../../product/vision/SKILL.md),
-product definitions and fit in the [README](../../../../README.md), behavior
-in Coga's contracts, and the longer strategic argument in
-[strategy](../strategy/SKILL.md). Earlier positioning is
-[historical reference](../../../archive/launch-programs/positioning-before-reset.md).
-
 ## Source and claim limits
 
 - **Owner follow-up, 2026-10-13.** Never position Coga as an audit,
@@ -49,10 +38,10 @@ in Coga's contracts, and the longer strategic argument in
   enough to throw away", never free.
 
 - **Owner clarification, 2026-10-15.** The
-  [philosophical manifesto](../../product/vision/SKILL.md) may describe human
+  [design principles](../../coga/principles/SKILL.md) may describe human
   purpose and judgment as being at the center, and small improvements as
   compounding. These express philosophical intent, not measured results.
-  This exception is for the manifesto; the marketing-copy restrictions above
+  This exception is for the design principles; the marketing-copy restrictions above
   still apply to other surfaces.
 
 - Use public support for claims about actual Coga work: dated tickets, log

@@ -20,8 +20,7 @@ never report: these are repos with active sweeps, **not install counts**.
 
 ## Admission and configuration
 
-Architecture owns the config precedence and repo identity model; principles
-owns the dated policy reversal. `[telemetry] enabled = false` suppresses both
+`[telemetry] enabled = false` suppresses both
 capture and its Slack receipt before identity minting or worker creation.
 This is not a global network-off switch: git sync and lifecycle notifications
 retain their own switches.

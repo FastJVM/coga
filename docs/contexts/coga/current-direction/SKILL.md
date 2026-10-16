@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-15.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -15,10 +15,6 @@ is `coga status` and the ticket bodies; stage posture is
 
 ## In force
 
-- **README is the source of truth for concepts and positioning
-  (2026-10-13).** [README.md](../../../../README.md) owns them; stale
-  positioning sections were archived to
-  [`docs/archive/positioning-before-readme-2026-10-13.md`](../../../archive/positioning-before-readme-2026-10-13.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
@@ -31,8 +27,7 @@ is `coga status` and the ticket bodies; stage posture is
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
-  instrumentation ban. Contract: [`coga/telemetry`](../telemetry/SKILL.md);
-  the reversal is recorded in [`coga/principles`](../principles/SKILL.md) §5.
+  instrumentation ban. Contract: [`coga/telemetry`](../telemetry/SKILL.md).
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
   drafts may be stale or contradictory and owe no verdict. Pull one forward
