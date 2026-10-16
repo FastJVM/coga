@@ -78,9 +78,12 @@ to 64 GB.
    rm ~/Library/Containers/com.utmapp.UTM/Data/Library/Caches/*.ipsw
    ```
 
-   Then right-click the VM in UTM and choose **Clone**, while it is still
-   small. The clone is your spare clean copy for later re-tests. Run the
-   original, not the clone.
+   Then right-click the VM in UTM and choose **Clone**. The clone is your
+   spare clean copy for later re-tests. Run the original, not the clone.
+
+   Cloning is nearly free at first: the Mac's filesystem shares the blocks
+   rather than copying 26 GB, so free space barely moves. It only grows as
+   the working copy changes during the walk. Measured on a 2026-10-15 run.
 
 Do step 7 in that order. Cloning before you delete the installer can fill
 your disk partway through the walk, which looks like a coga failure and costs
