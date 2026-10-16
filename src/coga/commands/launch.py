@@ -97,6 +97,7 @@ from coga.repl_supervisor import (
     ASSIST_PR_ENV,
     CHECKOUT_RETURN_ENV,
     AgentCliNotFound,
+    ReplOutcome,
     build_supervised_step_env,
     run_with_done_marker,
     unsignalled_advance_warning,
@@ -3285,6 +3286,7 @@ def spawn_agent_session(
     spawn_started = False
     provisional_audit: tuple[bytes | None, bytes] | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
+    outcome: ReplOutcome | None = None
 
     try:
         if (
@@ -3458,6 +3460,8 @@ def spawn_agent_session(
                 excluded_user_texts=excluded_user_texts,
                 secret_values=usage_secret_values,
                 outcome_status=outcome_status,
+                exit_code=outcome.exit_code if outcome is not None else None,
+                exit_kind=outcome.kind if outcome is not None else None,
                 launch_marker=launch_marker,
             )
             # The usage record lands in `log.md` *past* the agent's final
@@ -3536,6 +3540,9 @@ def _configured_secret_values(
 def _session_outcome_status(outcome) -> usage_tracking.OutcomeStatus:
     if outcome.kind == "timeout":
         return "timed_out"
+    # Codex can die by SIGINT on a fast double Ctrl-C; that is an interrupt.
+    if outcome.kind == "crash" and outcome.exit_code == 128 + signal.SIGINT:
+        return "interrupted"
     if outcome.kind == "crash" or outcome.exit_code != 0:
         return "failed"
     return "completed"

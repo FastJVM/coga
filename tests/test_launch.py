@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 from importlib.resources import files
@@ -1370,6 +1371,16 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
     [
         (ReplOutcome(exit_code=7, kind="natural"), "failed"),
         (ReplOutcome(exit_code=_TIMEOUT_EXIT_CODE, kind="timeout"), "timed_out"),
+        # A SIGINT death (Codex on a fast double Ctrl-C) is an interrupt; every
+        # other crash and every non-zero natural exit stays a failure.
+        (ReplOutcome(exit_code=128 + signal.SIGINT, kind="crash"), "interrupted"),
+        (ReplOutcome(exit_code=128 + signal.SIGSEGV, kind="crash"), "failed"),
+        (ReplOutcome(exit_code=128 + signal.SIGKILL, kind="crash"), "failed"),
+        (ReplOutcome(exit_code=1, kind="crash"), "failed"),
+        (ReplOutcome(exit_code=130, kind="natural"), "failed"),
+        (ReplOutcome(exit_code=-signal.SIGINT, kind="natural"), "failed"),
+        (ReplOutcome(exit_code=0, kind="done"), "completed"),
+        (ReplOutcome(exit_code=0, kind="natural"), "completed"),
     ],
 )
 def test_spawn_captures_failed_and_timed_out_sessions(
@@ -1405,8 +1416,11 @@ def test_spawn_captures_failed_and_timed_out_sessions(
     )
 
     assert result.exit_code == repl_outcome.exit_code
+    assert result.termination_kind == repl_outcome.kind
     assert result.termination_reason == repl_outcome.reason
     assert captured[0]["outcome_status"] == expected_status
+    assert captured[0]["exit_code"] == repl_outcome.exit_code
+    assert captured[0]["exit_kind"] == repl_outcome.kind
 
 
 def test_spawn_captures_interrupted_session(
@@ -1441,6 +1455,44 @@ def test_spawn_captures_interrupted_session(
         )
 
     assert captured[0]["outcome_status"] == "interrupted"
+    assert captured[0]["exit_code"] is None
+    assert captured[0]["exit_kind"] is None
+
+
+def test_spawn_captures_supervisor_exception_as_failed_without_exit_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
+    )
+
+    def explode(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("supervisor broke")
+
+    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", explode)
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="supervisor broke"):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+            env={},
+            actor="human:marc",
+            log_message="launched",
+        )
+
+    assert captured[0]["outcome_status"] == "failed"
+    assert captured[0]["exit_code"] is None
+    assert captured[0]["exit_kind"] is None
 
 
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------

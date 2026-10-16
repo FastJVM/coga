@@ -24,6 +24,8 @@ ContentStatus = Literal["ok", "unknown"]
 OutcomeStatus = Literal[
     "completed", "failed", "timed_out", "interrupted", "unknown"
 ]
+# The supervisor's normalized `ReplOutcome.kind`, not raw child wait status.
+ExitKind = Literal["natural", "done", "timeout", "crash"]
 ParserKey = Literal["claude", "codex"]
 
 # A usage record rides the standard `coga/log.md` line shape —
@@ -102,6 +104,8 @@ class UsageRecord:
     content_status: ContentStatus | None = None
     outcome_status: OutcomeStatus | None = None
     usage_reason: str | None = None
+    exit_code: int | None = None
+    exit_kind: ExitKind | None = None
     schema: int = USAGE_SCHEMA
 
     def to_json(self) -> str:
@@ -152,6 +156,8 @@ class UsageRecord:
                 content_status=_content_status(data.get("content_status")),
                 outcome_status=_outcome_status(data.get("outcome_status")),
                 usage_reason=_optional_str_value(data.get("usage_reason")),
+                exit_code=_optional_int_value(data.get("exit_code")),
+                exit_kind=_exit_kind(data.get("exit_kind")),
                 schema=schema,
             )
         except KeyError as exc:
@@ -273,6 +279,8 @@ def capture_session(
     excluded_user_texts: tuple[str, ...] = (),
     secret_values: tuple[str, ...] | None = (),
     outcome_status: OutcomeStatus = "unknown",
+    exit_code: int | None = None,
+    exit_kind: ExitKind | None = None,
     launch_marker: str | None = None,
 ) -> None:
     provider_key = parser_key_for_cli(cli)
@@ -336,6 +344,8 @@ def capture_session(
             if parsed.usage_status == "unknown" and parsed.reason
             else None
         ),
+        exit_code=exit_code,
+        exit_kind=exit_kind,
     )
     try:
         append_record(cfg, record)
@@ -1279,6 +1289,14 @@ def _outcome_status(value: object) -> OutcomeStatus | None:
     if value in {"completed", "failed", "timed_out", "interrupted", "unknown"}:
         return value
     raise ValueError("outcome_status is invalid")
+
+
+def _exit_kind(value: object) -> ExitKind | None:
+    if value is None:
+        return None
+    if value in {"natural", "done", "timeout", "crash"}:
+        return value
+    raise ValueError("exit_kind is invalid")
 
 
 def _first_str(*values: object) -> str | None:

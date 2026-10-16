@@ -95,7 +95,9 @@ sends SIGTERM then SIGKILL after 2 s. Without the variable nothing is written.
 (124, idle or max-session with the exact trigger in `reason`), or `crash`
 (`128 + signal` for any signal Coga did not send). `kind` is the *teardown
 cause*: `timeout` means a liveness limit started the teardown, not proof
-that no done signal ever arrived.
+that no done signal ever arrived. How this maps to an activity record's
+`outcome_status` is owned by
+[activity-capture](../activity-capture/SKILL.md#record-schema-usage_schema--2).
 
 `ReplOutcome.done_signalled`, carried to callers as
 `AgentSessionResult.done_signalled`, is a separate observation. It is set

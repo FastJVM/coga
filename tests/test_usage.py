@@ -702,6 +702,8 @@ def test_capture_appends_schema_two_activity_record(
         window_start=start,
         window_end=end,
         outcome_status="completed",
+        exit_code=0,
+        exit_kind="done",
     )
 
     record = load_records(load_config(coga_os))[0]
@@ -716,6 +718,65 @@ def test_capture_appends_schema_two_activity_record(
     assert record.outcome == "Work completed"
     assert record.content_status == "ok"
     assert record.outcome_status == "completed"
+    assert record.exit_code == 0
+    assert record.exit_kind == "done"
+
+
+def test_load_schema_two_record_without_exit_fields_reads_null(
+    tmp_path: Path,
+) -> None:
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    interrupted = UsageRecord(
+        ts="2026-10-15T12:00:00Z",
+        title="New work",
+        slug="new-work",
+        step=None,
+        agent="codex",
+        cli="codex",
+        provider="openai",
+        model=None,
+        session_id=None,
+        input_tokens=None,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=None,
+        output_tokens=None,
+        usage_status="unknown",
+        outcome_status="interrupted",
+        exit_code=130,
+        exit_kind="crash",
+    )
+    older = json.loads(dataclasses.replace(interrupted, slug="old-work").to_json())
+    del older["exit_code"]
+    del older["exit_kind"]
+    _write(
+        coga_os / "log.md",
+        "2026-10-15 12:00 [old-work] [system] "
+        + json.dumps(older, separators=(",", ":"))
+        + "\n"
+        + "2026-10-15 12:00 [new-work] [system] "
+        + interrupted.to_json()
+        + "\n",
+    )
+
+    old_record, new_record = load_records(load_config(coga_os))
+
+    assert old_record.exit_code is None
+    assert old_record.exit_kind is None
+    assert new_record == interrupted
+    with pytest.raises(ValueError, match="exit_kind"):
+        UsageRecord.from_json(
+            json.dumps({**json.loads(interrupted.to_json()), "exit_kind": "killed"})
+        )
 
 
 def test_load_schema_one_record_with_activity_fields_absent(tmp_path: Path) -> None:
@@ -763,6 +824,8 @@ def test_load_schema_one_record_with_activity_fields_absent(tmp_path: Path) -> N
     assert record.human_turns is None
     assert record.content_status is None
     assert record.outcome_status is None
+    assert record.exit_code is None
+    assert record.exit_kind is None
     assert rollup(records).overall.total_tokens == 10
 
 

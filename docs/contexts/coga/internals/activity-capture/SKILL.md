@@ -20,13 +20,34 @@ date filters), `title`, `slug`, `step`, `agent`, `cli`, `provider`, `model`,
 Activity (schema 2): `started_at`, `ended_at`, `elapsed_seconds`,
 `human_turns`, `agent_turns`, `request`, `outcome`, `content_status` (`ok` |
 `unknown`), and `outcome_status` (`completed`, `failed`, `timed_out`,
-`interrupted`, `unknown`). `outcome_status` describes the process, independent
-of token parsing. `usage_reason` carries the parser's reason when
+`interrupted`, `unknown`). `usage_reason` carries the parser's reason when
 `usage_status` is `unknown` (the text capture prints to stderr, with every
 absolute or home-relative path replaced by `<path>` because the log is
-committed) and is null otherwise; it was added without a schema bump, so records written before
-it read back with it null. Schema-1 records stay readable with activity fields
-null and roll up unchanged.
+committed) and is null otherwise. `exit_code` (int) and `exit_kind`
+(`natural` | `done` | `timeout` | `crash`) copy the supervisor's normalized
+`ReplOutcome` ([agent-spawn](../agent-spawn/SKILL.md)) and are null when no
+outcome was returned (an exception, including `KeyboardInterrupt`). They are
+not raw child wait status: done teardown reports 0 and timeout reports 124
+even when the child then died by signal, and a crash code names the signal,
+not who sent it. `usage_reason`, `exit_code`, and `exit_kind` were added
+without a schema bump, so records written before them read back with them
+null. Schema-1 records stay readable with activity fields null and roll up
+unchanged.
+
+`outcome_status` describes how the process ended, independent of token
+parsing, and never whether the work succeeded. `spawn_agent_session` derives
+it from the supervisor outcome:
+
+- `completed`: done teardown, or a natural exit with code 0.
+- `interrupted`: the launching process got `KeyboardInterrupt`, or the
+  supervisor returned exactly `crash` with code `128 + SIGINT`. The observed
+  case is Codex dying by SIGINT when a human presses Ctrl-C twice quickly;
+  the record does not prove who sent the signal.
+- `failed`: any other crash, any non-zero natural result (including the
+  non-TTY fallback's `natural -SIGINT` and a natural 130), or another
+  exception on the spawn path.
+- `timed_out`: idle or max-session teardown.
+- `unknown`: no classification was reached.
 
 ## Capture point and gates
 
