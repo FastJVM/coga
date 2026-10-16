@@ -3,6 +3,8 @@
 ## Read First
 Start with [Coga's design principles](docs/contexts/coga/principles/SKILL.md). When editing [README.md](README.md), keep it aligned with the principles. Read the relevant topic under `docs/contexts/` before changing behavior, and update it in the same PR. [docs/README.md](docs/README.md) indexes the library.
 
+Exclude `docs/archive/**` from searches and reading unless the human explicitly requests archive use for the task. Follow [the archive access rule](docs/contexts/coga/knowledge/SKILL.md#archive-access).
+
 Canonical Coga topics (under `docs/contexts/`):
 
 - `coga/architecture/SKILL.md` is a short overview of the primitives and the correction loop plus a topic map; the detailed contracts live in the child topics it links (for example `coga/tickets`, `coga/lifecycle`, `coga/prompt-composition`, `coga/launch`).

@@ -10,6 +10,8 @@ Pages outside `contexts/` are for reading, never composed into prompts:
 [`archive/`](#proposals-and-history) holds history, including dated
 measurements and comparisons in [`archive/evidence/`](archive/evidence/)
 and unimplemented proposals in [`archive/design/`](archive/design/).
+Agent access to archives requires an explicit human request; see
+[the archive access rule](contexts/coga/knowledge/SKILL.md#archive-access).
 
 ## Start
 
@@ -125,12 +127,12 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
 ## Product and positioning
 
 - [Design principles](contexts/coga/principles/SKILL.md) — philosophy and design principles.
-- Marketing: [map](contexts/marketing/map/SKILL.md),
-  [positioning](contexts/marketing/positioning/SKILL.md),
-  [strategy](contexts/marketing/strategy/SKILL.md),
-  [plan](contexts/marketing/plan/SKILL.md).
+- [README](../README.md) — current public presentation.
 
 ## Proposals and history
+
+- [Retired marketing contexts](archive/marketing-contexts-2026-10-15/README.md) —
+  planning behind the README, idea piece and launch.
 
 - Archived evidence (read the date and scope on each page before reusing a
   claim): [agent memory landscape](archive/evidence/agent-memory-landscape-2026-10-13.md),

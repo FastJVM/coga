@@ -1,16 +1,15 @@
----
-name: marketing/strategy
-description: Coga's strategic market argument — where value and durability live in its category, what is and is not original, what success means, and when to re-check; reasoning, not approved copy or product behavior.
----
+> Archived 2026-10-15 from `docs/contexts/marketing/strategy/SKILL.md`.
+> Historical planning material; not current instructions. Agent reading
+> requires an explicit human request.
 
 # Coga market strategy
 
 Distilled from the market thesis first written 2026-05-30. This is argument,
-not positioning ([README.md](../../../../README.md); claim limits in
-[positioning](../positioning/SKILL.md)), not the campaign
-([plan](../plan/SKILL.md)), and not product behavior. Dated competitor
-facts live in the [agent memory landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md)
-(older: [`docs/archive/market-landscape.md`](../../../archive/market-landscape.md));
+not positioning ([README.md](../../../README.md); claim limits in
+[positioning](positioning.md)), not the campaign
+([plan](plan.md)), and not product behavior. Dated competitor
+facts live in the [agent memory landscape](../evidence/agent-memory-landscape-2026-10-13.md)
+(older: [`docs/archive/market-landscape.md`](../market-landscape.md));
 re-verify any of them before a public claim.
 
 ## Thesis
@@ -86,14 +85,13 @@ resets, and status-as-signal instead of a lock. The residue is the direction —
 owned, legible, vendor-neutral, human-gated correction — chosen while the field
 moves toward absorption. Competitors can build any piece; model vendors are
 poorly placed to center "depend on vendors less". Original in stance, freely
-copyable for the same reason. See the dated
-[landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md) before
-saying "first" or "only": neither is supported.
+copyable for the same reason. Claims of "first" or "only" are unsupported;
+follow the current [positioning limits](positioning.md).
 
 ## Strategic posture
 
-Current campaign choices are in [plan](../plan/SKILL.md) and message in
-[positioning](../positioning/SKILL.md).
+Current campaign choices are in [plan](plan.md) and message in
+[positioning](positioning.md).
 
 Success is measured as influence or a committed small user base, not commercial
 dominance; the traits that make Coga defenseless commercially are neutral for
@@ -106,6 +104,6 @@ prove the felt loop in real use.
   migrate the method and retire the tool.
 - **A neutral, opinionated builder** running the Linear play for agent
   operations narrows the window for a branded category (position B in the
-  [archived posture](../../../archive/positioning-before-readme-2026-10-13.md)).
+  [archived posture](../positioning-before-readme-2026-10-13.md)).
 - **Model vendors climbing into the substrate** (skills, managed agents).
 - **Landscape facts:** re-verify competitor claims before reuse.

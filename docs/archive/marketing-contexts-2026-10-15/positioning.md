@@ -1,22 +1,21 @@
----
-name: marketing/positioning
-description: Public-claim limits and sources for Coga's V1 instrument positioning.
----
+> Archived 2026-10-15 from `docs/contexts/marketing/positioning/SKILL.md`.
+> Historical planning material; not current instructions. Agent reading
+> requires an explicit human request.
 
 # Coga positioning
 
-Claim limits and sources for the public positioning in [README.md](../../../../README.md).
+Claim limits and sources for the public positioning in [README.md](../../../README.md).
 
 ## Opening
 
-The opening is the first lines of [README.md](../../../../README.md). Its
+The opening is the first lines of [README.md](../../../README.md). Its
 contrast ("Most tools are building infrastructure for agents") is the owner's
 rhetorical contrast, not a verified claim about every competitor; qualify its
 universal wording where factual precision requires it. Corrections become
 durable through edits to the files future runs use, with the existing human
 review boundaries; this is not a claim of automatic learning or permission to
 bypass a gate. The earlier approved opening copy is in
-[positioning before the README reset](../../../archive/positioning-before-readme-2026-10-13.md#marketingpositioning--opening-and-immediate-behavior-superseded-2026-10-14).
+[positioning before the README reset](../positioning-before-readme-2026-10-13.md#marketingpositioning--opening-and-immediate-behavior-superseded-2026-10-14).
 
 ## Proof
 
@@ -29,7 +28,7 @@ premise and was replaced by a research plan in tickets.
   governance or compliance tool, and do not use those words. No novelty or
   priority words ("first", "only", "new", "unique"): individual features have
   close prior art (see the dated
-  [landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md)). Avoid
+  [landscape](../evidence/agent-memory-landscape-2026-10-13.md)). Avoid
   category words that file Coga under shared AI knowledge: "knowledge
   compounds", "learn once", "multiplayer", "company brain". Do not say
   "human at the center", "human-centered", "human-in-the-loop" or
@@ -38,7 +37,7 @@ premise and was replaced by a research plan in tickets.
   enough to throw away", never free.
 
 - **Owner clarification, 2026-10-15.** The
-  [design principles](../../coga/principles/SKILL.md) may describe human
+  [design principles](../../contexts/coga/principles/SKILL.md) may describe human
   purpose and judgment as being at the center, and small improvements as
   compounding. These express philosophical intent, not measured results.
   This exception is for the design principles; the marketing-copy restrictions above
@@ -65,7 +64,7 @@ premise and was replaced by a research plan in tickets.
 - Do not say Coga forces the reader to read a ticket: `coga launch` activates
   a draft. Say instead that what you read is what the agent gets.
 - Admin and patent use may be cited through
-  [admin and patent flexibility](../../../archive/evidence/admin-and-patent-flexibility-2026-09-12.md);
+  [admin and patent flexibility](../evidence/admin-and-patent-flexibility-2026-09-12.md);
   do not describe the operator beyond what the public record states.
 - Statements about what other tools do not do are dated observations ("at the
   2026-10-13 check"), never "nobody else".

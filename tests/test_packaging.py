@@ -453,10 +453,6 @@ REQUIRED_INIT_CONTEXT_FILES = frozenset({".gitignore", "_template/SKILL.md"})
 LOCAL_ONLY_CONTEXT_REFS = {
     "coga/current-direction": "Dated posture of this repo's own development.",
     "coga/project-stage": "Dated stage of this repo's own development.",
-    "marketing/map": "This project's own marketing material.",
-    "marketing/positioning": "This project's own marketing material.",
-    "marketing/strategy": "This project's own marketing material.",
-    "marketing/plan": "This project's own marketing material.",
 }
 
 BOOTSTRAP_CONTEXTS = Path("bootstrap/contexts")

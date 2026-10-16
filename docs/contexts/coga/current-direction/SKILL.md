@@ -21,9 +21,11 @@ is `coga status` and the ticket bodies; stage posture is
   contexts root. History:
   [`docs/archive/context-migration.md`](../../../archive/context-migration.md).
   Authoring rule: [`coga/knowledge`](../knowledge/SKILL.md).
-- **V1 marketing is one idea piece, then Show HN (2026-09-21).** See
-  [`marketing/plan`](../../marketing/plan/SKILL.md) and
-  [`marketing/positioning`](../../marketing/positioning/SKILL.md).
+- **Marketing planning contexts are retired (2026-10-15).** The README is
+  the public presentation; the idea-piece and launch tickets carry their own
+  briefs and remaining publication decisions. Do not recreate a permanent
+  campaign context library. Revisit only if recurring work needs shared
+  guidance beyond those deliverables.
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
