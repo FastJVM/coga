@@ -47,3 +47,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-10-14 11:46] [agent:claude] id=20261014T114630 coga 0.0.1 is still unyanked on PyPI (JSON yanked=false for wheel and sdist, checked 2026-10-14). Please yank it at https://pypi.org/manage/project/coga/release/0.0.1/ so pip on Python <3.11 fails with a Requires-Python error, then unblock; the docs change depends on that behaviour.
+
+---
+
+## Blocker reminders
+
+- cdbf327e37e9 last_reminded: 2026-10-16 09:31
