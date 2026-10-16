@@ -317,7 +317,8 @@ and not a finding.
 
 ### Walk findings
 
-4. open — The README's install block assumes a git repository already
+4. confirmed by walk, low severity — The README's install block assumes a
+   git repository already
    exists and never says how to make one. Its third line is
    `cd <your git repository>`, with no preceding `mkdir`/`git init`, so a
    first-time user on a fresh machine has nothing to change into. "First
@@ -327,6 +328,25 @@ and not a finding.
    which is itself the evidence: the sequence reads as incomplete to a new
    user. `README.md` install block owns the fix; `coga/init` may need the
    same entry point.
+
+   Reproduced on the guest 2026-10-15 after following the block exactly.
+   The owner had to invent the project folder himself, then:
+
+   ```
+   % coga init --user zach
+   /Users/cogatest/Desktop/cogatest is not inside a git repository — coga
+   is git-backed.
+   Run `git init` in /Users/cogatest/Desktop/cogatest (or an ancestor)
+   first, then re-run `coga init`.
+   ```
+
+   Rated low severity deliberately, because the product recovers where the
+   documentation failed: the error names the cause, the exact command and
+   the follow-up, so a reader is unstuck in seconds. The defect is that the
+   documented happy path does not run, not that the failure is hard to
+   escape. Contrast finding 2, where `command not found: uv` explains
+   nothing and the documented recovery leads off-site. Fix is one line in
+   the README block; the error message needs no change.
 
 ## New-user walk: Windows
 
