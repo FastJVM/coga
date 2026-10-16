@@ -188,10 +188,34 @@ proved useful. These are UTM and Apple frictions, not coga's.
   prompt comes after hardware and storage, not before. Leaving it empty is
   correct and the dialog says so.
 
+### Baseline (guest, before any install)
+
+```
+ProductName:     macOS
+ProductVersion:  26.6.2
+BuildVersion:    25G83
+arm64
+xcode-select: error: Unable to get active developer directory. Use `sudo
+xcode-select --switch path/to/Xcode.app` to set one (or see `man xcode-select`)
+/usr/bin/git
+/usr/bin/python3
+```
+
+Confirms `coga/install`'s premise on a real fresh Mac rather than by
+assertion: no Command Line Tools, so `/usr/bin/git` and `/usr/bin/python3`
+are stubs; and no `brew`, `uv`, `coga`, `claude` or `gh` anywhere.
+
+### Guest constraint affecting the walk record
+
+UTM shares no clipboard with a macOS guest, so host-to-guest paste does not
+work. The walk itself is unaffected because Zach copies from the guest's own
+Safari into the guest's Terminal, which is what a real user does. Only
+out-of-band commands are retyped, so a typo in one of those is a VM artifact
+and not a finding.
+
 ### Walk findings
 
-(walk not yet started; begins when the guest reaches a desktop and opens the
-public README)
+(walk begins when the guest opens the public README)
 
 ## New-user walk: Windows
 
