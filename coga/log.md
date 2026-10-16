@@ -8529,3 +8529,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 10:50 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] created (status=draft)
