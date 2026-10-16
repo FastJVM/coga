@@ -975,7 +975,7 @@ def test_set_dev_pr_appends_section_when_missing():
     assert "pr: https://x/pull/4" in out
 
 
-# --- live/packaged skill copies stay in sync (CLAUDE.md rule) -----------------
+# --- live/packaged skill copies stay in sync (AGENTS.md rule) -----------------
 
 _ROOT = Path(__file__).resolve().parents[1]
 _LIVE_SKILL = _ROOT / "coga" / "skills" / "code" / "open-pr"

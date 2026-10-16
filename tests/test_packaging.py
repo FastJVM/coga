@@ -104,7 +104,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 
 # The live/packaged sync rule, enforced instead of remembered.
 #
-# `CLAUDE.md` says a shipped Coga OS context or template has two copies — the
+# `AGENTS.md` says a shipped Coga OS context or template has two copies — the
 # live one under `coga/` and the packaged one under
 # `src/coga/resources/templates/coga/` — and that both get edited together.
 # This module derives the pairs instead of keeping a hand-maintained list,
