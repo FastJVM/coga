@@ -8487,3 +8487,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 21:46 v1 [probe-codex-done-sentinel] [human:nicktoper] activated (draft → active)
 2026-10-15 21:46 v1 [probe-codex-done-sentinel] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-15 21:46 v1 [probe-codex-done-sentinel] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-15 21:47 v1 [probe-codex-done-sentinel] [agent:codex] task done

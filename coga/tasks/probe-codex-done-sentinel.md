@@ -1,6 +1,6 @@
 ---
 title: Probe codex done sentinel
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: direct/body
@@ -9,7 +9,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 agent: claude
 ---
 
@@ -22,3 +21,5 @@ Throwaway probe for investigate-successful-codex-sessions-reported-as. Read READ
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+Coga is a local CLI workbench that assembles explicit Markdown tickets, contexts, and workflows into coding-agent prompts so people can direct work and carry corrected knowledge across sessions.
