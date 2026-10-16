@@ -377,3 +377,14 @@ This is not owner approval of either outcome or the optional schema fields.
   → 3 passed. No fresh live Codex reproduction was performed in this review.
 - Only this blackboard was edited; no ticket-body edits, branch, code, or PR.
 
+
+## Dev
+
+branch: codex-sigint-interrupted
+
+Plan (implement, 2026-10-15, claude): code + tests + both activity-capture
+twins on the branch first; then the human runs the live lifecycle repro from
+their terminal with this checkout's `.venv/bin/coga` on the branch (owner
+chose: bootstrap `coga orient` with codex, one real turn, fast Ctrl-C x2;
+then a throwaway workflow ticket launched with codex that bumps; throwaway
+deleted afterwards). Raw wait status is not captured (owner declined strace).
