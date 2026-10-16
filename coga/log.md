@@ -8512,3 +8512,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 09:32 v1 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
 2026-10-16 09:34 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-16 09:35 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 09:36 v1 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [human:nicktoper] activated (blocked → active) — auto on launch

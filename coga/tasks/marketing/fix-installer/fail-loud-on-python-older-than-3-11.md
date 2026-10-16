@@ -1,6 +1,6 @@
 ---
 title: Fail loud on Python older than 3.11
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
