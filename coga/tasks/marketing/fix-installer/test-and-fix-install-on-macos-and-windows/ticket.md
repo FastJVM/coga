@@ -215,7 +215,16 @@ and not a finding.
 
 ### Walk findings
 
-(walk begins when the guest opens the public README)
+4. open — The README's install block assumes a git repository already
+   exists and never says how to make one. Its third line is
+   `cd <your git repository>`, with no preceding `mkdir`/`git init`, so a
+   first-time user on a fresh machine has nothing to change into. "First
+   steps" then branches on "Empty repo" versus "Existing project", which
+   shows an empty repo is an expected starting point, yet no surface tells
+   the user to create it. Raised by Zach unprompted before reaching the step,
+   which is itself the evidence: the sequence reads as incomplete to a new
+   user. `README.md` install block owns the fix; `coga/init` may need the
+   same entry point.
 
 ## New-user walk: Windows
 
