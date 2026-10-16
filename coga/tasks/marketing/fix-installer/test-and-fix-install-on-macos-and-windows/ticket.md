@@ -160,8 +160,37 @@ was wrong.
    ```
 
    The first command the public page gives a new user fails on a clean
-   machine. Recovery path still under test: whether the README's "Install"
-   link resolves it.
+   machine. The documented recovery path fails too: the README's "Install"
+   link leads to `coga/install`, which links uv's homepage without an
+   install command. All four routes that topic offers dead-end on a fresh
+   Mac — `uv` and `pipx` are absent with no acquisition instructions, and
+   both `python3` routes hit the CLT stub and then Python 3.9, under the
+   3.11 floor. Completing step one requires leaving Coga's documentation
+   for a third-party site.
+
+5. open — `coga/install` describes its prerequisites instead of supplying
+   them, and the gap falls exactly on the blocking ones. Of its six
+   prerequisites only Git is genuinely taught, through the CLT section; the
+   agent CLI, `gh` and `op` are delegated to `coga init`'s install offers.
+   Python 3.11+ and `uv`, the two that actually stop an install, get a
+   failure-mode description and a hyperlink. Its advice is circular for the
+   stuck reader: "Install Python 3.11+ separately (`uv tool install` can
+   manage its own Python)" presumes the `uv` the reader does not have.
+
+   Owner's verdict on reading it as a new user, 2026-10-15: "The page is
+   called install, but it doesn't really answer anything about an easy way
+   to get these tools. They're all serving as definitions or explanations,
+   how they might behave in certain situations, with literally no reference
+   to how to get them."
+
+   Root cause is a dual audience, not carelessness. The file is a context
+   under `docs/contexts/`, written as the agent-facing contract where
+   internals like the `fcntl` import and `_require_init_tools` belong, and
+   the README links it as the human install guide. Proposed fix keeps the
+   explanation and adds the missing instructions: a README block that runs
+   from nothing (install `uv`, which brings its own Python; then coga; then
+   create a repo; then init), and an acquisition section at the top of the
+   topic ahead of the rationale. Not a documentation restructure.
 3. open — The macOS Command Line Tools prerequisite is absent from the
    README, which says only "needs ... Git". `coga/install` owns the detail
    including the headless route.
