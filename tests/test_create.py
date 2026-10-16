@@ -1237,7 +1237,7 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
     assert t.frontmatter["docket"] == ""
     assert t.frontmatter["priority"] == "P2"
 
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text().split("\n---\n", 1)[0]
     assert "# --- extensions ---" in raw
     # Marker sits between canonical keys and extension keys.
     marker_pos = raw.index("# --- extensions ---")
@@ -1257,7 +1257,7 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         agent="claude",
         status="draft",
     )
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text().split("\n---\n", 1)[0]
     assert "# --- extensions ---" not in raw
 
 
@@ -1281,7 +1281,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
     t.write(ref["path"])
     again = Ticket.read(ref["path"])
     assert again.frontmatter["docket"] == "55-12345"
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text().split("\n---\n", 1)[0]
     assert "# --- extensions ---" in raw
 
 
@@ -1369,7 +1369,8 @@ def test_created_ticket_carries_guide_through_rewrite_and_composition(
     repo: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from coga.autoclose import parse_branch_names, parse_pr_url, parse_worktree_path
-    from coga.compose import compose_prompt
+    from coga.compose import _extract_section, compose_prompt
+    from coga.taskfile import body_sections, split_body
     from coga.tasks import resolve_task
     from coga.validate import validate_task
 
@@ -1381,13 +1382,30 @@ def test_created_ticket_carries_guide_through_rewrite_and_composition(
     )
     path = result["path"]
     ticket = Ticket.read(path)
-    guide = ticket.body[ticket.body.index("<!-- Ticket guide"):ticket.body.index("-->") + 3]
+    assert ticket.frontmatter == {
+        "title": "Explain this ticket",
+        "status": "draft",
+        "owner": cfg.current_user,
+        "workflow": None,
+    }
+    guide = ticket.body[
+        ticket.body.index("<!-- Ticket guide"):ticket.body.index("-->") + 3
+    ]
+    above, _ = split_body(ticket.body)
+    assert [section.key for section in body_sections(above)] == ["description", "context"]
+    assert _extract_section(above, "Context") == guide
+    assert fence_count(path.read_text()) == 1
     ticket.frontmatter["owner"] = "another-human"
     ticket.write(path)
     assert guide in path.read_text()
     task = resolve_task(cfg, result["slug"])
-    assert guide in compose_prompt(cfg, task, Ticket.read(path))
-    assert any(issue.kind == "empty-description" for issue in validate_task(cfg, result["slug"]).issues)
+    assert compose_prompt(cfg, task, Ticket.read(path)).count(guide) == 1
+    issues = validate_task(cfg, result["slug"]).issues
+    assert any(issue.kind == "empty-description" for issue in issues)
+    assert not any(
+        issue.kind == "uncomposed-section" or issue.severity == "error"
+        for issue in issues
+    )
     blackboard = read_blackboard(path)
     assert parse_branch_names(blackboard) == []
     assert parse_pr_url(blackboard) is None

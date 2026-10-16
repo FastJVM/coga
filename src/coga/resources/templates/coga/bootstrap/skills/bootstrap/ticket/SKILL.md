@@ -11,45 +11,19 @@ can review and launch. You do **not** start the work itself — you set it up.
 The human is at the keyboard in an attended agent launch. Ask, don't guess. Keep
 the interview short — 4–6 questions, not a survey.
 
-## Ticket format — read this first
+## Before the interview
 
 New tickets contain their format and editing guidance in a comment under
 `## Context`. Read and preserve it while filling in the actual content.
-For a legacy ticket without the comment, read the creation resource below. `coga create` instantiates the packaged `ticket.md` resource
+For a legacy ticket without the comment, read the packaged `ticket.md` resource
 (repo override: `<coga root>/resources/ticket.md`); do not copy a separate
 example ticket or add another editing skill.
 
-A ticket carries a workflow — the ordered steps the work moves through —
-everywhere except while it is a `draft`. A ticket with no workflow can't be
-activated: `coga mark active` refuses it, and `coga validate` errors on a
-workflow-less `active`/`in_progress`/`blocked`/`paused` ticket. Picking the
-workflow is part of this interview (step 3), and your default is to hand back
-a ticket with one. The one exception is deliberate **concept-capture**: when
-the human wants to stash an idea before its shape is settled, a workflow-less
-*draft* is a valid end state — it simply stays a draft until someone adds a
-workflow. Don't force a workflow onto an idea that isn't ready for one; just
-make the tradeoff explicit (it can't be activated yet).
-
-Match this shape exactly. Don't invent fields the template doesn't define
-(see the ticket’s inline editing boundaries), and don't reintroduce metadata
-the format removed: there is no `slug:`, `human:`, `assignee:`, or `watchers:`.
-Writing one back makes the ticket invalid and every Coga command refuse it.
-
-**Who holds the ticket is derived, not written.** Coga reads the current
-workflow step's `assignee:` *role* — `owner`, `agent`, or `other-agent` — every
-time it needs an operator. `owner` is a human handoff to the ticket's `owner:`;
-`agent` is the ticket's `agent:`; `other-agent` is that agent's configured peer.
-So choosing the workflow (step 3) is how you choose the handoffs; there is no
-separate assignment to make.
-
 **Frontmatter you may write in this interview** — the explicit exception the
-ticket’s inline guidance allows: `title`, `status`, `owner`, `agent`, `contexts`, `skills`,
-`workflow`, `step`, `secrets`, and any repo extension field. `agent` is optional
-and is the ticket's *main-agent choice*: leave it out of a draft unless the human
-picks one, and `coga mark active` will select the configured default at
-activation. `--agent` on `coga ticket` selects **the interviewer running this
-session** and nothing else — never copy it onto the ticket. Leave `contexts`,
-`skills`, and `secrets` out entirely when they are empty; absence is empty.
+ticket's inline guidance allows: `title`, `status`, `owner`, `agent`, `contexts`,
+`skills`, `workflow`, `step`, `secrets`, and any repo extension field, subject
+to the lifecycle restrictions in step 3. `--agent` on `coga ticket` selects
+the interviewer only; never copy it onto the ticket as the main-agent choice.
 
 ## Step 1 — Identify the launch shape and open with the matching greeting
 
@@ -179,40 +153,13 @@ Rules:
   two editing targets). This is the case where the naive instinct points the
   wrong way, because the task is *about* that context.
 - Skills are process knowledge. Select them through the workflow's step
-  `skill:` refs, not by putting skill text into `contexts:`. If a relevant
+  `skills:` refs, not by putting skill text into `contexts:`. If a relevant
   skill exists but no workflow uses it yet, mention the skill ref in the body
   or propose the workflow change.
 
 The exception is `bootstrap/orient`, which is the orientation ticket itself; it
 intentionally attaches broad coga contexts so an ad-hoc oriented session has
 the operator reference loaded.
-
-## Citing code in `## Context`
-
-Code facts copied into `## Context` are read days or weeks later, against a
-tree that has moved on. Cite them in the form that survives that:
-
-- **Cite module plus symbol, never a bare line number.** Write
-  `git.sync_task_state` or `step_gate.gate_unmet_reason`, not
-  `src/coga/git.py:214`. Line numbers drift within days; one ticket's cold
-  evaluator counted nine stale citations against source ten days newer, one
-  pointing at the wrong module entirely.
-- **When a range genuinely helps, name the symbol first and mark the range
-  as an aid** — `git.sync_task_state` (near line 700 as of this writing) —
-  so a reader hunting through a 7,000-line module still has a starting
-  point, and knows the number is expected to rot.
-- **State the relationship that makes the fact load-bearing, not its
-  coordinates.** "The gate-checked copy and the synced copy are the same
-  `TaskRef`, so they cannot disagree" survives a refactor; "see line 87"
-  does not. The relationship is what the implementer actually needs.
-
-This is the same rule `code/review-design` applies to evaluator findings.
-
-The same holds for a ticket cited in `## Context`: copy the substance this
-task needs, and cite the slug only for provenance. Retro and `coga retire` may
-delete it first. When the source is already gone, recover its body with the
-retired-task recipe in `coga/tickets/discovery` (`Where tasks live and how they are
-named`), which also searches the pre-rename `relay-os/tasks/` tree.
 
 ## Step 3 — Interview the human
 
@@ -250,17 +197,12 @@ answer.
 4. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-5. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
-   primary agent). Confirm if the work clearly fits a different agent or
-   needs to go to a human.
-6. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
-   entries, the scaffold seeded each one with its default (or `""`) below
-   the `# --- extensions ---` marker. For every declared field that is empty
-   on the draft, ask the human for a value — particularly anything marked
-   `required = true`, since `coga mark active` refuses to activate a ticket
-   with required-but-empty extension values. Fields with declared `values:`
-   (enums) must be set to one of the listed values. Write the chosen value
-   into the frontmatter below the marker, preserving declaration order.
+5. **Owner and main agent** — confirm the accountable human; set an agent only
+   if the human chooses one, otherwise leave the draft's agent absent for the
+   configured default at activation.
+6. **Extension fields** — read the repo's `[ticket.fields.<name>]` descriptions
+   and ask for missing values, especially required ones. Use their declared
+   choices and the ticket's inline field guide.
 
 While interviewing, watch for **gaps** — domain knowledge that recurs across
 recent tickets but isn't captured anywhere, or process steps that workflows
@@ -328,13 +270,7 @@ attachments. The ticket’s inline editing boundaries apply, with this interview
   frozen snapshot. If repairing malformed metadata to a live status — or
   explicitly changing a live ticket's workflow — write the full frozen
   snapshot and a valid `step:` as described in step 3.
-- Add `contexts:` as a YAML list (one item per line with `- `).
-- Do not add a context just because it is generally related. If in doubt, leave
-  it out and write the one needed fact into `## Context`.
-- Set `owner:` to the human accountable for the ticket. Write `agent:` only
-  when the human explicitly picks a main agent; otherwise leave it absent on a
-  draft and let activation select the configured default. Never copy this
-  session's own interviewer into it.
+- Apply the owner, main-agent, context, and extension choices from the interview.
 - If the target file actually has `skill: bootstrap/ticket` in frontmatter
   from an older seeded flow, remove it. Modern `coga ticket` injects this
   skill only into the prompt; it should not persist on normal tasks.
@@ -345,7 +281,7 @@ attachments. The ticket’s inline editing boundaries apply, with this interview
   human-confirmed valid status and make `step:` / `workflow:` consistent with
   it as described in step 3.
 - Fill the `## Description` and `## Context` body sections from the
-  interview.
+  interview, preserving the inline guide.
 
 Do not call `coga bump`. Guided authoring never advances the target workflow.
 
@@ -430,7 +366,8 @@ Workflow: <name>
 
 Contexts: <ref>, <ref>          # or "none"
 Skills (ticket-level): <ref>    # omit line if empty
-Assignee: <agent-or-human>
+Owner: <human>
+Main agent: <chosen agent, or default at activation>
 Execution: agent
 
 Summary
@@ -446,29 +383,11 @@ workflow, drop a context, reword the description, fix an extension field —
 make the edit and reprint the relevant part of the summary. Only move on
 once they explicitly confirm.
 
-After confirmation, do one final cleanup pass before printing the closing line:
-
-1. Re-read the blackboard authoring sections: `## Evaluator review`,
-   `## Proposals`, and `## Ticket authoring notes` if present.
-2. Fold the durable substance into the ticket body, usually `## Context` or the
-   section where a future implementer will need it. Preserve concrete review
-   findings, risks, constraints, and out-of-scope decisions; do not dump the
-   whole review verbatim.
-3. If the ticket is still `status: draft`, preserve its `## Superseded designs`
-   section, including every dated entry, and reset the rest of the blackboard
-   to the stock placeholder for this ticket title. Follow the ticket’s inline design-history guidance when archiving a pivot: keep retained headings nested
-   inside the dated entry.
-   Launch supplies only an archive pointer, so keep any rationale needed for
-   current work in `## Description` or `## Context` during this cleanup.
-   Do not leave empty authoring headings behind.
-4. If editing an existing non-draft ticket
-   (`active`, `in_progress`, `blocked`, `paused`, `done`, or `canceled`),
-   preserve unrelated blackboard content such as blockers, dev notes,
-   production notes, and handoff notes; remove only the authoring
-   sections you used.
-5. Re-read the ticket and verify current requirements live under `## Description`
-   or `## Context`, superseded designs remain in their blackboard section,
-   and the blackboard cleanup matches the ticket status.
+After confirmation, fold durable evaluator findings, risks, constraints, and
+out-of-scope decisions into the body. Follow the ticket's inline blackboard
+guidance for draft scratch, intentional Production notes, existing working
+state, and superseded designs. Remove empty authoring headings and re-read the
+result to check that the current requirements will reach the next launch.
 
 Once that cleanup is complete, print one closing line. For a draft:
 

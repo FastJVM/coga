@@ -26,7 +26,7 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
     assert "Do not attach broad orientation contexts by default." in text
     assert "copy that specific fact into\n  the ticket's `## Context` body" in text
     assert "create or propose a smaller\n  focused context" in text
-    assert "Select them through the workflow's step\n  `skill:` refs" in text
+    assert "Select them through the workflow's step\n  `skills:` refs" in text
     assert "If only a specific fact is needed, put\n   it in `## Context`" in text
     assert "only writes the draft bytes to disk and does **not** run this skill." in text
     assert "are you starting a\n> **new** ticket, or editing an **existing** one?" in text
@@ -41,9 +41,7 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     text = BOOTSTRAP_TICKET_SKILL.read_text()
     normalized = " ".join(text.split())
 
-    assert "A ticket carries a workflow" in text
-    assert "A ticket with no workflow can't be activated" in normalized
-    assert "your default is to hand back a ticket with one" in normalized
+    assert "pick the lightest workflow that matches the shape of the work" in normalized
     # The concept-capture exemption is stated, not erased.
     assert "concept-capture" in text
     assert (
@@ -84,16 +82,6 @@ def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
     assert 'never announce it "has been created"' in text
 
 
-def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
-
-    assert "If the ticket is still `status: draft`, preserve its `## Superseded designs`" in text
-    assert "reset the rest of the blackboard" in text
-    assert "If editing an existing non-draft ticket" in text
-    assert "preserve unrelated blackboard content such as blockers" in text
-    assert "remove only the authoring\n   sections you used" in text
-
-
 def test_bootstrap_ticket_repairs_invalid_status_lifecycle_shape() -> None:
     text = BOOTSTRAP_TICKET_SKILL.read_text()
     normalized = " ".join(text.split())
@@ -116,22 +104,6 @@ def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:
     assert "Execution: agent" in text
     assert "convert it to directory form only when it needs\nattachments" in text
     assert "coga launch <slug> --prompt-report" in text
-
-
-def test_bootstrap_ticket_context_cites_symbols_not_line_numbers() -> None:
-    """Code facts copied into `## Context` must cite module plus symbol, never
-    a bare line number — lines drift within days, and the relationship that
-    makes a fact load-bearing is what survives a refactor."""
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
-    normalized = " ".join(text.split())
-
-    assert "## Citing code in `## Context`" in text
-    assert "Cite module plus symbol, never a bare line number." in normalized
-    assert "name the symbol first and mark the range as an aid" in normalized
-    assert (
-        "State the relationship that makes the fact load-bearing, not its "
-        "coordinates." in normalized
-    )
 
 
 def test_bootstrap_ticket_interview_asks_what_done_means() -> None:

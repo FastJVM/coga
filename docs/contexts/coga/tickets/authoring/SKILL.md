@@ -61,6 +61,12 @@ The template keeps field and editing explanations in an HTML comment under
 `## Context`, so `Ticket.render` preserves them when rewriting YAML and
 composition includes them. Description remains empty until actual intent is
 supplied, so the empty-description warning still works. Optional examples
-are prose, not live metadata or checkout records. The interview preserves
-this comment; readers need no separate editing skill. Existing tickets are
-not migrated, and a repo override owns its own instructions.
+stay inside the comment, not live metadata or checkout records. Examples use
+indentation rather than code fences: an unfinished fence in the supplied
+Description must not close against an example and swallow the Context heading.
+The guide
+covers ordinary and frozen-workflow fields, secret references, extensions,
+machine-owned state, optional blackboard records, and recurring-parent settings.
+The interview preserves this comment and supplies only the authoring process
+and its metadata-edit exception; readers need no separate editing skill.
+Existing tickets are not migrated, and a repo override owns its own instructions.
