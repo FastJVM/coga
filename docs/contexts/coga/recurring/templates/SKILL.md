@@ -21,6 +21,11 @@ it). There is no starter directory — copy an existing template.
   no `mode:` field; a leftover `recipe:` key is inert. A `ticket.py` template's
   step still says `assignee: agent` — that is the agent a hybrid run falls
   through to, not an error.
+- `scope` — `repo` (default) or `clone`. A clone-scoped template runs its
+  `ticket.py` in every clone with no period task; it requires `ticket.py` and
+  rejects `delegate`, `state_keys` and `workflow`. The transform, promotion
+  and cross-run surfaces below are repo-scope only. See
+  [scheduling](../scheduling/SKILL.md#repo-scope-and-clone-scope).
 - `delegate: bootstrap/<name>` — optional, mutually exclusive with `ticket.py`;
   see [delegation](../delegation/SKILL.md).
 - `workflow` — optional; none means the one-step `direct/body` workflow, which
@@ -29,8 +34,8 @@ it). There is no starter directory — copy an existing template.
 - `title` (else the humanized name), `owner`, `agent`, `contexts`, `secrets` —
   passed to each period task. `agent` omitted means the repo default agent.
 - `run_when_inactive` — optional boolean, default false; exempts the template
-  from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). Only the shipped
-  `autoclose-merged` opts in. Non-booleans fail `Template.load` with
+  from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). The shipped
+  `autoclose-merged` and `branch-sweep` opt in. Non-booleans fail `Template.load` with
   `RecurringError` and are reported by the sweep (inactive or not) and
   `coga validate`. On an inactive sweep, a template without the exemption is
   skipped without strict validation, so its other errors wait until the repo

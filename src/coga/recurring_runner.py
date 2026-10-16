@@ -49,6 +49,7 @@ from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
     _AGENT_NEEDS_TTY,
     _AGENT_NEEDS_TTY_LABEL,
+    _declares_clone_scope,
     DueTask,
     DueScan,
     PeriodLease as _PeriodLease,
@@ -68,8 +69,10 @@ from coga.recurring import (
     same_period_lease as _same_period_lease,
     same_ticket_bytes as _same_ticket_bytes,
     create_named,
+    scan_clone_due,
     scan_due,
 )
+from coga.recurring_clone import run_clone_template
 from coga.recurring_autofix import (
     RunRecord,
     TaskOutcome,
@@ -625,7 +628,7 @@ def run_recurring_all_repos(
 
     duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
-    skipped_duplicates: list[str] = []
+    clone_only_duplicates: list[str] = []
     serviced_from_worktree: list[str] = []
     for index, coga_os in enumerate(serviceable, 1):
         label = _repo_label(coga_os, root)
@@ -635,16 +638,19 @@ def run_recurring_all_repos(
             bold=True,
         )
         original = duplicate_of.get(coga_os)
-        if original is not None:
+        clone_only = original is not None
+        if clone_only:
             original_label = _repo_label(original, root)
-            skipped_duplicates.append(label)
+            clone_only_duplicates.append(label)
+            # Shared period work belongs to the one checkout that services
+            # this remote; clone-local state (branches, worktrees, local
+            # config) belongs to every clone, so it still runs here.
             typer.secho(
                 f"  ⚠ {label} — same git remote as {original_label}; "
-                "skipped duplicate checkout",
+                "running clone-scoped templates only",
                 fg=typer.colors.YELLOW,
                 err=True,
             )
-            continue
         # Observed before dispatch, because the child may put the control
         # branch back within its own run. A repo that was off-control here and
         # still exited 0 can only have been serviced through the temporary
@@ -657,6 +663,7 @@ def run_recurring_all_repos(
                 force=force,
                 interactive=interactive,
                 agent_override=agent_override,
+                clone_only=clone_only,
             )
         except OSError as exc:
             process_started = False
@@ -692,7 +699,6 @@ def run_recurring_all_repos(
     swept = (
         len(repos)
         - len(failed)
-        - len(skipped_duplicates)
         - len(skipped_unconfigured)
         - len(skipped_not_owner)
     )
@@ -717,10 +723,10 @@ def run_recurring_all_repos(
             fg=typer.colors.YELLOW,
             err=True,
         )
-    if skipped_duplicates:
+    if clone_only_duplicates:
         typer.secho(
-            f"Skipped {len(skipped_duplicates)} duplicate checkout(s) "
-            "that share a configured git remote.",
+            f"Ran only clone-scoped templates in {len(clone_only_duplicates)} "
+            "duplicate checkout(s) that share a configured git remote.",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -940,7 +946,11 @@ def _normalize_remote_identity(root: Path, url: str) -> str | None:
 
 
 def _recurring_scan_relay_argv(
-    *, force: bool, interactive: bool, agent_override: str | None
+    *,
+    force: bool,
+    interactive: bool,
+    agent_override: str | None,
+    clone_only: bool = False,
 ) -> list[str]:
     """The `coga run recurring-scan` argv that reproduces this sweep elsewhere.
 
@@ -956,6 +966,8 @@ def _recurring_scan_relay_argv(
         argv.append("--interactive")
     if agent_override:
         argv.extend(("--agent", agent_override))
+    if clone_only:
+        argv.append("--clone-only")
     return argv
 
 
@@ -965,6 +977,7 @@ def _run_repo_recurring(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    clone_only: bool = False,
     control_worktree: bool = False,
     control_worktree_host: str = "",
     control_worktree_parent: Path | None = None,
@@ -994,6 +1007,8 @@ def _run_repo_recurring(
         command.append("--interactive")
     if agent_override:
         command.extend(("--agent", agent_override))
+    if clone_only:
+        command.append("--clone-only")
     if control_worktree:
         command.append("--control-worktree")
         if control_worktree_host:
@@ -1569,6 +1584,7 @@ def _service_from_control_worktree(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    clone_only: bool = False,
 ) -> tuple[int, None] | tuple[None, str]:
     """Run this repo's deterministic phases from a temp control worktree.
 
@@ -1704,6 +1720,7 @@ def _service_from_control_worktree(
                 force=force,
                 interactive=interactive,
                 agent_override=agent_override,
+                clone_only=clone_only,
                 control_worktree=True,
                 control_worktree_host=str(root),
                 control_worktree_parent=parent,
@@ -1743,6 +1760,7 @@ def run_recurring_scan(
     interactive: bool = False,
     agent_override: str | None = None,
     require_fresh_control: bool = False,
+    clone_only: bool = False,
     control_worktree: bool = False,
     control_worktree_host: str = "",
 ) -> int:
@@ -1801,6 +1819,11 @@ def run_recurring_scan(
 
     `coga recurring launch <name>` force-runs one named template now.
 
+    After the shared launches, every due `scope: clone` template runs in this
+    clone (`_run_clone_scoped`). `clone_only` skips the shared scan entirely:
+    `--all` uses it for a duplicate checkout of a remote another checkout
+    already services, so per-clone work still reaches every clone.
+
     A repo with a committed `owner` refuses this for every other operator —
     including under `--force` — before anything is scanned or created; see
     `recurring_owner_refusal`.
@@ -1813,7 +1836,10 @@ def run_recurring_scan(
     if not require_fresh_control:
         relayed = _relay_off_control_single_repo_run(
             cfg, _recurring_scan_relay_argv(
-                force=force, interactive=interactive, agent_override=agent_override
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+                clone_only=clone_only,
             )
         )
         if relayed is not None:
@@ -1834,6 +1860,7 @@ def run_recurring_scan(
                 force=force,
                 interactive=interactive,
                 agent_override=agent_override,
+                clone_only=clone_only,
             )
             if serviced is not None:
                 return serviced
@@ -1872,6 +1899,21 @@ def run_recurring_scan(
         agent_spawn_refusal = None
     today = datetime.now().date()
     activity = RepoActivity() if force else check_activity(cfg, today)
+    if clone_only:
+        record = RunRecord(
+            started=datetime.now(),
+            repo=cfg.repo_root.name,
+            force=force,
+            interactive=interactive,
+            agent_override=agent_override,
+        )
+        record.note("clone-only sweep: shared period templates not scanned")
+        problem = _run_clone_scoped(
+            cfg, record, force=force, inactive_since=activity.inactive_since
+        )
+        if record.outcomes or record.scan_errors:
+            run_autofix(cfg, record, agent_override=agent_override)
+        return 2 if problem else 0
     if activity.error:
         typer.secho(
             f"Recurring activity unknown ({activity.error}); treating repo as active.",
@@ -1973,9 +2015,12 @@ def run_recurring_scan(
         typer.echo(message)
         record.note(message)
         _record_unlaunched_creates(scan, record)
+        clone_problem = _run_clone_scoped(
+            cfg, record, force=force, inactive_since=activity.inactive_since
+        )
         if not activity.inactive or record.outcomes:
             run_autofix(cfg, record, agent_override=agent_override)
-        return 2 if record.scan_problems else 0
+        return 2 if record.scan_problems or clone_problem else 0
 
     label = "task(s)" if force else "due task(s)"
     typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
@@ -1996,6 +2041,9 @@ def run_recurring_scan(
             agent_spawn_refusal=agent_spawn_refusal,
         )
         _record_unlaunched_creates(scan, record)
+        clone_problem = _run_clone_scoped(
+            cfg, record, force=force, inactive_since=activity.inactive_since
+        )
         # An admitted watchdog recovery must prove it completed. Checking only
         # for a *problem* outcome misses every path that records a note and
         # continues without an outcome at all — a lease change after
@@ -2019,7 +2067,9 @@ def run_recurring_scan(
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
             record.note(detail)
-        return code or (2 if record.scan_problems or unrecovered else 0)
+        return code or (
+            2 if record.scan_problems or unrecovered or clone_problem else 0
+        )
     finally:
         if not activity.inactive or record.outcomes:
             run_autofix(cfg, record, agent_override=agent_override)
@@ -2644,6 +2694,94 @@ def _record_outcome(record: RunRecord, outcome: TaskOutcome) -> None:
     )
 
 
+def _run_clone_scoped(
+    cfg: Config,
+    record: RunRecord,
+    *,
+    force: bool = False,
+    inactive_since: str | None = None,
+    only: str | None = None,
+) -> bool:
+    """Run every due `scope: clone` template in this clone; True on any problem.
+
+    Clone-scoped templates create no period task and publish nothing: each due
+    template's `ticket.py` runs directly and this clone's ledger under `.coga/`
+    records the serviced period (`recurring_clone`). Runs after the shared
+    launches so a branch pass sees the tickets this sweep just closed. A
+    failure is recorded for autofix and retried by the next sweep.
+    """
+    scan = scan_clone_due(
+        cfg, force=force, inactive_since=inactive_since, only=only
+    )
+    record.scan_errors.extend(scan.errors)
+    if scan.inactivity_skips:
+        record.note(
+            "clone-scoped templates skipped while the repo is inactive: "
+            + ", ".join(scan.inactivity_skips)
+        )
+    for name in scan.serviced:
+        record.scan_lines.append(f"recurring/{name} (clone): ran this period here")
+    if not scan.due:
+        return bool(scan.errors)
+    typer.echo(
+        f"\nRunning {len(scan.due)} clone-scoped template(s) in this clone...\n"
+    )
+    problem = bool(scan.errors)
+    for due in scan.due:
+        name = due.template.name
+        script = due.template.script_entry_point
+        assert script is not None  # `Template.load` requires it for clone scope
+        typer.secho(
+            f"recurring/{name} (clone, period {due.period_key})",
+            fg=typer.colors.CYAN,
+        )
+        try:
+            result = run_clone_template(
+                cfg,
+                name,
+                script,
+                due.period_key,
+                secrets=due.template.frontmatter.get("secrets"),
+            )
+        except Exception as exc:  # one template must not stop the rest
+            problem = True
+            typer.secho(
+                f"recurring/{name} (clone) could not run: {exc}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            _record_outcome(
+                record,
+                TaskOutcome(
+                    template=name,
+                    slug=f"recurring/{name}",
+                    result="failed",
+                    detail=f"clone-scoped run could not start: {exc}",
+                ),
+            )
+            continue
+        if result.exit_code:
+            problem = True
+            typer.secho(
+                f"recurring/{name} (clone) exited {result.exit_code}; this "
+                f"clone retries it next sweep. Log: {result.log_path}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        _record_outcome(
+            record,
+            TaskOutcome(
+                template=name,
+                slug=f"recurring/{name}",
+                result="failed" if result.exit_code else "completed",
+                exit_code=result.exit_code,
+                detail=f"clone-scoped run for period {result.period}",
+                blackboard=result.output,
+            ),
+        )
+    return problem
+
+
 def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     """Parse the recurring scanner's ordinary argv recipe contract."""
     parser = argparse.ArgumentParser(
@@ -2654,6 +2792,9 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--agent")
     parser.add_argument("--require-fresh-control", action="store_true")
+    # Run only `scope: clone` templates. `--all` sets it for a clone whose
+    # remote another checkout already services; it is also usable directly.
+    parser.add_argument("--clone-only", action="store_true")
     # Internal dispatch flags. `_service_from_control_worktree` sets them on the
     # scan it re-dispatches into the temporary checkout; nothing else does.
     parser.add_argument("--control-worktree", action="store_true")
@@ -2665,6 +2806,7 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
         interactive=args.interactive,
         agent_override=args.agent,
         require_fresh_control=args.require_fresh_control,
+        clone_only=args.clone_only,
         control_worktree=args.control_worktree,
         control_worktree_host=args.control_worktree_host,
     )
@@ -3386,6 +3528,20 @@ def run_recurring_named(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
+    if _declares_clone_scope(recurring_dir(cfg) / name):
+        # No period task to create: run it in this clone now, ignoring the
+        # clone ledger the way a named launch ignores the shared one.
+        record = RunRecord(
+            started=datetime.now(),
+            repo=cfg.repo_root.name,
+            on_demand=name,
+            interactive=interactive,
+            agent_override=agent_override,
+        )
+        problem = _run_clone_scoped(cfg, record, only=name)
+        if record.outcomes or record.scan_errors:
+            run_autofix(cfg, record, agent_override=agent_override)
+        return 2 if problem else 0
     try:
         outcome = create_named(cfg, name)
     except RecurringError as exc:

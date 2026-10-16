@@ -296,7 +296,13 @@ def _print_templates_table(
         if s.error:
             table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
             continue
-        if s.instance is not None and s.stale_done:
+        if s.scope == "clone":
+            # Serviced per clone; this row describes only this clone's ledger.
+            if s.serviced and s.clone_ledger is not None:
+                period = f"[dim]clone · ran here {s.clone_ledger.serviced_at}[/dim]"
+            else:
+                period = "[green]clone · due in this clone[/green]"
+        elif s.instance is not None and s.stale_done:
             period = (
                 f"[yellow]stale done run — due, replaced next sweep"
                 f" · {s.instance.id_slug}[/yellow]"

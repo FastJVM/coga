@@ -12,6 +12,11 @@ materializes one **period task** at the stable ref `recurring/<name>`
 lifecycle. The period is not in the slug; the serviced period is recorded in the
 repo-global `coga/log.md`.
 
+That is the default `scope: repo`. A `scope: clone` template instead runs its
+`ticket.py` once per period in every clone, with no period task, for work on
+clone- or machine-local state such as local branches
+([scheduling](scheduling/SKILL.md#repo-scope-and-clone-scope)).
+
 Templates live outside `tasks/` on purpose: anything with a `ticket.md` under
 `coga/tasks/` is a task, and a template has no `status:`, is never launched
 directly, and survives across periods. The `tasks/recurring/` prefix marks a

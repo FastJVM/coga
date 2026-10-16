@@ -504,7 +504,9 @@ def test_recurring_all_runs_each_discovered_repo_once(
         force: bool,
         interactive: bool,
         agent_override: str | None,
+        clone_only: bool,
     ) -> int:
+        assert clone_only is False
         calls.append((coga_os, force, interactive, agent_override))
         return 0
 
@@ -1516,13 +1518,20 @@ def test_recurring_all_services_one_checkout_per_remote(
             None, recurring_module.local_period_lease(cfg, ref), False
         )
 
+    clone_only_sweeps: list[Path] = []
+
     def run_in_process(
         found: Path,
         *,
         force: bool,
         interactive: bool,
         agent_override: str | None,
+        clone_only: bool,
     ) -> int:
+        if clone_only:
+            # The duplicate checkout still gets its per-clone work.
+            clone_only_sweeps.append(found)
+            return 0
         sweeps.append(found)
         active_checkout.append(found)
         try:
@@ -1544,6 +1553,7 @@ def test_recurring_all_services_one_checkout_per_remote(
     assert recurring_cmd.run_recurring_all_repos(scan_root) == 0
 
     assert sweeps == [checkouts[1] / "coga"]
+    assert clone_only_sweeps == [checkouts[0] / "coga"]
     assert launches == [(checkouts[1] / "coga", "recurring/weekly-check")]
     assert git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
     for checkout in checkouts:
@@ -1554,7 +1564,10 @@ def test_recurring_all_services_one_checkout_per_remote(
         assert ahead == "0"
 
     captured = capsys.readouterr()
-    assert "alpha — same git remote as beta; skipped duplicate checkout" in captured.err
+    assert (
+        "alpha — same git remote as beta; running clone-scoped templates only"
+        in captured.err
+    )
 
 
 def test_recurring_all_keeps_distinct_workspaces_in_one_remote(
@@ -13428,9 +13441,9 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def test_shipped_inactivity_exemptions() -> None:
-    exempt = [p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
-              if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive]
-    assert exempt == ["autoclose-merged"]
+    exempt = sorted(p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
+                    if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive)
+    assert exempt == ["autoclose-merged", "branch-sweep"]
 
 
 @pytest.mark.parametrize("exempt", [False, True])

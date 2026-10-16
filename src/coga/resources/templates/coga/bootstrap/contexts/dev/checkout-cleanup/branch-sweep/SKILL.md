@@ -72,7 +72,7 @@ Restore archived work with `git fetch <remote> tag <tag>` and
 `git switch -c <new-branch> <tag>`, where `<tag>` is `retired/<branch>` or
 the `@<sha12>` name the run record reports.
 
-The daily autoclose branch pass and standalone weekly sweep share this gate.
+Every branch-sweep pass shares this gate.
 It does not change ticket-scoped retire/autoclose disposal into an archival
 operation, except for the owned branches the disposal passes to the
 restricted sweep, which archive like any sweep deletion.
@@ -96,11 +96,9 @@ worth keeping must be dirty, unlanded, or recorded on a live ticket. The sweep
 also runs `git worktree prune` repo-wide first, because a wiped `/tmp`
 worktree's registration keeps pinning its branch.
 
-The daily autoclose template also runs this existing branch pass after its
-ticket/worklist cleanup, including on days when no ticket closes. The standalone
-weekly sweep remains a retry; cadence and failure ordering live in
-[recurring scheduling](../../../coga/recurring/scheduling/SKILL.md).
-Both passes preserve and report local refs with unpushed non-bookkeeping
-commits. A closed but unmerged PR alone is not evidence that its work landed,
+The branch sweep is a clone-scoped recurring template: every clone runs it
+daily for its own refs and worktrees. Cadence and scope live in
+[recurring scheduling](../../../coga/recurring/scheduling/SKILL.md#repo-scope-and-clone-scope).
+It preserves and reports local refs with unpushed non-bookkeeping commits. A closed but unmerged PR alone is not evidence that its work landed,
 and it authorizes nothing without a terminal owner
 ([dev/checkout-cleanup/terminal-owners](../terminal-owners/SKILL.md)).

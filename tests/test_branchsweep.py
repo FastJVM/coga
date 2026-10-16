@@ -1567,10 +1567,10 @@ def test_submodule_display_config_cannot_hide_a_changed_gitlink(
 
 
 @pytest.mark.parametrize("unpushed_source", [False, True])
-def test_daily_autoclose_sweeps_unclaimed_branches(
+def test_daily_clone_sweep_removes_unclaimed_branches(
     repo: Path, monkeypatch, capsys, unpushed_source: bool,
 ) -> None:
-    """Exercise the daily script and real recipes against a local bare origin."""
+    """Exercise the clone-scoped script and real recipe against a local bare origin."""
     _push_branch(repo, "feat")
     merged_head = _tip(repo, "feat")
     _squash_merge(repo, "feat")
@@ -1581,30 +1581,20 @@ def test_daily_autoclose_sweeps_unclaimed_branches(
     _fake_gh(monkeypatch, {"feat": merged_head})
     cfg = _cfg(repo)
     monkeypatch.setattr("coga.config.load_config", lambda: cfg)
-    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
-    run = subprocess.run
-    bumps = []
-
-    def run_with_bump(argv, **kwargs):
-        if argv[1:4] == ["-m", "coga.cli", "bump"]:
-            bumps.append(argv[4])
-            return subprocess.CompletedProcess(argv, 0)
-        return run(argv, **kwargs)
-
-    monkeypatch.setattr(subprocess, "run", run_with_bump)
+    # A clone-scoped run has no period task to bump or report onto.
+    monkeypatch.delenv("COGA_TASK_SLUG", raising=False)
+    monkeypatch.delenv("COGA_TASK_BLACKBOARD", raising=False)
     script = (
         Path(__file__).resolve().parents[1]
-        / "src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py"
+        / "src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py"
     )
     with pytest.raises(SystemExit) as exc:
         runpy.run_path(str(script))
 
     assert exc.value.code == 0
-    assert bumps == ["recurring/autoclose-merged"]
     assert _branch_exists_local(repo, "feat") is unpushed_source
     assert _branch_exists_remote(repo, "feat") is unpushed_source
     output = capsys.readouterr().out
-    assert "no tickets bumped" in output
     assert "Branch Sweep" in output
     if unpushed_source:
         assert "feat.txt" in output

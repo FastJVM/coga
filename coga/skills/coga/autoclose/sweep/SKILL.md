@@ -10,10 +10,10 @@ This skill documents the merged-ticket auto-close sweep behind the
 registered `autoclose` recipe (`coga.autoclose.run_autoclose_recipe`)
 through `coga.runner.run_recipe` — no agent, no composed prompt — and the
 same sweep is available as `coga run autoclose`. It is the
-sole trigger for closing tickets whose PR has merged. The recurring script
-also runs branch-sweep after this recipe succeeds;
+sole trigger for closing tickets whose PR has merged. Unclaimed landed
+branches are swept by the clone-scoped branch-sweep template in every clone;
 [coga/recurring/scheduling](context:coga/recurring/scheduling) owns that
-composition. The autoclose recipe itself performs these steps:
+split. The autoclose recipe itself performs these steps:
 
 1. scan active and in-progress tickets,
 2. read each ticket blackboard's `## Dev` `pr:` link,
@@ -101,8 +101,8 @@ disposal is the local and remote branch; linked-worktree removal applies to
 legacy worklist entries and tickets from the retired layout (in this repo,
 `/home/n/Code/claude/coga-<branch>` worktrees of
 `/home/n/Code/claude/coga`). Other clones' worktrees, including a sandbox
-clone recorded as `worktree:`, are preserved as independent clones and need
-their own `coga run branch-sweep`.
+clone recorded as `worktree:`, are preserved as independent clones; their
+own clone's daily clone-scoped branch sweep handles them.
 
 **Four surfaces.** The first three are per-run and silent when the run touched
 no checkout; the fourth is the durable worklist:
