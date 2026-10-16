@@ -31,6 +31,14 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+contexts:
+  - coga/sync
+  - coga/internals/state-publication
+  - coga/internals/state-publication/sweep
+  - coga/internals/git-refresh
+  - coga/packaging
+  - coga/testing
+  - dev/checkouts
 ---
 
 ## Description
@@ -47,6 +55,8 @@ The leaked content equals branch commit 5abc520d5, committed at 11:16, before th
 - [ ] Full suite and coga validate --json pass.
 
 ## Context
+
+Found 2026-10-16 in an attended `coga chat` while fixing the twin-drift test failure. Code: `git.sync_coga_state` → `publish` → `_candidates` in `src/coga/git.py`. The leaked work is preserved on `origin/clone-scoped-recurring`.
 
 <!-- coga:blackboard -->
 
