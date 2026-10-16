@@ -164,8 +164,9 @@ Step roles and handoff mechanics belong to
 
 ## Instruction files and skill discovery
 
-Agent CLIs look for orientation at the repo root: Claude Code reads
-`CLAUDE.md`, Codex reads `AGENTS.md`. `coga init` writes both from one
+Agent CLIs look for orientation at the repo root: Codex reads `AGENTS.md`;
+Claude Code reads `CLAUDE.md`, or `AGENTS.md` when no `CLAUDE.md` exists
+(Claude Code v2.1.277 or later). `coga init` writes both from one
 template (`AGENT_GUIDE_TEMPLATE`) only where missing and never overwrites a
 hand-edited guide. Keep compatibility with both names. `coga uninstall`
 removes unmodified guides and backs up edited ones.
