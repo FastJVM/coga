@@ -12,6 +12,12 @@ file (`write_prompt_file`). The prompt is a pure function of the files on disk
 at that moment: nothing carries over from an earlier session, so a corrected
 file takes full effect on the next launch. There is no follow-up loading.
 
+Each prompt file is exclusively created with a unique name and UTF-8 contents
+in the system temporary directory (or the caller's supplied directory). The
+task ref is a readable filename prefix, not its identity: simultaneous launches
+of the same ref, including from different repositories, have independent files.
+The file remains available until its own agent session cleans it up.
+
 ## Layer order
 
 Each layer is a `PromptLayer`; in order:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from importlib.resources import files
 from pathlib import Path
 from textwrap import dedent
@@ -19,7 +20,7 @@ from coga.compose import (
 )
 from conftest import hold_by_agent, hold_by_owner
 from coga.config import load_config
-from coga.tasks import list_tasks, read_ticket, resolve_bootstrap, resolve_task
+from coga.tasks import BootstrapRef, list_tasks, read_ticket, resolve_bootstrap, resolve_task
 from coga.taskfile import replace_blackboard
 from coga.ticket import Ticket
 
@@ -995,6 +996,22 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     assert out.exists()
     assert out.read_text() == prompt
     assert out.name.startswith("coga-x-")
+
+
+def test_concurrent_prompt_files_keep_each_launch_content(tmp_path: Path) -> None:
+    """Same bootstrap slug across repositories must not share storage or cleanup."""
+    refs = [BootstrapRef("orient", tmp_path / f"repo-{i}") for i in range(32)]
+    prompts = [f"Launch {i}: instructions — 日本語\n" for i in range(len(refs))]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        paths = list(pool.map(
+            lambda item: write_prompt_file(item[0], item[1], tmp_path),
+            zip(prompts, refs),
+        ))
+
+    assert len(set(paths)) == len(prompts)
+    assert [path.read_text(encoding="utf-8") for path in paths] == prompts
+    paths[0].unlink()
+    assert [path.read_text(encoding="utf-8") for path in paths[1:]] == prompts[1:]
 
 
 def test_compose_missing_packaged_resource_raises_compose_error(
