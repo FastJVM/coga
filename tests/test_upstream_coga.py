@@ -144,9 +144,10 @@ def test_live_job_is_shaped_like_the_other_script_backed_jobs() -> None:
     assert (LIVE_JOB / "ticket.py").is_file()
     text = (LIVE_JOB / "ticket.md").read_text()
     assert "schedule:" in text
-    assert "workflow: upstream-coga/run" in text
+    # Machine-local `[upstream]` config: every clone runs it, no period task.
+    assert "scope: clone" in text
+    assert "workflow:" not in text
     assert "## Upstream cursors" in text
-    assert (REPO_ROOT / "coga" / "workflows" / "upstream-coga" / "run.md").is_file()
     packaged = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
     assert not (packaged / "recurring" / "upstream-coga").exists()
     assert not (packaged / "workflows" / "upstream-coga").exists()

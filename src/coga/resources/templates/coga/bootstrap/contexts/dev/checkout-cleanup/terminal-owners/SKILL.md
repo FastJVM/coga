@@ -72,7 +72,8 @@ decision, never inferred.
 `coga bump` delete nothing and make no network call. A checkout therefore
 never disappears beneath the session that finished the ticket. Cleanup
 happens at `coga retire`, at the autoclose disposal of a ticket it closes,
-and at the next daily autoclose branch pass (or `coga run branch-sweep`).
+and at the next daily clone-scoped branch sweep in the clone holding the
+branch (or `coga run branch-sweep`).
 A refusal is visible in that pass's `## Branch Sweep` or retire report and is
 retried on every later pass while an owner record exists. A canceled ticket
 deleted before any pass ran leaves no owner record: its branch is then kept

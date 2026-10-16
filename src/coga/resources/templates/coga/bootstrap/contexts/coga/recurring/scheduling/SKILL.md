@@ -14,26 +14,52 @@ description: How a recurring sweep runs due work — per-template status handlin
 - [coga/recurring/scheduling/failures](failures/SKILL.md) — TTY admission,
   unfinished and watchdog-paused runs, failures and the sweep's exit code.
 
-## What a sweep does per template
+## Repo scope and clone scope
 
-The shipped daily `autoclose-merged` template runs the registered `autoclose`
-recipe, then `branch-sweep`, then bumps its period task. The branch pass runs
-even when no ticket closed; either recipe's non-zero exit stops the sequence
-before bump and records the failure on the period blackboard. Branch outcomes
-appear there under `## Branch Sweep`. Direct `coga run autoclose` retains its
-ticket/worklist scope; the daily composition lives in the template's `ticket.py`.
+A template is `scope: repo` (the default) or `scope: clone`. Everything below
+the next heading describes repo scope: one shared period task per firing,
+serviced by whichever clone sweeps first and recorded in `coga/log.md`. That
+is right for shared state and wrong for clone- or machine-local state, which
+no other clone can see.
 
-This deliberately replaces the daily-recorded/weekly-unrecorded cleanup split:
-unclaimed landed branches are checked daily at the cost of extra GitHub API
-calls. The standalone Monday `branch-sweep` schedule remains an independent
-retry and manual entry point. Both use the existing
-[checkout cleanup proofs](../../../dev/checkout-cleanup/proofs/SKILL.md); daily
+A `scope: clone` template is serviced once per period **in every clone that
+sweeps** (`recurring_clone`, `recurring.scan_clone_due`). It requires a
+reserved `ticket.py` and rejects `delegate`, `state_keys` and `workflow`.
+The sweep runs the script directly, after the shared launches. No period task
+is created, nothing is committed, and no log line is written. The script gets
+the template's `secrets` and `COGA_RECURRING_SCOPE=clone`,
+`COGA_RECURRING_TEMPLATE` and `COGA_RECURRING_PERIOD`, but no `COGA_TASK_*`
+variables, so there is nothing to bump. Exit 0 records the period in
+`<primary checkout's coga dir>/.coga/recurring-clone/<name>.json`. That
+directory is resolved through git's common dir, so a run from a temporary
+control worktree counts for the clone that owns it. Any other exit is a sweep
+failure, recorded for autofix and retried by the next sweep. The output is
+kept beside the ledger in `<name>.log`. The owner, control-branch and
+inactivity gates apply as for repo scope. `--force` and
+`coga recurring launch <name>` ignore the clone ledger. `coga recurring
+list` shows only this clone's state.
+
+Tradeoff, accepted: clone-scoped runs leave no git-visible record. Their
+evidence is the clone-local ledger and log, the console, and the autofix run
+record.
+
+The shipped clone-scoped template is `branch-sweep` (daily; local refs and
+linked worktrees). In the Coga source repo `upstream-coga` is clone-scoped too
+(it reads machine-local `[upstream]` checkouts). The daily `autoclose-merged`
+template stays repo-scoped: it runs the `autoclose` recipe, then bumps. Ticket
+closure is shared state. The landed-branch pass for branches with no live
+ticket is clone-local, so every clone's daily `branch-sweep` does it. Both use
+the existing [checkout cleanup proofs](../../../dev/checkout-cleanup/proofs/SKILL.md);
 frequency grants no new deletion authority. That includes the
 [terminal-owner rule](../../../dev/checkout-cleanup/terminal-owners/SKILL.md):
 a branch whose PR closed unmerged is released only when a done or canceled
-ticket owns it. The daily pass is the integration point for terminal
-transitions, which delete nothing themselves; a refusal is reported under
-`## Branch Sweep` and retried the next day.
+ticket owns it. The daily clone pass is the integration point for terminal
+transitions, which delete nothing themselves. A refusal is reported under
+`## Branch Sweep` and retried the next day. Re-judging another clone's
+`retires.md` entries is still done only by whichever clone services
+`autoclose-merged`.
+
+## What a sweep does per template
 
 One stable task per template (`recurring.create_template`):
 
@@ -76,7 +102,10 @@ table before launching.
 - `--all <path>` discovers Coga workspaces below an explicit path (skipping
   dependency/tool trees, `_` trees and Coga temp-control parents), omits
   unconfigured checkouts by count, runs one checkout per remote workspace in a
-  fresh process, sequentially, and exits non-zero naming failed repos. Owner
+  fresh process, sequentially, and exits non-zero naming failed repos. Every
+  other checkout of the same remote workspace gets a `--clone-only` child
+  (`coga run recurring-scan --clone-only`), which runs only clone-scoped
+  templates. Owner
   mismatches are skipped and named. Entry gates and off-branch service are in
   [recurring-control](../../internals/recurring-control/SKILL.md) and
   [recurring-temp-worktrees](../../internals/recurring-temp-worktrees/SKILL.md).

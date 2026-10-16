@@ -8,8 +8,9 @@ description: Delete local and remote git branches whose work has already landed.
 This skill documents the branch sweep behind the
 `recurring/branch-sweep/` ticket, whose `ticket.py` runs the registered
 `branch-sweep` recipe (`coga.branchsweep.run_branch_sweep_recipe`) through
-`coga.runner.run_recipe` — no agent, no composed prompt. It is the safety
-net behind `coga retire`'s
+`coga.runner.run_recipe` — no agent, no composed prompt. The template is
+`scope: clone`: every clone runs it daily for its own refs and worktrees,
+with no period task. It is the safety net behind `coga retire`'s
 branch deletion — retire's
 cleanup is best-effort (failures are swallowed), and branches also leak when
 a ticket is deleted without going through retire or a session dies mid-flight.
@@ -102,9 +103,8 @@ sweep fails before deleting anything. If `gh` is missing or unauthed, the
 sweep fails and performs no further gated deletes — never a delete with
 incomplete safety information.
 
-The sweep only sees worktrees linked to the clone it runs from. In this repo
-the recurring jobs run from `/home/n/Code/claude/coga`; another clone's
-review or scratch worktrees (`/home/n/Code/coga`'s `/tmp/coga-pr*-review`
-checkouts, say) need their own `coga run branch-sweep` from that clone.
+The sweep only sees branches and worktrees of the clone it runs from, which
+is why the template is clone-scoped: each clone that runs `coga recurring`
+(or is reached by `coga recurring --all`) sweeps its own.
 
 Run it directly with `coga run branch-sweep`.

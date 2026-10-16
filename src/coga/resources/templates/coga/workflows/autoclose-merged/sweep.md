@@ -15,9 +15,9 @@ registered autoclose recipe to close merged final-step tickets and dispose of
 recorded feature checkouts under the shared retire proofs. Refused checkouts
 remain visible with their reasons and manual remedies, and the recurring
 worklist preserves follow-ups across period-task deletion. After autoclose
-succeeds, the script runs the existing branch-sweep recipe before bumping;
-see [recurring scheduling](context:coga/recurring/scheduling) for the daily
-composition and failure ordering.
+succeeds, the script bumps. Unclaimed landed branches are swept per clone by
+the `scope: clone` branch-sweep template; see
+[recurring scheduling](context:coga/recurring/scheduling).
 
 The `coga/autoclose/sweep` skill
 owns the closure, disposal, reporting, and worklist rules.

@@ -36,6 +36,13 @@ from coga.paths import (
     resolve_workflow_path,
 )
 from coga.period_state import write_snapshot
+from coga.recurring_clone import (
+    SCOPE_CLONE,
+    SCOPE_REPO,
+    SCOPES,
+    CloneLedgerEntry,
+    read_clone_ledger,
+)
 from coga.taskfile import (
     join_task_body,
     split_body,
@@ -396,6 +403,24 @@ class Template:
         _validate_schedule(fm["schedule"], now or datetime.now())
         if not isinstance(fm.get("run_when_inactive", False), bool):
             raise RecurringError("`run_when_inactive` must be a bool")
+        scope = fm.get("scope", SCOPE_REPO)
+        if scope not in SCOPES:
+            raise RecurringError(
+                f"`scope` must be one of {', '.join(SCOPES)}; got {scope!r}"
+            )
+        if scope == SCOPE_CLONE:
+            # A clone-scoped run has no period task, so nothing can host an
+            # agent phase, a delegated launch, or cross-run task state.
+            if not (path / SCRIPT_ENTRY_POINT).is_file():
+                raise RecurringError(
+                    f"`scope: clone` requires a reserved `{SCRIPT_ENTRY_POINT}`: "
+                    "a clone-scoped run has no period task for an agent to work"
+                )
+            for key in ("delegate", "state_keys", "workflow"):
+                if key in fm:
+                    raise RecurringError(
+                        f"`{key}` needs a period task; `scope: clone` creates none"
+                    )
         if "state_keys" in fm:
             state_keys = fm["state_keys"]
             if not isinstance(state_keys, list) or not all(
@@ -419,6 +444,14 @@ class Template:
                 "remove it from the recurring template"
             )
         return cls(path=path, name=path.name, frontmatter=fm, body=body)
+
+    @property
+    def scope(self) -> str:
+        return self.frontmatter.get("scope", SCOPE_REPO)
+
+    @property
+    def clone_scoped(self) -> bool:
+        return self.scope == SCOPE_CLONE
 
     @property
     def runs_when_inactive(self) -> bool:
@@ -757,6 +790,9 @@ def scan_due(
                 sys.stderr.write(f"[recurring] skipping {path.name}: {msg}\n")
                 errors.append((path.name, msg))
             continue
+        if _declares_clone_scope(path):
+            # Serviced per clone by `scan_clone_due`, never as a shared period.
+            continue
         try:
             if inactive_since is not None and not force:
                 # A dormant repo's non-exempt template is skipped without
@@ -927,6 +963,94 @@ def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
     return {ref: evidence for ref, (_, evidence) in latest.items() if evidence}
 
 
+@dataclass
+class CloneDue:
+    """One clone-scoped template a sweep of this clone should run now."""
+
+    template: Template
+    last_fire: datetime
+    period_key: str
+    last_serviced: str | None
+
+
+@dataclass
+class CloneScan:
+    due: list[CloneDue] = field(default_factory=list)
+    errors: list[tuple[str, str]] = field(default_factory=list)
+    inactivity_skips: list[str] = field(default_factory=list)
+    serviced: list[str] = field(default_factory=list)
+
+
+def _clone_period_serviced(entry: CloneLedgerEntry | None, period_key: str) -> bool:
+    if entry is None:
+        return False
+    try:
+        return period_key_at_least(entry.period, period_key)
+    except RecurringError:
+        # An unreadable period re-runs the idempotent per-clone job rather
+        # than skipping it indefinitely.
+        return False
+
+
+def scan_clone_due(
+    cfg: Config,
+    now: datetime | None = None,
+    *,
+    force: bool = False,
+    inactive_since: str | None = None,
+    only: str | None = None,
+) -> CloneScan:
+    """Find the `scope: clone` templates this clone has not serviced yet.
+
+    Read-only: nothing is created or committed. A template is due when this
+    clone's ledger (`recurring_clone.read_clone_ledger`) does not cover the
+    schedule's latest firing. `force` ignores the ledger and the inactivity
+    gate; `only` restricts the scan to one template name (and implies the
+    ledger is ignored, as `coga recurring launch <name>` does).
+    """
+    now = now or datetime.now()
+    root = recurring_dir(cfg)
+    scan = CloneScan()
+    if not root.is_dir():
+        return scan
+    for path in sorted(root.iterdir()):
+        if path.name.startswith("_") or not path.is_dir():
+            continue
+        if only is not None and path.name != only:
+            continue
+        if not _declares_clone_scope(path):
+            continue
+        try:
+            if inactive_since is not None and not force and only is None:
+                if not _read_inactivity_fields(path, now)[0]:
+                    scan.inactivity_skips.append(path.name)
+                    continue
+            template = Template.load(path, now=now)
+        except RecurringError as exc:
+            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            scan.errors.append((path.name, str(exc)))
+            continue
+        last_fire = _last_firing(template.schedule, now)
+        period_key = _period_key(template.schedule, last_fire)
+        entry = read_clone_ledger(cfg, template.name)
+        if (
+            not force
+            and only is None
+            and _clone_period_serviced(entry, period_key)
+        ):
+            scan.serviced.append(template.name)
+            continue
+        scan.due.append(
+            CloneDue(
+                template=template,
+                last_fire=last_fire,
+                period_key=period_key,
+                last_serviced=entry.period if entry else None,
+            )
+        )
+    return scan
+
+
 def create_named(
     cfg: Config, name: str, now: datetime | None = None
 ) -> CreateOutcome:
@@ -942,6 +1066,11 @@ def create_named(
     if not path.is_dir():
         raise RecurringError(f"no recurring task `recurring/{name}/`")
     template = Template.load(path, now=now)
+    if template.clone_scoped:
+        raise RecurringError(
+            f"recurring/{name} is `scope: clone`; it runs per clone with no "
+            "period task"
+        )
     return create_template(cfg, template, now)
 
 
@@ -1121,6 +1250,9 @@ class TemplateStatus:
     error: str | None = None
     stale_done: bool = False
     serviced: bool = False
+    scope: str = SCOPE_REPO
+    # For `scope: clone`: this clone's last serviced period, if any.
+    clone_ledger: CloneLedgerEntry | None = None
 
     @property
     def due(self) -> bool:
@@ -1174,6 +1306,27 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                     instance=None,
                     instance_status=None,
                     error=str(exc),
+                )
+            )
+            continue
+
+        if template.clone_scoped:
+            last_fire = _last_firing(template.schedule, now)
+            period_key = _period_key(template.schedule, last_fire)
+            entry = read_clone_ledger(cfg, template.name)
+            out.append(
+                TemplateStatus(
+                    name=template.name,
+                    schedule=template.schedule,
+                    last_fire=last_fire,
+                    next_fire=_next_firing(template.schedule, now),
+                    period_key=period_key,
+                    target_slug=None,
+                    instance=None,
+                    instance_status=None,
+                    serviced=_clone_period_serviced(entry, period_key),
+                    scope=SCOPE_CLONE,
+                    clone_ledger=entry,
                 )
             )
             continue
@@ -1923,6 +2076,20 @@ def _read_template_source(path: Path) -> tuple[dict[str, Any], str]:
     return fm, match.group(2)
 
 
+def _declares_clone_scope(path: Path) -> bool:
+    """Whether a template directory declares `scope: clone`.
+
+    Read without validation so the shared scan can step aside before it loads
+    the template; an unreadable template is left to the shared scan, which
+    reports it.
+    """
+    try:
+        fm, _ = _read_template_source(path)
+    except RecurringError:
+        return False
+    return fm.get("scope") == SCOPE_CLONE
+
+
 def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime | None]:
     """Read only the exemption and a best-effort firing for an inactive sweep.
 
@@ -1952,6 +2119,8 @@ def _template_period_targets(
     targets: dict[str, str] = {}
     for path in sorted(root.iterdir()):
         if not path.is_dir() or path.name.startswith("_"):
+            continue
+        if _declares_clone_scope(path):
             continue
         try:
             if skip_inactive and not _read_inactivity_fields(path, now)[0]:

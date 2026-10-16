@@ -33,7 +33,8 @@ The repo separates implementation from the OS it operates:
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
-  `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`.
+  `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
+  `recurring_clone.py`.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (external CLI manifest) and `agent_cli_setup.py` (agent

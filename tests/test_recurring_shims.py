@@ -1,4 +1,4 @@
-"""The four recurring templates' `ticket.py` deterministic halves.
+"""The shipped recurring templates' `ticket.py` deterministic halves.
 
 Coga's own bundled scripts are covered from `tests/`, never by collecting the
 live dogfooded `coga/` tree: the contract checks read the *packaged* templates,
@@ -36,9 +36,10 @@ PACKAGED = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 SHIMMED_TEMPLATES = (
     ("autoclose-merged", "autoclose"),
     ("blocker-reminders", "blocker-reminders"),
-    ("branch-sweep", "branch-sweep"),
     ("skill-update", "skill-update"),
 )
+# `scope: clone` shims: no period task, so the exit code is the whole outcome.
+CLONE_SHIMMED_TEMPLATES = (("branch-sweep", "branch-sweep"),)
 
 
 @pytest.mark.parametrize(("template", "recipe_name"), SHIMMED_TEMPLATES)
@@ -128,24 +129,75 @@ def _describe(node: ast.expr) -> str:
     return ast.dump(node)
 
 
+@pytest.mark.parametrize(("template", "recipe_name"), CLONE_SHIMMED_TEMPLATES)
+@pytest.mark.parametrize(
+    ("slug", "recipe_code", "expected", "exit_code"),
+    [
+        # Clone scope: no period task, so the recipe's exit is the outcome.
+        (None, 0, ["recipe"], 0),
+        (None, 2, ["recipe"], 2),
+        # A Coga that predates clone scope runs it as a period task; the
+        # script must still close that step itself.
+        ("recurring/branch-sweep", 0, ["recipe", "bump"], 0),
+        ("recurring/branch-sweep", 2, ["recipe"], 2),
+    ],
+)
+def test_clone_shim_bumps_only_when_run_as_a_period_task(
+    seeded, monkeypatch, template, recipe_name, slug, recipe_code, expected, exit_code,
+) -> None:
+    script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
+    assert "scope: clone" in (script.parent / "ticket.md").read_text()
+    assert recipe_name in RECIPES
+    assert f'run_recipe(load_config(), "{recipe_name}", [])' in script.read_text()
+    cfg = load_config(seeded)
+    calls = []
+
+    def recipe(cfg, argv):
+        calls.append("recipe")
+        assert argv == []
+        return recipe_code
+
+    run = subprocess.run
+
+    def bump(argv, **kwargs):
+        if argv[1:4] != ["-m", "coga.cli", "bump"]:
+            return run(argv, **kwargs)
+        calls.append("bump")
+        assert argv[4] == slug
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setitem(RECIPES, recipe_name, recipe)
+    monkeypatch.delenv("COGA_TASK_BLACKBOARD", raising=False)
+    if slug is None:
+        monkeypatch.delenv("COGA_TASK_SLUG", raising=False)
+    else:
+        monkeypatch.setenv("COGA_TASK_SLUG", slug)
+    monkeypatch.setattr(subprocess, "run", bump)
+    monkeypatch.setattr("coga.config.load_config", lambda: cfg)
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(script))
+    assert exc.value.code == exit_code
+    assert calls == expected
+
+
 def test_every_shimmed_template_dropped_the_recipe_field() -> None:
     """`recipe:` left the format; the file beside `ticket.md` is the signal."""
-    for template, _ in SHIMMED_TEMPLATES:
+    for template, _ in (*SHIMMED_TEMPLATES, *CLONE_SHIMMED_TEMPLATES):
         ticket = (PACKAGED / "recurring" / template / "ticket.md").read_text()
         assert "\nrecipe:" not in ticket, template
 
 
 @pytest.mark.parametrize(
-    ("autoclose_code", "sweep_code", "expected", "exit_code"),
+    ("autoclose_code", "expected", "exit_code"),
     [
-        (0, 0, ["autoclose", "branch-sweep", "bump"], 0),
-        (2, 0, ["autoclose"], 2),
-        (0, 2, ["autoclose", "branch-sweep"], 2),
+        (0, ["autoclose", "bump"], 0),
+        (2, ["autoclose"], 2),
     ],
 )
-def test_autoclose_shim_sweeps_branches_before_bumping(
-    seeded, monkeypatch, autoclose_code, sweep_code, expected, exit_code,
+def test_autoclose_shim_leaves_branches_to_the_clone_sweep(
+    seeded, monkeypatch, autoclose_code, expected, exit_code,
 ) -> None:
+    """Closure is repo-scoped; the landed-branch pass is each clone's own."""
     cfg = load_config(seeded)
     calls = []
     blackboard = seeded / "tasks/recurring/autoclose-merged/ticket.md"
@@ -170,7 +222,7 @@ def test_autoclose_shim_sweeps_branches_before_bumping(
         return subprocess.CompletedProcess(argv, 0)
 
     monkeypatch.setitem(RECIPES, "autoclose", recipe("autoclose", autoclose_code))
-    monkeypatch.setitem(RECIPES, "branch-sweep", recipe("branch-sweep", sweep_code))
+    monkeypatch.setitem(RECIPES, "branch-sweep", recipe("branch-sweep", 0))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
     monkeypatch.setattr(subprocess, "run", bump)
     # Config loading also probes git; resolve it before replacing subprocess.
@@ -240,8 +292,7 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
         "from coga.runner import run_recipe",
         "from coga.runner import RECIPES, run_recipe\n"
         "RECIPES.clear()\n"
-        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0\n"
-        "RECIPES['branch-sweep'] = lambda cfg, args: 0",
+        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0",
     ))
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
