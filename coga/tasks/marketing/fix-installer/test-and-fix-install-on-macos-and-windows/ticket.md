@@ -197,9 +197,31 @@ was wrong.
    falls back to a pure-Python build. The severity is therefore an
    unexplained interruption on a desktop, but a hard stop anywhere no
    dialog can be shown, which is the same class of failure the topic's own
-   headless SSH section describes. Full text of the preceding
-   `warning: Failed to pa…` line still to be captured; it may indicate a
-   wheel-resolution issue worth separating from this finding.
+   headless SSH section describes. The Apple download that follows the
+   dialog ran over 17 minutes on this host, which nothing in the README or
+   the topic prepares the reader for.
+
+7. open — the root cause of finding 6 is Coga's own packaging: an
+   unbounded Python floor. `pyproject.toml` declares
+   `requires-python = ">=3.11"` with no ceiling, so `uv tool install coga`
+   on a machine with no Python resolves the newest interpreter available
+   and installed CPython 3.15.0 on the guest. Dependencies have not shipped
+   3.15 wheels yet, so uv built PyYAML from source, and a source build of a
+   C extension needs the compiler a fresh Mac lacks. uv also warned on that
+   interpreter: "Failed to patch the install name of the dynamic library
+   for `…/cpython-3.15.0-macos-aarch64-none/bin/python3.15`. This may cause
+   issues when building Python native extensions."
+
+   This is a packaging finding rather than a documentation one, and it is
+   deterministic: every clean-machine install takes this path until the
+   dependency set publishes 3.15 wheels. Two fixes, both with a cost, and
+   the choice is the owner's. Capping `requires-python` (for example
+   `>=3.11,<3.15`) repairs the default command but commits the project to
+   raising the cap as each Python release is validated and locks out users
+   already on the newest interpreter. Pinning in the documented command
+   (`uv tool install --python 3.12 coga`) changes no packaging but leaves
+   the plain command broken for anyone not copying that exact line.
+   Recommend the cap, because the defect is that the default path fails.
 
 5. open — `coga/install` describes its prerequisites instead of supplying
    them, and the gap falls exactly on the blocking ones. Of its six
