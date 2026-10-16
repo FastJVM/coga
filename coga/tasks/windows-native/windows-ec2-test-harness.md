@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -231,57 +231,70 @@ checkout, rdp, status, teardown), `scripts/clean-install/windows-walk.ps1`
   SSO session (the session has one account; same as multiply-telemetry).
 - Adjacent (not fixed, out of scope): `aws-mac.sh` has the same `/32`-behind-VPN
   weakness and no SSH keepalives.
-- Review and pending native verification are recorded below.
+- Review findings and verification are recorded below.
 
 ## Peer review
 
-Codex completed a direct code review of the full branch diff, initially
-independent of Claude's implementation. No nested reviewer CLI was run.
-Initial reviewed head/base: ad1e11d56ddbce6c348d9fadd6e74813dfd12ec5 /
-1f3fb5b3793948569620c3cf35ce6f06abf2f06c. Two must-fix findings:
+**Completed — Codex direct review, 2026-10-15 (local).** Final head
+`a12cf28fde18ef4f4f430e3bd56065725550f6e7`, base
+`6f2316b71821fb181a3aa49f47339b91e0ad33f6`. No nested reviewer CLI ran.
+Codex independently reviewed Claude's implementation, then implemented and
+self-reviewed the owner-approved fixes. The final fixes have no independent
+review receipt; recommend **deep**. No unresolved must-fix findings remain.
 
-- Remote argv quoting left cmd.exe operators and variable expansion active:
-  a host-side SSH capture reproduced unquoted `a&b`, `a>b`, and `%PATH%`.
-  This violates literal argument forwarding and can run a different command.
-- The walk's `Step` used LASTEXITCODE alone under ErrorActionPreference=Continue,
-  so non-terminating cmdlet errors (for example hashing a missing wheel) could
-  be recorded as PASS and move the first failure to a later step.
+Two findings fixed:
 
-The attending owner approved fixes. Codex implemented encoded PowerShell
-transport with direct ProcessStartInfo execution and explicit child exit codes;
-`cmd /c` remains an explicit shell-parsing path. Cmdlet ErrorRecords now fail a
-step, while native stderr remains governed by the native exit code. Added a
-host transport/exit-code/encoder-failure regression and five native PowerShell
-error-path cases; updated the runbook and packaged twin.
+- cmd.exe interpreted unquoted argv such as `a&b`, `a>b`, and `%PATH%`.
+  Encoded PowerShell now starts executables directly with CRT quoting and
+  explicitly forwards their exit codes. An explicit `cmd /c` line retains
+  shell parsing, including its embedded quotes.
+- `Step` could mark a non-terminating cmdlet error PASS because LASTEXITCODE
+  remained zero. Cmdlet ErrorRecords now fail the step; native stderr alone
+  does not. The new regression cases run against real PowerShell 5.1.
 
-The final direct read of c9e5eec1c229527da6e61985e04e47bdadff5928 against
-abff923a21d413c27ab2c0cf4773e6c98b467f21 completed, with no further code
-findings. This includes self-review of Codex's fixes, not an independent
-review of those fixes. The full peer-review gate is **not complete** until
-native verification below runs. Do not bump on the Linux suite alone.
+The branch was rebased onto current main and pushed. Later main movement
+through `fc2f267cf` touched only another ticket and the audit log; inspected it,
+with no harness, test, or contract drift. All three changed context twins are
+byte-identical; both new scripts are LF in the index. Final Linux suite:
+`PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q -p no:cacheprovider`
+→ **3673 passed, 5 skipped in 360.58s**, Python 3.12.12. The five Windows-only
+cases passed on native Python 3.11.17 / PowerShell 5.1 (**5 passed, 1 deselected
+in 29.19s**), using the current production script copied beside the tests,
+without the repository conftest.
 
-Verification: bash syntax and diff whitespace passed; all three changed
-context twins match; new scripts have LF in the index. The original
-pre-fix suite passed 3669 tests on Python 3.12.12. The host regression passed;
-the five PowerShell cases skip on Linux. The final-commit full suite passed 3670 tests, with 5 native Windows skips
-in 334.95 seconds (Python 3.12.12).
-Saved win3 PyPI and main steps were inspected: both first fail at
-`coga --version` with exit 1. Their original receipt remains historical.
-No Windows terminal or new live acceptance was driven in this review yet.
+### Fresh native acceptance (2026-10-16 UTC)
 
-Pending: `coga-test` SSO expired and refresh failed. The owner was asked to run
-`aws sso login --profile coga-test`; no new instance has been provisioned.
-After login, provision under the existing approval, exercise literal argv
-(including empty strings, embedded quotes, percent/ampersand, and trailing
-backslashes), explicit cmd /c, stdin forwarding, native non-1 exit codes,
-checkout, a fresh-user walk, and the five PowerShell regression cases. Tear
-down and confirm no billing resources before ending that session. The owner
-still owns the desktop RDP check in the later review step. Stay on peer-review;
-no bump or block was run.
+Run `winreview1`, profile `coga-test`, us-east-1 / us-east-1a, t3.large:
+instance `i-074adb93a0c32da8c`, AMI `ami-0b16ced290e00a1a3`,
+`Windows_Server-2025-English-Full-Base-2026.10.14`. Launched 04:18:42Z.
+Baseline: Server 2025 build 26100.33650, PowerShell 5.1.26100.33648,
+Git 2.56.0.windows.2, uv 0.13.1, Administrator Python 3.11.17.
 
-Freshness: rebased unconditionally onto fetched main twice. The later fetch
-at f758eaa7d changes only unrelated ticket/log state; inspected that drift,
-with no harness, test, or contract changes to reconcile.
+- Preflight and provision passed. Reused the previously owner-approved VPN
+  source range; security group exposed SSH only.
+- `checkout winreview1 main` cloned and `uv sync --extra test` passed;
+  remote Python printed `win32`. Live argv checks preserved empty strings,
+  shell operators, percent expansion syntax, apostrophes, double quotes,
+  trailing backslashes, whitespace, newlines and Unicode. Stdin forwarding
+  retained exit 37; explicit `cmd /c` with quoted ampersand retained exit 23.
+  Receipts: local `remote-command-regressions.json` and `native-regressions.txt`.
+- Drove `ssh winreview1` in a real 80x24 terminal: the cmd prompt was visible,
+  `ver` printed the OS build, and `exit` closed the connection normally.
+- PyPI `reviewwalk1` and main-wheel `reviewwalk3` passed every step through
+  installation and first failed at `coga --version`, exit 1, missing `fcntl`.
+  The wheel was coga-0.4.1 from fetched origin/main
+  `87165c9c8471e204e267862c2034f40b578c0db7`. Both transcripts and step records
+  were copied back. `reviewwalk2` stopped on the host's sandboxed uv cache
+  before creating a Windows user; the authorized retry used a new walk name.
+- `rdp winreview1` decrypted the admin password to local private storage;
+  the printed tunnel on localhost:13390 returned an RDP X.224 Connection
+  Confirm with NLA. **The owner still confirms a desktop session in the
+  owner-held review step; that requires a fresh instance.**
+- Teardown: instance terminated **04:29:10Z**, SG deleted **04:29:12Z**, key
+  deleted **04:29:14Z**. Repeated teardown passed. `status` and AWS
+  `describe-instances` confirmed terminated, with no tagged volumes;
+  independent SG/key queries returned zero. Nothing from this run remains
+  billing. All local evidence is under `.coga/clean-install/winreview1/`.
 
 References for the findings: Microsoft's [cmd parser contract](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
 and [PowerShell error handling](https://learn.microsoft.com/en-us/PowerShell/module/microsoft.PowerShell.core/about/about_error_handling?view=powershell-5.1).
@@ -293,12 +306,12 @@ title: Add the Windows EC2 clean-install harness
 author: claude/codex
 author_evidence: Claude Code authored the harness implementation; Codex independently reviewed it and
   authored the two review fixes. The final fixes received Codex self-review.
-head: c9e5eec1c229527da6e61985e04e47bdadff5928
-base: abff923a21d413c27ab2c0cf4773e6c98b467f21
+head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
 depth: deep
-rationale: Paid-cloud harness with native Windows dispatch and credential/resource lifecycle behavior.
-  Direct review completed and fixes are committed, but native verification of those fixes and the owner
-  desktop check remain outstanding.
+rationale: Paid-cloud tooling with resource and credential lifecycle behavior. Direct review completed,
+  both findings fixed, and fresh native acceptance passed. Read the dispatch tradeoff and self-review
+  disclosure; the owner desktop RDP check remains for the review step.
 implementation: aws-windows.sh drives AWS and SSH from the host (ledger, /32 or COGA_WIN_SSH_FROM SSH
   rule, RSA key, Server 2025 user data enabling sshd), windows-walk.ps1 runs baseline/setup/adduser/checkout/walk
   on the box under PowerShell 5.1; the windows-aws runbook and twin document cost, approval rule, provision,
@@ -308,9 +321,9 @@ deviations: Added COGA_WIN_SSH_FROM (owner-approved) because the owner's VPN exi
   users join OpenSSH Users because Windows' default sshd_config restricts logons to that group. Review
   fixes add iconv/base64 on the Unix host and encoded PowerShell dispatch; cmd /c explicitly requests
   shell parsing.
-limitations: Native verification of the review fixes is not run because coga-test SSO expired. Five native
-  PowerShell tests skip on Linux. The owner still must confirm an RDP desktop session. The historical
-  live run predates the review fixes.
+limitations: The owner has not yet confirmed a desktop RDP session; a fresh instance is needed in the
+  owner review step. Codex independently reviewed the original Claude implementation but self-reviewed
+  its own fixes. Linux suite used Python 3.12.12; native regression and walk checks used Python 3.11.17.
 files:
   .gitattributes: Keep *.sh and *.ps1 LF so the scripts run from CRLF-prone checkouts.
   scripts/clean-install/aws-windows.sh: Host-side driver for the Windows harness.
@@ -332,11 +345,13 @@ files:
 review:
   reviewer: codex
   kind: self
-  status: pending
-  head: c9e5eec1c229527da6e61985e04e47bdadff5928
-  base: abff923a21d413c27ab2c0cf4773e6c98b467f21
-  detail: 'Direct review completed: independent review of Claude implementation found two bugs, now fixed
-    by Codex and self-reviewed. Native verification of the final fixes is still required before bump.'
+  status: passed
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+  detail: Direct review completed on the final diff with no unresolved must-fix findings. Codex independently
+    reviewed Claude implementation, then authored and self-reviewed two owner-approved fixes. Native regressions,
+    remote commands, real 80x24 SSH terminal, fresh-user walks and RDP protocol tunnel were exercised;
+    desktop confirmation belongs to the owner review step.
 checks:
 - command: .venv/bin/python -m pytest -q -p no:cacheprovider
   status: passed
@@ -353,17 +368,78 @@ checks:
     win32 printed; walks failed at coga --version (fcntl) as expected; teardown left nothing billing.
 - command: PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q -p no:cacheprovider
   status: passed
-  head: c9e5eec1c229527da6e61985e04e47bdadff5928
-  base: abff923a21d413c27ab2c0cf4773e6c98b467f21
-  detail: 3670 passed, 5 skipped in 334.95s on Python 3.12.12. The five skipped cases require native Windows PowerShell 5.1.
-- command: bash -n scripts/clean-install/aws-windows.sh; git diff --check origin/main...HEAD
+  detail: 3673 passed, 5 skipped in 360.58s on Python 3.12.12. The five skipped PowerShell cases were
+    run natively below.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh ssh winreview1 uv run --with pytest
+    --python 3.11 python -m pytest -q -p no:cacheprovider C:/coga-clean-install/coga-windows-native-review/tests/test_windows_clean_install.py
+    -k test_windows_walk_records_first_failure
   status: passed
-  head: c9e5eec1c229527da6e61985e04e47bdadff5928
-  base: abff923a21d413c27ab2c0cf4773e6c98b467f21
-  detail: Shell syntax and whitespace passed; manual byte comparison confirmed all three changed context
-    twins; both scripts are LF in the index.
-- command: Native Windows acceptance plus python -m pytest tests/test_windows_clean_install.py -k test_windows_walk_records_first_failure
+  detail: 5 passed, 1 deselected in 29.19s on native Windows Python 3.11.17 / PowerShell 5.1.26100.33648.
+    Covers non-terminating Get-Item/Get-FileHash errors, a missing command, and native stderr with exits
+    0 and 23.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: 'AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh preflight us-east-1
+
+    AWS_PROFILE=coga-test COGA_CLEAN_INSTALL_ALLOCATE=yes COGA_WIN_SSH_FROM=149.36.48.0/24 scripts/clean-install/aws-windows.sh
+    provision winreview1 us-east-1 us-east-1a
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh checkout winreview1 main
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh ssh winreview1 python -c "import sys; print(sys.platform)"
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh walk winreview1 pypi reviewwalk1 installer
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh walk winreview1 main reviewwalk3 installer'
+  status: passed
+  detail: 'Fresh run: i-074adb93a0c32da8c, ami-0b16ced290e00a1a3 (Windows_Server-2025-English-Full-Base-2026.10.14),
+    us-east-1/us-east-1a, t3.large. Provision and checkout passed; win32 printed. Both walks first failed
+    at coga --version with exit 1 / missing fcntl, as expected. Main wheel coga-0.4.1 came from fetched
+    origin/main 87165c9c8471e204e267862c2034f40b578c0db7. Host uv cache needed sandbox escalation; aborted
+    reviewwalk2 never created a Windows user.'
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh ssh winreview1
+  status: passed
+  detail: Real 80x24 PTY displayed cmd prompt; ver printed build 10.0.26100.33650 and exit closed normally.
+    Separate subprocess probes recorded in remote-command-regressions.json passed literal argv round-trip,
+    stdin with exit 37, and explicit cmd /c with quoted ampersand and exit 23.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: AWS_PROFILE=coga-test COGA_WIN_RDP_PORT=13390 scripts/clean-install/aws-windows.sh rdp winreview1
+  status: passed
+  detail: Admin password retrieved into private local storage. Printed SSH tunnel returned RDP X.224 Connection
+    Confirm with NLA on localhost:13390; tunnel was closed after the probe. Desktop login is not claimed.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: 'AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh teardown winreview1
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh teardown winreview1
+
+    AWS_PROFILE=coga-test scripts/clean-install/aws-windows.sh status winreview1
+
+    aws --profile coga-test --region us-east-1 ec2 describe-instances --instance-ids i-074adb93a0c32da8c
+    --query ''Reservations[].Instances[].[InstanceId,State.Name]'' --output text'
+  status: passed
+  detail: Terminated 2026-10-16T04:29:10Z; SG deleted 04:29:12Z; key deleted 04:29:14Z. Repeat teardown
+    passed. status and describe-instances confirmed terminated, no tagged volumes; separate security-group
+    and key-pair queries returned zero. Nothing from this run remains billing.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: 'bash -n scripts/clean-install/aws-windows.sh
+
+    git diff --check origin/main...HEAD
+
+    git ls-files --eol scripts/clean-install/aws-windows.sh scripts/clean-install/windows-walk.ps1'
+  status: passed
+  detail: Shell syntax and whitespace passed. Both scripts are LF in the index. All three changed canonical/packaged
+    context pairs are byte-identical after rebase; packaging tests passed in the full suite.
+  head: a12cf28fde18ef4f4f430e3bd56065725550f6e7
+  base: 6f2316b71821fb181a3aa49f47339b91e0ad33f6
+- command: Owner desktop RDP login
   status: not-run
-  detail: AWS SSO token expired. Awaiting owner login; no new resources allocated. The owner desktop RDP
-    check belongs to the later review step.
+  detail: Explicitly deferred by the ticket to the owner-held review step. Fresh provision required; the
+    review instance was torn down.
 ```
