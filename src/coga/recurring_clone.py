@@ -6,8 +6,9 @@ That is wrong for work on clone- or machine-local state — local branch refs,
 linked worktrees, machine-local `[upstream]` paths — because every other clone
 of the repository never runs it. A `scope: clone` template is instead serviced
 once per period *in every clone*: the sweep runs its reserved `ticket.py`
-directly, with no period task, no commit, and no log line, and records the
-serviced period in a clone-local ledger under the primary checkout's `.coga/`.
+directly, with no period task or log line, and records the serviced period in
+a clone-local ledger under the primary checkout's `.coga/`. The runner makes
+no commit; a template may publish its own state under the scheduling contract.
 
 The ledger lives in the primary checkout (resolved through git's common dir),
 not in whichever working tree the sweep ran from, so a run serviced from a

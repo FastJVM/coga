@@ -63,9 +63,13 @@ as `owner`, which the clone servicing `autoclose-merged` can only report. It
 runs them through autoclose's backlog walk and proofs, from the control branch
 only, and judges no other entry. A worklist it changed is the one exception to
 "nothing is committed": `git.publish` of that file alone, pinned to the bytes
-it read, with no log line. A refused publish fails the run and leaves the
-rewrite on disk. An ownerless entry stays with autoclose, which backfills
-`owner` while the foreign directory still exists.
+it read, with no log line. Reconcile and publication hold the local state
+lock together. A failed or skipped publish fails the run and restores the
+pre-pass bytes, so the next run judges and publishes them again. If an
+outside writer changed the file meanwhile, its contents are preserved and
+the conflict is reported instead. With Git sync disabled, the pass is skipped
+without disposing of or rewriting follow-ups. An ownerless entry stays with
+autoclose, which backfills `owner` while the foreign directory still exists.
 
 ## What a sweep does per template
 

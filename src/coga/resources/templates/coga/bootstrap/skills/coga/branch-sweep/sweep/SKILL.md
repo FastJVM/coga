@@ -116,7 +116,8 @@ autoclose's backlog walk and the shared retire proofs
 only those entries judged, and a changed file is published alone with
 `git.publish`, pinned to the bytes it was read from. Outcomes appear under
 `disposed`, `preserved`, and `discharged retire follow-up` in the report. A
-reconcile or publish failure fails the sweep. Off the control branch the pass
-is skipped and noted.
+reconcile or publish failure fails the sweep; publication recovery is owned by
+[recurring scheduling](context:coga/recurring/scheduling). Off the control
+branch or with Git sync disabled, the pass is skipped and noted.
 
 Run it directly with `coga run branch-sweep`.

@@ -86,6 +86,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from coga.atomicio import atomic_write_text
 from coga.autoclose import (
     GhError,
     dispose_worklist_backlog,
@@ -984,10 +985,16 @@ def discharge_owned_followups(
     and retire proofs autoclose uses, then each worklist is reconciled with
     only those entries judged. A changed worklist is published alone, pinned
     to the bytes it was read from, with no log line — the one commit a
-    clone-scoped run makes. Control branch only, like autoclose's disposal.
+    clone-scoped run makes. Control branch with Git sync enabled only, like
+    autoclose's disposal. A failed publish restores our rewrite for retry,
+    unless an outside writer has changed the file in the meantime.
     """
     worklists = all_worklists(cfg)
     if not worklists:
+        return
+    if not cfg.git_enabled:
+        result.followups_skipped = "[git].enabled = false"
+        _note(result, echo, f"Retire follow-ups: skipped — {result.followups_skipped}.")
         return
     try:
         current = git.current_branch(root)
@@ -1025,25 +1032,39 @@ def discharge_owned_followups(
         )
     for path in worklists:
         try:
-            change = reconcile_worklist(cfg, path, root=root, only=include)
-        except (RetireWorklistError, OSError, UnicodeError) as exc:
-            result.followups_failure = f"could not reconcile {path}: {exc}"
-            _note(result, echo, f"Retire follow-ups: {result.followups_failure}")
-            continue
-        if not change.written:
-            continue
-        slugs = [entry.slug for entry in change.dropped]
-        message = (
-            f"Recurring: branch-sweep discharged {len(slugs)} retire follow-up(s)"
-            if slugs
-            else "Recurring: branch-sweep refreshed retire follow-ups"
-        )
-        try:
-            git.publish(cfg, [path], message, expect={path: change.original})
-        except git.GitError as exc:
-            # The rewrite stays on disk, as after any failed state publish;
-            # the next run's reconcile reads it back.
-            result.followups_failure = f"could not publish {path}: {exc}"
+            # Keep another local Coga writer out until this rewrite is either
+            # published or restored. Otherwise a failed publish consumes the
+            # only local evidence that the next run still needs to publish.
+            with git.state_lock(cfg):
+                change = reconcile_worklist(cfg, path, root=root, only=include)
+                if not change.written:
+                    continue
+                slugs = [entry.slug for entry in change.dropped]
+                message = (
+                    f"Recurring: branch-sweep discharged {len(slugs)} retire follow-up(s)"
+                    if slugs
+                    else "Recurring: branch-sweep refreshed retire follow-ups"
+                )
+                rewritten = path.read_bytes()
+                try:
+                    published = git.publish(
+                        cfg, [path], message, expect={path: change.original}
+                    )
+                    if published is None:
+                        raise git.GitError("worklist publication was skipped")
+                except (git.GitError, OSError, UnicodeError) as exc:
+                    # An editor need not take our lock. Restore only our own
+                    # rewrite; never overwrite intervening local work.
+                    if path.read_bytes() != rewritten:
+                        raise git.GitError(
+                            f"{exc}; worklist changed again; current contents preserved"
+                        ) from exc
+                    # With no pending entries, reconcile never creates a file.
+                    assert change.original is not None
+                    atomic_write_text(path, change.original.decode("utf-8"))
+                    raise
+        except (RetireWorklistError, OSError, UnicodeError, git.GitError) as exc:
+            result.followups_failure = f"could not reconcile or publish {path}: {exc}"
             _note(result, echo, f"Retire follow-ups: {result.followups_failure}")
             continue
         if slugs:
