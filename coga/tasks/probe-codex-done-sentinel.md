@@ -1,6 +1,6 @@
 ---
 title: Probe codex done sentinel
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: direct/body
