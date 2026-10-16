@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 contexts:
 - coga/recurring
 - coga/recurring/scheduling
@@ -130,22 +130,55 @@ edits recurring templates on a branch; worth a line in `dev/checkouts`
   `test_clone_shim_bumps_only_when_run_as_a_period_task`.
 - Follow-up filed (owner decision): `discharge-retires-md-entries-in-the-clone-that-own`.
 
+## Peer review
+
+Independent direct Codex review **completed** on 2026-10-16 for head
+`c1d8227d7d05dd91e59c2b5f9cd66682960e6379` against base
+`0246eb492a3f405108ccfb310fee37f055cbd9b5`. Claude implemented per the prior receipt;
+this fresh session reviewed directly without a child reviewer CLI. No must-fix
+findings and no product-code edits. Rebased on current main; final rebase added
+only an unrelated ticket and log line, which were also inspected. Deep review
+remains recommended because this adds a recurring scheduling mode.
+
+Real PTY: `recurring list` at 100x30 and 160x35 showed readable clone due labels;
+the narrower table ellipsizes names/schedules. A disposable Python probe swept
+two independent workspaces twice, asserting one clone-job invocation each and
+no tasks/ or log.md. Initial probe refused inherited Slack config before running;
+rerun with SLACK_WEBHOOK_URL unset passed. No production cleanup was invoked.
+Per-clone retires.md discharge remains deferred as agreed.
+
+Repository validation has two missing-context errors on the marketing demo
+ticket, also present on main. Owner confirmed marketing/plan and
+marketing/positioning were removed by design; stale references left separately.
+Final suite: 3696 passed, 5 skipped in 302.06s on Python 3.12.12.
+Task validation passes; exact check receipts are below. Branch committed and
+pushed; latest fetch still equals the reviewed base. The launcher owns returning
+the checkout to main (COGA_LAUNCH_RETURNS_CHECKOUT=1).
+
 ## PR
 
 ```yaml
 title: Run clone-local recurring work in every clone
 author: claude
-author_evidence: Attended implement session run by Claude Opus 5.5 (claude-opus-5-5) under coga launch; no agent override.
-head: 625a19be3249b20c616f917881615872fb07792a
-base: 4c2f2f8877157937ac2c4652bf72164ea55bc64f
+author_evidence: Attended implement session run by Claude Opus 5.5 (claude-opus-5-5) under coga launch;
+  no agent override.
+head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
 depth: deep
-rationale: New recurring scheduling mode across the sweep runner, --all dispatch and three shipped templates; one leaked partial landing on main; reviewers should read the runner wiring and the scheduling topic.
-implementation: Adds `scope: clone` templates that run their ticket.py per clone with a clone-local ledger under the primary checkout's .coga/, wires them into bare, named, clone-only and --all sweeps, flips branch-sweep (daily) and upstream-coga to clone scope, and drops the branch pass from autoclose-merged.
-deviations: Shims for branch-sweep and upstream-coga also bump when COGA_TASK_SLUG is set, for old-code compatibility after the state sweep adopted the templates onto main early (see handoff). Per-clone retires.md discharge deferred to a follow-up ticket by owner decision.
-limitations: Clone-scoped runs leave no git-visible record (accepted tradeoff). upstream-coga's old-code bump path is untested directly. The six recurring template files already sit on main at the first-commit version, so their diff here is only the compatibility change.
+rationale: New recurring scheduling mode and multi-clone dispatch merit deep review. Independent direct
+  review completed without must-fix findings. Repository validation reports stale references to intentionally
+  removed marketing contexts.
+implementation: 'Adds `scope: clone` templates that run their ticket.py per clone with a clone-local ledger
+  under the primary checkout''s .coga/, wires them into bare, named, clone-only and --all sweeps, flips
+  branch-sweep (daily) and upstream-coga to clone scope, and drops the branch pass from autoclose-merged.'
+deviations: Shims for branch-sweep and upstream-coga also bump when COGA_TASK_SLUG is set, for old-code
+  compatibility after the state sweep adopted the templates onto main early (see handoff). Per-clone retires.md
+  discharge deferred to a follow-up ticket by owner decision.
+limitations: Clone runs leave no git-visible scheduling record (accepted). Per-clone retires.md discharge
+  remains a follow-up. Production destructive sweeps were not run; cleanup is exercised in disposable-repository
+  tests. Repository validation has two stale marketing context references already on main; owner confirms
+  intentional context removal. Python 3.11 was not tested; suite interpreter is 3.12.12.
 files:
-  coga/recurring/branch-sweep/ticket.py: Clone shim; bumps only when run as a period task by older Coga.
-  coga/recurring/upstream-coga/ticket.py: Same compatibility shape for the local-only upstream job.
   coga/skills/coga/autoclose/sweep/SKILL.md: Branch pass now belongs to the clone-scoped branch sweep.
   coga/skills/coga/branch-sweep/sweep/SKILL.md: Describe clone scope; drop the single-clone caveat.
   coga/workflows/autoclose-merged/sweep.md: Autoclose no longer runs branch-sweep.
@@ -153,47 +186,90 @@ files:
   docs/contexts/coga/codebase/SKILL.md: Name recurring_clone.py in the source map.
   docs/contexts/coga/lifecycle/SKILL.md: Branch cleanup is each clone's daily sweep.
   docs/contexts/coga/recurring/SKILL.md: Overview of scope and the new module.
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Owner of the repo-vs-clone scope contract and --all clone-only children.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Owner of the repo-vs-clone scope contract and --all
+    clone-only children.
   docs/contexts/coga/recurring/templates/SKILL.md: Document the scope field and inactivity exemptions.
   docs/contexts/dev/checkout-cleanup/branch-sweep/SKILL.md: Branch sweep is clone-scoped and daily.
-  docs/contexts/dev/checkout-cleanup/terminal-owners/SKILL.md: Cleanup happens in the clone holding the branch.
+  docs/contexts/dev/checkout-cleanup/terminal-owners/SKILL.md: Cleanup happens in the clone holding the
+    branch.
   src/coga/commands/recurring.py: Show clone-scoped rows in `coga recurring list`.
   src/coga/recurring.py: Scope validation, clone scan, shared-scan exclusion, list rows.
   src/coga/recurring_clone.py: Clone-local ledger, log and script runner.
-  src/coga/recurring_runner.py: Run clone templates in sweeps, named launches, --clone-only and --all duplicates.
+  src/coga/recurring_runner.py: Run clone templates in sweeps, named launches, --clone-only and --all
+    duplicates.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/branch-sweep/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/terminal-owners/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/branch-sweep/SKILL.md: Packaged
+    twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/terminal-owners/SKILL.md: Packaged
+    twin.
   src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Packaged twin; closure only.
   src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py: Packaged twin; no branch pass.
   src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: Packaged twin; scope clone, daily.
-  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py: Packaged twin of the compatible clone shim.
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py: Packaged twin of the compatible
+    clone shim.
   src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md: Packaged twin.
   tests/test_branchsweep.py: Daily branch pass is exercised through the clone shim.
   tests/test_recurring.py: --all duplicates get clone-only children; branch-sweep is inactivity-exempt.
-  tests/test_recurring_clone.py: New coverage for validation, ledger, failure retry, inactivity, named and clone-only runs, primary resolution.
+  tests/test_recurring_clone.py: New coverage for validation, ledger, failure retry, inactivity, named
+    and clone-only runs, primary resolution.
   tests/test_recurring_shims.py: Clone shim bump/no-bump matrix; autoclose shim no longer sweeps branches.
   tests/test_upstream_coga.py: Live job is clone-scoped with no workflow.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the workflow's peer-review step follows.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+  base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
+  detail: Direct Codex review completed in this fresh peer session. Claude implementation identity comes
+    from implement handoff. Reviewed rebased diff, scope validation, runner wiring and admission, ledger
+    placement, packaged twins, shims, and tests. No must-fix findings; no child reviewer CLI. Final rebase
+    added only an unrelated ticket and log line; reviewed those changes too.
 checks:
-  - command: python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: 625a19be3249b20c616f917881615872fb07792a
-    base: 4c2f2f8877157937ac2c4652bf72164ea55bc64f
-    detail: 3696 passed, 5 skipped (run with .venv/bin/python).
-  - command: coga validate --json
-    status: passed
-    head: c0b9271bc92573738848d0afa5f578c798ad02cd
-    base: c8db8ab524c5da7b782d3dcbda95b6c0f27d2b85
-    detail: No errors and no recurring-template issues; only pre-existing warnings on unrelated tickets. Run before the compat commit and rebase.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+  base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
+  detail: 3696 passed, 5 skipped in 302.06s; Python 3.12.12. Final rebased head.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: c63c4c98b119a1b8c2078f8263a8640ae4589978
+  base: 37f9994e8fabf5bf24d35bcfa6415a94b4d0683b
+  detail: 3696 passed, 5 skipped in 373.77s; Python 3.12.12. Historical receipt before bookkeeping-only
+    rebase.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task run-clone-local-recurring-work-in-every-clone
+    --json
+  status: passed
+  head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+  base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
+  detail: 1 OK, no issues.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
+  status: failed
+  head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+  base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
+  detail: '267 OK, 44 warnings, 2 broken-context errors: marketing/plan and marketing/positioning on marketing/demo-hackability-ask-claude-to-add-a-command-live.
+    Identical references and missing paths confirmed on main; owner confirms intentional context removal.
+    Unrelated stale references left separately.'
+- command: git diff --check
+  status: passed
+  head: c1d8227d7d05dd91e59c2b5f9cd66682960e6379
+  base: 0246eb492a3f405108ccfb310fee37f055cbd9b5
+  detail: No whitespace errors.
+- command: stty cols 100 rows 30; PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli recurring
+    list
+  status: passed
+  head: c63c4c98b119a1b8c2078f8263a8640ae4589978
+  base: 37f9994e8fabf5bf24d35bcfa6415a94b4d0683b
+  detail: Real PTY. Clone due labels readable; existing table ellipsizes names and schedules.
+- command: stty cols 160 rows 35; PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli recurring
+    list
+  status: passed
+  head: c63c4c98b119a1b8c2078f8263a8640ae4589978
+  base: 37f9994e8fabf5bf24d35bcfa6415a94b4d0683b
+  detail: Real PTY. Full template names, schedules and clone due labels readable.
 ```
