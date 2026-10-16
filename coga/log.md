@@ -8508,3 +8508,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 09:31 v1 [recurring/blocker-reminders] [system] task done
 2026-10-16 09:31 v1 [recurring/blocker-reminders] [system] script exited with code 0
 2026-10-16 09:32 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 09:32 v1 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
