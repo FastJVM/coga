@@ -182,6 +182,25 @@ was wrong.
    package manager. Coga delegated a mandatory step without naming the
    door, so its own page should carry the command.
 
+6. open — `uv tool install coga` itself springs the Command Line Tools
+   trap, which no surface predicts. On the guest 2026-10-15 the install
+   compiled a dependency from source (`Built pyyaml==6.0.3` among 19
+   packages) and macOS raised "The `python3` command requires the command
+   line developer tools. Would you like to install the tools now?".
+   `coga/install` documents this trap but attributes it to `git` and tells
+   the reader to install the tools before `git init` or `coga init`; it
+   does not say the package install can trigger it. The README names no
+   Command Line Tools requirement at all, so a reader following the public
+   page meets an unexplained system dialog mid-install.
+
+   The install still completed and reported `coga 0.4.0`, because pyyaml
+   falls back to a pure-Python build. The severity is therefore an
+   unexplained interruption on a desktop, but a hard stop anywhere no
+   dialog can be shown, which is the same class of failure the topic's own
+   headless SSH section describes. Full text of the preceding
+   `warning: Failed to pa…` line still to be captured; it may indicate a
+   wheel-resolution issue worth separating from this finding.
+
 5. open — `coga/install` describes its prerequisites instead of supplying
    them, and the gap falls exactly on the blocking ones. Of its six
    prerequisites only Git is genuinely taught, through the CLT section; the
@@ -256,6 +275,15 @@ xcode-select --switch path/to/Xcode.app` to set one (or see `man xcode-select`)
 Confirms `coga/install`'s premise on a real fresh Mac rather than by
 assertion: no Command Line Tools, so `/usr/bin/git` and `/usr/bin/python3`
 are stubs; and no `brew`, `uv`, `coga`, `claude` or `gh` anywhere.
+
+### What this walk does and does not measure
+
+Elapsed times are not recorded. The walk is conversational, with the owner
+pausing to report and take breaks, so wall-clock numbers would look like
+data without being data. What the walk establishes is the sequence of what
+blocked a new user and what it took to get past it; the guide's stopwatch
+column is unreliable under this format and should not be read as timing
+evidence.
 
 ### Guest constraint affecting the walk record
 
