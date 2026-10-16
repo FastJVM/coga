@@ -2455,3 +2455,84 @@ def test_disposal_retains_proven_owner_after_removing_recorded_worktree(
         assert not _branch_exists_local(repo, branch)
         assert not _branch_exists_remote(repo, branch)
     assert _remote_tag(repo, "retired/second")
+
+
+def _owned_worklist(repo: Path, *entries) -> Path:
+    """An `autoclose-merged/retires.md` holding `entries`, committed and pushed."""
+    from coga import retire_worklist as rw
+
+    template = repo / "coga/recurring/autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    worklist = template / rw.RETIRE_WORKLIST_FILENAME
+    worklist.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries))
+    _git(repo, "add", "coga/recurring")
+    _git(repo, "commit", "-m", "record retire follow-ups")
+    _git(repo, "push", "origin", "main")
+    return worklist
+
+
+def test_recipe_discharges_the_retire_follow_ups_this_clone_owns(
+    repo: Path, monkeypatch, real_git,
+) -> None:
+    # Another clone's autoclose recorded this clone's linked worktree and could
+    # only report it. The daily sweep here disposes of it under the retire
+    # proofs and publishes the discharge; entries it does not own stay as read.
+    from coga import retire_worklist as rw
+
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = repo.parent / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    mine = rw.RetireFollowUp(
+        "mine", "feat", str(linked), "2026-10-01", owner=str(repo.resolve())
+    )
+    # Would discharge if judged here: no worktree, no local branch of that name.
+    theirs = rw.RetireFollowUp("theirs", "ghost", "", "2026-10-01")
+    worklist = _owned_worklist(repo, mine, theirs)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
+    result = bs.BranchSweepResult()
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=result) == 0
+
+    assert not linked.exists()
+    assert not _branch_exists_local(repo, "feat")
+    assert result.followups_disposed == ["mine"]
+    assert result.followups_discharged == ["mine"]
+    assert rw.parse_worklist(worklist.read_text())[1] == [theirs]
+    published = _git(
+        repo, "show", "origin/main:coga/recurring/autoclose-merged/retires.md"
+    ).stdout
+    assert published == worklist.read_text()
+    subject = _git(repo, "log", "-1", "--format=%s", "origin/main").stdout.strip()
+    assert subject == "Recurring: branch-sweep discharged 1 retire follow-up(s)"
+    assert _git(repo, "status", "--porcelain", "--", "coga/recurring").stdout == ""
+
+
+def test_recipe_leaves_retire_follow_ups_alone_off_the_control_branch(
+    repo: Path, monkeypatch, capsys,
+) -> None:
+    from coga import retire_worklist as rw
+
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = repo.parent / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    worklist = _owned_worklist(
+        repo,
+        rw.RetireFollowUp(
+            "mine", "feat", str(linked), "2026-10-01", owner=str(repo.resolve())
+        ),
+    )
+    before = worklist.read_text()
+    _git(repo, "checkout", "-b", "elsewhere")
+    _merged_at_tip(monkeypatch, repo, "feat")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
+    result = bs.BranchSweepResult()
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=result) == 0
+
+    assert linked.is_dir()
+    assert result.followups_skipped is not None
+    assert result.followups_disposed == result.followups_discharged == []
+    assert worklist.read_text() == before
+    assert "Retire follow-ups: skipped — checkout is on 'elsewhere'" in capsys.readouterr().out

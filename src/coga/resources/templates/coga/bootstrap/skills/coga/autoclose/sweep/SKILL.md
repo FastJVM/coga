@@ -211,7 +211,10 @@ worktree is gone or is a primary checkout, the sweep does not run this repositor
 branch — they would find no local branch and call it disposed — and reports
 the entry as preserved with the by-hand delete in the owning clone
 (`git -C <owner> branch -d <branch>`), on the run report and coga-important,
-until the owner's branch is gone. When the recorded owner path is itself gone
+until the owner's branch is gone. The owning clone settles it without a
+human when it runs `coga recurring`: its clone-scoped branch sweep runs the
+proofs there on every entry that records it as `owner` and publishes the
+discharge (`coga/branch-sweep/sweep`). When the recorded owner path is itself gone
 or unreadable, that command could not run: the entry is still kept, and the
 remedy says the branch's home is unknown and asks a human to locate the clone
 and correct the entry's `owner` (or remove the line once the branch is

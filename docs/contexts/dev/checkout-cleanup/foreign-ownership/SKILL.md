@@ -23,7 +23,10 @@ closure, and infers missing ownership on legacy worklist entries before any
 branch cleanup or discharge check for primary entries. For those entries it
 does not delete a same-named branch in the sweeping clone. A remaining foreign
 branch is reported for inspection and
-manual branch cleanup in its owning clone; an unreadable owner or branch
+manual branch cleanup in its owning clone. The owning clone's own daily
+branch sweep runs the ordinary proofs on the entries that record it as
+`owner`, then discharges and publishes them (`coga/recurring/scheduling`), so the
+manual step remains only for a clone that does not run `coga recurring`; an unreadable owner or branch
 list keeps the entry pending, and so does a missing owner of a foreign linked
 worktree. For an independent clone recorded as its own owner, a missing
 directory is treated as deletion of the clone and its branch, so the entry

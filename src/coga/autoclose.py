@@ -1094,16 +1094,48 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             )
         )
 
+    result.checkouts.extend(
+        dispose_worklist_backlog(cfg, root, worklists, seen=seen, echo=_echo)
+    )
+
+    for item in result.checkouts:
+        _locate_refused_worktree(root, item)
+
+
+def dispose_worklist_backlog(
+    cfg: Config,
+    root: Path,
+    worklists: list[Path],
+    *,
+    seen: set[str],
+    echo: Callable[[str], Callable[[str], None]],
+    include: Callable[[RetireFollowUp], bool] | None = None,
+    label: str = "autoclose",
+) -> list[CheckoutOutcome]:
+    """Judge every open `retires.md` entry under the shared retire proofs.
+
+    The backlog half of autoclose's disposal phase, shared with the
+    clone-scoped branch sweep, which passes `include=retire_worklist.owned_here`
+    to judge only the entries its own clone owns. The caller has already
+    checked that `root` is on the control branch. Slugs in `seen` are skipped
+    and every walked slug is added to it. Each entry goes through
+    `checkout_disposal.dispose_checkout`, unless its branch lives in another
+    clone (`_owner_held_branch`); nothing here rewrites a worklist.
+    """
+    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
+    from coga.checkout_disposal import dispose_checkout
+
+    outcomes: list[CheckoutOutcome] = []
     for path in worklists:
         try:
             _, entries = parse_worklist(path.read_text(encoding="utf-8"))
         except (RetireWorklistError, OSError, UnicodeError) as exc:
-            # The reconcile below fails the run loudly over the same file;
+            # The caller's reconcile fails the run loudly over the same file;
             # here it only means its backlog is not walked this time.
-            sys.stderr.write(f"[autoclose] backlog in {path} not walked: {exc}\n")
+            sys.stderr.write(f"[{label}] backlog in {path} not walked: {exc}\n")
             continue
         for entry in entries:
-            if entry.slug in seen:
+            if entry.slug in seen or (include is not None and not include(entry)):
                 continue
             seen.add(entry.slug)
             branch = entry.branch or None
@@ -1124,12 +1156,12 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                 branch=branch,
                 worktree=worktree,
                 ticket_exists=ticket_exists,
-                echo=_echo(entry.slug),
+                echo=echo(entry.slug),
             )
             if held is not None:
-                result.checkouts.append(held)
+                outcomes.append(held)
                 continue
-            result.checkouts.append(
+            outcomes.append(
                 CheckoutOutcome(
                     slug=entry.slug,
                     title=None,
@@ -1142,14 +1174,12 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                         branch=branch,
                         worktree=worktree,
                         pr_url=pr_url,
-                        echo=_echo(entry.slug),
+                        echo=echo(entry.slug),
                         owned_branches=tuple(dict.fromkeys((*entry.branches, *owned))),
                     ),
                 )
             )
-
-    for item in result.checkouts:
-        _locate_refused_worktree(root, item)
+    return outcomes
 
 
 def _owner_held_branch(

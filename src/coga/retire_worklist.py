@@ -17,7 +17,10 @@ share it, which is what earns it a home in core:
   recurring — re-runs the proofs on each (its ticket may be gone by then),
   records the run's preserved closures, and drops the ones discharged;
 - `coga retire` drops its own slug once the retire has actually disposed of
-  the checkout.
+  the checkout;
+- the clone-scoped branch sweep disposes of and discharges the entries owned
+  by the clone it runs in (`owned_here`), which the autoclose clone can only
+  report, and publishes just this file when it changed.
 
 Entries are keyed by task slug, so re-recording one refreshes the checkout it
 names and keeps the first sighting's date. When an entry is **discharged** is
@@ -63,7 +66,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -170,6 +173,8 @@ class WorklistChange:
     dropped: list[RetireFollowUp] = field(default_factory=list)
     open: list[RetireFollowUp] = field(default_factory=list)
     written: bool = False
+    original: bytes | None = None
+    """The bytes the reconcile read, for a caller's publish `expect=`."""
 
 
 def template_worklist_path(cfg: Config, template: str) -> Path:
@@ -411,6 +416,19 @@ def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | Non
     return branches is None or bool(set(entry.branch_names) & branches)
 
 
+def owned_here(root: Path | None, entry: RetireFollowUp) -> bool:
+    """Whether `entry`'s recorded `owner` is `root`'s own repository.
+
+    Those are the entries whose branch the autoclose clone can only report
+    (`owner_branch_remains`) and the clone running at `root` can judge with the
+    ordinary proofs. Only a recorded `owner` counts: classifying from `root`
+    never names `root` itself, and an ownerless entry's relative paths and
+    branch names belong to whichever clone recorded it. Reconciling in that
+    clone backfills `owner` while the foreign directory still exists.
+    """
+    return bool(entry.owner) and root is not None and branch_owner(root, entry.owner) == root
+
+
 def is_discharged(
     entry: RetireFollowUp, *, root: Path | None, branches: frozenset[str] | None
 ) -> bool:
@@ -452,6 +470,7 @@ def reconcile_worklist(
     root: Path | None,
     pending: Iterable[RetireFollowUp] = (),
     branches: frozenset[str] | None = None,
+    only: Callable[[RetireFollowUp], bool] | None = None,
 ) -> WorklistChange:
     """Record `pending`, drop discharged entries, and write only what changed.
 
@@ -464,10 +483,15 @@ def reconcile_worklist(
     belongs to another repository gains one while the directory
     still exists to be classified (`worktree_owner`), so the discharge rule
     can later judge its branch where it lives.
+
+    `only`, when given, limits judging to the entries it admits: every other
+    entry is kept exactly as read, neither discharged nor backfilled, because
+    the caller's `root` is not the one it was recorded against.
     """
     change = WorklistChange(path=path)
     with git.state_lock(cfg):
         raw = path.read_bytes() if path.exists() else None
+        change.original = raw
         header, entries = (
             parse_worklist(raw.decode("utf-8"))
             if raw is not None
@@ -477,13 +501,21 @@ def reconcile_worklist(
             branches = local_branches(root)
         original = {entry.slug: entry for entry in entries}
         kept: dict[str, RetireFollowUp] = {}
+        untouched: set[str] = set()
         for entry in entries:
+            if only is not None and not only(entry):
+                kept[entry.slug] = entry
+                untouched.add(entry.slug)
+                continue
             entry = _with_ticket_branches(cfg, entry)
             if is_discharged(entry, root=root, branches=branches):
                 change.dropped.append(entry)
             else:
                 kept[entry.slug] = entry
-        by_slug = {slug: _with_owner(entry, root) for slug, entry in kept.items()}
+        by_slug = {
+            slug: entry if slug in untouched else _with_owner(entry, root)
+            for slug, entry in kept.items()
+        }
         for item in pending:
             item = _with_owner(item, root)
             existing = by_slug.get(item.slug)
@@ -591,6 +623,7 @@ __all__ = [
     "is_discharged",
     "is_primary_checkout",
     "local_branches",
+    "owned_here",
     "owner_branch_remains",
     "parse_worklist",
     "reconcile_worklist",
