@@ -1,6 +1,6 @@
 ---
 name: coga/knowledge
-description: The permanent authoring rule for Coga knowledge — which surface owns a fact (topics, skills, blackboard, log), one owner per fact, links never load content, when to attach versus cite a topic on a ticket, and the topic size review policy.
+description: The permanent authoring rule for Coga knowledge — which surface owns a fact, one owner per fact, links never load content, archive access by human request, when to attach versus cite a topic, and the topic size review policy.
 ---
 
 # Where knowledge lives
@@ -60,8 +60,24 @@ rules needed outside `coga launch`, never an owning statement.
 Composition includes attached refs only
 ([coga/prompt-composition](../prompt-composition/SKILL.md)). A markdown link
 in a topic, skill, or ticket is navigation: the agent reads the target only if
-it chooses to open the file. So an overview does not bring in its children,
-and knowledge a step requires must be attached explicitly by ref.
+it chooses to open the file, subject to the archive access rule below. So an
+overview does not bring in its children, and knowledge a step requires must
+be attached explicitly by ref.
+
+## Archive access
+
+Agents must exclude `docs/archive/**`, including evidence and design pages,
+from searches and reading unless the human explicitly requests archive use
+for the current task. A link, citation, reusable instruction, or general
+research request is not permission to open archived material. If the task
+needs it, ask before reading.
+
+Scope searches to live directories, or exclude the archive explicitly when
+searching from the repository root: `rg --glob '!docs/archive/**' ...` and
+`rg --files --glob '!docs/archive/**'`. This applies to other search and
+file-reading tools too. Authorized archive material remains historical
+evidence, not current instructions. This is an agent instruction, not a
+filesystem access restriction.
 
 ## Attach or cite
 

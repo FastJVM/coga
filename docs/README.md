@@ -10,6 +10,8 @@ Pages outside `contexts/` are for reading, never composed into prompts:
 [`archive/`](#proposals-and-history) holds history, including dated
 measurements and comparisons in [`archive/evidence/`](archive/evidence/)
 and unimplemented proposals in [`archive/design/`](archive/design/).
+Agent access to archives requires an explicit human request; see
+[the archive access rule](contexts/coga/knowledge/SKILL.md#archive-access).
 
 ## Start
 

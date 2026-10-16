@@ -86,9 +86,8 @@ resets, and status-as-signal instead of a lock. The residue is the direction —
 owned, legible, vendor-neutral, human-gated correction — chosen while the field
 moves toward absorption. Competitors can build any piece; model vendors are
 poorly placed to center "depend on vendors less". Original in stance, freely
-copyable for the same reason. See the dated
-[landscape](../../../archive/evidence/agent-memory-landscape-2026-10-13.md) before
-saying "first" or "only": neither is supported.
+copyable for the same reason. Claims of "first" or "only" are unsupported;
+follow the current [positioning limits](../positioning/SKILL.md).
 
 ## Strategic posture
 

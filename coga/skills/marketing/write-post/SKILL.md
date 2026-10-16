@@ -15,8 +15,10 @@ Read the selected ticket and the relevant current homes:
   owners, and the publication/measurement policy.
 - `marketing/positioning` — the reviewed message and source limits.
 
-Use earlier campaign references (archived under
-`docs/archive/launch-programs/`, not attachable) for inspiration only. Never
+Earlier campaign references under `docs/archive/launch-programs/` are
+available only on explicit human request, under
+[the archive access rule](../../../../docs/contexts/coga/knowledge/SKILL.md#archive-access).
+When requested, use them for inspiration only. Never
 promote their post numbers, strategic fork, channel ordering, scorecard or
 gates into the current brief.
 
