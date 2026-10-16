@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -288,8 +288,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
   preserved nonzero-natural fallback behavior, including `-SIGINT`.
 - Added unchanged termination-kind assertions and exception-path null checks
   from the evaluator's optional recommendations. No implementation changes.
-- Design choices approved; workflow advancement awaits an explicit owner
-  instruction to advance. No bump performed in this review assist.
+- Owner approved advancement to `implement`. Review-design is complete;
+  the next session implements the approved scope and gathers the outstanding
+  lifecycle evidence. No implementation code changed in this review assist.
 
 ## Open Questions
 
