@@ -298,19 +298,14 @@ def main(cfg: Config, *, out: TextIO = sys.stdout) -> int:
 
 
 if __name__ == "__main__":
-    # `scope: clone`: this runs in every clone that sweeps, with no period task.
-    # Only a clone whose `coga.local.toml` names checkouts files anything; the
-    # `upstream-id` dedupe keeps two such clones from filing twice. A Coga that
-    # predates clone scope still runs this as a shared period task, which the
-    # script must close itself, so bump exactly when there is a task to bump.
     code = main(load_config())
-    slug = os.environ.get("COGA_TASK_SLUG")
-    if code or not slug:
+    if code:
         sys.exit(code)
     # Complete the step through the CLI: calling a Typer command function
     # in-process would pass `OptionInfo` sentinels instead of real defaults.
     sys.exit(
         subprocess.run(
-            [sys.executable, "-m", "coga.cli", "bump", slug], check=False
+            [sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]],
+            check=False,
         ).returncode
     )

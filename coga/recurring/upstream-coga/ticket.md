@@ -2,10 +2,10 @@
 schedule: "0 8 * * 2"
 schedule_comment: "Every Tuesday at 8am, the morning after client-repo Dream runs - pull Coga findings out of client checkouts"
 title: "Upstream Coga findings"
-# `[upstream] checkouts` is machine-local, so the clone that holds them must run
-# this itself: `scope: clone` runs the reserved `ticket.py` in every clone that
-# sweeps, with no shared period task. Clones with no checkouts configured no-op.
-scope: clone
+# The reserved `ticket.py` sibling is this task's deterministic half: `coga
+# launch` runs it directly, with no agent and no composed prompt. The one-step
+# workflow keeps the period task's lifecycle and skill contract legible.
+workflow: upstream-coga/run
 ---
 
 ## Description
@@ -43,9 +43,7 @@ so a run interrupted between filing and the cursor write files nothing twice.
 
 ### Operating it
 
-Only the machine holding the client checkouts can run this job, which is why
-the template is `scope: clone`: every clone runs it on its own schedule, and
-one without configured checkouts prints a note and exits. Name them in
+Only the machine holding the client checkouts can run this job. Name them in
 `coga.local.toml` — never `coga.toml`, the paths are machine-specific:
 
 ```toml
