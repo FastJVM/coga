@@ -1,6 +1,6 @@
 ---
 title: Blocker reminders
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
