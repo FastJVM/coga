@@ -8530,3 +8530,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-16 10:49 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-16 10:50 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] created (status=draft)
+2026-10-16 10:51 v1 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner confirmed the PyPI yank; verified both coga 0.0.1 wheel and sdist report yanked=true in the PyPI release JSON. Proceed with install documentation updates.
