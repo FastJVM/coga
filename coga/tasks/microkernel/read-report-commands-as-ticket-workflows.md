@@ -16,7 +16,6 @@ contexts:
   - coga/project-stage
   - coga/cli
   - dev/checkouts
-  - dev/dev-record
 workflow: code/design-then-implement
 ---
 

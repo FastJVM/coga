@@ -23,6 +23,15 @@ def test_prelaunch_blackboard_treats_stock_placeholder_as_empty() -> None:
     assert reason is None
 
 
+def test_template_field_guidance_does_not_create_checkout_linkage() -> None:
+    from coga.autoclose import parse_branch_names, parse_pr_url, parse_worktree_path
+
+    text = render_blackboard("Work")
+    assert parse_branch_names(text) == []
+    assert parse_pr_url(text) is None
+    assert parse_worktree_path(text) is None
+
+
 def test_prelaunch_blackboard_detects_authoring_sections() -> None:
     text = dedent(
         """\

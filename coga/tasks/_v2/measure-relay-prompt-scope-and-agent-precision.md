@@ -8,7 +8,6 @@ contexts:
 - coga/usage
 - coga/prompt-composition
 - dev/checkouts
-- dev/dev-record
 workflow:
   name: code/with-review
   steps:

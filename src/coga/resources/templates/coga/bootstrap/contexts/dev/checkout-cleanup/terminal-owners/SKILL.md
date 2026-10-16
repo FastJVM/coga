@@ -13,8 +13,7 @@ the rule: the daily autoclose pass, the weekly retry, and the restricted pass
 retire and autoclose run for a disposed ticket.
 
 **Ownership.** A ticket owns a branch only through a `## Dev` `branch:` line
-(`autoclose.parse_branch_names`; a ticket may record several, see
-[dev/dev-record](../../dev-record/SKILL.md)). An open `retires.md` entry also
+(`autoclose.parse_branch_names`; a ticket may record several). An open `retires.md` entry also
 counts, because autoclose records it for a ticket it closed and that ticket
 may since be gone. An entry whose recorded `owner` is another clone does not
 count. A surviving ticket cannot bypass this with its own branch lines:

@@ -127,7 +127,7 @@ stderr pass through, inherited `COGA_TASK_*` metadata is preserved, and the
 command exits with the recipe's integer code. `runner.run_recipe` also records
 a `## Recipe Failure` section on non-zero exit; that reporting contract belongs
 to [coga/recurring](../recurring/SKILL.md). `open-pr` and `delete-task` take a
-task ref; see [dev/dev-record](../../dev/dev-record/SKILL.md) and
+task ref; see [PR publication](../internals/pr-publication/SKILL.md) and
 [dev/checkouts](../../dev/checkouts/SKILL.md). `autofix-analyze` is covered
 in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know

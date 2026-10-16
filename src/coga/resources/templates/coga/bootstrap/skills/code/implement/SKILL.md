@@ -51,8 +51,7 @@ later `code/open-pr` step does that, after review and fixes.
    Pick a short descriptive branch name — it does *not* have to match the
    slug — and create it without leaving `main`: `git branch <branch-name>`.
    Still on `main`, write `branch: <branch-name>` under a `## Dev` section on
-   the blackboard (keep trailing annotations on a separate line, or
-   backtick-delimit the value first; see the `dev/dev-record` context), plus
+   the blackboard (follow the template’s inline guidance), plus
    any plan notes worth keeping. Publish these edits using `dev/checkouts`
    ("Publish pre-branch ticket edits") and require a clean tree; writing on
    `main` alone does not publish them. Then `git switch <branch-name>`. From here

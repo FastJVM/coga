@@ -63,7 +63,9 @@ After YAML frontmatter, a normal ticket has two regions separated by exactly
   the allowlist holds. There is no assignment field to edit: who holds the
   ticket is derived from the current workflow step's `assignee:` role.
 - **Below the fence: blackboard.** This is free-form working memory. Read it
-  first, update it throughout the step, and leave a useful handoff.
+  first, update it throughout the step, and leave a useful handoff. Follow
+  the ticket template’s inline guidance for optional fields; add them only
+  when applicable and known, and update existing values in place.
   Superseded design history stays on disk under the `coga/blackboard`
   convention ("Superseded designs"); the composed blackboard includes a
   pointer for deliberate reading.

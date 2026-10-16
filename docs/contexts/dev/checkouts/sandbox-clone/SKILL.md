@@ -10,8 +10,7 @@ Part of [dev/checkouts](../SKILL.md).
 **Sandbox clone fallback.** When the sandbox mounts the primary `.git`
 read-only so `git switch -c` fails, make `git clone --no-hardlinks` under
 `/tmp`, repoint `origin` at the real remote, fetch the control branch, create
-the branch there, and record the clone's path in `worktree:`
-([dev/dev-record](../../dev-record/SKILL.md)). Ticket state, `coga bump`, and
+the branch there, and record the clone's path in `worktree:`. Ticket state, `coga bump`, and
 `coga open-pr` stay in the primary checkout on `main`; `open-pr` runs its git
 checks inside the recorded clone. Do not force writes through protected
 metadata or stop to ask when this fallback is available. A `/tmp` clone dies
