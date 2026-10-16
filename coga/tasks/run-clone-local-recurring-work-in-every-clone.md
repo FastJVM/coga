@@ -23,6 +23,13 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+contexts:
+  - coga/recurring
+  - coga/recurring/scheduling
+  - coga/recurring/templates
+  - dev/checkout-cleanup
+  - dev/checkout-cleanup/branch-sweep
+  - dev/checkout-cleanup/foreign-ownership
 ---
 
 ## Description
