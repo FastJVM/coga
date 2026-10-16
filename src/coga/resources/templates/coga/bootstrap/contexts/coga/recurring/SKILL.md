@@ -80,4 +80,5 @@ disposable clone before it merges).
 
 Implementation: `src/coga/recurring.py` (templates, creation, ledger),
 `src/coga/recurring_runner.py` (sweeps, admission, delegation, temp worktrees),
-`src/coga/recurring_autofix.py` (post-sweep analysis).
+`src/coga/recurring_autofix.py` (post-sweep analysis),
+`src/coga/recurring_clone.py` (clone-scoped ledger and runs).
