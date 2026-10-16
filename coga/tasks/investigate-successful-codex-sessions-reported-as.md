@@ -47,7 +47,10 @@ step. Capture the launch target, raw process exit status, supervisor exit
 `kind`, done sentinel, recorded `outcome_status`, and expected workflow
 progress. Preserve real failures, crashes, interrupts, and timeouts.
 
-Done is one of two outcomes, chosen by the owner at `review-design`:
+The owner approved the narrow misclassification fix at `review-design` on
+2026-10-15, with normalized exit evidence fields and the full lifecycle
+reproduction still required during implementation. The original outcome
+alternatives were:
 
 - **Misclassification confirmed:** fix the mapping for the confirmed
   mechanism, add a regression test, and update the `outcome_status` meaning
@@ -60,13 +63,12 @@ Done is one of two outcomes, chosen by the owner at `review-design`:
 
 ### Finding (design step, 2026-10-08)
 
-The leading hypothesis was right in effect but wrong in detail. Codex does
-not *exit* non-zero when a human quits. It is **killed by SIGINT** when the
-human double-taps Ctrl-C quickly. Live repro under the real supervisor
+The leading hypothesis was right in effect but wrong in detail. In the observed fast double-Ctrl-C probes, Codex was **killed by SIGINT**
+rather than choosing a non-zero exit code. Live repro under the real supervisor
 (`repl_supervisor.run_with_done_marker(["codex"], …)` in a tmux pane, codex-cli
 0.160.1, Claude Code 2.1.294, idle composer, no prompt sent):
 
-| CLI | Human quit path | `ReplOutcome` | `outcome_status` today |
+| CLI | Human quit path | `ReplOutcome` | Label inferred from current mapping |
 |---|---|---|---|
 | codex | Ctrl-C ×2, 0.05 s apart | `130 crash` (2/2) | `failed` |
 | codex | Ctrl-C ×2, 0.2 s apart | `130 crash` (1/2), `0 natural` (1/2) | `failed` / `completed` |
@@ -75,33 +77,48 @@ human double-taps Ctrl-C quickly. Live repro under the real supervisor
 | claude | Ctrl-C ×2, 0.05 s apart | `0 natural` | `completed` |
 
 `130 crash` is `_classify_exit`'s report for `WIFSIGNALED` + `SIGINT`
-(`128 + 2`), a signal Coga did not send. The SIGINT comes from the human's
-own keystroke reaching Codex's terminal as a signal rather than a byte. The
-exact Codex-internal reason was not established, and the spec does not
-depend on it. Claude Code never died by signal on any quit path tried. So the
-effect is Codex-specific, timing-dependent, and caused by a human. It matches
-the population: all 24 `failed` records are codex, mostly bootstrap or
+(`128 + 2`). Human Ctrl-C was the observed trigger; the result itself does
+not identify the signal sender. The exact Codex-internal reason was not
+established, and the spec does not depend on it. Claude Code never died by
+signal on any quit path tried. These supervisor-only probes did not launch
+a bootstrap target or ordinary ticket and did not persist activity records;
+the table infers activity labels from the mapping code. The observed
+Codex-specific, timing-dependent mechanism is consistent with the population:
+all 24 `failed` records are codex, mostly bootstrap or
 owner-step sessions that a human closes, and the reported 2026-10-05 session's
 transcript ends on a clean `task_complete` four minutes before its
 `ended_at`.
 
-**Misclassification confirmed** for this mechanism. A SIGINT death caused by
-the human's own Ctrl-C is an interrupt, not a process failure, and the schema
-already has `interrupted` for it. Past records cannot be reclassified because
+**Misclassification fix approved** for the exact `crash` / `128 + SIGINT`
+result, whether idle or mid-turn. The schema already has `interrupted` for
+it. This approval does not establish the cause of any historical record or
+complete the required end-to-end reproduction. The owner reports closing
+the session with Ctrl-C, consistent with the probe mechanism.
+Past records cannot be reclassified because
 they store no exit code. Any remaining `failed` records with very short
 `elapsed_seconds` (0–8 s) look like genuine startup failures and must stay
 `failed`.
 
 ### Acceptance criteria
 
+- [ ] Complete the outstanding live lifecycle reproduction: first a real
+      Codex bootstrap launch closed by the human, then an ordinary ticket
+      step that advances through a matching done sentinel. For each, record
+      the launch target, raw child wait/exit evidence, normalized supervisor
+      exit code and kind, sentinel observation, persisted `outcome_status`,
+      and expected versus observed workflow progress. Include a real model
+      turn. Clearly distinguish raw evidence from normalized results; record
+      unavailable evidence as a gap rather than claiming completion. Arrange
+      human launches from their terminal; do not nest agent launches inside
+      this launched session. Preserve real failures and timeout behavior.
 - [ ] `_session_outcome_status` in `src/coga/commands/launch.py` returns
       `interrupted` when `outcome.kind == "crash"` and
       `outcome.exit_code == 128 + signal.SIGINT`.
 - [ ] Every other mapping is unchanged: `timeout` → `timed_out`; any other
       `crash` (for example `128 + SIGSEGV`, `128 + SIGKILL`, the `1, crash`
       fallback) → `failed`; `natural` with non-zero code → `failed`
-      (including a *natural* exit code of 130, which is the child's own
-      choice, not a signal death); `done` and `natural 0` → `completed`;
+      (including natural exit code 130 and the non-TTY fallback
+      `natural -SIGINT` result); `done` and `natural 0` → `completed`;
       the `KeyboardInterrupt` → `interrupted` and other-exception → `failed`
       paths in `spawn_agent_session` are untouched.
 - [ ] `ReplOutcome`, `_classify_exit`, `AgentSessionResult`, and every
@@ -111,24 +128,32 @@ they store no exit code. Any remaining `failed` records with very short
 - [ ] Regression test in `tests/test_launch.py`: extend the
       `test_spawn_captures_failed_and_timed_out_sessions` parametrization (or
       add a sibling) with `ReplOutcome(130, "crash")` → `interrupted`,
-      `ReplOutcome(128 + signal.SIGSEGV, "crash")` → `failed`, and
-      `ReplOutcome(130, "natural")` → `failed`.
-- [ ] *(Only if the owner approves Open Question 1.)* Activity records gain
+      `ReplOutcome(128 + signal.SIGSEGV, "crash")` → `failed`,
+      `ReplOutcome(130, "natural")` → `failed`, and
+      `ReplOutcome(-signal.SIGINT, "natural")` → `failed`. Assert that
+      returned exit code and `termination_kind` remain unchanged.
+- [ ] Activity records gain
       `exit_code` (int or null) and `exit_kind` (`natural` | `done` |
       `timeout` | `crash` | null), added without a schema bump the way
       `usage_reason` was: older records read back null. A test in
       `tests/test_usage.py` round-trips them and reads an old record as null.
+      These are normalized supervisor results, not raw child wait status;
+      done teardown reports 0 and timeout reports 124. Spawn capture tests
+      assert both fields reach capture unchanged for returned outcomes and
+      remain null when the supervisor raises.
 - [ ] `docs/contexts/coga/internals/activity-capture/SKILL.md` and its
       byte-identical twin
       `src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/activity-capture/SKILL.md`
       define each `outcome_status` value against the supervisor outcome:
       `completed` = done teardown or natural exit 0; `interrupted` = the
-      launching process got `KeyboardInterrupt`, or the agent was killed by
-      SIGINT (a human Ctrl-C reaching the agent's terminal as a signal);
-      `failed` = non-zero natural exit, a death by any other signal Coga did
-      not send, or a spawn-path exception; `timed_out` = idle or max-session
-      teardown. State that `outcome_status` describes the process, not whether
-      the work succeeded, and (if Q1 is approved) name the new fields.
+      launching process got `KeyboardInterrupt`, or the supervisor returned
+      exactly `crash` with code `128 + SIGINT`; `failed` = any other crash,
+      non-zero natural result (including non-TTY `natural -SIGINT`), or a
+      spawn-path exception; `timed_out` = idle or max-session teardown. Human
+      Ctrl-C is the observed example, not signal provenance proved by the
+      record. State that `outcome_status` describes the process, not whether
+      the work succeeded. Name the new normalized exit fields and their
+      limits: they cannot reconstruct raw termination or identify the sender.
 - [ ] `python -m pytest tests/test_launch.py tests/test_usage.py tests/test_packaging.py`
       passes.
 
@@ -138,7 +163,7 @@ they store no exit code. Any remaining `failed` records with very short
    before the `failed` branch, using `signal.SIGINT` (not a literal 130) and
    a one-line comment naming the Codex double-Ctrl-C case.
 2. `tests/test_launch.py`: the parametrized cases above.
-3. If Q1 is approved: `src/coga/usage.py`, the record dataclass that holds
+3. `src/coga/usage.py`, the record dataclass that holds
    `usage_reason`, plus its `from_dict`-style reader (the
    `usage_reason=_optional_str_value(...)` site) and `capture_session()`,
    gain `exit_code` / `exit_kind` keyword arguments defaulting to None.
@@ -235,8 +260,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Design step (2026-10-08, claude)
 
 - Live repro done under the real supervisor (tmux + `run_with_done_marker`).
-  A fast Codex double Ctrl-C gives `130 crash` (SIGINT death) and is
-  recorded `failed`. Slow Ctrl-C, `/quit`, `/exit`, and Ctrl-D give
+  A fast Codex double Ctrl-C gives `130 crash` (SIGINT death) and
+  would map to `failed`; the probe itself did not capture an activity record.
+  Slow Ctrl-C, `/quit`, `/exit`, and Ctrl-D give
   `0 natural`. Claude gives `0 natural`. Table and steps are in
   Description and Context.
 - Outcome proposed: **misclassification confirmed**. Map SIGINT-crash to
@@ -246,17 +272,29 @@ The blackboard is a notepad to be written to often as the human and agent works 
   shows a bump), and a Codex quit after a real model turn. One after-turn
   trial outside the supervisor exited 0.
 
+## Owner review (2026-10-15)
+
+- Owner approved the proposed design choices and reported closing the session
+  with Ctrl-C. This is consistent with the observed mechanism, but does not
+  prove the exit status of that historical session.
+- Q1 resolved: add nullable `exit_code` / `exit_kind` as normalized supervisor
+  results, with backward-compatible reads and spawn-to-capture tests.
+- Q2 resolved: the exact `crash` / `128 + SIGINT` result is `interrupted`
+  whether idle or mid-turn; the record does not establish signal sender.
+- Evaluator must-fix 1 accepted: the bootstrap and ordinary-ticket lifecycle
+  reproductions remain explicit implementation acceptance criteria. Relabeled
+  the probe table as inferred activity labels, not persisted capture evidence.
+- Evaluator must-fix 2 accepted: narrowed the documentation predicate and
+  preserved nonzero-natural fallback behavior, including `-SIGINT`.
+- Added unchanged termination-kind assertions and exception-path null checks
+  from the evaluator's optional recommendations. No implementation changes.
+- Design choices approved; workflow advancement awaits an explicit owner
+  instruction to advance. No bump performed in this review assist.
+
 ## Open Questions
 
-1. Should activity records also start storing `exit_code` and `exit_kind`
-   (no schema bump, null on old records) so future `failed` /
-   `interrupted` labels can be audited? Recommendation: yes. It is about
-   10 lines and would have answered this ticket from `log.md` alone. The
-   spec marks it conditional.
-2. Should a SIGINT death be `interrupted` even when it happens mid-turn
-   (a human aborting real work)? The spec says yes: the human chose to stop
-   it, which matches the schema's meaning. Say so if you want mid-work
-   aborts to stay `failed`. The record cannot tell the two apart.
+None about design scope. Required live lifecycle evidence remains outstanding
+implementation work.
 
 ## Evaluator review
 
