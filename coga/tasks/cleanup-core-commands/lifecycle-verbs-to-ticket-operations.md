@@ -21,55 +21,58 @@ workflow: code/design-then-implement
 
 ## Description
 
-Move the user-facing lifecycle verbs out of the protected core command surface.
-The commands in scope are `coga mark active`, `coga mark paused`,
-`coga mark done`, `coga bump`, `coga block`, and `coga unblock`.
+Settle the placement of the two lifecycle heads that sit in the kernel by
+registration rather than by the launch-closure test: `coga block` /
+`coga unblock`, and the `coga owner` head (a `mark`-shaped locked write of
+`owner:`). For each, either write the co-versioning proof that keeps it in
+`src/coga/` or move it to the edge without changing semantics.
 
-The desired product shape is that lifecycle changes are ticket/session
-operations over a small internal state-write primitive, not independent core
-verbs that make task state feel separate from the workflow that owns it. The
-primitive may remain in Python if tickets and scripts need it to advance safely;
-the command surface should become as small and ticket-shaped as possible.
+`coga mark` and `coga bump` are **out of scope**: `coga/extension-model`
+keeps them in the kernel because launch calls them mid-flight, and the owner
+confirmed that boundary for v1 on 2026-10-16.
+
+### Acceptance criteria
+
+- [ ] The design names, for `block`, `unblock` and `owner`, the internal
+      state-write primitive each head calls, and separates the primitive from
+      the user-facing head.
+- [ ] Each head ends either with a written co-versioning proof (the
+      package-private invariant or atomic transaction an edge implementation
+      could not preserve) recorded in `coga/extension-model`, or moved to the
+      edge with unchanged behavior.
+- [ ] Lifecycle invariants are preserved: status transitions, blocker asks
+      and their resolution, `COGA_EXPECTED_TASK`/`COGA_EXPECTED_STEP` guards,
+      session termination under a supervisor, logging, git sync and
+      notifications.
+- [ ] The `owner` row leaves the "Open command placements" table in
+      `coga/extension-model` and its packaged twin; the kernel bullet there
+      states the reason `block`/`unblock` stay (or drops them if moved);
+      `coga/lifecycle`, `coga/tickets/ownership` and the `coga/cli` index
+      match.
+- [ ] Tests cover the changed surface; the full suite and
+      `coga validate --json` pass.
 
 ## Context
 
-Directory index: `v2/cleanup-core-commands/README`.
+Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
 
-Owner direction from the parent: only `create` is presumed irreducibly core.
-Everything else should be treated as a ticket/workflow/script candidate unless
-the implementation proves a specific bootstrapping exception. This ticket tests
-that rule on the lifecycle verbs first because they currently look core only
-because `launch` calls the same state-transition machinery.
+Coordinate with `cleanup-core-commands/launch-decomposition`, which isolates
+launch's lifecycle writes (`_auto_activate`, `mark_in_progress`,
+blocked-resume re-block, script step/done) in the launch service. If moving
+`block`/`unblock` needs a launch hook, record that dependency there rather
+than adding one here.
 
-Design first. Identify:
+Out of scope: `mark`, `bump`, `create`, `skill *`, and the launch executor.
 
-- Which internal state-write functions must stay as substrate.
-- Which user-facing lifecycle commands can become workflow/script operations.
-- How supervised agent sessions advance without telling humans to run a
-  separate command manually.
-- How Slack/git sync/logging stay fail-loud and recoverable.
-- What compatibility aliases, if any, should remain as thin sugar.
+### Premise check (2026-10-16, pull-forward to v1)
 
-Out of scope: changing `create`, changing skill installation, and decomposing
-the launch executor itself. If launch must grow a new hook to run lifecycle
-operations, record that dependency and coordinate with
-`v2/cleanup-core-commands/launch-decomposition`.
-
-## Acceptance Criteria
-
-- [ ] The design step documents the minimal internal state-write substrate and
-      separates it from user-facing lifecycle verbs.
-- [ ] `mark`, `bump`, `block`, and `unblock` are either moved to ticket/script
-      operations or each has a precise follow-up explaining what mechanism is
-      missing.
-- [ ] If the design touches both state writes and blocker handling, split the
-      implementation into smaller follow-up tickets before code changes.
-- [ ] Existing lifecycle invariants are preserved: status transitions, step
-      transitions, blocking/unblocking semantics, logging, git sync, and
-      notifications.
-- [ ] Tests cover the changed lifecycle behavior and compatibility surface.
-- [ ] `coga/extension-model`, `coga/lifecycle`, the `coga/cli` index, and
-      packaged context copies are updated when the command boundary changes.
+- Subject exists: `src/coga/commands/{block,unblock,owner,mark,bump}.py`.
+- Delivered in part (Dream W39 F46): `coga/extension-model` now classifies
+  `mark`/`bump` as kernel (launch closure). Owner kept that rule on
+  2026-10-16, so scope narrowed to `block`/`unblock` (kernel "by
+  registration") plus the newer `owner` head, whose table row had no review.
+- Frontmatter `title` still reads "Move lifecycle verbs to ticket
+  operations"; owner may rename it.
 
 <!-- coga:blackboard -->
 

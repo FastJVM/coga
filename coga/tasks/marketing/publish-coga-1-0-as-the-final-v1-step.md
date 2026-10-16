@@ -90,6 +90,9 @@ tagged or uploaded. This step produced a dry run of the pre-tag gate on current
 - Other open product PRs not on the marketing path: #962–#967, #969. Owner to
   decide which must land in 1.0.
 - `marketing/build-the-launch-plan` — step 2 (human). Coordinate only.
+- Added 2026-10-16 (owner): `cleanup-core-commands/*` (microkernel cleanup,
+  six tickets; v1 ships with extension-model's open-placements table empty)
+  and `marketing/demo-hackability-ask-claude-to-add-a-command-live`.
 
 ### Provisional gate on `main` @ 6222b47ee (pristine `git clone` in scratch)
 | Check | Command | Result |

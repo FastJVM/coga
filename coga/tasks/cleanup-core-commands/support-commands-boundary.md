@@ -21,48 +21,45 @@ workflow: code/design-then-implement
 
 ## Description
 
-Classify support and bootstrap-adjacent commands under the small-core rule and
-move any command behavior that clearly belongs in a ticket/workflow/script
-shape. Commands in scope: `coga secret get`, `coga uninstall`, package upgrade
-or refresh documentation, and any installer/bootstrap command surface that
-remains after excluding `create`, `launch` substrate, and `skill *`.
+Settle the placement of the support heads `coga secret get` and
+`coga uninstall`. For each, record whether it is bootstrap substrate (must
+work without an existing ticket or a working `coga/`), an edge command, or
+external tooling, and move it if the answer is the edge.
 
-This ticket exists so support commands do not slip through the audit merely
-because they are not obvious project/workflow commands. Some may stay external
-tooling or installer substrate; the point is to prove that explicitly.
+Secret values never enter tickets, prompts, blackboards, logs or sync commits.
+Acquisition is external (`op`, the environment); injection at launch is a
+kernel hook and stays.
+
+### Acceptance criteria
+
+- [ ] `secret get` and `uninstall` are each classified with a written reason
+      in `coga/extension-model` (both copies), not an implicit "already
+      exists" reason.
+- [ ] `uninstall`'s classification answers whether it is `init`'s symmetric
+      bootstrap substrate (it must survive a broken alias config; see the
+      extension-model alias guardrails).
+- [ ] Any move preserves the secret boundary and launch-time injection.
+- [ ] Upgrade/refresh documentation (`coga init --update`, package upgrade
+      in `coga/install`) is checked for a missing support surface; no
+      top-level `coga update` command is invented.
+- [ ] The row leaves "Open command placements"; tests and the `coga/cli`
+      index are updated.
 
 ## Context
 
-Directory index: `v2/cleanup-core-commands/README`.
+Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
 
-Owner direction: except for `skill *`, `create`, and the true launch executor
-substrate, commands should be treated as candidates to leave the core command
-surface. Be careful with secrets: secret values must never be written into
-tickets, prompts, blackboards, logs, or sync commits. A ticket-shaped secret
-operation can record intent and outcome, but not secret material.
+`src/coga/commands/update.py` is `coga init`'s template-copy helpers, not a
+command. Launch-time git push-auth preflight and installed-versus-source
+warnings may be handed here by `cleanup-core-commands/launch-decomposition`.
 
-There is no top-level `coga update` command in this checkout; do not invent one
-in this ticket. If an update-like surface is needed, clarify whether the target
-is package upgrade documentation, fresh `init`, or `coga skill update` (which is
-excluded with `skill *` unless the owner changes that direction).
+### Premise check (2026-10-16, pull-forward to v1)
 
-Design first. Decide whether each support command is:
-
-- installer/bootstrap substrate that cannot require an existing ticket;
-- external/script tooling that should stay outside ticket lifecycle;
-- ticket/workflow operation with persisted intent/outcome;
-- thin compatibility alias.
-
-## Acceptance Criteria
-
-- [ ] `secret get`, `uninstall`, package upgrade/refresh docs, and related support surfaces are
-      classified under the new small-core rule.
-- [ ] Any moved support behavior preserves security boundaries, especially for
-      secret values.
-- [ ] Commands that stay outside tickets have a documented substrate or external
-      tooling reason, not an implicit "already exists" reason.
-- [ ] Follow-up tickets are created for migrations that need a new mechanism.
-- [ ] Durable docs/contexts and tests are updated for any behavior change.
+- Subject exists: `src/coga/commands/{secret,uninstall}.py`.
+- Passes all four questions per the Dream W40 correction to W39 F49: the
+  "acquire outside, verify inside" text is now one bullet under extension-model
+  "Parameters and trust boundaries", which covers acquisition vs. injection
+  but leaves the `secret get` head itself in the open table.
 
 <!-- coga:blackboard -->
 

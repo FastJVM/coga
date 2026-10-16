@@ -52,21 +52,21 @@ ratified command-specific co-versioning proof. Their existing package
 residence is provisional; registration as a built-in, Python logic, side
 effects, or calling shared infrastructure does not settle their placement.
 
-| Command surface | Open decision | Parked cleanup review |
+| Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
 | `megalaunch`, `retire`, `slack` | Placement of queue orchestration, retire-task creation/launch, and the user-facing notification head | `work-orchestration-commands-to-tickets` |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
 | `show`, `status`, `validate`, `usage`, `recurring list` | Placement of the read/report heads, separately from shared rendering and validation infrastructure | `read-report-commands-as-ticket-workflows` |
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
-| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | none yet |
+| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 
-These reviews live under the parked `coga/tasks/_v2/cleanup-core-commands/`,
-off the execution path (parked directories: `coga/tickets/discovery`). Commands stay where they are
-until a reviewed change settles their placement. The parked drafts are dated
-proposals, not authority to migrate them or to replace the current kernel
-boundary below. Shared helpers and launch-time trust hooks retain their own
-kernel justification independently of the user-facing heads that call them.
+These tickets live under `coga/tasks/cleanup-core-commands/` and are v1
+scope: v1 ships with this table empty. Commands stay where they are until a
+reviewed change settles their placement, and the tickets work toward the
+kernel boundary below rather than replacing it. Shared helpers and launch-time
+trust hooks retain their own kernel justification independently of the
+user-facing heads that call them.
 
 ## Choosing a home
 

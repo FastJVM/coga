@@ -23,45 +23,43 @@ workflow: code/design-then-implement
 
 ## Description
 
-Classify the command surfaces that are easy to miss in the core-command cleanup
-because they are already partially extracted, aliases, grouped commands, or
-bootstrap-adjacent. Surfaces in scope: `coga init`, `coga ticket`, `coga delete`,
-`coga skill *`, bare `coga recurring`, `coga recurring launch <name>`, and the
-default aliases `chat`, `build`, `dream`, `skill-update`, and `autoclose`.
+Close the two residual rows of the "Open command placements" table:
 
-This ticket is not expected to migrate `skill *`; owner direction currently
-excludes skills from the ticketization push. It should still classify `skill *`
-so the final command taxonomy is complete and honest.
+- **`coga ticket`**: write the co-versioning proof for its current head, or
+  move it to the edge. The current split is the `bootstrap/ticket` interview
+  target, `coga.authoring` finalize (validation and sync after the agent
+  exits), and `commands/ticket.py`, the argument-to-draft coordinator that
+  calls finalize inline. A plain `launch bootstrap/ticket` alias cannot
+  replace it because the head drafts a ticket on the fly and owns the
+  post-exit phase.
+- **`skill *`**: record its explicit classification as a thin wrapper over
+  `gh skill`, either external tooling (extractable as a `gh` extension) or
+  a co-versioned package command, with the owner direction recorded.
+
+### Acceptance criteria
+
+- [ ] `ticket` has a written co-versioning proof in `coga/extension-model`,
+      or is moved to the edge with unchanged behavior and tests.
+- [ ] `skill *` has an explicit classification and reason in
+      `coga/extension-model`.
+- [ ] Both rows leave the table (both copies);
+      `docs/archive/cli-extension-audit.md`, `coga/tickets/authoring`,
+      `coga/skill-management` and the `coga/cli` index match.
+- [ ] Any migration found here becomes its own follow-up ticket.
 
 ## Context
 
-Directory index: `v2/cleanup-core-commands/README`.
+Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
 
-This ticket exists because the first child-ticket split covered the obvious
-command groups but missed surfaces that are already partly extracted or hidden
-behind aliases. Read `src/coga/cli.py`, `docs/archive/cli-extension-audit.md`,
-`docs/contexts/coga/extension-model/SKILL.md`, and the `coga/cli` command
-index (`docs/contexts/coga/cli/SKILL.md`, packaged twin
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`).
+Already settled and out of scope (Dream W39 F48): default aliases are argv
+sugar; fresh `init` is kernel; `delete` is a thin head over the `delete-task`
+recipe; bare `recurring` is a thin head over `recurring-scan`.
 
-Design first. Decide for each surface whether it is:
+### Premise check (2026-10-16, pull-forward to v1)
 
-- true bootstrap substrate (`init` may be, because it exists before `coga/`);
-- a current command head plus bootstrap ticket/script body whose permanent
-  home still needs a named co-versioning proof or an edge migration (`ticket`);
-- already script-shaped and only needing docs/taxonomy updates (`delete`);
-- excluded external/tooling surface (`skill *`);
-- alias sugar over an existing launch/recurring launch path.
-
-## Acceptance Criteria
-
-- [ ] The residual surfaces are represented in the final command taxonomy.
-- [ ] Default aliases are documented as alias sugar, not command logic.
-- [ ] `skill *` is explicitly classified as excluded or external/tooling, with
-      the owner direction recorded.
-- [ ] Any migration discovered here is split into a concrete follow-up ticket
-      rather than bundled into this classification pass.
-- [ ] Durable docs/contexts and tests are updated if classification changes.
+- Delivered in part (Dream W39 F48): aliases, `init`, `delete`, bare
+  `recurring` are classified in extension-model and the audit. Scope narrowed
+  to `ticket` and `skill *`, the two surfaces still in the open table.
 
 <!-- coga:blackboard -->
 

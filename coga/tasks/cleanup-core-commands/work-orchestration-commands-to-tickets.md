@@ -22,51 +22,56 @@ workflow: code/design-then-implement
 
 ## Description
 
-Move command behavior that performs substantive work orchestration into durable
-tickets and workflows. Commands in scope: `coga retire`, `coga megalaunch`,
-`coga slack`, and digest/recurring maintenance command surfaces that still own
-workflow substance.
+Settle the placement of the in-package heads that orchestrate work:
+`coga retire`, `coga megalaunch` (and its `pick` alias), and `coga slack`.
+Move each head's single-consumer substance to the edge (command ticket,
+`ticket.py`, `src/coga_edge/`) behind a thin creator/launcher/alias, or
+record why it must be co-versioned with the package.
 
-The dedicated removal ticket supersedes the project-planning portion of this
-work by deleting that command outright; it is no longer a migration target.
+### Acceptance criteria
 
-These are the most ticket-shaped commands: they plan work, retire work, drain
-work queues, notify humans, or summarize/post results. The user-facing command
-should become a small creator/launcher/alias where needed; the substantive
-operation should live in a ticket, workflow, skill, or script target.
+- [ ] The design defines one shared creator/launcher/alias pattern for these
+      heads, so they do not each invent a migration shape.
+- [ ] `retire` is migrated or split into a concrete follow-up with exact
+      acceptance criteria. Its state rule stays: a canceled ticket gets a
+      retire task; a done ticket is deleted in place.
+- [ ] `megalaunch` and `slack` are each moved or given a co-versioning proof
+      in `coga/extension-model`. Megalaunch's queue selection, liveness
+      defaults and timeout classification are caller policy, not executor
+      substrate.
+- [ ] Implementation is split per command shape after design review.
+- [ ] Human-visible side effects stay durable (blackboards, `coga/log.md`,
+      sync commits, notifications).
+- [ ] The three rows leave the "Open command placements" table (both
+      copies); `coga/megalaunch`, `dev/checkout-cleanup`,
+      `coga/notifications` and the `coga/cli` index match; tests pass.
 
 ## Context
 
-Directory index: `v2/cleanup-core-commands/README`.
+Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
 
-Existing prior art:
+Prior art: `ticket` (command head plus `bootstrap/ticket` and
+`coga.authoring` finalize), `bootstrap/recurring-scan`, the `delete-task`
+recipe, `bootstrap/resolve-conflicts` and `bootstrap/address-pr-comments`
+command tickets reached by aliases.
 
-- `ticket` currently has a command head plus `bootstrap/ticket` interview and
-  finalize logic; the residual-command ticket must still prove whether that
-  coordinator requires package co-versioning or belongs at the edge.
-- recurring scan has been collapsed toward `bootstrap/recurring-scan`.
-- digest/autoclose/delete behavior already has script/workflow precedent.
+Depends on `cleanup-core-commands/launch-decomposition` for a public
+one-session API (megalaunch currently imports the session runner out of
+`commands/launch.py`). Does not touch `runner.RECIPES`: that registry is
+owned by `gigantic-refactor-move-recurring-recipes-out-of-co`.
 
-Design the shared pattern first so `retire`, `megalaunch`, and notification/
-digest operations do not each invent a different migration shape.
-Do not implement all of them in one PR; after the design review, split concrete
-moves by command shape if more than one command would change.
+Out of scope: `skill *`, `create`, the launch executor, recurring recipes.
 
-Out of scope: `skill *`, `create`, and the launch executor substrate.
+### Premise check (2026-10-16, pull-forward to v1)
 
-## Acceptance Criteria
-
-- [ ] The design step defines the shared creator/launcher/alias pattern for
-      work-orchestration commands.
-- [ ] `retire` is migrated or split into a concrete implementation follow-up
-      with exact acceptance criteria.
-- [ ] `megalaunch`, `slack`, and digest/recurring maintenance surfaces are
-      classified and migrated where the shape is clear.
-- [ ] Implementation work is split if the reviewed design touches unrelated
-      command shapes.
-- [ ] Human-visible side effects remain durable in ticket blackboards, logs,
-      sync commits, or notification records as appropriate.
-- [ ] Tests and command-reference docs/contexts are updated.
+- Subject exists: `src/coga/commands/{retire,megalaunch,slack}.py`,
+  `src/coga/megalaunch.py`.
+- Stale surfaces removed (Dream W39 F47): `coga digest` (removed by
+  `remov-digest-in-recurring`) and `coga project` (removed by
+  `remove-coga-build-and-project`). Bare `coga recurring` is already a thin
+  head over the `recurring-scan` recipe, so recurring maintenance left scope.
+- Not delivered: all three heads are still listed in extension-model's
+  "Open command placements".
 
 <!-- coga:blackboard -->
 
