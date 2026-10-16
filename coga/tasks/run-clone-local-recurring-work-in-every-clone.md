@@ -1,6 +1,6 @@
 ---
 title: Run clone-local recurring work in every clone
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
