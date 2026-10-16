@@ -20,10 +20,8 @@ that, and offers to install missing external CLIs (see
   is the untested Windows route.
 - **Python 3.11+.** The package declares `requires-python = ">=3.11"`
   (`pyproject.toml`) because config loading uses the standard-library
-  `tomllib`. On an older interpreter, `pip install coga` fails with
-  `Could not find a version that satisfies the requirement coga` plus
-  `Requires-Python` notes, or it may succeed at installing the old `0.0.1`
-  placeholder, which provides no `coga` command. Check `python3 --version`.
+  `tomllib`. The preferred uv install below can download a compatible
+  Python for you; pip and pipx need an installed Python 3.11+.
 - **Git.** The only external tool `coga init` enforces
   (`src/coga/commands/init.py` `_require_init_tools`, driven by the
   `required_at_init` entries in `src/coga/dependencies.py`). Git is also
@@ -123,17 +121,43 @@ The package is `coga` on PyPI. Preferred: an isolated tool install with
 uv tool install coga
 ```
 
-Alternatives:
+With default settings, uv finds a compatible Python or downloads a managed
+Python 3.11+ if none is available, including on systems whose `python3` is
+3.10 or older. You do not need to replace the system Python. See uv's
+[Python management](https://docs.astral.sh/uv/concepts/python-versions/) for
+download settings.
+
+Alternatives, using an already-installed Python 3.11+:
 
 ```sh
-pipx install coga                 # isolated, pipx-managed
+pipx install --python python3.11 coga  # isolated; python3.11 must be installed
 python3 -m venv .venv && . .venv/bin/activate && pip install coga
 python3 -m pip install coga       # deliberately into the current environment
 ```
 
+Check `python3 --version` before using either `python3` command above.
+
 Contributors working on Coga itself install the checkout editable with the
 test extra: `python -m pip install -e ".[test]"`
 ([coga/codebase](../codebase/SKILL.md) covers the source-checkout loop).
+
+### Python is older than 3.11
+
+On an older interpreter, `pip install coga` fails with
+`Could not find a version that satisfies the requirement coga` and
+`Requires-Python >=3.11` diagnostics. The `0.0.1` placeholder, which provided
+no `coga` command, is yanked on PyPI and excluded from ordinary unpinned
+installs. Explicitly pinning `coga==0.0.1` can still install that placeholder;
+it is not a compatibility workaround.
+
+Use `uv tool install coga`, or install Python 3.11+ separately and run
+`pipx install --python python3.11 coga`. If uv is configured to use an older
+Python, request a compatible one with `uv tool install --python 3.11 coga`;
+automatic Python downloads must be enabled if that interpreter is absent.
+Creating a venv with an older Python does not help: a venv uses the
+interpreter that created it.
+
+### Other install failures
 
 **`Hashes are required in --require-hashes mode`.** The machine has pip's
 hash-checking mode on globally (common on managed laptops). Either install

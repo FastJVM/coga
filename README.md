@@ -105,14 +105,17 @@ Coga runs on Linux, Windows or macOS and needs Python 3.11+, Git, and an authent
 offers to install and log in whichever agent CLI you pick.
 
 ```sh
-uv tool install coga            # or: python -m pip install coga
+uv tool install coga
 coga --version                  # check the install
 cd <your git repository>
 coga init --user <your-name>
 ```
 
+With default settings, uv downloads a compatible Python when needed, even
+if your system Python is older than 3.11.
+
 [Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
-repository that already uses Coga, and troubleshooting.
+repository that already uses Coga, pip/pipx alternatives, and troubleshooting.
 [First task](docs/contexts/coga/first-task/SKILL.md) walks one ticket from
 draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
 was recorded in July 2026; some command names may have changed since.
