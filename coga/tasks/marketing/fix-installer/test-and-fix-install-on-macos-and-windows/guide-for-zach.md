@@ -55,7 +55,14 @@ to 64 GB.
 
 1. Download **UTM** (free) from https://mac.getutm.app — the grey
    **Download** button, not the $9.99 Mac App Store one. They are the same
-   app. Drag it into Applications and open it.
+   app. Double-click the downloaded `UTM.dmg`, then drag the UTM icon onto
+   the Applications folder shown next to it.
+
+   The UTM icon left on your desktop afterwards is the installer disk, not
+   the app, and clicking it does nothing. Open the real app with Cmd+Space,
+   type `UTM`, Enter; click **Open** if macOS asks about an app downloaded
+   from the internet. Right-click the desktop icon → **Eject "UTM"** to
+   clear it.
 2. Click **Create a New Virtual Machine** → **Virtualize** → **macOS 12+**.
 3. Leave the install file empty so UTM downloads the latest macOS for you
    (about 15 GB; this is the slow part).
