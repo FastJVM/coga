@@ -44,10 +44,10 @@ step: 2 (review-design)
 
 `src/coga/commands/launch.py` is currently both the `coga launch` Typer command
 and the shared runtime used by task launches, `coga ticket`, and `coga
-megalaunch`. Its 1,179 lines combine target/status policy, workflow
+megalaunch`. Its 3,782 lines (1,179 when this was designed) combine target/status policy, workflow
 supervision, prompt/agent process execution, usage capture, git readiness and
-refresh behavior, and lifecycle writes. Script execution adds another 460
-lines in `commands/launch_script.py`, including both subprocess mechanics and
+refresh behavior, and lifecycle writes. Script execution adds another 600
+lines in `src/coga/launch_script.py`, including both subprocess mechanics and
 step/status transitions. The resulting command module is a dependency of other
 commands and makes every launch-adjacent behavior look irreducibly core.
 
@@ -68,11 +68,11 @@ executor API.
 
 ## Context
 
-Directory index: `v2/cleanup-core-commands/README`.
+Directory index: `microkernel/README`.
 
-The dedicated removal ticket supersedes the former project-planning caller in
-this inventory by deleting it outright; this design should not preserve a seam
-for that removed command.
+`coga project` was removed outright (`remove-coga-build-and-project`); this
+design must not preserve a seam for it, and every `project` mention below is
+void.
 
 Owner direction from the parent: keep `launch` and the things it truly depends
 on, but challenge every other part of launch-shaped behavior. This ticket should
@@ -90,7 +90,7 @@ Classify each responsibility as:
 Out of scope: moving `create`, moving `skill *`, or implementing lifecycle
 verb migration unless it is required to prove the launch split.
 
-## Acceptance Criteria
+### Acceptance criteria
 
 - [ ] `src/coga/commands/launch.py` is a thin Typer adapter: parse CLI values,
       resolve/report user-facing errors, invoke prompt-report or the launch
@@ -109,14 +109,14 @@ verb migration unless it is required to prove the launch split.
       step, re-reads the ticket, and chains only while file-backed status,
       step, and assignee state say to continue. It contains no workflow name,
       skill ref, or bootstrap target name as execution policy.
-- [ ] Existing callers (`launch`, `ticket`, `project`, and `megalaunch`) use the
+- [ ] Existing callers (`launch`, `ticket`, and `megalaunch`) use the
       extracted single-agent session path; no compatibility import shim remains
       in `commands/launch.py`.
 - [ ] Current lifecycle behavior is preserved but visibly isolated in the
       launch service: draft/paused/blocked activation, `active -> in_progress`,
       unresolved-blocker re-block, and successful-script step/done writes.
       The ticket records these as the handoff boundary to
-      `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations` rather than
+      `microkernel/lifecycle-verbs-to-ticket-operations` rather than
       declaring the writes executor substrate.
 - [ ] Launch still fails loud, before unsafe mutation where applicable, for an
       unknown target, missing context/skill/script, missing agent/TTY, unresolved
@@ -126,18 +126,18 @@ verb migration unless it is required to prove the launch split.
 - [ ] No lock abstraction is introduced. The existing task-scoped
       `COGA_DONE_SENTINEL` PTY channel remains agent-process substrate, while
       expected-task/expected-step guards remain part of lifecycle coordination.
-- [ ] Focused launch, script, restart, ticket, project, and megalaunch tests pass;
+- [ ] Focused launch, script, restart, ticket, and megalaunch tests pass;
       the full pytest suite, `git diff --check`, and
-      `coga validate --task cleanup-core-commands/launch-decomposition --json`
+      `coga validate --task microkernel/launch-decomposition --json`
       pass.
 - [ ] `coga/launch`, `coga/script-tickets`, `coga/internals/agent-spawn`,
       `coga/codebase`, `coga/extension-model`, and
       `docs/archive/cli-extension-audit.md` describe the new source boundary. Any
       changed shipped context is updated in both the live and packaged copies.
 
-## Proposed Shape
+### Proposed shape
 
-### Responsibility classification
+#### Responsibility classification
 
 **Executor substrate that stays in Python**
 
@@ -163,15 +163,15 @@ verb migration unless it is required to prove the launch split.
   agent-skill-view refresh are start-of-run policy/diagnostics. Keep their
   current behavior during the extraction, but keep them above the executor
   boundary. Their removal or relocation belongs to
-  `v2/cleanup-core-commands/support-commands-boundary` and the point-of-use
+  `microkernel/support-commands-boundary` and the point-of-use
   git/open-PR paths, not `agent_session` or `script_session`.
 - Prompt-report rendering is a read-only compose diagnostic. Keep the existing
   flag as a thin early-return in this PR, and hand its eventual surface to
-  `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows`.
+  `microkernel/read-report-commands-as-ticket-workflows`.
 - Recurring/megalaunch idle and wall-clock defaults, timeout classification,
   and repeated-task selection are caller policy. The session runner accepts
   concrete limits, but choosing them belongs to
-  `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`.
+  `microkernel/work-orchestration-commands-to-tickets`.
 
 **Lifecycle transition boundary**
 
@@ -192,13 +192,13 @@ verb migration unless it is required to prove the launch split.
   runner for `ticket`/`project`; named `bootstrap/orient` and
   `bootstrap/ticket` knowledge must stay in the thin caller/compatibility layer,
   not the executor. Default-alias cleanup belongs to
-  `v2/cleanup-core-commands/residual-command-surfaces`.
+  `microkernel/residual-command-surfaces`.
 - Preserve `--prompt-report`, `--idle-timeout`, `--max-session`, and the hidden
   timeout-return behavior during the structural PR so recurring callers do not
   change accidentally. Their classification above prevents the new substrate
   API from treating those CLI choices as permanent core concepts.
 
-### Source changes
+#### Source changes
 
 1. Add `src/coga/agent_session.py`. Move `AgentSessionResult`, agent argv and
    discussion-template construction, oversized-prompt argv handling,
@@ -218,7 +218,7 @@ verb migration unless it is required to prove the launch split.
    presentation. Convert service/session failures to one typed `LaunchError`
    path so library code no longer calls `_bail` or `sys.exit`; propagate real
    child exit codes at the command boundary.
-5. Update `commands/ticket.py`, `commands/project.py`, and `megalaunch.py` to
+5. Update `commands/ticket.py` and `megalaunch.py` to
    import the public one-session API from `coga.agent_session`. Update recurring
    in-process callers to invoke the launch service rather than calling the
    Typer function with `OptionInfo`-sensitive defaults.
@@ -233,7 +233,7 @@ verb migration unless it is required to prove the launch split.
    its trust/process hooks; lifecycle and caller policy are dependencies used
    by launch today, not permanent user-facing core commands.
 
-## Out of Scope
+### Out of scope
 
 - Moving or redesigning `create`, `skill *`, secret acquisition, prompt
   composition order, the PTY watcher protocol, usage-log schema, or git sync
@@ -272,7 +272,7 @@ Created under `v2/cleanup-core-commands/` as part of the command-surface breakdo
 - Status activation, `active -> in_progress`, blocked-ticket resume/re-block,
   and script success advancing/finishing are lifecycle behavior. Their eventual
   command-surface migration belongs to
-  `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations`, not this
+  `microkernel/lifecycle-verbs-to-ticket-operations`, not this
   extraction.
 - Git push readiness, installed/source skew warnings, generated agent-skill
   view refresh, prompt-report rendering, and recurring liveness defaults are
@@ -285,6 +285,27 @@ Created under `v2/cleanup-core-commands/` as part of the command-surface breakdo
 None. The owner review should confirm the deliberately behavior-preserving
 first PR and the follow-up ownership recorded in the spec.
 
+## Premise check (2026-10-16, pull-forward to v1)
+
+- Subject exists and is undelivered (Dream W39 F53): no
+  `src/coga/agent_session.py`, `script_session.py` or `src/coga/launch.py`.
+- Surfaces drifted since the design: `commands/launch.py` grew from 1,179 to
+  3,782 lines; `launch_script.py` moved to `src/coga/` (600 lines); `coga
+  project` was removed. Paths, line counts and the `project` caller were
+  corrected in the body; the headings were demoted so the criteria and
+  proposed shape compose.
+- **Not re-verified:** the responsibility inventory in "Proposed shape" was
+  written against the 1,179-line file, which has roughly tripled since, and
+  `commands/retire.py` and `recurring_runner.py` now also import from
+  `commands/launch.py` (callers today: `cli`, `ticket`, `retire`,
+  `megalaunch` (both modules), `recurring_runner`). Owner
+  decision at `review-design`: approve with the implementer re-inventorying
+  as its first task, or send it back to `design` for a fresh inventory.
+  Recommended: send back; the classification is the deliverable that the
+  five sibling tickets rely on.
+- Status is still `paused` from the 2026-07-27 park; resume with
+  `coga mark active` when ready.
+
 ## Design-step verification
 
 - Read the live ticket, `docs/vision.md`, the composed Coga contexts,
@@ -293,5 +314,5 @@ first PR and the follow-up ownership recorded in the spec.
   command-cleanup sibling tickets.
 - `git diff --check` passed.
 - `PYTHONPATH=/home/n/Code/claude/coga/src python3.12 -m coga.cli validate
-  --task cleanup-core-commands/launch-decomposition --json` passed: 1 task OK,
+  --task microkernel/launch-decomposition --json` passed: 1 task OK,
   no issues.

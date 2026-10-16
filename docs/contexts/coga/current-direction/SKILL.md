@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-16.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -15,6 +15,14 @@ is `coga status` and the ticket bodies; stage posture is
 
 ## In force
 
+- **The microkernel cleanup is v1 scope (2026-10-16).** The six
+  `microkernel/*` tickets came back from `_v2/`; v1 ships with
+  extension-model's "Open command placements" table empty. The target is the
+  current kernel line (launch closure including `mark`/`bump`,
+  `block`/`unblock`, `create`, fresh `init`, fixed recipes), not the July
+  "only `create` is core" direction. A recorded demo of adding a command at
+  the edge follows it (`marketing/demo-hackability-ask-claude-to-add-a-command-live`).
+  Contract: [`coga/extension-model`](../extension-model/SKILL.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
