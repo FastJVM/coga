@@ -51,11 +51,15 @@ repo recipe, a rehearsal log proving the take works, and a fallback plan.
       work is deterministic) reached by an `[aliases]` spelling. The rehearsal
       shows `git diff --stat` touching only `coga/` and `coga.toml`.
 - [ ] A reset recipe brings a scratch repo to the pre-demo state in one
-      command (`coga init` from the released wheel plus seed tickets and log
+      command (`coga init` from the demo's wheel plus seed tickets and log
       lines so `standup` has something to show).
-- [ ] At least three clean rehearsals with the released wheel and the
-      current Claude CLI are logged on the blackboard, each with wall-clock
-      time and any agent deviation. A failed take records its cause.
+- [ ] At least three clean rehearsals with the final 1.0 release-candidate
+      wheel and the current Claude CLI are logged on the blackboard, each
+      with wall-clock time and any agent deviation. A failed take records
+      its cause.
+- [ ] After 1.0 is published, one smoke take against the published wheel
+      confirms the demo still works; this check follows publication and does
+      not gate it.
 - [ ] Fallback: a pre-recorded good take, and the exact recovery line the
       presenter says if the live take stalls.
 - [ ] The claims shown stay within `marketing/positioning` proof limits.
@@ -64,8 +68,10 @@ repo recipe, a rehearsal log proving the take works, and a fallback plan.
 
 Owner request, 2026-10-16, alongside pulling the microkernel cleanup into v1.
 The demo is the visible proof of that cleanup, so **rehearse it after
-`coga/tasks/microkernel/` lands** and against the released 1.0
-wheel. Drafting the script and reset recipe can start earlier, but
+`coga/tasks/microkernel/` lands** and against the final 1.0
+release-candidate wheel. This ticket gates the 1.0 publication, so it cannot
+wait for the published wheel; a smoke take on the published wheel follows
+release. Drafting the script and reset recipe can start earlier, but
 re-validate the mechanism against `coga/extension-model` before rehearsing,
 because the cleanup may change it.
 

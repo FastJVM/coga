@@ -21,11 +21,16 @@ workflow: code/design-then-implement
 
 ## Description
 
-Settle the placement of the two lifecycle heads that sit in the kernel by
+Settle the placement of the lifecycle heads that sit in the kernel by
 registration rather than by the launch-closure test: `coga block` /
 `coga unblock`, and the `coga owner` head (a `mark`-shaped locked write of
-`owner:`). For each, either write the co-versioning proof that keeps it in
-`src/coga/` or move it to the edge without changing semantics.
+`owner:`).
+
+`block`/`unblock` stay in the kernel: the owner-confirmed v1 kernel line in
+`coga/current-direction` (2026-10-16) includes them. This ticket writes their
+co-versioning proof; it does not move them unless the owning context is
+deliberately revised first. Only `owner` is open: either write its
+co-versioning proof or move it to the edge without changing semantics.
 
 `coga mark` and `coga bump` are **out of scope**: `coga/extension-model`
 keeps them in the kernel because launch calls them mid-flight, and the owner
@@ -36,17 +41,18 @@ confirmed that boundary for v1 on 2026-10-16.
 - [ ] The design names, for `block`, `unblock` and `owner`, the internal
       state-write primitive each head calls, and separates the primitive from
       the user-facing head.
-- [ ] Each head ends either with a written co-versioning proof (the
+- [ ] `block` and `unblock` end with a written co-versioning proof (the
       package-private invariant or atomic transaction an edge implementation
-      could not preserve) recorded in `coga/extension-model`, or moved to the
-      edge with unchanged behavior.
+      could not preserve) recorded in `coga/extension-model`.
+- [ ] `owner` ends either with such a proof or moved to the edge with
+      unchanged behavior.
 - [ ] Lifecycle invariants are preserved: status transitions, blocker asks
       and their resolution, `COGA_EXPECTED_TASK`/`COGA_EXPECTED_STEP` guards,
       session termination under a supervisor, logging, git sync and
       notifications.
 - [ ] The `owner` row leaves the "Open command placements" table in
       `coga/extension-model` and its packaged twin; the kernel bullet there
-      states the reason `block`/`unblock` stay (or drops them if moved);
+      states the reason `block`/`unblock` stay;
       `coga/lifecycle`, `coga/tickets/ownership` and the `coga/cli` index
       match.
 - [ ] Tests cover the changed surface; the full suite and
@@ -69,8 +75,9 @@ Out of scope: `mark`, `bump`, `create`, `skill *`, and the launch executor.
 - Subject exists: `src/coga/commands/{block,unblock,owner,mark,bump}.py`.
 - Delivered in part (Dream W39 F46): `coga/extension-model` now classifies
   `mark`/`bump` as kernel (launch closure). Owner kept that rule on
-  2026-10-16, so scope narrowed to `block`/`unblock` (kernel "by
-  registration") plus the newer `owner` head, whose table row had no review.
+  2026-10-16, and the v1 kernel line in `coga/current-direction` also keeps
+  `block`/`unblock`, so scope narrowed to their written proof plus the
+  placement of the newer `owner` head, whose table row had no review.
 - Frontmatter `title` still reads "Move lifecycle verbs to ticket
   operations"; owner may rename it.
 
