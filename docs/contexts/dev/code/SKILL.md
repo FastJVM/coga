@@ -31,7 +31,7 @@ record directly.
   [dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
 - **Keep the body current.** Archive abandoned plans in one
   `## Superseded designs` blackboard section. See
-  [dev/design-history](../design-history/SKILL.md).
+  [coga/blackboard](../../coga/blackboard/SKILL.md#superseded-designs).
 
 ## Not covered
 
