@@ -1,6 +1,6 @@
 ---
 name: dev/code
-description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout, `## Dev` record, cleanup, and design-history topics; attach it to any such ticket.
+description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout, `## Dev` record, and cleanup topics plus the blackboard's superseded-designs convention; attach it to any such ticket.
 ---
 
 # Code-task conventions
