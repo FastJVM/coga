@@ -14,6 +14,7 @@ from coga.lifecycle import MAIN_AGENT_REQUIRED_STATUSES, TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.paths import (
     missing_skill_message,
+    read_resource,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -87,7 +88,7 @@ def create_task(
     """Create a task directory. Returns dict with {slug, path}.
 
     Pass `description` for the common case — the body is built as the canonical
-    `## Description` / `## Context` skeleton. Pass `body` instead to write a
+    `ticket.md` resource, retaining its inline guide. Pass `body` instead to write a
     full ticket body verbatim (recurring creating does this so template
     sections beyond `## Description` survive); a `## Context` section is
     appended when the verbatim body lacks one. `body` takes precedence over
@@ -180,6 +181,9 @@ def create_task(
     # Resolve user-controlled text before allocating a directory. A failed
     # override must not strand a fixed recurring slug and prevent its retry.
     blackboard = render_blackboard(title, cfg=cfg)
+    ticket_template = read_resource(cfg, "ticket.md") if body is None else None
+    if ticket_template is not None and ticket_template.count("{description}") != 1:
+        raise ValueError("ticket.md template must contain exactly one {description} placeholder")
 
     # A task is a single `tasks/<slug>.md` file unless a caller explicitly
     # needs siblings (recurring period tasks carry a `.state-snapshot.json`).
@@ -272,7 +276,8 @@ def create_task(
             ticket_body += "\n## Context\n\n"
     else:
         desc_body = (description or "").strip()
-        ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
+        assert ticket_template is not None
+        ticket_body = ticket_template.replace("{description}", desc_body)
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. The append-only history goes to the repo-global log.
     full_body = join_task_body(ticket_body, blackboard)

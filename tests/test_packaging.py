@@ -37,6 +37,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     # packaging change that drops them would otherwise only surface as a
     # runtime read failure inside a composed launch.
     "coga/resources/blackboard.md",
+    "coga/resources/ticket.md",
     "coga/resources/prompt.md",
     "coga/resources/prompt-attended.md",
     "coga/resources/prompt-blocker-resolution.md",
@@ -49,8 +50,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/interview.md",
-    "coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/template.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
     "scan-protocol/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"

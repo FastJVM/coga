@@ -37,7 +37,7 @@ while an inline mention does not. The region starts right after the match
   pattern cannot hit the body.
 
 Ticket-writing guidance, including design changes and oversized-note cleanup,
-belongs to the `bootstrap/ticket` skill and its annotated template.
+belongs to the inline guide in new tickets, rendered from `src/coga/resources/ticket.md`.
 
 `src/coga/blackboard.py` `append_to_section_text` / `append_to_section`
 append into a named section (heading to next `## `), creating it if missing.
@@ -81,7 +81,7 @@ the next owner gate, not residue.
 
 `blackboard_size_warning` and `coga validate` (`large-blackboard`) warn above
 `BLACKBOARD_WARN_BYTES` (32 KiB), measuring live notes plus the archive
-pointer. The `bootstrap/ticket` skill owns the editing remedy.
+pointer. The ticket’s inline guide owns the editing remedy.
 
 ## Concurrent writers
 

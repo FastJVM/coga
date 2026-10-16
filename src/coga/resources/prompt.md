@@ -45,12 +45,6 @@ intent through session conduct.
    way the `Session conduct` layer in this prompt directs. Do not leave
    completed or blocked work invisible.
 
-## Editing tickets
-
-Before creating or editing a ticket or its blackboard, read the
-`bootstrap/ticket` skill from the configured skills root or bundled package;
-it owns the annotated template, editing boundaries, and working-note guidance.
-
 ## Finishing the step
 
 - **One transition, one step.** `coga bump <id>` reads the current step and

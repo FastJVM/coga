@@ -138,8 +138,8 @@ from inside its own subtree (`src/coga/config.py` `find_repo_root`).
 
 ## Ticket-writing template
 
-The annotated ticket template ships beside the `bootstrap/ticket` skill as
-`template.md`; init does not seed `tasks/_template/ticket.md`. Existing
-seeded copies remain repo-owned files, but the editor reads its skill’s
-attached template. `coga create` still renders draft bytes through its
-existing code and the `blackboard.md` resource.
+`coga create` instantiates the `ticket.md` body resource, generating canonical
+frontmatter and appending the configured `blackboard.md`. Its explanatory
+comment stays in each ticket. Init no longer seeds `tasks/_template/ticket.md`;
+existing copies remain repo-owned but are not read by creation or the editor.
+A repo may override `<coga root>/resources/ticket.md`.

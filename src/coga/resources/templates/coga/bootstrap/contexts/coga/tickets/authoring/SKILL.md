@@ -24,8 +24,7 @@ Part of [coga/tickets](../SKILL.md).
   and main agent with the human, repairs an out-of-vocabulary status, and
   validates afterwards: a draft left without a workflow is rejected there.
   `bootstrap/ticket` is injected only into that prompt, never persisted in
-  `skills:`. Its shared editing rules and annotated `template.md` also serve
-  ordinary ticket edits; `interview.md` is read only for guided authoring. A local `coga/skills/bootstrap/ticket/` overrides it. Standard
+  `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
   `claude`/`codex` receive the prompt as system/developer context
   (`[agents.<type>].discussion` overrides the argv template).
 - **Authoring agent.** `authoring.resolve_authoring_agent` picks who runs
@@ -48,3 +47,20 @@ Part of [coga/tickets](../SKILL.md).
   scripting.
 
 Installed `coga <cmd> --help` is the syntax authority.
+
+## Creation template
+
+The ordinary `create_task` path renders the `ticket.md` body resource
+(repo override first), replacing `{description}` with the supplied text.
+The frontmatter remains generated from validated arguments; the configured
+`blackboard.md` supplies working space. Resource reads and the exactly-one `{description}` placeholder check happen
+before creating the destination. Callers supplying an explicit `body` (such as recurring
+periods) retain that body instead of having the ordinary template injected.
+
+The template keeps field and editing explanations in an HTML comment under
+`## Context`, so `Ticket.render` preserves them when rewriting YAML and
+composition includes them. Description remains empty until actual intent is
+supplied, so the empty-description warning still works. Optional examples
+are prose, not live metadata or checkout records. The interview preserves
+this comment; readers need no separate editing skill. Existing tickets are
+not migrated, and a repo override owns its own instructions.

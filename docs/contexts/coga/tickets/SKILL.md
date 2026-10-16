@@ -11,8 +11,8 @@ line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
 parser contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).
 
-Ticket-writing guidance and the annotated template belong to the
-`bootstrap/ticket` skill.
+Ticket-writing guidance travels in each ticket’s `## Context` comment,
+rendered from `src/coga/resources/ticket.md`.
 
 ## Leaves
 

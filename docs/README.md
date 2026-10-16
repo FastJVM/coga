@@ -21,8 +21,8 @@ Agent access to archives requires an explicit human request; see
 3. [Take a first task](contexts/coga/first-task/SKILL.md) from draft to PR.
 4. [Remove Coga](contexts/coga/uninstall/SKILL.md) if you need to.
 
-Ticket writing: [editing skill](../coga/skills/bootstrap/ticket/SKILL.md) and
-[annotated template](../coga/skills/bootstrap/ticket/template.md).
+New tickets include their own writing guidance from the
+[annotated template](../src/coga/resources/ticket.md).
 
 ## Understand
 

@@ -143,3 +143,7 @@ which stays on disk for the session; content is unchanged. Such a size usually
 means context bloat. The session's done signal is a side-channel sentinel
 file, so nothing in the prompt text can end a session and the prompt is
 passed verbatim ([coga/internals/agent-spawn](../internals/agent-spawn/SKILL.md)).
+
+The `ticket.md` resource is the ordinary creation body template, not a prompt
+layer. Its guide is stored under each new ticket’s `## Context` and reaches
+launch through that normal section; there is no ticket-editing skill load.

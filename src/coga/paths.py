@@ -50,6 +50,7 @@ class RepoResourceUnreadable(RuntimeError):
 
 RESOURCE_NAMES: frozenset[str] = frozenset({
     "blackboard.md",
+    "ticket.md",
     "prompt-attended.md",
     "prompt-blocker-resolution.md",
     "prompt-megalaunch.md",

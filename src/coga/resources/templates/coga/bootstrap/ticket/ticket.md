@@ -45,4 +45,4 @@ Don't add `status:` or `owner:` to this frontmatter. The ticket is
 intentionally stateless — no lock, no status or `step` transitions (launch
 and usage lines are still logged) — so every launch can run concurrently with
 no coordination. That's why it
-diverges from the annotated template bundled with the `bootstrap/ticket` skill.
+diverges from the ordinary ticket template (`ticket.md` in the package resources).
