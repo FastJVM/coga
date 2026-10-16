@@ -8466,3 +8466,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 11:56 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-15 20:55 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-15 20:56 v1 [windows-native/windows-ec2-test-harness] [human:nicktoper] launched (operator=codex, agent=codex)
+2026-10-15 21:09 v1 [_v2/refresh-coga-status-without-launching-an-agent] [human:nicktoper] created (status=draft)
