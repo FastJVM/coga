@@ -61,3 +61,10 @@ Found 2026-10-16 in an attended `coga chat` while fixing the twin-drift test fai
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+2026-10-16: it happened again. `cf40ef440` ("Sync coga state before checkout
+return", the launch checkout-return sweep) published the branch's later
+`branch-sweep/ticket.py` and `upstream-coga/ticket.py` (from `dad626011`, which
+was already committed on `clone-scoped-recurring`). That points at the
+checkout-return sweep publishing committed feature-branch files, not only
+dirty ones. Reverted again in #1032; the real change is PR #1033.
