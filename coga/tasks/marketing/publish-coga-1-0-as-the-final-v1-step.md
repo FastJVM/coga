@@ -4,7 +4,6 @@ status: in_progress
 owner: nicktoper
 contexts:
 - coga/releasing
-- marketing/plan
 workflow:
   name: draft-for-human
   steps:
@@ -31,7 +30,7 @@ Prepare and publish coga 1.0.0 to PyPI as the final V1 product-delivery step, af
 
 Owner request, 2026-10-02: this is the last V1 product-delivery ticket. Keep it
 in draft until the owner confirms the remaining V1 work is complete. Follow
-the release ordering in `marketing/plan`; coordinate readiness with
+the release ordering above; coordinate readiness with
 `marketing/build-the-launch-plan` without taking over its public launch work.
 
 The earlier ticket `cleanup/publish-coga-1-0-to-pypi` shipped **0.4.0** despite

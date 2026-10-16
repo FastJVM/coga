@@ -33,11 +33,13 @@ and next actions. It remains at its existing human-owned execution step.
 
 ## Context
 
-Read the approved campaign in `docs/contexts/marketing/plan/SKILL.md`, the
-message and proof limits in `docs/contexts/marketing/positioning/SKILL.md`, and
-channel/measurement policy in `docs/contexts/marketing/plan/SKILL.md`.
-These are cited, not attached: read their V1 decisions before preparing the
-launch checklist. They are also the editing targets for accepted learnings.
+This ticket owns the remaining publication decisions. The README is the
+public presentation; the [idea-piece brief](idea-piece.md#claim-and-wording-limits)
+owns the argument and claim limits, which also apply to the Show HN package.
+Read those live sources when preparing copy. The marketing context library
+was archived by owner decision on 2026-10-15; current work must not depend on
+reading it. Record accepted publication changes here and editorial changes
+in the idea-piece ticket or README.
 
 ### Execution checklist
 
@@ -47,7 +49,7 @@ launch checklist. They are also the editing targets for accepted learnings.
   owned by `marketing/fix-installer/complete-the-authenticated-clean-install-audit`;
   the earlier installer audit closed with authentication blockers and does
   not establish a completed first task. Track that evidence alongside
-  the [weekly snapshot contract](../../contexts/coga/telemetry/SKILL.md). Record the verified first-run
+  the [weekly snapshot contract](../../../docs/contexts/coga/telemetry/SKILL.md). Record the verified first-run
   path and PostHog acceptance evidence; this ticket does not implement them.
 - `marketing/idea-piece` produces the single argument and concrete proof.
   The owner chooses its publication venue and approves/publishes the copy.
@@ -58,7 +60,8 @@ launch checklist. They are also the editing targets for accepted learnings.
   install/example path and replies. Readers need not have seen the argument.
 - Before the public product launch, obtain the verified release links from
   `marketing/publish-coga-1-0-as-the-final-v1-step`, following the final-release
-  ordering in `marketing/plan`.
+  ordering: finish remaining V1 changes and readiness checks, publish and
+  verify 1.0.0 as the last product-delivery step, then launch publicly.
 - Target roughly one week after the idea piece, conditional on readiness and
   owner availability. Recheck Show HN rules and links before submission;
   the owner submits and is available to discuss the work. No vote solicitation.
@@ -66,12 +69,28 @@ launch checklist. They are also the editing targets for accepted learnings.
   public/voluntary feedback. Record observations and limitations after the
   launch; do not reinstate old numeric scorecards or a day-14 gate.
 
+### Measurement and distribution
+
+The idea piece's venue is the owner's editorial choice; publish it as ordinary
+reading, not a Show HN. No additional channel sequence is implied. Before
+Show HN, verify the current [submission guidance](https://news.ycombinator.com/showhn.html)
+and working product/install links. The owner publishes and handles personal
+accounts; preparing this ticket grants no publication authorization.
+
+Record dated reactions, objections, first-run friction and adoption/activity
+observations with their limits. The weekly PostHog signal counts repos with
+active sweeps, not installs; it proves neither productivity nor attribution.
+Stars, downloads and voluntary feedback may supplement it. The owner-only
+live clean-wheel proof in `marketing/verify-posthog-telemetry-with-the-live-clean-wheel`
+remains a launch gate.
+
 ### Approved scope and disposition
 
 Keep README, installer/onboarding and PostHog. Consolidate story, pitch,
 narrative and the three essays into the idea piece. Drop Discord/community
 setup as a V1 prerequisite. No separate creative pipeline, three-essay
 campaign, token/time experiment or additional channel campaign is required.
+Domain purchase and first-user targeting/recruiting are not launch gates.
 
 The earlier launch-plan ticket is preserved in
 `docs/archive/launch-programs/launch-plan-before-v1.md`; the audit

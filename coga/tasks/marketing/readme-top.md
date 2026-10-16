@@ -3,9 +3,6 @@ title: Fix the README for the V1 instrument positioning
 status: done
 owner: nicktoper
 agent: claude
-contexts:
-- marketing/plan
-- marketing/positioning
 workflow:
   name: code/with-review
   steps:
@@ -40,7 +37,9 @@ corrected, or removed from the README.
 
 ## Context
 
-Attach the current marketing message and plan; read `README.md`, `docs/README.md`, and `coga/install` / `coga/first-task`
+Completed deliverable: the README is the current public presentation. The
+former marketing contexts were archived on 2026-10-15. For follow-up edits,
+read `coga/principles`, `README.md`, `docs/README.md`, and `coga/install` / `coga/first-task`
 (`docs/contexts/coga/{install,first-task}/SKILL.md`, which replace the deleted
 `docs/getting-started.md`) before editing. Keep this scoped to the README
 opening and the links needed for its reader path, not a documentation rewrite.
@@ -49,8 +48,9 @@ Use megalaunch and one correction that changes later work as the concrete
 proof. Distinguish a blocked task from the queue moving on to other tasks.
 Coordinate exact commands with the `marketing/fix-installer/` tickets; do not invent a
 second onboarding procedure or require an unpublished essay to understand
-Coga. Claim support follows marketing/positioning. The launch ticket owns
-publication timing, and PostHog implementation stays in its own ticket.
+Coga. Current writing claim limits are in the
+[idea-piece brief](idea-piece.md#claim-and-wording-limits). The launch ticket
+owns publication timing, and PostHog implementation stays in its own ticket.
 
 ### Existing video — check, not a new production prerequisite
 

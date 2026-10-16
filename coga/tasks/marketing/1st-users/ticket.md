@@ -2,17 +2,16 @@
 title: Audit and record the first-user ICP
 status: draft
 owner: nicktoper
-contexts:
-  - marketing/positioning
 workflow: draft-for-human
 ---
 
 ## Description
 
 Audit the owner's draft ideal-customer profile (ICP) for Coga's first users,
-then record the audited version as a new context, `marketing/first-users`, at
-`docs/contexts/marketing/first-users/SKILL.md`. The draft is saved verbatim
-in this task directory as `icp-draft.md`; read it first. Why now: the idea
+then record the audited version as `first-users.md` beside this ticket.
+Keep this as a task deliverable; do not recreate a marketing context library.
+The draft is saved verbatim in this task directory as `icp-draft.md`; read it
+first. Why now: the idea
 piece and Show HN (see Context) are being written for a reader nobody has
 pinned down, and the ICP is also the filter for sorting launch responses into
 candidate teams.
@@ -23,9 +22,10 @@ The audit checks the draft on four points:
    especially *Who it is for, and its limits*, for Coga's broad audience and
    fit. It is cited here, not attached; links do not load their targets.
    The ICP must narrow that audience, not restate or contradict it.
-   `marketing/positioning` owns the public-claim limits. Flag wording that crosses them, e.g. "never have to explain it
-   again" implies automatic learning, which positioning rules out;
-   corrections become durable only through reviewed file edits.
+   Read the [idea-piece claim limits](../idea-piece.md#claim-and-wording-limits).
+   Flag unsupported wording: "never have to explain it again" implies
+   automatic learning; corrections become durable only through reviewed
+   file edits.
 2. **Product support today.** Check each fit signal against what Coga ships
    now, e.g. multiple agents on one repo (`claude`/`codex` agent types),
    corrections turning into contexts/skills, recurring maintenance
@@ -42,37 +42,29 @@ The audit checks the draft on four points:
    between the 2–8 fit range and the 2–5 beachhead, and overlap with the
    idea piece's selected reader.
 
-Done means `marketing/first-users` exists with the owner's approval, and
-every audit finding has been either applied or explicitly overruled by the
-owner (record which). The context contains the beachhead, fit signals,
-qualifying questions and anti-targets, and links to the root `README.md` for the
-broad audience instead of repeating it. The same change registers the new
-topic in `marketing/map`, indexes it in `docs/README.md` beside the other
-marketing topics, and adds `"marketing/first-users"` to
-`LOCAL_ONLY_CONTEXT_REFS` in `tests/test_packaging.py` with the reason
-"This project's own marketing material." (otherwise the packaging test
-fails). `python -m pytest tests/test_packaging.py` and `coga validate --json`
-must pass.
+Done means `first-users.md` has the owner's approval, and every finding has
+been applied or explicitly overruled with a recorded reason. The brief holds
+the beachhead, fit signals, qualifying questions and anti-targets, linking to
+the root README for the broad audience. Hand the approved brief to the idea
+piece, launch and recruiting tickets; no topic registration is required.
 
 ## Context
 
 Workflow `draft-for-human`:
 
-- **agent-produces:** write the audit, as a findings list on the blackboard
-  with a suggested resolution for each, plus the draft context file.
-- **human-owns-and-finishes:** the owner decides each finding and edits the
-  context.
-- **report-to-coga:** the agent makes the mechanical edits (map row,
-  README index, packaging-test entry), runs the pytest/validate checks,
-  opens the commit/PR, and records the decisions and where the context
-  landed. The owner never does these by hand.
+- **agent-produces:** record findings and suggested resolutions on the
+  blackboard, and draft `first-users.md` beside this ticket.
+- **human-owns-and-finishes:** the owner decides findings and edits the brief.
+- **report-to-coga:** apply accepted edits, check links and ticket validation,
+  and hand the approved brief to the consuming tickets. Before this ticket
+  retires, preserve the brief with any unfinished work that still needs it.
 
 Scope boundaries:
 
 - Recruiting first users (target list, outreach, done criteria for "we have
   users") is out of scope. That is the separate draft
   `marketing/recruit-first-users`, which depends on this ticket.
-- Do not edit `README.md`, `product/vision`, or `marketing/positioning`
+- Do not edit `README.md` or the design principles
   without asking. If the audit shows the broad audience itself should change,
   propose it as a finding for the owner to decide.
 
@@ -87,18 +79,10 @@ Sequencing (owner-agreed 2026-09-29):
   "a technical reader already using coding agents who wants to carry more
   work forward without surrendering direction and judgment").
 
-Knowledge placement follows `coga/knowledge` (one owner per fact): the ICP is
-marketing targeting, so it lives under `marketing/`; the README owns the
-broad audience and fit. Read its *Key ideas* and *Who it is for, and its
-limits* sections before drafting the audit. `product/vision` is the
-philosophical manifesto, not the audience specification.
-
-Review note updated for the ownership move (2026-10-15): the broad audience
-already covers much of the draft (small technical teams using CLI agents,
-Git, and the shell), so the new context may end up thin. That is acceptable;
-keep only what narrows the README's audience. The dependency from
-`marketing/recruit-first-users` exists only in prose; launch order does not
-enforce it.
+The README owns the broad audience and fit. Read its *Key ideas* and *Who it
+is for, and its limits* before drafting. Keep only what narrows that audience;
+the brief may be short. The dependency from `marketing/recruit-first-users`
+is in prose; launch order does not enforce it.
 
 <!-- coga:blackboard -->
 

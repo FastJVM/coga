@@ -25,7 +25,7 @@ agent: claude
 Run the owner-only live clean-wheel proof for the weekly PostHog snapshot that
 merged in PR #880 without it. On 2026-09-22 the owner deferred this proof
 ("assume it works; owner will test later"), so no real `coga_weekly_snapshot`
-row has been queried yet. The V1 plan (`marketing/plan`) makes this
+row has been queried yet. The owner's V1 launch decision makes this
 verification a launch gate that marketing simplification does not waive, and
 `marketing/build-the-launch-plan` needs its evidence before Show HN.
 
