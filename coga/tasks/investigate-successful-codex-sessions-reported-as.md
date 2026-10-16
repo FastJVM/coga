@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -101,7 +101,7 @@ they store no exit code. Any remaining `failed` records with very short
 
 ### Acceptance criteria
 
-- [ ] Complete the outstanding live lifecycle reproduction: first a real
+- [x] Complete the outstanding live lifecycle reproduction: first a real
       Codex bootstrap launch closed by the human, then an ordinary ticket
       step that advances through a matching done sentinel. For each, record
       the launch target, raw child wait/exit evidence, normalized supervisor
@@ -111,28 +111,28 @@ they store no exit code. Any remaining `failed` records with very short
       unavailable evidence as a gap rather than claiming completion. Arrange
       human launches from their terminal; do not nest agent launches inside
       this launched session. Preserve real failures and timeout behavior.
-- [ ] `_session_outcome_status` in `src/coga/commands/launch.py` returns
+- [x] `_session_outcome_status` in `src/coga/commands/launch.py` returns
       `interrupted` when `outcome.kind == "crash"` and
       `outcome.exit_code == 128 + signal.SIGINT`.
-- [ ] Every other mapping is unchanged: `timeout` → `timed_out`; any other
+- [x] Every other mapping is unchanged: `timeout` → `timed_out`; any other
       `crash` (for example `128 + SIGSEGV`, `128 + SIGKILL`, the `1, crash`
       fallback) → `failed`; `natural` with non-zero code → `failed`
       (including natural exit code 130 and the non-TTY fallback
       `natural -SIGINT` result); `done` and `natural 0` → `completed`;
       the `KeyboardInterrupt` → `interrupted` and other-exception → `failed`
       paths in `spawn_agent_session` are untouched.
-- [ ] `ReplOutcome`, `_classify_exit`, `AgentSessionResult`, and every
+- [x] `ReplOutcome`, `_classify_exit`, `AgentSessionResult`, and every
       caller's handling of exit code and `kind` are unchanged. Only the
       activity label moves. Chains, megalaunch, and recurring still see
       `130 crash` exactly as before.
-- [ ] Regression test in `tests/test_launch.py`: extend the
+- [x] Regression test in `tests/test_launch.py`: extend the
       `test_spawn_captures_failed_and_timed_out_sessions` parametrization (or
       add a sibling) with `ReplOutcome(130, "crash")` → `interrupted`,
       `ReplOutcome(128 + signal.SIGSEGV, "crash")` → `failed`,
       `ReplOutcome(130, "natural")` → `failed`, and
       `ReplOutcome(-signal.SIGINT, "natural")` → `failed`. Assert that
       returned exit code and `termination_kind` remain unchanged.
-- [ ] Activity records gain
+- [x] Activity records gain
       `exit_code` (int or null) and `exit_kind` (`natural` | `done` |
       `timeout` | `crash` | null), added without a schema bump the way
       `usage_reason` was: older records read back null. A test in
@@ -141,7 +141,7 @@ they store no exit code. Any remaining `failed` records with very short
       done teardown reports 0 and timeout reports 124. Spawn capture tests
       assert both fields reach capture unchanged for returned outcomes and
       remain null when the supervisor raises.
-- [ ] `docs/contexts/coga/internals/activity-capture/SKILL.md` and its
+- [x] `docs/contexts/coga/internals/activity-capture/SKILL.md` and its
       byte-identical twin
       `src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/activity-capture/SKILL.md`
       define each `outcome_status` value against the supervisor outcome:
@@ -154,7 +154,7 @@ they store no exit code. Any remaining `failed` records with very short
       record. State that `outcome_status` describes the process, not whether
       the work succeeded. Name the new normalized exit fields and their
       limits: they cannot reconstruct raw termination or identify the sender.
-- [ ] `python -m pytest tests/test_launch.py tests/test_usage.py tests/test_packaging.py`
+- [x] `python -m pytest tests/test_launch.py tests/test_usage.py tests/test_packaging.py`
       passes.
 
 ### Proposed shape
@@ -388,3 +388,95 @@ their terminal with this checkout's `.venv/bin/coga` on the branch (owner
 chose: bootstrap `coga orient` with codex, one real turn, fast Ctrl-C x2;
 then a throwaway workflow ticket launched with codex that bumps; throwaway
 deleted afterwards). Raw wait status is not captured (owner declined strace).
+
+## Implement (2026-10-15, claude)
+
+Implemented the approved scope on `codex-sigint-interrupted` (commit
+`1ae28db6d`, pushed):
+
+- `launch._session_outcome_status`: exactly `crash` + `128 + signal.SIGINT`
+  → `interrupted`; all other mappings unchanged. `ReplOutcome`,
+  `_classify_exit`, `AgentSessionResult`, and caller exit handling untouched.
+- `usage.UsageRecord` / `from_json` / `capture_session`: nullable `exit_code`
+  and `exit_kind` (new `ExitKind` literal, validated on read, no schema
+  bump). `spawn_agent_session` holds `outcome` (None until the supervisor
+  returns) and passes its code/kind from the `finally`.
+- Tests: parametrized mapping cases in
+  `test_spawn_captures_failed_and_timed_out_sessions` (130 crash →
+  interrupted; SIGSEGV/SIGKILL/`1` crash, natural 130, natural `-SIGINT` →
+  failed; done 0 / natural 0 → completed), with termination_kind and
+  exit-field capture asserts; null exit fields on the `KeyboardInterrupt`
+  path and on a new supervisor-exception → failed test; usage round-trip,
+  pre-field schema-2 record reads null, invalid `exit_kind` rejected,
+  schema-1 reads null.
+- Docs: activity-capture twins define every `outcome_status` value and the
+  exit fields' limits; agent-spawn twins gained a one-line pointer.
+
+### Live lifecycle reproduction (owner ran from `/home/n/Code/coga`)
+
+Ran with a non-editable install of the branch commit (scratch venv), because
+launch prepares `main` and the editable install would run main's code. The
+agent inside each session used the global `coga` (main) for `mark done`;
+capture ran in the branch supervisor. codex-cli 0.162.1.
+
+| | Bootstrap | Ordinary ticket step |
+|---|---|---|
+| Launch target | `coga chat --agent codex` → `bootstrap/orient` | throwaway `probe-codex-done-sentinel`, `direct/body` step `execute`, `--agent codex` |
+| Real model turn | yes: 1 human turn, 3 agent turns, 344 output tokens | yes: agent read README, wrote blackboard line, ran `coga mark done` |
+| How it ended | human fast Ctrl-C ×2 after the reply | agent's `coga mark done` (done sentinel) |
+| Raw child evidence | **gap**: no watcher line printed; only terminal `^C`. `130 crash` is produced by `_classify_exit` solely for `WIFSIGNALED` + SIGINT, so death by SIGINT is derived, not observed raw | watcher printed `child exited: killed by our signal 15` (SIGTERM teardown) |
+| Normalized supervisor | `130 crash` (launch printed `agent exited with code 130`; shell `$?` = 130) | `0 done` (`reporting exit 0 (done-signal received)`; shell exit 0) |
+| Sentinel | none expected; none | matching sentinel observed (done-signal teardown) |
+| Persisted record | `outcome_status: interrupted`, `exit_code: 130`, `exit_kind: crash` (session `01a14307-c50f-71c2-843f-82160a439c0c`) | `outcome_status: completed`, `exit_code: 0`, `exit_kind: done` (session `01a14308-dbc0-74c0-a644-4c133203322e`) |
+| Workflow progress | expected none (stateless); none | expected `task done`; log `[agent:codex] task done`, launch read "task is done" |
+
+Before the fix this bootstrap would have been `failed` (old mapping: any
+crash → failed). The probe ticket was deleted afterwards (`coga delete`
+from `/home/n/Code/coga`). Not exercised live: timeout and genuine crash
+paths (covered by the unit cases); raw wait status (owner declined strace).
+
+## PR
+
+```yaml
+title: Record SIGINT-crash sessions as interrupted, with exit evidence
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5); see Implement handoff.
+head: 1ae28db6d85ed7620765b8dbdd9a4ae827701b2a
+base: 6738fe520a9272f3b534255187c93cfa21ab0f75
+depth: skim
+rationale: One-branch mapping change plus two nullable record fields; read the activity-capture definition and the live-repro table.
+implementation: Maps exactly ReplOutcome crash/128+SIGINT to outcome_status interrupted and persists the supervisor's normalized exit_code/exit_kind on activity records.
+deviations: Also added a supervisor-exception capture test and extra crash cases (SIGKILL, 1-crash fallback, done/natural 0) beyond the listed parametrization.
+limitations: Raw child wait status was not captured in the live repro; historical failed records stay unreclassifiable; timeout/genuine crash verified by unit tests only.
+files:
+  src/coga/commands/launch.py: Add the SIGINT-crash interrupted branch and pass outcome code/kind to capture.
+  src/coga/usage.py: Add nullable exit_code/exit_kind (ExitKind) to UsageRecord, its reader, and capture_session.
+  tests/test_launch.py: Mapping cases, unchanged exit/kind asserts, exit-field capture and null-on-exception tests.
+  tests/test_usage.py: Exit-field round-trip, old-record null reads, invalid exit_kind rejection.
+  docs/contexts/coga/internals/activity-capture/SKILL.md: Define each outcome_status value and the exit fields' limits.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/activity-capture/SKILL.md: Byte-identical packaged twin.
+  docs/contexts/coga/internals/agent-spawn/SKILL.md: One-line pointer to activity-capture for the mapping.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/agent-spawn/SKILL.md: Byte-identical packaged twin.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review yet; the workflow's later review step owns it. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q tests/test_launch.py tests/test_usage.py tests/test_packaging.py
+    status: passed
+    head: 1ae28db6d85ed7620765b8dbdd9a4ae827701b2a
+    base: 6738fe520a9272f3b534255187c93cfa21ab0f75
+    detail: 286 passed.
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 78617aefd018a35b8885795316eba3384dafaa8b
+    base: fc2f267cf8d5199b6671f59e911667047f61e1c4
+    detail: 3682 passed on the pre-rebase commit (src/tests/docs identical to 1ae28db6d) before rebasing onto a main that brought only coga/ state commits; not re-run after rebase.
+  - command: live Codex bootstrap + ordinary-step repro (owner terminal, branch install)
+    status: passed
+    head: 1ae28db6d85ed7620765b8dbdd9a4ae827701b2a
+    base: 6738fe520a9272f3b534255187c93cfa21ab0f75
+    detail: Records interrupted/130/crash and completed/0/done as expected; see table.
+```
+
