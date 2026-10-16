@@ -8472,3 +8472,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-15 21:11 v1 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-15 21:11 v1 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-15 21:15 v1 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [system] blocked: unresolved blocker still open after resumed launch exited
+2026-10-15 21:16 v1 [investigate-successful-codex-sessions-reported-as] [human:nicktoper] launched (operator=nicktoper, launch_agent=codex, agent=codex)
