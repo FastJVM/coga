@@ -380,6 +380,7 @@ This is not owner approval of either outcome or the optional schema fields.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1028
 branch: codex-sigint-interrupted
 
 Plan (implement, 2026-10-15, claude): code + tests + both activity-capture
