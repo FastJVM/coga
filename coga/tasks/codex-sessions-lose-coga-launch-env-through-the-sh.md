@@ -1,6 +1,6 @@
 ---
 title: Codex sessions lose COGA_* launch env through the shared app-server daemon
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -30,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 
