@@ -261,7 +261,6 @@ EOF
     run_name=$1
     trap 'status=$?; printf "FAILED (exit %s): %s\nResources so far are in %s; run: %q teardown %q\n" "$status" "$BASH_COMMAND" "$evidence/resources.env" "$0" "$run_name" >&2; exit "$status"' ERR
     record REGION "$region"
-    record_output CALLER awsc sts get-caller-identity --query Arn --output text
 
     local ami ami_name subnet vpc ssh_from
     if [[ -n ${COGA_WIN_AMI:-} ]]; then
