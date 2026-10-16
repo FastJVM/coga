@@ -35,3 +35,12 @@ Follow-up to run-clone-local-recurring-work-in-every-clone (owner decision 2026-
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: clone-discharge-retires
+
+## Plan (owner-approved 2026-10-16)
+
+- Fold the pass into the clone-scoped `branch-sweep` recipe (not a separate template): after `sweep_branches`, on control only, walk `retires.md` entries whose owner resolves to this clone (`retire_worklist.owned_here`), dispose via the backlog walker shared with autoclose, reconcile with `only=owned_here`, and `git.publish` just that file with `expect=` CAS on change. No log line, no new Slack.
+- Tradeoff accepted: branch-sweep is no longer commit-free; docs state the one exception.
