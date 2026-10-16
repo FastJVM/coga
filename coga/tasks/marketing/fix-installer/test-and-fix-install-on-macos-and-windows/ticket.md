@@ -223,6 +223,40 @@ was wrong.
    the plain command broken for anyone not copying that exact line.
    Recommend the cap, because the defect is that the default path fails.
 
+8. open — `coga init`'s offer to install missing external CLIs cannot fire
+   on a fresh Mac, which is the machine it was built for. On the guest
+   2026-10-15 init printed only links:
+
+   ```
+   Optional tools not on PATH (init continues without them):
+     - gh: install from https://cli.github.com
+     - op: install from https://developer.1password.com/docs/cli/get-started/
+   ```
+
+   `_offer_install` in `src/coga/commands/init.py` returns early unless the
+   detected package manager appears in the dependency's `packages` map, and
+   `src/coga/dependencies.py` keys those on brew, winget, apt-get, dnf and
+   pacman. macOS ships none of them, so a Mac without Homebrew always takes
+   the printed-link fallback. `coga/install` documents the fallback, so the
+   behavior is correct; the gap is that the feature's reach excludes its
+   intended audience. The owner reversal of 2026-09-30 recorded in that
+   topic motivates the offer by users reading a missing `gh` as a broken,
+   unprofessional install and churning, which is the fresh-machine user who
+   cannot receive it. Worth deciding whether init should offer to install
+   Homebrew first, or whether the printed-link path deserves the attention
+   instead.
+
+9. open question for the owner, not a defect — `coga init`'s next steps
+   name actions without the shell knowledge to perform them: it gives the
+   `gh` and `op` install links without saying how to get them on PATH
+   afterwards, and the exact Slack TOML with `then export
+   SLACK_WEBHOOK_URL` without saying where an export belongs so it
+   survives a new terminal. Raised by the owner during the walk. Whether
+   this is a gap depends on positioning: the README addresses "small
+   technical teams who already use CLI agents, are comfortable with Git and
+   the shell", under which assuming it is defensible. Needs a positioning
+   call before any documentation change.
+
 5. open — `coga/install` describes its prerequisites instead of supplying
    them, and the gap falls exactly on the blocking ones. Of its six
    prerequisites only Git is genuinely taught, through the CLT section; the
