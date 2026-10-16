@@ -1,6 +1,6 @@
 ---
 name: coga/blackboard
-description: The writer's contract for a ticket blackboard — locating the fence, scoping edits, append versus rewrite-in-place sections, the draft-activation readiness check, size limits and their remedy, and the concurrency limits of shipped writers. Attach to tickets whose work writes blackboards programmatically.
+description: The writer's contract for a ticket blackboard — locating the fence, scoping edits, live sections and superseded designs, the draft-activation readiness check, size limits and their remedy, and the concurrency limits of shipped writers. Attach to tickets whose work writes blackboards programmatically.
 ---
 
 # Writing to a ticket blackboard
@@ -47,7 +47,7 @@ Match the section's regime; do not invent a fourth.
   (`branch:`, `worktree:`, `pr:`) is canonical; its shape is
   [dev/dev-record](../../dev/dev-record/SKILL.md). Old values live in git.
 - **Record: append, never delete.** `## Superseded designs` takes dated
-  entries (shape in [dev/design-history](../../dev/design-history/SKILL.md);
+  entries (shape [below](#superseded-designs);
   only an archive pointer composes). `## Blockers` takes one checkbox per ask;
   `coga unblock` marks it `- [x]` and appends `resolved:`.
 - **Authoring scratch: synthesize before launch.** `## Evaluator review`,
@@ -59,6 +59,40 @@ Match the section's regime; do not invent a fourth.
 `src/coga/blackboard.py` `append_to_section_text` / `append_to_section`
 append into a named section (heading to next `## `), creating it at the end
 if missing.
+
+## Superseded designs
+
+When a design changes, rewrite `## Description` and `## Context` to describe
+current work, with live requirements under `###` subheadings. Other top-level
+body sections do not compose. Move the abandoned plan below the blackboard
+fence into one `## Superseded designs` section; append dated entries oldest
+to newest:
+
+```markdown
+## Superseded designs
+
+### YYYY-MM-DD — <abandoned direction>
+
+Superseded by: <current direction or decision>
+Reason: <why the ticket pivoted>
+
+<prior plan, acceptance details, and evidence worth retaining>
+```
+
+Retain enough to understand or reconsider the old plan, with copied headings
+at `####` or deeper inside each entry. Keep history in this single section,
+not scattered under alternative headings or left only in Git. The body may
+carry one short pointer when a reviewer needs it; keep current decisions and
+their rationale in live notes. `blackboard.blackboard_for_prompt` leaves the
+stored history unchanged and includes only a pointer to it in the prompt.
+
+Composition and draft readiness share `_without_superseded_designs`: only
+the exact, unindented, case-sensitive heading starts an archive (trailing
+spaces/tabs allowed). It ends at the next ATX `#` or `##` heading outside a
+code fence, or EOF. Deeper headings and Setext underlines (`===`, `---`) do
+not end it; fenced examples, prose mentions and similar headings do not
+start it. Every exact section is omitted if duplicates exist, but authors
+must keep one.
 
 ## Draft-activation readiness
 

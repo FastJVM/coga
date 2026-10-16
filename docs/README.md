@@ -112,7 +112,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
   [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
   [the `## Dev` record](contexts/dev/dev-record/SKILL.md),
-  [design history](contexts/dev/design-history/SKILL.md),
+  [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
   [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
   ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
   [foreign ownership](contexts/dev/checkout-cleanup/foreign-ownership/SKILL.md),

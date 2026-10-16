@@ -25,7 +25,7 @@ spaces); a bare `pr:` value ends at the first whitespace. To annotate, wrap the
 value in backticks before the note (``branch: `feature/x` (Magicator repo)``)
 or put the note on its own line. Update lines in place; `## Dev` is current
 linkage, not history. Lifecycle history is in `coga/log.md`; abandoned plans go
-to [dev/design-history](../design-history/SKILL.md).
+in the [superseded-designs section](../../coga/blackboard/SKILL.md#superseded-designs).
 
 ## When to write each line
 

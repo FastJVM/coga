@@ -459,8 +459,9 @@ After confirmation, do one final cleanup pass before printing the closing line:
    whole review verbatim.
 3. If the ticket is still `status: draft`, preserve its `## Superseded designs`
    section, including every dated entry, and reset the rest of the blackboard
-   to the stock placeholder for this ticket title. Follow `dev/design-history` when
-   archiving a pivot: keep retained headings nested inside the dated entry.
+   to the stock placeholder for this ticket title. Follow `coga/blackboard`,
+   "Superseded designs", when archiving a pivot: keep retained headings nested
+   inside the dated entry.
    Launch supplies only an archive pointer, so keep any rationale needed for
    current work in `## Description` or `## Context` during this cleanup.
    Do not leave empty authoring headings behind.
