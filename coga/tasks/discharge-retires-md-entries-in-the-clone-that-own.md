@@ -1,6 +1,6 @@
 ---
 title: Discharge retires.md entries in the clone that owns them
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
