@@ -14,9 +14,7 @@ blackboard helpers so frontmatter is never hand-edited.
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -298,14 +296,7 @@ def main(cfg: Config, *, out: TextIO = sys.stdout) -> int:
 
 
 if __name__ == "__main__":
-    code = main(load_config())
-    if code:
-        sys.exit(code)
-    # Complete the step through the CLI: calling a Typer command function
-    # in-process would pass `OptionInfo` sentinels instead of real defaults.
-    sys.exit(
-        subprocess.run(
-            [sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"]],
-            check=False,
-        ).returncode
-    )
+    # `scope: clone`: this runs in every clone that sweeps, with no period task
+    # to bump. Only a clone whose `coga.local.toml` names checkouts files
+    # anything; the `upstream-id` dedupe keeps two such clones from filing twice.
+    sys.exit(main(load_config()))
