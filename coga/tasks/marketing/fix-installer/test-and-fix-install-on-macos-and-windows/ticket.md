@@ -167,7 +167,31 @@ was wrong.
 
 ## New-user walk: macOS
 
-In progress 2026-10-15. Zach is downloading UTM. Awaiting the VM baseline.
+In progress 2026-10-15, UTM VM on Zach's M2, guest macOS 26.6.2.
+
+### VM setup (scaffolding, not coga findings)
+
+Recorded because the ticket asks whether the guide's fresh-environment setup
+proved useful. These are UTM and Apple frictions, not coga's.
+
+- About 35 minutes from opening the UTM download page to a booting guest, of
+  which the 18 GB image fetch was ~10 and the install ~20. Faster than the
+  guide's 2-3 hour estimate.
+- Three guide gaps hit and fixed in place: the downloaded `.dmg` needs a
+  double-click and the leftover desktop icon is the installer disk rather
+  than the app; the cached image path for the reclaim step; and the order of
+  reclaim before clone.
+- Disk is the real constraint and the guide's "about 45 GB free" is right but
+  has no margin. Peak usage was the 18 GB image plus a 22 GB guest against 65
+  GB free, leaving 19 GB.
+- UTM's wizard orders its screens differently from the guide: the image
+  prompt comes after hardware and storage, not before. Leaving it empty is
+  correct and the dialog says so.
+
+### Walk findings
+
+(walk not yet started; begins when the guest reaches a desktop and opens the
+public README)
 
 ## New-user walk: Windows
 
