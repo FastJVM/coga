@@ -54,9 +54,9 @@ confirmed that boundary for v1 on 2026-10-16.
 
 ## Context
 
-Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
+Group: `microkernel/README.md` (v1 scope since 2026-10-16).
 
-Coordinate with `cleanup-core-commands/launch-decomposition`, which isolates
+Coordinate with `microkernel/launch-decomposition`, which isolates
 launch's lifecycle writes (`_auto_activate`, `mark_in_progress`,
 blocked-resume re-block, script step/done) in the launch service. If moving
 `block`/`unblock` needs a launch hook, record that dependency there rather

@@ -47,11 +47,11 @@ kernel hook and stays.
 
 ## Context
 
-Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
+Group: `microkernel/README.md` (v1 scope since 2026-10-16).
 
 `src/coga/commands/update.py` is `coga init`'s template-copy helpers, not a
 command. Launch-time git push-auth preflight and installed-versus-source
-warnings may be handed here by `cleanup-core-commands/launch-decomposition`.
+warnings may be handed here by `microkernel/launch-decomposition`.
 
 ### Premise check (2026-10-16, pull-forward to v1)
 

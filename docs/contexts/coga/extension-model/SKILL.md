@@ -61,7 +61,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 
-These tickets live under `coga/tasks/cleanup-core-commands/` and are v1
+These tickets live under `coga/tasks/microkernel/` and are v1
 scope: v1 ships with this table empty. Commands stay where they are until a
 reviewed change settles their placement, and the tickets work toward the
 kernel boundary below rather than replacing it. Shared helpers and launch-time

@@ -41,13 +41,13 @@ Preserve quick read ergonomics and machine-readable output (`--json`).
 - [ ] `validate` stays fail-loud with stable exit codes and JSON for
       automation (Dream, CI, `coga launch` preflights).
 - [ ] `launch --prompt-report` gets its home decided here, as handed off by
-      `cleanup-core-commands/launch-decomposition`.
+      `microkernel/launch-decomposition`.
 - [ ] The row leaves the "Open command placements" table; tests and the
       `coga/cli` index are updated.
 
 ## Context
 
-Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
+Group: `microkernel/README.md` (v1 scope since 2026-10-16).
 
 `show` and `status` already render through `coga.views`; verify the current
 split before moving anything. A parameterized read must not smuggle hidden

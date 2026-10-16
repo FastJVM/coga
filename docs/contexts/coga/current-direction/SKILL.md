@@ -16,7 +16,7 @@ is `coga status` and the ticket bodies; stage posture is
 ## In force
 
 - **The microkernel cleanup is v1 scope (2026-10-16).** The six
-  `cleanup-core-commands/*` tickets came back from `_v2/`; v1 ships with
+  `microkernel/*` tickets came back from `_v2/`; v1 ships with
   extension-model's "Open command placements" table empty. The target is the
   current kernel line (launch closure including `mark`/`bump`,
   `block`/`unblock`, `create`, fresh `init`, fixed recipes), not the July

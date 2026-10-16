@@ -64,7 +64,7 @@ repo recipe, a rehearsal log proving the take works, and a fallback plan.
 
 Owner request, 2026-10-16, alongside pulling the microkernel cleanup into v1.
 The demo is the visible proof of that cleanup, so **rehearse it after
-`coga/tasks/cleanup-core-commands/` lands** and against the released 1.0
+`coga/tasks/microkernel/` lands** and against the released 1.0
 wheel. Drafting the script and reset recipe can start earlier, but
 re-validate the mechanism against `coga/extension-model` before rehearsing,
 because the cleanup may change it.
@@ -90,4 +90,4 @@ Related: `marketing/plan`, `marketing/positioning`, `coga/extension-model`,
 <!-- coga:blackboard -->
 
 Created 2026-10-16 from an attended `coga chat`. Blocked in practice on
-`cleanup-core-commands/*` (rehearsal only); script drafting can start now.
+`microkernel/*` (rehearsal only); script drafting can start now.

@@ -49,7 +49,7 @@ Close the two residual rows of the "Open command placements" table:
 
 ## Context
 
-Group: `cleanup-core-commands/README.md` (v1 scope since 2026-10-16).
+Group: `microkernel/README.md` (v1 scope since 2026-10-16).
 
 Already settled and out of scope (Dream W39 F48): default aliases are argv
 sugar; fresh `init` is kernel; `delete` is a thin head over the `delete-task`
