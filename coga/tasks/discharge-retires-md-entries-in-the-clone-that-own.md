@@ -38,6 +38,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1035
 branch: clone-discharge-retires
 
 ## Plan (owner-approved 2026-10-16)
