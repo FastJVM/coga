@@ -147,12 +147,21 @@ was wrong.
    sends the new user to the README alone, so the README is what walks a
    Windows user into the crash. The claim entered in `cc9c54e9c` ("Revise
    README for clarity"), not from any Windows-support decision.
-2. open — Nothing gives a fresh machine a route to `uv` or Python 3.11. The
-   README opens with `uv tool install coga`; `coga/install` links uv's
-   homepage without an install command and says "Install Python 3.11+
-   separately (`uv tool install` can manage its own Python)", which is
-   circular when neither is present. On a fresh Mac this is `command not
-   found: uv`.
+2. confirmed by walk — Nothing gives a fresh machine a route to `uv` or
+   Python 3.11. The README opens with `uv tool install coga`;
+   `coga/install` links uv's homepage without an install command and says
+   "Install Python 3.11+ separately (`uv tool install` can manage its own
+   Python)", which is circular when neither is present. Reproduced on the
+   guest 2026-10-15, copying the command from the README's own code block:
+
+   ```
+   % uv tool install coga
+   zsh: command not found: uv
+   ```
+
+   The first command the public page gives a new user fails on a clean
+   machine. Recovery path still under test: whether the README's "Install"
+   link resolves it.
 3. open — The macOS Command Line Tools prerequisite is absent from the
    README, which says only "needs ... Git". `coga/install` owns the detail
    including the headless route.
