@@ -135,3 +135,11 @@ with `Run coga init --user <name>`.
 Discovery: commands find the repo by walking up for `coga.toml`, also
 checking a sibling `coga/` at each level. A nested Coga repo is only found
 from inside its own subtree (`src/coga/config.py` `find_repo_root`).
+
+## Ticket-writing template
+
+The annotated ticket template ships beside the `bootstrap/ticket` skill as
+`template.md`; init does not seed `tasks/_template/ticket.md`. Existing
+seeded copies remain repo-owned files, but the editor reads its skill’s
+attached template. `coga create` still renders draft bytes through its
+existing code and the `blackboard.md` resource.

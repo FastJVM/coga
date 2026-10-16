@@ -24,7 +24,8 @@ Part of [coga/tickets](../SKILL.md).
   and main agent with the human, repairs an out-of-vocabulary status, and
   validates afterwards: a draft left without a workflow is rejected there.
   `bootstrap/ticket` is injected only into that prompt, never persisted in
-  `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
+  `skills:`. Its shared editing rules and annotated `template.md` also serve
+  ordinary ticket edits; `interview.md` is read only for guided authoring. A local `coga/skills/bootstrap/ticket/` overrides it. Standard
   `claude`/`codex` receive the prompt as system/developer context
   (`[agents.<type>].discussion` overrides the argv template).
 - **Authoring agent.** `authoring.resolve_authoring_agent` picks who runs

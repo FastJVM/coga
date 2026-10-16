@@ -73,7 +73,6 @@ operating rules without a merge.
   [packaging](../packaging/SKILL.md), [releasing](../releasing/SKILL.md);
   code-task conventions [dev/code](../../dev/code/SKILL.md)
   ([checkouts](../../dev/checkouts/SKILL.md),
-  [design history](../blackboard/SKILL.md#superseded-designs),
   [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves.
 - **Guarantees** (attach only to change them): `coga/internals/*`, indexed
   by launch-internals, sync, recurring; activity-capture by usage.

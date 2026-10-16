@@ -1,9 +1,9 @@
 ---
 name: coga/blackboard
-description: The writer's contract for a ticket blackboard — locating the fence, scoping edits, live sections and superseded designs, the draft-activation readiness check, size limits and their remedy, and the concurrency limits of shipped writers. Attach to tickets whose work writes blackboards programmatically.
+description: Blackboard parser and writer contracts — fence recognition, superseded-history projection, draft readiness, size measurement, and concurrency. Read when changing the implementation.
 ---
 
-# Writing to a ticket blackboard
+# Blackboard implementation contracts
 
 The blackboard is everything below the `<!-- coga:blackboard -->` fence in a
 ticket: working memory shared by human and agent and carried between
@@ -36,55 +36,13 @@ while an inline mention does not. The region starts right after the match
   region from `read_blackboard`, never on whole-file text, so a `## Heading`
   pattern cannot hit the body.
 
-What may be edited above the fence is owned by
-[coga/tickets](../tickets/SKILL.md) (agents: `contexts` and body sections).
-
-## Section regimes
-
-Match the section's regime; do not invent a fourth.
-
-- **Live state: rewrite in place.** One current value per named line. The
-  ticket blackboard template (`src/coga/resources/blackboard.md`)
-  documents optional fields inline. Old values live in git.
-- **Record: append, never delete.** `## Superseded designs` takes dated
-  entries (shape [below](#superseded-designs);
-  only an archive pointer composes). `## Blockers` takes one checkbox per ask;
-  `coga unblock` marks it `- [x]` and appends `resolved:`.
-- **Authoring scratch: synthesize before launch.** `## Evaluator review`,
-  `## Ticket authoring notes`, `## Proposals`. The `bootstrap/ticket` cleanup
-  folds durable substance into the body; for a draft it keeps
-  `## Superseded designs` and resets the rest to the stock placeholder; for a
-  non-draft it removes only the authoring sections it used.
+Ticket-writing guidance, including design changes and oversized-note cleanup,
+belongs to the `bootstrap/ticket` skill and its annotated template.
 
 `src/coga/blackboard.py` `append_to_section_text` / `append_to_section`
-append into a named section (heading to next `## `), creating it at the end
-if missing.
+append into a named section (heading to next `## `), creating it if missing.
 
 ## Superseded designs
-
-When a design changes, rewrite `## Description` and `## Context` to describe
-current work, with live requirements under `###` subheadings. Other top-level
-body sections do not compose. Move the abandoned plan below the blackboard
-fence into one `## Superseded designs` section; append dated entries oldest
-to newest:
-
-```markdown
-## Superseded designs
-
-### YYYY-MM-DD — <abandoned direction>
-
-Superseded by: <current direction or decision>
-Reason: <why the ticket pivoted>
-
-<prior plan, acceptance details, and evidence worth retaining>
-```
-
-Retain enough to understand or reconsider the old plan, with copied headings
-at `####` or deeper inside each entry. Keep history in this single section,
-not scattered under alternative headings or left only in Git. The body may
-carry one short pointer when a reviewer needs it; keep current decisions and
-their rationale in live notes. `blackboard.blackboard_for_prompt` leaves the
-stored history unchanged and includes only a pointer to it in the prompt.
 
 Composition and draft readiness share `_without_superseded_designs`: only
 the exact, unindented, case-sensitive heading starts an archive (trailing
@@ -119,41 +77,11 @@ reactivations and forced recurring reruns do not recheck. An
 `## Evaluator review` written by a live workflow step is working state for
 the next owner gate, not residue.
 
-## Size and its remedy
+## Size measurement
 
 `blackboard_size_warning` and `coga validate` (`large-blackboard`) warn above
 `BLACKBOARD_WARN_BYTES` (32 KiB), measuring live notes plus the archive
-pointer. When `coga launch --prompt-report` shows the blackboard as the
-largest layer, do not delete history. Promote a file-form task to directory
-form, move dated evidence into sibling attachments (`tasks/<slug>/<topic>.md`,
-opening with an HTML comment naming the task and move date), and leave the
-current handoff, worklist and verification with a pointer to each. Keep
-`## Dev` and `## Blockers` in place, since CLI readers do not follow links.
-Material several tickets cite belongs in an unattached context. Record the
-before/after layer sizes on the blackboard. A moved section leaves a
-same-named heading holding only the pointer, so references to it (an
-evaluator review citing `## Design`) still resolve.
-
-The remedy is for live tickets. A flagged `done` ticket is not trimmed: one
-with no live recorded checkout is left to Dream's retro pass, and one with a
-live checkout is retirement debt that `coga retire <slug>` disposes of and
-deletes ([coga/dream](../dream/SKILL.md) owns that split). A section a writer rewrites
-every run (a recurring template's state, Dream's own per-run report) is not
-trimmed by hand either: the next run overwrites the edit, and
-[coga/period-task](../period-task/SKILL.md) says to touch only your own keys.
-Route it to its owner as a decision (attachment, exemption, or accepted
-warning).
-
-## What later passes do to content
-
-- A replaced live value leaves the section; git keeps it.
-- A replaced design moves into the single `## Superseded designs` section;
-  the body keeps at most a one-line pointer. Keep rationale still needed for
-  current work in live notes.
-- A resolved blocker keeps its ask.
-- A period task's blackboard is deleted at Dream's retro cleanup: durable
-  gotchas go under `## Gotchas` for extraction and last-run state goes on the
-  parent template's blackboard ([coga/period-task](../period-task/SKILL.md)).
+pointer. The `bootstrap/ticket` skill owns the editing remedy.
 
 ## Concurrent writers
 

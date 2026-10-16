@@ -237,7 +237,7 @@ def test_classifies_large_blackboard_as_attachment_remedy() -> None:
     )
 
     assert classified.action == ACTION_PR_PROPOSAL
-    assert "coga/blackboard" in classified.remediation
+    assert "bootstrap/ticket" in classified.remediation
     # Directory-form tasks (like this example) already have `<slug>/ticket.md`;
     # the remedy must not tell Dream to promote them again.
     assert "promote a file-form task" in classified.remediation

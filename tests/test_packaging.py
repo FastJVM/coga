@@ -49,6 +49,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/interview.md",
+    "coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/template.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
     "scan-protocol/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"

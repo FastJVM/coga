@@ -67,8 +67,8 @@ push access. Only then is activation written and the ticket flipped to
 "started" notice. Details: [coga/launch](../launch/SKILL.md).
 
 The session is attended: you watch and talk to the agent. It does the step's
-work, records findings on the blackboard
-([coga/blackboard](../blackboard/SKILL.md)), and finishes with `coga bump`.
+work, records findings on the blackboard using the `bootstrap/ticket`
+editing skill, and finishes with `coga bump`.
 For a multi-step workflow such as `code/with-review`, the supervisor then
 starts the next agent step, rotating to the peer agent for review
 ([coga/agents](../agents/SKILL.md)).

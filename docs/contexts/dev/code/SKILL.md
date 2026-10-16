@@ -1,6 +1,6 @@
 ---
 name: dev/code
-description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout and cleanup topics plus the blackboard's superseded-designs convention; attach it to any such ticket.
+description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout and cleanup topics; attach it to any such ticket.
 ---
 
 # Code-task conventions
@@ -25,9 +25,6 @@ record directly.
   delete the landed branch (and any leftover recorded worktree) under shared
   proofs. See
   [dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
-- **Keep the body current.** Archive abandoned plans in one
-  `## Superseded designs` blackboard section. See
-  [coga/blackboard](../../coga/blackboard/SKILL.md#superseded-designs).
 
 ## Not covered
 
