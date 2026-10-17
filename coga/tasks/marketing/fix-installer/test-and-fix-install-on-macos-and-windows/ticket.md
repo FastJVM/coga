@@ -437,6 +437,42 @@ material follows.
     from the README near the install section. Low cost, and relevant to a
     first-time evaluator deciding whether to try it at all.
 
+13. open — the public documentation describes behavior absent from the
+    released package, so a new user reads docs for software they cannot
+    install. `uv tool install coga` ships 0.4.0; the docs on `main`
+    describe 0.4.1. `coga/install` states that "`coga build`, when the
+    onboarding ticket's agent CLI is missing, offers that one before
+    failing", and `src/coga/launch.py` does call `offer_agent_cli` for the
+    `coga-build` onboarding slug — but `src/coga/agent_cli_setup.py` does
+    not exist in v0.4.0 at all, and `git show v0.4.0:src/coga/launch.py`
+    contains no reference to it. It arrived after the tag, in
+    `06df6cf18`. Reproduced on the guest 2026-10-17:
+
+    ```
+    % coga build
+    → coga launch coga-build
+    Launch: agent claude -> claude (cli=claude)
+    Agent CLI 'claude' not found in PATH. Install it from
+    https://claude.com/claude-code and authenticate, then re-run.
+    ```
+
+    No offer, because the released version has none. The README already
+    concedes this drift in one place — the demo link notes "some command
+    names may have changed since" — but nowhere does any surface say which
+    release the documentation describes. Fix is a decision about whether
+    docs track the release or `main`, and saying so on the page; the
+    install instructions in particular should match what PyPI serves.
+    Note the released-versus-main gap also governs the ticket's own
+    re-walk rule, which installs from `main` to verify merged fixes.
+
+14. open, contingent on 13 — on `main` the same step still cannot install
+    an agent CLI on a fresh Mac. `installer_argv` in
+    `src/coga/agent_cli_setup.py` returns None unless brew is present on
+    darwin or `npm` is on PATH, so the offer degrades to printing the
+    install URL. Finding 8's package-manager wall therefore blocks both
+    places Coga promises to set a new user up: `gh` at init and the agent
+    CLI at build. Whatever is decided for 8 should cover this path too.
+
 Owner's open questions for Nico, carried from his notes rather than
 resolved here:
 
