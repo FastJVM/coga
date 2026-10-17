@@ -25,7 +25,6 @@ from coga.commands import megalaunch as megalaunch_cmd
 from coga.commands import owner as owner_cmd
 from coga.commands import recurring as recurring_cmd
 from coga.commands import run as run_cmd
-from coga.commands import retire as retire_cmd
 from coga.commands import secret as secret_cmd
 from coga.commands import show as show_cmd
 from coga.commands import slack as slack_cmd
@@ -86,7 +85,6 @@ app.command("block")(block_cmd.block)
 app.command("unblock")(unblock_cmd.unblock)
 app.command("owner")(owner_cmd.owner)
 app.command("delete")(delete_cmd.delete)
-app.command("retire")(retire_cmd.retire)
 app.command("slack")(slack_cmd.slack)
 app.command("usage")(usage_cmd.usage)
 app.command("validate")(validate_cmd.validate)
@@ -123,7 +121,6 @@ _SWEEPING_COMMANDS = frozenset(
         "unblock",
         "owner",
         "delete",
-        "retire",
         "slack",
         "run",
     }

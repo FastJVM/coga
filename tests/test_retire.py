@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
+import os
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 from textwrap import dedent
 
@@ -10,9 +13,7 @@ import typer
 from typer.testing import CliRunner
 
 from coga import retire_worklist as rw
-from coga.cli import app
 from coga.branchcleanup import WorktreeCleanupResult
-from coga.commands.retire import _checkout_cleanup_section
 from coga.config import load_config
 from coga.launch import LaunchResult
 from coga.tasks import resolve_task
@@ -20,6 +21,28 @@ from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
 
 from conftest import seed_direct_body_workflow
+
+
+RETIRE_SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "src/coga/resources/templates/coga/bootstrap/retire/ticket.py"
+)
+
+
+def _load_retire_script():
+    """Import the packaged `bootstrap/retire/ticket.py` as a module.
+
+    Its `__main__` guard keeps loading side-effect free; tests drive its Typer
+    `app` directly, which bypasses the alias and launch framing.
+    """
+    spec = importlib.util.spec_from_file_location("coga_bootstrap_retire", RETIRE_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+retire_cmd = _load_retire_script()
 
 
 def _write(path: Path, text: str) -> None:
@@ -90,7 +113,7 @@ def test_retire_uses_repo_retire_template_override(
     _seed_finished_task(repo, "fix-retry-logic")
     _write(repo / "resources" / "retire.md", "Repo retire pass for `{slug}`.\n")
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic", "--no-launch"])
 
     assert result.exit_code == 0, result.output
     body = Ticket.read(repo / "tasks" / "retire-fix-retry-logic.md").body
@@ -109,7 +132,7 @@ def test_retire_override_with_stray_brace_names_the_file(
     override = repo / "resources" / "retire.md"
     _write(override, "Retire {slug} using " + placeholder + ".\n")
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic", "--no-launch"])
 
     assert result.exit_code == 2
     assert str(override) in result.output
@@ -129,7 +152,7 @@ def test_retire_defaults_to_the_default_agent_key(
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "fix-retry-logic")
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic", "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: using main agent codex (agent type codex)" in result.output
@@ -143,7 +166,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "fix-retry-logic")
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic", "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
@@ -210,7 +233,7 @@ def test_retire_reports_created_task_validation_failure(
 
     monkeypatch.setattr("coga.validate.assert_task_valid", reject_created_task)
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic", "--no-launch"])
 
     assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
@@ -243,7 +266,7 @@ def test_retire_refuses_non_done_target(
     (task_dir / "blackboard.md").write_text("")
     (task_dir / "log.md").write_text("")
 
-    result = CliRunner().invoke(app, ["retire", "in-flight", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["in-flight", "--no-launch"])
 
     assert result.exit_code == 2
     assert "Retire only operates on done or canceled tickets" in result.output
@@ -263,7 +286,7 @@ def test_retire_deletes_a_done_ticket_without_a_retro_task(
         "coga.launch.launch", lambda slug, **_kw: launched.append(slug)
     )
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic"])
 
     assert result.exit_code == 0, result.output
     assert f"Retire: fix-retry-logic: deleted {task_dir}" in result.output
@@ -279,7 +302,7 @@ def test_retire_refuses_unknown_slug(
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "real-task")
 
-    result = CliRunner().invoke(app, ["retire", "no-such-task", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["no-such-task", "--no-launch"])
 
     assert result.exit_code == 2
     assert "no-such-task" in result.output
@@ -317,7 +340,7 @@ def test_retire_launches_after_create(
 
     monkeypatch.setattr("coga.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
@@ -342,6 +365,96 @@ def test_retire_launches_after_create(
             "return_timeout": False,
         }
     ]
+
+
+@pytest.mark.parametrize("launch_exit", [0, 1], ids=["success", "failure"])
+def test_retire_exits_retained_state_when_its_launch_withheld_the_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, launch_exit: int
+) -> None:
+    """A refused checkout return inside the nested launch reaches the outer launch.
+
+    The script runs in a child of `coga launch bootstrap/retire`, so the
+    process-local withheld flag is carried out as the retained-state exit.
+    """
+    from coga import git
+
+    monkeypatch.chdir(repo)
+    _seed_finished_task(repo, "fix-retry-logic")
+
+    def fake_launch(task: str, **_: object) -> LaunchResult:
+        git.state_sweep_withheld.set(True)
+        return LaunchResult(exit_code=launch_exit)
+
+    monkeypatch.setattr("coga.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retry-logic"])
+
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "Retire: launching retire-fix-retry-logic" in result.output
+
+
+def _run_coga(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run the real CLI, so `retire` goes through its alias and bootstrap launch."""
+    env = os.environ.copy()
+    source = str(Path(__file__).resolve().parents[1] / "src")
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = source if not existing else source + os.pathsep + existing
+    return subprocess.run(
+        [sys.executable, "-m", "coga.cli", *args],
+        cwd=repo,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_retire_alias_deletes_a_done_ticket(repo: Path) -> None:
+    task_dir = _seed_finished_task(repo, "fix-retry-logic", status="done")
+
+    result = _run_coga(repo, "retire", "fix-retry-logic")
+
+    assert result.returncode == 0, result.stderr
+    assert "→ coga launch bootstrap/retire -- fix-retry-logic" in result.stderr
+    assert "Retire: target task fix-retry-logic" in result.stdout
+    assert not task_dir.exists()
+
+
+def test_retire_alias_retires_a_done_ticket_without_configured_agents(
+    repo: Path,
+) -> None:
+    (repo / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
+    task_dir = _seed_finished_task(repo, "fix-retry-logic", status="done")
+
+    result = _run_coga(repo, "retire", "fix-retry-logic")
+
+    assert result.returncode == 0, result.stderr
+    assert not task_dir.exists()
+
+
+def test_retire_alias_forwards_no_launch_for_a_canceled_ticket(repo: Path) -> None:
+    _seed_finished_task(repo, "fix-retry-logic")
+
+    result = _run_coga(repo, "retire", "fix-retry-logic", "--no-launch")
+
+    assert result.returncode == 0, result.stderr
+    assert "Retire: launch skipped (--no-launch)" in result.stdout
+    assert (repo / "tasks" / "retire-fix-retry-logic.md").exists()
+
+
+def test_retire_alias_refuses_an_unknown_slug(repo: Path) -> None:
+    result = _run_coga(repo, "retire", "no-such-task", "--no-launch")
+
+    assert result.returncode == 2
+    assert "no-such-task" in result.stderr
+
+
+def test_retire_alias_help_reaches_the_script(repo: Path) -> None:
+    result = _run_coga(repo, "retire", "--help")
+
+    assert result.returncode == 0, result.stderr
+    assert "Usage: coga retire" in result.stdout
+    assert "--no-launch" in result.stdout
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -413,7 +526,7 @@ def test_retire_prunes_merged_branch_before_launch(
         == 0
     )
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
@@ -491,7 +604,7 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
         "coga.launch.launch", lambda slug, **_kw: launched.append(slug)
     )
 
-    result = CliRunner().invoke(app, ["retire", slug])
+    result = CliRunner().invoke(retire_cmd.app, [slug])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept branch `leftover`" in result.output
@@ -560,7 +673,7 @@ def test_retire_keeps_a_done_ticket_whose_owned_branch_survives_cleanup(
         """,
     )
 
-    result = CliRunner().invoke(app, ["retire", slug])
+    result = CliRunner().invoke(retire_cmd.app, [slug])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept branch `leftover`" in result.output
@@ -639,7 +752,7 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
     """
     slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
@@ -681,7 +794,7 @@ def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_
         rw.RetireFollowUp("other", "other-branch", str(other_dir), "2026-09-04"),
     )
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert f"Retire: dropped {slug} from {worklist}." in result.output
@@ -700,7 +813,7 @@ def test_retire_disposes_of_a_done_tickets_checkout_then_deletes_it(
         repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
     )
 
-    result = CliRunner().invoke(app, ["retire", slug])
+    result = CliRunner().invoke(retire_cmd.app, [slug])
 
     assert result.exit_code == 0, result.output
     assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
@@ -721,7 +834,7 @@ def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
         repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
     )
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept worktree" in result.output
@@ -741,7 +854,7 @@ def test_retire_reports_an_undecodable_worklist_without_aborting(
     )
     worklist.write_bytes(b"\xff")
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: retire worklist not updated" in result.output
@@ -789,7 +902,7 @@ def test_retire_leaves_dirty_worktree_in_place(
     )
     (task_dir / "log.md").write_text("")
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept worktree" in result.output
@@ -849,7 +962,7 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
     )
     (task_dir / "log.md").write_text("")
 
-    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept worktree" in result.output
@@ -873,7 +986,7 @@ def test_retire_does_not_label_missing_checkout_as_preserved() -> None:
         notes=["Worktree cleanup: recorded worktree is already gone."],
     )
 
-    assert _checkout_cleanup_section(result) == ""
+    assert retire_cmd._checkout_cleanup_section(result) == ""
 
 
 def test_retire_preserves_checkout_claimed_by_another_live_ticket(
@@ -935,7 +1048,7 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
         """,
     )
 
-    result = CliRunner().invoke(app, ["retire", source_slug, "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, [source_slug, "--no-launch"])
 
     assert result.exit_code == 2, result.output
     assert "Retire refused: Retire kept worktree" in result.output
@@ -965,7 +1078,6 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
 def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from coga.commands import retire as retire_cmd
     from coga.config import load_config
     from coga.tasks import resolve_task
 
@@ -1063,7 +1175,7 @@ def test_retire_resolves_unique_prefix(
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "fix-retry-logic")
 
-    result = CliRunner().invoke(app, ["retire", "fix-retr", "--no-launch"])
+    result = CliRunner().invoke(retire_cmd.app, ["fix-retr", "--no-launch"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output

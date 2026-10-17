@@ -11,7 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Sequence
 
 import typer
 
@@ -93,6 +93,7 @@ def run_script_phase(
     ticket: Ticket,
     *,
     stateless: bool,
+    args: Sequence[str] = (),
     assist_branch: str | None = None,
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
@@ -101,9 +102,11 @@ def run_script_phase(
     """Run one target-owned deterministic phase without composing a prompt.
 
     Secrets and task identity are preflighted before the stateful
-    ``active -> in_progress`` transition.  The child receives no operands and
-    runs from the host repository root under Coga's current Python
-    interpreter.  The launcher, never this helper, decides whether an agent
+    ``active -> in_progress`` transition.  The child runs from the host
+    repository root under Coga's current Python interpreter.  A stateless
+    (bootstrap) child receives ``args`` as its operands, one argv element
+    each; a stateful child receives none, because launch arguments would be
+    hidden mutable input to a ticket with lifecycle state.  The launcher, never this helper, decides whether an agent
     phase follows.
 
     A recorded human-step assist (`assist_branch` and friends) runs the same
@@ -146,6 +149,11 @@ def run_script_phase(
     if not stateless and not isinstance(ref, TaskRef):
         raise ValueError(
             f"Stateful script phase requires a task target, got {ref.id_slug}."
+        )
+    if args and not stateless:
+        # Launch refuses this before any effect; reaching here is a caller bug.
+        raise ValueError(
+            f"Stateful script phase for {ref.id_slug} takes no launch arguments."
         )
 
     if strict_assist and ticket.status != "in_progress":
@@ -256,7 +264,7 @@ def run_script_phase(
         env[ASSIST_PR_ENV] = assist_pr_url or ""
 
     completed = subprocess.run(
-        [sys.executable, str(entry)],
+        [sys.executable, str(entry), *args],
         cwd=host_repo_root(cfg),
         env=env,
         check=False,
@@ -347,6 +355,7 @@ def run_script_chain(
     ticket: Ticket,
     ran_steps: set[str | None],
     *,
+    args: Sequence[str] = (),
     assist_branch: str | None = None,
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
@@ -361,7 +370,8 @@ def run_script_chain(
     phase that ran, it returns the checkout and hands back fresh config and
     the exact target (``None`` when the target is gone), or ``None`` to stop
     the chain after reporting a refusal. Routing and exit semantics are
-    otherwise unchanged.
+    otherwise unchanged. ``args`` reaches a stateless script's argv; a
+    stateless target runs exactly one phase.
     """
 
     stateless = isinstance(ref, BootstrapRef)
@@ -378,6 +388,7 @@ def run_script_chain(
             ref,
             before,
             stateless=stateless,
+            args=args,
             assist_branch=assist_branch,
             assist_agent=phase_assist_agent,
             assist_pr_url=assist_pr_url,
