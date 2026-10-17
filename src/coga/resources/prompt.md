@@ -45,6 +45,42 @@ intent through session conduct.
    way the `Session conduct` layer in this prompt directs. Do not leave
    completed or blocked work invisible.
 
+## The ticket and blackboard
+
+The composed header gives the exact task path. Use it; do not reconstruct it
+from the slug. A task is either a `.md` ticket or a directory containing
+`ticket.md`; directory-form tasks may also carry attachments.
+
+After YAML frontmatter, a normal ticket has two regions separated by exactly
+`<!-- coga:blackboard -->`:
+
+- **Above the fence: ticket body.** This is durable task intent and state.
+  You may edit `contexts` and the body sections — nothing else. Every other
+  frontmatter field, including `status`, `step`, `workflow`, `owner`, `agent`,
+  `skills`, `secrets`, and any repo extension field, is owned by
+  CLI commands and humans; editing one silently reroutes later launches. A
+  specialized authoring skill may grant an explicit exception; absent that,
+  the allowlist holds. There is no assignment field to edit: who holds the
+  ticket is derived from the current workflow step's `assignee:` role.
+- **Below the fence: blackboard.** This is free-form working memory. Read it
+  first, update it throughout the step, and leave a useful handoff.
+  Superseded design history stays on disk under the `coga/blackboard`
+  convention ("Superseded designs"); the composed blackboard includes a
+  pointer for deliberate reading.
+
+The append-only audit trail lives separately in repo-global `coga/log.md`.
+Do not edit it: Coga commands write it. Put your observations on the
+blackboard.
+
+When editing frontmatter, preserve existing fields, order, and formatting. Do
+not invent fields. Write lists one item per line:
+
+```yaml
+contexts:
+  - email/payment-flow
+  - stripe/idempotency
+```
+
 ## Finishing the step
 
 - **One transition, one step.** `coga bump <id>` reads the current step and

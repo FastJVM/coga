@@ -12,7 +12,7 @@ is right. Choose the owner by what the knowledge is:
 | --- | --- |
 | Facts and contracts: behavior, invariants, edge cases, product intent | a topic under the configured contexts root (`<ref>/SKILL.md`) |
 | Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
-| Ticket-writing guidance and field explanations | inline ticket template (`src/coga/resources/ticket.md`) |
+| Per-ticket field guide: a summary carried by new tickets that links the owning topics | inline ticket template (`src/coga/resources/ticket.md`) |
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
 | Dated evidence and completed investigations | `docs/archive/evidence/` pages |

@@ -1,18 +1,29 @@
 ---
 name: dev/dev-record
-description: Compatibility context for existing tickets that attach the former Dev-record guide, pointing to the current contract owners.
+description: Compatibility pointer for tickets that still attach `dev/dev-record`; states the `## Dev` linkage shape and links the topics that now own its write timing, gates, PR publication, stranded-write repair, and review-step rules.
 ---
 
-# Dev record compatibility
+# The `## Dev` record
 
-This context remains bundled so existing tickets with `dev/dev-record` in
-`contexts:` continue to validate and launch after an upgrade. New tickets
-carry their writing guidance in the annotated ticket template; see
-[ticket authoring](../../coga/tickets/authoring/SKILL.md).
+This topic remains so tickets that still list `dev/dev-record` keep
+resolving. New tickets do not need to attach it.
 
-The ticket's `## Dev` record links its branch, PR, and optional sandbox clone.
-Current contracts live in [PR publication](../../coga/internals/pr-publication/SKILL.md)
-(record parsing and publication), [workflows](../../coga/workflows/SKILL.md)
-(completion gates), and [checkouts](../checkouts/SKILL.md)
-(where to write and reconcile the record). Follow those owners when changing
-behavior; this compatibility topic does not duplicate their specifications.
+A code ticket records its linkage near the top of its blackboard:
+
+```
+## Dev
+branch: <branch-name>
+pr: <full /pull/<number> URL>
+```
+
+`worktree: <path>` is added only for a sandbox clone. One field per line,
+current values rewritten in place; a backtick-wrapped value may carry a
+trailing note. The first `branch:` is the workflow checkout.
+
+- Write timing, publishing `branch:` from `main`, and stranded ticket writes:
+  [dev/checkouts](../checkouts/SKILL.md).
+- `requires: branch` / `requires: pr`, branch-gate scope, and the review step:
+  [coga/workflows](../../coga/workflows/SKILL.md).
+- `coga open-pr` and record parsing:
+  [coga/internals/pr-publication](../../coga/internals/pr-publication/SKILL.md).
+- Terminal branch ownership: [dev/checkout-cleanup](../checkout-cleanup/terminal-owners/SKILL.md).

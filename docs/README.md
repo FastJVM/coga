@@ -21,7 +21,7 @@ Agent access to archives requires an explicit human request; see
 3. [Take a first task](contexts/coga/first-task/SKILL.md) from draft to PR.
 4. [Remove Coga](contexts/coga/uninstall/SKILL.md) if you need to.
 
-New tickets include their own writing guidance from the
+New tickets include a field guide from the
 [annotated template](../src/coga/resources/ticket.md).
 
 ## Understand
@@ -116,6 +116,7 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [checkouts](contexts/dev/checkouts/SKILL.md)
   ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
   [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
+  [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
   [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
   ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
   [foreign ownership](contexts/dev/checkout-cleanup/foreign-ownership/SKILL.md),

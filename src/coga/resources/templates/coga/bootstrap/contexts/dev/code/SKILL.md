@@ -1,6 +1,6 @@
 ---
 name: dev/code
-description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout and cleanup topics; attach it to any such ticket.
+description: Overview of conventions for code tickets (tickets whose workflow produces a branch and PR), linking the checkout, `## Dev` record, and cleanup topics plus the blackboard's superseded-designs convention; attach it to any such ticket.
 ---
 
 # Code-task conventions
@@ -21,10 +21,17 @@ record directly.
   bumps from the branch; a manual session returns to `main` before its
   handoff. An occupied checkout means stop and ask (or block). The sandbox
   clone is the one fallback. See [dev/checkouts](../checkouts/SKILL.md).
+- **Record `## Dev` early and on `main`.** `branch:` when the branch exists,
+  `worktree:` only for a sandbox clone, `pr:` from `coga open-pr`. See
+  [dev/checkouts](../checkouts/SKILL.md), which also covers stranded ticket
+  writes.
 - **Leave branch cleanup to retire.** `coga retire` and the autoclose sweep
   delete the landed branch (and any leftover recorded worktree) under shared
   proofs. See
   [dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
+- **Keep the body current.** Archive abandoned plans in one
+  `## Superseded designs` blackboard section. See
+  [coga/blackboard](../../coga/blackboard/SKILL.md#superseded-designs).
 
 ## Not covered
 

@@ -1,6 +1,6 @@
 ---
 name: coga/tickets
-description: The ticket file contract — canonical and extension frontmatter keys, validation and the body regions that compose; task discovery and refs, creating and authoring tickets, and ownership live in its leaves.
+description: The ticket file contract — canonical and extension frontmatter keys, who may write which part, and the body regions that compose; task discovery and refs, creating and authoring tickets, and ownership live in its leaves.
 ---
 
 # Tickets
@@ -8,11 +8,13 @@ description: The ticket file contract — canonical and extension frontmatter ke
 A ticket is one unit of work, git-backed while it lives and disposable once
 done (what it taught moves into contexts): YAML frontmatter, a body, the fence
 line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
-parser contract is [coga/blackboard](../blackboard/SKILL.md); status and
+writer's contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).
 
-Ticket-writing guidance travels in each ticket’s `## Context` comment,
-rendered from `src/coga/resources/ticket.md`.
+New tickets also carry a field guide as an HTML comment under `## Context`,
+rendered from `src/coga/resources/ticket.md`. It documents frontmatter and
+blackboard field shapes; the editing rules below and in the base prompt hold
+whether or not a ticket carries it.
 
 ## Leaves
 
@@ -59,6 +61,11 @@ violation and only warns on an undeclared orphan key. `coga mark active`
 refuses empty `required` fields. Extensions reach prompts only as part of the
 ticket, not as a separate layer.
 
+**Who writes what.** Agents may edit `contexts` and the body sections, plus
+the blackboard; every other frontmatter field belongs to CLI commands and
+humans (base prompt `prompt.md`). A specialized authoring skill may grant an
+explicit exception. `coga/log.md` is written only by CLI commands.
+
 ## Body regions
 
 Only `## Description`, `## Context`, and the live blackboard reach the agent
@@ -67,7 +74,10 @@ to the next `##` line, so any other `##` above the fence is **uncomposed**: a
 `## Acceptance Criteria` or `## Proposed Shape`, and equally a `## What broke`
 written after Description prose, which also cuts that Description short.
 
-Coga deliberately does not compose extra `##` sections: an allowlist of
+The contract is relocate, not compose. Spec material (acceptance criteria,
+proposed shape, out of scope, evidence) goes as `###` subsections under
+`## Description`, background under `## Context`, and working notes below the
+fence. Coga deliberately does not compose extra `##` sections: an allowlist of
 intent names would drop the next unlisted one, and composing every heading
 would pull operational material into intent. `## PR` is the one operational
 section allowed above the fence (legacy PR preparation read by `open_pr`,
