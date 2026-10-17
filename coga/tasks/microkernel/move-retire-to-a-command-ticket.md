@@ -631,3 +631,12 @@ checks:
     base: c77870f36aee5fa6cc808508073cc81c730f4b8c
     detail: 'Help printed the script usage; a done ticket was deleted with commit "Ticket: smoke-two — deleted (retire)" on main and "checkout cleanup skipped" off control; the unknown slug exited 2.'
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `microkernel/move-retire-to-a-command-ticket`
+Recorded: 2026-10-17T05:30:54+00:00
+
+    Branch 'retire-command-ticket' is not safe to publish. refs/heads/retire-command-ticket does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/recurring/autoclose-merged/ticket.md, coga/recurring/autoclose-merged/ticket.py, coga/recurring/branch-sweep/ticket.md, coga/recurring/branch-sweep/ticket.py, coga/recurring/upstream-coga/ticket.md, coga/recurring/upstream-coga/ticket.py. Reconcile it and relaunch, or `coga block --task microkernel/move-retire-to-a-command-ticket`.
