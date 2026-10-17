@@ -491,6 +491,7 @@ disposition; this is not design approval.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1042
 branch: retire-command-ticket
 
 ## Implement handoff (2026-10-16, claude, attended)
@@ -551,8 +552,8 @@ Adjacent, not fixed here:
 title: Move coga retire to the bootstrap/retire script command ticket
 author: claude
 author_evidence: Attended implement session ran as Claude Opus 5.5 (claude-opus-5-5), launch 8ad060b6-b354-4d86-9fca-f03a6c7fb7f5.
-head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
-base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+head: a93a674acec6615e314397c47a3dd924d11324a8
+base: 5d6a7737d15fa4efb7cd53974824e5739f5875a8
 depth: deep
 rationale: Changes launch's script dispatch (argv, a new stateful refusal, operator tolerance, and an exit-75 retained-state contract) and moves a destructive command out of core; no code review yet.
 implementation: Bootstrap ticket.py targets receive trailing launch args as argv; stateful script targets refuse them before any effect; a script-only bootstrap target needs no agent; a bootstrap script exiting 75 skips launch's teardown refresh and the CLI sweep. coga retire becomes the default alias "launch bootstrap/retire --" whose packaged ticket.py holds the unchanged command body, launching a canceled ticket's retire task in-process and exiting 75 when that launch withheld the sweep. Docs move retire's procedure into bootstrap/retire/ticket.md and leave shared rules in dev/checkout-cleanup.
@@ -605,6 +606,11 @@ review:
   status: not-run
   detail: Code review belongs to the later self-qa/review steps; design approval is not code review.
 checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider -x --deselect 'tests/test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]'
+    status: passed
+    head: a93a674acec6615e314397c47a3dd924d11324a8
+    base: 5d6a7737d15fa4efb7cd53974824e5739f5875a8
+    detail: Python 3.12.12 — 3801 passed, 7 skipped, 1 deselected (the main-wide CLAUDE.md parametrization). Run on a rebase whose tree is byte-identical to the pushed merge a93a674ac (same tree hash).
   - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
     status: failed
     head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
@@ -640,3 +646,14 @@ Task: `microkernel/move-retire-to-a-command-ticket`
 Recorded: 2026-10-17T05:30:54+00:00
 
     Branch 'retire-command-ticket' is not safe to publish. refs/heads/retire-command-ticket does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/recurring/autoclose-merged/ticket.md, coga/recurring/autoclose-merged/ticket.py, coga/recurring/branch-sweep/ticket.md, coga/recurring/branch-sweep/ticket.py, coga/recurring/upstream-coga/ticket.md, coga/recurring/upstream-coga/ticket.py. Reconcile it and relaunch, or `coga block --task microkernel/move-retire-to-a-command-ticket`.
+
+## Open-PR handoff (2026-10-17, claude, attended)
+
+`coga open-pr` first refused: the checkout-return sweep `39123119e` had
+published this branch's recurring-template re-sync onto `main`, so the branch
+was stale with overlapping (identical) paths. Owner chose a merge over a
+force-pushed rebase: `retire-command-ticket` now has `origin/main`
+(`5d6a7737d`) merged in at `a93a674ac`, pushed without force. The full suite
+ran on a rebased tree with the same tree hash: 3801 passed, 7 skipped,
+1 deselected (the known `CLAUDE.md` case). The workflow
+(`code/design-then-implement`) orders no code review, so none ran before the PR.
