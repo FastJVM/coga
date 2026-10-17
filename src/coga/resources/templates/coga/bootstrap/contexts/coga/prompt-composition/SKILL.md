@@ -39,7 +39,7 @@ Conduct is never appended there.
 ### Launch marker
 
 The very last line of every spawned prompt is `coga-launch: <uuid>`, a fresh
-`uuid4` minted by `commands/launch.py` `spawn_agent_session` for that spawn
+`uuid4` minted by `launch.py` `spawn_agent_session` for that spawn
 (after any `## Launch arguments` block and after a preflighted prompt). It is
 not a layer: `--prompt-report` and `compose_prompt` never show it. It sits at
 the end so everything before it stays a byte-stable prompt-cache prefix across
@@ -137,7 +137,7 @@ call `compose_prompt_report` on an in-memory ticket copy.
 ## Delivery
 
 The prompt rides the agent CLI's argv, and Linux caps one argument at
-128 KiB. Above `commands/launch.py` `_MAX_PROMPT_ARG_BYTES` (120,000 bytes)
+128 KiB. Above `launch.py` `_MAX_PROMPT_ARG_BYTES` (120,000 bytes)
 launch passes a short pointer telling the agent to read the prompt file,
 which stays on disk for the session; content is unchanged. Such a size usually
 means context bloat. The session's done signal is a side-channel sentinel

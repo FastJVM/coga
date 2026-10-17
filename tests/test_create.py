@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from conftest import derived_operator, seed_direct_body_workflow
 from coga.cli import app
-from coga.commands.launch import RecurringPeriodLaunchResult
+from coga.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
@@ -44,7 +44,7 @@ def _patch_recurring_command_launch(
         )
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", typed_child_launch
+        "coga.launch.launch_recurring_period", typed_child_launch
     )
 
 
@@ -912,7 +912,7 @@ def test_cli_create_does_not_spawn_agent(
         class R: returncode = 0
         return R()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run, raising=False)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run, raising=False)
 
     runner = CliRunner()
     result = runner.invoke(

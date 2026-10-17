@@ -5,7 +5,7 @@ description: Index of the concurrency and publication guarantees behind coga lau
 
 # Coga launch internals (index)
 
-These pages hold what a change to `src/coga/commands/launch.py`,
+These pages hold what a change to `src/coga/launch.py`,
 `src/coga/launch_script.py`, `src/coga/megalaunch.py`,
 `src/coga/repl_supervisor.py`, `src/coga/pr_assist.py`,
 `src/coga/open_pr.py`, `src/coga/step_gate.py`, or the recurring runner must

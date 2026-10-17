@@ -164,13 +164,16 @@ def retire(
         return
 
     typer.echo(f"Retire: launching {slug}")
-    from coga.commands.launch import launch
+    from coga.launch import LaunchBail, launch
 
-    launch(
-        slug,
-        agent_override=None,
-        prompt_report=False,
-    )
+    try:
+        result = launch(slug, agent_override=None, prompt_report=False)
+    except LaunchBail as exc:
+        if exc.reason:
+            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+        raise typer.Exit(exc.code) from exc
+    if result.exit_code:
+        raise typer.Exit(result.exit_code)
 
 
 def _delete_done_task(cfg: Config, ref: TaskRef, refusal: str | None) -> None:

@@ -7,7 +7,7 @@ description: How Coga captures one bounded, secret-redacted usage record per age
 
 The read side and store are [`coga/usage`](../../usage/SKILL.md). This page
 owns what is written and how it is derived. All parsing, bounding, and rollup
-logic lives in `src/coga/usage.py`; `commands/launch.py` and
+logic lives in `src/coga/usage.py`; `launch.py` and
 `commands/usage.py` stay thin.
 
 ## Record schema (`USAGE_SCHEMA = 2`)
@@ -52,7 +52,7 @@ it from the supervisor outcome:
 ## Capture point and gates
 
 `usage.capture_session` runs in the `finally` of
-`commands/launch.py` `spawn_agent_session`, after the agent process exits (so
+`launch.py` `spawn_agent_session`, after the agent process exits (so
 it never races the agent's own log appends) and before callers handle
 non-zero or timeout results. Because every agent launch goes through that
 shared spawn path (`coga/internals/agent-spawn`), ordinary steps, chained

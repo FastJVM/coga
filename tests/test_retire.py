@@ -259,7 +259,7 @@ def test_retire_deletes_a_done_ticket_without_a_retro_task(
     task_dir = _seed_finished_task(repo, "fix-retry-logic", status="done")
     launched: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch", lambda slug, **_kw: launched.append(slug)
+        "coga.launch.launch", lambda slug, **_kw: launched.append(slug)
     )
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
@@ -312,8 +312,10 @@ def test_retire_launches_after_create(
             }
         )
         typer.echo("fake launch called")
+        from coga.launch import LaunchResult
+        return LaunchResult()
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
 
@@ -486,7 +488,7 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
 
     launched: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch", lambda slug, **_kw: launched.append(slug)
+        "coga.launch.launch", lambda slug, **_kw: launched.append(slug)
     )
 
     result = CliRunner().invoke(app, ["retire", slug])

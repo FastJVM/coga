@@ -57,7 +57,7 @@ coga launch add-a-health-check-endpoint
 `--prompt-report` shows the composed layers and their token counts
 ([coga/prompt-composition](../prompt-composition/SKILL.md)). A real launch
 treats typing `coga launch` as the approval signal for a draft or paused
-ticket, but it activates in two phases (`src/coga/commands/launch.py`
+ticket, but it activates in two phases (`src/coga/launch.py`
 `_prepare_auto_activate` / `_commit_auto_activate`). Activation is first
 prepared in memory, so the prompt sees the activated ticket. The durable
 write is deferred until every refusing preflight has passed: interactive

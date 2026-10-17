@@ -20,8 +20,8 @@ The repo separates implementation from the OS it operates:
   the repo shim; [coga/telemetry](../telemetry/SKILL.md) owns its contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
-  with no business logic are the target; `launch.py` and `init.py` are the
-  current exceptions that still carry substantial logic. `update.py` (init's
+  with no business logic are the target; `init.py` still carries substantial
+  logic. Launch's command adapter calls shared `coga.launch`. `update.py` (init's
   template-copy helpers) and `common.py` are shared helpers, not commands.
 - `config.py` (shared/local TOML, fixed schema), `compose.py` (prompt layers),
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
@@ -31,7 +31,8 @@ The repo separates implementation from the OS it operates:
   `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/sync](../sync/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
-- `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
+- `launch.py` (launch API, preparation and supervision),
+  `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
   `recurring_clone.py`.

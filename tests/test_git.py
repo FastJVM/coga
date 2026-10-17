@@ -1356,7 +1356,7 @@ def test_authoring_reloads_config_and_publishes_context_relocation_atomically(
 def test_checkout_return_reloads_config_before_publishing(
     git_repo, feature, relocated, config_change,
 ):
-    from coga.commands.launch import _CheckoutBoundary
+    from coga.launch import _CheckoutBoundary
 
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"

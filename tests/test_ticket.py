@@ -108,7 +108,7 @@ def _allow_ticket_launch(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
 
 def test_ticket_title_creates_draft_and_launches_authoring(
@@ -211,7 +211,7 @@ def test_ticket_authoring_does_not_inject_coga_secrets(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -248,7 +248,7 @@ def test_ticket_authoring_scrubs_1password_auth(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -291,7 +291,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -343,7 +343,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(
         app, ["ticket", "Investigate retries", "--agent", "codex"]
@@ -411,7 +411,7 @@ def test_ticket_requires_tty_before_spawning(
         called = True
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket"])
     assert result.exit_code == 2
@@ -473,7 +473,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "broken-context"])
     assert result.exit_code == 2
@@ -629,7 +629,7 @@ def _capture_ticket_launch(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
 
 def test_ticket_without_target_launches_bootstrap_interview(
@@ -736,7 +736,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "relaunch"])
     assert result.exit_code == 2

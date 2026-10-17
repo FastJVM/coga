@@ -1223,7 +1223,7 @@ def test_on_demand_launch_closes_the_same_loop(
         return None
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", finishing_launch
+        "coga.launch.launch_recurring_period", finishing_launch
     )
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
@@ -1274,7 +1274,7 @@ def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
         return None
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", eats_its_template
+        "coga.launch.launch_recurring_period", eats_its_template
     )
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
@@ -1314,7 +1314,7 @@ def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
         return None
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", finishing_launch
+        "coga.launch.launch_recurring_period", finishing_launch
     )
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
@@ -1337,7 +1337,7 @@ def test_a_refused_on_demand_launch_is_not_a_run(
     from coga import recurring_runner
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period",
+        "coga.launch.launch_recurring_period",
         lambda slug, **kwargs: pytest.fail("launched a parked template"),
     )
 

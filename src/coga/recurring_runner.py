@@ -24,7 +24,7 @@ import typer
 
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
-from coga.commands.launch import _interactive_stdio_has_tty, settle_delegated_period
+from coga.launch import LaunchBail, _interactive_stdio_has_tty, settle_delegated_period
 from coga.compose import LaunchContext
 from coga.config import (
     LOCAL_CONFIG_ENV,
@@ -2204,7 +2204,7 @@ def _launch_due_tasks(
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_context = _recurring_launch_context(interactive)
-    from coga.commands.launch import (
+    from coga.launch import (
         RecurringPeriodLaunchResult,
         launch_recurring_period as launch_cmd,
     )
@@ -2425,7 +2425,9 @@ def _launch_due_tasks(
                         "return its typed child-generation lease"
                     )
                 launch_result = raw_launch_result
-            except SystemExit as exc:
+            except (SystemExit, LaunchBail) as exc:
+                if isinstance(exc, LaunchBail) and exc.reason:
+                    typer.secho(exc.reason, fg=typer.colors.RED, err=True)
                 # A failed `ticket.py` exits the launch. Catch it rather than
                 # unwinding the process, so the command still reaches its
                 # exit-boundary git sync. The task is deliberately left unfinished,
@@ -2437,6 +2439,8 @@ def _launch_due_tasks(
                 if _sweep_stopping_exit(code):
                     # Not a template failure: stop where it happened. The
                     # `except` around the loop names the tasks left behind.
+                    if isinstance(exc, LaunchBail):
+                        raise SystemExit(code) from exc
                     raise
                 if code:
                     _record_outcome(
@@ -3069,7 +3073,7 @@ def _run_delegated_task(
     # Bootstrap tickets are deliberately stateless and self-skip push auth.
     # Delegation still owns a materialized period task, so preflight that real
     # publication target before any bootstrap work can begin.
-    from coga.commands.launch import _preflight_push_auth
+    from coga.launch import _preflight_push_auth
 
     require_period_publication = bool(
         _preflight_push_auth(cfg, ref, is_bootstrap=False)
@@ -3309,10 +3313,10 @@ def _run_delegated_task(
         )
         expected_parent_state_lease = parent_lease
 
-    from coga.commands.launch import launch_with_before_spawn as launch_cmd
+    from coga.launch import launch_with_before_spawn as launch_cmd
 
     try:
-        kind = launch_cmd(
+        launch_result = launch_cmd(
             delegate,
             agent_override=agent_override,
             idle_timeout=idle_timeout,
@@ -3322,6 +3326,11 @@ def _run_delegated_task(
             before_spawn=start_period,
             revalidate_before_spawn=revalidate_period_before_spawn,
         )
+        kind = launch_result.kind
+    except LaunchBail as exc:
+        if exc.reason:
+            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+        raise SystemExit(exc.code) from exc
     except (ConfigError, RecurringError, TaskValidationError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
@@ -3827,7 +3836,7 @@ def _launch_created(
             return git.RETRY_WITHOUT_SWEEP_EXIT_CODE
         return delegated.exit_code
 
-    from coga.commands.launch import launch_recurring_period as launch_cmd
+    from coga.launch import launch_recurring_period as launch_cmd
 
     try:
         raw_launch_result = launch_cmd(
@@ -3849,7 +3858,9 @@ def _launch_created(
         # seam harmless; the real launch function always returns the typed
         # result with its pre-spawn generation lease.
         launch_result = getattr(raw_launch_result, "kind", raw_launch_result)
-    except SystemExit as exc:
+    except (SystemExit, LaunchBail) as exc:
+        if isinstance(exc, LaunchBail) and exc.reason:
+            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
         # A failed `ticket.py` is this command's result, not a process abort:
         # returning the code keeps the caller's exit-boundary git sync.
         code = _exit_status(exc)
@@ -3886,7 +3897,7 @@ def _launch_created(
     return 0
 
 
-def _exit_status(exc: SystemExit) -> int:
+def _exit_status(exc: SystemExit | LaunchBail) -> int:
     """The integer result of a launch that exited instead of returning.
 
     `SystemExit.code` is `None` for a clean exit and may be a message string;

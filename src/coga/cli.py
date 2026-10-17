@@ -405,7 +405,9 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
-    with launch_cmd.checkout_guard_scope():
+    from coga.launch import checkout_guard_scope
+
+    with checkout_guard_scope():
         relay_token = control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
         try:

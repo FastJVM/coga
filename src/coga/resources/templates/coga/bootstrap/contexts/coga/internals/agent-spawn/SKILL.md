@@ -6,7 +6,7 @@ description: The single shared agent-spawn path (`spawn_agent_session`) — its 
 # Shared agent spawn
 
 Every command that starts an agent goes through
-`src/coga/commands/launch.py` `spawn_agent_session`: "spawn one agent once".
+`src/coga/launch.py` `spawn_agent_session`: "spawn one agent once".
 Callers are `coga launch`'s step supervisor, megalaunch, recurring
 delegation, and `coga ticket` authoring. Do not hand-roll compose→spawn in a
 new command; add the difference as a parameter. A forked copy once lost the

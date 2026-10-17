@@ -68,7 +68,7 @@ from coga.blackboard import (
     resolve_open_blockers,
     update_blackboard_under_barrier,
 )
-from coga.commands.launch import (
+from coga.launch import (
     _interactive_stdio_has_tty,
     missing_launch_file_message,
     spawn_agent_session,
