@@ -5,7 +5,6 @@ owner: nicktoper
 agent: claude
 contexts:
 - dev/checkouts
-- dev/dev-record
 - coga/tickets
 - coga/agents
 - coga/configuration

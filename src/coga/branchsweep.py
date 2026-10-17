@@ -86,8 +86,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from coga.atomicio import atomic_write_text
 from coga.autoclose import (
     GhError,
+    dispose_worklist_backlog,
     parse_branch_names,
     parse_worktree_path,
     prs_for_head,
@@ -109,10 +111,13 @@ from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.retire_worklist import (
+    RetireFollowUp,
     RetireWorklistError,
     all_worklists,
+    owned_here,
     owner_branch_remains,
     parse_worklist,
+    reconcile_worklist,
 )
 from coga.skill_manager import SKILL_UPDATE_BRANCH
 from coga.task_env import blackboard_from_env
@@ -142,6 +147,13 @@ class BranchSweepResult:
     worktree_unavailable: str | None = None
     state_root_unavailable: str | None = None
     retirement_failures: list[str] = field(default_factory=list)
+    followups_disposed: list[str] = field(default_factory=list)
+    """`retires.md` entries owned by this clone whose checkout the proofs disposed of."""
+    followups_preserved: list[str] = field(default_factory=list)
+    followups_discharged: list[str] = field(default_factory=list)
+    """Slugs this clone dropped from a `retires.md` and published."""
+    followups_skipped: str | None = None
+    followups_failure: str | None = None
 
     @property
     def failure(self) -> str | None:
@@ -152,6 +164,7 @@ class BranchSweepResult:
             or self.state_root_unavailable
             or self.gh_unavailable
             or next(iter(self.retirement_failures), None)
+            or self.followups_failure
         )
 
 
@@ -956,6 +969,114 @@ def _object_present(root: Path, oid: str) -> bool:
     return bool(oid) and _git(root, "cat-file", "-e", f"{oid}^{{commit}}").returncode == 0
 
 
+def discharge_owned_followups(
+    cfg: Config,
+    root: Path,
+    *,
+    echo: Callable[[str], None] = print,
+    result: BranchSweepResult,
+) -> None:
+    """Dispose of and discharge the `retires.md` entries this clone owns.
+
+    The autoclose sweep runs in one clone and can only report an entry whose
+    checkout belongs to another (`autoclose._owner_held_branch`). This pass is
+    that other clone's half: entries whose `owner` resolves to `root`'s
+    repository (`retire_worklist.owned_here`) go through the same backlog walk
+    and retire proofs autoclose uses, then each worklist is reconciled with
+    only those entries judged. A changed worklist is published alone, pinned
+    to the bytes it was read from, with no log line — the one commit a
+    clone-scoped run makes. Control branch with Git sync enabled only, like
+    autoclose's disposal. A failed publish restores our rewrite for retry,
+    unless an outside writer has changed the file in the meantime.
+    """
+    worklists = all_worklists(cfg)
+    if not worklists:
+        return
+    if not cfg.git_enabled:
+        result.followups_skipped = "[git].enabled = false"
+        _note(result, echo, f"Retire follow-ups: skipped — {result.followups_skipped}.")
+        return
+    try:
+        current = git.current_branch(root)
+    except git.GitError as exc:
+        current, reason = None, f"could not read the checked-out branch ({exc})"
+    else:
+        reason = (
+            f"checkout is on {current!r}, not the control branch "
+            f"{cfg.git_control_branch!r}"
+        )
+    if current != cfg.git_control_branch:
+        result.followups_skipped = reason
+        _note(result, echo, f"Retire follow-ups: skipped — {reason}.")
+        return
+
+    def include(entry: RetireFollowUp) -> bool:
+        return owned_here(root, entry)
+
+    def entry_echo(slug: str) -> Callable[[str], None]:
+        return lambda message: echo(f"[branch-sweep] {slug}: {message}")
+
+    for item in dispose_worklist_backlog(
+        cfg, root, worklists, seen=set(), echo=entry_echo, include=include,
+        label="branch-sweep",
+    ):
+        if item.disposed:
+            result.followups_disposed.append(item.slug)
+            continue
+        result.followups_preserved.append(item.slug)
+        _note(
+            result,
+            echo,
+            f"Retire follow-up `{item.slug}` ({item.checkout_state}): "
+            f"{item.disposal.reason} — {item.manual_command}",
+        )
+    for path in worklists:
+        try:
+            # Keep another local Coga writer out until this rewrite is either
+            # published or restored. Otherwise a failed publish consumes the
+            # only local evidence that the next run still needs to publish.
+            with git.state_lock(cfg):
+                change = reconcile_worklist(cfg, path, root=root, only=include)
+                if not change.written:
+                    continue
+                slugs = [entry.slug for entry in change.dropped]
+                message = (
+                    f"Recurring: branch-sweep discharged {len(slugs)} retire follow-up(s)"
+                    if slugs
+                    else "Recurring: branch-sweep refreshed retire follow-ups"
+                )
+                rewritten = path.read_bytes()
+                try:
+                    published = git.publish(
+                        cfg, [path], message, expect={path: change.original}
+                    )
+                    if published is None:
+                        raise git.GitError("worklist publication was skipped")
+                except (git.GitError, OSError, UnicodeError) as exc:
+                    # An editor need not take our lock. Restore only our own
+                    # rewrite; never overwrite intervening local work.
+                    if path.read_bytes() != rewritten:
+                        raise git.GitError(
+                            f"{exc}; worklist changed again; current contents preserved"
+                        ) from exc
+                    # With no pending entries, reconcile never creates a file.
+                    assert change.original is not None
+                    atomic_write_text(path, change.original.decode("utf-8"))
+                    raise
+        except (RetireWorklistError, OSError, UnicodeError, git.GitError) as exc:
+            result.followups_failure = f"could not reconcile or publish {path}: {exc}"
+            _note(result, echo, f"Retire follow-ups: {result.followups_failure}")
+            continue
+        if slugs:
+            result.followups_discharged.extend(slugs)
+            _note(
+                result,
+                echo,
+                "Retire follow-ups: discharged "
+                f"{', '.join(f'`{slug}`' for slug in slugs)} from {path}.",
+            )
+
+
 def run_branch_sweep_recipe(
     cfg: Config, argv: list[str], *, result: BranchSweepResult | None = None
 ) -> int:
@@ -982,6 +1103,7 @@ def run_branch_sweep_recipe(
     # object, and reading the caller's own reference keeps the out-parameter
     # contract true even if that ever stops being so.
     sweep_branches(cfg, root, echo=print, result=result)
+    discharge_owned_followups(cfg, root, echo=print, result=result)
     # The report is the run's only durable record — the period task's
     # blackboard is what the recurring sweep's autofix analyst reads, and a
     # console-only sweep left the 2026-09-08 period with an empty one. Written
@@ -1046,6 +1168,9 @@ def render_sweep_report(
         ("removed worktree", result.worktree_removed),
         ("skipped-worktree-pinned", result.worktree_pinned),
         ("skipped", result.skipped),
+        ("disposed retire follow-up", result.followups_disposed),
+        ("preserved retire follow-up", result.followups_preserved),
+        ("discharged retire follow-up", result.followups_discharged),
     ):
         if names:
             lines.append(f"- {label}: {', '.join(names)}")

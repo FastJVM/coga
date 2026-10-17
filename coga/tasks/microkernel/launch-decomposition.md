@@ -15,7 +15,6 @@ contexts:
 - coga/extension-model
 - coga/project-stage
 - dev/checkouts
-- dev/dev-record
 workflow:
   name: code/design-then-implement
   steps:

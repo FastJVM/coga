@@ -10,7 +10,6 @@ contexts:
 - coga/current-direction
 - coga/project-stage
 - dev/checkouts
-- dev/dev-record
 workflow:
   name: code/with-review
   steps:

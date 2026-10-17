@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -292,6 +293,43 @@ def test_parse_branch_names_lists_every_dev_branch_once() -> None:
 
 def test_parse_branch_names_empty_without_dev_section() -> None:
     assert am.parse_branch_names("## Plan\n\nbranch: nope\n") == []
+
+
+@pytest.mark.parametrize("field,value,parser", [
+    ("branch", "real", am.parse_branch_name),
+    ("pr", "https://github.com/o/r/pull/42", am.parse_pr_url),
+    ("worktree", "/tmp/real checkout", am.parse_worktree_path),
+])
+@pytest.mark.parametrize("fence", ["```", "~~~~", "````"])
+def test_dev_linkage_ignores_fenced_examples(
+    field: str, value: str, parser: Callable[[str], str | None], fence: str,
+) -> None:
+    fake = "https://github.com/o/r/pull/999"
+    text = (
+        f"{fence}markdown\n## Dev\n{field}: {fake}\n{fence}\n"
+        f"## Dev\n{fence}yaml\n{field}: {fake}\n## Notes\n{fence}\n"
+        f"{field}: {value}\n"
+    )
+    assert parser(text) == value
+    assert parser(f"## Dev\n{fence}yaml\n{field}: {fake}\n") is None
+
+
+@pytest.mark.parametrize("field,value,parser", [
+    ("branch", "real", am.parse_branch_name),
+    ("pr", "https://github.com/o/r/pull/42", am.parse_pr_url),
+    ("worktree", "/tmp/real checkout", am.parse_worktree_path),
+])
+@pytest.mark.parametrize("indent", ["    ", "\t"])
+def test_dev_linkage_ignores_indented_examples(
+    field: str, value: str, parser: Callable[[str], str | None], indent: str,
+) -> None:
+    text = f"## Dev\n{indent}{field}: https://github.com/o/r/pull/999\n"
+    assert parser(text) is None
+    assert parser(text + f"  - {field}: {value}\n") == value
+
+
+def test_parse_worktree_path_does_not_borrow_next_line() -> None:
+    assert am.parse_worktree_path("## Dev\nworktree:\n\n/tmp/prose\n") is None
 
 
 @pytest.mark.parametrize("fence", ["```", "~~~~", "````"])

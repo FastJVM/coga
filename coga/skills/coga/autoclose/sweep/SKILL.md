@@ -211,7 +211,10 @@ worktree is gone or is a primary checkout, the sweep does not run this repositor
 branch — they would find no local branch and call it disposed — and reports
 the entry as preserved with the by-hand delete in the owning clone
 (`git -C <owner> branch -d <branch>`), on the run report and coga-important,
-until the owner's branch is gone. When the recorded owner path is itself gone
+until the owner's branch is gone. The owning clone settles it without a
+human when it runs `coga recurring`: its clone-scoped branch sweep runs the
+proofs there on every entry that records it as `owner` and publishes the
+discharge (`coga/branch-sweep/sweep`). When the recorded owner path is itself gone
 or unreadable, that command could not run: the entry is still kept, and the
 remedy says the branch's home is unknown and asks a human to locate the clone
 and correct the entry's `owner` (or remove the line once the branch is
@@ -252,7 +255,7 @@ the remedy names where it can be removed:
 
 The `review` step is an owner gate: the owner merges from the GitHub UI, where
 an unresolved thread does not block, and nothing else looks at the PR's
-threads again (the `dev/dev-record` context, "Review step",
+threads again (the `coga/workflows` context, "Code review gate",
 has the measurement and the decision). The sweep is the one place that already
 touches every merged PR, so when it closes a ticket it fetches that PR's
 `reviewThreads` once — `coga.autoclose.unanswered_review_threads`, one

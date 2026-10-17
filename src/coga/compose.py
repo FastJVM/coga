@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -25,11 +24,12 @@ from coga.paths import (
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
+    workflow_path,
 )
 from coga.taskfile import body_sections, split_body
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
-from coga.workflow import Workflow
+from coga.workflow import Workflow, WorkflowError, WorkflowNotFoundError
 
 
 class ComposeError(RuntimeError):
@@ -327,16 +327,19 @@ def compose_prompt_report(
 
 
 def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = None) -> Path:
-    """Write the composed prompt to a temp file. Returns its path.
-
-    Default location: /tmp/coga-<id>-<timestamp>.md per spec.
-    """
-    if dest_dir is None:
-        dest_dir = Path(tempfile.gettempdir())
-    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    """Exclusively create a UTF-8 prompt file that survives until session cleanup."""
     safe_slug = task_ref.id_slug.replace("/", "-")
-    path = dest_dir / f"coga-{safe_slug}-{ts}.md"
-    path.write_text(prompt)
+    prompt_file = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", prefix=f"coga-{safe_slug}-", suffix=".md",
+        dir=dest_dir, delete=False,
+    )
+    path = Path(prompt_file.name)
+    try:
+        with prompt_file:
+            prompt_file.write(prompt)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 
@@ -453,10 +456,11 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
     wf_name = (ticket.workflow or {}).get("name")
     if not wf_name:
         return []
+    wp = workflow_path(cfg, wf_name)
     try:
-        wf = Workflow.load(resolve_workflow_path(cfg, wf_name))
-    except Exception:  # workflow may have been deleted after ticket was created
         wp = resolve_workflow_path(cfg, wf_name)
+        wf = Workflow.load(wp)
+    except WorkflowNotFoundError:  # a definition deleted after ticket creation
         return [PromptLayer(
             "workflow_inline",
             f"Current step: {name}",
@@ -464,6 +468,10 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
             ref=wf_name,
             path=str(wp),
         )]
+    except (WorkflowError, OSError, UnicodeError) as exc:
+        raise ComposeError(
+            f"Task {slug!r}: cannot load workflow {wf_name!r} at {wp}: {exc}"
+        ) from exc
     inline = wf.inline_instructions.get(name)
     if inline:
         return [PromptLayer(
@@ -471,14 +479,14 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
             f"Current step: {name}",
             inline,
             ref=wf_name,
-            path=str(resolve_workflow_path(cfg, wf_name)),
+            path=str(wp),
         )]
     return [PromptLayer(
         "workflow_inline",
         f"Current step: {name}",
         "*No instructions attached to this step.*",
         ref=wf_name,
-        path=str(resolve_workflow_path(cfg, wf_name)),
+        path=str(wp),
     )]
 
 

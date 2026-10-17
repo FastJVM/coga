@@ -7,6 +7,7 @@ from pathlib import Path
 import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
+from coga.workflow import WorkflowError
 
 
 _REMOVED_BUNDLED_SKILL_MESSAGES = {
@@ -50,6 +51,7 @@ class RepoResourceUnreadable(RuntimeError):
 
 RESOURCE_NAMES: frozenset[str] = frozenset({
     "blackboard.md",
+    "ticket.md",
     "prompt-attended.md",
     "prompt-blocker-resolution.md",
     "prompt-megalaunch.md",
@@ -133,6 +135,24 @@ def read_resource(cfg: Config | None, name: str) -> str:
     return load_resource(cfg, name)[0]
 
 
+def read_ticket_template(cfg: Config | None) -> str:
+    """Read the `ticket.md` body template, refusing one that would lose intent.
+
+    Creation replaces exactly one `{description}`; with none the description
+    is dropped, with two it is repeated. Shared by `create_task` and
+    `coga validate` so a bad override fails validation, not the next create.
+    """
+    text, local = load_resource(cfg, "ticket.md")
+    count = text.count("{description}")
+    if count != 1:
+        where = f"repo resource override {local}" if local else "packaged ticket.md"
+        raise RepoResourceUnreadable(
+            f"{where} must contain exactly one {{description}} placeholder "
+            f"(found {count})"
+        )
+    return text
+
+
 def packaged_template_path(*parts: str) -> Path:
     """Path to a packaged template resource inside the installed coga package."""
     return Path(files("coga.resources").joinpath("templates", "coga", *parts))
@@ -157,11 +177,16 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
     conventional `workflows/` location.
     """
     local = workflow_path(cfg, name)
-    if local.is_file():
-        return local
-    bundled = bootstrap_workflow_path(cfg, name)
-    if bundled.is_file():
-        return bundled
+    for candidate in (local, bootstrap_workflow_path(cfg, name)):
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc
+        # Existing entries, including directories and broken links, must be
+        # diagnosed by the loader rather than silently selecting other text.
+        return candidate
     return local
 
 

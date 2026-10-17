@@ -3,7 +3,7 @@ schedule: "0 7 * * *"
 schedule_comment: "Every day at 7am - prune this clone's landed git branches"
 title: "Branch sweep"
 # Local refs and linked worktrees belong to each clone, so every clone runs
-# this itself: no shared period task, no commit, the serviced period recorded
+# this itself: no shared period task, the serviced period recorded
 # under this clone's `.coga/`. The reserved `ticket.py` is the whole run.
 scope: clone
 # Branch debt accrues whether or not anyone commits.
@@ -69,8 +69,12 @@ which:
    `coga retire` uses (plain `git branch -d` when the tip is reachable from
    the control branch; log the tip SHA and force with `-D` for the
    squash-merge case a merged PR vouches for; skip and report anything
-   unmerged with no merged PR), and
-7. prints a `## Branch Sweep` report — the outcome lists and every
+   unmerged with no merged PR),
+7. from the control branch, disposes of the `retires.md` entries that record
+   this clone as `owner` under the same retire proofs autoclose runs, and
+   publishes just that worklist when it discharged or refreshed one — the
+   only commit this clone-scoped run makes, and
+8. prints a `## Branch Sweep` report — the outcome lists and every
    per-branch decision. A clone-scoped run has no period blackboard, so the
    report is kept in the clone's `.coga/recurring-clone/branch-sweep.log` and
    in the sweep's run record for the autofix analyst.

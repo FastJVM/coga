@@ -8,7 +8,6 @@ contexts:
 - coga/internals/state-publication
 - dev/checkouts
 - dev/checkout-cleanup
-- dev/dev-record
 workflow:
   name: code/with-review
   steps:

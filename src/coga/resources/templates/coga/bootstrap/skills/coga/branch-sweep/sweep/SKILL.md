@@ -107,4 +107,17 @@ The sweep only sees branches and worktrees of the clone it runs from, which
 is why the template is clone-scoped: each clone that runs `coga recurring`
 (or is reached by `coga recurring --all`) sweeps its own.
 
+**Retire follow-ups this clone owns.** After the branch pass, from the
+control branch only, the recipe walks every `retires.md` entry whose recorded
+`owner` is this clone's repository (`retire_worklist.owned_here`). These are
+the entries the clone servicing autoclose can only report. Each goes through
+autoclose's backlog walk and the shared retire proofs
+(`checkout_disposal.dispose_checkout`). The worklist is then reconciled with
+only those entries judged, and a changed file is published alone with
+`git.publish`, pinned to the bytes it was read from. Outcomes appear under
+`disposed`, `preserved`, and `discharged retire follow-up` in the report. A
+reconcile or publish failure fails the sweep; publication recovery is owned by
+[recurring scheduling](context:coga/recurring/scheduling). Off the control
+branch or with Git sync disabled, the pass is skipped and noted.
+
 Run it directly with `coga run branch-sweep`.

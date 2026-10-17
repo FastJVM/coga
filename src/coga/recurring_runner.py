@@ -2704,8 +2704,9 @@ def _run_clone_scoped(
 ) -> bool:
     """Run every due `scope: clone` template in this clone; True on any problem.
 
-    Clone-scoped templates create no period task and publish nothing: each due
-    template's `ticket.py` runs directly and this clone's ledger under `.coga/`
+    Clone-scoped templates create no period task or runner publication: each
+    due template's `ticket.py` runs directly, may publish its own state under
+    the scheduling contract, and this clone's ledger under `.coga/`
     records the serviced period (`recurring_clone`). Runs after the shared
     launches so a branch pass sees the tickets this sweep just closed. A
     failure is recorded for autofix and retried by the next sweep.

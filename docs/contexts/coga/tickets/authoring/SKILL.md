@@ -47,3 +47,26 @@ Part of [coga/tickets](../SKILL.md).
   scripting.
 
 Installed `coga <cmd> --help` is the syntax authority.
+
+## Creation template
+
+The ordinary `create_task` path renders the `ticket.md` body resource
+(repo override first), replacing `{description}` with the supplied text.
+The frontmatter remains generated from validated arguments; the configured
+`blackboard.md` supplies working space. Resource reads and the exactly-one `{description}` placeholder check happen
+before creating the destination. Callers supplying an explicit `body` (such as recurring
+periods) retain that body instead of having the ordinary template injected.
+
+The template keeps field and editing explanations in an HTML comment under
+`## Context`, so `Ticket.render` preserves them when rewriting YAML and
+composition includes them. Description remains empty until actual intent is
+supplied, so the empty-description warning still works. Optional examples
+stay inside the comment, not live metadata or checkout records. Examples use
+indentation rather than code fences: an unfinished fence in the supplied
+Description must not close against an example and swallow the Context heading.
+The guide
+covers ordinary and frozen-workflow fields, secret references, extensions,
+machine-owned state, optional blackboard records, and recurring-parent settings.
+The interview preserves this comment and supplies only the authoring process
+and its metadata-edit exception; readers need no separate editing skill.
+Existing tickets are not migrated, and a repo override owns its own instructions.

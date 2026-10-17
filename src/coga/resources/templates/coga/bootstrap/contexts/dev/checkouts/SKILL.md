@@ -164,3 +164,39 @@ work in the clone.
   boundary](launch-boundary/SKILL.md)). Run megalaunch and exempt launches only from a control
   checkout freshly synced to `origin/<control>`; a stale one re-dispatches
   merged work.
+
+## Stranded ticket writes
+
+A ticket write committed on the feature branch strands there: control keeps
+rewriting the same file at every transition. `open-pr`'s freshness gate
+refuses it and `bump` warns about it on stderr. In a sandbox clone an
+uncommitted ticket edit surfaces as `coga open-pr`'s "Recorded worktree has
+uncommitted changes" refusal, which names this ticket's file separately.
+The comparison is one-directional; a branch copy control already absorbed is
+silent.
+
+Decision (2026-10-06, owner): do not add a general cross-checkout detector for
+uncommitted blackboard prose. The remaining working-memory loss is rare and
+low stakes; missing checkout pointers, independent clones, detached worktrees,
+and normal control-ahead divergence make reliable detection disproportionate.
+Revisit if concrete lost-note incidents justify the complexity. Any future
+comparison should report content the control copy lacks, without automatically
+merging or overwriting either copy.
+
+Repair: inspect the branch copy, preserve anything still needed in the primary
+ticket, then restore the merge base's copy on the branch and commit:
+
+```sh
+git restore --staged --worktree --source=$(git merge-base <control> <branch>) -- <path>
+```
+
+Do not rebase to fix it, and do not restore control's copy (it goes stale at
+the next transition). A dirty task/log hunk in a sandbox clone is a duplicate
+only after its content is preserved in the primary ticket or verified in the
+authoritative log; discard only confirmed duplicates, never commit or stash
+them to pass the clean-tree gate, and never hand-edit `coga/log.md`.
+This ticket's own file is never implementation diff: control has already
+rewritten it, so a branch commit of it is an overlapping stranded write. Move
+an intentional authored-body change to the live ticket in the primary
+checkout and discard the clone's copy. `ticket.py` and attachments under
+`coga/tasks/` can be implementation work and stay in the diff.

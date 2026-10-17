@@ -14,6 +14,15 @@ under `src/coga/resources/templates/coga/bootstrap/workflows/`; the workflows
 ticket body's ordered phases) live under
 `src/coga/resources/templates/coga/workflows/`.
 
+An existing local entry always wins, including an unreadable file, directory,
+or broken symlink: it must be repaired, never bypassed with bundled text.
+`Workflow.load` distinguishes genuine absence (`WorkflowNotFoundError`, also a
+`WorkflowError`) from malformed definitions and read failures (`WorkflowError`
+with the source path and cause). Resolution also reports inspection failures
+(such as an unsearchable directory or a non-directory parent) as `WorkflowError`,
+without trying the bundled fallback. Inline prompt composition preserves only the
+documented missing-definition placeholder; other load failures refuse launch.
+
 ## Definition format
 
 YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list
@@ -119,3 +128,31 @@ Tokens own their predicate and remediation; bump hardcodes no skill name, and
 gate transitions publish only to control. Branch and PR mechanics are
 [dev/checkouts](../../dev/checkouts/SKILL.md) and
 [coga/internals/pr-publication](../internals/pr-publication/SKILL.md).
+
+## Branch gate scope
+
+Decision (2026-10-06, owner): do not add the proposed branch/worktree freshness
+guard at bump. Its cross-checkout premise predates ordinary tickets' move to
+the launch checkout. Branch existence cannot distinguish a wrong old branch
+from a legitimate resumed branch; `open-pr` already checks existence and
+commits ahead of the base. Revisit on a concrete wrong-branch handoff under
+the current ordinary-ticket workflow. Recurring worktrees are outside this
+decision.
+
+## Code review gate
+
+`code/with-review` and its siblings freeze `code/address-pr-comments` on an
+owner-assigned `review` step: the owner merges and resolves threads, and the
+skill is an on-demand assist that never resolves or bumps. Coga does not own
+GitHub merge policy, so an unresolved bot thread does not block a merge.
+Decision (2026-09-13, owner): keep the human gate; rather than auto-launching
+the assist or blocking merges, add post-merge detection. When
+`autoclose-merged` closes a ticket it fetches that PR's `reviewThreads` once
+and names every unresolved, non-outdated, reply-less thread in the closure's
+`coga/log.md` line, its sweep report, and one Slack line, report-only
+(`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
+
+Reading rules: a ticket still on `review` with a merged PR is not backlog
+(autoclose closes it on its next run); count only open PRs as the live queue.
+A measurement over retired tickets and merged PRs should gate on a closed time
+window, never on an empty live queue, which normal throughput never produces.

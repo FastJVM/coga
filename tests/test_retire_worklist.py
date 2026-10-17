@@ -453,6 +453,22 @@ def test_an_owner_in_this_repository_is_judged_against_root(tmp_path: Path) -> N
     assert rw.is_discharged(entry, root=owner, branches=frozenset({"main"}))
 
 
+def test_owned_here_admits_only_entries_whose_owner_is_this_repository(
+    tmp_path: Path,
+) -> None:
+    root, owner, worktree = _cross_clone(tmp_path)
+    recorded = rw.RetireFollowUp(
+        "cross", "feature", str(worktree), "2026-09-21", owner=str(owner)
+    )
+
+    assert rw.owned_here(owner, recorded)
+    assert not rw.owned_here(root, recorded)
+    assert not rw.owned_here(None, recorded)
+    # Ownerless: nothing on the line says which clone's branches it names,
+    # even while the worktree it records is the owner's own.
+    assert not rw.owned_here(owner, replace(recorded, owner=""))
+
+
 def test_a_bare_owner_is_read_like_any_other_repository(tmp_path: Path) -> None:
     # A bare repository has no working tree, yet its branch list decides.
     root = _git_repo_with_branch(tmp_path / "repo", "unrelated")
@@ -639,6 +655,32 @@ def test_reconcile_drops_discharged_entries_and_keeps_live_debt(
     assert [e.slug for e in change.dropped] == ["done"]
     assert [e.slug for e in change.open] == ["branch-lives", "dir-lives"]
     assert "`done`" not in path.read_text()
+
+
+def test_reconcile_judges_only_the_entries_only_admits(
+    repo: Path, tmp_path: Path
+) -> None:
+    cfg = load_config(repo)
+    path = rw.template_worklist_path(cfg, "autoclose-merged")
+    absent = str(tmp_path / "absent")
+    path.parent.mkdir(parents=True)
+    raw = rw.render_worklist(
+        rw.RETIRE_WORKLIST_HEADER,
+        [_entry("mine", branch="gone", worktree=absent),
+         _entry("theirs", branch="gone", worktree=absent)],
+    )
+    path.write_text(raw)
+
+    change = rw.reconcile_worklist(
+        cfg, path, root=repo, branches=frozenset(),
+        only=lambda entry: entry.slug == "mine",
+    )
+
+    # `theirs` would discharge too, but it is not this caller's to judge.
+    assert [e.slug for e in change.dropped] == ["mine"]
+    assert [e.slug for e in change.open] == ["theirs"]
+    assert change.original == raw.encode()
+    assert change.written and "`theirs`" in path.read_text()
 
 
 def test_reconcile_refuses_when_the_file_moved_underneath_it(

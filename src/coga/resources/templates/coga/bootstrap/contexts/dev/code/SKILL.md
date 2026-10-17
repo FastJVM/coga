@@ -23,8 +23,8 @@ record directly.
   clone is the one fallback. See [dev/checkouts](../checkouts/SKILL.md).
 - **Record `## Dev` early and on `main`.** `branch:` when the branch exists,
   `worktree:` only for a sandbox clone, `pr:` from `coga open-pr`. See
-  [dev/dev-record](../dev-record/SKILL.md), which also covers stranded ticket
-  writes and the review step.
+  [dev/checkouts](../checkouts/SKILL.md), which also covers stranded ticket
+  writes.
 - **Leave branch cleanup to retire.** `coga retire` and the autoclose sweep
   delete the landed branch (and any leftover recorded worktree) under shared
   proofs. See

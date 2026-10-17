@@ -76,3 +76,15 @@ between `refs/heads/<control>` and `refs/heads/<branch>`, and prints a
 and stays silent when this checkout is on the recorded branch, when
 `worktree:` resolves to this checkout (both left by the retired
 single-checkout layout), or when any probe fails.
+
+## Record parsing
+
+The readers in `autoclose` parse linkage from the blackboard's `## Dev`.
+Bare branch and checkout values run to end of line; bare PR values stop at
+whitespace and must contain `/pull/<number>`. Backtick-delimited values may
+have trailing annotations. All three readers ignore fenced and indented
+examples, including example section headings. An empty field cannot borrow
+the next line's prose. The first branch record
+is the workflow checkout; multiple tickets may link to the same branch and PR.
+Cleanup's ownership rules are in
+[terminal owners](../../../dev/checkout-cleanup/terminal-owners/SKILL.md).

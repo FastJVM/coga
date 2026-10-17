@@ -28,7 +28,7 @@ command's behavior. Attach that topic when a task depends on it.
 | `owner` | [coga/tickets/ownership](../tickets/ownership/SKILL.md) |
 | `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete`, `retire` | [dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md) |
-| `open-pr` → `run open-pr` | [coga/internals/pr-publication](../internals/pr-publication/SKILL.md), [dev/dev-record](../../dev/dev-record/SKILL.md) |
+| `open-pr` → `run open-pr` | [coga/internals/pr-publication](../internals/pr-publication/SKILL.md) |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [dev/checkouts](../../dev/checkouts/SKILL.md) |
 
 ## Running work

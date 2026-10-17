@@ -164,7 +164,7 @@ def set_dev_pr(blackboard_text: str, url: str) -> str:
     Updates the line in place when present (preserving any `- ` / indentation),
     inserts one right after the `## Dev` header when the section exists without a
     `pr:` line, and appends a fresh `## Dev` section as a last resort. Mirrors the
-    `dev/dev-record` convention: the blackboard records *current* state, so overwrite
+    ticket template: the blackboard records *current* state, so overwrite
     rather than append a second `pr:` line.
     """
     section = _DEV_SECTION_RE.search(blackboard_text)
