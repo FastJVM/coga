@@ -47,6 +47,10 @@ log also keeps the last 4,000 characters; that tail is what the sweep's run
 record receives. Timeout returns exit 124 with a diagnostic, terminates the
 process group (the process tree on Windows), reaps the script, and leaves the
 ledger unchanged so later templates can run and the next sweep can retry.
+On Windows, a wrapper joins a supervisor-owned job object before starting the
+script, so descendants remain owned after their parent exits. Job termination
+and kill-on-close clean up the entire tree; setup or cleanup errors are reported,
+never replaced by best-effort PID lookup. This adds one wrapper process on Windows.
 The limit can interrupt legitimate long maintenance work, and truncation loses
 middle output; increase the explicit runner limit when a job requires it.
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 import tracemalloc
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
+from unittest.mock import Mock
 
 import pytest
 from typer.testing import CliRunner
@@ -283,6 +286,126 @@ def test_clone_sweep_continues_after_timeout_and_retries_it(
 def test_clone_script_rejects_unbounded_deadlines(repo: Path, timeout: float) -> None:
     with pytest.raises(ValueError, match="finite and positive"):
         run_clone_template(load_config(repo), "bad", repo / "unused.py", "today", timeout=timeout)
+
+
+@pytest.fixture
+def windows_kernel(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    import ctypes
+
+    kernel = Mock()
+    for name in ("SetInformationJobObject", "TerminateJobObject", "CloseHandle",
+                 "AssignProcessToJobObject"):
+        getattr(kernel, name).return_value = 1
+    kernel.CreateJobObjectW.return_value = 123
+    kernel.OpenJobObjectW.return_value = 456
+    kernel.GetCurrentProcess.return_value = -1
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *a, **kw: kernel, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
+    monkeypatch.setattr(ctypes, "WinError", lambda code: OSError(code, "Windows error"), raising=False)
+    return kernel
+
+
+def test_windows_job_owns_descendants_after_direct_child_exits(windows_kernel: Mock) -> None:
+    child = Mock()
+    child.poll.return_value = 0
+    with recurring_clone._WindowsJob() as job:
+        info = windows_kernel.SetInformationJobObject.call_args.args
+        assert info[1] == 9  # JobObjectExtendedLimitInformation
+        assert info[2]._obj.BasicLimitInformation.LimitFlags == 0x2000
+        recurring_clone._stop_clone_script(child, job)
+        windows_kernel.TerminateJobObject.assert_called_once_with(123, 124)
+        child.wait.assert_called_once()
+    windows_kernel.CloseHandle.assert_called_once_with(123)
+
+
+def test_windows_job_closes_when_process_start_fails(windows_kernel: Mock) -> None:
+    with pytest.raises(OSError, match="spawn failed"):
+        with recurring_clone._WindowsJob():
+            raise OSError("spawn failed")
+    windows_kernel.CloseHandle.assert_called_once_with(123)
+
+
+def test_windows_job_configuration_failure_releases_handle(windows_kernel: Mock) -> None:
+    windows_kernel.SetInformationJobObject.return_value = 0
+    with pytest.raises(OSError, match="Windows error"):
+        recurring_clone._WindowsJob()
+    windows_kernel.CloseHandle.assert_called_once_with(123)
+
+
+def test_windows_job_termination_error_is_reported_and_closes_handle(windows_kernel: Mock) -> None:
+    windows_kernel.TerminateJobObject.return_value = 0
+    with pytest.raises(OSError, match="Windows error"):
+        with recurring_clone._WindowsJob() as job:
+            recurring_clone._stop_clone_script(Mock(), job)
+    windows_kernel.CloseHandle.assert_called_once_with(123)
+
+
+@pytest.mark.parametrize("failure", [
+    None, "OpenJobObjectW", "AssignProcessToJobObject", "CloseHandle",
+])
+def test_windows_wrapper_joins_job_before_starting_script(
+    monkeypatch: pytest.MonkeyPatch, windows_kernel: Mock, failure: str | None,
+) -> None:
+    argv = [sys.executable, "script with spaces.py", "argument with spaces"]
+    monkeypatch.setattr(sys, "argv", ["-c", "job-name", *argv])
+
+    def run(command: list[str]) -> int:
+        windows_kernel.AssignProcessToJobObject.assert_called_once_with(456, -1)
+        windows_kernel.CloseHandle.assert_called_once_with(456)
+        assert command == argv
+        return 17
+
+    spawn = Mock(side_effect=run)
+    monkeypatch.setattr(subprocess, "call", spawn)
+    if failure:
+        getattr(windows_kernel, failure).return_value = 0
+        with pytest.raises(OSError, match="Windows error"):
+            exec(recurring_clone._WINDOWS_JOB_WRAPPER, {})
+        spawn.assert_not_called()
+    else:
+        with pytest.raises(SystemExit) as caught:
+            exec(recurring_clone._WINDOWS_JOB_WRAPPER, {})
+        assert caught.value.code == 17
+        spawn.assert_called_once()
+    if failure != "OpenJobObjectW":
+        windows_kernel.CloseHandle.assert_called_once_with(456)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows job-object integration")
+@pytest.mark.parametrize("parent_waits", [True, False])
+def test_windows_timeout_kills_descendant_after_parent_exit(
+    tmp_path: Path, parent_waits: bool,
+) -> None:
+    import ctypes
+
+    child_pid = tmp_path / "child.pid"
+    script = tmp_path / "descendant.py"
+    script.write_text(
+        "import subprocess, sys\nfrom pathlib import Path\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+        f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
+        + ("child.wait()\n" if parent_waits else "")
+    )
+    code, _, _ = recurring_clone._run_clone_script(
+        [sys.executable, str(script)], cwd=tmp_path, env=dict(os.environ), timeout=2,
+    )
+    assert code == 124
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    kernel.OpenProcess.restype = ctypes.c_void_p
+    kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel.WaitForSingleObject.restype = ctypes.c_uint32
+    kernel.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel.OpenProcess(0x100001, False, int(child_pid.read_text()))
+    if not handle:
+        assert ctypes.get_last_error() == 87  # PID no longer exists.
+        return
+    try:
+        assert kernel.WaitForSingleObject(handle, 2000) == 0
+    finally:
+        kernel.TerminateProcess(handle, 1)  # Cleanup if the regression fails.
+        kernel.CloseHandle(handle)
 
 
 def test_inactive_repo_skips_non_exempt_clone_templates(repo: Path) -> None:
