@@ -8575,3 +8575,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 19:09 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-16 20:47 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-16 20:51 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 21:18 v1 [microkernel/move-retire-to-a-command-ticket] [human:nicktoper] created (status=draft)
