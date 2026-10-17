@@ -82,8 +82,10 @@ single-checkout layout), or when any probe fails.
 The readers in `autoclose` parse linkage from the blackboard's `## Dev`.
 Bare branch and checkout values run to end of line; bare PR values stop at
 whitespace and must contain `/pull/<number>`. Backtick-delimited values may
-have trailing annotations. Fenced or indented examples are not records, and
-an empty line cannot borrow the next line's prose. The first branch record
+have trailing annotations. A fenced or indented example is not a branch
+record, and an empty `branch:` line cannot borrow the next line's prose; the
+`pr:` and `worktree:` readers do not skip examples, so keep example linkage
+out of `## Dev`. The first branch record
 is the workflow checkout; multiple tickets may link to the same branch and PR.
 Cleanup's ownership rules are in
 [terminal owners](../../../dev/checkout-cleanup/terminal-owners/SKILL.md).

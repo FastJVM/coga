@@ -5,23 +5,12 @@
 ## Context
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
-These are explanations and examples, not values to copy into every ticket.
-Omit optional fields and sections until needed. Preserve existing metadata,
-field order, and formatting; write YAML lists one item per line.
-Ordinary agents may edit contexts, body prose, and the blackboard. Other
-frontmatter belongs to CLI commands and humans unless a specialized authoring
-skill explicitly grants an exception. Never edit the CLI-written coga/log.md.
-
-BODY AND WORKING MEMORY
-Description: what needs to happen, why, and what counts as done.
-Context: facts, constraints, and code pointers. Cite module plus symbol,
-explain the relationship that matters, and use line numbers only as an aid.
-Copy the substance of a cited ticket here; its path may later be retired.
-Only Description, Context (including this guide), and the live blackboard
-reach the launch prompt. Use ### subheadings inside these body sections;
-another ## heading above the fence would put requirements outside the prompt.
-The single-line HTML comment containing coga:blackboard separates the body
-from working memory. Keep exactly one such fence; even one inside a code block counts.
+It documents field shapes; these are examples, not values to copy into every
+ticket. Omit optional fields and sections until needed. Editing rules come
+from the base prompt; body regions from coga/tickets; blackboard conventions
+(superseded designs, draft cleanup, oversized notes) from coga/blackboard.
+Write requirements under ### subheadings of Description or Context; any other
+level-two heading above the fence does not reach the launch prompt.
 
 FRONTMATTER
 The real values are in this ticket's YAML header. Required ordinary-ticket
@@ -68,7 +57,7 @@ There is no execution-mode field: a sibling ticket.py supplies a script phase.
 Repo extensions are string fields declared under [ticket.fields.<name>] in
 coga.toml: description explains the field, values restricts its choices,
 default seeds it, and required prevents activation while it is empty. Actual
-values live below the # --- extensions --- marker in the YAML header. Preserve
+values live below the extensions marker comment in the YAML header. Preserve
 them; do not invent extension fields or change their definitions in config.
 
 Machine-owned fields: delegate freezes a recurring parent's bootstrap/<name>
@@ -85,77 +74,16 @@ worktree: <path> only for a sandbox clone. One field per line, notes on separate
 lines, omit unknown values. For multiple owned branches, the first branch is
 the workflow branch.
 
-Optional ## PR: one fenced YAML mapping for PR preparation. These fields record
-actual implementation and evidence; placeholders are not receipts. Use full
-commit OIDs for head/base, and keep each check/review tied to the revision it
-actually examined. Omit receipt head/base only when status is not-run.
-
-    title: <change title>
-    author: <actual implementing agent, or unknown>
-    author_evidence: <session or tool evidence for authorship>
-    head: <full feature commit OID>
-    base: <full reviewed merge-base OID>
-    depth: deep                            # Advisory review depth: merge, skim, or deep.
-    rationale: <why this review depth fits>
-    implementation: <what changed and why>
-    deviations: <departures from the ticket, or none>
-    limitations: <remaining risks or verification gaps, or none>
-    files:
-      path/to/file: <why this path belongs; cover every diff path, both names of a rename>
-    review:
-      reviewer: <actual reviewing agent, or none>
-      kind: independent                    # independent, self, or none; never infer independent review.
-      status: passed                       # passed, failed, pending, or not-run.
-      head: <full reviewed feature commit OID>
-      base: <full reviewed merge-base OID>
-      detail: <result or reason for omission>
-    checks:
-      - command: <actual command>
-        status: passed                     # Same status choices as review.
-        head: <full tested feature commit OID>
-        base: <full tested merge-base OID>
-        detail: <result and counts>
-
-Use merge only with passed independent review and applicable checks, skim for
-a bounded change with explained tradeoffs, and deep for unresolved or missing
-evidence. The publishing workflow applies the detailed review requirements.
+Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
+author, head/base OIDs, review depth, files, review, checks). Record only actual
+implementation and evidence, never placeholders; coga/internals/pr-publication/
+preparation owns the fields and the publishing workflow the review rules.
 
 Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve
 blocker IDs, timestamps, actor names, resolved answers, and reminder fingerprints
 with last_reminded timestamps; use lifecycle commands to block or resolve them.
 
-When a design changes, rewrite the body for current work and append the old plan
-under one ## Superseded designs section, with dated ### entries, Superseded by:
-and Reason: lines, and copied headings at #### or deeper. Only a pointer to
-that history reaches launch; keep the current rationale in live text.
-
-Before launching a draft, fold durable Evaluator review, Proposals, and Ticket
-authoring notes into the body. Preserve superseded designs and reset remaining
-scratch to the stock blackboard placeholder. An explicit ## Production notes
-section marks intentional launch material to retain, exempting it from that
-readiness check. During an existing task, preserve unrelated working notes and
-live workflow reviews; remove only the authoring scratch you have incorporated.
-For oversized live notes, move dated evidence into sibling attachments and
-leave same-heading pointers. Keep current handoff and verification, along with
-the ## Dev and ## Blockers sections, in place. Do not trim done tickets or
-recurring sections another writer replaces; route those to their owner.
-
-RECURRING PARENTS ONLY (coga/recurring/<name>/ticket.md)
-These are template settings, not fields to add to an ordinary ticket:
-
-    schedule: "0 9 * * 1"                  # Required five-field cron.
-    schedule_comment: Every Monday at nine # Optional human annotation; no scheduling effect.
-    scope: repo                           # Optional: repo (default) or clone.
-    run_when_inactive: false               # Optional boolean; bypass the repo inactivity gate when true.
-    state_keys:                           # Optional parent-blackboard keys every period must advance.
-      - last_processed
-    delegate: bootstrap/example           # Optional target, mutually exclusive with a sibling ticket.py.
-
-A clone-scoped parent requires ticket.py, creates no period ticket, and rejects
-delegate, state_keys, and workflow. A repo-scoped parent defaults an omitted
-workflow to direct/body. Its title, owner, agent, contexts, and secrets pass to
-each period; ticket-level skills and extension values do not. Parent blackboards
-hold job-owned cursors/state (including declared state_keys); preserve each
-producer's format. Generated ## Recipe Failure records describe recipe, exit,
-task, recorded time, and error output; preserve them as evidence.
+Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
+template settings owned by coga/recurring/templates; do not add them to an
+ordinary ticket.
 -->

@@ -13,7 +13,7 @@ from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
-from coga.paths import log_path
+from coga.paths import RepoResourceUnreadable, log_path
 from coga.recurring import local_period_lease
 from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 from coga.tasks import list_tasks
@@ -1237,7 +1237,7 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
     assert t.frontmatter["docket"] == ""
     assert t.frontmatter["priority"] == "P2"
 
-    raw = ref["path"].read_text().split("\n---\n", 1)[0]
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
     # Marker sits between canonical keys and extension keys.
     marker_pos = raw.index("# --- extensions ---")
@@ -1257,7 +1257,7 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         agent="claude",
         status="draft",
     )
-    raw = ref["path"].read_text().split("\n---\n", 1)[0]
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" not in raw
 
 
@@ -1281,7 +1281,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
     t.write(ref["path"])
     again = Ticket.read(ref["path"])
     assert again.frontmatter["docket"] == "55-12345"
-    raw = ref["path"].read_text().split("\n---\n", 1)[0]
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
 
 
@@ -1457,10 +1457,38 @@ def test_create_rejects_template_that_would_lose_or_repeat_intent(
 ) -> None:
     monkeypatch.chdir(repo)
     _write(repo / "resources" / "ticket.md", template)
-    with pytest.raises(ValueError, match="exactly one"):
+    with pytest.raises(RepoResourceUnreadable, match="exactly one"):
         create_task(
             cfg=load_config(repo), title="Keep intent", workflow_name=None,
             contexts=[], owner=None, status=None, description="Do this work.",
             force_directory=True,
         )
     assert not (repo / "tasks" / "keep-intent").exists()
+
+
+def test_validate_reports_ticket_template_override_without_one_placeholder(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga.validate import run as validate_run
+
+    monkeypatch.chdir(repo)
+    override = repo / "resources" / "ticket.md"
+    _write(override, "## Description\n\n## Context\n")
+    issues = [
+        issue for issue in validate_run(load_config(repo)).issues
+        if issue.kind == "unreadable-resource-override"
+    ]
+    assert len(issues) == 1
+    assert str(override) in issues[0].message
+    assert "exactly one {description}" in issues[0].message
+
+
+def test_new_ticket_body_does_not_contain_the_extension_marker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    result = create_task(
+        cfg=load_config(repo), title="No marker in body", workflow_name=None,
+        contexts=[], owner=None, status=None,
+    )
+    assert "# --- extensions ---" not in Ticket.read(result["path"]).body

@@ -323,7 +323,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_PR_PROPOSAL,
             remediation=(
-                "Propose the inline ticket template’s oversized-blackboard remedy: "
+                "Propose the `coga/blackboard` bloated-blackboard remedy: "
                 "promote a file-form task to directory form (a task that "
                 "already has `<slug>/ticket.md` keeps its directory), move "
                 "dated evidence into sibling attachments, move abandoned "
@@ -332,7 +332,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
                 "tickets cite into an unattached context, and leave the "
                 "current handoff, worklist and verification on the "
                 "blackboard with a pointer to each. Keep `## Dev` and "
-                "`## Blockers` in place under the inline ticket guide; "
+                "`## Blockers` in place under the `coga/blackboard` contract; "
                 "CLI readers do not follow attachment links for that state. "
                 "Move, do not delete."
             ),

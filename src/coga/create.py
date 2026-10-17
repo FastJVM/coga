@@ -14,7 +14,7 @@ from coga.lifecycle import MAIN_AGENT_REQUIRED_STATUSES, TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.paths import (
     missing_skill_message,
-    read_resource,
+    read_ticket_template,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -88,7 +88,7 @@ def create_task(
     """Create a task directory. Returns dict with {slug, path}.
 
     Pass `description` for the common case — the body is built as the canonical
-    `ticket.md` resource, retaining its inline guide. Pass `body` instead to write a
+    `ticket.md` resource, including its field guide. Pass `body` instead to write a
     full ticket body verbatim (recurring creating does this so template
     sections beyond `## Description` survive); a `## Context` section is
     appended when the verbatim body lacks one. `body` takes precedence over
@@ -181,9 +181,7 @@ def create_task(
     # Resolve user-controlled text before allocating a directory. A failed
     # override must not strand a fixed recurring slug and prevent its retry.
     blackboard = render_blackboard(title, cfg=cfg)
-    ticket_template = read_resource(cfg, "ticket.md") if body is None else None
-    if ticket_template is not None and ticket_template.count("{description}") != 1:
-        raise ValueError("ticket.md template must contain exactly one {description} placeholder")
+    ticket_template = read_ticket_template(cfg) if body is None else None
 
     # A task is a single `tasks/<slug>.md` file unless a caller explicitly
     # needs siblings (recurring period tasks carry a `.state-snapshot.json`).
