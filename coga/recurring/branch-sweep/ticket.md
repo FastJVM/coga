@@ -1,11 +1,13 @@
 ---
-schedule: "0 7 * * 1"
-schedule_comment: "Every Monday at 7am - prune stale git branches before the day's other automation starts"
+schedule: "0 7 * * *"
+schedule_comment: "Every day at 7am - prune this clone's landed git branches"
 title: "Branch sweep"
-# The reserved `ticket.py` sibling is this task's deterministic half: `coga
-# launch` runs it directly, with no agent and no composed prompt. The one-step
-# workflow keeps the period task's lifecycle and skill contract legible.
-workflow: branch-sweep/sweep
+# Local refs and linked worktrees belong to each clone, so every clone runs
+# this itself: no shared period task, the serviced period recorded
+# under this clone's `.coga/`. The reserved `ticket.py` is the whole run.
+scope: clone
+# Branch debt accrues whether or not anyone commits.
+run_when_inactive: true
 ---
 
 ## Description
@@ -16,13 +18,13 @@ safety net behind `coga retire`'s branch deletion.
 `coga retire` deletes a finished ticket's branch immediately, but that
 cleanup is best-effort — `git`/`gh` failures are swallowed there, and a
 branch also leaks when a ticket is deleted without going through retire, or
-a session dies mid-flight. Retire covers the common path daily (in effect,
-every time a ticket finishes); this sweep runs weekly to catch what leaks
-past it. The daily autoclose template now also invokes this same branch pass;
-this standalone weekly run remains an independent retry. Cadence is owned by
+a session dies mid-flight. Branches are clone-local: a sweep run from one
+clone never sees another clone's refs. So this template is `scope: clone` —
+every clone that runs `coga recurring` services it once a day for itself.
+Scope and cadence are owned by
 [coga/recurring/scheduling](context:coga/recurring/scheduling).
 
-Once a week this recurring task's `ticket.py` runs the branch sweep,
+Once a day, in each clone, this template's `ticket.py` runs the branch sweep,
 which:
 
 1. prunes registrations for worktrees whose directories are gone, then
@@ -67,11 +69,15 @@ which:
    `coga retire` uses (plain `git branch -d` when the tip is reachable from
    the control branch; log the tip SHA and force with `-D` for the
    squash-merge case a merged PR vouches for; skip and report anything
-   unmerged with no merged PR), and
-7. writes a `## Branch Sweep` report — the outcome lists and every
-   per-branch decision — to this period task's blackboard, so the run has a
-   durable record for the recurring sweep's autofix analyst; run outside a
-   task, the report goes to stdout instead.
+   unmerged with no merged PR),
+7. from the control branch, disposes of the `retires.md` entries that record
+   this clone as `owner` under the same retire proofs autoclose runs, and
+   publishes just that worklist when it discharged or refreshed one — the
+   only commit this clone-scoped run makes, and
+8. prints a `## Branch Sweep` report — the outcome lists and every
+   per-branch decision. A clone-scoped run has no period blackboard, so the
+   report is kept in the clone's `.coga/recurring-clone/branch-sweep.log` and
+   in the sweep's run record for the autofix analyst.
 
 The sweep is defined in `coga.branchsweep.sweep_branches`. The worktree
 removal is a direct destructive change gated on a repo-level opt-in; the
@@ -83,8 +89,8 @@ reported by design, so expect a residual manual pass rather than a fully
 clean slate. A failure to prune or list worktree state fails the sweep before
 any branch deletion.
 
-The sweep runs on this schedule via `coga recurring`, on demand via
-`coga recurring launch branch-sweep`, or directly with
+The sweep runs on this schedule via `coga recurring` in each clone, on
+demand via `coga recurring launch branch-sweep`, or directly with
 `coga run branch-sweep`.
 
 <!-- coga:blackboard -->
