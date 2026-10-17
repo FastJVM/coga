@@ -405,7 +405,46 @@ continue from 10.
 
 ### Run 2 findings
 
-(not started)
+Steps 1-4 reproduced exactly: `command not found: uv`, the uv link landing
+on Introduction rather than Installation, the Command Line Tools dialog
+during `uv tool install coga`, and `coga init` failing outside a git
+repository. Findings 2, 4, 6 and 7 are therefore deterministic, not
+first-run flukes. The owner's own notes are the primary record; the new
+material follows.
+
+10. open — `coga init`'s "Next steps" opens by telling the user to set
+    configuration that `coga init` already set, and orders it ahead of the
+    step that is actually required. Step 1 is "Edit `coga.toml` — set your
+    agents, notification channels, and aliases", but the shipped template
+    writes complete `[agents.claude]` and `[agents.codex]` tables, and
+    `default_agent` is deliberately commented with "Unset, it's the first
+    `[agents.*]` table below", so Claude is already the default and the
+    file needs no edit. Step 2, installing an agent CLI, is the one the
+    user cannot skip. A new user reads step 1, opens a 200-line config and
+    searches for work that does not exist. Fix is to reorder and to say
+    the config is complete unless the user wants Codex as default.
+
+11. open — on a fresh Mac nothing opens `coga.toml`. No application is
+    associated with `.toml`, so "Edit `coga.toml`" has no starting move for
+    a user who has never installed an editor. Raised by the owner during
+    run 2; invisible on any machine that has ever had one. Worth deciding
+    whether init should name an editor that ships with macOS, or print the
+    path in a form the user can act on.
+
+12. open — the README never links `coga/uninstall`. The topic exists and is
+    reachable only from the bottom of `coga/install`, so a user evaluating
+    Coga cannot easily find out how to remove it. Owner proposes linking it
+    from the README near the install section. Low cost, and relevant to a
+    first-time evaluator deciding whether to try it at all.
+
+Owner's open questions for Nico, carried from his notes rather than
+resolved here:
+
+- Whether `coga init` should install `gh` itself while leaving `op`
+  optional and outside init. Bears directly on finding 8.
+- Whether the `cd <your git repository>` step needs explaining at all,
+  given the README targets teams already comfortable with Git. Bears on
+  finding 4's severity.
 
 ## New-user walk: Windows
 
