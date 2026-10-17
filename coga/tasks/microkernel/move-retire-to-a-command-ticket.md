@@ -1,6 +1,6 @@
 ---
 title: Move retire to a command ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
