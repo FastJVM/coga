@@ -17,6 +17,8 @@ exception, never `SystemExit`. Progress goes through the scoped
 `launch_reporting` callback (plain stdout/stderr by default); callers can render
 it independently of the result. The recurring entry point also returns its
 child-generation lease, and delegation retains the actual session exit code.
+Signals unwind library handlers before that public boundary translates them
+into `LaunchBail`; recoverable exception handlers must not swallow termination.
 Internal callers must not invoke the Typer command function.
 
 ## Targets

@@ -2164,8 +2164,8 @@ def _sweep_stopping_exit(code: int) -> str | None:
         # publish those bytes first.
         return f"a retained-state refusal (exit {code})"
     if code >= 128:
-        # Process-level interrupt: `launch.py`'s handler turns
-        # SIGINT/SIGTERM into `LaunchBail(128 + signum)`. An explicit
+        # Process-level interrupt: the `launch.py` public boundary translates
+        # SIGINT/SIGTERM to `LaunchBail(128 + signum)`. An explicit
         # cancellation must never initiate additional work.
         return f"a signal (exit {code})"
     return None

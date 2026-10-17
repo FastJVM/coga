@@ -4784,7 +4784,7 @@ def test_launch_returns_spawned_bootstrap_termination_kind(
     outcome: ReplOutcome,
 ) -> None:
     """An in-process delegator can distinguish the bootstrap done sentinel
-    from every spawned failure; only pre-spawn refusals still raise SystemExit.
+    from every spawned failure; pre-spawn refusals raise LaunchBail.
     """
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
@@ -4877,6 +4877,35 @@ def test_python_launch_refusal_is_an_exception_with_a_reason(
     assert "nonexistent-audit-target" in caught.value.reason
     assert isinstance(caught.value, Exception)
     assert "nonexistent-audit-target" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_python_launch_translates_signal_after_unwinding_library_handlers(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch, signum: int,
+) -> None:
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    handlers: dict[int, object] = {}
+
+    def remember_handler(received: int, handler: object) -> None:
+        handlers[received] = handler
+
+    def supervisor(*args: object, **kwargs: object) -> ReplOutcome:
+        handler = handlers[signum]
+        assert callable(handler)
+        try:
+            handler(signum, None)
+        except Exception as exc:
+            pytest.fail(f"termination reached a recoverable exception handler: {exc}")
+        raise AssertionError("termination handler returned")
+
+    monkeypatch.setattr(launch_module.signal, "signal", remember_handler)
+    monkeypatch.setattr(launch_module, "run_with_done_marker", supervisor)
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", lambda **kwargs: None)
+    with pytest.raises(launch_module.LaunchBail) as caught:
+        launch_module.launch("bootstrap/ticket")
+    assert caught.value.code == 128 + signum
+    assert isinstance(caught.value, Exception)
 
 
 def test_python_launch_translates_dependency_exit(monkeypatch: pytest.MonkeyPatch) -> None:

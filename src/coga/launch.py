@@ -135,7 +135,7 @@ class LaunchResult(NamedTuple):
 
 @contextmanager
 def _launch_error_boundary() -> Iterator[None]:
-    """Translate exit-shaped failures from notification/recurring dependencies."""
+    """Translate signals and exit-shaped failures after internal cleanup."""
     try:
         yield
     except (SystemExit, NotificationExit) as exc:
@@ -1708,7 +1708,9 @@ def _launch(
         # supervised flag plus the exact task/step ownership witnesses.
 
         def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
-            raise LaunchBail(128 + signum)
+            # Signals must bypass libraries' recoverable Exception handlers.
+            # The public boundary translates this after internal cleanup.
+            raise SystemExit(128 + signum)
 
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
