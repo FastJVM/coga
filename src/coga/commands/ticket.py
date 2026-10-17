@@ -18,7 +18,7 @@ from coga.authoring import (
 )
 from coga.commands.create import _split_create_path, create_draft
 from coga.create import is_parked_dir
-from coga.commands.launch import (
+from coga.launch import (
     _interactive_stdio_has_tty,
     missing_launch_file_message,
     spawn_agent_session,

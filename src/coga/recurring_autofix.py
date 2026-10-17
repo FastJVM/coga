@@ -76,7 +76,7 @@ AUTOFIX_WORKFLOW = "code/with-self-review"
 RUN_LOG_FILENAME = "run-log.md"
 
 # Built-in one-shot argv for the CLIs Coga knows, mirroring
-# `DEFAULT_DISCUSSION_TEMPLATES` in `commands/launch.py`. Overridable per agent
+# `DEFAULT_DISCUSSION_TEMPLATES` in `launch.py`. Overridable per agent
 # with `[agents.<name>].analyze`; an unknown CLI with no override skips the
 # analysis loudly rather than guessing.
 DEFAULT_ANALYZE_TEMPLATES = {

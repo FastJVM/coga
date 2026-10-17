@@ -30,7 +30,7 @@ from rich.table import Table
 from rich.text import Text
 
 from coga import notification
-from coga.commands.launch import _interactive_stdio_has_tty
+from coga.launch import _interactive_stdio_has_tty
 from coga.config import Config, ConfigError, load_config
 from coga.megalaunch import (
     MegalaunchError,

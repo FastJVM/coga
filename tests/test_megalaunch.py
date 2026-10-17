@@ -10,7 +10,7 @@ import pytest
 
 from conftest import hold_by_agent, hold_by_owner
 from coga.cli import app
-from coga.commands.launch import AgentSessionResult
+from coga.launch import AgentSessionResult
 from coga.compose import compose_prompt
 from coga.config import load_config
 from coga.create import create_task
@@ -3356,7 +3356,7 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
         raise AssertionError("a refused final claim must not release the child")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
+        "coga.launch.run_with_done_marker", hold_child_for_final_guard
     )
 
     def rotate_before_pty(
@@ -3428,7 +3428,7 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
 ) -> None:
     """A same-checkout publisher waits, then cannot alter a pending claim."""
     from coga import git as git_module
-    from coga.commands import launch as launch_module
+    from coga import launch as launch_module
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -3486,7 +3486,7 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
                 publisher_thread.join(timeout=10)
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
+        "coga.launch.run_with_done_marker", hold_child_for_final_guard
     )
     real_append_log = launch_module.append_log
     real_locked_publish = git_module._publish_locked
@@ -3538,7 +3538,7 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
         return appended
 
     monkeypatch.setattr(
-        "coga.commands.launch.append_log",
+        "coga.launch.append_log",
         append_then_start_peer_publisher,
     )
 
@@ -3576,7 +3576,7 @@ def test_megalaunch_revalidates_after_the_deferred_audit_append(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An edit during the audit append refuses exec and removes that line."""
-    from coga.commands import launch as launch_module
+    from coga import launch as launch_module
     from coga import git as git_module
 
     cfg = load_config(git_repo.coga_os)
@@ -3610,7 +3610,7 @@ def test_megalaunch_revalidates_after_the_deferred_audit_append(
         raise AssertionError("a post-audit claim mismatch must refuse exec")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", hold_child_for_admission
+        "coga.launch.run_with_done_marker", hold_child_for_admission
     )
     real_append_log = launch_module.append_log
 
@@ -3625,7 +3625,7 @@ def test_megalaunch_revalidates_after_the_deferred_audit_append(
         return appended
 
     monkeypatch.setattr(
-        "coga.commands.launch.append_log", append_audit_then_edit_ticket
+        "coga.launch.append_log", append_audit_then_edit_ticket
     )
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -3847,7 +3847,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
         return _Outcome()
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", race_after_final_fetch
+        "coga.launch.run_with_done_marker", race_after_final_fetch
     )
 
     run = run_megalaunch(cfg, selection=[active["slug"]])

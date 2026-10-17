@@ -19,11 +19,11 @@ from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.blackboard import append_blocker
 from coga.commands import block as block_module
-from coga.commands import launch as launch_module
+from coga import launch as launch_module
 from coga.commands import unblock as unblock_module
 from coga.create import create_task
-from coga.commands import launch as launch_cmd
-from coga.commands.launch import (
+from coga import launch as launch_cmd
+from coga.launch import (
     _MAX_PROMPT_ARG_BYTES,
     _argv_prompt,
     _configured_secret_values,
@@ -363,7 +363,7 @@ _MARKER_SUFFIX = f"\n\ncoga-launch: {_LAUNCH_MARKER}\n"
 
 
 def _pin_launch_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("coga.commands.launch.uuid4", lambda: _LAUNCH_MARKER)
+    monkeypatch.setattr("coga.launch.uuid4", lambda: _LAUNCH_MARKER)
 
 
 def _ticket() -> Ticket:
@@ -392,10 +392,10 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
         return _Result()
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     _pin_launch_marker(monkeypatch)
 
     result = spawn_agent_session(
@@ -442,10 +442,10 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         return _Result()
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
@@ -492,8 +492,8 @@ def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.compose_prompt", fail_compose)
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.compose_prompt", fail_compose)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
@@ -555,10 +555,10 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
             events.append("validate-after-audit")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -623,11 +623,11 @@ def test_spawn_agent_session_removes_deferred_audit_when_post_append_guard_refus
         return appended
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
-    monkeypatch.setattr("coga.commands.launch.append_log", append_then_change_claim)
+    monkeypatch.setattr("coga.launch.append_log", append_then_change_claim)
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -684,11 +684,11 @@ def test_spawn_agent_session_retracts_audit_when_child_release_fails(
         raise OSError("held-child release failed")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         fail_release,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: usage_calls.append(kwargs),
     )
 
@@ -740,11 +740,11 @@ def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         interrupt_after_release,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: usage_calls.append(kwargs),
     )
 
@@ -783,7 +783,7 @@ def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
         raise AssertionError("an invalid admission contract must not spawn")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fail_supervisor
+        "coga.launch.run_with_done_marker", fail_supervisor
     )
 
     with pytest.raises(
@@ -842,7 +842,7 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
     captured_env: dict[str, str] = {}
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
@@ -851,10 +851,10 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
         return ReplOutcome(exit_code=0, kind="natural")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_run_with_done_marker
+        "coga.launch.run_with_done_marker", fake_run_with_done_marker
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session", lambda **kwargs: None
+        "coga.launch.usage_tracking.capture_session", lambda **kwargs: None
     )
 
     spawn_agent_session(
@@ -907,7 +907,7 @@ def test_spawn_agent_session_gives_bootstrap_target_no_blackboard(
     captured_env: dict[str, str] = {}
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
@@ -916,10 +916,10 @@ def test_spawn_agent_session_gives_bootstrap_target_no_blackboard(
         return ReplOutcome(exit_code=0, kind="natural")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_run_with_done_marker
+        "coga.launch.run_with_done_marker", fake_run_with_done_marker
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session", lambda **kwargs: None
+        "coga.launch.usage_tracking.capture_session", lambda **kwargs: None
     )
 
     spawn_agent_session(
@@ -957,10 +957,10 @@ def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
 
     huge_prompt = "# Coga task\n" + "y" * (_MAX_PROMPT_ARG_BYTES + 1)
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: huge_prompt,
     )
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -994,11 +994,11 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
     # Fake only the agent spawn (the PTY watcher) — leave real `subprocess.run`
     # for git so `sync_log` actually commits.
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
@@ -1035,11 +1035,11 @@ def test_spawn_teardown_commits_log_when_initial_commit_unset(git_repo, monkeypa
     ref.path.mkdir(parents=True)
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
@@ -1079,11 +1079,11 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     outside.write_text("locally modified\n")
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
@@ -1099,7 +1099,7 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         )
 
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session", fake_capture
+        "coga.launch.usage_tracking.capture_session", fake_capture
     )
 
     # A hand-edit elsewhere under coga/ must NOT be swept in by the teardown —
@@ -1180,7 +1180,7 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
     ref = TaskRef(slug="ship-it", path=task)
     ticket = Ticket.read(ticket_path)
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
@@ -1196,7 +1196,7 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
         return ReplOutcome(exit_code=0, kind="done")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", finish_with_publishing_bump
+        "coga.launch.run_with_done_marker", finish_with_publishing_bump
     )
 
     def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
@@ -1207,7 +1207,7 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
         )
 
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session", fake_capture
+        "coga.launch.usage_tracking.capture_session", fake_capture
     )
 
     spawn_agent_session(
@@ -1251,10 +1251,10 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         return _Result()
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
@@ -1285,15 +1285,15 @@ def test_spawn_captures_stateless_discussion_session(
     ref.path.mkdir(parents=True)
     captured: list[dict] = []
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="natural"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
     )
 
@@ -1335,15 +1335,15 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
     ref.path.mkdir(parents=True)
     captured: list[dict] = []
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="natural"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
     )
 
@@ -1393,15 +1393,15 @@ def test_spawn_captures_failed_and_timed_out_sessions(
     ref.path.mkdir(parents=True)
     captured: list[dict] = []
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: repl_outcome,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
     )
 
@@ -1430,16 +1430,16 @@ def test_spawn_captures_interrupted_session(
     ref.path.mkdir(parents=True)
     captured: list[dict] = []
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", interrupt)
+    monkeypatch.setattr("coga.launch.run_with_done_marker", interrupt)
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
     )
 
@@ -1466,16 +1466,16 @@ def test_spawn_captures_supervisor_exception_as_failed_without_exit_fields(
     ref.path.mkdir(parents=True)
     captured: list[dict] = []
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def explode(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise RuntimeError("supervisor broke")
 
-    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", explode)
+    monkeypatch.setattr("coga.launch.run_with_done_marker", explode)
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
     )
 
@@ -1548,7 +1548,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.commands.launch._interactive_stdio_has_tty",
+        "coga.launch._interactive_stdio_has_tty",
         lambda: True,
     )
 
@@ -1577,7 +1577,7 @@ def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
         return oid
 
     monkeypatch.setattr(
-        "coga.commands.launch._verify_recorded_assist_pr_head",
+        "coga.launch._verify_recorded_assist_pr_head",
         verify,
     )
     monkeypatch.setattr(
@@ -1588,7 +1588,7 @@ def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _deny_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.commands.launch._interactive_stdio_has_tty",
+        "coga.launch._interactive_stdio_has_tty",
         lambda: False,
     )
 
@@ -1658,8 +1658,8 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         slack_urls.append(url)
@@ -1760,7 +1760,7 @@ def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
     git_repo.push_competing_commit(relpath, remote_ticket.render())
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch_with_before_spawn",
+        "coga.launch.launch_with_before_spawn",
         lambda *args, **kwargs: pytest.fail("stale bootstrap work must not spawn"),
     )
 
@@ -1944,7 +1944,7 @@ def test_internal_recurring_launch_stops_the_sweep_after_a_checkout_return_refus
 
     def refusing_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
         coga_git.state_sweep_withheld.set(True)
-        return kind
+        return launch_module.LaunchResult(kind)
 
     monkeypatch.setattr(
         launch_module,
@@ -1963,7 +1963,7 @@ def test_internal_recurring_launch_stops_the_sweep_after_a_checkout_return_refus
     )
     monkeypatch.setattr(launch_module, "_launch", refusing_launch)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch_recurring_period(
             "recurring/refused-return",
             expected_period_lease=PeriodLease(b"admitted ticket", "generation-1"),
@@ -1995,7 +1995,7 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
                 kwargs["agent_spawn_refusal"],
             )
         )
-        return "script"
+        return launch_module.LaunchResult("script")
 
     monkeypatch.setattr(
         launch_module,
@@ -2153,7 +2153,7 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch_recurring_period(
             "recurring/delegate-check",
             expected_period_lease=expected_period_lease,
@@ -2206,7 +2206,7 @@ def test_internal_recurring_launch_refuses_same_generation_close_before_spawn(
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch_recurring_period(
             "recurring/delegate-check",
             expected_period_lease=expected_period_lease,
@@ -2429,7 +2429,7 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
         lambda *args, **kwargs: pytest.fail("unverified work must not start"),
     )
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch_recurring_period(
             created["slug"],
             expected_period_lease=expected_period_lease,
@@ -2474,7 +2474,7 @@ def test_internal_recurring_launch_uses_admitted_remote_less_control(
 
     def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(task)
-        return "script"
+        return launch_module.LaunchResult("script")
 
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
@@ -2621,11 +2621,11 @@ def test_launch_refreshes_launch_checkout_on_exit(
         returncode = 0
 
     monkeypatch.setattr(
-        "coga.commands.launch.subprocess.run",
+        "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     refreshed: list[Path] = []
     monkeypatch.setattr(
@@ -2671,23 +2671,23 @@ def test_preflight_skips_when_remote_unresolved(active_task, monkeypatch):
     ref = list_tasks(cfg)[0]
 
     monkeypatch.setattr(
-        "coga.commands.launch.check_git_remote",
+        "coga.launch.check_git_remote",
         lambda remote: CheckResult("git-remote", False, "not a git repo"),
     )
 
     def _boom(_remote):
         raise AssertionError("check_git_auth must not run when remote unresolved")
 
-    monkeypatch.setattr("coga.commands.launch.check_git_auth", _boom)
+    monkeypatch.setattr("coga.launch.check_git_auth", _boom)
     _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
 
 
 def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "coga.commands.launch.check_git_auth",
+        "coga.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", True, "push access authenticated"),
     )
     _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
@@ -2696,12 +2696,12 @@ def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
 def test_preflight_bails_when_push_auth_broken(active_task, monkeypatch):
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "coga.commands.launch.check_git_auth",
+        "coga.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
     )
-    with pytest.raises(SystemExit):
+    with pytest.raises(launch_module.LaunchBail):
         _preflight_push_auth(cfg, ref, is_bootstrap=False)
 
 
@@ -2711,9 +2711,9 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
     """End-to-end: a broken remote refuses the launch before flipping status
     or spawning — the ticket stays `active`, no agent process is started."""
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "coga.commands.launch.check_git_auth",
+        "coga.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
     )
 
@@ -2727,8 +2727,8 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 
         return _R()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -2764,13 +2764,13 @@ def test_launch_captures_usage_with_session_id(
         captures.append(kwargs)
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session", fake_capture
+        "coga.launch.usage_tracking.capture_session", fake_capture
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2802,11 +2802,11 @@ def test_launch_fails_loud_on_unset_declared_secret(
 
     calls: list[list[str]] = []
     monkeypatch.setattr(
-        "coga.commands.launch.subprocess.run",
+        "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: calls.append(cmd),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2836,7 +2836,7 @@ def test_launch_rejects_secret_alias_in_reserved_coga_namespace(
     ticket.write(ref.ticket_path)
 
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2873,9 +2873,9 @@ def test_launch_injects_only_declared_secret(
         captured.update(env or {})
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2902,7 +2902,7 @@ def test_launch_fails_loud_on_op_read_error(
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.ticket_path)
 
-    # `coga.config` and `coga.commands.launch` import the same `subprocess`
+    # `coga.config` and `coga.launch` import the same `subprocess`
     # module, so patching `coga.config.subprocess.run` covers both the `op read`
     # resolution and the agent spawn. The op read is mocked non-zero → SecretError
     # before any spawn, so `calls` stays empty.
@@ -2918,7 +2918,7 @@ def test_launch_fails_loud_on_op_read_error(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2955,7 +2955,7 @@ def test_launch_injects_op_secret(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2996,7 +2996,7 @@ def test_launch_resolves_op_secret_but_scrubs_1password_auth_from_agent(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -3024,10 +3024,10 @@ def test_direct_launch_timeout_exits_non_zero(
         )
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(
@@ -3061,9 +3061,9 @@ def test_launch_uses_local_agent_override(
         return ReplOutcome(0, "natural")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3089,8 +3089,8 @@ def test_launch_bails_on_missing_context(
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3147,8 +3147,8 @@ def test_launch_handles_agent_self_deleting_task(
         ticket_md.unlink()
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3172,8 +3172,8 @@ def test_launch_marks_llm_session_supervised(
         envs.append(env or {})
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3205,8 +3205,8 @@ def test_launch_in_progress_resumes_without_status_transition(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
@@ -3227,8 +3227,8 @@ def test_launch_llm_without_tty_fails_before_lock(
         called = True
         raise AssertionError("interactive launch should fail before spawning agent")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -3270,8 +3270,8 @@ def test_launch_llm_chains_consecutive_agent_steps(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3338,9 +3338,9 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
@@ -3387,9 +3387,9 @@ def test_launch_override_refuses_when_the_main_agent_is_unconfigured(
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"no agent may be spawned, got {cmd!r}")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
@@ -3469,8 +3469,8 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3527,8 +3527,8 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3565,8 +3565,8 @@ def test_launch_harness_stops_on_agent_block(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3611,8 +3611,8 @@ def test_launch_blocked_interactive_resumes_with_preamble(
         assert ticket.status == "in_progress"
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3645,9 +3645,9 @@ def test_launch_blocked_timeout_reblocks_unresolved_ask(
     _allow_interactive_tty(monkeypatch)
     _block_task(slug)
 
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout"),
     )
 
@@ -3677,7 +3677,7 @@ def _session_edits_ticket(
     the pre-session snapshot is frozen exactly where production freezes it.
     """
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     def fake_supervisor(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
@@ -3685,7 +3685,7 @@ def _session_edits_ticket(
             edit(Path(ref["path"]))
         return outcome
 
-    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", fake_supervisor)
+    monkeypatch.setattr("coga.launch.run_with_done_marker", fake_supervisor)
 
 
 def _advance_to_owner_review(path: Path) -> None:
@@ -3800,8 +3800,8 @@ def test_launch_blocked_without_tty_still_refuses(
     def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("a blocked ticket must not spawn without a TTY")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 2
@@ -3828,8 +3828,8 @@ def test_launch_blocked_without_open_ask_refuses(
     def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("a blocked ticket with no ask must not spawn")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 2
@@ -3853,8 +3853,8 @@ def test_launch_blocked_preflight_failure_leaves_ticket_blocked(
     def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("a failed preflight must not spawn")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 2
@@ -3892,8 +3892,8 @@ def test_launch_blocked_session_records_resolution_in_flight(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3921,9 +3921,9 @@ def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     return calls
 
@@ -4058,7 +4058,7 @@ def test_launch_preflights_resolved_step_one_agent_before_activation(
     before = ticket_path.read_bytes()
     calls = _launch_single_spawn(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: None if name == "claude" else f"/usr/bin/{name}",
     )
 
@@ -4109,7 +4109,7 @@ def test_launch_refusal_leaves_draft_unactivated(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug])
@@ -4476,7 +4476,7 @@ def test_launch_auto_activate_bails_without_workflow(
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
@@ -4503,10 +4503,10 @@ def test_launch_offers_agent_cli_install_only_for_build(
         status="active",
     )
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
     offered: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.launch.offer_agent_cli",
+        "coga.launch.offer_agent_cli",
         lambda name: offered.append(name) or False,
     )
     result = CliRunner().invoke(app, ["launch", slug])
@@ -4530,11 +4530,11 @@ def test_launch_build_continues_once_agent_cli_installed(
     calls = _launch_single_spawn(monkeypatch)
     installed: set[str] = set()
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}" if name in installed else None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.offer_agent_cli",
+        "coga.launch.offer_agent_cli",
         lambda name: installed.add(name) or True,
     )
     result = CliRunner().invoke(app, ["launch", "coga-build"])
@@ -4556,11 +4556,11 @@ def test_launch_warns_for_large_blackboard(
         returncode = 0
 
     monkeypatch.setattr(
-        "coga.commands.launch.subprocess.run",
+        "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
 
@@ -4635,9 +4635,9 @@ def test_launch_prompt_report_prints_layers_without_launching(
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("prompt report must not spawn an agent")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.commands.launch._interactive_stdio_has_tty", lambda: False)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
     assert result.exit_code == 0, result.output
@@ -4690,9 +4690,9 @@ def test_launch_prompt_report_names_repo_resource_overrides(
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("prompt report must not spawn an agent")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.commands.launch._interactive_stdio_has_tty", lambda: False)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
     assert result.exit_code == 0, result.output
@@ -4722,9 +4722,9 @@ def test_resolve_conflicts_bootstrap_launch_is_stateless_and_receives_pr_arg(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     cfg = load_config(active_task)
@@ -4812,18 +4812,18 @@ def test_launch_returns_spawned_bootstrap_termination_kind(
     outcome: ReplOutcome,
 ) -> None:
     """An in-process delegator can distinguish the bootstrap done sentinel
-    from every spawned failure; only pre-spawn refusals still raise SystemExit.
+    from every spawned failure; pre-spawn refusals raise LaunchBail.
     """
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: outcome,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -4837,7 +4837,8 @@ def test_launch_returns_spawned_bootstrap_termination_kind(
         return_timeout=True,
     )
 
-    assert kind == outcome.kind
+    assert kind.kind == outcome.kind
+    assert kind.exit_code == outcome.exit_code
 
 
 def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
@@ -4847,7 +4848,7 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
     events: list[str] = []
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     def fake_supervisor(*args, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
@@ -4856,10 +4857,10 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
         return ReplOutcome(exit_code=0, kind="done")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -4873,8 +4874,76 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
         before_spawn=lambda: events.append("before-spawn"),
     )
 
-    assert kind == "done"
+    assert kind.kind == "done"
     assert events == ["before-spawn", "spawn"]
+
+
+def test_python_launch_uses_ordinary_defaults(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An internal caller can omit every CLI option without leaking sentinels."""
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    calls = []
+    def supervisor(*args, **kwargs):
+        calls.append(kwargs)
+        assert kwargs["idle_timeout"] is None
+        assert kwargs["max_session"] is None
+        return ReplOutcome(0, "natural")
+    monkeypatch.setattr(launch_module, "run_with_done_marker", supervisor)
+    result = launch_module.launch("bootstrap/ticket")
+    assert result == launch_module.LaunchResult()
+    assert len(calls) == 1
+
+
+def test_python_launch_refusal_is_an_exception_with_a_reason(
+    bootstrap_repo: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(launch_module.LaunchBail) as caught:
+        launch_module.launch("bootstrap/nonexistent-audit-target")
+    assert caught.value.code == 2
+    assert "nonexistent-audit-target" in caught.value.reason
+    assert isinstance(caught.value, Exception)
+    assert "nonexistent-audit-target" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_python_launch_translates_signal_after_unwinding_library_handlers(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch, signum: int,
+) -> None:
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    handlers: dict[int, object] = {}
+
+    def remember_handler(received: int, handler: object) -> None:
+        handlers[received] = handler
+
+    def supervisor(*args: object, **kwargs: object) -> ReplOutcome:
+        handler = handlers[signum]
+        assert callable(handler)
+        try:
+            handler(signum, None)
+        except Exception as exc:
+            pytest.fail(f"termination reached a recoverable exception handler: {exc}")
+        raise AssertionError("termination handler returned")
+
+    monkeypatch.setattr(launch_module.signal, "signal", remember_handler)
+    monkeypatch.setattr(launch_module, "run_with_done_marker", supervisor)
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", lambda **kwargs: None)
+    with pytest.raises(launch_module.LaunchBail) as caught:
+        launch_module.launch("bootstrap/ticket")
+    assert caught.value.code == 128 + signum
+    assert isinstance(caught.value, Exception)
+
+
+def test_python_launch_translates_dependency_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    def dependency_exit(*args, **kwargs):
+        raise SystemExit(17)
+    monkeypatch.setattr(launch_module, "_launch", dependency_exit)
+    with pytest.raises(launch_module.LaunchBail) as caught:
+        launch_module.launch("ordinary-task")
+    assert caught.value.code == 17
+    assert isinstance(caught.value, Exception)
 
 
 def test_launch_recomposes_after_before_spawn_publication(
@@ -4884,7 +4953,7 @@ def test_launch_recomposes_after_before_spawn_publication(
     events: list[str] = []
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     def publish_period_start() -> None:
@@ -4906,10 +4975,10 @@ def test_launch_recomposes_after_before_spawn_publication(
         return ReplOutcome(exit_code=0, kind="done")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -4924,7 +4993,7 @@ def test_launch_recomposes_after_before_spawn_publication(
         revalidate_before_spawn=lambda _ticket: events.append("revalidate"),
     )
 
-    assert kind == "done"
+    assert kind.kind == "done"
     assert events == ["publish", "revalidate", "spawn"]
     assert _read_log(bootstrap_repo).count(
         "launched (operator=claude, agent=claude)"
@@ -4937,9 +5006,9 @@ def test_launch_before_spawn_callback_skipped_on_preflight_refusal(
     """A CLI preflight refusal cannot publish caller-owned start state."""
     events: list[str] = []
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch_with_before_spawn(
             "bootstrap/ticket",
             agent_override=None,
@@ -5033,9 +5102,9 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr("sys.argv", ["coga", "hello", "world"])
 
     with pytest.raises(SystemExit) as exc:
@@ -5071,10 +5140,10 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
 
     monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
-        "coga.commands.launch.subprocess.run",
+        "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5096,8 +5165,8 @@ def test_launch_bootstrap_skips_status_and_lock(
         captured["prompt"] = _prompt_arg(cmd)
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5151,8 +5220,8 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5191,8 +5260,8 @@ def test_launch_orient_bootstrap_stays_silent(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/orient"])
@@ -5229,8 +5298,8 @@ def test_launch_regular_task_does_not_use_discussion_template(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -5254,8 +5323,8 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex"])
@@ -5288,10 +5357,10 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
         captured["env"] = env
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        "coga.launch._recorded_single_checkout_assist_branch",
         lambda *args, **kwargs: pytest.fail(
             "an override on an agent-owned task is not a human-step assist"
         ),
@@ -5341,10 +5410,10 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        "coga.commands.launch.git.sync_log",
+        "coga.launch.git.sync_log",
         lambda cfg, **kwargs: sync_calls.append(kwargs),
     )
 
@@ -5524,11 +5593,11 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
     real_compose_prompt = launch_module.compose_prompt
@@ -5539,7 +5608,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         return real_compose_prompt(cfg, ref, ticket, **kwargs)
 
     monkeypatch.setattr(
-        "coga.commands.launch.compose_prompt",
+        "coga.launch.compose_prompt",
         capture_compose_prompt,
     )
 
@@ -5571,7 +5640,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         apply_and_push_fix,
     )
 
@@ -5583,7 +5652,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         )
 
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         append_usage,
     )
 
@@ -5676,11 +5745,11 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
     observed: list[tuple[str | None, str | None]] = []
@@ -5691,11 +5760,11 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         observe_review,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -5739,11 +5808,11 @@ def test_human_assist_validates_override_after_remote_config_alignment(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
     observed: list[str] = []
@@ -5753,11 +5822,11 @@ def test_human_assist_validates_override_after_remote_config_alignment(
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         observe_reviewer,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -6066,25 +6135,25 @@ def test_human_assist_alignment_keeps_original_prefix_target(
         return original if len(resolve_calls) == 1 else alternate
 
     monkeypatch.setattr(
-        "coga.commands.launch.resolve_target",
+        "coga.launch.resolve_target",
         retargeting_resolver,
     )
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._align_recorded_assist_checkout",
+        "coga.launch._align_recorded_assist_checkout",
         lambda cfg, ticket: (True, "aligned-oid"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch._verify_recorded_assist_pr_head",
+        "coga.launch._verify_recorded_assist_pr_head",
         lambda cfg, ticket, branch, **kwargs: "aligned-oid",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: pytest.fail("a retargeted task must not launch"),
     )
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
             prefix,
             agent_override="claude",
@@ -6096,7 +6165,7 @@ def test_human_assist_alignment_keeps_original_prefix_target(
 
     assert excinfo.value.code == 2
     assert resolve_calls == [prefix, original.id_slug]
-    assert "different prefix match" in capsys.readouterr().err
+    assert "different prefix match" in excinfo.value.reason
     assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
     assert created["slug"] == original.id_slug
 
@@ -6121,19 +6190,19 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -6200,7 +6269,7 @@ def test_blocked_malformed_script_reblock_is_published_before_child_exit(
     git_repo.git("push", "origin", "main")
     _allow_interactive_tty(monkeypatch)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
             created["slug"],
             agent_override=None,
@@ -6292,11 +6361,11 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
 
@@ -6308,11 +6377,11 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         observe_clean_checkout,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -6348,13 +6417,13 @@ def test_human_assist_without_tty_refuses_before_alignment(
     )
     _deny_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        "coga.launch._recorded_single_checkout_assist_branch",
         lambda *args, **kwargs: pytest.fail(
             "TTY refusal must precede assist-checkout validation"
         ),
     )
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
             str(created["slug"]),
             agent_override="claude",
@@ -6365,7 +6434,7 @@ def test_human_assist_without_tty_refuses_before_alignment(
         )
 
     assert excinfo.value.code == 2
-    assert "agent launch requires a TTY" in capsys.readouterr().err
+    assert "agent launch requires a TTY" in excinfo.value.reason
 
 
 def test_human_assist_without_tty_does_not_protect_rewritten_log(
@@ -6380,7 +6449,7 @@ def test_human_assist_without_tty_does_not_protect_rewritten_log(
     (git_repo.coga_os / "log.md").write_text("rewritten audit log\n")
     _deny_interactive_tty(monkeypatch)
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
             str(created["slug"]),
             agent_override="claude",
@@ -6411,11 +6480,11 @@ def test_human_assist_rejects_control_named_pr_before_writing(
     remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: pytest.fail("control-named assist must not start"),
     )
 
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(launch_module.LaunchBail) as excinfo:
         launch_module.launch(
             str(created["slug"]),
             agent_override="claude",
@@ -6428,7 +6497,7 @@ def test_human_assist_rejects_control_named_pr_before_writing(
     assert excinfo.value.code == 2
     assert retained_line in log_file.read_text()
     assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
-    assert "same name as the configured control branch" in capsys.readouterr().err
+    assert "same name as the configured control branch" in excinfo.value.reason
 
 
 def test_human_assist_does_not_publish_from_an_unrecorded_branch(
@@ -6477,19 +6546,19 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch._refresh_agent_skills_for_launch",
+        "coga.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
 
@@ -6525,7 +6594,7 @@ def test_launch_human_handoff_without_agent_override_is_still_refused(
     def fake_run(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("human handoff should fail before spawning an agent")
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -6582,7 +6651,7 @@ def _wf_ticket(
 
 def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
     """main -> peer (an `other-agent` step) must NOT stop."""
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6592,7 +6661,7 @@ def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
 
 
 def test_harness_chains_same_agent(active_task: Path) -> None:
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6603,7 +6672,7 @@ def test_harness_chains_same_agent(active_task: Path) -> None:
 
 def test_harness_stops_on_human_handoff(active_task: Path) -> None:
     """A next step the workflow hands to the owner returns control."""
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6615,7 +6684,7 @@ def test_harness_stops_on_human_handoff(active_task: Path) -> None:
 
 
 def test_harness_stops_on_terminal_and_paused(active_task: Path) -> None:
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6629,7 +6698,7 @@ def test_harness_stops_on_terminal_and_paused(active_task: Path) -> None:
 
 
 def test_harness_stops_when_no_progress(active_task: Path) -> None:
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6645,7 +6714,7 @@ def test_harness_stops_on_workflowless_task_without_marking_done(
 ) -> None:
     """A workflow-less task left in_progress reports 'no workflow to chain',
     not the misleading 'still on no workflow step' no-progress message."""
-    from coga.commands.launch import _harness_stop_reason
+    from coga.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -6723,8 +6792,8 @@ def test_launch_interactive_rotates_across_agents(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -6791,9 +6860,9 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
         return _Result()
 
     # claude resolves, codex does not (simulate codex not on PATH).
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which",
+        "coga.launch.shutil.which",
         lambda name: "/usr/bin/claude" if name == "claude" else None,
     )
 
@@ -6830,14 +6899,14 @@ def test_conduct_is_a_composed_layer_not_a_prompt_suffix(
 
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker",
+        "coga.launch.run_with_done_marker",
         lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="done"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch.usage_tracking.capture_session",
+        "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
     monkeypatch.setattr(launch_module, "spawn_agent_session", capture)
@@ -6905,9 +6974,9 @@ def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
             return real_compose(cfg, ref, ticket, *args, **kwargs)
         raise FileNotFoundError(2, "No such file or directory", missing)
 
-    monkeypatch.setattr("coga.commands.launch.compose_prompt", flaky)
+    monkeypatch.setattr("coga.launch.compose_prompt", flaky)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -6935,9 +7004,9 @@ def test_launch_preflight_names_the_missing_file_too(
     def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise FileNotFoundError(2, "No such file or directory", missing)
 
-    monkeypatch.setattr("coga.commands.launch.compose_prompt", boom)
+    monkeypatch.setattr("coga.launch.compose_prompt", boom)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -6960,9 +7029,9 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
     def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise AgentCliNotFound("claude")
 
-    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", boom)
+    monkeypatch.setattr("coga.launch.run_with_done_marker", boom)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -7022,10 +7091,10 @@ class _CheckoutSession:
 def _checkout_launch_env(monkeypatch: pytest.MonkeyPatch, session) -> None:  # type: ignore[no-untyped-def]
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", lambda *a, **k: None)
-    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", session)
+    monkeypatch.setattr("coga.launch._preflight_push_auth", lambda *a, **k: None)
+    monkeypatch.setattr("coga.launch.spawn_agent_session", session)
 
 
 def _published_checkout_task(git_repo, title: str = "Checkout normalization") -> TaskRef:  # type: ignore[no-untyped-def]
@@ -7442,7 +7511,7 @@ def test_orientation_guard_is_released_when_its_process_dies(
     git_repo.checkout_branch("feature/occupied")
     script = (
         "from coga.config import load_config\n"
-        "from coga.commands.launch import _orientation_checkout_guard\n"
+        "from coga.launch import _orientation_checkout_guard\n"
         "import sys\n"
         "with _orientation_checkout_guard(load_config()):\n"
         "    print('guard held', flush=True)\n"
@@ -7487,7 +7556,7 @@ def test_orientation_guard_is_per_git_checkout_not_coga_root(
             pass  # Independent checkout, even for the same user.
         nested_cfg = replace(cfg, repo_root=git_repo.coga_os / "nested")
         nested_cfg.repo_root.mkdir()
-        with pytest.raises(SystemExit) as refused:
+        with pytest.raises(launch_module.LaunchBail) as refused:
             with launch_module._orientation_checkout_guard(nested_cfg):
                 pytest.fail("a nested Coga root shares the occupied Git checkout")
         assert refused.value.code == 75

@@ -280,12 +280,12 @@ def _stub_git(monkeypatch, request):
         lambda *a, **k: CheckoutPreparation("exempt", "git stubbed in tests"),
     )
     monkeypatch.setattr(
-        "coga.commands.launch._checkout_exemption", lambda *a, **k: None
+        "coga.launch._checkout_exemption", lambda *a, **k: None
     )
     from contextlib import nullcontext
 
     monkeypatch.setattr(
-        "coga.commands.launch._orientation_checkout_guard", lambda cfg: nullcontext()
+        "coga.launch._orientation_checkout_guard", lambda cfg: nullcontext()
     )
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
     # `views` binds the probe at import time, so patch its name too.
@@ -297,7 +297,7 @@ def _stub_git(monkeypatch, request):
     from coga.github_preflight import CheckResult
 
     monkeypatch.setattr(
-        "coga.commands.launch.check_git_remote",
+        "coga.launch.check_git_remote",
         lambda remote: CheckResult("git-remote", False, "no remote (test default)"),
     )
 

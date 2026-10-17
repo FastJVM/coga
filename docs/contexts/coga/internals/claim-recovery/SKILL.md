@@ -31,7 +31,7 @@ restored to its prior bytes with its audit lines retracted.
 
 ## Released-witness reconciliation
 
-`_reconcile_released_launch_admission` in `src/coga/commands/launch.py` runs
+`_reconcile_released_launch_admission` in `src/coga/launch.py` runs
 before any other launch work when the local ticket carries `released:`. The
 whole sequence holds `git.state_lock`:
 

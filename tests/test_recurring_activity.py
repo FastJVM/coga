@@ -139,7 +139,7 @@ def test_classifier_tracks_machine_subject_writers() -> None:
     assert isinstance(default, ast.Constant)
     assert is_machine_commit(default.value)
     cases = [
-        ("commands/launch.py", "Log: ", "recurring/dream"),
+        ("launch.py", "Log: ", "recurring/dream"),
         ("launch_script.py", "Log: ", "recurring/dream"),
         ("recurring_runner.py", "Log: ", "recurring/dream"),
         ("recurring_runner.py", " — recurring create", "recurring/digest"),

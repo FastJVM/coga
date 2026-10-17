@@ -15,7 +15,7 @@ from conftest import derived_operator, hold_by_agent, hold_by_owner, seed_direct
 from coga import compose as compose_module, git
 from coga.blackboard import append_blocker
 from coga.cli import app
-from coga.commands import launch as launch_module
+from coga import launch as launch_module
 from coga.config import Config, load_config
 from coga.create import create_task
 from coga.launch_script import (
@@ -422,7 +422,7 @@ def test_script_block_returns_internal_script_stop_kind(
         script_failure_important=True,
     )
 
-    assert kind == "script"
+    assert kind.kind == "script"
     assert Ticket.read(ref.ticket_path).status == "blocked"
 
 
@@ -797,7 +797,7 @@ def test_recorded_assist_aligns_before_running_ticket_script(
         )
 
     if script_exit:
-        with pytest.raises(SystemExit) as exc_info:
+        with pytest.raises(launch_module.LaunchBail) as exc_info:
             launch()
         assert exc_info.value.code == script_exit
     else:

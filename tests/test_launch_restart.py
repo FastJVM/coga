@@ -37,7 +37,7 @@ from typer.testing import CliRunner
 import coga
 from conftest import init_git_repo
 from coga.cli import app
-from coga.commands.launch import AgentSessionResult
+from coga.launch import AgentSessionResult
 from coga.config import load_config
 from coga.create import create_task
 from coga.repl_supervisor import EXPECTED_STEP_ENV
@@ -142,13 +142,13 @@ class _FakeAgent:
 
 def _patch_launch_env(monkeypatch: pytest.MonkeyPatch, fake: _FakeAgent) -> None:
     monkeypatch.setattr(
-        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+        "coga.launch._interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
-        "coga.commands.launch.spawn_agent_session", fake
+        "coga.launch.spawn_agent_session", fake
     )
 
 
@@ -216,7 +216,7 @@ def test_task_launch_publishes_its_launch_line_before_each_spawn(
         return fake(cfg, ref, ticket, agent, *args, **kwargs)
 
     _patch_launch_env(monkeypatch, fake)
-    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", recording)
+    monkeypatch.setattr("coga.launch.spawn_agent_session", recording)
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -328,7 +328,7 @@ def test_launch_functionally_auto_restarts_through_three_steps(
     monkeypatch.setenv("COGA_FAKE_LOG", str(fake_log))
     # Only the TTY entry-gate is faked; the spawn itself is real.
     monkeypatch.setattr(
-        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+        "coga.launch._interactive_stdio_has_tty", lambda: True
     )
 
     result = CliRunner().invoke(app, ["launch", slug])
@@ -360,7 +360,7 @@ def git_chain_repo(real_git, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # Push-auth preflight shells out to git/gh; this test is about the chain,
     # not the auth gate, so no-op it.
     monkeypatch.setattr(
-        "coga.commands.launch._preflight_push_auth", lambda *a, **k: None
+        "coga.launch._preflight_push_auth", lambda *a, **k: None
     )
     monkeypatch.chdir(repo.coga_os)
     return repo

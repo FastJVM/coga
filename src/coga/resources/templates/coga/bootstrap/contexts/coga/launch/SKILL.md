@@ -9,6 +9,18 @@ description: What `coga launch <target>` accepts, the checkout boundary around e
 the attended path: a human typed it. Queue draining is `coga megalaunch`
 ([megalaunch](../megalaunch/SKILL.md)); scheduled work is `coga recurring`.
 
+The CLI adapter (`src/coga/commands/launch.py`) owns Typer arguments, presentation
+and process exits. Python callers use `coga.launch`: ordinary parameter defaults,
+`LaunchResult(kind, exit_code)` for a completed launch, and `LaunchBail(code,
+reason)` for a refusal or propagated failure. `LaunchBail` is an ordinary
+exception, never `SystemExit`. Progress goes through the scoped
+`launch_reporting` callback (plain stdout/stderr by default); callers can render
+it independently of the result. The recurring entry point also returns its
+child-generation lease, and delegation retains the actual session exit code.
+Signals unwind library handlers before that public boundary translates them
+into `LaunchBail`; recoverable exception handlers must not swallow termination.
+Internal callers must not invoke the Typer command function.
+
 ## Targets
 
 - A task by any unique prefix of its ref. A nested task is its path under
