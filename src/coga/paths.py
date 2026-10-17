@@ -7,6 +7,7 @@ from pathlib import Path
 import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
+from coga.workflow import WorkflowError
 
 
 _REMOVED_BUNDLED_SKILL_MESSAGES = {
@@ -162,6 +163,8 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
             candidate.lstat()
         except FileNotFoundError:
             continue
+        except OSError as exc:
+            raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc
         # Existing entries, including directories and broken links, must be
         # diagnosed by the loader rather than silently selecting other text.
         return candidate

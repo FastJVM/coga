@@ -18,7 +18,9 @@ An existing local entry always wins, including an unreadable file, directory,
 or broken symlink: it must be repaired, never bypassed with bundled text.
 `Workflow.load` distinguishes genuine absence (`WorkflowNotFoundError`, also a
 `WorkflowError`) from malformed definitions and read failures (`WorkflowError`
-with the source path and cause). Inline prompt composition preserves only the
+with the source path and cause). Resolution also reports inspection failures
+(such as an unsearchable directory or a non-directory parent) as `WorkflowError`,
+without trying the bundled fallback. Inline prompt composition preserves only the
 documented missing-definition placeholder; other load failures refuse launch.
 
 ## Definition format
