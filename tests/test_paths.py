@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from coga.paths import (
     bootstrap_context_path,
     bootstrap_skill_path,
@@ -109,6 +111,18 @@ def test_resolve_workflow_path_falls_back_to_local_when_neither_exists(tmp_path)
     cfg = SimpleNamespace(repo_root=tmp_path)
 
     assert resolve_workflow_path(cfg, "code/nope") == workflow_path(cfg, "code/nope")
+
+
+@pytest.mark.parametrize("kind", ["directory", "broken-symlink"])
+def test_unusable_local_workflow_is_not_replaced_with_bundled_text(tmp_path, kind):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    local = workflow_path(cfg, "code/with-review")
+    local.parent.mkdir(parents=True)
+    if kind == "directory":
+        local.mkdir()
+    else:
+        local.symlink_to(tmp_path / "missing.md")
+    assert resolve_workflow_path(cfg, "code/with-review") == local
 
 
 def test_skill_symlink_remains_supported(tmp_path):

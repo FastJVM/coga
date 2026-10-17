@@ -14,6 +14,13 @@ under `src/coga/resources/templates/coga/bootstrap/workflows/`; the workflows
 ticket body's ordered phases) live under
 `src/coga/resources/templates/coga/workflows/`.
 
+An existing local entry always wins, including an unreadable file, directory,
+or broken symlink: it must be repaired, never bypassed with bundled text.
+`Workflow.load` distinguishes genuine absence (`WorkflowNotFoundError`, also a
+`WorkflowError`) from malformed definitions and read failures (`WorkflowError`
+with the source path and cause). Inline prompt composition preserves only the
+documented missing-definition placeholder; other load failures refuse launch.
+
 ## Definition format
 
 YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list

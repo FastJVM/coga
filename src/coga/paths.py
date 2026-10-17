@@ -157,11 +157,14 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
     conventional `workflows/` location.
     """
     local = workflow_path(cfg, name)
-    if local.is_file():
-        return local
-    bundled = bootstrap_workflow_path(cfg, name)
-    if bundled.is_file():
-        return bundled
+    for candidate in (local, bootstrap_workflow_path(cfg, name)):
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            continue
+        # Existing entries, including directories and broken links, must be
+        # diagnosed by the loader rather than silently selecting other text.
+        return candidate
     return local
 
 

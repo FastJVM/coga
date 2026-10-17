@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,10 @@ import yaml
 
 class WorkflowError(Exception):
     """Raised on invalid workflow definitions."""
+
+
+class WorkflowNotFoundError(WorkflowError, FileNotFoundError):
+    """The definition is absent, rather than invalid or unreadable."""
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
@@ -60,9 +65,16 @@ class Workflow:
 
     @classmethod
     def load(cls, path: Path) -> "Workflow":
-        if not path.is_file():
-            raise WorkflowError(f"Workflow not found: {path}")
-        text = path.read_text()
+        try:
+            if not stat.S_ISREG(path.stat().st_mode):
+                raise WorkflowError(f"Cannot read workflow {path}: not a regular file")
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            if path.is_symlink():
+                raise WorkflowError(f"Cannot read workflow {path}: {exc}") from exc
+            raise WorkflowNotFoundError(f"Workflow not found: {path}") from exc
+        except (OSError, UnicodeError) as exc:
+            raise WorkflowError(f"Cannot read workflow {path}: {exc}") from exc
         match = _FM_RE.match(text)
         if not match:
             raise WorkflowError(f"{path} must begin with YAML frontmatter")
@@ -71,8 +83,12 @@ class Workflow:
             fm = yaml.safe_load(fm_text) or {}
         except yaml.YAMLError as exc:
             raise WorkflowError(f"{path}: invalid YAML frontmatter: {exc}") from exc
+        if not isinstance(fm, dict):
+            raise WorkflowError(f"{path}: YAML frontmatter must be a mapping")
         if "name" not in fm:
             raise WorkflowError(f"{path}: missing `name` in frontmatter")
+        if not isinstance(fm["name"], str) or not fm["name"].strip():
+            raise WorkflowError(f"{path}: `name` must be a non-empty string")
         if "steps" not in fm or not isinstance(fm["steps"], list) or not fm["steps"]:
             raise WorkflowError(f"{path}: `steps` must be a non-empty list")
 
@@ -114,6 +130,8 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
             f"{source}: step must be a mapping with a `name` field, got {raw!r}"
         )
     name = raw["name"]
+    if not isinstance(name, str) or not name.strip():
+        raise WorkflowError(f"{source}: step `name` must be a non-empty string")
     if "skill" in raw:
         raise WorkflowError(
             f"{source}: step {name!r} uses legacy singular `skill:` — "
@@ -130,7 +148,9 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
                 f"{source}: step {name!r} `skills` entry must be a non-empty string, got {s!r}"
             )
     assignee = raw.get("assignee")
-    if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
+    if assignee is not None and (
+        not isinstance(assignee, str) or assignee not in VALID_ASSIGNEE_ROLES
+    ):
         hint = (
             " — `human` was renamed to `owner`"
             if assignee == "human"
@@ -173,4 +193,7 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
     return sections
 
 
-__all__ = ["Workflow", "WorkflowStep", "WorkflowError", "VALID_ASSIGNEE_ROLES"]
+__all__ = [
+    "Workflow", "WorkflowStep", "WorkflowError", "WorkflowNotFoundError",
+    "VALID_ASSIGNEE_ROLES",
+]
