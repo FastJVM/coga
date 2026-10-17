@@ -18,9 +18,16 @@ The `coga/recurring/scheduling` context owns this contract.
 
 from __future__ import annotations
 
+import codecs
 import json
+import math
+import os
+import queue
+import signal
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +50,10 @@ PERIOD_ENV = "COGA_RECURRING_PERIOD"
 _STATE_DIR = Path(".coga") / "recurring-clone"
 # Bounded so a chatty run cannot grow the run record without limit.
 _OUTPUT_TAIL_CHARS = 4000
+_OUTPUT_LOG_CHARS = 1_000_000
+_CLONE_SCRIPT_TIMEOUT = 15 * 60
+_TERMINATE_GRACE = 2.0
+_TRUNCATED = "\n[output truncated; final output follows in the log]\n"
 
 
 @dataclass(frozen=True)
@@ -140,6 +151,7 @@ def run_clone_template(
     *,
     secrets: object = None,
     now: datetime | None = None,
+    timeout: float = _CLONE_SCRIPT_TIMEOUT,
 ) -> CloneRunResult:
     """Run one clone-scoped template's `ticket.py` and record a clean exit.
 
@@ -149,6 +161,8 @@ def run_clone_template(
     the ledger, and returned for the sweep's run record. Only exit 0 advances
     the ledger; a failure is retried by the next sweep.
     """
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("clone script timeout must be finite and positive")
     now = now or datetime.now()
     env = build_launch_env(cfg, secrets)
     for key in TASK_ENV_KEYS:
@@ -158,34 +172,169 @@ def run_clone_template(
     env[SCOPE_ENV] = SCOPE_CLONE
     env[TEMPLATE_ENV] = name
     env[PERIOD_ENV] = period
-    completed = subprocess.run(
+    exit_code, output, log_output = _run_clone_script(
         [sys.executable, str(script)],
         cwd=host_repo_root(cfg),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
+        timeout=timeout,
     )
-    output = completed.stdout or ""
-    sys.stdout.write(output)
     log_path = _log_path(cfg, name)
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(
             log_path,
             f"# {name} — period {period} — {now.isoformat(timespec='seconds')} "
-            f"— exit {completed.returncode}\n\n{output}",
+            f"— exit {exit_code}\n\n{log_output}",
         )
     except OSError as exc:
         sys.stderr.write(f"Warning: could not write {log_path}: {exc}\n")
-    if completed.returncode == 0:
+    if exit_code == 0:
         record_clone_period(cfg, name, period, now)
     return CloneRunResult(
         template=name,
         period=period,
-        exit_code=completed.returncode,
-        output=output[-_OUTPUT_TAIL_CHARS:],
+        exit_code=exit_code,
+        output=output,
         log_path=log_path,
     )
+
+
+def _stop_clone_script(child: subprocess.Popen[bytes]) -> None:
+    """Stop the script's process group and reap the direct child."""
+    if os.name == "posix":
+        try:
+            os.killpg(child.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            child.wait(timeout=_TERMINATE_GRACE)
+        except subprocess.TimeoutExpired:
+            pass
+        # The parent may exit before descendants that still hold stdout open.
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    else:
+        # Windows has no killpg; taskkill terminates the process tree.
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(child.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=_TERMINATE_GRACE, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            if child.poll() is None:
+                child.kill()
+            child.wait(timeout=_TERMINATE_GRACE)
+            raise
+        finally:
+            if child.poll() is None:
+                child.kill()
+    child.wait(timeout=_TERMINATE_GRACE)
+
+
+def _run_clone_script(
+    argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
+) -> tuple[int, str, str]:
+    """Drain stdout with bounded storage, including while enforcing a deadline."""
+    child = subprocess.Popen(
+        argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, bufsize=0,
+        start_new_session=os.name == "posix",
+    )
+    assert child.stdout is not None
+    chunks: queue.Queue[bytes | OSError | None] = queue.Queue(maxsize=8)
+    stop = threading.Event()
+
+    def offer(chunk: bytes | OSError | None) -> None:
+        while not stop.is_set():
+            try:
+                chunks.put(chunk, timeout=0.1)
+                return
+            except queue.Full:
+                pass
+
+    def read_output() -> None:
+        try:
+            while not stop.is_set():
+                chunk = child.stdout.read(8192)
+                if not chunk:
+                    break
+                offer(chunk)
+        except OSError as exc:
+            offer(exc)
+        finally:
+            offer(None)
+
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    log_chunks: list[str] = []
+    log_chars = 0
+    tail = ""
+    truncated = False
+
+    def consume(text: str) -> None:
+        nonlocal log_chars, tail, truncated
+        tail = (tail + text)[-_OUTPUT_TAIL_CHARS:]
+        prefix = text[:max(0, _OUTPUT_LOG_CHARS - log_chars)]
+        if prefix:
+            log_chunks.append(prefix)
+            log_chars += len(prefix)
+            sys.stdout.write(prefix)
+        if len(prefix) < len(text) and not truncated:
+            truncated = True
+            sys.stdout.write(_TRUNCATED)
+
+    deadline = time.monotonic() + timeout
+    eof = False
+    timed_out = False
+    stopped = False
+    try:
+        while not eof or child.poll() is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                _stop_clone_script(child)
+                stopped = True
+                break
+            try:
+                chunk = chunks.get(timeout=min(0.1, remaining))
+            except queue.Empty:
+                continue
+            if isinstance(chunk, OSError):
+                raise chunk
+            if chunk is None:
+                eof = True
+            else:
+                consume(decoder.decode(chunk))
+        if timed_out:
+            # Drain only already queued bytes; a detached descendant must not
+            # keep the sweep waiting for EOF after its parent has been stopped.
+            while True:
+                try:
+                    chunk = chunks.get_nowait()
+                except queue.Empty:
+                    break
+                if isinstance(chunk, bytes):
+                    consume(decoder.decode(chunk))
+        consume(decoder.decode(b"", final=True))
+    finally:
+        stop.set()
+        if not stopped and (child.poll() is None or not eof):
+            _stop_clone_script(child)
+        reader.join(timeout=_TERMINATE_GRACE)
+        child.stdout.close()
+    exit_code = 124 if timed_out else child.returncode
+    assert exit_code is not None
+    log_output = "".join(log_chunks)
+    if truncated:
+        log_output += _TRUNCATED + tail
+    if timed_out:
+        reason = f"\nClone script timed out after {timeout:g}s (exit 124).\n"
+        sys.stderr.write(reason)
+        tail = (tail + reason)[-_OUTPUT_TAIL_CHARS:]
+        log_output += reason
+    return exit_code, tail, log_output
 

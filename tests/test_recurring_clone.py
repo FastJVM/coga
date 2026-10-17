@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import time
+import tracemalloc
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -11,6 +14,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga import recurring_runner as recurring_cmd
+from coga import recurring_clone
 from coga.cli import app
 from coga.config import load_config
 from coga.recurring import (
@@ -21,7 +25,7 @@ from coga.recurring import (
     scan_due,
 )
 from coga.recurring_autofix import RunRecord
-from coga.recurring_clone import clone_state_dir, read_clone_ledger
+from coga.recurring_clone import clone_state_dir, read_clone_ledger, run_clone_template
 from coga.tasks import list_tasks
 
 
@@ -180,6 +184,105 @@ def test_failed_clone_run_is_a_problem_and_retries_next_sweep(
     assert "swept local state" in outcome.blackboard
     assert recurring_cmd._run_clone_scoped(cfg, RunRecord(started=NOW)) is True
     assert len(_runs(repo)) == 2
+
+
+def test_clone_chatty_script_has_bounded_log_and_retains_final_output(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(recurring_clone, "_OUTPUT_LOG_CHARS", 8000)
+    script = repo / "chatty.py"
+    script.write_text(
+        "import os\n"
+        "for _ in range(256): os.write(1, b'x' * 65536)\n"
+        "os.write(1, b'\\xffFINAL OUTPUT\\n')\n"
+    )
+    cfg = load_config(repo)
+    tracemalloc.start()
+    try:
+        result = run_clone_template(cfg, "chatty", script, "today", timeout=10)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 8_000_000, f"retained too much of the 16 MiB output: {peak}"
+    assert result.exit_code == 0
+    assert len(result.output) == 4000
+    assert result.output.endswith("\ufffdFINAL OUTPUT\n")
+    log = result.log_path.read_text()
+    assert "output truncated" in log
+    assert log.endswith("\ufffdFINAL OUTPUT\n")
+    assert len(log) < 12500
+    assert len(capsys.readouterr().out) < 8500
+
+
+def test_clone_timeout_keeps_diagnostics_and_does_not_advance_ledger(repo: Path) -> None:
+    script = repo / "hung.py"
+    script.write_text("import time\nprint('started work', flush=True)\ntime.sleep(30)\n")
+    cfg = load_config(repo)
+    started = time.monotonic()
+    result = run_clone_template(cfg, "hung", script, "today", timeout=0.3)
+    assert time.monotonic() - started < 6
+    assert result.exit_code == 124
+    assert "started work" in result.output
+    assert "timed out" in result.output
+    assert "exit 124" in result.log_path.read_text()
+    assert read_clone_ledger(cfg, "hung") is None
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX process-group cleanup")
+@pytest.mark.parametrize("parent_waits", [True, False])
+def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits: bool) -> None:
+    script = repo / "descendant.py"
+    child_pid = repo / "child.pid"
+    script.write_text(
+        "import subprocess, sys\nfrom pathlib import Path\n"
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])\n"
+        f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
+        + ("child.wait()\n" if parent_waits else "")
+    )
+    result = run_clone_template(load_config(repo), "descendant", script, "today", timeout=0.5)
+    assert result.exit_code == 124
+    pid = int(child_pid.read_text())
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        # An orphan may await init's reap, but must no longer be executing.
+        stat = Path(f"/proc/{pid}/stat")
+        if stat.exists() and stat.read_text().split()[2] == "Z":
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("descendant survived timeout")
+
+
+def test_clone_sweep_continues_after_timeout_and_retries_it(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clone_template(repo, "a-hung")
+    (repo / "recurring" / "a-hung" / "ticket.py").write_text("import time\ntime.sleep(30)\n")
+    _clone_template(repo, "z-success")
+    monkeypatch.setattr("coga.recurring.datetime", _frozen_datetime())
+    def short_run(*args, **kwargs):
+        return run_clone_template(*args, **kwargs, timeout=0.3)
+    monkeypatch.setattr(recurring_cmd, "run_clone_template", short_run)
+    cfg = load_config(repo)
+    record = RunRecord(started=NOW)
+    assert recurring_cmd._run_clone_scoped(cfg, record) is True
+    assert [(o.template, o.exit_code) for o in record.outcomes] == [
+        ("a-hung", 124), ("z-success", 0),
+    ]
+    assert read_clone_ledger(cfg, "a-hung") is None
+    assert read_clone_ledger(cfg, "z-success") is not None
+    assert [due.template.name for due in scan_clone_due(cfg, now=NOW).due] == ["a-hung"]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_clone_script_rejects_unbounded_deadlines(repo: Path, timeout: float) -> None:
+    with pytest.raises(ValueError, match="finite and positive"):
+        run_clone_template(load_config(repo), "bad", repo / "unused.py", "today", timeout=timeout)
 
 
 def test_inactive_repo_skips_non_exempt_clone_templates(repo: Path) -> None:
