@@ -382,6 +382,31 @@ and not a finding.
    nothing and the documented recovery leads off-site. Fix is one line in
    the README block; the error message needs no change.
 
+## New-user walk: macOS — run 2
+
+Started 2026-10-17 on a sealed clone of the post-baseline spare, so the
+machine state matches run 1's baseline exactly: no Command Line Tools, no
+`uv`, no `coga`, `/usr/bin/git` and `/usr/bin/python3` as stubs.
+
+Installing from PyPI with the plain `uv tool install coga`, as a real user
+would. No fix has been merged yet, so this is a reproduction rather than a
+verification; the ticket's install-from-main route is for the later
+fix-verification run.
+
+Scope, agreed with the owner after he was told run 1 already holds evidence
+for steps 1-4: run 2 can establish that those failures reproduce
+deterministically on an untouched machine, and can capture first-time
+reactions to `coga build` and the first ticket, which run 1 never reached.
+It cannot produce fresh human signal on steps 1-4, because the same walker
+now knows the answers.
+
+Findings carry run 1's numbers where they reproduce; genuinely new ones
+continue from 10.
+
+### Run 2 findings
+
+(not started)
+
 ## New-user walk: Windows
 
 (not started)
