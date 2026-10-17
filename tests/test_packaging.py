@@ -435,7 +435,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/workflows",
         "dev/checkout-cleanup",
         "dev/checkout-cleanup/branch-sweep",
-        "dev/checkout-cleanup/foreign-ownership",
         "dev/checkout-cleanup/proofs",
         "dev/checkout-cleanup/terminal-owners",
         "dev/checkouts",

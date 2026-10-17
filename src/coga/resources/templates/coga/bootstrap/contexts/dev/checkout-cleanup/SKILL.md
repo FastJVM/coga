@@ -1,6 +1,6 @@
 ---
 name: dev/checkout-cleanup
-description: How finished tickets and their feature checkouts are disposed of — `coga retire`, `coga delete`, and recovering from vanished `/tmp` checkouts — with the checkout proofs, foreign ownership, terminal-owner cleanup and the branch-sweep archive in its leaves.
+description: How finished tickets and their feature checkouts are disposed of — `coga retire`, `coga delete`, recovering from vanished `/tmp` checkouts, and protecting primary checkouts and other clones — with the checkout proofs, terminal-owner cleanup and the branch-sweep archive in its leaves.
 ---
 
 # Retiring tickets and checkouts
@@ -21,15 +21,56 @@ is what they act on.
 
 - [dev/checkout-cleanup/proofs](proofs/SKILL.md) — the per-checkout proofs
   retire and autoclose share, owned-branch deletion order, and ignored state.
-- [dev/checkout-cleanup/foreign-ownership](foreign-ownership/SKILL.md) —
-  primary checkouts, foreign branch ownership, and the accepted
-  disappearance policy.
 - [dev/checkout-cleanup/terminal-owners](terminal-owners/SKILL.md) —
   terminal owners and closed PRs: ownership, durable branch debt,
   authorization, and when cleanup runs.
 - [dev/checkout-cleanup/branch-sweep](branch-sweep/SKILL.md) — branch-sweep
   protection, the `retired/<branch>` archive, and
   `[git] worktrees_ticket_owned`.
+
+## Primary checkouts and other clones
+
+A primary checkout is never directory debt, including another clone's primary
+and independent sandbox clones: Git topology cannot prove a clone disposable,
+and it may hold untracked or ignored data. `git.classify_checkout` identifies
+another repository's primary as `foreign-primary`, with its root as `owner`;
+`retire_worklist.is_primary_checkout` exempts its directory. Autoclose
+preserves it and never recommends deleting it.
+
+The branch stays debt in the repository that owns it. `worktree_owner`
+records that owner for foreign primary and foreign linked checkouts. Autoclose
+captures ownership before dropping a primary's directory from the closure, and
+infers missing ownership on legacy entries before any branch cleanup or
+discharge check; it never deletes a same-named branch in the sweeping clone.
+A remaining foreign branch is reported for manual cleanup in its owning
+clone. The owning clone's own daily branch sweep runs the ordinary proofs on
+the entries that record it as `owner`, then discharges and publishes them
+(`coga/recurring/scheduling`), so the manual step remains only for a clone
+that does not run `coga recurring`. An unreadable owner or branch list keeps
+the entry pending, and so does a missing owner of a foreign linked worktree.
+Once the owner's branch is gone, a primary-checkout entry discharges with no
+directory deletion or manual `retires.md` edit; foreign linked worktrees still
+owe their directory cleanup.
+
+### Accepted disappearance policy
+
+For an independent clone recorded as its own owner, a missing directory is
+treated as deletion of the clone and its branch, so the entry clears (owner
+decision, 2026-10-01). A missing path does not prove deletion — relocation or
+a temporarily unavailable filesystem looks the same — but automatic discharge
+keeps deleted sandbox clones from generating reminders forever, replacing the
+repeated-posting failure in
+[the September incident](../../../archive/evidence/independent-clone-worklist-2026-09.md).
+The cost: a surviving clone's branch cleanup can be forgotten if its recorded
+path disappears. The policy drops bookkeeping only; it never deletes a clone.
+
+Before moving or renaming a clone, pause autoclose sweeps in every
+participating checkout, update both `owner` and `worktree` in its
+`retires.md` entries to the new path (using the worklist's field encoding),
+and update any surviving ticket's `worktree:`. Move the clone and verify the
+new path before resuming sweeps. For a temporary unmount, keep sweeps paused
+until the original path is back. Publish ephemeral work before deliberately
+removing a clone; that removal also discharges its entry.
 
 ## `/tmp` checkouts do not survive; the branch does
 

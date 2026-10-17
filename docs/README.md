@@ -119,7 +119,6 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
   [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
   ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
-  [foreign ownership](contexts/dev/checkout-cleanup/foreign-ownership/SKILL.md),
   [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
   [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
 - This repo's posture (dated, local to this repo):

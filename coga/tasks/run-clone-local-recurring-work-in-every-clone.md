@@ -29,7 +29,6 @@ contexts:
 - coga/recurring/templates
 - dev/checkout-cleanup
 - dev/checkout-cleanup/branch-sweep
-- dev/checkout-cleanup/foreign-ownership
 agent: claude
 ---
 
