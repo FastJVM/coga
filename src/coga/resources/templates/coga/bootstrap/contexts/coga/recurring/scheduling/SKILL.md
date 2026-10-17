@@ -40,6 +40,21 @@ inactivity gates apply as for repo scope. `--force` and
 `coga recurring launch <name>` ignore the clone ledger. `coga recurring
 list` shows only this clone's state.
 
+Clone scripts have a 15-minute wall-clock deadline (`run_clone_template`'s
+`timeout`, independent of the agent REPL watchdog). Output is drained as it
+arrives through a bounded buffer; the console and local log retain at most
+the first 1,000,000 characters, with an explicit truncation marker. A truncated
+log also keeps the last 4,000 characters; that tail is what the sweep's run
+record receives. Timeout returns exit 124 with a diagnostic, terminates the
+process group (the process tree on Windows), reaps the script, and leaves the
+ledger unchanged so later templates can run and the next sweep can retry.
+On Windows, a wrapper joins a supervisor-owned job object before starting the
+script, so descendants remain owned after their parent exits. Job termination
+and kill-on-close clean up the entire tree; setup or cleanup errors are reported,
+never replaced by best-effort PID lookup. This adds one wrapper process on Windows.
+The limit can interrupt legitimate long maintenance work, and truncation loses
+middle output; increase the explicit runner limit when a job requires it.
+
 Tradeoff, accepted: clone-scoped runs leave no git-visible record beyond the
 worklist publication below. Their evidence is the clone-local ledger and log, the console, and the autofix run
 record.
