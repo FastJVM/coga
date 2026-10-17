@@ -3100,6 +3100,34 @@ def test_launch_bails_on_missing_context(
     assert Ticket.read(ticket_md).status == "active"
 
 
+def test_launch_refuses_invalid_inline_workflow_before_start(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_interactive_tty(monkeypatch)
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter.update({
+        "workflow": {"name": "audit-inline", "steps": [
+            {"name": "implement", "assignee": "agent"},
+        ]},
+        "step": "1 (implement)",
+    })
+    ticket.write(ref.ticket_path)
+    path = active_task / "workflows" / "audit-inline.md"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("---\nname: audit-inline\nsteps: [\n---\n")
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(launch_module, "spawn_agent_session", lambda **kw: pytest.fail("agent started"))
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 2, result.output
+    assert "invalid YAML" in result.output
+    assert str(path) in result.output
+    assert Ticket.read(ref.ticket_path).status == "active"
+
+
 def test_launch_handles_agent_self_deleting_task(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

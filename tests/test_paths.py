@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from coga.paths import (
     bootstrap_context_path,
@@ -12,6 +15,7 @@ from coga.paths import (
     resolve_workflow_path,
     workflow_path,
 )
+from coga.workflow import WorkflowError
 
 
 def _cfg(repo_root, contexts_root=None):
@@ -116,6 +120,49 @@ def test_resolve_workflow_path_falls_back_to_local_when_neither_exists(tmp_path)
     cfg = SimpleNamespace(repo_root=tmp_path)
 
     assert resolve_workflow_path(cfg, "code/nope") == workflow_path(cfg, "code/nope")
+
+
+@pytest.mark.parametrize("kind", ["directory", "broken-symlink"])
+def test_unusable_local_workflow_is_not_replaced_with_bundled_text(tmp_path, kind):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    local = workflow_path(cfg, "code/with-review")
+    local.parent.mkdir(parents=True)
+    if kind == "directory":
+        local.mkdir()
+    else:
+        local.symlink_to(tmp_path / "missing.md")
+    assert resolve_workflow_path(cfg, "code/with-review") == local
+
+
+def test_workflow_path_with_file_as_parent_reports_workflow_error(tmp_path: Path) -> None:
+    cfg = _cfg(tmp_path)
+    local = workflow_path(cfg, "code/with-review")
+    local.parent.parent.mkdir(parents=True)
+    local.parent.write_text("not a directory\n")
+    with pytest.raises(WorkflowError) as caught:
+        resolve_workflow_path(cfg, "code/with-review")
+    assert str(local) in str(caught.value)
+    assert isinstance(caught.value.__cause__, NotADirectoryError)
+
+
+@pytest.mark.parametrize("bundled", [False, True])
+def test_unsearchable_workflow_path_reports_workflow_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bundled: bool,
+) -> None:
+    cfg = _cfg(tmp_path)
+    candidate = (bootstrap_workflow_path if bundled else workflow_path)(cfg, "code/with-review")
+    original = Path.lstat
+
+    def deny(path: Path, *args, **kwargs):
+        if path == candidate:
+            raise PermissionError("workflow directory cannot be searched")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", deny)
+    with pytest.raises(WorkflowError) as caught:
+        resolve_workflow_path(cfg, "code/with-review")
+    assert str(candidate) in str(caught.value)
+    assert isinstance(caught.value.__cause__, PermissionError)
 
 
 def test_skill_symlink_remains_supported(tmp_path):

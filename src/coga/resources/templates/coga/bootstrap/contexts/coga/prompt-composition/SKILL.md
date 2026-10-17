@@ -94,7 +94,10 @@ reaches the transcript.
 - A missing context, skill, or packaged resource raises `ComposeError` naming
   the paths checked, before launch publishes `in_progress` or spawns. A
   deleted workflow definition does not raise here; it composes a placeholder
-  and is caught by validation instead.
+  and is caught by validation instead. An existing inline workflow definition
+  with invalid YAML, an invalid schema, or a read failure raises `ComposeError`
+  with its path and cause. Only genuine absence selects the deleted-definition
+  placeholder; unexpected programming errors are not swallowed.
 
 ## The ticket is a three-region extract
 

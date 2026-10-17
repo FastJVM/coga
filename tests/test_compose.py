@@ -19,10 +19,11 @@ from coga.compose import (
     write_prompt_file,
 )
 from conftest import hold_by_agent, hold_by_owner
-from coga.config import load_config
-from coga.tasks import list_tasks, read_ticket, resolve_bootstrap, resolve_task
+from coga.config import Config, load_config
+from coga.tasks import TaskRef, list_tasks, read_ticket, resolve_bootstrap, resolve_task
 from coga.taskfile import replace_blackboard
 from coga.ticket import Ticket
+from coga.workflow import Workflow, WorkflowError
 
 
 def _write(path: Path, text: str) -> None:
@@ -925,6 +926,80 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Open a PR. Push branch first." in prompt
     assert "Current step: pr" in prompt
+
+
+@pytest.fixture
+def inline_workflow(repo: Path) -> tuple[Config, TaskRef, Ticket, Path]:
+    cfg = load_config(repo)
+    slug = _write_workflow_less_task(repo, title="Inline workflow")
+    ref = resolve_task(cfg, slug)
+    ticket = read_ticket(ref)
+    ticket.frontmatter.update({
+        "workflow": {"name": "audit-inline", "steps": [{"name": "implement"}]},
+        "step": "1 (implement)",
+    })
+    path = repo / "workflows" / "audit-inline.md"
+    path.write_text("---\nname: audit-inline\nsteps: [{name: implement}]\n---\n## implement\nDo work.\n")
+    return cfg, ref, ticket, path
+
+
+@pytest.mark.parametrize("contents", [
+    "---\nname: audit-inline\nsteps: [\n---\n",
+    "---\n42\n---\n",
+    "---\nname: []\nsteps: [{name: implement}]\n---\n",
+    "---\nname: audit-inline\nsteps: [{name: []}]\n---\n",
+    "---\nname: audit-inline\nsteps: [{name: implement, assignee: []}]\n---\n",
+])
+def test_compose_rejects_invalid_inline_workflow(inline_workflow, contents: str) -> None:
+    cfg, ref, ticket, path = inline_workflow
+    path.write_text(contents)
+    with pytest.raises(ComposeError) as caught:
+        compose_prompt(cfg, ref, ticket)
+    assert str(path) in str(caught.value)
+    assert isinstance(caught.value.__cause__, WorkflowError)
+    assert "not found" not in str(caught.value)
+
+
+def test_compose_missing_inline_workflow_keeps_placeholder(inline_workflow) -> None:
+    cfg, ref, ticket, path = inline_workflow
+    path.unlink()
+    assert "Workflow definition not found" in compose_prompt(cfg, ref, ticket)
+
+
+@pytest.mark.parametrize("failure", ["permission", "encoding", "directory", "symlink"])
+def test_compose_rejects_unreadable_inline_workflow(
+    inline_workflow, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    cfg, ref, ticket, path = inline_workflow
+    if failure == "permission":
+        original = Path.read_text
+        def read_text(candidate, *args, **kwargs):
+            if candidate == path:
+                raise PermissionError("workflow read denied")
+            return original(candidate, *args, **kwargs)
+        monkeypatch.setattr(Path, "read_text", read_text)
+    elif failure == "encoding":
+        path.write_bytes(b"\xff")
+    else:
+        path.unlink()
+        if failure == "directory":
+            path.mkdir()
+        else:
+            path.symlink_to(path.with_suffix(".missing"))
+    with pytest.raises(ComposeError, match="Cannot read workflow") as caught:
+        compose_prompt(cfg, ref, ticket)
+    assert str(path) in str(caught.value)
+
+
+def test_compose_does_not_hide_workflow_programming_errors(
+    inline_workflow, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg, ref, ticket, _ = inline_workflow
+    def broken_loader(path: Path) -> Workflow:
+        raise RuntimeError("unexpected loader bug")
+    monkeypatch.setattr(Workflow, "load", broken_loader)
+    with pytest.raises(RuntimeError, match="unexpected loader bug"):
+        compose_prompt(cfg, ref, ticket)
 
 
 def test_compose_raises_on_missing_context(repo: Path) -> None:
