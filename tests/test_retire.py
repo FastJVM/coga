@@ -14,6 +14,7 @@ from coga.cli import app
 from coga.branchcleanup import WorktreeCleanupResult
 from coga.commands.retire import _checkout_cleanup_section
 from coga.config import load_config
+from coga.launch import LaunchResult
 from coga.tasks import resolve_task
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
@@ -298,7 +299,7 @@ def test_retire_launches_after_create(
         idle_timeout: float | None = None,
         max_session: float | None = None,
         return_timeout: bool = False,
-    ) -> None:
+    ) -> LaunchResult:
         ticket = Ticket.read(repo / "tasks" / f"{task}.md")
         assert ticket.status == "active"
         calls.append(
@@ -312,7 +313,6 @@ def test_retire_launches_after_create(
             }
         )
         typer.echo("fake launch called")
-        from coga.launch import LaunchResult
         return LaunchResult()
 
     monkeypatch.setattr("coga.launch.launch", fake_launch)

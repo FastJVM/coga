@@ -2164,8 +2164,8 @@ def _sweep_stopping_exit(code: int) -> str | None:
         # publish those bytes first.
         return f"a retained-state refusal (exit {code})"
     if code >= 128:
-        # Process-level interrupt: `commands/launch.py`'s handler turns
-        # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
+        # Process-level interrupt: `launch.py`'s handler turns
+        # SIGINT/SIGTERM into `LaunchBail(128 + signum)`. An explicit
         # cancellation must never initiate additional work.
         return f"a signal (exit {code})"
     return None
@@ -3075,9 +3075,14 @@ def _run_delegated_task(
     # publication target before any bootstrap work can begin.
     from coga.launch import _preflight_push_auth
 
-    require_period_publication = bool(
-        _preflight_push_auth(cfg, ref, is_bootstrap=False)
-    )
+    try:
+        require_period_publication = bool(
+            _preflight_push_auth(cfg, ref, is_bootstrap=False)
+        )
+    except LaunchBail as exc:
+        if exc.reason:
+            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+        raise SystemExit(exc.code) from exc
 
     def ticket_for_lease(
         lease: _PeriodLease, *, boundary: str, expected_status: str

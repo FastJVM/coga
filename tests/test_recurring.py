@@ -19,7 +19,7 @@ from coga import launch_script
 from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
-from coga.launch import LaunchResult, RecurringPeriodLaunchResult
+from coga.launch import LaunchBail, LaunchResult, RecurringPeriodLaunchResult
 from coga.config import Config, load_config, parse_inline_secrets
 from coga.create import create_task
 from coga.logfile import append_log, task_log_lines
@@ -4087,9 +4087,12 @@ def test_delegated_done_refuses_a_malformed_replacement_ticket(
     assert outcome.ref.ticket_path.read_bytes() == malformed
 
 
+@pytest.mark.parametrize("typed_refusal", [False, True])
 def test_delegated_period_push_auth_is_preflighted_before_bootstrap_work(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    typed_refusal: bool,
 ) -> None:
     """The stateless bootstrap target cannot self-skip the period's auth gate."""
     _write_delegating_template(repo, "delegate-check")
@@ -4101,6 +4104,8 @@ def test_delegated_period_push_auth_is_preflighted_before_bootstrap_work(
 
     def refuse_auth(task_cfg, task_ref, *, is_bootstrap):  # type: ignore[no-untyped-def]
         checked.append((task_ref.id_slug, is_bootstrap))
+        if typed_refusal:
+            raise LaunchBail(2, "push auth denied")
         raise SystemExit(2)
 
     monkeypatch.setattr("coga.launch._preflight_push_auth", refuse_auth)
@@ -4121,6 +4126,8 @@ def test_delegated_period_push_auth_is_preflighted_before_bootstrap_work(
     assert excinfo.value.code == 2
     assert checked == [(outcome.ref.id_slug, False)]
     assert Ticket.read(outcome.ref.ticket_path).status == "active"
+    if typed_refusal:
+        assert capsys.readouterr().err.count("push auth denied") == 1
 
 
 @pytest.mark.parametrize(
@@ -7366,9 +7373,15 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         (SystemExit(75), "a retained-state refusal (exit 75)"),
         (SystemExit(130), "a signal (exit 130)"),
         (SystemExit(143), "a signal (exit 143)"),
+        (LaunchBail(75), "a retained-state refusal (exit 75)"),
+        (LaunchBail(130), "a signal (exit 130)"),
+        (LaunchBail(143), "a signal (exit 143)"),
         (RecurringError("lease vanished"), "an unhandled RecurringError"),
     ],
-    ids=["exit-75", "sigint", "sigterm", "error"],
+    ids=[
+        "exit-75", "sigint", "sigterm", "refusal-75", "refusal-sigint",
+        "refusal-sigterm", "error",
+    ],
 )
 def test_recurring_scan_records_the_stopping_task(
     repo: Path,
@@ -7381,8 +7394,8 @@ def test_recurring_scan_records_the_stopping_task(
 
     Aggregating them would let the sweep start work the launch contract or the
     operator just forbade: exit 75 deliberately leaves dirty retained state for
-    manual reconciliation, and `commands/launch.py` turns SIGINT/SIGTERM into
-    `SystemExit(128 + signum)`.
+    manual reconciliation, and `launch.py` turns SIGINT/SIGTERM into
+    `LaunchBail(128 + signum)` for the CLI boundary to render as an exit code.
     """
     cfg = load_config(repo)
 
@@ -7447,10 +7460,15 @@ def test_recurring_scan_records_the_stopping_task(
         lambda cfg_arg, record, **kwargs: records.append(record),
     )
 
-    with pytest.raises(type(escape)) as excinfo:
+    expected_error = SystemExit if isinstance(escape, LaunchBail) else type(escape)
+    with pytest.raises(expected_error) as excinfo:
         recurring_cmd.run_recurring_scan(cfg)
 
-    assert excinfo.value is escape
+    if isinstance(escape, LaunchBail):
+        assert excinfo.value.code == escape.code
+        assert excinfo.value.__cause__ is escape
+    else:
+        assert excinfo.value is escape
     completed = due_names.index("alpha")
     assert launched == [f"recurring/{name}" for name in due_names[:completed + 1]]
     assert records, "the autofix loop still receives the run record"

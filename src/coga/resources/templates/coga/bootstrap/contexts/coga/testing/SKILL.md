@@ -90,7 +90,7 @@ Server.
   `tests/test_autoclose_sweep.py`) or freeze the period; assert structure.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
-- **`coga.config` and `coga.commands.launch` share one `subprocess` module
+- **`coga.config` and `coga.launch` share one `subprocess` module
   object.** Use one argv-dispatching mock on `coga.config.subprocess.run`.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
