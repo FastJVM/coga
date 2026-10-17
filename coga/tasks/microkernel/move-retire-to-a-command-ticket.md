@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga/principles
 - coga/extension-model
@@ -346,3 +346,127 @@ Findings:
 - Is changing the canceled path from in-process `launch()` to a subprocess
   acceptable under "moves unchanged"? Owner picked it; evaluator should
   confirm no test or caller depends on `LaunchBail` reason text from retire.
+
+## Evaluator review
+
+2026-10-16. Reviewed cold against fetched `origin/main` / HEAD
+`4f5b0d028`, with a clean control checkout. **Needs revision before
+implementation.** The three-part scope, edge placement, literal argv, alias
+separator, shared-helper boundary and packaging approach are coherent. The
+Description subsections compose correctly, and the frozen workflow matches
+`code/design-then-implement`. The following compatibility gaps need owner
+disposition; this is not design approval.
+
+### Must fix before implementation
+
+1. **P1 — A child CLI boundary does not preserve the outer no-publication
+   decision.** In `src/coga/launch.py`, `_CheckoutBoundary.settle` / `_stop`
+   set the process-local `git.state_sweep_withheld`; `_supervise_steps` keeps
+   the agent's exit code, including success, when checkout return refuses.
+   `src/coga/cli.py::main` / `_sweep_coga_state` honor that flag only in the
+   same process. Today's in-process retire launch shares it. With the proposed
+   subprocess, a child can withhold publication and exit 0, after which the
+   outer `bootstrap/retire` launch calls `refresh_after_script` and its CLI
+   sweeps again. Forwarding `returncode` alone loses the refusal. Existing
+   tests `test_launch_teardown_refusal_preserves_work_result_and_stops_chaining`
+   (`tests/test_launch.py`) and
+   `test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit`
+   (`tests/test_cli.py`) establish this contract. A scratch process-boundary
+   probe using `_CheckoutBoundary._stop` confirmed child "state sweep
+   withheld", outer exit 0, then both outer refresh and outer sweep.
+   Define how the retained-state decision crosses both subprocess boundaries
+   and suppresses the outer refresh/publication, and add an integration case
+   for a refused return after a successful agent session. The current
+   successful-launch mock and exit-code criteria do not cover this.
+
+2. **P2 — Moving onto bootstrap launch adds an agent-configuration
+   requirement to done-ticket retirement.**
+   `src/coga/commands/retire.py::retire` deletes a done ticket before
+   `_default_agent` / `cfg.agent_type` are consulted. In contrast,
+   `src/coga/launch.py::_LaunchInvocation._align_and_classify` calls
+   `_target_operator` before `_run_initial_script`; for a bootstrap target it
+   calls `bump.resolve_main_agent`, which refuses an empty agents table.
+   In an isolated configured workspace with no `[agents.*]`, today's
+   `coga retire finished` exits 0 and deletes the done ticket, while an
+   otherwise valid bootstrap script exits 2 without running. Add the needed
+   script-only routing change to Proposed shape and an alias end-to-end
+   done-ticket test without configured agents. Agent resolution should remain
+   required for the canceled task that actually needs it.
+
+3. **P2 — The promised unchanged `retire --help` behavior needs an explicit
+   design.** `src/coga/cli.py::main` deliberately loads configuration with
+   `require_user=False`, and the current Typer help exits before `retire`
+   loads strict configuration. After the proposed rewrite, `--help` is a
+   script operand, so `_LaunchInvocation._prepare_target` first calls strict
+   `load_config()`. A fresh clone without `coga.local.toml` therefore cannot
+   display it; outside a Coga workspace bootstrap resolution fails as well.
+   Scratch verification: current `retire --help` without a configured user
+   exits 0; `launch bootstrap/probe -- --help` exits 2 for the missing user
+   before executing its script. Specify how setup-independent help is
+   preserved, or explicitly accept and document the narrower help contract
+   instead of claiming unchanged behavior. Test this through `cli.main`,
+   since direct invocation of the moved Typer app bypasses the new preflight.
+
+### Recommendations
+
+- Make the new durable ownership rule explicit in `coga/knowledge` and its
+  twin: its ownership table and "Narrative links, never restates" currently
+  put behavior contracts and command semantics in topics, while Part 3 moves
+  retire's contract into a permanent command ticket. Also allow small factual
+  corrections beyond link edits in the excluded sweep skills:
+  `coga/skills/coga/branch-sweep/sweep/SKILL.md` still calls retire best-effort,
+  and the packaged `code/design-then-implement` workflow's `review` section
+  still says done retirement creates a Retro task. Point these summaries at
+  the new owner rather than preserving contrary descriptions.
+- Strengthen Part 1's refusal tests with draft/paused and recorded-assist
+  paths plus a secret-resolution spy. `_run_initial_script` resolves secrets
+  and may activate before calling `run_script_chain`, and assist alignment
+  can change script classification after `_prepare_target`. Put the guard
+  before those effects using the authoritative classification. The proposed
+  unchanged-ticket/no-log test alone does not prove secrets were untouched.
+  Also qualify the `_classify_script_handoff` claim: its stateless return has
+  `needs_agent=True` when the script vanished before running; a successfully
+  executed bootstrap script returns without an agent in `run_script_chain`.
+
+### Checked premises and open-question answers
+
+- `run_script_phase` currently spawns only the interpreter and script path;
+  the CLI has nine default aliases, retire is still registered as a built-in,
+  and the fixed recipe registry contains no retire entry. The proposed `--`
+  separates retire's options from launch's parser without an alias extension.
+- The recurring rollback is real. The twin test fails on autoclose's Markdown;
+  both named recurring jobs' Markdown and scripts differ from the packaged
+  versions. `git diff c1d8227d7 HEAD -- coga/recurring/upstream-coga/ticket.md
+  coga/recurring/upstream-coga/ticket.py` also confirms the clone-scope and
+  conditional-bump changes were rolled back there. Preserve later work when
+  restoring this behavior.
+- Keeping `coga delete` in the shared topic is consistent with the explicit
+  scope. No retire test depends on `LaunchBail` exception identity or its
+  reason text; both the current retire handler and the launch CLI adapter
+  render a nonempty reason and preserve the code. Finding 1, rather than
+  exception formatting, is the substantive subprocess issue.
+
+### Verification receipts
+
+- `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
+  tests/test_retire.py tests/test_launch_script.py tests/test_aliases.py
+  tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  → **95 passed, 1 failed** (the already identified autoclose twin drift).
+- `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
+  tests/test_cli.py::test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit
+  tests/test_launch.py::test_launch_teardown_refusal_preserves_work_result_and_stops_chaining`
+  → **4 passed**.
+- Interpreter: Python 3.12.12. The initial focused command using
+  `python3.12` instead of `.venv/bin/python` stopped with **3 collection
+  errors** because that ambient environment lacks `tomlkit`; the receipts
+  above use the working checkout venv. These are design-review baseline
+  checks, not the implementation's full-suite or Python 3.11 verification.
+- Scratch probes exercised the existing launch/CLI paths with notifications
+  and Git publication disabled or mocked, and launch-owned environment
+  variables removed. No agent or production cleanup was launched. No ticket
+  body, code, branch or PR was changed by this review.
+- Handoff checks: `git fetch origin main` left control at `4f5b0d028`;
+  `git diff --check` passed. `PYTHONPATH=/home/n/Code/claude/coga/src
+  .venv/bin/python -m coga.cli validate --task
+  microkernel/move-retire-to-a-command-ticket --json` reported **1 OK,
+  no issues**. The diff contains only this appended blackboard review.
