@@ -1,6 +1,6 @@
 ---
 name: dev/checkout-cleanup
-description: How finished tickets and their feature checkouts are disposed of — `coga retire`, `coga delete`, recovering from vanished `/tmp` checkouts, and protecting primary checkouts and other clones — with the checkout proofs, terminal-owner cleanup and the branch-sweep archive in its leaves.
+description: The rules shared by everything that disposes of finished tickets and their feature checkouts — protecting primary checkouts and other clones, recovering from vanished `/tmp` checkouts, and `coga delete` — with the checkout proofs, terminal-owner cleanup and the branch-sweep archive in its leaves.
 ---
 
 # Retiring tickets and checkouts
@@ -16,6 +16,11 @@ linked-worktree layout may still record `worktree:`; the disposal removes that
 worktree first, since a branch checked out in a linked worktree cannot be
 deleted, then prunes the branch. Keep `worktree:` accurate where it exists; it
 is what they act on.
+
+This topic owns only what those jobs share. Each job's own procedure lives
+with its ticket: `coga retire` in the packaged `bootstrap/retire/ticket.md`,
+the autoclose and branch-sweep passes in the `recurring/autoclose-merged` and
+`recurring/branch-sweep` templates.
 
 ## Leaves
 
@@ -94,44 +99,6 @@ landed. Recover from the primary checkout after refreshing `main` from `origin`
 2. Recover only work still missing and wanted: cherry-pick onto `main` through
    the normal publication path, or `git push origin <branch>` and open a PR.
 3. Only then `git branch -D <branch>`.
-
-## `coga retire <slug> [--agent <type>] [--no-launch]`
-
-Refuses unless the ticket is `status: done` or `status: canceled`. Owner
-decision, 2026-10-13: positive learning already landed in the merged PR (the
-same PR updates the owning topic), and negative learning lives in the ticket,
-usually as the cancellation reason. So a **done** ticket is retired
-deterministically, with no agent: disposal, worklist discharge, then the
-`coga delete` removal and sync (commit `Ticket: <slug> — deleted (retire)`;
-recover with `git restore`). A **canceled** ticket gets the Retro task
-described below, which extracts the cancellation reason and any other
-negative learning before deleting it. `--agent` and `--no-launch` apply only to
-that task.
-
-Retire first disposes of the checkout and every owned branch under the
-[checkout proofs](proofs/SKILL.md). A worktree or owned branch the proofs kept is a bug: the ticket is its
-only owner record, so nothing may delete it. Retire then skips the worklist
-discharge and exits 2. For a done ticket it deletes nothing and creates
-nothing; the owner fixes the checkout by hand and runs `coga retire` again.
-For a canceled ticket it creates the retire task already `blocked` with what
-it kept and why (which notifies the owner on Slack, as `coga block` does) and
-launches nothing; the owner fixes the checkout by hand, then runs
-`coga unblock` and `coga launch` on the retire task. Run it from a checkout on
-`[git].control_branch`:
-off control (or with `[git].enabled` false, or outside a git work tree) it
-skips disposal and says so (`Retire: checkout cleanup skipped ...`) rather
-than failing, leaving the checkout and branch to autoclose or `branch-sweep`.
-It then drops the slug from any recurring template's
-`retires.md` worklist, but only once its local branch is gone (judged in the
-owning repository when the entry records another clone as `owner`) and its recorded
-worktree directory is gone or is a repository's primary checkout (which
-nobody disposes of). Finally, for a done ticket, it deletes the task; for a
-canceled one it scaffolds a `retire-<slug>` task straight to `active`,
-whose body invokes the `retro/done-ticket` skill; that skill opens the PR that
-records `## Retro`, edits knowledge if warranted, and deletes the source task
-in the same PR. Retire launches the task unless `--no-launch`, which prints the
-`coga launch` command instead. Branches with no live ticket are the
-`branch-sweep` job's.
 
 ## `coga delete <slug>`
 

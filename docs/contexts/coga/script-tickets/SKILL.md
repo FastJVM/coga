@@ -43,8 +43,14 @@ lookup, skill refresh, or push probe.
    is no longer `in_progress`, or its routing identity (status, step, owner,
    main agent, step roles) changed, the script does not run and the fresh
    state is reclassified.
-4. The child runs as `[sys.executable, ticket.py]` from the host repository
-   root with no operands. Its environment gets fresh `COGA_TASK_*`,
+4. The child runs as `[sys.executable, ticket.py, *args]` from the host
+   repository root. For a stateless bootstrap target, `args` are the launch's
+   trailing positionals in order, one argv element each (no shell, no
+   joining), read from `sys.argv[1:]`. A stateful task or recurring period
+   takes none: launch refuses trailing arguments to one with exit 2 before
+   any secret, activation, lifecycle, or log effect, because they would be
+   hidden mutable input ([coga/extension-model](../extension-model/SKILL.md)).
+   A script-only bootstrap target needs no configured agent. Its environment gets fresh `COGA_TASK_*`,
    `COGA_SCRIPT_TASK=<absolute target path>`, and loses `COGA_SUPERVISED`,
    `COGA_DONE_SENTINEL`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and
    `COGA_EXPECTED_AGENT`, so a
@@ -53,7 +59,10 @@ lookup, skill refresh, or push probe.
    its ticket. A non-zero exit posts `💥 script failed` (non-fatal to the
    post) and launch exits with that code. On success config, target, and
    ticket are re-derived again. A bootstrap script keeps framing on stderr so
-   `$(coga <verb>)` sees only its stdout.
+   `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
+   (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) declares it retained local state:
+   launch skips its teardown refresh, withholds the end-of-command sweep, and
+   exits 75.
 
 ## Chaining
 

@@ -15,10 +15,11 @@ run_when_inactive: true
 Delete local and remote git branches whose work has already landed, as the
 safety net behind `coga retire`'s branch deletion.
 
-`coga retire` deletes a finished ticket's branch immediately, but that
-cleanup is best-effort — `git`/`gh` failures are swallowed there, and a
-branch also leaks when a ticket is deleted without going through retire, or
-a session dies mid-flight. Branches are clone-local: a sweep run from one
+`coga retire` disposes of a finished ticket's branch when it runs from the
+control branch, and exits 2 rather than delete the ticket when the proofs
+keep it. But it skips that cleanup off the control branch or after a Git
+error, and a branch also leaks when a ticket is deleted without going
+through retire, or a session dies mid-flight. Branches are clone-local: a sweep run from one
 clone never sees another clone's refs. So this template is `scope: clone` —
 every clone that runs `coga recurring` services it once a day for itself.
 Scope and cadence are owned by
@@ -65,13 +66,14 @@ which:
    [dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep). Failed archival
    preserves the refs and worktree and records a failing sweep outcome.
    Then it removes the eligible worktree, reported under `removed worktree`,
-   and deletes the local branch and/or remote ref per the same landing policy
-   `coga retire` uses (plain `git branch -d` when the tip is reachable from
-   the control branch; log the tip SHA and force with `-D` for the
-   squash-merge case a merged PR vouches for; skip and report anything
-   unmerged with no merged PR),
+   and deletes the local branch and/or remote ref under the local-before-remote
+   deletion rules in
+   [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs) that
+   `coga retire` also follows, skipping and reporting anything unmerged with no
+   merged PR,
 7. from the control branch, disposes of the `retires.md` entries that record
-   this clone as `owner` under the same retire proofs autoclose runs, and
+   this clone as `owner` under the
+   [checkout proofs](context:dev/checkout-cleanup/proofs) autoclose runs, and
    publishes just that worklist when it discharged or refreshed one — the
    only commit this clone-scoped run makes, and
 8. prints a `## Branch Sweep` report — the outcome lists and every

@@ -82,7 +82,8 @@ disposes of the feature branch (and any leftover recorded worktree) recorded
 under `## Dev`, but only what the shared checkout proofs show is safe to
 remove; a `coga bump` close disposes of nothing. The closing act is still the
 owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
-same proofs on whatever checkout remains, then scaffolds and launches the
-`retro/done-ticket` task that carries what the ticket learned into the
-knowledge base and deletes the ticket. The `dev/checkout-cleanup` context owns
-what each path proves, preserves, and records for later sweeps.
+same proofs on whatever checkout remains, then deletes the done ticket with no
+agent: its learning already landed with the merged PR. The packaged
+`bootstrap/retire/ticket.md` owns that procedure, and the
+`dev/checkout-cleanup` context owns what the shared proofs prove, preserve,
+and record for later sweeps.

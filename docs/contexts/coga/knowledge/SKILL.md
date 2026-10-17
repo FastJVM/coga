@@ -12,6 +12,7 @@ is right. Choose the owner by what the knowledge is:
 | --- | --- |
 | Facts and contracts: behavior, invariants, edge cases, product intent | a topic under the configured contexts root (`<ref>/SKILL.md`) |
 | Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
+| One command ticket's own procedure: what its verb does, step by step | that command ticket's `bootstrap/<name>/ticket.md` |
 | Per-ticket field guide: a summary carried by new tickets that links the owning topics | inline ticket template (`src/coga/resources/ticket.md`) |
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
@@ -44,9 +45,11 @@ the owner, but carries no specification-grade detail: no ordered lists, exact
 names, counts or field lists that can drift on their own. "Launch stacks
 conduct before task material, ticket last; the order is in
 `coga/prompt-composition`" is a summary; copying the layer list is a second
-specification. Command semantics live in the topic that owns the behavior;
-`coga/cli` is an index, and installed `coga <cmd> --help` is the syntax
-authority.
+specification. Command semantics live in the topic that owns the behavior,
+or, for a verb implemented by a command ticket, in that ticket's `ticket.md`
+(`bootstrap/retire/ticket.md` owns `coga retire`); rules several jobs share
+stay in a topic the ticket links. `coga/cli` is an index, and installed
+`coga <cmd> --help` is the syntax authority.
 
 **Sync rule.** A PR that changes an owner greps other surfaces for the fact
 and fixes or deletes any restatement in the same PR. No test enforces this
