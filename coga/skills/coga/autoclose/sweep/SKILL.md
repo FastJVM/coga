@@ -178,13 +178,13 @@ no checkout; the fourth is the durable worklist:
 
 ### The primary checkout is not debt
 
-Apply `dev/checkout-cleanup/foreign-ownership`, "Primary checkouts and foreign branch ownership": preserve primary directories
+Apply `dev/checkout-cleanup`, "Primary checkouts and other clones": preserve primary directories
 in every clone and judge each branch in its owning repository. Independent
 sandbox clones receive the same protection. Closure captures the owner before
 filtering its primary path; legacy worklist entries infer missing ownership
 before disposal or discharge. A cleared branch clears the entry automatically.
 Unknown paths remain pending except for the missing self-owned clone policy
-in `dev/checkout-cleanup/foreign-ownership`.
+in `dev/checkout-cleanup`.
 
 ### A branch in another clone
 
@@ -203,7 +203,7 @@ sweeping repository judges the entry like any other; an owner path that is
 gone or that git cannot read is an unknown and keeps the entry — except an
 independent clone recorded as its own owner (the line keeps its primary path
 as `worktree:`), whose missing directory is treated as deletion, so the entry
-clears. Apply `dev/checkout-cleanup/foreign-ownership`, "Accepted disappearance policy", for the
+clears. Apply `dev/checkout-cleanup`, "Accepted disappearance policy", for the
 accepted relocation/unmount risk and the operator procedure before moving a
 clone or making its filesystem unavailable.
 Once the
