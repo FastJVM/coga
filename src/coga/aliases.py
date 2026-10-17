@@ -24,7 +24,6 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "unblock",
         "owner",
         "delete",
-        "retire",
         "slack",
         "usage",
         "skill",
@@ -59,7 +58,10 @@ ONBOARDING_TASK = "coga-build"
 # generic runner as ordinary argv (``coga open-pr <slug>`` → ``run open-pr
 # <slug>``). ``resolve-conflicts`` and ``address-pr-comments`` each front an
 # agent-backed command ticket; their optional PR selector reaches the appended
-# launch-argument prompt block through the same argv rewrite.
+# launch-argument prompt block through the same argv rewrite. ``retire`` fronts
+# the script command ticket ``bootstrap/retire``; its trailing ``--`` keeps
+# ``--agent`` and ``--no-launch`` away from launch's own parser, so they reach
+# the script's argv.
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
@@ -70,6 +72,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "open-pr": "run open-pr",
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
     "address-pr-comments": "launch bootstrap/address-pr-comments",
+    "retire": "launch bootstrap/retire --",
 }
 
 

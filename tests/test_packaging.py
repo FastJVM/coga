@@ -47,6 +47,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+    "coga/resources/templates/coga/bootstrap/retire/ticket.md",
+    "coga/resources/templates/coga/bootstrap/retire/ticket.py",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",

@@ -43,7 +43,10 @@ def test_review_section_names_coga_retire_as_the_closing_act(name: str) -> None:
     assert "`autoclose-merged`" in review
     assert "run `coga retire <slug>`" in review
     assert "`done` is not the end of the ticket" in review
-    assert "`retro/done-ticket`" in review
+    # A done retire deletes the ticket with no agent; the command ticket owns
+    # the procedure, so the summary points there instead of restating it.
+    assert "`bootstrap/retire/ticket.md`" in review
+    assert "`retro/done-ticket`" not in review
 
 
 @pytest.mark.parametrize("name", PEER_REVIEW_WORKFLOWS)

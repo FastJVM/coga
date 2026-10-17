@@ -1557,6 +1557,194 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     assert not (script_repo / "log.md").exists()
 
 
+def _write_argv_probe(coga_os: Path, observed_path: Path) -> None:
+    _write(
+        coga_os / "bootstrap" / "argv-probe" / "ticket.md",
+        """
+        ---
+        title: Argv probe
+        ---
+
+        ## Description
+
+        Record the operands launch passed.
+        """,
+    )
+    _write(
+        coga_os / "bootstrap" / "argv-probe" / "ticket.py",
+        f"""
+        import json
+        import sys
+        from pathlib import Path
+
+        Path({str(observed_path)!r}).write_text(json.dumps(sys.argv))
+        """,
+    )
+
+
+def test_bootstrap_script_receives_trailing_launch_args_as_argv(
+    script_repo: Path,
+) -> None:
+    observed_path = script_repo.parent / "argv.json"
+    _write_argv_probe(script_repo, observed_path)
+
+    result = CliRunner().invoke(
+        app,
+        ["launch", "bootstrap/argv-probe", "--", "two words", "--no-launch", "x"],
+    )
+
+    assert result.exit_code == 0, result.output
+    argv = json.loads(observed_path.read_text())
+    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+    assert argv[1:] == ["two words", "--no-launch", "x"]
+
+
+def test_bootstrap_script_without_launch_args_gets_only_its_path(
+    script_repo: Path,
+) -> None:
+    observed_path = script_repo.parent / "argv.json"
+    _write_argv_probe(script_repo, observed_path)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/argv-probe"])
+
+    assert result.exit_code == 0, result.output
+    argv = json.loads(observed_path.read_text())
+    assert len(argv) == 1
+    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+
+
+def test_bootstrap_script_runs_without_configured_agents(
+    script_repo: Path,
+) -> None:
+    config = script_repo / "coga.toml"
+    text = config.read_text()
+    start = text.index("[agents.claude]")
+    end = text.index("[notification]")
+    config.write_text(text[:start] + text[end:])
+    observed_path = script_repo.parent / "argv.json"
+    _write_argv_probe(script_repo, observed_path)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/argv-probe", "--", "a"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(observed_path.read_text())[1:] == ["a"]
+
+
+def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
+    script_repo: Path,
+) -> None:
+    bootstrap = script_repo / "bootstrap" / "retains"
+    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
+    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
+    env = os.environ.copy()
+    source_path = str(_SOURCE_ROOT / "src")
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        source_path if not existing else source_path + os.pathsep + existing
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "launch", "bootstrap/retains"],
+        cwd=script_repo,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
+    assert "Script exited with 75." in result.stderr
+    # `cli.main` skips the end-of-command sweep for this exit code itself.
+    assert "script ran successfully" not in result.stderr
+
+
+def test_bootstrap_script_retained_state_exit_does_not_refresh_the_checkout(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bootstrap = script_repo / "bootstrap" / "retains"
+    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
+    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
+    refreshes: list[object] = []
+    monkeypatch.setattr(
+        launch_module, "_refresh_launch_checkout", lambda cfg: refreshes.append(cfg)
+    )
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/retains"])
+
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert refreshes == []
+
+
+def test_bootstrap_script_ordinary_failure_still_refreshes_the_checkout(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bootstrap = script_repo / "bootstrap" / "fails"
+    _write(bootstrap / "ticket.md", "---\ntitle: Fails\n---\n")
+    _write(bootstrap / "ticket.py", "raise SystemExit(3)\n")
+    refreshes: list[object] = []
+    monkeypatch.setattr(
+        launch_module, "_refresh_launch_checkout", lambda cfg: refreshes.append(cfg)
+    )
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/fails"])
+
+    assert result.exit_code == 3
+    assert len(refreshes) == 1
+
+
+@pytest.mark.parametrize("status", ["active", "draft", "paused", "assist"])
+def test_stateful_script_target_refuses_launch_args_before_any_effect(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+) -> None:
+    marker = script_repo.parent / "script-ran"
+    ref = _create_script_task(
+        script_repo,
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
+    )
+    ticket = Ticket.read(ref.ticket_path)
+    launch_argv = ["launch", ref.id_slug]
+    if status == "assist":
+        ticket.frontmatter["status"] = "in_progress"
+        hold_by_owner(ticket)
+        launch_argv += ["--agent", "codex"]
+        monkeypatch.setattr(launch_module, "_interactive_stdio_has_tty", lambda: True)
+    elif status != "active":
+        ticket.frontmatter["status"] = status
+    ticket.write(ref.ticket_path)
+    ticket_before = ref.ticket_path.read_bytes()
+    log_path = script_repo / "log.md"
+    log_before = log_path.read_bytes() if log_path.exists() else None
+    for module in ("coga.launch", "coga.launch_script"):
+        monkeypatch.setattr(
+            f"{module}.build_launch_env", _fail("secrets resolved")
+        )
+
+    result = CliRunner().invoke(app, [*launch_argv, "--", "hidden-input"])
+
+    assert result.exit_code == 2, result.output
+    assert f"Cannot pass trailing arguments to {ref.id_slug}" in result.output
+    assert "takes no launch arguments" in result.output
+    assert not marker.exists()
+    assert ref.ticket_path.read_bytes() == ticket_before
+    assert (log_path.read_bytes() if log_path.exists() else None) == log_before
+
+
+def test_stateful_script_phase_rejects_args_from_a_caller(script_repo: Path) -> None:
+    ref = _create_script_task(script_repo, "pass\n")
+    with pytest.raises(ValueError, match="takes no launch arguments"):
+        run_script_phase(
+            load_config(script_repo),
+            ref,
+            Ticket.read(ref.ticket_path),
+            stateless=False,
+            args=["x"],
+        )
+
+
 @pytest.mark.parametrize("admission", ["enter", "admit"])
 def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatch, admission):
     monkeypatch.chdir(git_repo.coga_os)

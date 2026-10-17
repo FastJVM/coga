@@ -87,7 +87,7 @@ and their deferred reviews; this mechanism inventory does not close them.
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
 | `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (its `ticket.py` → `coga.autoclose.sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → `coga.delete_task` removal + control-branch sync. Thin, but resolves, removes, and lands the removal. |
-| `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
+| `retire` | moved to `bootstrap/retire` (alias) | Yes — `retire` default alias → `launch bootstrap/retire --` | Script command ticket (2026-10-16): deletes a done ticket in place; scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it for a canceled one. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
 | `usage` | built-in | No | Reads token-usage records from the repo-global log and rolls them up by task/model/agent/step; the read/report head still needs placement review. |
@@ -221,8 +221,8 @@ That coordinator calls finalize inline after the single-shot interview to
 preserve the stateless, concurrent-safe bootstrap target; no generic shim or
 workflow-step state was introduced. The split rules out a fixed alias, but its
 permanent package home remains provisional until the residual-command ticket
-records a co-versioning invariant or moves it to the edge. `retire` retains its
-own task-creation and launch head pending its separate cleanup review.
+records a co-versioning invariant or moves it to the edge. `retire` has since
+moved to the `bootstrap/retire` script command ticket.
 
 **Ticket vs. command is decided by statefulness, not parameters.** Stateful
 work materializes inputs into task files. Stateless command tickets accept
