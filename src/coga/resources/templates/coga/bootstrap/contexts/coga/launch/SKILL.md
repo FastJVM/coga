@@ -21,6 +21,15 @@ Signals unwind library handlers before that public boundary translates them
 into `LaunchBail`; recoverable exception handlers must not swallow termination.
 Internal callers must not invoke the Typer command function.
 
+`_launch` coordinates one `_LaunchInvocation` through five fixed phases:
+target preparation, assist alignment and ticket classification, initial script
+execution, agent preflight, and step supervision. Each phase can return a
+completed result before the next begins. Mutable config, target, routing and
+blocker state belong to that invocation; checkout return and blocker cleanup
+read its latest state after synchronization. This is internal organization,
+not a phase registry or extension surface. The ordering guarantees below still
+apply across those boundaries.
+
 ## Targets
 
 - A task by any unique prefix of its ref. A nested task is its path under

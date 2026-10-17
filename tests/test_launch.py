@@ -4918,6 +4918,28 @@ def test_python_launch_translates_dependency_exit(monkeypatch: pytest.MonkeyPatc
     assert isinstance(caught.value, Exception)
 
 
+def test_successive_launches_keep_arguments_and_refusal_state_separate(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    prompts: list[str] = []
+    def supervisor(cmd, *args, **kwargs):
+        prompts.append(_prompt_arg(cmd))
+        return ReplOutcome(0, "natural")
+    monkeypatch.setattr(launch_module, "run_with_done_marker", supervisor)
+
+    launch_module.launch("bootstrap/ticket", args=["first invocation"])
+    with pytest.raises(launch_module.LaunchBail):
+        launch_module.launch("bootstrap/ticket", agent_override="missing-agent")
+    launch_module.launch("bootstrap/ticket", args=["second invocation"])
+
+    assert len(prompts) == 2
+    assert '["first invocation"]' in prompts[0]
+    assert '["second invocation"]' in prompts[1]
+    assert "first invocation" not in prompts[1]
+
+
 def test_launch_recomposes_after_before_spawn_publication(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
