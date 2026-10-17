@@ -470,3 +470,25 @@ disposition; this is not design approval.
   .venv/bin/python -m coga.cli validate --task
   microkernel/move-retire-to-a-command-ticket --json` reported **1 OK,
   no issues**. The diff contains only this appended blackboard review.
+
+## Owner disposition of evaluator review (2026-10-16, implement step, attended)
+
+- P1: back out the subprocess. `bootstrap/retire/ticket.py` calls
+  `coga.launch.launch()` in-process inside `checkout_guard_scope()` (as the
+  old command did under `cli.main`); if `git.state_sweep_withheld` is set
+  afterwards it exits `git.RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). Kernel: a
+  stateless script exiting 75 makes the outer launch skip its teardown
+  refresh and propagate 75, so `cli.main` skips the sweep.
+- P2: a bootstrap target with `ticket.py` does not fail on operator
+  resolution before its script runs; agents are still required for the
+  canceled path's retire task. Add a no-agents done-retire e2e test.
+- P3: accept narrower help: `coga retire --help` needs a configured
+  workspace; document it rather than claim it is unchanged.
+- Recommendations accepted: `coga/knowledge` ownership rule for command
+  tickets; fix stale summaries (branch-sweep sweep skill, design-then-
+  implement review text); stronger stateful-args refusal tests
+  (draft/paused/assist + secret spy, guard before any effect).
+
+## Dev
+
+branch: retire-command-ticket
