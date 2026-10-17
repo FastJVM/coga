@@ -380,7 +380,7 @@ _DEV_SECTION_RE = re.compile(
 # `\s`: `\s` matches newlines, so a non-greedy `(.+?)` on an empty `pr:` line
 # would reach past it and capture the next non-blank line, which is not a
 # `pr:` line at all.
-_PR_LINE_RE = re.compile(r"^[ \t]*(?:-[ \t]*)?pr:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+_PR_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?pr:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The GraphQL query needs the base repository's coordinates, which the recorded
 # PR URL carries even when the PR comes from a fork.
@@ -398,7 +398,7 @@ _CODE_FENCE_RE = re.compile(
 # The `worktree:` line follows the same accreted shapes as `branch:` (bare,
 # list-item, backtick-wrapped), so parse it the same way. The open-pr command
 # needs it to locate the feature checkout it pushes from.
-_WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILINE)
+_WORKTREE_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?worktree:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 
 
 def _delimited_value(raw: str) -> str:
@@ -418,6 +418,34 @@ def _delimited_value(raw: str) -> str:
     return value.strip("`").strip()
 
 
+def _dev_section_text(blackboard_text: str) -> str:
+    """Read the live Dev section without interpreting fenced examples."""
+    # Examples cannot create ownership or terminate the real Dev section.
+    # A shorter or differently marked fence does not close the current one.
+    lines: list[str] = []
+    marker = ""
+    for line in blackboard_text.splitlines(keepends=True):
+        fence = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
+        if marker:
+            if (
+                fence
+                and fence.group(1)[0] == marker[0]
+                and len(fence.group(1)) >= len(marker)
+                and not fence.group(2).strip()
+            ):
+                marker = ""
+            lines.append("\n")
+        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
+            marker = fence.group(1)
+            lines.append("\n")
+        else:
+            lines.append(line)
+    section = _DEV_SECTION_RE.search("".join(lines))
+    if not section:
+        return ""
+    return section.group(1)
+
+
 def parse_pr_url(blackboard_text: str) -> str | None:
     """Return the `pr:` URL under `## Dev`, or None if absent.
 
@@ -433,10 +461,8 @@ def parse_pr_url(blackboard_text: str) -> str | None:
     yet)` and later appends the real link below it — the same silent skip this
     parser exists to prevent.
     """
-    section = _DEV_SECTION_RE.search(blackboard_text)
-    if not section:
-        return None
-    for match in _PR_LINE_RE.finditer(section.group(1)):
+    section = _dev_section_text(blackboard_text)
+    for match in _PR_LINE_RE.finditer(section):
         tokens = _delimited_value(match.group(1)).split()
         if tokens and _looks_like_pr_url(tokens[0]):
             return tokens[0]
@@ -479,32 +505,10 @@ def parse_branch_names(blackboard_text: str) -> list[str]:
     workflow gates and `coga open-pr` act on. A prose mention elsewhere in the
     ticket is never ownership.
     """
-    # Examples cannot create ownership or terminate the real Dev section.
-    # A shorter or differently marked fence does not close the current one.
-    lines: list[str] = []
-    marker = ""
-    for line in blackboard_text.splitlines(keepends=True):
-        fence = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
-        if marker:
-            if (
-                fence
-                and fence.group(1)[0] == marker[0]
-                and len(fence.group(1)) >= len(marker)
-                and not fence.group(2).strip()
-            ):
-                marker = ""
-            lines.append("\n")
-        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
-            marker = fence.group(1)
-            lines.append("\n")
-        else:
-            lines.append(line)
-    section = _DEV_SECTION_RE.search("".join(lines))
-    if not section:
-        return []
+    section = _dev_section_text(blackboard_text)
     names = (
         _delimited_value(match.group(1))
-        for match in _BRANCH_LINE_RE.finditer(section.group(1))
+        for match in _BRANCH_LINE_RE.finditer(section)
     )
     return list(dict.fromkeys(name for name in names if name))
 
@@ -518,10 +522,8 @@ def parse_worktree_path(blackboard_text: str) -> str | None:
     for a missing or empty worktree line, or a placeholder like
     `(not yet created)`.
     """
-    section = _DEV_SECTION_RE.search(blackboard_text)
-    if not section:
-        return None
-    match = _WORKTREE_LINE_RE.search(section.group(1))
+    section = _dev_section_text(blackboard_text)
+    match = _WORKTREE_LINE_RE.search(section)
     if not match:
         return None
     path = _delimited_value(match.group(1))
