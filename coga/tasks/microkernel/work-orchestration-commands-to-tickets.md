@@ -45,6 +45,9 @@ record why it must be co-versioned with the package.
 - [ ] The three heads leave (retire through its follow-up) the "Open command placements" table (both
       copies); `coga/megalaunch`, `dev/checkout-cleanup`,
       `coga/notifications` and the `coga/cli` index match; tests pass.
+      Retire's exit is implemented on branch `retire-command-ticket`
+      (`microkernel/move-retire-to-a-command-ticket`, pending review and
+      merge): the row there names only `megalaunch`, `slack`.
 
 ## Context
 
