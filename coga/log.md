@@ -8580,3 +8580,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-16 21:22 v1 [microkernel/move-retire-to-a-command-ticket] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-16 21:22 v1 [microkernel/move-retire-to-a-command-ticket] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-16 21:23 v1 [microkernel/move-retire-to-a-command-ticket] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-16 21:38 v1 [microkernel/move-retire-to-a-command-ticket] [agent:claude] advanced to step 2 (evaluate-design) → codex
