@@ -26,7 +26,8 @@ A `scope: clone` template is serviced once per period **in every clone that
 sweeps** (`recurring_clone`, `recurring.scan_clone_due`). It requires a
 reserved `ticket.py` and rejects `delegate`, `state_keys` and `workflow`.
 The sweep runs the script directly, after the shared launches. No period task
-is created, nothing is committed, and no log line is written. The script gets
+is created, nothing is committed except where a template names its one
+publication below, and no log line is written. The script gets
 the template's `secrets` and `COGA_RECURRING_SCOPE=clone`,
 `COGA_RECURRING_TEMPLATE` and `COGA_RECURRING_PERIOD`, but no `COGA_TASK_*`
 variables, so there is nothing to bump. Exit 0 records the period in
@@ -39,8 +40,8 @@ inactivity gates apply as for repo scope. `--force` and
 `coga recurring launch <name>` ignore the clone ledger. `coga recurring
 list` shows only this clone's state.
 
-Tradeoff, accepted: clone-scoped runs leave no git-visible record. Their
-evidence is the clone-local ledger and log, the console, and the autofix run
+Tradeoff, accepted: clone-scoped runs leave no git-visible record beyond the
+worklist publication below. Their evidence is the clone-local ledger and log, the console, and the autofix run
 record.
 
 The shipped clone-scoped template is `branch-sweep` (daily; local refs and
@@ -55,9 +56,20 @@ frequency grants no new deletion authority. That includes the
 a branch whose PR closed unmerged is released only when a done or canceled
 ticket owns it. The daily clone pass is the integration point for terminal
 transitions, which delete nothing themselves. A refusal is reported under
-`## Branch Sweep` and retried the next day. Re-judging another clone's
-`retires.md` entries is still done only by whichever clone services
-`autoclose-merged`.
+`## Branch Sweep` and retried the next day.
+
+The same clone pass settles the `retires.md` entries that record this clone
+as `owner`, which the clone servicing `autoclose-merged` can only report. It
+runs them through autoclose's backlog walk and proofs, from the control branch
+only, and judges no other entry. A worklist it changed is the one exception to
+"nothing is committed": `git.publish` of that file alone, pinned to the bytes
+it read, with no log line. Reconcile and publication hold the local state
+lock together. A failed or skipped publish fails the run and restores the
+pre-pass bytes, so the next run judges and publishes them again. If an
+outside writer changed the file meanwhile, its contents are preserved and
+the conflict is reported instead. With Git sync disabled, the pass is skipped
+without disposing of or rewriting follow-ups. An ownerless entry stays with
+autoclose, which backfills `owner` while the foreign directory still exists.
 
 ## What a sweep does per template
 
