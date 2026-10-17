@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 contexts:
 - coga/principles
 - coga/extension-model
@@ -492,3 +492,142 @@ disposition; this is not design approval.
 ## Dev
 
 branch: retire-command-ticket
+
+## Implement handoff (2026-10-16, claude, attended)
+
+Branch `retire-command-ticket` pushed at `3df99d642d6a409ab8c51ae0d5028850969f56fa`, on top of `origin/main`
+`c77870f36aee5fa6cc808508073cc81c730f4b8c`. Four commits: kernel argv + retire move; recurring twin re-sync;
+docs split; workflow-summary test update.
+
+What changed, by owner disposition above:
+- Part 1: `launch_script.run_script_phase` / `run_script_chain` take
+  `args`; argv is `[sys.executable, ticket.py, *args]` for stateless only
+  (`ValueError` otherwise). `launch._LaunchInvocation._align_and_classify`
+  refuses trailing args to a stateful `ticket.py` target right after
+  classification (after assist alignment, before secrets/activation/log),
+  exit 2. Tests cover active/draft/paused/human-assist with a secret spy.
+- P2: same method tolerates `OperatorResolutionError` for a bootstrap
+  target with `ticket.py` (operator `None`); the post-script handoff still
+  refuses if the script vanished and an agent is needed.
+- P1: a bootstrap script exiting 75 sets `git.state_sweep_withheld` and
+  `script_retained_state`, so `refresh_after_script` skips the teardown
+  refresh and `cli.main` skips the sweep (it already does for 75).
+  `bootstrap/retire/ticket.py::_launch_retire_task` launches in-process
+  inside `checkout_guard_scope()` and returns 75 when the nested launch
+  withheld the sweep (warns on stderr if that masks a non-zero launch code).
+- P3: `coga retire --help` works in a configured workspace; documented in
+  `bootstrap/retire/ticket.md`. Not special-cased.
+- Part 2: alias `retire = "launch bootstrap/retire --"`; built-in, import,
+  `_SWEEPING_COMMANDS` entry removed; `git mv` of the module; packaged
+  `ticket.md`; `EXPECTED_BOOTSTRAP_RESOURCES` updated. Tests load the
+  script via `spec_from_file_location`; e2e alias cases added (done
+  delete, no-agents done delete, `--no-launch`, unknown slug, `--help`).
+- Part 3: recurring live templates restored to packaged bytes and the
+  upstream-coga rollback of 28cba8f70 reversed (no later edits to preserve);
+  retire section moved out of `dev/checkout-cleanup`; autoclose and
+  branch-sweep templates link the proofs; `coga/knowledge` gains the
+  command-ticket ownership row; stale summaries fixed (branch-sweep sweep
+  skill, four packaged workflow review sections, and the test that pinned
+  the stale `retro/done-ticket` claim); `coga/cli`, extension-model,
+  script-tickets, launch, archive audit updated. The orchestration ticket
+  notes retire's pending table exit.
+
+Adjacent, not fixed here:
+- `tests/test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]`
+  fails on main too: the repo has no root `CLAUDE.md` (by design per
+  `coga/packaging`), so the parametrization is stale. No follow-up ticket
+  found.
+- `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
+  fails under a fresh 3.11 venv with `No module named 'yaml'`: the harness
+  needs PyYAML, which the `test` extra does not declare. Environment gap,
+  passes in the checkout venv.
+- `coga validate --json` repo-wide reports 2 errors on
+  `marketing/demo-hackability-ask-claude-to-add-a-command-live` (missing
+  `marketing/plan`, `marketing/positioning` contexts), untouched here.
+
+## PR
+
+```yaml
+title: Move coga retire to the bootstrap/retire script command ticket
+author: claude
+author_evidence: Attended implement session ran as Claude Opus 5.5 (claude-opus-5-5), launch 8ad060b6-b354-4d86-9fca-f03a6c7fb7f5.
+head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
+base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+depth: deep
+rationale: Changes launch's script dispatch (argv, a new stateful refusal, operator tolerance, and an exit-75 retained-state contract) and moves a destructive command out of core; no code review yet.
+implementation: Bootstrap ticket.py targets receive trailing launch args as argv; stateful script targets refuse them before any effect; a script-only bootstrap target needs no agent; a bootstrap script exiting 75 skips launch's teardown refresh and the CLI sweep. coga retire becomes the default alias "launch bootstrap/retire --" whose packaged ticket.py holds the unchanged command body, launching a canceled ticket's retire task in-process and exiting 75 when that launch withheld the sweep. Docs move retire's procedure into bootstrap/retire/ticket.md and leave shared rules in dev/checkout-cleanup.
+deviations: Per the owner's implement-step disposition of the evaluator review, the canceled path stays in-process (not the designed subprocess), with the exit-75 channel; help needs a configured workspace. The live recurring templates are re-synced to their packaged clone-scoped versions.
+limitations: coga retire --help no longer works without coga.local.toml. Launch framing now appears on stderr. The nested-launch withheld path is covered by unit tests (fake launch setting the flag) and a subprocess exit-75 launch test, not by a real refused checkout return under retire.
+files:
+  coga/recurring/autoclose-merged/ticket.md: Re-sync to packaged clone-scope version; link the shared proofs instead of restating them.
+  coga/recurring/autoclose-merged/ticket.py: Re-sync to packaged version (28cba8f70 rollback).
+  coga/recurring/branch-sweep/ticket.md: Re-sync to packaged clone-scope version; link proofs; correct the best-effort retire claim.
+  coga/recurring/branch-sweep/ticket.py: Re-sync to packaged version (28cba8f70 rollback).
+  coga/recurring/upstream-coga/ticket.md: Reverse the 28cba8f70 rollback (clone scope).
+  coga/recurring/upstream-coga/ticket.py: Reverse the 28cba8f70 rollback (conditional bump).
+  coga/skills/coga/branch-sweep/sweep/SKILL.md: Correct the stale best-effort retire summary.
+  docs/archive/cli-extension-audit.md: Record retire moved to bootstrap/retire (ticket-requested archive edit).
+  docs/contexts/coga/cli/SKILL.md: Split the delete/retire row; retire points at its command ticket.
+  docs/contexts/coga/extension-model/SKILL.md: Drop retire from open placements; ten aliases; script command-ticket example and argv.
+  docs/contexts/coga/knowledge/SKILL.md: A command ticket's ticket.md owns its verb's contract.
+  docs/contexts/coga/launch/SKILL.md: Targets section documents bootstrap argv and the stateful refusal.
+  docs/contexts/coga/script-tickets/SKILL.md: Step 4 argv contract, no-agent bootstrap scripts, exit-75 retained state.
+  docs/contexts/dev/checkout-cleanup/SKILL.md: Remove the retire section; keep shared rules and point to job owners.
+  src/coga/aliases.py: Add the retire default alias; drop retire from built-ins.
+  src/coga/cli.py: Unregister the retire command and its sweeping entry.
+  src/coga/commands/launch.py: args help text describes bootstrap argv and stateful refusal.
+  src/coga/launch.py: Stateful-args refusal, bootstrap script operator tolerance, exit-75 retained state, args passed to the script chain.
+  src/coga/launch_script.py: Forward args to stateless ticket.py argv; reject them for stateful phases.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Twin of docs/contexts/coga/cli.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Twin of docs/contexts/coga/extension-model.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Twin of docs/contexts/coga/knowledge.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Twin of docs/contexts/coga/launch.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Twin of docs/contexts/coga/script-tickets.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/SKILL.md: Twin of docs/contexts/dev/checkout-cleanup.
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.md: New stateless command ticket owning retire's procedure.
+  src/coga/commands/retire.py: Removed; moved to the packaged bootstrap/retire/ticket.py.
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.py: Retire body moved unchanged plus Typer app, in-process launch with exit-75 handoff, __main__ guard.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md: Twin of the live branch-sweep sweep skill.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Done retire deletes with no agent; point at bootstrap/retire/ticket.md.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Same correction.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Same correction.
+  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Same correction.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Link the shared proofs (twin).
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: Link proofs; correct the retire claim (twin).
+  tests/test_aliases.py: Assert the retire alias and that its options survive rewriting.
+  tests/test_bootstrap_workflow_review_sections.py: Expect the command-ticket pointer instead of the stale retro claim.
+  tests/test_launch_script.py: Bootstrap argv, no-arg argv, no-agent bootstrap, exit-75 retained state, stateful refusal before effects.
+  tests/test_packaging.py: Ship bootstrap/retire ticket.md and ticket.py.
+  tests/test_retire.py: Load the packaged script; withheld-launch exit 75; end-to-end alias cases.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review belongs to the later self-qa/review steps; design approval is not code review.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
+    base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+    detail: Python 3.12.12 — 3801 passed, 1 failed, 7 skipped. The failure (test_compose CLAUDE.md parametrization) also fails on main; the repo has no root CLAUDE.md.
+  - command: PYTHONPATH=$PWD/src <scratch venv311>/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: a232a5d53ed0c5bbb13aba7ca10ca1c66cb95a4c
+    base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+    detail: Python 3.11.15 fresh venv, before the final test-only commit — 3796 passed, 6 failed, 7 skipped. 4 failures are the workflow-summary test fixed in the next commit (re-verified on 3.12); 1 is the main-wide CLAUDE.md test; 1 is a clean-install harness needing PyYAML, absent from the test extra.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task microkernel/move-retire-to-a-command-ticket --json
+    status: passed
+    head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
+    base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+    detail: 1 OK, no issues. Repo-wide validate reports 2 errors on an untouched marketing ticket.
+  - command: cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL coga validate --json
+    status: passed
+    head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
+    base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+    detail: 4 OK, no issues.
+  - command: scratch clone smoke — coga retire --help / coga retire <done-slug> / coga retire nope-xyz
+    status: passed
+    head: 3df99d642d6a409ab8c51ae0d5028850969f56fa
+    base: c77870f36aee5fa6cc808508073cc81c730f4b8c
+    detail: 'Help printed the script usage; a done ticket was deleted with commit "Ticket: smoke-two — deleted (retire)" on main and "checkout cleanup skipped" off control; the unknown slug exited 2.'
+```
