@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -327,16 +326,19 @@ def compose_prompt_report(
 
 
 def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = None) -> Path:
-    """Write the composed prompt to a temp file. Returns its path.
-
-    Default location: /tmp/coga-<id>-<timestamp>.md per spec.
-    """
-    if dest_dir is None:
-        dest_dir = Path(tempfile.gettempdir())
-    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    """Exclusively create a UTF-8 prompt file that survives until session cleanup."""
     safe_slug = task_ref.id_slug.replace("/", "-")
-    path = dest_dir / f"coga-{safe_slug}-{ts}.md"
-    path.write_text(prompt)
+    prompt_file = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", prefix=f"coga-{safe_slug}-", suffix=".md",
+        dir=dest_dir, delete=False,
+    )
+    path = Path(prompt_file.name)
+    try:
+        with prompt_file:
+            prompt_file.write(prompt)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 
