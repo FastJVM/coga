@@ -48,7 +48,8 @@ co-versioning proof.
    to `block`/`unblock` (kernel by registration, not by the launch-closure
    test) and the `owner` head. `mark` and `bump` stay kernel.
 3. `microkernel/work-orchestration-commands-to-tickets` —
-   `retire`, `megalaunch`, `slack`.
+   `megalaunch`, `slack`; `retire` is split out to
+   `microkernel/move-retire-to-a-command-ticket`.
 4. `microkernel/read-report-commands-as-ticket-workflows` —
    `show`, `status`, `validate`, `usage`, `recurring list`.
 5. `microkernel/support-commands-boundary` — `secret get`,

@@ -31,9 +31,10 @@ record why it must be co-versioned with the package.
 
 - [ ] The design defines one shared creator/launcher/alias pattern for these
       heads, so they do not each invent a migration shape.
-- [ ] `retire` is migrated or split into a concrete follow-up with exact
-      acceptance criteria. Its state rule stays: a canceled ticket gets a
-      retire task; a done ticket is deleted in place.
+- [x] `retire` is split into a concrete follow-up with exact acceptance
+      criteria: `microkernel/move-retire-to-a-command-ticket` (2026-10-16).
+      Its state rule stays: a canceled ticket gets a retire task; a done
+      ticket is deleted in place.
 - [ ] `megalaunch` and `slack` are each moved or given a co-versioning proof
       in `coga/extension-model`. Megalaunch's queue selection, liveness
       defaults and timeout classification are caller policy, not executor
@@ -41,7 +42,7 @@ record why it must be co-versioned with the package.
 - [ ] Implementation is split per command shape after design review.
 - [ ] Human-visible side effects stay durable (blackboards, `coga/log.md`,
       sync commits, notifications).
-- [ ] The three rows leave the "Open command placements" table (both
+- [ ] The three heads leave (retire through its follow-up) the "Open command placements" table (both
       copies); `coga/megalaunch`, `dev/checkout-cleanup`,
       `coga/notifications` and the `coga/cli` index match; tests pass.
 
