@@ -20,7 +20,7 @@ from coga.compose import (
 )
 from conftest import hold_by_agent, hold_by_owner
 from coga.config import load_config
-from coga.tasks import BootstrapRef, list_tasks, read_ticket, resolve_bootstrap, resolve_task
+from coga.tasks import list_tasks, read_ticket, resolve_bootstrap, resolve_task
 from coga.taskfile import replace_blackboard
 from coga.ticket import Ticket
 
@@ -1000,6 +1000,8 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
 
 def test_concurrent_prompt_files_keep_each_launch_content(tmp_path: Path) -> None:
     """Same bootstrap slug across repositories must not share storage or cleanup."""
+    from coga.tasks import BootstrapRef
+
     refs = [BootstrapRef("orient", tmp_path / f"repo-{i}") for i in range(32)]
     prompts = [f"Launch {i}: instructions — 日本語\n" for i in range(len(refs))]
     with ThreadPoolExecutor(max_workers=8) as pool:
