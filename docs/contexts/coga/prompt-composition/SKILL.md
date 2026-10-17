@@ -56,16 +56,19 @@ reaches the transcript.
   `cfg.repo_root` names, `coga/resources/` by default) wholly replaces the
   packaged `src/coga/resources/<name>`; otherwise the packaged copy is read.
   The overridable names are `paths.RESOURCE_NAMES`: `prompt.md`, the three
-  conduct resources, `prompt-blocker-resolution.md`, and two non-prompt
-  resources rendered by other commands, `blackboard.md` (the stock placeholder
-  `coga create` writes; [coga/blackboard](../blackboard/SKILL.md)) and
+  conduct resources, `prompt-blocker-resolution.md`, and three non-prompt
+  resources rendered by other commands: `blackboard.md` (the stock placeholder
+  `coga create` writes; [coga/blackboard](../blackboard/SKILL.md)),
+  `ticket.md` (the ordinary `coga create` body; exactly one literal
+  `{description}` is replaced, other braces stay as written) and
   `retire.md` (the `coga retire` task body, rendered with `str.format(slug=...)`,
   so a literal brace is doubled). Bootstrap launches use the same overrides.
   Override is **replace-only**: there is no append or patch mode, so an
   overridden file stops receiving upstream edits until someone merges them by
   hand. `templates/` is not part of this rule; it has its own local-override
   paths ([coga/packaging](../packaging/SKILL.md)). An override that exists but
-  cannot be read, or a `retire.md` override that is not a valid template,
+  cannot be read, or a `retire.md` or `ticket.md` override that is not a valid
+  template,
   raises `RepoResourceUnreadable` naming the repo file, never a silent
   fallback; broken symlinks and non-file entries at known names also refuse.
   Compose reports it as a `ComposeError`. Task creation reads the blackboard
@@ -143,3 +146,8 @@ which stays on disk for the session; content is unchanged. Such a size usually
 means context bloat. The session's done signal is a side-channel sentinel
 file, so nothing in the prompt text can end a session and the prompt is
 passed verbatim ([coga/internals/agent-spawn](../internals/agent-spawn/SKILL.md)).
+
+The `ticket.md` resource is the ordinary creation body template, not a prompt
+layer. Its field guide is stored under each new ticket’s `## Context` and
+reaches launch through that normal section. Editing rules stay in `prompt.md`,
+so tickets without the guide (older, recurring, rewritten) lose nothing.

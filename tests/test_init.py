@@ -72,7 +72,6 @@ EXPECTED_FILES = {
     "coga/recurring/autoclose-merged/ticket.md",
     "coga/recurring/dream/ticket.md",
     "coga/recurring/skill-update/ticket.md",
-    "coga/tasks/_template/ticket.md",
     "coga/tasks/coga-build.md",
     # Single-file format: the repo-global audit log + its union-merge attribute
     # ship at the coga root; tasks no longer carry per-dir blackboard.md/log.md.
@@ -154,7 +153,6 @@ def _seed_fake_templates(templates: Path) -> None:
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
         ("skills", "_template/SKILL.md"),
-        ("tasks", "_template/ticket.md"),
         ("workflows", "_template.md"),
         ("recurring", "_template/ticket.md"),
     ]:

@@ -13,7 +13,7 @@ from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
-from coga.paths import log_path
+from coga.paths import RepoResourceUnreadable, log_path
 from coga.recurring import local_period_lease
 from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 from coga.tasks import list_tasks
@@ -1349,11 +1349,12 @@ def test_create_task_unclosed_fence_keeps_a_real_context_section(
     assert [s.key for s in body_sections(above)] == ["description", "context"]
 
 
-def test_create_unreadable_blackboard_names_override(
-    repo: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("resource_name", ["blackboard.md", "ticket.md"])
+def test_create_unreadable_resource_names_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, resource_name: str,
 ) -> None:
     monkeypatch.chdir(repo)
-    override = repo / 'resources' / 'blackboard.md'
+    override = repo / 'resources' / resource_name
     override.parent.mkdir()
     override.write_bytes(b'\xff')
 
@@ -1362,3 +1363,132 @@ def test_create_unreadable_blackboard_names_override(
     assert result.exit_code == 2
     assert str(override) in result.output
     assert not (repo / 'tasks' / 'broken-override.md').exists()
+
+
+def test_created_ticket_carries_guide_through_rewrite_and_composition(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga.autoclose import parse_branch_names, parse_pr_url, parse_worktree_path
+    from coga.compose import _extract_section, compose_prompt
+    from coga.taskfile import body_sections, split_body
+    from coga.tasks import resolve_task
+    from coga.validate import validate_task
+
+    monkeypatch.chdir(repo)
+    cfg = load_config(repo)
+    result = create_task(
+        cfg=cfg, title="Explain this ticket", workflow_name=None,
+        contexts=[], owner=None, status=None,
+    )
+    path = result["path"]
+    ticket = Ticket.read(path)
+    assert ticket.frontmatter == {
+        "title": "Explain this ticket",
+        "status": "draft",
+        "owner": cfg.current_user,
+        "workflow": None,
+    }
+    guide = ticket.body[
+        ticket.body.index("<!-- Ticket guide"):ticket.body.index("-->") + 3
+    ]
+    above, _ = split_body(ticket.body)
+    assert [section.key for section in body_sections(above)] == ["description", "context"]
+    assert _extract_section(above, "Context") == guide
+    assert fence_count(path.read_text()) == 1
+    ticket.frontmatter["owner"] = "another-human"
+    ticket.write(path)
+    assert guide in path.read_text()
+    task = resolve_task(cfg, result["slug"])
+    assert compose_prompt(cfg, task, Ticket.read(path)).count(guide) == 1
+    issues = validate_task(cfg, result["slug"]).issues
+    assert any(issue.kind == "empty-description" for issue in issues)
+    assert not any(
+        issue.kind == "uncomposed-section" or issue.severity == "error"
+        for issue in issues
+    )
+    blackboard = read_blackboard(path)
+    assert parse_branch_names(blackboard) == []
+    assert parse_pr_url(blackboard) is None
+    assert parse_worktree_path(blackboard) is None
+
+
+def test_create_uses_body_template_override_without_reinterpreting_description(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    _write(repo / "resources" / "ticket.md", """
+        ## Description
+
+        {description}
+
+        ## Context
+
+        <!-- Local ticket guide. -->
+    """)
+    result = create_task(
+        cfg=load_config(repo), title="Local template", workflow_name=None,
+        contexts=[], owner=None, status=None, description="Keep {description} literally.",
+    )
+    text = result["path"].read_text()
+    assert "Keep {description} literally." in text
+    assert "<!-- Local ticket guide. -->" in text
+    assert "<!-- Ticket guide" not in text
+
+
+def test_create_explicit_body_does_not_inject_ordinary_template(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    _write(repo / "resources" / "ticket.md", "<!-- Local ticket guide. -->")
+    result = create_task(
+        cfg=load_config(repo), title="Template-owned work", workflow_name=None,
+        contexts=[], owner=None, status=None,
+        body="## Description\n\nRecurring task intent.\n\n## Context\n\nTemplate context.\n",
+    )
+    text = result["path"].read_text()
+    assert "Recurring task intent." in text
+    assert "Template context." in text
+    assert "Local ticket guide" not in text
+
+
+@pytest.mark.parametrize("template", ["## Description\n", "{description} {description}"])
+def test_create_rejects_template_that_would_lose_or_repeat_intent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, template: str,
+) -> None:
+    monkeypatch.chdir(repo)
+    _write(repo / "resources" / "ticket.md", template)
+    with pytest.raises(RepoResourceUnreadable, match="exactly one"):
+        create_task(
+            cfg=load_config(repo), title="Keep intent", workflow_name=None,
+            contexts=[], owner=None, status=None, description="Do this work.",
+            force_directory=True,
+        )
+    assert not (repo / "tasks" / "keep-intent").exists()
+
+
+def test_validate_reports_ticket_template_override_without_one_placeholder(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga.validate import run as validate_run
+
+    monkeypatch.chdir(repo)
+    override = repo / "resources" / "ticket.md"
+    _write(override, "## Description\n\n## Context\n")
+    issues = [
+        issue for issue in validate_run(load_config(repo)).issues
+        if issue.kind == "unreadable-resource-override"
+    ]
+    assert len(issues) == 1
+    assert str(override) in issues[0].message
+    assert "exactly one {description}" in issues[0].message
+
+
+def test_new_ticket_body_does_not_contain_the_extension_marker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    result = create_task(
+        cfg=load_config(repo), title="No marker in body", workflow_name=None,
+        contexts=[], owner=None, status=None,
+    )
+    assert "# --- extensions ---" not in Ticket.read(result["path"]).body

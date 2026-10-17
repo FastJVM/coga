@@ -11,6 +11,11 @@ line `<!-- coga:blackboard -->`, then the blackboard region. The blackboard
 writer's contract is [coga/blackboard](../blackboard/SKILL.md); status and
 step movement are [coga/lifecycle](../lifecycle/SKILL.md).
 
+New tickets also carry a field guide as an HTML comment under `## Context`,
+rendered from `src/coga/resources/ticket.md`. It documents frontmatter and
+blackboard field shapes; the editing rules below and in the base prompt hold
+whether or not a ticket carries it.
+
 ## Leaves
 
 - [coga/tickets/discovery](discovery/SKILL.md) — where tasks live, file
@@ -29,17 +34,10 @@ step movement are [coga/lifecycle](../lifecycle/SKILL.md).
 `validate.REQUIRED_TASK_KEYS` is `title`, `status`, `owner`, `workflow`; a new
 draft is exactly those four (`status: draft`, `workflow: null`) plus a body.
 
-- `owner` is the human of record. `agent` is the optional **main-agent
-  choice**, not the current operator: absent on drafts, filled once with
-  `Config.default_agent()` at first activation (the `default_agent` key, local
-  over shared, else the first agent in merged config; see
-  [coga/agents](../agents/SKILL.md#the-default-agent)),
-  then kept through pause, unblock, bump, peer review and terminal moves. A
-  present value must name a configured agent; null, blank, unknown or
-  since-removed agents fail loud. An activated task missing it is a validation
-  error.
-- The operator is never stored; it is derived from the frozen step role
-  ([coga/workflows](../workflows/SKILL.md)).
+- An activated task must have an `agent` naming a configured agent. Null,
+  blank, unknown, or since-removed names fail validation. Activation fills
+  an absent draft value using `Config.default_agent()`; default resolution
+  belongs to [coga/agents](../agents/SKILL.md#the-default-agent).
 - `contexts`, `skills`, `secrets`: absence is empty and an empty list is not
   written. A malformed falsy value (`contexts:` null, `""`, `0`) stays on disk
   so validation names it. `secrets` syntax is owned by

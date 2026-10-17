@@ -50,6 +50,7 @@ class RepoResourceUnreadable(RuntimeError):
 
 RESOURCE_NAMES: frozenset[str] = frozenset({
     "blackboard.md",
+    "ticket.md",
     "prompt-attended.md",
     "prompt-blocker-resolution.md",
     "prompt-megalaunch.md",
@@ -131,6 +132,24 @@ def load_resource(cfg: Config | None, name: str) -> tuple[str, Path | None]:
 def read_resource(cfg: Config | None, name: str) -> str:
     """Read a top-level resource, preferring the repo override."""
     return load_resource(cfg, name)[0]
+
+
+def read_ticket_template(cfg: Config | None) -> str:
+    """Read the `ticket.md` body template, refusing one that would lose intent.
+
+    Creation replaces exactly one `{description}`; with none the description
+    is dropped, with two it is repeated. Shared by `create_task` and
+    `coga validate` so a bad override fails validation, not the next create.
+    """
+    text, local = load_resource(cfg, "ticket.md")
+    count = text.count("{description}")
+    if count != 1:
+        where = f"repo resource override {local}" if local else "packaged ticket.md"
+        raise RepoResourceUnreadable(
+            f"{where} must contain exactly one {{description}} placeholder "
+            f"(found {count})"
+        )
+    return text
 
 
 def packaged_template_path(*parts: str) -> Path:

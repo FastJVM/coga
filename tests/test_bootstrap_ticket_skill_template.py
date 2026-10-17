@@ -26,7 +26,7 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
     assert "Do not attach broad orientation contexts by default." in text
     assert "copy that specific fact into\n  the ticket's `## Context` body" in text
     assert "create or propose a smaller\n  focused context" in text
-    assert "Select them through the workflow's step\n  `skill:` refs" in text
+    assert "Select them through the workflow's step\n  `skills:` refs" in text
     assert "If only a specific fact is needed, put\n   it in `## Context`" in text
     assert "only writes the draft bytes to disk and does **not** run this skill." in text
     assert "are you starting a\n> **new** ticket, or editing an **existing** one?" in text
@@ -113,7 +113,7 @@ def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:
 
     assert "**Script execution (conditional)**" not in text
     assert "script:" not in text
-    assert "Execution: agent" in text
+    assert "Execution:" not in text
     assert "convert it to directory form only when it needs\nattachments" in text
     assert "coga launch <slug> --prompt-report" in text
 

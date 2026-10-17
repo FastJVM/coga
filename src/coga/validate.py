@@ -87,6 +87,7 @@ from coga.paths import (
     context_resolution_paths,
     load_resource,
     missing_skill_message,
+    read_ticket_template,
     recurring_dir,
     repo_resources_dir,
     resolve_context_path,
@@ -1256,7 +1257,10 @@ def _check_repo_resources(cfg: Config) -> list[Issue]:
             ))
             continue
         try:
-            load_resource(cfg, name)
+            if name == "ticket.md":
+                read_ticket_template(cfg)
+            else:
+                load_resource(cfg, name)
         except RepoResourceUnreadable as exc:
             out.append(Issue(
                 kind="unreadable-resource-override",

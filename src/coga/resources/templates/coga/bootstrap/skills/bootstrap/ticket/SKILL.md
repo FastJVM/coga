@@ -11,16 +11,13 @@ can review and launch. You do **not** start the work itself — you set it up.
 The human is at the keyboard in an attended agent launch. Ask, don't guess. Keep
 the interview short — 4–6 questions, not a survey.
 
-## Ticket format — read this first
+## Before the interview
 
-The canonical ticket shape is `coga/tasks/_template/ticket.md`. **Read it
-once before you start** — that's the frontmatter fields and body sections
-your filled ticket has to match. For a real example, browse the same tree:
-
-- `coga/tasks/<slug>.md` or `coga/tasks/<slug>/ticket.md` — any existing
-  code-change ticket with `contexts:` + `workflow:` filled in works as a model
-  to mimic. A self-contained ticket uses the flat form; one with a sibling
-  script or attachment uses directory form.
+New tickets carry a field guide in an HTML comment under `## Context`: the
+frontmatter keys, the frozen workflow shape, and the `## Dev` / `## PR`
+blackboard records. Read it and keep it while filling in the actual content.
+A ticket created before the guide existed may lack it; the editing rules here
+and in the base prompt apply either way, so do not paste the guide into it.
 
 A ticket carries a workflow — the ordered steps the work moves through —
 everywhere except while it is a `draft`. A ticket with no workflow can't be
@@ -33,7 +30,7 @@ the human wants to stash an idea before its shape is settled, a workflow-less
 workflow. Don't force a workflow onto an idea that isn't ready for one; just
 make the tradeoff explicit (it can't be activated yet).
 
-Match this shape exactly. Don't invent fields the template doesn't define
+Match this shape exactly. Don't invent fields the guide doesn't define
 (see the frontmatter rules in the base prompt), and don't reintroduce metadata
 the format removed: there is no `slug:`, `human:`, `assignee:`, or `watchers:`.
 Writing one back makes the ticket invalid and every Coga command refuse it.
@@ -46,13 +43,10 @@ So choosing the workflow (step 3) is how you choose the handoffs; there is no
 separate assignment to make.
 
 **Frontmatter you may write in this interview** — the explicit exception the
-base prompt allows: `title`, `status`, `owner`, `agent`, `contexts`, `skills`,
-`workflow`, `step`, `secrets`, and any repo extension field. `agent` is optional
-and is the ticket's *main-agent choice*: leave it out of a draft unless the human
-picks one, and `coga mark active` will select the configured default at
-activation. `--agent` on `coga ticket` selects **the interviewer running this
-session** and nothing else — never copy it onto the ticket. Leave `contexts`,
-`skills`, and `secrets` out entirely when they are empty; absence is empty.
+base prompt allows: `title`, `status`, `owner`, `agent`, `contexts`,
+`skills`, `workflow`, `step`, `secrets`, and any repo extension field, subject
+to the lifecycle restrictions in step 3. `--agent` on `coga ticket` selects
+the interviewer only; never copy it onto the ticket as the main-agent choice.
 
 ## Step 1 — Identify the launch shape and open with the matching greeting
 
@@ -182,7 +176,7 @@ Rules:
   two editing targets). This is the case where the naive instinct points the
   wrong way, because the task is *about* that context.
 - Skills are process knowledge. Select them through the workflow's step
-  `skill:` refs, not by putting skill text into `contexts:`. If a relevant
+  `skills:` refs, not by putting skill text into `contexts:`. If a relevant
   skill exists but no workflow uses it yet, mention the skill ref in the body
   or propose the workflow change.
 
@@ -253,9 +247,9 @@ answer.
 4. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-5. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
-   primary agent). Confirm if the work clearly fits a different agent or
-   needs to go to a human.
+5. **Owner and main agent** — confirm the accountable human; set an agent only
+   if the human chooses one, otherwise leave the draft's agent absent for the
+   configured default at activation.
 6. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
    entries, the scaffold seeded each one with its default (or `""`) below
    the `# --- extensions ---` marker. For every declared field that is empty
@@ -322,7 +316,7 @@ the ticket's blackboard region under a **Proposals** section instead — same sh
 
 Edit the exact ticket path from the composed prompt. A new draft normally starts
 as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
-attachments. The base prompt's frontmatter rules apply:
+attachments. The base prompt's frontmatter rules apply, with this interview's exception:
 
 - For a draft, set `workflow:` to the workflow name you picked (e.g.
   `code/with-review`). This is required — a ticket with no workflow can't be
@@ -331,13 +325,7 @@ attachments. The base prompt's frontmatter rules apply:
   frozen snapshot. If repairing malformed metadata to a live status — or
   explicitly changing a live ticket's workflow — write the full frozen
   snapshot and a valid `step:` as described in step 3.
-- Add `contexts:` as a YAML list (one item per line with `- `).
-- Do not add a context just because it is generally related. If in doubt, leave
-  it out and write the one needed fact into `## Context`.
-- Set `owner:` to the human accountable for the ticket. Write `agent:` only
-  when the human explicitly picks a main agent; otherwise leave it absent on a
-  draft and let activation select the configured default. Never copy this
-  session's own interviewer into it.
+- Apply the owner, main-agent, context, and extension choices from the interview.
 - If the target file actually has `skill: bootstrap/ticket` in frontmatter
   from an older seeded flow, remove it. Modern `coga ticket` injects this
   skill only into the prompt; it should not persist on normal tasks.
@@ -348,7 +336,7 @@ attachments. The base prompt's frontmatter rules apply:
   human-confirmed valid status and make `step:` / `workflow:` consistent with
   it as described in step 3.
 - Fill the `## Description` and `## Context` body sections from the
-  interview.
+  interview, preserving the inline guide.
 
 Do not call `coga bump`. Guided authoring never advances the target workflow.
 
@@ -433,8 +421,8 @@ Workflow: <name>
 
 Contexts: <ref>, <ref>          # or "none"
 Skills (ticket-level): <ref>    # omit line if empty
-Assignee: <agent-or-human>
-Execution: agent
+Owner: <human>
+Main agent: <chosen agent, or default at activation>
 
 Summary
   <2–3 sentences in your own words: what this ticket is, what done looks

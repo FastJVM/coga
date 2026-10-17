@@ -4,7 +4,6 @@ status: paused
 owner: nicktoper
 agent: claude
 contexts:
-- dev/dev-record
 - dev/checkouts
 - coga/workflows
 - coga/packaging
