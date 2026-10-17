@@ -1,6 +1,6 @@
 ---
 title: Move retire to a command ticket
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,17 +32,18 @@ workflow:
     assignee: owner
 step: 1 (design)
 contexts:
-  - coga/principles
-  - coga/extension-model
-  - coga/script-tickets
-  - coga/launch
-  - dev/checkout-cleanup
-  - dev/checkout-cleanup/proofs
-  - coga/recurring/scheduling
-  - coga/cli
-  - coga/codebase
-  - coga/testing
-  - coga/packaging
+- coga/principles
+- coga/extension-model
+- coga/script-tickets
+- coga/launch
+- dev/checkout-cleanup
+- dev/checkout-cleanup/proofs
+- coga/recurring/scheduling
+- coga/cli
+- coga/codebase
+- coga/testing
+- coga/packaging
+agent: claude
 ---
 
 ## Description
