@@ -524,6 +524,41 @@ material follows.
     re-ran `coga build` and got the identical error. The documented path
     from a fresh Mac to a working `coga build` does not exist.
 
+16. open — Coga's dependency manifest does not know the agent CLI's
+    recommended installer, which is the one that works without a package
+    manager. `src/coga/dependencies.py` offers `claude` only through brew
+    and npm, but Anthropic documents a native installer as the recommended
+    macOS route, `curl -fsSL https://claude.ai/install.sh | bash`, needing
+    neither Node nor Homebrew. The npm package downloads the same binary.
+    Knowing it would close finding 15 and most of 14.
+
+    This collides with a deliberate policy: `src/coga/agent_cli_setup.py`
+    states "The installer is the vendor's package, never a `curl | sh`
+    script." The script in question is the vendor's own documented and
+    recommended method, so the supply-chain rationale is weaker here than
+    the rule's wording implies — but relaxing it is the owner's call, and
+    the current stance is precisely what leaves a fresh Mac with no route
+    to an agent CLI.
+
+### Proposed five-line README install, drafted 2026-10-17
+
+Meets the revised Done-when. Verified step by step on the guest except the
+agent CLI line, which replaces the Node detour the owner was unblocked with.
+
+```sh
+xcode-select --install                             # Apple's dev tools (gives git)
+curl -LsSf https://astral.sh/uv/install.sh | sh    # then open a new terminal
+uv tool install coga
+curl -fsSL https://claude.ai/install.sh | bash     # then run: claude   (signs in)
+mkdir myproject && cd myproject && git init && coga init --user <your-name>
+```
+
+Ordering the Command Line Tools first removes finding 6's mid-install
+dialog, because the compiler is present before any source build. It masks
+finding 7 rather than fixing it: a user with git but no compiler still hits
+the 3.15 source build, so the `requires-python` cap remains worth doing.
+Line 4 depends on the policy ruling in finding 16.
+
 Owner's open questions for Nico, carried from his notes rather than
 resolved here:
 
