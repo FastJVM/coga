@@ -99,16 +99,17 @@ It runs locally, in your repository's `coga/` directory: no hosted service.
 
 ## Install
 
-Coga runs on Linux, Windows or macOS and needs Python 3.11+, Git, and an authenticated
+Coga runs on Linux or macOS and needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
-[Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
-offers to install and log in whichever agent CLI you pick.
+[Codex](https://github.com/openai/codex) CLI. Native Windows is unsupported.
 
 ```sh
+xcode-select --install                           # macOS: installs git
+curl -LsSf https://astral.sh/uv/install.sh | sh  # then open a new terminal
 uv tool install coga
-coga --version                  # check the install
-cd <your git repository>
-coga init --user <your-name>
+curl -fsSL https://claude.ai/install.sh | bash   # then run: claude (signs you in)
+mkdir myproject && cd myproject && git init && coga init --user <your-name>
+coga build
 ```
 
 With default settings, uv downloads a compatible Python when needed, even
