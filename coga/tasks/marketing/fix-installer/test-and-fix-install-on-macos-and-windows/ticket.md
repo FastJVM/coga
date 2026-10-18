@@ -519,10 +519,10 @@ material follows.
     The error also says "and authenticate" without saying how or what
     success looks like, which was the owner's first observation here.
 
-    Pending one check before the dead end is called absolute: whether
-    opening the application installs or offers the CLI. If it does, this
-    reduces to an undocumented required step rather than a wrong
-    destination.
+    Checked and confirmed absolute 2026-10-17: the owner opened the
+    application, which is only the desktop app and installs no CLI, then
+    re-ran `coga build` and got the identical error. The documented path
+    from a fresh Mac to a working `coga build` does not exist.
 
 Owner's open questions for Nico, carried from his notes rather than
 resolved here:
