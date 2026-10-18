@@ -48,9 +48,11 @@ ticket feeds it findings and does not duplicate it.
 
 Done when: both walks are done and their findings are listed per OS on the
 blackboard (each tagged fixed-in-PR, tracked-elsewhere, or open); fixes that
-fit this ticket are merged as PRs; and `docs/contexts/coga/install/SKILL.md`
-says, step by step, what Zach ran and saw on each OS, including the
-fresh-environment setup from the guide if it proved useful. Windows is expected to stop
+fit this ticket are merged as PRs; and the README carries clear install
+instructions in no more than five lines. `docs/contexts/coga/install` is
+being deleted (owner, 2026-10-17), so the blackboard also lists the facts
+from it that are candidates for a surviving context — proposals for review,
+not commitments. Windows is expected to stop
 at `coga --help` (`fcntl`); for Windows, done means the findings up to that
 point are recorded and handed to `windows-native/core-port-cli-and-test-suite-pass-on-native-window`, not that
 coga runs there.
@@ -120,6 +122,31 @@ Decision: the doc fixes below are held until after the macOS walk, so Zach
 hits the same docs a real new user hits today. If he gets stuck where
 finding 1-3 predicts, the walk confirms them; if he sails past, the reading
 was wrong.
+
+## Owner decision, 2026-10-17: delete `coga/install`
+
+The install topic is being removed and the install instructions become no
+more than five lines in the README. This changes what most findings fix.
+Findings 2, 3, 11 and 12 become requirements on the new README lines rather
+than repairs to the topic, and finding 5 largely dissolves because the page
+it describes will not exist. Finding 13 survives in reduced form: whatever
+those lines say must describe what PyPI serves, not `main`.
+
+Facts the topic currently owns that would otherwise have no home. Listed as
+candidates for a surviving context, for review rather than as commitments:
+
+- The macOS Command Line Tools trap, including the headless
+  `softwareupdate` route, and that the CLT ships Python 3.9.
+- Why the floor is Python 3.11: config loading uses `tomllib`, and what an
+  older interpreter fails with.
+- Why native Windows does not run: `coga.git` imports `fcntl` at module
+  top and `cli.py` imports `coga.git` eagerly, so even `coga --help` fails,
+  and WSL is the untested route. Overlaps
+  `windows-native/core-port-cli-and-test-suite-pass-on-native-window`.
+- The `--require-hashes` install failure and its two workarounds.
+- Which external CLIs are checked when, and that `coga init` enforces only
+  `git`.
+- The upgrade and removal commands per installer.
 
 ## Host facts (Zach's Mac, 2026-10-15)
 
