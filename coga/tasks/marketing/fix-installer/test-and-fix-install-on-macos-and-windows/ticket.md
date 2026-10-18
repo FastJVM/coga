@@ -500,6 +500,30 @@ material follows.
     places Coga promises to set a new user up: `gh` at init and the agent
     CLI at build. Whatever is decided for 8 should cover this path too.
 
+15. open, highest severity so far — following Coga's own link does not
+    produce the binary Coga requires, so the walk cannot be completed from
+    the documented instructions. `coga build` fails with "Agent CLI
+    'claude' not found in PATH. Install it from
+    https://claude.com/claude-code and authenticate, then re-run." On the
+    guest 2026-10-17 the owner followed that link, downloaded the `.dmg`
+    and dragged Claude into Applications. `claude` is still not on PATH and
+    no `claude` command runs. The page serves the desktop application;
+    Coga drives the command-line tool.
+
+    Taken with 13 and 14, no documented route reaches a working
+    `coga build` on a fresh Mac. The build-time offer does not exist in the
+    released version; on `main` it needs brew or npm, neither of which a
+    fresh Mac has; and the printed link yields an app without the command.
+    Routes that do work — install Homebrew first, or install Node and use
+    `npm install -g @anthropic-ai/claude-code` — appear on no Coga surface.
+    The error also says "and authenticate" without saying how or what
+    success looks like, which was the owner's first observation here.
+
+    Pending one check before the dead end is called absolute: whether
+    opening the application installs or offers the CLI. If it does, this
+    reduces to an undocumented required step rather than a wrong
+    destination.
+
 Owner's open questions for Nico, carried from his notes rather than
 resolved here:
 
