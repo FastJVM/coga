@@ -568,6 +568,31 @@ resolved here:
   given the README targets teams already comfortable with Git. Bears on
   finding 4's severity.
 
+## Verification run: the proposed five lines
+
+Started 2026-10-17 on a third sealed clone. Not a walk. The owner follows
+the proposed block verbatim and nothing else, to establish whether it takes
+a clean Mac to a working `coga build` unaided.
+
+Pass condition: the five lines complete and `coga build` runs, with no
+question asked and no step improvised. Any deviation needed is a defect in
+the block, recorded here with the line that failed. Still installing coga
+from PyPI, so this verifies the instructions rather than any merged fix.
+
+Predictions on record before the run:
+
+- No Command Line Tools dialog during `uv tool install coga`, because line
+  1 installs the compiler first. This is the test of finding 6's fix.
+- The agent CLI installer prints no progress while downloading, per
+  Anthropic's documentation, so line 4 is a silent wait.
+- `claude` requires a paid account at sign-in; the free plan does not
+  include Claude Code. If that blocks a new user, it belongs in the
+  instructions and is a finding.
+
+### Result
+
+(not started)
+
 ## New-user walk: Windows
 
 (not started)
