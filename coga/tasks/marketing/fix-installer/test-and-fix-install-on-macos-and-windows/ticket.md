@@ -589,9 +589,26 @@ Predictions on record before the run:
   include Claude Code. If that blocks a new user, it belongs in the
   instructions and is a finding.
 
-### Result
+### Result — pass, 2026-10-17
 
-(not started)
+The five lines took a clean Mac to a working `coga build` unaided. No
+question asked, no step improvised, no deviation. Owner's summary: "It
+worked perfectly. Much more smooth. If not for the CLI Developer Tools
+download, it would literally take 1 minute."
+
+That number is the case for the change. The walked route took two sessions,
+left Coga's documentation twice, hit an unexplained system dialog, and ended
+at a dead end requiring an undocumented Node install. The same outcome is
+five lines and about a minute of typing, plus Apple's one-time download.
+
+Prediction 1 confirmed: no Command Line Tools dialog during `uv tool install
+coga`. Installing the compiler first removes finding 6's mid-install
+ambush, so ordering is a real fix rather than a cosmetic one. Finding 7
+remains worth fixing on its own terms, since a user with git but no
+compiler still meets the 3.15 source build.
+
+Predictions 2 and 3, the silent agent-CLI download and the paid-account
+sign-in, were not separately reported and are not claimed as verified.
 
 ## New-user walk: Windows
 
