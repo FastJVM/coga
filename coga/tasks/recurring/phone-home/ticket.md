@@ -1,6 +1,6 @@
 ---
 title: Weekly Coga usage snapshot
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
