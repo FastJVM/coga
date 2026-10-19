@@ -1,6 +1,6 @@
 ---
 title: Interactive coga launch on native Windows
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
