@@ -8712,3 +8712,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: Slack configuration refusals and their blast radius. PR: https://github.com/FastJVM/coga/pull/1050
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: publishing Coga state across a branch switch. PR: https://github.com/FastJVM/coga/pull/1051
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: two unguarded branch-cleanup paths. PR: https://github.com/FastJVM/coga/pull/1052
+2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: recurring sweep known gaps. PR: https://github.com/FastJVM/coga/pull/1053
