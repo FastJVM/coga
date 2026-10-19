@@ -436,7 +436,22 @@ to its landed `oscompat` shape.
 
 ## Open Questions
 
-1. **Claude Code auth on the throwaway box** (acceptance 1 needs a logged-in
+1. **Answered (owner, 2026-10-19): (b), an API key.**
+   - At implement time, ask the owner for the key in the attended
+     session. Pass it to the box over stdin into the session env only:
+     never in the repo, a ticket, a log, a command line, or a file
+     outside the box.
+   - Pin the throwaway test repo's agent to Haiku with
+     `launch_args = "--model haiku"` in the *box's* `coga.local.toml`.
+     That file is box-only and never committed.
+   - Use a trivial test ticket whose session runs only the lifecycle
+     command under test.
+   - Expected spend: about 25 sessions at roughly $0.01 each on
+     Haiku 5.5.
+   - The owner checks the credit balance in the Console
+     (Settings → Billing).
+
+   Original question: **Claude Code auth on the throwaway box** (acceptance 1 needs a logged-in
    agent). Options:
    - (a) The owner runs `claude` login on the box over `ssh -t` once per
      box, through the device/URL flow.
