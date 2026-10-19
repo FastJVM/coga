@@ -27,9 +27,13 @@ which:
 2. renders total tokens and session count, the four token categories, a
    per-model split in which `(unknown)` and `<synthetic>` are rows of their
    own, and the count of `usage_status: unknown` sessions stated as a floor,
-3. posts that text once through `coga.notification.post` with
-   `important=True, fatal=False` — a delivery miss is reported and the period
-   still closes — and completes its own step with `coga bump`.
+3. reads the generated period ticket's owner (falling back to
+   `cfg.current_user` when absent) and passes it to `coga.notification.post`
+   with `important=True, fatal=False`. The shared
+   [notification prefix](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/notifications/SKILL.md#pinging-the-owner)
+   identifies the reporting repo and pings a mapped owner; an unmapped owner
+   keeps the plain-name fallback. It posts once — a delivery miss is reported
+   and the period still closes — and completes its own step with `coga bump`.
 
 The report is a pure function of `coga/log.md` and the window, so it keeps no
 cursor and declares no `state_keys:`. A missed or lost week is recovered by
