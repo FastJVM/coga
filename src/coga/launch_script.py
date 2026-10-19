@@ -405,6 +405,12 @@ def run_script_chain(
                 stateless=stateless,
                 strict_assist=assist_branch is not None,
             )
+        if stateless and phase.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+            # The command script deliberately retained local state; settling
+            # the checkout would publish or move exactly what it preserved.
+            return ScriptChainResult(
+                phase.exit_code, phase.ticket, False, None, cfg, ref,
+            )
         if between_phases is not None:
             settled = between_phases(cfg, ref)
             if settled is None:

@@ -26,7 +26,7 @@ from coga.launch_script import (
 )
 from coga.repl_supervisor import ReplOutcome
 from coga.taskfile import read_blackboard, replace_blackboard
-from coga.tasks import TaskRef, resolve_task
+from coga.tasks import TaskRef, resolve_bootstrap, resolve_task
 from coga.ticket import Ticket
 
 
@@ -1674,6 +1674,28 @@ def test_bootstrap_script_retained_state_exit_does_not_refresh_the_checkout(
 
     assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert refreshes == []
+
+
+def test_bootstrap_script_retained_state_exit_skips_between_phase_settlement(
+    script_repo: Path,
+) -> None:
+    bootstrap = script_repo / "bootstrap" / "retains"
+    _write(bootstrap / "ticket.md", "---\ntitle: Retains state\n---\n")
+    _write(bootstrap / "ticket.py", "raise SystemExit(75)\n")
+    cfg = load_config(script_repo)
+    ref = resolve_bootstrap(cfg, "retains")
+    settled: list[object] = []
+
+    def between_phases(phase_cfg, phase_ref):
+        settled.append(phase_ref)
+        return phase_cfg, phase_ref
+
+    outcome = run_script_chain(
+        cfg, ref, Ticket.read(ref.ticket_path), set(), between_phases=between_phases,
+    )
+
+    assert outcome.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert settled == []
 
 
 def test_bootstrap_script_ordinary_failure_still_refreshes_the_checkout(
