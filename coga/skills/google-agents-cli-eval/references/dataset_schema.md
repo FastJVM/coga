@@ -1,6 +1,6 @@
 # Evaluation Dataset Schema
 
-Canonical formats for evaluation datasets in the Agent Platform Evaluation
+Canonical formats for evaluation datasets in the Gemini platform evaluation
 SDK. The summary below covers the type tree as of the version this skill
 targets — for the live, authoritative definitions see the public SDK source:
 [`types/evals.py`](https://github.com/googleapis/python-aiplatform/blob/main/agentplatform/_genai/types/evals.py)
@@ -229,7 +229,7 @@ Service constraints:
 
 | Mistake | Fix |
 |---|---|
-| Using `role="assistant"` | Use `role="model"` (Vertex convention) |
+| Using `role="assistant"` | Use `role="model"` (Gemini platform convention) |
 | Missing `turn_index` | Always set sequential 0-based indices |
 | Tool response without `function_response` | Wrap in a `function_response` part |
 | Using `prompt` field for multi-turn | Use `agent_data` with the full trajectory |

@@ -1,18 +1,18 @@
 ---
 description: |
-    This skill should be used when the user wants to "run an evaluation", "evaluate my agent", "evaluate my ADK agent", "write an eval dataset", "analyze eval failures", "compare eval results", "optimize agent", or needs guidance on the Agent Platform eval methodology and the Quality Flywheel. Covers eval metrics, dataset schema, LLM-as-judge scoring, and common failure causes. Applies to any agents-cli project, whatever framework the agent is written in. Do NOT use for agent API code patterns (ADK: use google-agents-cli-adk-code), deployment (use google-agents-cli-deploy), or project scaffolding (use google-agents-cli-scaffold).
+    This skill should be used when the user wants to "run an evaluation", "evaluate my agent", "evaluate my ADK agent", "write an eval dataset", "analyze eval failures", "compare eval results", "optimize agent", or needs guidance on the Gemini platform eval methodology and the Quality Flywheel. Covers eval metrics, dataset schema, LLM-as-judge scoring, and common failure causes. Applies to any agents-cli project, whatever framework the agent is written in. Do NOT use for agent API code patterns (ADK: use google-agents-cli-adk-code), deployment (use google-agents-cli-deploy), or project scaffolding (use google-agents-cli-scaffold).
 metadata:
     author: Google
     github-path: skills/google-agents-cli-eval
-    github-ref: refs/tags/v1.9.0
+    github-ref: refs/tags/v1.10.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 5c65c7140e07bdabbaf7ec17e895adc1da2373e0
+    github-tree-sha: d8f4ffbb463e01c18569b0ccc45f0efb48e831f4
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.9.0
+    version: 1.10.0
 name: google-agents-cli-eval
 ---
 # Agent Evaluation Guide
@@ -38,7 +38,7 @@ name: google-agents-cli-eval
 
 ## The Quality Flywheel
 
-Improving agent quality is iterative. The 4 stages below describe the loop. Each stage has a Default path (you, the coding agent, do the work directly) and an Opt-in CLI command that delegates to the Agent Platform Eval Service for better quality and scale.
+Improving agent quality is iterative. The 4 stages below describe the loop. Each stage has a Default path (you, the coding agent, do the work directly) and an Opt-in CLI command that delegates to the Eval Service in Gemini platform for better quality and scale.
 
 ### 1. Prepare Data
 
@@ -101,7 +101,7 @@ Pick built-in metrics by what you want to measure. Only `multi_turn_task_success
 | **Different pass/fail criteria per case** | Put them on the case as `rubric_groups` and grade with a managed rubric metric. See `references/dataset_schema.md` (*Per-Case Rubrics*). |
 | **Domain-specific check no built-in covers** | Write a custom `LLMMetric` (LLM-judge) or `CodeExecutionMetric` (deterministic Python). See *Evaluation Configuration Schema* below. |
 
-Run `agents-cli eval metric list` to see all available built-ins. For full metric definitions and rubric details, see the [Agent Platform metric docs](https://cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/manage-metrics) and `references/metrics-guide.md`.
+Run `agents-cli eval metric list` to see all available built-ins. For full metric definitions and rubric details, see the [Gemini platform metric docs](https://cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/manage-metrics) and `references/metrics-guide.md`.
 
 ---
 
@@ -165,7 +165,7 @@ agents-cli eval generate --mode adk_live
 
 #### Evaluating Live agents
 
-Live agents run over a WebSocket, not `/run_sse`: add `--mode adk_live` to `generate` or `run`. The dataset, the traces, and grading are unchanged, and the audio reply is transcribed so the transcript is what gets graded. Two things must already be true or the socket connects and *then* fails mid-session: the agent uses a Live model (the scaffold default is not one), and on Vertex its region is pinned on the model rather than left to `GOOGLE_CLOUD_LOCATION`. Both, plus dataset authoring rules: `references/live-eval.md`.
+Live agents run over a WebSocket, not `/run_sse`: add `--mode adk_live` to `generate` or `run`. The dataset, the traces, and grading are unchanged, and the audio reply is transcribed so the transcript is what gets graded. Two things must already be true or the socket connects and *then* fails mid-session: the agent uses a Live model (the scaffold default is not one), and on Gemini platform its region is pinned on the model rather than left to `GOOGLE_CLOUD_LOCATION`. Both, plus dataset authoring rules: `references/live-eval.md`.
 
 ### `eval grade`
 
@@ -295,7 +295,7 @@ Dispatch by field: `custom_function` → Python metric; `prompt_template` → `L
 
 `reference`, `context`, and `rubric_groups` are yours to author on the case: `eval generate` carries them onto the trace but never invents them, so `{reference}` / `{context}` resolve only where you wrote them. `rubric_groups` is not a placeholder at all: managed rubric metrics read it off the case, and a `custom_function` sees `instance['rubric_groups']`. See `references/dataset_schema.md` (*Per-Case Rubrics*).
 
-Code-based metrics default to **local in-process execution** (no GCP project or region required, but the `evaluate(instance)` function runs with the CLI's privileges). Set `execution: "remote"` on the metric to run it server-side in Vertex AI's `CodeExecutionMetric` sandbox instead — that path requires a configured GCP project + region.
+Code-based metrics default to **local in-process execution** (no GCP project or region required, but the `evaluate(instance)` function runs with the CLI's privileges). Set `execution: "remote"` on the metric to run it server-side in the `CodeExecutionMetric` sandbox in Gemini platform instead — that path requires a configured GCP project + region.
 
 ---
 
@@ -322,7 +322,7 @@ app = App(root_agent=root_agent, name="app")
 app = App(root_agent=root_agent, name="flight_booking_assistant")
 ```
 
-### Vertex eval region
+### Gemini platform eval region
 
 `eval run`, `eval grade`, and `eval submit` **default to the `global` endpoint**. They don't inherit the manifest `region` (the eval services support only a subset of regions), and `eval analyze` is `global`-only. Override these per run with `--region <REGION>` (e.g. data residency); the service rejects an unsupported one:
 
@@ -330,7 +330,7 @@ app = App(root_agent=root_agent, name="flight_booking_assistant")
 400 FAILED_PRECONDITION: Unsupported region for Vertex Evaluation Service: <region>
 ```
 
-`eval generate` (without the `--url` flag) and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Vertex AI** (`GOOGLE_GENAI_USE_ENTERPRISE=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env` — or, better for a single agent, pin it in code with `Gemini(model=…, client_kwargs={"location": …})`, which beats the env var and leaves it free for everything else. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
+`eval generate` (without the `--url` flag) and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Gemini platform** (`GOOGLE_GENAI_USE_ENTERPRISE=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env` — or, better for a single agent, pin it in code with `Gemini(model=…, client_kwargs={"location": …})`, which beats the env var and leaves it free for everything else. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
 
 **No eval region fits your data-residency rules?** Fall back to **local custom metrics** — a `custom_metrics` entry with a `custom_function` (`execution: local`, the default) grades in-process with no GCP region required. You lose the managed built-in metrics, but your `custom_function` can still call an LLM judge in a compliant region itself — so LLM-as-judge grading stays available anywhere.
 

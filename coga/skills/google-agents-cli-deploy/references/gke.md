@@ -44,7 +44,7 @@ This lets pods authenticate as `app_sa` without service account keys — same se
 |------|--------------|----------|
 | **In-memory** | Default (`shared://session` resolved by `app_utils/services.py` (in-memory)) | Local dev only; lost on pod restart |
 | **Cloud SQL** | `--session-type cloud_sql` at scaffold time | Production persistent sessions (Cloud SQL proxy sidecar in pod) |
-| **Agent Runtime** | Managed Agent Engine sessions (`agentengine://{resource_name}`) | When using Agent Runtime as session backend |
+| **Agent Runtime in Gemini platform** | Managed sessions (`agentengine://{resource_name}`) | When using Agent Runtime as session backend |
 
 The concrete session URI for `cloud_sql` / `agent_platform_sessions` is now built inside `app_utils/services.py`, not `fast_api_app.py`.
 

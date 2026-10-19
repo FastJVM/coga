@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.9.0
+    github-ref: refs/tags/v1.10.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: ce1c84124caeb2eb63d60702d5c982f37ed507f2
+    github-tree-sha: c0cd49753bcfc21e055974b9a570432a8d32abbd
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.9.0
+    version: 1.10.0
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.9.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.9.0"
+> Requires: google-agents-cli ~= 1.10.0
+> If version is behind, run: uv tool install "google-agents-cli~=1.10.0"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -40,7 +40,7 @@ Re-read the relevant skill **before** each phase — not after you've already st
 | 3 — Build | `/google-agents-cli-adk-code` | Before writing agent code — API patterns, tools, callbacks, state |
 | 4 — Evaluate | `/google-agents-cli-eval` | Before running any eval — dataset schema, metrics, eval-fix loop |
 | 5 — Deploy | `/google-agents-cli-deploy` | Before deploying — target selection, troubleshooting 403/timeouts |
-| 6 — Publish | `/google-agents-cli-publish` | After deploying, if registering with Gemini Enterprise (optional) |
+| 6 — Publish | `/google-agents-cli-publish` | After deploying, if registering with Gemini (optional) |
 | 7 — Observe | `/google-agents-cli-observability` | After deploying — traces, logging, monitoring setup |
 
 ---
@@ -58,7 +58,7 @@ Install `uv` following the [official installation guide](https://docs.astral.sh/
 
 ### Product name mapping
 
-Users name products inconsistently (Vertex AI → Agent Platform, Agent Engine → Agent Runtime, etc.). Map user terms to CLI values using `references/terminology.md`.
+Users name products inconsistently (Vertex AI or Agent Platform → Gemini platform, Agent Engine or Agent Runtime → Agent Runtime in Gemini platform, etc.). Map user terms to CLI values using `references/terminology.md`.
 
 ---
 
@@ -82,11 +82,11 @@ Do NOT proceed to planning, scaffolding, or coding until the user approves the s
 **Ask based on context:**
 
 - If the agent needs a **capability the scaffold doesn't ship** — retrieval over your data, sandboxed code execution, memory across sessions, OAuth consent, safety guardrails, event-driven triggers — that capability comes from a **clone-and-study recipe**, not a scaffold flag. Look the need up in the topic index in `/google-agents-cli-adk-code` → `references/samples.md` and study the matching recipe in Phase 1.
-- If the agent is a **live or voice agent** (Live API, spoken conversation, barge-in, telephony) → load `/google-agents-cli-adk-code` (`references/adk-python-live.md`) **before writing the spec**. Live rules out A2A, Gemini Enterprise, and the default model.
+- If the agent is a **live or voice agent** (Live API, spoken conversation, barge-in, telephony) → load `/google-agents-cli-adk-code` (`references/adk-python-live.md`) **before writing the spec**. Live rules out A2A, the Gemini app, and the default model.
 - If agent should be **available to other agents** → **A2A protocol** is built into every Python agent scaffolded by agents-cli; no separate choice needed — just scaffold normally.
 - If **full deployment** chosen → **CI/CD runner?** GitHub Actions (default) or Google Cloud Build?
 - If agent should **remember user preferences or facts across sessions** → long-term memory across conversations. Load `/google-agents-cli-adk-code` — it has both the recipe (in `references/samples.md`) and the ADK memory API details.
-- If **Cloud Run** or **GKE** chosen → **Session storage?** In-memory (default), Cloud SQL (persistent), or Agent Platform Sessions (managed).
+- If **Cloud Run** or **GKE** chosen → **Session storage?** In-memory (default), Cloud SQL (persistent), or Sessions in Gemini platform (managed).
 - If **deployment with CI/CD** chosen → **Git repository?** Does one already exist, or should one be created? If creating, public or private?
 
 Once the design is agreed, write the spec to `.agents-cli-spec.md` using the template in `references/spec-template.md`, self-review it, then get the user's approval. See `/google-agents-cli-scaffold` for how these choices map to CLI flags.
@@ -102,7 +102,8 @@ Once you have a clear understanding, proceed to **Phase 1**.
 > blocking harmful content or moderating what agents say · acting with a user's own API keys or
 > credentials · OAuth consent to reach a user's own data · delegating to sub-agents with isolated
 > context · speaking A2A to other agents · reacting to events or a schedule · researching a topic
-> online and reporting it with citations · generating images or video — then a recipe already
+> online and reporting it with citations · generating images or video · monitoring a deployed
+> agent's quality from its production traces — then a recipe already
 > implements it. Look it up **before you commit to an implementation.**
 >
 > This list covers the same capabilities as the topic index in `/google-agents-cli-adk-code` → `references/samples.md`. If you extend one, extend the other.
@@ -195,7 +196,7 @@ Once the user agrees the eval scores are good enough:
 
 ## Phase 6: Publish (optional)
 
-Not all agents require this — currently supporting Gemini Enterprise. See `/google-agents-cli-publish` for registration modes, flags, and troubleshooting.
+Not all agents require this — currently supporting registration with Gemini. See `/google-agents-cli-publish` for registration modes, flags, and troubleshooting.
 
 ## Phase 7: Observe
 

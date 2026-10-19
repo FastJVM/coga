@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v1.9.0
+    github-ref: refs/tags/v1.10.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 80d1751d0a5b45dd98fecb64832ac81d6d1264c0
+    github-tree-sha: b6a9a90fd380d3569130bb362898761df63a8224
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.9.0
+    version: 1.10.0
 name: google-agents-cli-observability
 ---
 # Observability Guide
@@ -27,7 +27,7 @@ name: google-agents-cli-observability
 | **Yes** | Run `agents-cli infra single-project --apply` first, then `agents-cli deploy`. |
 
 **If you already ran `agents-cli deploy` imperatively:**
-Do not apply Terraform afterward. For Agent Runtime, Terraform owns the whole engine (service account, deployment spec, env vars), so a later apply can't be reconciled without taking over the resource. 
+Do not apply Terraform afterward. For Agent Runtime in Gemini platform, Terraform owns the whole engine (service account, deployment spec, env vars), so a later apply can't be reconciled without taking over the resource. 
 Either delete the deployment and start over, or keep the SDK-deployed instance — skip `infra single-project` and set the observability env vars by re-running `agents-cli deploy --update-env-vars "KEY=VALUE,..."`; deploy matches the existing Reasoning Engine by display name and updates it in place, preserving env vars set outside the deploy. You must also grant its service account the telemetry IAM roles the Terraform module would otherwise provision: `roles/storage.admin` (write completions to the logs bucket), `roles/logging.logWriter`, `roles/cloudtrace.agent`, plus `roles/bigquery.dataOwner` + `roles/bigquery.jobUser` when scaffolded with `--bq-analytics`. The full set lives in `deployment/terraform/single-project/iam.tf` (from `app_sa_roles`) and `telemetry.tf`. Terraform-managed env vars aren't available in this mode.
 
 ### Reference Files
@@ -76,7 +76,7 @@ invoke_workflow (top-level run)
 
 | Deployment | Setup |
 |-----------|-------|
-| **Agent Runtime** | Automatic — exporters wired at startup, gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy); exports to Cloud Trace/Logging + Agent Engine console |
+| **Agent Runtime** | Automatic — exporters wired at startup, gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy); exports to Cloud Trace/Logging + the Agent Runtime page in the Google Cloud console |
 | **Cloud Run / GKE (scaffolded)** | Automatic — exporters wired at startup, exports to Cloud Trace/Logging |
 | **Cloud Run / GKE (manual)** | Configure OpenTelemetry exporter in your app |
 | **Local dev** | Works with `agents-cli playground`; traces visible in Cloud Console |

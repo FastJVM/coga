@@ -13,7 +13,7 @@
 
 ## Cloud Trace
 
-Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging. The exporters are wired at app startup (**ADK Python:** `get_fast_api_app(otel_to_cloud=True)`; **ADK Go:** `setupObservability()` in `observability.go`, which exports traces and logs over OTLP to `telemetry.googleapis.com` regardless of the launcher's `-otel_to_cloud` flag; other templates call their own setup, e.g. `app/app_utils/telemetry.py`). For **Agent Runtime** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear in the Agent Engine console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
+Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging. The exporters are wired at app startup (**ADK Python:** `get_fast_api_app(otel_to_cloud=True)`; **ADK Go:** `setupObservability()` in `observability.go`, which exports traces and logs over OTLP to `telemetry.googleapis.com` regardless of the launcher's `-otel_to_cloud` flag; other templates call their own setup, e.g. `app/app_utils/telemetry.py`). For **Agent Runtime in Gemini platform** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear on the Agent Runtime page in the Google Cloud console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
 
 View traces: **Cloud Console → Trace → Trace explorer**
 
