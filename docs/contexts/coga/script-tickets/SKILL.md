@@ -29,6 +29,26 @@ the ticket, but Coga neither discovers nor runs them. A recurring template's
 launch repeats it after every moving sync, and a vanished file becomes an
 agent-only handoff instead of a failed run of a stale path.
 
+### Why this shape
+
+Owner-accepted design (2026-08-18, PR #700); do not re-argue it without
+engaging these reasons:
+
+- **Agent work is deduced from completion, not declared.** Whether the agent
+  half runs depends only on whether the script completed its own step, never
+  on a static signal such as "the step declares skills". A forgotten
+  completion fails toward running the agent (visible, costs tokens, skips
+  nothing), never toward silently skipping it. For the same reason launch
+  never advances a step on the script's behalf.
+- **`ticket.py`, not `run.py`.** A task directory also holds attachments, and
+  a `run.py` repro script is a likely accidental trigger; nobody attaches a
+  `ticket.py` by accident. The executable bit is ignored because `ls`, GitHub
+  and zips do not show or keep it.
+- **A stat, not a plugin host.** PR #670's objection ("no plugin host, no
+  recursive discovery") does not apply: this is one `stat()` at one fixed path
+  inside the target's own directory, affecting only that target, with no scan
+  or registry, and core subprocesses the file rather than importing it.
+
 ## One deterministic phase
 
 `run_script_phase` runs before any agent setup: no prompt composition, CLI

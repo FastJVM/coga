@@ -815,3 +815,10 @@ worktree: `/tmp/coga-deduce-ticket-script`
   (`ok_count: 3`, zero issues), and `git diff --check` is clean.
 - Freshness: fetched and rebased onto `origin/main`; branch is clean, zero
   commits behind and two commits ahead. No push or PR was created in this step.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: why ticket.py is a completion-deduced fixed-name stat
