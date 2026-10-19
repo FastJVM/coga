@@ -78,8 +78,10 @@ accurate and reachable rather than running tests that cover nothing.
    local commits means reconcile per `dev/checkouts/reconciliation` before
    pushing; anything unexpected means stop and escalate per your launch
    mode. With no prepared branch, perform the `dev/checkouts` manual start
-   check and branch setup. A read-only `.git` follows
-   `dev/checkouts/sandbox-clone`, as `code/implement` describes.
+   check and branch setup. A read-only `.git` uses the
+   sandbox clone fallback in `dev/checkouts/sandbox-clone`; seed each clone,
+   on creation and on resume, with
+   `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
 3. **Edit on the feature branch.** Keep the diff scoped to the ticket; no
    opportunistic rewrites. Edit docs only while on the branch — note
    adjacent cleanup for a follow-up and write it to the blackboard with the

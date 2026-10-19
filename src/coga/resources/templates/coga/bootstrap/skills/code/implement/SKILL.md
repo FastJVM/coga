@@ -62,8 +62,9 @@ after review and fixes.
    branch, or bump. When the ticket already records a `worktree:` clone,
    the notice names it: change code only there and keep the ticket in this
    checkout. A manual session that cannot create its branch makes the clone
-   that topic describes and seeds its local config with the ordinary
-   `seed_local_config.py` attachment beside this skill:
+   that topic describes. In every clone, on creation and on each resumed
+   session, seed its local config with the ordinary `seed_local_config.py`
+   attachment beside this skill:
 
    ```bash
    python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo
