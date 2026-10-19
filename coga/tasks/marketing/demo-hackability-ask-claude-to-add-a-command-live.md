@@ -16,8 +16,6 @@ workflow:
     assignee: agent
 step: 1 (agent-produces)
 contexts:
-  - marketing/plan
-  - marketing/positioning
   - coga/extension-model
   - coga/script-tickets
   - coga/configuration
@@ -62,9 +60,18 @@ repo recipe, a rehearsal log proving the take works, and a fallback plan.
       not gate it.
 - [ ] Fallback: a pre-recorded good take, and the exact recovery line the
       presenter says if the live take stalls.
-- [ ] The claims shown stay within `marketing/positioning` proof limits.
+- [ ] The claims shown stay within the live
+      [claim and wording limits](idea-piece.md#claim-and-wording-limits),
+      with the recorded rehearsals supporting the demonstrated behavior.
 
 ## Context
+
+Use [README.md](../../../README.md) for current public positioning and
+[`coga/principles`](../../../docs/contexts/coga/principles/SKILL.md) for the
+design principles. Read the live
+[idea-piece claim limits](idea-piece.md#claim-and-wording-limits) before
+drafting the script and the [launch plan](build-the-launch-plan.md) before
+preparing publication; the retired marketing contexts are not dependencies.
 
 Owner request, 2026-10-16, alongside pulling the microkernel cleanup into v1.
 The demo is the visible proof of that cleanup, so **rehearse it after
@@ -88,9 +95,10 @@ Open questions to settle in the script, not to block on:
   Recommended: `ticket.py` for the summary, so a re-take shows the same
   output.
 - **Placement in the campaign.** Whether this clip goes in the Show HN post,
-  the README, or both is the owner's call under `marketing/plan`.
+  the README, or both is the owner's call under the
+  [live launch plan](build-the-launch-plan.md).
 
-Related: `marketing/plan`, `marketing/positioning`, `coga/extension-model`,
+Related: README.md, `coga/principles`, `coga/extension-model`,
 `coga/launch`, `coga/script-tickets`, `coga/configuration` (aliases).
 
 <!-- coga:blackboard -->
