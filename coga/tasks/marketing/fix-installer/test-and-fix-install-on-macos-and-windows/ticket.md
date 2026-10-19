@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 contexts:
 - coga/install
 agent: claude
@@ -652,6 +652,114 @@ work produced — that `coga.git` imports `fcntl` at module top, so even
 `coga --help` fails — already belongs to
 `windows-native/core-port-cli-and-test-suite-pass-on-native-window` and is
 listed above among the facts to rehome when `coga/install` is deleted.
+
+## Handoff — implement, 2026-10-18
+
+The macOS walk is complete and the fix is on the branch. Three clean VMs:
+one cold walk, one reproduction, one verification of the proposed block.
+Sixteen findings, all recorded above with evidence.
+
+What landed in code: one commit, `README.md` only, replacing the install
+block with the five-line sequence verified on a clean machine and removing
+two false claims — that Coga runs on native Windows, and that `coga init`
+offers to install an agent CLI, which the released package does not do.
+
+Three deviations from the owner's dictated text, each raised at the time
+and left in deliberately:
+
+- Kept "Linux or macOS" rather than macOS alone, because Coga does run on
+  Linux and the owner's wording would have been false in the other
+  direction. Line 1 carries a `macOS:` marker so Linux readers skip it.
+- Added "Native Windows is unsupported." That fact lives only on the page
+  being deleted, and Windows users will try regardless.
+- Kept Nico's sentence about uv fetching a compatible Python
+  (`ff906aac4`), because the platform line still requires Python 3.11+ and
+  nothing in the block installs Python.
+
+Deliberately out of scope, each with a reason recorded above: deleting
+`coga/install` (owner is doing it, and the orphan facts need homes first),
+capping `requires-python` for finding 7, and teaching the dependency
+manifest the agent CLI's native installer for finding 16. The last two need
+owner rulings listed under "Decisions needed" in the owner's report.
+
+For the next step: `main` is red independently of this work. Two causes,
+both reproduced on the merge-base with this change stashed — a drifted
+`coga/recurring/autoclose-merged/ticket.md` twin, and the `CLAUDE.md`
+core-boundary text. CI will fail on this PR until someone fixes them, and
+that is not this ticket's job.
+
+Also produced, outside the repo: an organised findings report in the
+owner's Google Docs, with labelled screenshot slots he fills himself.
+
+## PR
+
+```yaml
+title: Replace README install block with a verified clean-machine sequence
+author: claude
+author_evidence: >-
+  Implement session ran as Claude Opus 5 under `coga launch`, attended by the
+  owner throughout; no agent override was used.
+head: 4628340433629d7e14baefe47708e09a7eb7ddff
+base: 8508d839856fee4623ce03ab2eefbf932d5033e2
+depth: deep
+rationale: >-
+  The diff is one prose file and the sequence in it was walked end to end on a
+  clean macOS VM, but no review has run yet, the suite is red from unrelated
+  pre-existing failures, and this is the public front page's install path —
+  the first thing every new user executes. The later judgment steps should
+  downgrade this once review returns green.
+implementation: >-
+  Replaces the four-line README install block, which cannot complete on a
+  fresh Mac, with the five-line sequence verified on a clean VM, and corrects
+  the platform sentence.
+deviations: >-
+  Three departures from the owner's dictated wording, each raised with him
+  before committing: kept "Linux or macOS" rather than macOS alone because
+  Coga does run on Linux; added "Native Windows is unsupported" because that
+  fact's only home is the page being deleted; kept Nico's uv/Python sentence
+  from ff906aac4 because the platform line still names Python 3.11+.
+limitations: >-
+  Verified on macOS 26.6.2 arm64 only. The Linux path is reasoned, not walked:
+  line 1 is marked macOS-only and Linux users take git from their package
+  manager. Line 4 installs the agent CLI with the vendor's own script, which
+  sits against the policy in `src/coga/agent_cli_setup.py` that Coga itself
+  never runs `curl | sh`; that policy governs what Coga executes, not what the
+  README tells a user to run, but the tension is unresolved and is finding 16.
+files:
+  README.md: >-
+    Install section — the five verified lines, and the platform sentence
+    corrected to drop the false native-Windows claim and the agent-CLI install
+    offer the released package does not have.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    This workflow reviews at its later `self-qa` and owner `review` steps; no
+    review has run on this diff yet. Owner approval of the install wording
+    during the walk is not code review.
+checks:
+  - command: python -m pytest
+    status: failed
+    head: 4628340433629d7e14baefe47708e09a7eb7ddff
+    base: 8508d839856fee4623ce03ab2eefbf932d5033e2
+    detail: >-
+      3776 passed, 5 failed, 8 skipped in 35m. All five reproduced on the
+      merge-base with this change stashed, so none is caused by this diff:
+      test_packaging and test_autoclose_sweep twin drift on
+      coga/recurring/autoclose-merged/ticket.md, test_compose's CLAUDE.md
+      core-boundary case, test_edge_distribution, and a test_recurring
+      git update-ref failure. Run against the working tree before commit; the
+      committed README is byte-identical to the tested one.
+  - command: coga validate --json
+    status: passed
+    head: 4628340433629d7e14baefe47708e09a7eb7ddff
+    base: 8508d839856fee4623ce03ab2eefbf932d5033e2
+    detail: >-
+      No error on either ticket touched here. The two errors reported belong to
+      marketing/demo-hackability-ask-claude-to-add-a-command-live, which this
+      work does not touch.
+```
 
 ## Blockers
 
