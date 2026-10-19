@@ -43,7 +43,13 @@ stale-session guard and the other lifecycle commands that scope their
 authority to it. Megalaunch mints the same pair. Both also pin
 `COGA_EXPECTED_AGENT`, the agent nickname actually spawned (an `--agent`
 override included), so `bump` and `mark done` from that session credit
-`agent:<who ran>` rather than the step's routed operator. Only `coga launch` adds
+`agent:<who ran>` rather than the step's routed operator. Known gap
+(unresolved, no follow-up ticket): `coga slack` does not read it.
+`commands/slack.py` builds its actor from `current_operator`, the routed or
+default agent, so under an override (seen with `coga dream --agent codex`,
+2026-09-24) it logs `[agent:claude]` and posts "claude on <slug>"; an
+agent-run `coga create` in the same runs logged `[human:<user>]`, because its
+actor comes from `created_by`. Only `coga launch` adds
 `COGA_LAUNCH_RETURNS_CHECKOUT=1`, and only when its checkout boundary
 prepared the invoking checkout. The boundary itself (publish, prepare,
 return) runs in `_launch` around this call, never inside it, because

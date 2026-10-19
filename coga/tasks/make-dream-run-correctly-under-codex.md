@@ -761,3 +761,10 @@ attribution finding from iteration 1.
   pre-existing `unsynthesized-draft-blackboard` on
   `v2/autotrigger-ticket-type`); none attributable to this branch.
 - Not pushed, no PR (open-pr step).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: coga slack ignores the --agent override when crediting
