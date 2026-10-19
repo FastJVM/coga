@@ -284,8 +284,8 @@ session with `teardown` plus `status`.
 9. **Docs.** Update `docs/contexts/coga/install/SKILL.md` and its packaged
    twin `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`.
    Replace the "Linux or macOS (POSIX). Native Windows is unsupported"
-   bullet with Linux, macOS, or native Windows 10/11 or Server 2022+,
-   and add a short *Windows baseline* subsection covering:
+   bullet with Linux, macOS, or native Windows, stating Windows Server
+   2025 as the tested version (owner, 2026-10-19), and add a short *Windows baseline* subsection covering:
    - Python 3.11+ through uv (`irm https://astral.sh/uv/install.ps1 | iex`,
      then `uv python install 3.11`);
    - `%USERPROFILE%\.local\bin` on PATH after `uv tool install`, with
@@ -293,8 +293,8 @@ session with `teardown` plus `status`.
    - Git for Windows (its installer's default `core.autocrlf=true` is
      fine, since Coga writes LF and Git normalizes);
    - PowerShell or Windows Terminal as the shell (Coga needs no bash);
-   - agent CLIs: Claude Code's native installer is verified, Codex is
-     untested on native Windows;
+   - agent CLIs: Claude Code's native installer is the tested agent;
+     Codex is untested on native Windows;
    - the `--idle-timeout` limitation.
    Also update `coga/internals/agent-spawn` (*The supervisor* section),
    `coga/launch` (*Options and exits*: the Windows idle-timeout refusal),
@@ -304,7 +304,9 @@ session with `teardown` plus `status`.
 
 - A ConPTY/pywinpty backend, or measuring idle-timeout on Windows by any
   heuristic (Job CPU time, I/O counters). Revisit only with a new ticket.
-- Verifying Codex on native Windows beyond the `.cmd` prompt-pointer rule.
+- Verifying Codex on native Windows. This ticket tests Coga, not agent
+  CLIs (owner, 2026-10-19). The `.cmd` prompt-pointer rule stays, because
+  it is Coga's own behavior.
 - WSL, macOS changes, and CI (`windows-native/pr-ci-with-linux-and-windows-test-jobs`).
 - Changing recurring/clone `ProcessTree` behavior on Windows. Those
   consumers keep hard-kill semantics.
@@ -445,12 +447,16 @@ to its landed `oscompat` shape.
 
    Which should the implement step use? The repo is public, so nothing can
    be written into logs or tickets.
-2. **The supported-version floor stated in `coga/install`.** Only Server
+2. **Answered (owner, 2026-10-19): state Server 2025 as the tested
+   version.** The spec's §9 is updated. Original question: **The
+   supported-version floor stated in `coga/install`.** Only Server
    2025 was tested, plus Zach's machine at the human check (presumably
    Windows 11). Inherited-console TUIs need ConPTY/VT, which arrived in
    Windows 10 1809. Should the doc state "Windows 10 1809+ / 11 / Server
    2022+", or only "Windows 11 and Server 2025 (tested)"?
-3. **Codex on native Windows.** The spec only guarantees that a `.cmd`
+3. **Answered (owner, 2026-10-19): no Codex run. We test Coga, not the
+   agent CLIs.** `coga/install` says Codex is untested on native Windows.
+   Original question: **Codex on native Windows.** The spec only guarantees that a `.cmd`
    shim gets the prompt pointer. Should `coga/install` say "Codex
    untested on native Windows", or should a Codex run on the box be added
    to acceptance?
