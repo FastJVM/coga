@@ -1,6 +1,6 @@
 ---
 title: Automate checkout setup and deduplicate instructions
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
