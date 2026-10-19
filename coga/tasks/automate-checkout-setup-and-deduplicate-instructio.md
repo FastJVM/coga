@@ -723,6 +723,10 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: checkout-prep-automation
+
 ## Design handoff
 
 Design investigated against `f973db63c` on control. The spec now lives under
