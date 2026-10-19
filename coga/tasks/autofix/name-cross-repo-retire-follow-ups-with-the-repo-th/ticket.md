@@ -29,7 +29,7 @@ step: 4 (review)
 
 ## Description
 
-## What broke
+### What broke
 
 The 2026-09-10 autoclose sweep exited clean (`problems: 0`, ticket `done`), but
 the one actionable thing it produced — a `coga retire` follow-up command — is
@@ -40,7 +40,7 @@ linked worktree of a *different* repo than the one holding the ticket, the
 emitted command fails `coga retire`'s same-repo worktree proof if a human pastes
 it where the sweep printed it.
 
-## Evidence
+### Evidence
 
 From the run's blackboard (mirrored into
 `coga/recurring/autoclose-merged/ticket.md`):
@@ -74,7 +74,7 @@ the 2026-09-09 entries and found neither retired —
 listed `prunable`. Follow-ups are accumulating, so an unrunnable one will sit
 there indefinitely.
 
-## Where it lives
+### Where it lives
 
 - Recipe: `coga.autoclose.sweep_merged`, dispatched by `coga run autoclose`
   (package-backed; the fix likely belongs upstream in FastJVM/coga, same as
@@ -85,7 +85,7 @@ there indefinitely.
   `worktree:`") and `coga/recurring/autoclose-merged/ticket.md` Description
   step 6.
 
-## What a fix has to do
+### What a fix has to do
 
 1. When the sweep is about to name a retire follow-up, resolve the recorded
    `worktree:` path to its owning repository — e.g. `git -C <worktree>
