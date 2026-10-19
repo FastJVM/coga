@@ -1,11 +1,11 @@
 ---
 title: Dream
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: ff3a5bcd-f6db-414e-9cc0-775c448d9e3a
+period_generation: 4ff6abfd-5ce3-4853-8899-3a90d7666e8e
 workflow:
   name: direct/body
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - direct/body
     assignee: agent
+step: 1 (execute)
 ---
 
 ## Description
@@ -262,19 +263,34 @@ runs and better at de-duplicating repeated facts.
 A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
-- its blackboard `## Dev` section has no real `branch:` or `worktree:` value
-  (absent, empty, and placeholder values such as `(not yet created)` do not
-  block Retro); and
+- its blackboard `## Dev` section records no **live checkout**. Check every
+  real `branch:` line (`autoclose.parse_branch_names`), not just the first.
+  Use `retire_worklist.is_discharged`'s existence and ownership rule: resolve
+  `worktree:` relative to this repository's root, identify its owning
+  repository with `worktree_owner`, and check the branches in that repository
+  (`owner_branch_remains`), not only in Dream's checkout. A primary checkout
+  is exempt from directory debt, **not** from branch debt: a branch held only
+  in an independent sandbox clone still blocks Retro. Also require every
+  recorded branch to be absent from the configured remote
+  (`git ls-remote --heads <remote> refs/heads/<branch>`). A non-primary
+  worktree directory that still exists blocks Retro. A line naming a branch
+  and worktree already gone — the shape autoclose leaves after deleting a
+  merged ticket's branch — does not block Retro, and neither do absent, empty,
+  or placeholder values such as `(not yet created)`. A probe that cannot
+  answer (an unreadable branch list, an unreachable remote) counts as live; and
 - no open PR is adding its `## Retro` marker or deleting that resolved task
   directory.
 
-A checkout-bearing done ticket is retirement debt, not Retro input. Do not
-delegate it to `retro/done-ticket` and do not invoke `coga retire` from Dream:
-leave the ticket and its `## Dev` evidence on disk so the exact human-typed
-`coga retire <slug>` command remains valid. List it as deferred retirement debt
-in the run summary. After retirement consumes that evidence and removes the
-source ticket, the ordinary existence gate makes it disappear from Dream's
-candidate set.
+A done ticket with a live checkout is retirement debt, not Retro input. Do
+not delegate it to `retro/done-ticket` and do not invoke `coga retire` from
+Dream: leave the ticket and its `## Dev` evidence on disk so the exact
+human-typed `coga retire <slug>` command remains valid. That command disposes
+of the checkout and deletes the done ticket without a retro agent. A canceled
+ticket is retirement debt too: Phase 4 never takes it, and `coga retire <slug>`
+runs Retro on it for its cancellation reason and other negative learning. List
+both kinds as deferred retirement debt in the run summary. After retirement
+removes the source ticket, the ordinary existence gate makes it disappear from
+Dream's candidate set.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -577,7 +593,16 @@ Route each remaining Phase 2 and Phase 3 finding by class:
     because an open PR already edits that ticket, it is in flight; report the
     PR and do nothing.
   - `done+checkout` — the source ticket is retirement debt, deliberately left
-    on disk so the human-typed `coga retire <slug>` stays valid. That ticket
+    on disk so the human-typed `coga retire <slug>` stays valid. `coga retire`
+    deletes a done ticket without Retro, so this finding is the only route
+    for what it saw. Apply the proposal-ownership rule above before opening
+    anything. Open a proposal PR that edits the target context or skill with
+    the durable fact when no existing proposal or overlap draft owns it,
+    citing the source ticket by slug. The PR is `pr-required` like `stale`,
+    and Dream leaves the ticket on disk. Also list the ticket under the run
+    summary's retirement-debt section so the human can retire it.
+  - `canceled` — the source ticket is retirement debt, deliberately left on
+    disk so the human-typed `coga retire <slug>` stays valid. That ticket
     is the durable artifact and retirement is its consumer: `coga retire`
     runs Retro over the ticket and extracts what this finding saw. Open no PR
     and file no carrier ticket — a second copy decays while the source stays
@@ -586,12 +611,6 @@ Route each remaining Phase 2 and Phase 3 finding by class:
     retirements by the knowledge they unlock. This is a standing condition
     while the retirement backlog exists; the same findings recur until the
     tickets are retired, and reporting them again each run is correct.
-  - `canceled` — Retro refuses a ticket that is not `done`, so nothing else
-    will ever consume it. Apply the proposal-ownership check above before
-    opening anything. Open a proposal PR that edits the target context or
-    skill with the durable fact when no existing proposal or overlap draft
-    owns it, citing the source ticket by slug. The PR is `pr-required` like
-    `stale`, and Dream leaves the canceled ticket on disk.
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. Apply the
@@ -669,202 +688,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Dream Skill: validate-drift
-
-Generated: 2026-10-12T17:36:21+00:00
-Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
-Task: `recurring/dream`
-
-Result: 38 issue(s): 0 direct fix, 0 PR proposal, 38 human-needed.
-
-### Human Needed
-
-- `add-an-applying-a-batch-of-verdicts-section-to-the`: `stuck-in-progress` (warn) - in_progress but idle for 332.5h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `autoclose-should-be-script-only`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `autofix/name-cross-repo-retire-follow-ups-with-the-repo-th`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `carry-the-apply-the-register-amendment-step-in-a-w`: `stuck-in-progress` (warn) - in_progress but idle for 288.7h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `dream-s-own-blackboard-trips-large-blackboard-ever`: `stuck-in-progress` (warn) - in_progress but idle for 85.1h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `dream-should-be-able-to-use-codex-instead-of-claud`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `fix-coga-git-sync-failures-that-leave-main-diverge`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `fix-git-sync-failure`: `unfrozen-workflow` (warn) - workflow 'code/with-self-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `fix-the-commit-git-journal`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `gigantic-refactor-move-recurring-recipes-out-of-co`: `stuck-in-progress` (warn) - in_progress but idle for 287.8h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `implement-the-include-allowlist-that-url-skill-upd`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `investigate-successful-codex-sessions-reported-as`: `stuck-in-progress` (warn) - in_progress but idle for 94.1h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `launch-locks/checkout-exclusivity-lock`: `stuck-in-progress` (warn) - in_progress but idle for 137.8h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `launch-locks/ticket-ownership-lock`: `stuck-in-progress` (warn) - in_progress but idle for 259.3h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `lifecycle-writes-read-control-s-ticket-before-modi`: `stuck-in-progress` (warn) - in_progress but idle for 334.6h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `make-coga-init-initizalizess-also-already-filled-r`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `make-every-code-workflow-review-with-the-other-age`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/1st-users`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/build-the-launch-plan`: `stuck-in-progress` (warn) - in_progress but idle for 407.9h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `marketing/idea-piece`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/publish-coga-1-0-as-the-final-v1-step`: `stuck-in-progress` (warn) - in_progress but idle for 132.8h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `marketing/readme-top`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/verify-posthog-telemetry-with-the-live-clean-wheel`: `stuck-in-progress` (warn) - in_progress but idle for 119.2h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `open-pr-becomes-detereminstici-mechanic-no-check`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `parse-agents-rejects-cogalocaltoml`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `record-the-two-self-qa-hazards-from-done-ticket-bl`: `stuck-in-progress` (warn) - in_progress but idle for 132.7h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `recurring-unblock-launch`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `repair-ticket-referents-when-a-referent-is-renamed`: `stuck-in-progress` (warn) - in_progress but idle for 132.5h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `run-recurring-agent-templates-off-the-control-bran`: `stuck-in-progress` (warn) - in_progress but idle for 233.5h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `stop-creating-linked-worktrees-for-coga-retire`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `ticket-sync-fails-with-read-only-git-inside-agent`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `usage-report-name-the-human-split-per-agent-show-c`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `validate-drift-empty-description-23-title-only-tic`: `stuck-in-progress` (warn) - in_progress but idle for 132.7h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `validate-drift-stuck-in-progress-11-in-progress-ti`: `stuck-in-progress` (warn) - in_progress but idle for 115.0h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `validate-drift-unfrozen-workflow-11-hand-authored`: `stuck-in-progress` (warn) - in_progress but idle for 134.3h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `verify-dream-under-codex-on-the-real-repo-w40`: `stuck-in-progress` (warn) - in_progress but idle for 115.0h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `webhook-for-slack-is-public`: `stuck-in-progress` (warn) - in_progress but idle for 95.8h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `where-have-code-review-disappeared`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-
-## Run progress
-
-- Period: see `coga/log.md` (recurring/dream, launched 2026-10-12).
-- Preflight: git-common-dir ok, remote ok (origin/main), gh ok.
-- Phase 1 validate-drift: 38 human-needed (stuck-in-progress 20, unfrozen-workflow 13, empty-description 5); 0 direct-fix, 0 pr-proposal.
-- Repo identity: coga-source. Scan dir: `/home/n/Code/claude/coga/coga/.coga/dream-scans/20261012T173807Z/` (knowledge-scan: 37 shards ks-01..ks-37; contract-audit: 8 shards ca-01..ca-08).
-- Phase 4 candidates (done, no real `## Dev` checkout, no open PR touching coga/tasks/): recurring/address-pr-comments, recurring/autoclose-merged, recurring/blocker-reminders, recurring/branch-sweep, recurring/phone-home, recurring/resolve-conflicts, recurring/skill-update, recurring/upstream-coga, recurring/usage-report, retire-reconcile-recurring-wrapper-tty-admission-guidance, validate-drift-blackboard-hygiene-two-oversized-bl. 153 other done tickets carry a real checkout → retirement debt.
-
-## Findings
-
-Phase 2 knowledge-scan: `reported` — 37/37 shards complete, 30 raw → 29 de-duplicated (ks-18 + ks-20 git-refresh stale merged).
-Phase 3 contract-audit: `reported` — 8/8 shards complete, 5 drift (copy-divergence pairs: 0, pytest test_packaging green).
-
-### extract — source: done (Phase 4)
-- K1 `validate-drift-blackboard-hygiene-two-oversized-bl` — area: coga/blackboard — source: done. A done/retirement-debt ticket flagged large-blackboard is retired, not trimmed; a moved section leaves a same-named pointer; recurring/dream's own blackboard routes to owner decision.
-
-### extract — source: canceled (Phase 6 proposal PR)
-- K2 `stop-with-all-the-worktreees-its-super-noisy-and-u` — area: dev/checkouts — source: canceled. Owner (2026-10-06) accepted `recurring_runner._service_from_control_worktree` temp worktrees as the one exception; dev/checkouts says "nothing creates new ones".
-- K3 `no-durable-runbook-covers-running-coga-headless` — area: coga/recurring — source: canceled. Owner declined a separate headless runbook context (2026-09-03); record the decline + reopen condition near "Coga installs no scheduler".
-- K4 `ticket-sync-fails-with-read-only-git-inside-agent` — area: coga/launch — source: canceled. Lifecycle `[agent:<name>]` credits the configured operator, not an `--agent` override; read preceding `launched (... launch_agent=…)` line.
-
-### extract — source: done+checkout (retirement debt; reported only)
-- `dream-findings-have-three-routing-holes-that-lose` — coga/dream — routing rationale (draft-per-kind, extract source routes) absent from topic.
-- `move-cogacontext-to-roodoc-so-its-easier-for-human` — coga/testing — live-checkout CLI experiments publish to origin/main via the dispatch sweep.
-- `launch-moves-the-checkout-to-main-before-and-after` — coga/internals/pr-publication — open-pr freshness counts only tasks/** + log.md as generated state.
-- `dedupe-claude-transcript-usage-by-message-id` — coga/usage — pre-#947 Claude usage records inflated ~1.6x, deliberately not recounted.
-- `simplify-git-sync` — coga/internals/state-publication — never-commit-locally decision + declined alternative.
-- `simplify-git-sync` — coga/internals/recurring-control — owner gate push-URL fetch side effect.
-- `detect-stranded-ticket-writes-across-checkouts` — coga/internals/pr-publication — rebased-branch early exit coverage limit.
-- `make-dream-run-correctly-under-codex` — coga/testing — codex exec waits for stdin EOF; 4th spawn_agent queues.
-- `clean-up-owned-branches-when-tickets-finish-or-are` — dev/checkout-cleanup — `branchsweep._local_branches` ignores for-each-ref failure.
-- `attribute-headless-recurring-completions-to-system` — coga/internals/assist-publication — strict-assist audit line not reaching control in fixture.
-- `stop-using-worktrees` — coga/internals/human-assist — recorded-checkout PR assist only reachable from sandbox clone.
-- `validate-that-committed-skill-scripts-with-a-sheba` — coga/skill-management — shebang-executable validate check undocumented since #875.
-- `simplify-ticket-format` — coga/launch — agent override does not move the `other-agent` peer.
-- `autofix-write-ups-lose-their-body-to-h2-headings` — coga/tickets — prose before first `##` is uncomposed and unwarned.
-- `autofix/treat-non-requestexception-slack-send-errors-as-de` — coga/notifications/failures — why SLACK_TRANSPORT_ERRORS not catch-all; no TLS preflight.
-- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — coga/notifications — init's bare SLACK_WEBHOOK_URL tolerance undocumented.
-- `add-an-agent-picker-for-recurring` — coga/codebase/gotchas — Typer can't express optional-value option.
-- `exclude-superseded-designs-from-launch-prompts` — dev/design-history — archived blocker checkboxes still gate launch.
-
-### stale (Phase 6 proposal PRs)
-- S1 docs/contexts/coga/knowledge/SKILL.md — recommends `coga launch --prompt-report` for authoring measurement; CLI report sweeps/publishes; use `compose.compose_prompt_report`.
-- S2 src/coga/dream_validate_drift.py — `large-blackboard` remediation says move superseded material into an unattached context; contradicts coga/blackboard + dev/design-history.
-- S3 docs/contexts/coga/internals/git-refresh/SKILL.md — "bump from a feature checkout commits there"; publish never commits off control (also `github_preflight.stranded_task_state_paths` docstring + dangling `_refresh_committed_divergence_reason`). [ks-18 + ks-20]
-- S4 docs/contexts/coga/architecture/SKILL.md — topic map omits coga/telemetry.
-- S5 coga/skills/coga/autoclose/sweep/SKILL.md — proof 2 omits `.agent-skills` and identical `coga.local.toml` disposable cases.
-- S6 coga/tasks/cleanup/README.md — names renamed release ticket; queue drained.
-- S7 docs/contexts/coga/current-direction/SKILL.md — cites parked wishes as `v2/…` instead of `_v2/…`.
-
-### drift (Phase 6 proposal PRs)
-- D1 docs/contexts/coga/codebase/gotchas/SKILL.md:106 — `_PREPARE_ACTIVE_ERRORS` list omits `RepoResourceUnreadable`.
-- D2 docs/contexts/coga/launch-internals/SKILL.md:42 — index lists removed open-pr "session witness".
-- D3 coga/skills/coga/branch-sweep/sweep/SKILL.md:44 — source-repo-only relative link ships to installs; use `context:dev/checkout-cleanup`.
-- D4 README.md:34 — `--prompt-report` "shows the exact prompt" — covered by open PR #984.
-- D5 README.md:78,88-89 — `coga ticket` described as working a ticket with an agent; it is authoring (plus broken fence / duplicate headings).
-
-No `owner: coga` findings (coga-source repo).
-
-## Phase 4 Retro
-- Result: `reported` — 11 tickets: 1 knowledge PR https://github.com/FastJVM/coga/pull/991 (K1; deletes validate-drift-blackboard-hygiene-two-oversized-bl), 10 direct deletes verified absent on origin/main (9 recurring/* period tickets + retire-reconcile-recurring-wrapper-tty-admission-guidance), nothing durable in them.
-- Verified: PR branch pushed; isolated checkout held nothing unlanded. Worktree, temp branch, copied coga.local.toml and run dir removed. PR FYI posted via coga slack.
-- Retirement debt deferred: 153 done tickets with a real `## Dev` checkout (not delegated).
-
-## Phase 6 routing notes
-- Phase 1 human-needed: unfrozen-workflow 14 → already decided by `coga/workflows` "Required at activation, not at draft" (`validate-drift: unfrozen-workflow`; all 14 members are draft or canceled — in scope). stuck-in-progress 19 → already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti` (new since filing: dream-s-own-blackboard-trips-large-blackboard-ever, investigate-successful-codex-sessions-reported-as, launch-locks/checkout-exclusivity-lock, marketing/publish-coga-1-0-as-the-final-v1-step, marketing/verify-posthog-telemetry-with-the-live-clean-wheel, record-the-two-self-qa-hazards-from-done-ticket-bl, repair-ticket-referents-when-a-referent-is-renamed, the three validate-drift-* owners, verify-dream-under-codex-on-the-real-repo-w40, webhook-for-slack-is-public). empty-description 5 → already ticketed as `validate-drift-empty-description-23-title-only-tic` (new: make-coga-init-initizalizess-also-already-filled-r). No machine-local kinds. 0 PR proposals.
-- D4 → covered by open PR #984 (diff carries the exact correction).
-- D5 → already ticketed as `document-quick-start-for-empty-and-existing-reposi` (blocked; owns the README Quick Start rewrite incl. `coga ticket` → `coga launch` path).
-- Planned proposal PRs: (A) context corrections S1,S4,S7,D1,D2; (B) git-refresh S3 + github_preflight docstring; (C) validate-drift remediation string S2; (D) shipped skill fixes S5,D3; (E) canceled-ticket knowledge K2,K3,K4; (F) cleanup/README S6.
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-10-12T18:01:52+00:00
-Task: `recurring/dream`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
-
-## Dream Run Summary
-
-Generated: 2026-10-12T18:15Z — period 2026-W42 — repo identity: coga-source.
-
-| Phase | Result | Notes |
-|---|---|---|
-| Preflight | ok | git-common-dir, remote (origin/main), gh |
-| 1 validate-drift | reported | 38 human-needed (stuck-in-progress 19, unfrozen-workflow 14, empty-description 5); 0 direct-fix; 0 pr-proposal |
-| 2 knowledge-scan | reported | 37/37 shards; 29 findings (1 extract/done, 3 extract/canceled, 18 extract/done+checkout, 7 stale) |
-| 3 contract-audit | reported | 8/8 shards; 5 drift; copy-divergence clean |
-| 4 retro/done-ticket | pr-opened | 11 tickets: PR #991 (K1) + 10 direct deletes, verified on origin/main |
-| 5 cleanup-orphan-markers | no-op | — |
-| 6 disposition | proposed | 6 proposal PRs; 0 draft tickets; 0 upstream-captured (coga-source) |
-
-PRs opened (all pr-required, not merged):
-- #991 https://github.com/FastJVM/coga/pull/991 — Retro K1: blackboard size remedy scope (deletes validate-drift-blackboard-hygiene-two-oversized-bl).
-- #996 https://github.com/FastJVM/coga/pull/996 — S1, S4, S7, D1, D2 context corrections.
-- #995 https://github.com/FastJVM/coga/pull/995 — S3 git-refresh feature-checkout bump claim + github_preflight docstring.
-- #994 https://github.com/FastJVM/coga/pull/994 — S2 large-blackboard remediation string.
-- #993 https://github.com/FastJVM/coga/pull/993 — S5 autoclose/sweep proof 2, D3 branch-sweep link.
-- #997 https://github.com/FastJVM/coga/pull/997 — K2, K3, K4 decisions from canceled tickets (sources stay on disk).
-- #992 https://github.com/FastJVM/coga/pull/992 — S6 cleanup/README drained queue.
-
-Already owned / decided:
-- D4 README `--prompt-report` → reused open PR #984 (diff carries the correction).
-- D5 README `coga ticket` wording → already ticketed as `document-quick-start-for-empty-and-existing-reposi` (blocked).
-- validate-drift: stuck-in-progress (19) → already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti`; 13 new since filing (see routing notes).
-- validate-drift: empty-description (5) → already ticketed as `validate-drift-empty-description-23-title-only-tic`; new: make-coga-init-initizalizess-also-already-filled-r.
-- validate-drift: unfrozen-workflow (14) → already decided in `coga/workflows` ("Required at activation, not at draft"); all members draft/canceled.
-- Machine-local validator issues: none.
-
-Retirement debt: 153 done tickets with a real `## Dev` checkout (not delegated to Retro). 18 of them hold `extract` findings that `coga retire <slug>` would unlock — listed under `## Findings` → "extract — source: done+checkout" (e.g. simplify-git-sync ×2, detect-stranded-ticket-writes-across-checkouts, dedupe-claude-transcript-usage-by-message-id, validate-that-committed-skill-scripts-with-a-sheba, exclude-superseded-designs-from-launch-prompts, clean-up-owned-branches-when-tickets-finish-or-are).
-
-Human review gates: 7 PRs above. No stranded Retro work.
