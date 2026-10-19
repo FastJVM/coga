@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -726,6 +726,176 @@ ordinary ticket.
 ## Dev
 
 branch: checkout-prep-automation
+
+## Implementation handoff
+
+Implemented on `checkout-prep-automation` (pushed, head `eb821639b`, rebased
+on `origin/main` `31a8f1828`). Three commits; no PR yet (next step `open-pr`).
+No code review has run: this workflow has no peer/self-review step, and owner
+design approval is not code review.
+
+What changed:
+
+- `src/coga/checkout_policy.py`: pure closed table (`select_checkout_policy`)
+  over frozen workflow + current step + consumed instruction bytes (resolved
+  step skill or live inline section vs packaged copy). Older snapshots and
+  empty-skills `review` match; anything else is `manual` with a reason.
+- `src/coga/checkouts.py`: shared mechanics. Ticket path splits into
+  `plan_ticket_checkout` (prove control, reserve/create/link + strict publish,
+  or reuse first recorded branch incl. remote-only/ff/ahead-kept, external
+  recorded clone, Already-satisfied stay) and `enter_ticket_checkout`
+  (re-observe, stranded-ticket guard, switch, unstaged projection, strict
+  `git.record_projected_baseline`, verify). Chat: receipt beside the
+  orientation lock, `prepare_chat_checkout`, recipe `prepare-checkout`
+  (0/2/75), excluded from the CLI exit sweep.
+- `launch.py`: `_manages_branch_checkout` gate (ordinary attended task launch
+  with an entered+armed boundary only); per step: audit on control, plan,
+  re-read, compose with notice, switch, spawn with `composed_prompt`.
+  Failures exit 75, withhold the sweep, mark the boundary stopped. Unmanaged
+  launches get a truthful notice (kept checkout / exempt / chat) or none.
+- `compose.py`: `CheckoutNotice` + generated `checkout_notice` layer after
+  the ticket; unsupplied text when absent.
+- `git.py`: `record_projected_baseline` (strict, read back); best-effort
+  `_record_published` unchanged in behavior. `autoclose.dev_heading_line`.
+- Docs: `dev/checkouts` owns the mapping and launched lifecycle; new leaves
+  `dev/checkouts/chat` (occupancy guard moved here + chat recipe) and
+  `dev/checkouts/manual` (manual start/work/end + pre-branch publication);
+  sandbox-clone gains recorded-clone, manual (full recipe), and first-refusal
+  host recovery. Updated launch, workflows, prompt-composition,
+  extension-model, codebase, git-regressions, publish, sweep. Removed the
+  branch/return recipes from `prompt.md`, `dev/code`, code skills, all four
+  workflows and orient guidance. All twins byte-identical.
+
+Deviations from the proposed shape (decide at review if unwanted):
+
+- Ticket reservation receipts live in the worktree's private Git dir
+  (`git rev-parse --git-path coga/checkout-receipts`), not `.coga/`: no sweep
+  can publish them even in repos that do not ignore `.coga/` (the test
+  fixture does not). The chat receipt sits beside the guard lock file.
+- A failed linkage publication leaves the edit dirty on control; the next
+  launch's entry sweep publishes it and the matching receipt/branch are
+  reused (tested). Changed control during preparation refuses (75) instead
+  of a bounded automatic re-plan.
+- `dev/checkouts` is 221 lines / ~13 KB (was 202 / 11.5 KB, already over the
+  review threshold) after splitting out two leaves; the single owned mapping
+  table is the reason for not splitting further.
+
+Limitations / not exhaustively covered:
+
+- Interruption stages tested: linkage publication failure + retry, baseline
+  write failure. Not individually: created-but-unlinked receipt, switched but
+  projection incomplete. Chat: no-guard, mismatched session, moved HEAD,
+  dirty control, repeated dirty no-op, CLI no-sweep tested; dead-supervisor
+  pid and second-chat-adoption not separately tested.
+- Owner-held `review` assist from the primary is covered by the policy table
+  and assist skill text, not by an integration launch.
+- Docs publication's exceptional conflict fix now points to the manual
+  procedure (judgment obligations kept).
+
+Pre-existing, unrelated failures (also fail on `main` without this diff):
+`tests/test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]`
+(no `CLAUDE.md` in this checkout) and
+`tests/test_usage_report.py::test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli`
+(the usage-report shim imports `read_ticket`/`resolve_task` beyond the
+asserted set). `coga validate --json`: the two pre-existing marketing
+broken-context errors only.
+
+## PR
+
+```yaml
+title: Prepare step and chat checkouts in shared code and drop duplicated Git recipes
+author: claude
+author_evidence: Implemented in this attended Claude Code session (claude-opus-5-5) launched for the implement step.
+head: eb821639b06fa8640cb6f982ded53490926804bf
+base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
+depth: deep
+rationale: Changes launch dispatch order, branch creation, ticket projection and publication provenance, adds a recipe, and rewrites agent instructions; no code review has run.
+implementation: Closed step-to-checkout policy table; shared checkouts module used by ordinary launch (plan+publish on control, compose, switch+project+strict provenance) and the chat prepare-checkout recipe; runtime checkout notice in composition; dev/checkouts owns the lifecycle with new chat and manual leaves; procedural copies removed from prompt, skills, workflows and orientation.
+deviations: Ticket reservation receipts are stored in the per-worktree Git dir instead of .coga/; the chat receipt sits beside the guard lock; control movement during preparation refuses (exit 75) rather than re-planning automatically.
+limitations: Not every receipt interruption stage or chat supervisor-death case has its own test; owner review assist reuse is covered by policy tests, not an integration launch; dev/checkouts stays over the 200-line review threshold.
+files:
+  coga/skills/code/address-pr-comments/SKILL.md: Start from the notice's prepared PR branch; drop the switch/return recipe.
+  coga/skills/code/implement/SKILL.md: Confirm the prepared checkout, sandbox first-refusal pointer, keep judgment steps; drop branch/publish/restore recipes.
+  coga/skills/code/open-pr/SKILL.md: Control-entry wording from the notice; recovery pointers to the manual leaf.
+  coga/skills/code/self-qa/SKILL.md: Start on the reused branch per the notice; drop start-check/switch/restore recipe.
+  docs/contexts/coga/codebase/SKILL.md: Source map entries for checkout_policy.py and checkouts.py.
+  docs/contexts/coga/extension-model/SKILL.md: Register prepare-checkout and its placement reason.
+  docs/contexts/coga/internals/git-regressions/SKILL.md: Projected control blob as a provenance source.
+  docs/contexts/coga/internals/state-publication/publish/SKILL.md: Strict linkage publication and strict baseline recording.
+  docs/contexts/coga/internals/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
+  docs/contexts/coga/launch/SKILL.md: Per-step branch preparation order and exclusions.
+  docs/contexts/coga/prompt-composition/SKILL.md: Checkout notice layer.
+  docs/contexts/coga/workflows/SKILL.md: Gates are exit-only; entry table lives in dev/checkouts.
+  docs/contexts/dev/checkouts/SKILL.md: Owner of the mapping and launched lifecycle.
+  docs/contexts/dev/checkouts/chat/SKILL.md: New leaf; chat occupancy guard and prepare-checkout contract.
+  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Occupancy moved out; branch preparation scope note.
+  docs/contexts/dev/checkouts/manual/SKILL.md: New leaf; manual start/work/end and pre-branch publication.
+  docs/contexts/dev/checkouts/sandbox-clone/SKILL.md: Recorded clone, manual clone recipe, first-refusal host recovery.
+  docs/contexts/dev/code/SKILL.md: Summary of launch-prepared checkouts.
+  src/coga/autoclose.py: Fence-aware dev_heading_line helper for linkage insertion.
+  src/coga/checkout_policy.py: New pure policy table.
+  src/coga/checkouts.py: New shared branch preparation, chat session and recipe.
+  src/coga/cli.py: Exclude run prepare-checkout from the exit sweep.
+  src/coga/compose.py: CheckoutNotice and the runtime notice layer.
+  src/coga/git.py: Strict record_projected_baseline sharing the published-ref writer.
+  src/coga/launch.py: Chat receipt in the guard, per-step managed preparation, unmanaged notices.
+  src/coga/resources/prompt.md: Base prompt defers to the runtime notice and dev/checkouts.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-regressions/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/publish/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/sweep/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/chat/SKILL.md: Packaged twin of the new leaf.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/manual/SKILL.md: Packaged twin of the new leaf.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/sandbox-clone/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/code/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/orient/ticket.md: Chat edits run prepare-checkout first.
+  src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: implement section states launch prepares the branch.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: implement section; peer-review starts on the branch; recipe removed.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: implement and already-satisfied wording.
+  src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Inline implement/peer-review/open-pr recipes replaced by notice + owner pointers; judgment obligations kept.
+  src/coga/runner.py: Register prepare-checkout.
+  tests/test_address_pr_comments_skill.py: Assert the return recipe moved to dev/checkouts.
+  tests/test_checkouts.py: New real-Git policy, launch, chat, provenance and recovery coverage.
+  tests/test_code_implement_skill.py: Clone recipe asserted in its owning topic.
+  tests/test_packaging.py: Register the chat and manual leaves.
+  tests/test_runner.py: Expected recipe registry includes prepare-checkout.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: code/design-then-implement has no peer or self-review step; owner design approval is not code review. The owner review gate follows the PR.
+checks:
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: eb821639b06fa8640cb6f982ded53490926804bf
+    base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
+    detail: 3850 passed, 7 skipped, 2 failed (Python 3.12.12); both failures pre-exist on main and are unrelated (missing local CLAUDE.md; usage-report shim import drift).
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src <py3.11.15 uv venv>/bin/python -m pytest -q -p no:cacheprovider tests/test_checkouts.py tests/test_launch.py tests/test_git.py tests/test_compose.py tests/test_runner.py tests/test_packaging.py
+    status: failed
+    head: eb821639b06fa8640cb6f982ded53490926804bf
+    base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
+    detail: 632 passed, 3 failed on the Python 3.11 floor; the pre-existing CLAUDE.md failure plus two wheel-build tests failing only because the uv venv lacks pip.
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json
+    status: failed
+    head: eb821639b06fa8640cb6f982ded53490926804bf
+    base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
+    detail: Exit 1 with 131 OK and only the two pre-existing marketing broken-context errors (47 warnings, unchanged); seeded fixture validate exit 0, 4 OK, no issues.
+  - command: read-only compose_prompt_report before (git archive of origin/main) vs after, 10 sample steps plus chat
+    status: passed
+    head: eb821639b06fa8640cb6f982ded53490926804bf
+    base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
+    detail: git switch / COGA_LAUNCH_RETURNS_CHECKOUT / pre-branch recipes gone from every sample (e.g. implement 3 switches -> 0, about 6024 -> 5330 tokens); coga bump, review and ## PR guidance still present; every prompt ends with the checkout notice; chat names prepare-checkout.
+```
 
 ## Design handoff
 
