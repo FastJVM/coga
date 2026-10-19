@@ -59,8 +59,8 @@ worktree or clone as `worktree:`. When this session already runs in that
 exact checkout (`git rev-parse --show-toplevel` resolves to the recorded
 `worktree:`) and HEAD is on the recorded `branch:`, launch recognized it as
 the assist checkout and already fast-forwarded it to the verified PR head.
-Work there: skip steps 1 and 2 below and the end-of-step return to `main`,
-and stay on the recorded branch. Launch has already published its audit to
+Work there: skip steps 1 and 2 below and stay on the recorded branch.
+Launch has already published its audit to
 control, so dirty Coga state in that checkout (`coga/log.md`, task files,
 recurring state) is expected; leave it unstaged and never commit it with a
 fix. Any other dirt still stops the assist. A recorded `worktree:` that is
@@ -69,16 +69,16 @@ such exception: ask the attending human.
 
 Confirm `gh auth status` succeeds. Then, in the launch checkout:
 
-1. Run the `dev/checkouts` start check: HEAD on `main`, a clean tree (Coga
-   state included), and `git merge --ff-only origin/main` after a fetch. If
-   it fails, stop and ask the attending human; do not stash, commit, or
+1. Check the **Checkout (runtime)** notice. An ordinary assist from the
+   primary checkout starts on the recorded `branch:` (reused, never reset),
+   with this ticket projected unstaged from control as the only entry dirt;
+   never stage or commit it with a fix. A notice that reports kept local
+   commits means reconcile before pushing. If the notice says no branch was
+   prepared, perform the `dev/checkouts` manual start check and switch.
+2. Verify HEAD is `<branch-name>` and nothing else is dirty. Do not absorb
+   unrelated local changes or stage `coga/log.md` with a fix. If anything
+   differs, stop and ask the attending human; do not stash, commit, or
    switch past another ticket's work.
-2. `git switch <branch-name>` and verify `git status --short` is still clean.
-   Do not absorb unrelated local changes or stage `coga/log.md` with a fix.
-   From here until you return to `main`, edit code only: ticket and
-   blackboard edits made on the branch are not published. With
-   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already ran the start check in
-   step 1 for you; confirm it and return nothing yourself at the end.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote to resolve the publication destination with
    `git remote get-url --push --all <configured-remote>`. Require exactly one
@@ -264,13 +264,10 @@ gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutatio
 ```
 
 In a recorded legacy checkout, finish on the recorded branch and leave the
-launch-published Coga state as it is. With `COGA_LAUNCH_RETURNS_CHECKOUT=1`,
-finish on the feature branch too: launch returns the checkout to `main`
-after the session (`dev/checkouts`). Otherwise, finish by running the
-`dev/checkouts` end-of-step return: discard dirty Coga state only after
-proving it already matches `origin/main`, `git switch main`, and
-`git merge --ff-only origin/main`. If anything dirty is unpublished or
-outside Coga state, stop and ask instead of discarding it.
+launch-published Coga state as it is. Otherwise finish on the feature branch
+when launch returns the checkout (the notice says so); a manual session runs
+the `dev/checkouts` end-of-step return, stopping to ask instead of
+discarding anything unpublished or outside Coga state.
 Then give the attending human a compact list of addressed
 threads, the pushed commit, the exact test result, and anything that still
 needs their judgment, and stop naturally with the ticket still `in_progress`

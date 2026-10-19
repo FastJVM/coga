@@ -35,8 +35,17 @@ Each layer is a `PromptLayer`; in order:
 7. **Skills**: each ticket-level `skills:` ref, then the current step's
    skills, or, for a skill-less step, its inline section from the live
    workflow definition ([coga/workflows](../workflows/SKILL.md)).
-8. **The ticket**, last and contiguous in on-disk order: `## Description`,
-   then `## Context`, then the live blackboard.
+8. **The ticket**, contiguous in on-disk order: `## Description`, then
+   `## Context`, then the live blackboard.
+9. **Checkout notice** (`## Checkout (runtime)`): generated, never a
+   resource. Launch passes `compose.CheckoutNotice` with the branch it
+   observed, any ticket it projected, who returns the checkout, and for a
+   direct chat the exact `coga run prepare-checkout` invocation. Composition
+   runs no Git and infers nothing from the workflow: without a notice
+   (`compose_prompt_report` alone, megalaunch, recurring) it states that no
+   preparation was supplied and points to
+   [dev/checkouts](../../dev/checkouts/SKILL.md). Being generated, it stays
+   true under a repo's older `resources/prompt.md` override.
 
 After the task layers, launch appends a `## Launch arguments` JSON block only
 when positional launch arguments were given ([coga/launch](../launch/SKILL.md)).

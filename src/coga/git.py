@@ -913,6 +913,33 @@ def _control_carries(root: Path, remote: str, control: str, new: str) -> bool:
 
 def _record_published(root: Path, blobs: Mapping[str, str | None]) -> None:
     """Remember the blobs this worktree just published (see `PUBLISHED_REF`)."""
+    try:
+        _write_published(root, blobs)
+    except GitError as exc:
+        sys.stderr.write(f"[git] note: could not record published blobs: {exc}\n")
+
+
+def record_projected_baseline(cfg: Config, root: Path, rel: str, oid: str) -> None:
+    """Strictly remember one verified, projected control blob as provenance.
+
+    Checkout preparation projects a ticket from a verified control revision
+    onto a feature branch. The blob is a copy this worktree derived its
+    working file from, exactly like one it published, so later publication
+    of that ticket (a bump from another process) may land over it while a
+    competing control change still refuses. Unlike `_record_published`,
+    failure raises, and the entry is read back before returning: launch must
+    not admit an agent whose handoff it cannot publish. Other entries are
+    preserved.
+    """
+    with state_lock(cfg):
+        _write_published(root, {rel: oid})
+        if _blob_oid(root, PUBLISHED_REF, rel) != oid:
+            raise GitError(
+                f"{PUBLISHED_REF} does not record {rel} at {oid} after writing it"
+            )
+
+
+def _write_published(root: Path, blobs: Mapping[str, str | None]) -> None:
     fd, index = tempfile.mkstemp(prefix="coga-git-index-")
     os.close(fd)
     os.unlink(index)
@@ -927,8 +954,6 @@ def _record_published(root: Path, blobs: Mapping[str, str | None]) -> None:
             if oid is not None:
                 run_git(root, "update-index", "--add", "--cacheinfo", "100644", oid, rel, env=env)
         run_git(root, "update-ref", PUBLISHED_REF, run_git(root, "write-tree", env=env).strip())
-    except GitError as exc:
-        sys.stderr.write(f"[git] note: could not record published blobs: {exc}\n")
     finally:
         try:
             os.unlink(index)
@@ -2328,6 +2353,7 @@ __all__ = [
     "last_commit_times",
     "prepare_control_checkout",
     "publish",
+    "record_projected_baseline",
     "refresh",
     "relative_to_root",
     "remote_branch_oid",

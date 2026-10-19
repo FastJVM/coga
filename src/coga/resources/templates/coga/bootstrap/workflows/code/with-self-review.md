@@ -33,8 +33,8 @@ compose their section, so those bodies are load-bearing.
 ## already-satisfied
 
 If the implement or self-qa agent verifies that every requested item already
-landed elsewhere and there is no branch, diff, or PR to create, the agent
-closes the ticket with `coga mark done <slug>`.
+landed elsewhere and there is no diff or PR to create, the agent closes the
+ticket with `coga mark done <slug>`; a branch launch prepared stays unused.
 
 The agent must write concrete evidence under `## Already satisfied` on the
 blackboard first. This is the only direct agent close path in this workflow;
@@ -44,12 +44,10 @@ real blocker (`coga block`), not an already-satisfied closure.
 
 ## implement
 
-Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
-so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
-in the ticket copy of the checkout the bump runs from — the feature branch
-after loading control's copy under `COGA_LAUNCH_RETURNS_CHECKOUT=1` (launch
-then returns the checkout), or `main` after a manual session's end-of-step
-return (`dev/checkouts`).
+Agent step, owned by the `code/implement` skill. Launch creates or reuses the
+recorded branch before the agent starts (`dev/checkouts`). The step declares
+`requires: branch`, so `coga bump` refuses to advance until `branch:` is
+recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
 
 ## pr
 

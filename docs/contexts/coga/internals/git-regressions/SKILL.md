@@ -17,7 +17,11 @@ derives from (`_provenance`):
 - the merge-base of HEAD and control;
 - a blob this worktree itself published (`refs/worktree/coga/published`,
   per-worktree, which lets a feature or detached checkout keep publishing the
-  same ticket although its HEAD never advances with control);
+  same ticket although its HEAD never advances with control), or one launch's
+  checkout preparation verified on control and projected onto the branch
+  (`git.record_projected_baseline`, one ticket entry, written strictly and
+  read back before spawn), so a resumed branch older than control's ticket
+  can still publish its handoff from a later `coga bump` process;
 - or the working bytes themselves (an idempotent retry).
 
 A stale checkout therefore cannot overlay a ticket another checkout advanced.

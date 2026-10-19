@@ -137,6 +137,13 @@ gate transitions publish only to control. Branch and PR mechanics are
 [dev/checkouts](../../dev/checkouts/SKILL.md) and
 [coga/internals/pr-publication](../internals/pr-publication/SKILL.md).
 
+Gates are exit checks only: no gate, role, or step name says where a step
+starts. Launch selects entry checkouts from a closed table of shipped
+workflow steps whose consumed instructions match the packaged ones, and
+gives every other step manual guidance; that table belongs to
+[dev/checkouts](../../dev/checkouts/SKILL.md#which-checkout-a-step-starts-in).
+Workflow definitions and frozen snapshots carry no checkout field.
+
 ## Branch gate scope
 
 Decision (2026-10-06, owner): do not add the proposed branch/worktree freshness
