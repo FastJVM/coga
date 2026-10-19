@@ -880,3 +880,13 @@ checks:
   automated harnesses. No AWS host was allocated and nothing was spent. The
   setup log, cost notes and removal steps now live in Zach's private admin
   repo (ticket `ops/aws-rented-machine-coga-install-testing`), not here.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/test-and-fix-install-on-macos-and-windows`
+Recorded: 2026-10-19T03:22:54+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review kind must be independent, self, or none.
