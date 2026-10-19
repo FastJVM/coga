@@ -195,6 +195,32 @@ candidates for a surviving context, for review rather than as commitments:
    3.11 floor. Completing step one requires leaving Coga's documentation
    for a third-party site.
 
+   All four routes now carry terminal evidence rather than analysis. The
+   pip and pipx alternatives were walked on a fresh clone 2026-10-18:
+
+   ```
+   % pipx install coga
+   zsh: command not found: pipx
+   % python3 -m pip install coga
+   xcode-select: note: No developer tools were found, requesting install.
+   ```
+
+   `pipx` gives the same bare `command not found` as `uv`. The `python3`
+   route reaches Apple's Command Line Tools dialog, so the documented
+   alternative meets the same trap as the primary route, by a different
+   path; its message is more descriptive but it is Apple's, and says
+   nothing about installing Coga. The fourth route, the venv one, shares
+   `python3` and therefore the same blocker.
+
+   One documented consequence no longer holds. `coga/install` warns that
+   pip "may succeed at installing the old `0.0.1` placeholder, which
+   provides no `coga` command". PyPI lists 0.0.1, 0.2.0 and 0.4.0, and
+   0.0.1 is yanked with the note "Placeholder release with no coga CLI.
+   Its Python >=3.9 metadata causes pip on Python <3.11 to install an
+   unusable package." Yanked releases are not selected by default, so the
+   silent broken install is already fixed. Correct that fact before
+   extracting it anywhere.
+
    The handoff to that site then fails three ways, walked 2026-10-15. The
    link is a bare `uv` inside a sentence with no statement that it must be
    installed, so the requirement is inferred rather than told. It targets
