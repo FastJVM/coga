@@ -150,6 +150,12 @@ no `coga` command, is yanked on PyPI and excluded from ordinary unpinned
 installs. Explicitly pinning `coga==0.0.1` can still install that placeholder;
 it is not a compatibility workaround.
 
+The 3.11 floor is deliberate (plan agreed 2026-10-12). Lowering it to 3.10 with
+a `tomli` fallback for `tomllib` was considered and rejected because Python
+3.10 reaches end of life in October 2026; the remedy for an older interpreter
+is `uv tool install coga` or `pipx install --python python3.11 coga`, not a
+lower floor.
+
 Use `uv tool install coga`, or install Python 3.11+ separately and run
 `pipx install --python python3.11 coga`. If uv is configured to use an older
 Python, request a compatible one with `uv tool install --python 3.11 coga`;

@@ -236,3 +236,10 @@ checks:
   base: c8db8ab524c5da7b782d3dcbda95b6c0f27d2b85
   detail: Canonical and packaged install topic are byte-identical after final rebase.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: why the Python floor stays at 3.11
