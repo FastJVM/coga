@@ -24,9 +24,22 @@ dies at reboot, so push the branch before ending the session.
   missing clone or one on another branch refuses: recover or re-record it,
   never let launch replace it.
 - **Manual session.** When creating the branch fails because metadata is
-  read-only, make the clone, create the branch there, seed it (below), record
-  and publish `worktree:` from the primary ([manual](../manual/SKILL.md)),
-  then work in the clone.
+  read-only, make the clone and create the branch there:
+
+  ```bash
+  feature_clone_dir=$(mktemp -d /tmp/coga-feature.XXXXXX)
+  git clone --no-hardlinks "$(git rev-parse --show-toplevel)" "$feature_clone_dir/repo"
+  git -C "$feature_clone_dir/repo" remote set-url origin "$(git remote get-url origin)"
+  git -C "$feature_clone_dir/repo" fetch origin main
+  git -C "$feature_clone_dir/repo" switch -C main FETCH_HEAD
+  git -C "$feature_clone_dir/repo" switch -c <branch-name>
+  ```
+
+  Record that clone's repo path as `worktree:` next to `branch:` and publish
+  the record from the primary ([manual](../manual/SKILL.md)); seed its local
+  config (below), then work in the clone. If the clone or its fresh fetch
+  fails, escalate: ask the attending human, or in a queue run
+  `coga block --task <slug> --reason "<capability or access needed>"`.
 - **First refusal after launch switched.** Launch prepared and switched the
   primary on the host, then the agent's first Git write (a commit) is
   refused. The primary may stay on the prepared branch until host recovery
