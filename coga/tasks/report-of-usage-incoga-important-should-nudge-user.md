@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -110,11 +110,11 @@ branch: usage-report-owner
   still expected it. The owner-authorized repair checks the shared
   `AGENTS.md`, matching the existing packaging contract. The report fix and
   this test repair are separate commits (`0d340839c`, `877a439f4`).
-- Reconciled with current main and pushed `usage-report-owner`. The final full
-  suite passed on the committed tree: 3808 passed, 7 Windows-only skips.
-  Focused composition/report checks also passed (106). Exact head/base and
-  receipts are below. Verification sent no live Slack messages.
-- Independent review is the next frozen workflow step. No PR was opened.
+- The implement session pushed original head `877a439f4` at base `cee89faab`.
+  Its historical checks passed: 3808 full-suite tests, 7 Windows-only skips,
+  and 106 focused composition/report checks. It sent no live Slack messages.
+  Fresh review receipts after rebase are below.
+- Implementation handed off without opening a PR; see the completed peer review below.
 
 ## Adjacent finding
 
@@ -127,72 +127,126 @@ stderr and the bump still runs, but there is no corresponding Slack failure
 line in `log.md`. This predates the owner fix and was not changed. No existing
 follow-up ticket was identified; carry this finding forward through Retro.
 
+## Peer review
+
+- **Completed:** direct Codex review of final head `7520b20675be5141e8e52ea6731b7f9330ac6d3f` against diff base
+  `537352f8e50664ac657233ae69de6e6bdf2daf56`. No must-fix findings and no code fixes required.
+  Both actual implementer and reviewer are Codex, so this is **self-review**;
+  the configured peer did not establish independence. No child review CLI or
+  delegated agent ran.
+- Started on clean `main`, read the branch by name, then ran `git switch
+  usage-report-owner`, `git fetch origin main`, and `git rebase FETCH_HEAD`.
+  Main already contained the producer/script instructions in `a1d937e09`;
+  the final diff has five paths. Re-read the final diff and affected contracts.
+- Re-ran the full suite after rebase: **3808 passed, 7 Windows-only skips in
+  522.77s**, Python 3.12.12. Exact command and revision receipts are in `## PR`.
+  Canonical/package topic bytes and whitespace checks also passed.
+- **Surface inspection:** ran the actual copied period script with captured
+  transport in 80x24 and 120x40 PTYs. The outbound text began
+  `[orbital-service] [<@U02ADA>] Agent usage — week of 2026-10-12 (Mon–Sun)`.
+  The absent-owner and unmapped-owner cases produced `[<@U01MARC>]` and
+  `[stranger]`; report content remained intact. One important-route attempt
+  preceded the CLI bump even on HTTP 503. This checked captured outbound text,
+  not a live Slack client; no live Slack messages were sent, per the ticket.
+- Read-only source-repo configuration check confirmed project `coga` and a
+  Slack mapping for the effective template owner `nicktoper`.
+- Final freshness checks accepted newer control changes as non-overlapping
+  Coga task/log state (`check_branch_contains_control`: `state-only-drift`).
+  The receipts retain the actual tested/reviewed head and base. Pushed with
+  an explicit force-with-lease; `origin/usage-report-owner` is `7520b20675be5141e8e52ea6731b7f9330ac6d3f`,
+  with two commits ahead of main.
+- Keep the pre-existing failure-audit omission on this blackboard for Retro. Recommend
+  **skim** with self-review and the authorized test repair disclosed. No PR
+  opened in this step. `COGA_LAUNCH_RETURNS_CHECKOUT=1`: hand off on the feature
+  branch after loading control's ticket; launch owns the return to main.
+
 ## PR
 
 ```yaml
-title: Mention the owner in weekly usage reports
+title: Cover owner mentions in weekly usage reports
 author: codex
-author_evidence: Implemented by Codex in this attended session. The configured ticket agent
-  remains claude; no delegated agents or code reviewers ran.
-head: 877a439f4b3f9cc15611eac25fff909959251eab
-base: cee89faabbd4d884dd64143e2aaaa615338aad52
-depth: deep
-rationale: The recipient change is bounded and covered by captured Slack payloads, but independent
-  review belongs to the next peer-review step and has not run.
-implementation: The repo-local usage-report script reads the generated period ticket and passes
-  its owner, falling back to cfg.current_user, to notification.post. Existing Slack rendering
-  supplies the project name, mapped mention, and plain-name fallback. Regression cases preserve
-  the report body, important route, one delivery attempt, and CLI bump after HTTP 503.
-deviations: 'The owner explicitly requested repair of an unrelated full-suite failure: the repository-instructions
-  test still expected CLAUDE.md after main removed it. A separate commit checks the canonical
-  AGENTS.md instead.'
-limitations: Slack delivery was verified with a captured transport, without live messages. Verification
-  used Python 3.12.12. An existing omission of task_path leaves usage-report delivery failures
-  on stderr without a Slack failure audit line; see the adjacent finding on this blackboard.
+author_evidence: The implement handoff records Codex as the actual implementer, including the owner-authorized
+  composition-test repair. The configured ticket agent is claude; that assignment is not authorship evidence.
+head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+depth: skim
+rationale: Bounded regression coverage and documentation for the owner-prefix fix already on main. The
+  full suite and captured outbound payloads pass. Read the description for the authorized composition-test
+  repair and verification limits; the completed Codex review is self-review, not independent review.
+implementation: The producer reads the generated period ticket owner, falls back to cfg.current_user,
+  and lets the unchanged Slack backend render the repository name and mapped mention or plain-name fallback.
+  Main already contains ticket.py and ticket.md from state-publication commit a1d937e09, so the final
+  five-file diff adds delivery-path regression coverage, aligns the posting instructions and important-destination
+  topic/twin, and repairs the stale root-instructions assertion. Six captured-transport cases preserve
+  the full report body, important route, one delivery attempt, and CLI bump after HTTP 503.
+deviations: The owner explicitly authorized repair of the unrelated full-suite failure caused by expecting
+  root CLAUDE.md after main standardized on AGENTS.md. It remains a separate commit. No review fixes or
+  design changes were needed. Rebase removed the two producer paths already present on main from the PR
+  diff.
+limitations: 'No independent reviewer ran: both implementer and this fresh direct reviewer are Codex,
+  recorded as self-review. Verification used Python 3.12.12; Python 3.11 and native Windows were not exercised.
+  Per the ticket, Slack transport was stubbed: the actual outbound text was inspected in 80x24 and 120x40
+  PTYs, without a live Slack post or Slack-client rendering check. The pre-existing missing task_path
+  still prevents a Slack failure audit line; stderr and bump behavior remain intact, and the adjacent
+  finding is retained for Retro.'
 files:
-  coga/recurring/usage-report/ticket.py: Resolve the generated period owner and pass the existing
-    current-user fallback to the shared notification API.
-  coga/recurring/usage-report/ticket.md: Document owner selection and the repository/owner prefix;
-    use a canonical link that survives copying into a generated period ticket.
-  coga/skills/coga/usage-report/post/SKILL.md: Align the posting procedure and shared-infrastructure
-    list with the owner-aware producer.
-  docs/contexts/coga/important/SKILL.md: Describe the weekly report as identifying its repository
-    and addressing the period owner through the existing mapping.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md: Keep the packaged
-    important-destination topic byte-identical to its canonical owner.
-  tests/test_usage_report.py: Execute the copied period script through the real notification
-    renderer with captured transport, covering three recipient cases on success and HTTP 503,
-    plus the existing end-to-end completion check.
-  tests/test_compose.py: Repair the owner-authorized stale CLAUDE.md assertion after main standardized
-    the root instructions on AGENTS.md.
+  coga/skills/coga/usage-report/post/SKILL.md: Document period-owner selection, the shared repository/mention
+    prefix, and the added shared task-IO dependency.
+  docs/contexts/coga/important/SKILL.md: Describe the weekly report as identifying its repository and
+    addressing the period owner through the existing mapping.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md: Keep the packaged important-destination
+    topic byte-identical to its canonical owner.
+  tests/test_usage_report.py: 'Run the generated period script through the real notification renderer
+    with captured transport: mapped owner distinct from current user, missing-owner fallback, and unmapped
+    owner, each on HTTP 200 and 503; retain end-to-end completion coverage.'
+  tests/test_compose.py: Apply the owner-authorized stale CLAUDE.md test repair by checking the canonical
+    shared AGENTS.md.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent code review is the next frozen workflow step; this implement session does
-    not perform self-QA.
-checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_compose.py
-    tests/test_usage_report.py
+  reviewer: codex
+  kind: self
   status: passed
-  head: 877a439f4b3f9cc15611eac25fff909959251eab
-  base: cee89faabbd4d884dd64143e2aaaa615338aad52
-  detail: 106 passed in 2.15s on Python 3.12.12 after the rebase.
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -rs > /tmp/coga-usage-report-owner-final-pytest.log
+  head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+  base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+  detail: Direct review completed in this fresh peer-review session, with no must-fix findings. Read the
+    initial seven-file change and the final five-file diff after rebase, checked owner resolution and
+    delivery/bump behavior against the shared contracts, inspected the captured rendered text, and verified
+    the authorized composition-test repair. No child reviewer or delegated agent was used.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -rs > /tmp/coga-usage-report-owner-peer-pytest.log
     2>&1
   status: passed
-  head: 877a439f4b3f9cc15611eac25fff909959251eab
-  base: cee89faabbd4d884dd64143e2aaaa615338aad52
-  detail: '3808 passed, 7 skipped in 448.62s on Python 3.12.12. Skips: two native Windows job-object
-    integration cases and five cases requiring Windows PowerShell 5.1. Ran on the committed
-    tree b2c98cbb0f3be6cd7e692bcdece3cf1bdc4144b1.'
+  head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+  base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+  detail: 3808 passed, 7 skipped in 522.77s on Python 3.12.12, after rebase on the committed tree. Two
+    skips require Windows job objects and five require native Windows PowerShell 5.1.
+- command: 'stty cols 80 rows 24
+
+    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-usage-report-owner-peer-preview.py
+
+    stty cols 120 rows 40
+
+    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-usage-report-owner-peer-preview.py'
+  status: passed
+  head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+  base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+  detail: Manual captured-transport runs in both PTY sizes used a generated period in an orbital-service
+    fixture. Observed [orbital-service] [<@U02ADA>], missing-owner fallback [<@U01MARC>], and unmapped
+    [stranger], with the report body intact. Each run attempted exactly one important-route post then
+    one stubbed CLI bump, including HTTP 503. Synthetic IDs only; no live Slack messages. Captured payloads
+    are in /tmp/coga-usage-report-owner-peer-preview.json.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 877a439f4b3f9cc15611eac25fff909959251eab
-  base: cee89faabbd4d884dd64143e2aaaa615338aad52
-  detail: No whitespace errors in the seven-file implementation diff.
+  head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+  base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+  detail: No whitespace errors in the final five-file diff.
+- command: cmp docs/contexts/coga/important/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md
+  status: passed
+  head: 7520b20675be5141e8e52ea6731b7f9330ac6d3f
+  base: 537352f8e50664ac657233ae69de6e6bdf2daf56
+  detail: Canonical and packaged important-destination topics are byte-identical after rebase; the full
+    suite also passed packaging checks.
 - command: coga validate --json
   status: not-run
-  detail: Configuration, workflow semantics, task layout, and validation behavior are unchanged;
-    the seeded repository is exercised by the usage-report tests.
+  detail: Configuration, workflow semantics, task layout, and validation behavior are unchanged. The full
+    suite exercises the seeded repository, generated period, and CLI completion.
 ```
