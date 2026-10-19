@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -668,3 +668,109 @@ The live-ticket metadata survey confirmed the compatibility variants above.
   restored after fast-forward, and checked byte-for-byte. Only this ticket
   remains in the working diff. Ready for the independent design evaluator;
   owner decisions above remain pending.
+
+## Evaluator review
+
+Cold review on 2026-10-19 against `073af0f1a`, reconciled to `c80511fc1`;
+intervening commits change only unrelated tickets and their audit. **Needs revision
+before implementation** for the two findings below. This is evaluation, not
+owner approval; the two existing Open Questions still belong to owner review.
+
+The intent and requirements reach composition through `## Description` and
+`## Context`. The four shipped workflow definitions, skilled versus inline
+resolution, older empty-skills review handling, launch-audit ordering, and
+exit-sweep exclusion seam match the source. The proposed shared mechanics
+have two actual consumers and the recipe has a stated co-versioning reason.
+Automation and removal of its replaced instructions form one coherent PR.
+
+### Must fix before implementation
+
+1. **[P1] Establish publication provenance for the projected ticket.**
+   Proposed shape 3 materializes the current control ticket on a resumed
+   branch, but does not establish the baseline subsequent ticket publication
+   needs. `src/coga/git.py` `_provenance` recognizes only `HEAD`, the merge
+   base, and `PUBLISHED_REF`; it does not remember a control snapshot merely
+   because preparation read or copied it. `_publish_locked` also returns
+   from an already-equal publication without recording those blobs.
+   `src/coga/bump.py` `advance_step` publishes without an `expect` override.
+   An `in_progress` resume with existing linkage need not publish this ticket
+   during startup, and publishing its launch audit records only the log.
+
+   This fails when another checkout updated the ticket after the feature
+   branch point, even with no concurrent change during the new session.
+   A disposable real-Git probe fetched/prepared control, published the launch
+   log, switched to the old recorded branch, and copied the exact fetched
+   ticket. Adding a handoff then calling `sync_task_state(strict=True)` raised
+   `StateRegressionError: control copy changed since this checkout last saw
+   it`; the handoff stayed local and did not reach control. Normal bump can
+   therefore save an advance locally while refusing its publication.
+
+   Specify how the verified projection establishes a narrowly scoped,
+   cross-process publication baseline for this ticket, with later control
+   changes still refusing. Include the state-publication owner/twin if that
+   contract changes. Add a real-Git resume test with no matching published
+   ticket baseline, no activation/linkage write, a real handoff/bump and
+   return; also prove a subsequent competing ticket edit is not overwritten.
+   Do not repair this by replaying a transition or committing the projection.
+
+2. **[P2] Define first-time sandbox fallback after automatic switching.**
+   Proposed shape 6 defines the already-recorded clone case, but preserving
+   the existing fallback also requires the case where restricted Git access
+   is discovered for the first time inside the agent. The host launch can
+   prepare and switch successfully while the agent's sandbox cannot write
+   the primary Git metadata. At that point the primary is already on the
+   prepared feature branch, possibly with new source edits.
+
+   `docs/contexts/dev/checkouts/sandbox-clone/SKILL.md`, "Sandbox clone
+   fallback", and `coga/skills/code/implement/SKILL.md`, step 3, currently
+   create the independent clone after agent-side branch creation fails and
+   keep the primary on control. That startup sequence no longer applies;
+   the agent cannot simply switch the protected primary back. The proposed
+   chat-only recipe supplies no ticket-session handoff for this case.
+
+   Decide the supported recovery sequence and primary-HEAD guarantee before
+   removing those instructions: who returns the primary, when clone linkage
+   is published, and how the reserved branch and any new edits survive.
+   Update the sandbox owner/twin and add coverage starting without
+   `worktree:`, with successful host preparation followed by an agent-side
+   Git-write refusal. Handling only a pre-existing clone does not verify the
+   promised fallback.
+
+### Optional recommendations
+
+- Exercise an agent-driven rebase with both an entry projection and new
+  blackboard notes. The reconciliation topic already explains preserving
+  dirty work, but the new normal entry is dirty while `code/implement` step
+  8 and peer-review currently expect a clean branch for rebase. Verify the
+  revised guidance preserves notes, leaves the ticket unstaged, and never
+  includes it in an implementation commit.
+- Correct the Context source map's `run_reported` reference: this tree has
+  `src/coga/runner.py` `run_recipe` calling `_record_failure`; no
+  `run_reported` symbol exists there. The intended failure contract is real.
+
+### Verification and scope
+
+The real-Git probe used `tests/conftest.py` `init_git_repo` and
+`tests/test_git.py` `_seed_ticket` / `_ticket_text`, with a competing control
+commit from a second clone. It verified both the retained working bytes and
+the unchanged remote ticket. No production implementation was added.
+
+The following baseline checks passed: **12 passed in 3.66s**, Python 3.12.12.
+This is targeted design evidence, not an implementation or Python 3.11-floor
+verification.
+
+```sh
+PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -q tests/test_git.py::test_expect_pins_the_exact_control_copy tests/test_git.py::test_a_feature_checkout_keeps_publishing_its_own_ticket tests/test_launch.py::test_launch_returns_a_feature_branch_handoff_before_the_next_step tests/test_launch.py::test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it tests/test_launch.py::test_orientation_guard_is_per_git_checkout_not_coga_root tests/test_launch.py::test_orientation_guard_is_released_when_its_process_dies tests/test_bootstrap_workflow_review_sections.py
+```
+
+`PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --task automate-checkout-setup-and-deduplicate-instructio --json`
+returned exit 0, 1 task OK, no issues. `git diff --check` passed, and a
+byte-prefix comparison against committed control confirmed that the entire
+pre-existing ticket, including its blackboard, was preserved.
+Final reconciliation backed up the review, fast-forwarded control, reapplied
+the review and verified it byte-for-byte; relevant source, instructions and
+this ticket's committed bytes were unchanged.
+
+Only this Evaluator review was added. The ticket body, frontmatter, existing
+blackboard sections, source, documentation, and tests were not edited; no
+implementation branch or PR was created.
