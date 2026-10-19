@@ -8710,3 +8710,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:21 v1 [windows-native/core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-10-19 12:21 v1 [recurring/dream] [agent:claude] slack: New context: open-pr refusal causes. PR: https://github.com/FastJVM/coga/pull/1049
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: Slack configuration refusals and their blast radius. PR: https://github.com/FastJVM/coga/pull/1050
+2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: publishing Coga state across a branch switch. PR: https://github.com/FastJVM/coga/pull/1051
