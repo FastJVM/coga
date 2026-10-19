@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -747,7 +747,8 @@ unstaged, and make repeated preparation a non-publishing no-op.
 
 No unresolved product choices. The owner approved both original questions and
 the first-time sandbox recovery choice during review; see Owner design review
-below. Final approval to advance the revised spec to implementation is pending.
+below. The owner also approved the revised spec and explicitly authorized
+advancing to implementation on 2026-10-19.
 
 ## Verification
 
@@ -922,8 +923,8 @@ Evaluator dispositions:
   `runner._record_failure` instead of the nonexistent `run_reported`.
 
 Only the ticket body and blackboard changed. Lifecycle frontmatter and the
-ticket guide remain intact. The owner has not yet asked to advance; remain on
-review-design until explicit approval to bump.
+ticket guide remain intact. On 2026-10-19 the owner explicitly approved the
+revised spec and the requested `coga bump` handoff to implementation.
 
 Review verification (Python 3.12.12; no Python 3.11-floor run or implementation
 verification claimed):
@@ -951,4 +952,7 @@ Reconciled to fetched control `47e9c5316`: only unrelated tickets and the
 audit changed; relevant source, instructions and this ticket's control bytes
 were unchanged. Backed up and verified the complete edit, restored the tracked
 ticket, fast-forwarded, and reapplied it byte-for-byte. Only this ticket is
-edited. Ready for the owner's final approval to advance to implementation.
+edited. Before the authorized handoff, fetched and fast-forwarded again to
+`572e4c4c2`; only unrelated tickets and the audit had changed. This ticket and
+the relevant source/instructions were unchanged. Design review is complete;
+the next step implements the revised spec and its required owner/twin updates.
