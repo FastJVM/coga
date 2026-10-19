@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -81,3 +80,26 @@ and primary checkouts and other clones are covered in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-19T17:48:00+00:00
+Task: `recurring/autoclose-merged`
+
+5 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `discharge-retires-md-entries-in-the-clone-that-own` "Discharge retires.md entries in the clone that owns them": branch `clone-discharge-retires`
+- `investigate-successful-codex-sessions-reported-as` "Investigate successful Codex sessions reported as failed": branch `codex-sigint-interrupted`
+- `marketing/fix-installer/fail-loud-on-python-older-than-3-11` "Fail loud on Python older than 3.11": branch `fix-old-python-install`
+- `run-clone-local-recurring-work-in-every-clone` "Run clone-local recurring work in every clone": branch `clone-scoped-recurring`
+- `windows-native/windows-ec2-test-harness` "Windows EC2 test harness": branch `windows-ec2-harness`
+
+## Autoclose Sweep: unanswered review threads
+
+Generated: 2026-10-19T17:48:00+00:00
+Task: `recurring/autoclose-merged`
+
+1 auto-closed ticket(s) merged with a review thread that is unresolved, not outdated, and got no reply. Autoclose only names them — reading, resolving, or replying stays with a human:
+
+- `run-clone-local-recurring-work-in-every-clone` "Run clone-local recurring work in every clone" — PR #1033:
+  - `src/coga/recurring.py:989` by @chatgpt-codex-connector: "P2 Badge Catch malformed clone period keys" — https://github.com/FastJVM/coga/pull/1033#discussion_r4298533512
