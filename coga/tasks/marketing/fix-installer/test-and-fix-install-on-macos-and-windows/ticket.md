@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 contexts:
 - coga/install
 agent: claude
@@ -691,33 +691,115 @@ that is not this ticket's job.
 Also produced, outside the repo: an organised findings report in the
 owner's Google Docs, with labelled screenshot slots he fills himself.
 
+## Self-QA — 2026-10-18
+
+Review form: **direct review, completed.** `/code-review` is not an invocable
+skill in this harness, so the pass was read by hand over the branch diff vs
+`main` — one file, `README.md`. `/simplify` ran, with its four-agent fan-out
+replaced by an inline pass over the same four angles, because the diff
+contains no code and this session is configured not to spawn subagents
+unasked. Recorded as a limitation rather than a clean tool pass. Reviewer is
+Claude, the same agent lineage as the implement step: this is self-review,
+not independent review.
+
+Findings applied — three, all resolved by one edit (commit `cdf2676b0`):
+
+- **Six command lines against a five-line Done-when.** The implement step's
+  block had six commands; the ticket caps the README install at five, and the
+  sequence verified on the clean VM was five. `coga build` was that run's
+  *pass condition* ("the five lines complete and `coga build` runs"), which
+  the implement step folded into the block itself. Removed, owner confirmed.
+- **Reuse — that line duplicated `README.md:127`**, which already covers
+  `coga build` and correctly conditions it on the repo being empty. The
+  install block restated it unconditionally, contradicting "First steps".
+- **Existing-project entry point restored.** The old block's
+  `cd <your git repository>` served existing repos; the new one hardcodes
+  `mkdir myproject && cd myproject && git init`, so a user with a project
+  following it literally creates a throwaway directory. Carried in one prose
+  sentence after the block rather than a sixth command line.
+
+The five commands are now byte-identical to what passed on the clean VM. The
+implement step reworded only the comments, and comments do not execute, so
+the verified behavior is preserved exactly.
+
+Claims checked against the code rather than accepted from the diff:
+
+- `pyproject.toml:10` has `requires-python = ">=3.11"`, uncapped — finding 7
+  is real and unfixed.
+- `src/coga/git.py:49` imports `fcntl` at module top — the new "Native
+  Windows is unsupported" sentence is accurate.
+- `src/coga/dependencies.py:119-122` gives `claude` only brew and npm —
+  findings 14 and 16 are real.
+- PyPI's latest is 0.4.0 and `src/coga/agent_cli_setup.py` is absent from
+  `v0.4.0`, so dropping the "`coga init` offers to install the agent CLI"
+  sentence was right for anyone running `uv tool install coga`.
+- Both new installer URLs return HTTP 200, and `https://claude.ai/install.sh`
+  is Anthropic's own script, installing under `$HOME` with neither Node nor
+  Homebrew — which is what makes line 4 work on a fresh Mac.
+
+No test asserts on the repo README's content, established by reading the
+tests rather than assuming: every `test_init.py` reference writes its own
+README into a temp target, and `test_edge_distribution.py:47` copies the real
+one only because the wheel build needs `pyproject`'s readme, asserting
+nothing about its text. A prose edit cannot introduce a failure, and the
+suite result below matches the implement step's exactly.
+
+Hand-swept surfaces: none apply. The diff touches no terminal, pager or
+Slack surface. The fenced block and line widths were checked as rendered
+text.
+
+Not fixed, left for the human reviewer:
+
+- `README.md:110` is 82 characters where the file otherwise wraps at ~78. No
+  linter enforces it.
+- Line 4 installs Claude Code while the prose above offers Claude *or* Codex;
+  five lines has no room for both.
+- `README.md:118` still links `docs/contexts/coga/install/SKILL.md`, the page
+  the owner is deleting. Not a defect in this diff, but the two changes are
+  coupled and that link breaks when the deletion lands.
+- The removed agent-CLI sentence is *true on `main`*, so the README now
+  understates `main` and will need it back at 0.4.1. This is finding 13's
+  unresolved "docs track the release or `main`" question.
+- Line 4's `claude` resolves only because line 2's uv installer puts
+  `~/.local/bin` on PATH. Fine on the walk, but someone who already had uv
+  and skipped line 2's new-terminal step could find `claude` missing.
+
 ## PR
 
 ```yaml
 title: Replace README install block with a verified clean-machine sequence
 author: claude
 author_evidence: >-
-  Implement session ran as Claude Opus 5 under `coga launch`, attended by the
-  owner throughout; no agent override was used.
-head: 4628340433629d7e14baefe47708e09a7eb7ddff
-base: 8508d839856fee4623ce03ab2eefbf932d5033e2
+  Both sessions ran as Claude Opus 5 under `coga launch`, attended by the owner
+  throughout; no agent override was used. Implement wrote the block
+  (`ed321e20e`); self-qa trimmed it to five lines (`cdf2676b0`).
+head: cdf2676b0e20f1616ee458c3e496182e8143b91b
+base: f6a7145f2cfa8ec3f5602f749d669775ea1be7da
 depth: deep
 rationale: >-
-  The diff is one prose file and the sequence in it was walked end to end on a
-  clean macOS VM, but no review has run yet, the suite is red from unrelated
-  pre-existing failures, and this is the public front page's install path —
-  the first thing every new user executes. The later judgment steps should
-  downgrade this once review returns green.
+  Self-qa has completed and its findings are applied, but the depth stays deep
+  on three rubric triggers, not on residual doubt about the change itself.
+  Review was self-review — the same agent lineage as the implement step, with
+  no independent reviewer — the suite is red from five pre-existing main
+  failures, and findings 7, 13 and 16 remain open pending owner rulings. The
+  change itself is one prose file whose sequence was walked end to end on a
+  clean macOS VM, but it is the public front page's install path, the first
+  thing every new user executes. An independent review returning green on
+  this head is what should downgrade it.
 implementation: >-
   Replaces the four-line README install block, which cannot complete on a
-  fresh Mac, with the five-line sequence verified on a clean VM, and corrects
-  the platform sentence.
+  fresh Mac, with the five-line sequence verified on a clean VM; corrects the
+  platform sentence; and carries the existing-repository entry point in prose
+  after the block.
 deviations: >-
   Three departures from the owner's dictated wording, each raised with him
   before committing: kept "Linux or macOS" rather than macOS alone because
   Coga does run on Linux; added "Native Windows is unsupported" because that
   fact's only home is the page being deleted; kept Nico's uv/Python sentence
-  from ff906aac4 because the platform line still names Python 3.11+.
+  from ff906aac4 because the platform line still names Python 3.11+. Self-qa
+  then removed the implement step's sixth command, `coga build`, which
+  exceeded the ticket's five-line cap and duplicated "First steps"; owner
+  confirmed in session.
 limitations: >-
   Verified on macOS 26.6.2 arm64 only. The Linux path is reasoned, not walked:
   line 1 is marked macOS-only and Linux users take git from their package
@@ -725,40 +807,65 @@ limitations: >-
   sits against the policy in `src/coga/agent_cli_setup.py` that Coga itself
   never runs `curl | sh`; that policy governs what Coga executes, not what the
   README tells a user to run, but the tension is unresolved and is finding 16.
+  Two coupled issues are out of scope and recorded under `## Self-QA`: the
+  README still links `coga/install`, the page the owner is deleting, so that
+  link breaks when the deletion lands; and the removed agent-CLI sentence is
+  true on `main`, so the README now understates `main` until 0.4.1.
 files:
   README.md: >-
-    Install section — the five verified lines, and the platform sentence
-    corrected to drop the false native-Windows claim and the agent-CLI install
-    offer the released package does not have.
+    Install section — the five verified lines, the platform sentence corrected
+    to drop the false native-Windows claim and the agent-CLI install offer the
+    released package does not have, and a prose sentence for readers who
+    already have a repository.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: claude(self)
+  kind: direct
+  status: completed
   detail: >-
-    This workflow reviews at its later `self-qa` and owner `review` steps; no
-    review has run on this diff yet. Owner approval of the install wording
-    during the walk is not code review.
+    Direct review, completed in the self-qa session — not independent.
+    `/code-review` is not an invocable skill in this harness, so the diff was
+    read by hand as the step directs for that case; `/simplify` ran as an
+    inline pass over its four angles because the diff contains no code. Three
+    findings were raised and all three applied in `cdf2676b0`. The diff's
+    factual claims were checked against the source rather than accepted:
+    `pyproject.toml:10`, `src/coga/git.py:49`, `src/coga/dependencies.py:119`,
+    the absence of `agent_cli_setup.py` from `v0.4.0`, and both installer URLs
+    returning 200. Full detail under `## Self-QA`.
 checks:
   - command: python -m pytest
     status: failed
-    head: 4628340433629d7e14baefe47708e09a7eb7ddff
+    head: 69776a5ae (pre-rebase; README byte-identical to cdf2676b0)
     base: 8508d839856fee4623ce03ab2eefbf932d5033e2
     detail: >-
-      3776 passed, 5 failed, 8 skipped in 35m. All five reproduced on the
-      merge-base with this change stashed, so none is caused by this diff:
-      test_packaging and test_autoclose_sweep twin drift on
+      3776 passed, 5 failed, 8 skipped in 35m44s, run on the working tree after
+      the self-qa fix. Recorded at the pre-rebase base deliberately: the rebase
+      onto f6a7145f2 moved only coga-state commits and did not touch README.md,
+      so the tested README is byte-identical to the committed one, but this
+      receipt does not by itself describe the final head — the targeted re-run
+      below does.
+  - command: python -m pytest (5 known failures + test_compose + test_edge_distribution)
+    status: failed
+    head: cdf2676b0e20f1616ee458c3e496182e8143b91b
+    base: f6a7145f2cfa8ec3f5602f749d669775ea1be7da
+    detail: >-
+      5 failed, 97 passed in 59s at the final head. The failing set is
+      identical to the full run's and to the implement step's: test_packaging
+      and test_autoclose_sweep twin drift on
       coga/recurring/autoclose-merged/ticket.md, test_compose's CLAUDE.md
-      core-boundary case, test_edge_distribution, and a test_recurring
-      git update-ref failure. Run against the working tree before commit; the
-      committed README is byte-identical to the tested one.
+      core-boundary case, test_edge_distribution's legacy-adoption inventory,
+      and a test_recurring git update-ref failure. None can be caused by this
+      diff: no test asserts on the repo README's content — test_init writes its
+      own into a temp target, and test_edge_distribution copies the real one
+      only because the wheel build needs pyproject's readme. CI will stay red
+      on this PR until main is fixed, which is not this ticket's job.
   - command: coga validate --json
     status: passed
-    head: 4628340433629d7e14baefe47708e09a7eb7ddff
-    base: 8508d839856fee4623ce03ab2eefbf932d5033e2
+    head: cdf2676b0e20f1616ee458c3e496182e8143b91b
+    base: f6a7145f2cfa8ec3f5602f749d669775ea1be7da
     detail: >-
-      No error on either ticket touched here. The two errors reported belong to
+      269 ok, 2 errors, 47 warnings. Both errors are broken-context on
       marketing/demo-hackability-ask-claude-to-add-a-command-live, which this
-      work does not touch.
+      work does not touch. This ticket reports only a stuck-in-progress warn.
 ```
 
 ## Blockers
