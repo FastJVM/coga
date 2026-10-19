@@ -714,3 +714,195 @@ def _clone_checkout(git_repo, name: str) -> Path:  # type: ignore[no-untyped-def
         subprocess.run(["git", "-C", str(path), "config", key, value], check=True)
     subprocess.run(["git", "-C", str(path), "config", "commit.gpgsign", "false"], check=True)
     return path
+
+
+# --- exemptions and procedures --------------------------------------------------
+
+
+def test_script_phase_runs_on_control_before_branch_preparation(
+    git_repo, launch_env, tmp_path: Path
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Scripted prep", workflow_name="code/with-self-review",
+        contexts=[], owner="marc", agent="claude", status="active",
+        force_directory=True,
+    )
+    witness = tmp_path / "script-head.txt"
+    task_dir = Path(created["path"])
+    (task_dir / "ticket.py").write_text(
+        "import subprocess, pathlib\n"
+        "head = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],"
+        " capture_output=True, text=True).stdout\n"
+        f"pathlib.Path({str(witness)!r}).write_text(head)\n"
+    )
+    coga_git.sync_task_state(cfg, task_dir, message="Seed scripted task")
+    agent = _Agent(git_repo, [lambda seen: None])
+    launch_env(agent)
+
+    result = _launch(created["slug"])
+
+    assert result.exit_code == 0, result.output
+    assert witness.read_text().strip() == "main"
+    assert agent.seen[0]["head"].startswith("coga/")
+    assert agent.seen[0]["dirty"] == [str((task_dir / "ticket.md").relative_to(git_repo.root))]
+
+
+def test_recorded_clone_keeps_the_primary_on_control(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    git_repo.git("branch", "feature/clone")
+    git_repo.git("push", "-q", "origin", "feature/clone")
+    clone = _clone_checkout(git_repo, "sandbox")
+    subprocess.run(["git", "-C", str(clone), "switch", "-q", "feature/clone"], check=True)
+    replace_blackboard(
+        ref.ticket_path,
+        checkouts.insert_branch_line(read_blackboard(ref.ticket_path), "feature/clone")
+        .replace("branch: feature/clone\n", f"branch: feature/clone\nworktree: {clone}\n"),
+    )
+    coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="link")
+
+    def check(seen: dict) -> None:
+        assert seen["head"] == "main" and seen["dirty"] == []
+        assert f"the recorded clone `{clone}`" in seen["prompt"]
+
+    agent = _Agent(git_repo, [check])
+    launch_env(agent)
+    assert _launch(ref.id_slug).exit_code == 0
+    assert len(agent.seen) == 1
+
+    subprocess.run(["git", "-C", str(clone), "switch", "-q", "main"], check=True)
+    refused = _Agent(git_repo, [])
+    launch_env(refused)
+    result = _launch(ref.id_slug)
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "not 'feature/clone'" in result.output
+    assert refused.seen == [] and _head(git_repo) == "main"
+
+
+def test_documented_rebase_keeps_projection_and_notes_out_of_commits(
+    git_repo, launch_env
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    rel = _rel(git_repo, ref)
+    other = _clone_checkout(git_repo, "other")
+
+    def implement_and_rebase(seen: dict) -> None:
+        (git_repo.root / "feature.py").write_text("work\n")
+        git_repo.git("add", "feature.py")
+        git_repo.git("commit", "-qm", "Implement")
+        _handoff(git_repo, ref, "notes before rebase")
+        # Control moves under the session.
+        subprocess.run(["git", "-C", str(other), "pull", "-q", "--ff-only"], check=True)
+        (other / "upstream.py").write_text("upstream\n")
+        subprocess.run(["git", "-C", str(other), "add", "upstream.py"], check=True)
+        subprocess.run(["git", "-C", str(other), "commit", "-qm", "upstream"], check=True)
+        subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
+        # dev/checkouts: copy the ticket out, restore it from HEAD, rebase,
+        # write the copy back unstaged.
+        saved = ref.ticket_path.read_bytes()
+        git_repo.git("restore", "--source=HEAD", "--worktree", "--", rel)
+        git_repo.git("fetch", "-q", "origin", "main")
+        git_repo.git("rebase", "-q", "FETCH_HEAD")
+        ref.ticket_path.write_bytes(saved)
+        assert ref.ticket_path.read_bytes() == saved
+        _bump(git_repo, ref.id_slug)
+
+    agent = _Agent(git_repo, [implement_and_rebase, lambda seen: None])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == 0, result.output
+    branch = agent.seen[0]["head"]
+    for commit in git_repo.git("rev-list", f"origin/main..{branch}").split():
+        assert rel not in git_repo.git("show", "--name-only", "--format=", commit)
+    assert "upstream.py" in git_repo.git("ls-tree", "--name-only", branch)
+    assert "notes before rebase" in _control(git_repo, rel)
+
+
+def test_git_disabled_launch_claims_no_preparation(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    toml = git_repo.coga_os / "coga.toml"
+    toml.write_text(toml.read_text() + "\n[git]\nenabled = false\n")
+
+    def check(seen: dict) -> None:
+        assert seen["head"] == "main"
+        assert "did not prepare a branch or claim freshness" in seen["prompt"]
+        assert "Git sync is disabled" in seen["prompt"]
+
+    agent = _Agent(git_repo, [check])
+    launch_env(agent)
+
+    assert _launch(ref.id_slug).exit_code == 0
+    assert git_repo.git("branch", "--list", "coga/*").strip() == ""
+
+
+def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
+    git_repo, launch_env
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    rel = _rel(git_repo, ref)
+    (git_repo.root / "old.py").write_text("old\n")
+    git_repo.git("add", "old.py")
+    git_repo.git("commit", "-qm", "seed old.py")
+    git_repo.git("push", "-q", "origin", "main")
+
+    def refused_commit(seen: dict) -> None:
+        # The agent edits, then its first commit is refused by the sandbox:
+        # it stops with every change in place and does not bump.
+        (git_repo.root / "staged.py").write_text("staged\n")
+        git_repo.git("add", "staged.py")
+        (git_repo.root / "old.py").unlink()
+        (git_repo.root / "untracked.py").write_text("untracked\n")
+        _handoff(git_repo, ref, "sandbox refused the commit")
+
+    agent = _Agent(git_repo, [refused_commit])
+    launch_env(agent)
+
+    _launch(ref.id_slug)
+
+    branch = agent.seen[0]["head"]
+    assert _head(git_repo) == branch  # the return refused over source dirt
+    assert (git_repo.root / "staged.py").read_text() == "staged\n"
+    assert (git_repo.root / "untracked.py").read_text() == "untracked\n"
+    assert not (git_repo.root / "old.py").exists()
+    # The ticket handoff was routine state: the refused return published it.
+    assert "sandbox refused the commit" in _control(git_repo, rel)
+
+    # Host recovery (dev/checkouts/sandbox-clone): clone the prepared branch,
+    # transfer and verify the source changes, then clear only the copies.
+    clone = _clone_checkout(git_repo, "sandbox")
+    subprocess.run(["git", "-C", str(clone), "fetch", "-q", str(git_repo.root), branch], check=True)
+    subprocess.run(["git", "-C", str(clone), "switch", "-q", "-c", branch, "FETCH_HEAD"], check=True)
+    for name in ("staged.py", "untracked.py"):
+        (clone / name).write_bytes((git_repo.root / name).read_bytes())
+    (clone / "old.py").unlink()
+    for name in ("staged.py", "untracked.py"):
+        assert (clone / name).read_bytes() == (git_repo.root / name).read_bytes()
+    git_repo.git("restore", "--staged", "--worktree", "--source=HEAD", "--", "staged.py", "old.py")
+    (git_repo.root / "staged.py").unlink(missing_ok=True)
+    (git_repo.root / "untracked.py").unlink()
+    git_repo.git("restore", "--source=HEAD", "--worktree", "--", rel)
+    git_repo.git("switch", "-q", "main")
+    git_repo.git("merge", "-q", "--ff-only", "origin/main")
+    assert _dirty(git_repo) == []
+    replace_blackboard(
+        ref.ticket_path,
+        read_blackboard(ref.ticket_path).replace(
+            f"branch: {branch}\n", f"branch: {branch}\nworktree: {clone}\n"
+        ),
+    )
+    coga_git.sync_task_state(
+        load_config(git_repo.coga_os), ref.path, message="record clone", strict=True
+    )
+    assert f"worktree: {clone}" in _control(git_repo, rel)
+
+    def resumed(seen: dict) -> None:
+        assert seen["head"] == "main"
+        assert f"the recorded clone `{clone}`" in seen["prompt"]
+
+    relaunch = _Agent(git_repo, [resumed])
+    launch_env(relaunch)
+    assert _launch(ref.id_slug).exit_code == 0
+    assert relaunch.seen[0]["step"] == "1 (implement)"
+    assert (clone / "staged.py").read_text() == "staged\n"
