@@ -1,6 +1,6 @@
 ---
 title: Run clone-local recurring work in every clone
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 contexts:
 - coga/recurring
 - coga/recurring/scheduling
