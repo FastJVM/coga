@@ -800,3 +800,16 @@ Result: 49 issue(s): 0 direct fix, 4 PR proposal, 45 human-needed.
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
 - `where-have-code-review-disappeared`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
   Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+
+## Run notes (2026-W43)
+
+- Period: 2026-W43 (log line `created recurring/dream for 2026-W43`).
+- Preflight: git-common-dir ok, remote ok (`origin`/`main` defaults), gh ok.
+- Phase 1: `reported` — 49 issues: 0 direct-fix, 4 pr-proposal, 45 human-needed
+  (stuck-in-progress 20, unfrozen-workflow 18, empty-description 7).
+  Note: broken-context checks also probed `/home/n/Code/coga/src/...` (a different
+  checkout's package) — the installed `coga` tool resolves its bundled tree there.
+- Repo identity: coga-source (no Rule A exclusion).
+- Scan dir: `/home/n/Code/claude/coga/coga/.coga/dream-scans/20261019T175307Z`
+  — knowledge-scan 32 shards (ks-01..ks-32), contract-audit 8 shards (ca-01..ca-08).
+  Deviation: tickets >60 KB (3 files) priced as ranged `@40000` like oversized contexts.
