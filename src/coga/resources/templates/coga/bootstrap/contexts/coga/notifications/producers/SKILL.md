@@ -70,6 +70,11 @@ surfaces (`autoclose-merged` posts live checkout and review-thread summaries and
 outcomes). A new template or event kind that appears on none of the three
 surfaces is an unreviewed cadence decision, not a neutral default. Keep this
 inventory in step with `coga/recurring` when templates change.
+The inventory covers package and bundled producers only (owner decision,
+2026-09-30). A repo-local recurring template, such as this repo's
+`coga/recurring/usage-report`, documents its Slack routing in its own
+`ticket.md`; its absence from these tables is not an unreviewed cadence
+decision.
 
 ## Blocker reminders: one attempt per blocker
 

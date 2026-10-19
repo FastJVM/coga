@@ -56,7 +56,13 @@ important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
   (`coga/notifications/failures`).
 - **Webhooks are bearer tokens.** Commit only `env:` references (resolved by
   `config._resolve_secret_value`; see `coga/secrets`). A bare exported
-  `SLACK_WEBHOOK_URL` with no `webhook` key fails config load with guidance;
+  `SLACK_WEBHOOK_URL` with no `webhook` key fails config load with guidance
+  (`coga init` alone tolerates it: `commands/init._load_scaffolded_config`
+  hides the variable around its one config load). Known wording gap: init's
+  closing tip then still reads "optional on first run — Coga runs without
+  them", although the very next command (for example `coga status`) exits 2
+  until the variable is unset or `webhook = "env:SLACK_WEBHOOK_URL"` is
+  declared;
   a literal URL parses but must never be committed. `enabled`, `webhook`,
   and `important_webhook` each resolve with `coga.local.toml` overriding the
   shared file.

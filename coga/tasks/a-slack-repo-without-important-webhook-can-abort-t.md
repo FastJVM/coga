@@ -220,3 +220,10 @@ Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2323
 
 Owner review of PR #761 is next. The known test fixture failure is documented
 above and in the PR; the fix and its regression coverage are ready for review.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: Slack configuration refusals and their blast radius

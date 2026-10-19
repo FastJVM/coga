@@ -19,6 +19,13 @@ that decides whether either aborts the caller:
   `important=True` post with no `important_webhook` is refused by
   `webhook_for`; it is **never rerouted** to flow, because a human-action
   alert in the wrong channel reported as success is worse than a crash.
+  `typer.Exit` is `click.exceptions.Exit`, a `RuntimeError` subclass, not a
+  `SystemExit`: an `except SystemExit` guard (such as one wrapping a
+  `ticket.py` `sys.exit`) does not contain the refusal, while a bare
+  `except Exception` swallows it (as `mark.py`'s advisory
+  `_warn_if_state_not_advanced` guard does, turning a missing important
+  webhook into a `[period-state] FYI broadcast failed` stderr line). Contain
+  it with `post(fatal=False)` or an explicit `except typer.Exit`.
 - **Delivery miss** — any transport failure, revoked webhook, or non-2xx
   response. A transport failure is anything in
   `slack_response.SLACK_TRANSPORT_ERRORS` (`OSError`, which includes
