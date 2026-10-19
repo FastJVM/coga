@@ -8645,3 +8645,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 10:47 v1 [run-clone-local-recurring-work-in-every-clone] [human:nicktoper] auto-bumped on merge of PR #1033 → done; 1 unanswered review thread: src/coga/recurring.py:989
 2026-10-19 10:47 v1 [windows-native/windows-ec2-test-harness] [human:nicktoper] auto-bumped on merge of PR #1026 → done
 2026-10-19 10:48 v1 [recurring/autoclose-merged] [system] task done
+2026-10-19 10:48 v1 [recurring/autoclose-merged] [system] script exited with code 0
