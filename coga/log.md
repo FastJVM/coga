@@ -8716,3 +8716,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: why ticket.py is a completion-deduced fixed-name stat. PR: https://github.com/FastJVM/coga/pull/1054
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: ticket parsers that still ignore code fences. PR: https://github.com/FastJVM/coga/pull/1055
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: coga slack ignores the --agent override when crediting. PR: https://github.com/FastJVM/coga/pull/1056
+2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: why the Python floor stays at 3.11. PR: https://github.com/FastJVM/coga/pull/1057
