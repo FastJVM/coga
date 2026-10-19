@@ -55,6 +55,12 @@ guard (Git disabled, non-Git) no invocation is offered: follow the
 
 The guard's companion receipt (beside its lock file) records the live
 session, its supervisor, and the reserved name; reserving creates no branch.
+The first preparation pins the creation commit in that reservation before
+attempting to create the ref. Creation is recorded separately, only after the
+ref is verified at that commit. A failed creation or interrupted receipt write
+keeps the reservation: retrying the same command creates the missing ref or
+verifies the matching ref at the original commit, even if control advanced.
+A conflicting ref or deletion of an already-confirmed branch still refuses.
 It is installed and removed under the state lock with the guard, so a new
 chat never exposes an earlier session's receipt. The preparation recipe is a
 fixed `coga run` entry ([coga/extension-model](../../../coga/extension-model/SKILL.md));

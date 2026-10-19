@@ -48,7 +48,7 @@ from coga.autoclose import (
     parse_worktree_path,
 )
 from coga.blackboard import update_blackboard_under_barrier
-from coga.checkout_policy import CheckoutPolicy
+from coga.checkout_policy import CheckoutPolicy, select_checkout_policy
 from coga.compose import CheckoutNotice
 from coga.config import Config
 from coga.tasks import TaskRef
@@ -107,13 +107,15 @@ def plan_ticket_checkout(
 
     `ticket` is the authoritative copy launch routed and preflighted. Runs
     only from an armed launch boundary on control. A linkage publication
-    that lands advances control, so the ticket is re-read and its lifecycle
-    re-checked before returning; any change refuses rather than spawning a
-    stale step. Never switches.
+    that lands advances control, so the ticket's lifecycle, frozen workflow
+    and resolved checkout policy are re-checked after each control refresh;
+    a changed contract refuses rather than spawning a stale step. Never switches.
     """
     root, control_oid = _prove_control(cfg, "entry")
     rel = git.relative_to_root(root, ref.ticket_path)
-    current = _authoritative_ticket(cfg, root, ref, rel, control_oid, ticket, "entry")
+    current = _authoritative_ticket(
+        cfg, root, ref, rel, control_oid, ticket, policy, "entry"
+    )
     _, blackboard = _split(current, ref)
     branches = parse_branch_names(blackboard)
     worktree = parse_worktree_path(blackboard)
@@ -156,7 +158,7 @@ def plan_ticket_checkout(
         current = _publish_linkage(cfg, root, ref, rel, current, branch)
         root, control_oid = _prove_control(cfg, "linkage publication")
         current = _authoritative_ticket(
-            cfg, root, ref, rel, control_oid, ticket, "linkage publication"
+            cfg, root, ref, rel, control_oid, ticket, policy, "linkage publication"
         )
         _, blackboard = _split(current, ref)
         if (parse_branch_names(blackboard) or [None])[0] != branch:
@@ -320,6 +322,7 @@ def _authoritative_ticket(
     rel: str,
     control_oid: str,
     expected: Ticket,
+    expected_policy: CheckoutPolicy,
     stage: str,
 ) -> bytes:
     control = git.tree_bytes(root, control_oid, rel)
@@ -338,6 +341,21 @@ def _authoritative_ticket(
             stage,
             f"control's ticket moved to status={observed.status!r} "
             f"step={observed.step!r} during preparation; retry the launch",
+        )
+    if observed.workflow != expected.workflow:
+        raise CheckoutPreparationError(
+            stage,
+            "control's frozen workflow changed during preparation; retry the launch "
+            "so routing and preflights use the new step contract",
+        )
+    # Control can also change the instructions without changing the ticket.
+    # Re-select from the refreshed files before any branch mutation or spawn.
+    observed_policy = select_checkout_policy(cfg, observed)
+    if observed_policy != expected_policy:
+        raise CheckoutPreparationError(
+            stage,
+            f"control's checkout policy changed during preparation: "
+            f"{observed_policy.reason}; retry the launch",
         )
     return control
 
@@ -760,13 +778,16 @@ def chat_notice(cfg: Config, session: ChatSession | None, *, armed: bool, reason
     )
 
 
-def _write_chat_receipt(session: ChatSession, *, created: str | None) -> None:
+def _write_chat_receipt(
+    session: ChatSession, *, created: str | None, reserved: str | None = None
+) -> None:
     session.receipt.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     atomic_write_text(session.receipt, json.dumps({
         "session": session.session,
         "root": str(session.root),
         "pid": session.pid,
         "branch": session.branch,
+        "reserved_oid": reserved,
         "created_oid": created,
     }, sort_keys=True) + "\n")
 
@@ -883,6 +904,7 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
         if not isinstance(data, dict) or data.get("session") != session_id:
             raise CheckoutPreparationError("session", "the chat ended during preparation")
         existing = _ref_oid(root, f"refs/heads/{session.branch}")
+        reserved = data.get("reserved_oid")
         created = data.get("created_oid")
         if existing is None:
             if created:
@@ -894,15 +916,36 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
                 raise CheckoutPreparationError(
                     "reservation", f"{session.branch!r} already exists on {cfg.git_remote}"
                 )
-            _write_chat_receipt(session, created=control_oid)
-            git.run_git(root, "branch", "--no-track", session.branch, control_oid)
-            created = control_oid
-        elif existing != created:
+            if reserved is None:
+                reserved = control_oid
+                _write_chat_receipt(session, reserved=reserved, created=None)
+            try:
+                git.run_git(root, "branch", "--no-track", session.branch, reserved)
+            except git.GitError as exc:
+                raise CheckoutPreparationError(
+                    "branch creation",
+                    f"could not confirm {session.branch!r} at {reserved}: {exc}. "
+                    f"The reservation in {receipt} is retained; retry the same command",
+                ) from exc
+            existing = _ref_oid(root, f"refs/heads/{session.branch}")
+        if existing != (created or reserved):
             raise CheckoutPreparationError(
                 "reservation",
                 f"{session.branch!r} exists at {existing}, which this chat did not "
                 "create there; nothing was adopted",
             )
+        if not created:
+            # A branch command may have succeeded before its caller failed or
+            # the receipt write was interrupted. Only its reserved tip qualifies.
+            try:
+                _write_chat_receipt(session, reserved=reserved, created=existing)
+            except OSError as exc:
+                raise CheckoutPreparationError(
+                    "branch creation",
+                    f"created {session.branch!r} at {existing}, but could not record "
+                    f"it: {exc}. The branch and reservation in {receipt} are retained; "
+                    "retry the same command",
+                ) from exc
         if _status(root):
             raise CheckoutPreparationError("switch", "the control checkout became dirty")
         _check_switch_target(cfg, root, session.branch, _head(root))

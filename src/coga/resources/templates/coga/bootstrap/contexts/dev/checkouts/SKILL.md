@@ -80,6 +80,14 @@ replaced step skills — gets **manual**: launch still prepares and returns
 control, but sets up no branch and says so. Ticket-wide `skills:`,
 completion gates, and roles never select entry behavior.
 
+After each control refresh during preparation, the ticket's status, step and
+complete frozen workflow must still match the copy already routed and
+preflighted. Preparation also re-selects the checkout policy from the refreshed
+instructions. A changed workflow or policy refuses before further branch work
+or spawn, even if the status and step index are unchanged; retry the launch so
+routing and preflights run again. New blackboard notes and the preparation's
+own linkage publication do not change that contract.
+
 ### In a launched session
 
 An ordinary `coga launch` of an agent-held step (or an explicit assist on an

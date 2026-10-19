@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from coga.cli import app
 from coga.compose import CheckoutNotice, compose_prompt_report
 from coga.config import load_config
 from coga.create import create_task
-from coga.paths import bootstrap_workflow_path
+from coga.paths import bootstrap_skill_path, bootstrap_workflow_path
 from coga.repl_supervisor import ReplOutcome
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
@@ -517,6 +518,104 @@ def test_interrupted_linkage_publication_retries_the_same_reservation(
     assert branches == [local_branch]
 
 
+@pytest.mark.parametrize("stage", ["entry", "linkage publication"])
+@pytest.mark.parametrize(
+    "change",
+    ["workflow", "step-name", "step-skills", "assignee", "skill-body", "inline-body"],
+)
+def test_launch_refuses_a_refreshed_step_contract(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, stage: str, change: str
+) -> None:  # type: ignore[no-untyped-def]
+    workflow = "docs/with-review" if change == "inline-body" else "code/with-self-review"
+    if change == "inline-body":
+        with (git_repo.coga_os / "coga.local.toml").open("a") as config:
+            config.write('\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n')
+    ref = _task(git_repo, workflow)
+    rel = _rel(git_repo, ref)
+    real_prove = checkouts._prove_control
+    changed_path: list[str] = []
+    changed_bytes: list[str] = []
+
+    def compete(cfg, current_stage):  # type: ignore[no-untyped-def]
+        if current_stage == stage and not changed_path:
+            current = Ticket.parse(_control(git_repo, rel))
+            path = rel
+            if change == "workflow":
+                current.workflow["name"] = "code/with-review"
+            elif change == "step-name":
+                current.current_step()["name"] = "pr"
+            elif change == "step-skills":
+                current.current_step()["skills"] = ["code/self-qa"]
+            elif change == "assignee":
+                current.current_step()["assignee"] = "owner"
+            if change == "skill-body":
+                path = "coga/skills/code/implement/SKILL.md"
+                text = bootstrap_skill_path(cfg, "code/implement").read_text() + "\nChanged.\n"
+            elif change == "inline-body":
+                path = "coga/workflows/docs/with-review.md"
+                text = bootstrap_workflow_path(cfg, workflow).read_text().replace(
+                    "## implement\n", "## implement\n\nChanged.\n"
+                )
+            else:
+                # All races retain exactly the lifecycle tuple checked before this fix.
+                assert (current.status, current.step) == (
+                    read_ticket(ref).status, read_ticket(ref).step
+                )
+                text = current.render()
+            git_repo.push_competing_commit(path, text)
+            changed_path.append(path)
+            changed_bytes.append(text)
+        return real_prove(cfg, current_stage)
+
+    monkeypatch.setattr(checkouts, "_prove_control", compete)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert f"stopped at {stage}" in result.output
+    assert "retry the launch" in result.output
+    assert agent.seen == [] and _head(git_repo) == "main"
+    assert _dirty(git_repo) == []
+    assert _control(git_repo, changed_path[0]) == changed_bytes[0]
+    assert coga_git.state_sweep_withheld.get() is True
+    branches = git_repo.git("branch", "--list", "coga/*").split()
+    if stage == "entry":
+        assert branches == []
+    else:
+        assert branches == checkouts.parse_branch_names(read_blackboard(ref.ticket_path))
+
+
+@pytest.mark.parametrize("stage", ["entry", "linkage publication"])
+def test_launch_accepts_new_notes_with_the_same_step_contract(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    rel = _rel(git_repo, ref)
+    real_prove = checkouts._prove_control
+    changed = False
+
+    def compete(cfg, current_stage):  # type: ignore[no-untyped-def]
+        nonlocal changed
+        if current_stage == stage and not changed:
+            git_repo.push_competing_commit(rel, _control(git_repo, rel) + "\nNew owner note.\n")
+            changed = True
+        return real_prove(cfg, current_stage)
+
+    monkeypatch.setattr(checkouts, "_prove_control", compete)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == 0, result.output
+    assert len(agent.seen) == 1
+    assert "New owner note." in agent.seen[0]["prompt"]
+    assert "New owner note." in _control(git_repo, rel)
+    assert _head(git_repo) == "main" and _dirty(git_repo) == []
+
+
 def test_failed_baseline_write_refuses_spawn_and_preserves_the_branch(
     git_repo, launch_env, monkeypatch: pytest.MonkeyPatch
 ) -> None:  # type: ignore[no-untyped-def]
@@ -666,6 +765,124 @@ def test_chat_recipe_refuses_a_dirty_control_checkout(git_repo) -> None:  # type
         assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
         assert "wip.py" in result.output
         assert _head(git_repo) == "main"
+        assert git_repo.git("branch", "--list", session.branch).strip() == ""
+
+
+@pytest.mark.parametrize("failure", ["before-ref", "after-ref", "creation-receipt"])
+def test_chat_retries_interrupted_creation_at_the_reserved_commit(
+    git_repo, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    pinned = git_repo.git("rev-parse", "HEAD").strip()
+    real_git = coga_git.run_git
+    real_write = checkouts.atomic_write_text
+    failed = False
+
+    def flaky_git(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal failed
+        if args[:2] == ("branch", "--no-track") and failure != "creation-receipt" and not failed:
+            failed = True
+            if failure == "after-ref":
+                real_git(root, *args, **kwargs)
+            raise coga_git.GitError("transient branch failure")
+        return real_git(root, *args, **kwargs)
+
+    def flaky_write(path, text, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal failed
+        if path == session.receipt and failure == "creation-receipt" and not failed:
+            if json.loads(text).get("created_oid"):
+                # Only fail the receipt after the Git ref actually exists.
+                if git_repo.git("branch", "--list", session.branch).strip():
+                    failed = True
+                    raise OSError("transient receipt failure")
+        return real_write(path, text, **kwargs)
+
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        monkeypatch.setattr(coga_git, "run_git", flaky_git)
+        monkeypatch.setattr(checkouts, "atomic_write_text", flaky_write)
+
+        first = _run_recipe(git_repo, "--session", session.session)
+
+        assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
+        assert failed and _head(git_repo) == "main" and _dirty(git_repo) == []
+        receipt = json.loads(session.receipt.read_text())
+        assert bool(git_repo.git("branch", "--list", session.branch).strip()) == (
+            failure != "before-ref"
+        )
+        git_repo.push_competing_commit("later.txt", "Control advanced while retrying.\n")
+        remote = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+        retry = _run_recipe(git_repo, "--session", session.session)
+
+        assert retry.exit_code == 0, retry.output
+        assert _head(git_repo) == session.branch
+        assert git_repo.git("rev-parse", "HEAD").strip() == pinned
+        assert git_repo.git("branch", "--list", "coga/*").split() == ["*", session.branch]
+        assert receipt["reserved_oid"] == pinned
+        assert receipt["created_oid"] is None
+        assert json.loads(session.receipt.read_text())["created_oid"] == pinned
+        assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote
+
+
+@pytest.mark.parametrize("reserved", [False, True])
+def test_chat_refuses_a_branch_without_matching_creation_evidence(
+    git_repo, monkeypatch: pytest.MonkeyPatch, reserved: bool
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    real_git = coga_git.run_git
+
+    def fail_creation(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if args[:2] == ("branch", "--no-track"):
+            raise coga_git.GitError("transient branch failure")
+        return real_git(root, *args, **kwargs)
+
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        if reserved:
+            with monkeypatch.context() as patch:
+                patch.setattr(coga_git, "run_git", fail_creation)
+                first = _run_recipe(git_repo, "--session", session.session)
+            assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
+            git_repo.push_competing_commit("later.txt", "A different branch tip.\n")
+            git_repo.git("fetch", "origin", "main")
+        git_repo.git("branch", "--no-track", session.branch, "origin/main")
+        tip = git_repo.git("rev-parse", session.branch)
+        receipt = session.receipt.read_bytes()
+
+        result = _run_recipe(git_repo, "--session", session.session)
+
+        assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+        assert "nothing was adopted" in result.output
+        assert _head(git_repo) == "main" and _dirty(git_repo) == []
+        assert git_repo.git("rev-parse", session.branch) == tip
+        assert session.receipt.read_bytes() == receipt
+
+
+def test_chat_does_not_recreate_a_confirmed_branch_after_deletion(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+
+    def refuse_switch(*args):  # type: ignore[no-untyped-def]
+        raise checkouts.CheckoutPreparationError("switch", "interrupted before switch")
+
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        monkeypatch.setattr(checkouts, "_switch", refuse_switch)
+        first = _run_recipe(git_repo, "--session", session.session)
+        assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
+        assert json.loads(session.receipt.read_text())["created_oid"]
+        git_repo.git("branch", "-D", session.branch)
+
+        retry = _run_recipe(git_repo, "--session", session.session)
+
+        assert retry.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, retry.output
+        assert "was created by this chat but no longer exists" in retry.output
+        assert _head(git_repo) == "main" and _dirty(git_repo) == []
         assert git_repo.git("branch", "--list", session.branch).strip() == ""
 
 
