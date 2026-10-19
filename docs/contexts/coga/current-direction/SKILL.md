@@ -34,6 +34,14 @@ is `coga status` and the ticket bodies; stage posture is
   briefs and remaining publication decisions. Do not recreate a permanent
   campaign context library. Revisit only if recurring work needs shared
   guidance beyond those deliverables.
+  Unfinished README checks (marketing/readme-top closed 2026-10-13 with
+  these open; no ticket owns them): the 95-second demo video
+  (`youtube.com/watch?v=iwnewxJvRPc`, July 2026) has not been watched against
+  the current CLI and is linked only with a "command names may have changed"
+  caveat (an earlier audit flagged the removed `coga project`); the README
+  does not yet show megalaunch carrying work forward, only the
+  correction-becomes-context half; and `## First steps` has not been checked
+  against the final `marketing/fix-installer` clean-install matrix.
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
