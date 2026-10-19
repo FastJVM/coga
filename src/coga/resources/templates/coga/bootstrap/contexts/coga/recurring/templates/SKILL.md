@@ -33,6 +33,13 @@ it). There is no starter directory — copy an existing template.
   ordinary task can resolve is allowed; there is no recurring-capable registry.
 - `title` (else the humanized name), `owner`, `agent`, `contexts`, `secrets` —
   passed to each period task. `agent` omitted means the repo default agent.
+  A template shipped in the wheel (packaged twin under
+  `src/coga/resources/templates/coga/recurring/`) must leave `owner:` and
+  `agent:` empty so each installing repo's defaults apply: an explicit
+  `agent: claude` blocked period creation in a Codex-only repo even with a
+  launch override (PR #857 review).
+  `tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing`
+  pins the inherited routing.
 - `run_when_inactive` — optional boolean, default false; exempts the template
   from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). The shipped
   `autoclose-merged` and `branch-sweep` opt in. Non-booleans fail `Template.load` with

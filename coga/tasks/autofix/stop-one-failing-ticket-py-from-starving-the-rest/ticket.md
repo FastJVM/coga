@@ -245,3 +245,10 @@ The run record now names the stopping task and reason, counting a missing outcom
 Verification: `PYTHONPATH=/tmp/coga-review-pr813-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_recurring.py tests/test_recurring_autofix.py tests/test_packaging.py` — 430 passed.
 
 Before the fix, all eight sole/final-task regressions reported zero problems and failed.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: recurring sweep known gaps and shipped-template routing

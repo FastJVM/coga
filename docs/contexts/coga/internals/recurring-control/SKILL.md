@@ -80,7 +80,12 @@ refuses an operator whose machine-local `user` differs, naming the owner.
 Unset means ungated. Authorization never trusts the loaded config or an
 uncommitted edit: it fetches the control branch into the remote-tracking ref and
 reads `owner` from that commit's `coga.toml`, fetching from the remote's sole
-effective **push** URL; several push URLs are refused. Checkout-wide
+effective **push** URL; several push URLs are refused. That fetch writes the
+push repository's tip into `refs/remotes/<remote>/<control>`, which later
+refresh and publish logic reads as the *fetch* remote's tip until the next
+ordinary fetch. This is harmless while push and fetch name the same repository,
+as in every configured repo today; revisit it (for example by fetching into a
+private ref) before supporting split push/fetch URLs. Checkout-wide
 `FETCH_HEAD` is never a source. Only a checkout with no configured remote reads
 `owner` from local `HEAD`; `[git].enabled = false` does not qualify, since a
 machine-local setting must not override committed policy. The `--all` parent

@@ -488,3 +488,10 @@ Test plan: `python -m pytest` (2661 passed); added routing regression plus
 `tests/test_packaging.py` (15 passed); `coga validate --json` (same existing
 issues as main); `coga launch bootstrap/address-pr-comments --prompt-report`
 (composes). Owner runs both side-effecting live sweep checks at review.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: recurring sweep known gaps and shipped-template routing

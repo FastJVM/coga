@@ -859,3 +859,10 @@ from the recurring rollover; zero `coga-sync-autostash` stashes anywhere; one
 orphaned `refs/coga/fetch/<uuid>` each in `multiply` and `xpllm`; zero state
 commits in any linked worktree. `git.py` was 7,285 lines / 141 functions
 (31 private names reached from 32 modules); `tests/test_git.py` 225 tests.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: recurring sweep known gaps and shipped-template routing
