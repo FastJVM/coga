@@ -442,3 +442,10 @@ checks:
   detail: Explicitly deferred by the ticket to the owner-held review step. Fresh provision required; the
     review instance was torn down.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: macOS clean-install harness lacks VPN-safe SSH and a build passthrough

@@ -71,6 +71,15 @@ This command:
 - allocates a host and launches the newest `amzn-ec2-macos-*` arm64 AMI on
   it, in the zone's default subnet. Set `COGA_MAC_AMI=ami-…` to pin an AMI.
 
+Known gap (unresolved, no follow-up ticket): unlike the Windows driver, which
+takes a `COGA_WIN_SSH_FROM` CIDR override and passes
+`-o ServerAliveInterval=30 -o ServerAliveCountMax=4`, `aws-mac.sh` hard-codes
+the single checked address as `$ip/32` and sets no SSH keepalives. Behind a VPN
+that exits from several addresses (seen with Surfshark during the 2026-10-15
+Windows harness acceptance run), SSH works only intermittently, and a session
+hangs rather than fails when the exit address changes mid-run. Work around it by
+disconnecting the VPN or adding the exit range to the security group by hand.
+
 Each resource ID is appended to `.coga/clean-install/<name>/resources.env`
 (gitignored) as soon as the resource exists, so a failed provision can still be
 torn down. A failed AWS resource-creation call stops provisioning without
@@ -162,6 +171,13 @@ bash /tmp/coga-clean-install/macos-walk.sh ticket "Write a hello-world script" -
 ```
 
 Check `~/clean-install/repo/coga/tasks/` to confirm the ticket was written.
+
+The attended first-run `coga build` is not reachable here yet:
+`macos-walk.sh` dispatches only `baseline`, `reset`, `walk`, `ticket` and `vnc`
+to the shared `container.sh`, with no `build` passthrough, so the
+`coga-clean-install build [--agent NAME]` continuation exists only for the
+Linux harness. A macOS clean-install record must say that `coga build` was not
+exercised until a passthrough lands (unticketed follow-up).
 
 **Use VNC for GUI flows** (the CLT dialog, a browser on the Mac):
 

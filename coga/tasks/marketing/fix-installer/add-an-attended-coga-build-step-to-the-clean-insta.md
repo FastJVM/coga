@@ -216,3 +216,10 @@ Recorded: 2026-10-14T19:13:01+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: invalid status 'returned'.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: macOS clean-install harness lacks VPN-safe SSH and a build passthrough
