@@ -881,3 +881,33 @@ Full finding text (shard evidence): `.coga/dream-scans/20261019T175307Z/{knowled
 - D1 `coga/recurring/branch-sweep/ticket.md` — 2026-10-19 branch-sweep ran as a shared period task despite `scope: clone` (runtime/install question; needs human confirmation).
 - D2 `coga/recurring/branch-sweep/ticket.md` (+twin) — blackboard paragraph describes repo-scoped weekly period task; contradicts `scope: clone` and `recurring_clone.py`.
 - D3 `docs/contexts/coga/notifications/failures/SKILL.md` (+twin) — names `launch.py _launch` as script-assist `preflight_post` caller; now `_LaunchInvocation._run_initial_script`.
+
+## Phase 4 — retro/done-ticket
+
+Result: `pr-opened` — 175 eligible done tickets processed in one isolated-worktree Retro run
+(`complete — 14 PRs, 150 direct deletes, 175 tickets`). Verified after fetch: every slug is absent
+from origin/main or deleted inside a listed PR; worktree 0 ahead, only landed deletions; worktree,
+temp branches, run dir and copied `coga.local.toml` removed.
+
+Knowledge PRs (25 source tickets): #1046 macOS clean-install harness gaps · #1047 Codex launch-path
+testing limits · #1048 historical usage records never corrected · #1049 two open-pr refusal causes ·
+#1050 Slack configuration refusals · #1051 publishing Coga state across a branch switch · #1052 two
+unguarded branch-cleanup paths · #1053 recurring sweep known gaps · #1054 why `ticket.py` has its shape ·
+#1055 parsers that ignore code fences · #1056 `coga slack` ignores `--agent` when crediting · #1057 why the
+Python floor stays at 3.11 · #1058 0.4.1 bumped but unpublished · #1059 README launch checks still owed.
+
+Unshipped scope reported by Retro (needs follow-up owner, routed in Phase 6): 0.4.1 never published
+(`release-0-4-1-...`), `marketing/readme-top` leftovers, macOS walk lacks `build` passthrough.
+Direct-deleted duplicates of note: `review-slack-channels` (fact carried by #1050).
+Pre-existing debt seen: local branch `codex/retro-recurring-branch-sweep-knowledge` (commit 44b4a9f12,
+2026-09-21, from an earlier run; never pushed; its rebased-copy fact is already on main) — left in place.
+Deferred retirement debt (not Retro input): done+checkout `document-the-remedy-for-a-bloated-blackboard-sibli`,
+`reuse-the-existing-control-worktree-for-recurring`, `service-recurring-from-a-temp-control-worktree-ins`,
+`validate-that-committed-skill-scripts-with-a-sheba`; 31 canceled tickets.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-10-19T19:15:22+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
