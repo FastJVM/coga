@@ -44,7 +44,9 @@ apply across those boundaries.
   `coga/recurring/delegation` and `coga/internals/recurring-admission`.
 
 Trailing positional arguments reach an agent prompt as an ordered JSON
-`## Launch arguments` block; `ticket.py` receives no operands.
+`## Launch arguments` block, and a bootstrap `ticket.py` as its argv. A
+stateful `ticket.py` target refuses them
+([script tickets](../script-tickets/SKILL.md)).
 
 ## Checkout boundary
 

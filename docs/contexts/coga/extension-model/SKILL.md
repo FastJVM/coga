@@ -54,7 +54,7 @@ effects, or calling shared infrastructure does not settle their placement.
 
 | Command surface | Open decision | Cleanup ticket |
 | --- | --- | --- |
-| `megalaunch`, `retire`, `slack` | Placement of queue orchestration, retire-task creation/launch, and the user-facing notification head | `work-orchestration-commands-to-tickets` |
+| `megalaunch`, `slack` | Placement of queue orchestration and the user-facing notification head | `work-orchestration-commands-to-tickets` |
 | `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
 | `show`, `status`, `validate`, `usage`, `recurring list` | Placement of the read/report heads, separately from shared rendering and validation infrastructure | `read-report-commands-as-ticket-workflows` |
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
@@ -82,17 +82,19 @@ Reach for the lowest tier the shape allows:
   `bootstrap/<name>/ticket.md` with no `status:` or `workflow:`. It runs in
   place and creates no task, blackboard, or broadcast. With only `ticket.md`
   it launches an agent that receives trailing argv as a `## Launch arguments`
-  JSON block. With the exact sibling `ticket.py` it runs that script with no
-  operands and no agent. Repo-local definitions win over packaged ones.
-  `resolve-conflicts` and `address-pr-comments` are the shipped examples.
+  JSON block. With the exact sibling `ticket.py` it runs that script with the
+  trailing argv as its operands and no agent; its `ticket.md` owns the verb's
+  contract. Repo-local definitions win over packaged ones.
+  `resolve-conflicts` and `address-pr-comments` are the shipped agent
+  examples; `retire` (`bootstrap/retire`) is the shipped script example.
 - **External tool**: an existing CLI (`git`, `gh`, `op`) that Coga shells out
   to and whose output it verifies.
 - **Stateful ticket or workflow**: reviewable work that wants its own
   blackboard, log, and often a PR. Its deterministic half can be a `ticket.py`
   without a registry entry. State decides between ticket and command, not
-  parameters: `coga retire <slug>` creates a retire task for a canceled
-  ticket because the retro is multi-step reviewed work, and deletes a done
-  ticket in place because that is not.
+  parameters: the `coga retire <slug>` command ticket creates a retire task
+  for a canceled ticket because the retro is multi-step reviewed work, and
+  deletes a done ticket in place because that is not.
 - **Kernel**: launch/compose and what launch calls mid-flight (`mark`, `bump`,
   secret injection, notify dispatch), what must exist before any launch
   (`create`, fresh `init`), the `block`/`unblock` state transitions, the fixed
@@ -138,9 +140,11 @@ its files reached control (`build/onboarding`); its contract is in
 
 `[aliases]` in `coga.toml` maps one word to an expanded command; trailing
 positional args forward to the expansion. `aliases.DEFAULT_ALIASES` registers
-nine defaults that dispatch even when `coga.toml` omits them (user entries
+ten defaults that dispatch even when `coga.toml` omits them (user entries
 override): `chat`, `dream`, `build`, `skill-update`, `autoclose`, `pick`,
-`open-pr` (`run open-pr`), `resolve-conflicts`, `address-pr-comments`. The
+`open-pr` (`run open-pr`), `resolve-conflicts`, `address-pr-comments`,
+`retire` (`launch bootstrap/retire --`; the `--` passes its options to the
+script). The
 packaged `coga.toml` spells out only `chat`, `build`, `pick`, and `dream`.
 
 Guardrails:

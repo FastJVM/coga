@@ -1,4 +1,9 @@
-"""`coga retire` — dispose of a finished task: delete a done one, retro a canceled one."""
+"""`coga retire` — dispose of a finished task: delete a done one, retro a canceled one.
+
+The script half of the stateless `bootstrap/retire` command ticket, reached by
+the default `retire = "launch bootstrap/retire --"` alias. Launch runs it with
+the alias's trailing argv; `ticket.md` beside it describes the job.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +39,10 @@ from coga.tasks import (
 from coga.validate import TaskValidationError
 
 
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
 def retire(
     task: str = typer.Argument(..., help="Done or canceled task ID or id-slug to retire."),
     agent: str | None = typer.Option(
@@ -164,16 +173,41 @@ def retire(
         return
 
     typer.echo(f"Retire: launching {slug}")
-    from coga.launch import LaunchBail, launch
+    raise typer.Exit(_launch_retire_task(slug))
 
-    try:
-        result = launch(slug, agent_override=None, prompt_report=False)
-    except LaunchBail as exc:
-        if exc.reason:
-            typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise typer.Exit(exc.code) from exc
-    if result.exit_code:
-        raise typer.Exit(result.exit_code)
+
+def _launch_retire_task(slug: str) -> int:
+    """Launch the retire task in-process and return the command's exit code.
+
+    This script runs outside `cli.main`, so it keeps the CLI's checkout guard
+    scope itself. When the nested launch withheld the state sweep (its
+    checkout return refused and kept local changes), exit with the
+    retained-state code so the outer `bootstrap/retire` launch skips its
+    teardown refresh and the CLI skips its sweep.
+    """
+    from coga.launch import LaunchBail, checkout_guard_scope, launch
+
+    code = 0
+    with checkout_guard_scope():
+        try:
+            result = launch(slug, agent_override=None, prompt_report=False)
+        except LaunchBail as exc:
+            if exc.reason:
+                typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+            code = exc.code
+        else:
+            code = result.exit_code or 0
+    if git.state_sweep_withheld.get():
+        if code not in (0, git.RETRY_WITHOUT_SWEEP_EXIT_CODE):
+            typer.secho(
+                f"Retire: launch of {slug} exited {code}; local changes were "
+                "retained, so retire exits "
+                f"{git.RETRY_WITHOUT_SWEEP_EXIT_CODE}.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+        return git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    return code
 
 
 def _delete_done_task(cfg: Config, ref: TaskRef, refusal: str | None) -> None:
@@ -380,3 +414,7 @@ def _checkout_cleanup_section(checkout: WorktreeCleanupResult | None) -> str:
 def _bail(msg: str) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
     sys.exit(2)
+
+
+if __name__ == "__main__":
+    app(prog_name="coga retire")

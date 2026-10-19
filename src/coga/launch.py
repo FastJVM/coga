@@ -803,6 +803,7 @@ class _LaunchInvocation:
         self.record_launch = record_launch
         self.recurring_authorized = recurring_authorized
         self.agent_spawn_refusal = agent_spawn_refusal
+        self.script_retained_state = False
 
     def _prepare_target(self) -> LaunchResult | None:
         """Resolve and admit the current target, including delegated periods."""
@@ -1184,6 +1185,15 @@ class _LaunchInvocation:
                 f"Cannot launch {self.ref.id_slug} through the agent-only in-process "
                 "delegation seam: the target carries ticket.py."
             )
+        if self.entry is not None and not self.is_bootstrap and self.launch_args:
+            # Only a stateless command ticket takes operands. Refuse before any
+            # secret, activation, lifecycle, or log effect: arguments to a
+            # stateful script would be hidden mutable input (coga/extension-model).
+            _bail(
+                f"Cannot pass trailing arguments to {self.ref.id_slug}: its "
+                "ticket.py has lifecycle state, and a stateful script takes no "
+                "launch arguments. Record the input in the ticket instead."
+            )
         if self.entry is not None and self.prompt_report:
             _bail(
                 f"Cannot report an agent prompt for {self.ref.id_slug}: ticket.py runs "
@@ -1319,8 +1329,13 @@ class _LaunchInvocation:
             try:
                 self.operator = _target_operator(self.cfg, self.ref, self.ticket)
             except OperatorResolutionError as exc:
-                _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
-                return LaunchResult()
+                # A script command ticket runs no agent, so it must not require
+                # one. If its ticket.py vanishes before running, the agent
+                # handoff re-derives the operator and refuses then.
+                if not (self.is_bootstrap and self.entry is not None):
+                    _bail(f"Cannot launch {self.ref.id_slug}: {exc}")
+                    return LaunchResult()
+                self.operator = None
             self.current_step = self.ticket.current_step()
         # A strict human assist: an explicit override running one visible session on
         # a step the workflow hands to a human. Decided by the step's *role*, so an
@@ -1435,6 +1450,7 @@ class _LaunchInvocation:
                     between_phases=(
                         self.settle_between_phases if self.boundary.armed else None
                     ),
+                    args=self.launch_args if self.is_bootstrap else (),
                 )
                 self.cfg = self.script_outcome.cfg or self.cfg
                 self.ref = self.script_outcome.ref or self.ref
@@ -1463,6 +1479,17 @@ class _LaunchInvocation:
                 )
 
                 if self.script_outcome.exit_code != 0:
+                    if (
+                        self.is_bootstrap
+                        and self.script_outcome.exit_code
+                        == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                    ):
+                        # The command script deliberately retained local state
+                        # (for example a nested launch whose checkout return
+                        # refused). Leave it untouched: no teardown refresh,
+                        # no end-of-command sweep, and the same exit.
+                        self.script_retained_state = True
+                        git.state_sweep_withheld.set(True)
                     _exit_failed_script(self.script_outcome.exit_code)
 
                 if not self.script_outcome.needs_agent or stop_blocked_resume:
@@ -2149,6 +2176,8 @@ class _LaunchInvocation:
 
 
     def refresh_after_script(self) -> None:
+        if self.script_retained_state:
+            return
         self.return_checkout()
 
 

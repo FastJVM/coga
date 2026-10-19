@@ -11,9 +11,10 @@ This skill documents the branch sweep behind the
 `coga.runner.run_recipe` — no agent, no composed prompt. The template is
 `scope: clone`: every clone runs it daily for its own refs and worktrees,
 with no period task. It is the safety net behind `coga retire`'s
-branch deletion — retire's
-cleanup is best-effort (failures are swallowed), and branches also leak when
-a ticket is deleted without going through retire or a session dies mid-flight.
+branch deletion — retire skips its cleanup off the control branch or after a
+Git error (and exits 2 rather than lose a branch its proofs kept; see
+`bootstrap/retire/ticket.md`), and branches also leak when a ticket is deleted
+without going through retire or a session dies mid-flight.
 
 1. prune registrations for worktrees whose directories are gone (`git
    worktree prune`), then enumerate the branches held by the remaining live

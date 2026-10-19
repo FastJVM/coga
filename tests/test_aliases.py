@@ -219,6 +219,35 @@ def test_resolve_conflicts_is_default_alias_for_agent_command_ticket() -> None:
     assert "resolve-conflicts" not in _BUILTIN_COMMANDS
 
 
+def test_retire_is_default_alias_for_script_command_ticket() -> None:
+    """`retire` fronts the stateless script command ticket, past launch's options."""
+    assert _DEFAULT_ALIASES["retire"] == "launch bootstrap/retire --"
+    assert "retire" not in _BUILTIN_COMMANDS
+
+
+def test_default_retire_alias_keeps_its_options_for_the_script(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "sys.argv", ["coga", "retire", "done-one", "--agent", "codex", "--no-launch"]
+    )
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+    main()
+    assert captured["argv"] == [
+        "coga", "launch", "bootstrap/retire", "--",
+        "done-one", "--agent", "codex", "--no-launch",
+    ]
+
+
 def test_default_resolve_conflicts_alias_carries_optional_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

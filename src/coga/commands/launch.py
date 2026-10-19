@@ -12,8 +12,9 @@ def launch(
     args: list[str] | None = typer.Argument(
         None,
         help="Trailing positional arguments for the launch target. They appear "
-        "as an ordered Launch arguments block in the composed agent prompt; "
-        "ticket.py receives no operands.",
+        "as an ordered Launch arguments block in the composed agent prompt; a "
+        "bootstrap ticket.py receives them as its argv, and a stateful "
+        "ticket.py target refuses them.",
     ),
     agent_override: str | None = typer.Option(
         None,
