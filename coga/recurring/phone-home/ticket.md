@@ -20,4 +20,4 @@ Coga installs no scheduler. This measures repos with active sweeps, not installs
 This state is shared by synced clones. Do not copy runtime state into the
 packaged seed. Only period_state changes each run; no delivery is retried.
 
-period_state: {"schema":1,"run":4,"repo_id":null,"offset":2097728,"digest":"28423395000ab409808798c0be8ba579a8116a7a119361293c42a294c923c054"}
+period_state: {"schema":1,"run":5,"repo_id":null,"offset":2252675,"digest":"77675835c2c6ebe211be75437c8bc73140a8f764cf50049c2ef0928906f5b76d"}
