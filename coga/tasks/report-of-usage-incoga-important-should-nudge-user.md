@@ -82,4 +82,22 @@ rendered prefix.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: usage-report-owner
+
+- Implementing agent: Codex in this attended session (the ticket's configured
+  `agent: claude` is unchanged). The owner approved the scoped plan on
+  2026-10-19.
+- Resolve the generated period ticket's owner, falling back to
+  `cfg.current_user`, and pass it to the existing notification API. Keep the
+  change in the usage-report edge producer; preserve Slack's mapped mention
+  and unmapped-name fallback.
+- Add transport-capture regression coverage before the fix for the project
+  prefix, owner precedence/fallback, one important-route attempt, and a
+  delivery failure followed by the CLI bump. Update the producer instructions
+  and relevant context; use no live Slack delivery for verification.
+- Starting checkout: clean `main`, fast-forwarded to current `origin/main`
+  (`14686a3bd`); intervening work changed only the audit log. Existing focused
+  baseline: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  tests/test_usage_report.py` -> 15 passed (Python 3.12.12).
