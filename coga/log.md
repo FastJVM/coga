@@ -8673,3 +8673,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 11:11 v1 [report-of-usage-incoga-important-should-nudge-user] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-19 11:11 v1 [report-of-usage-incoga-important-should-nudge-user] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-19 11:11 v1 [report-of-usage-incoga-important-should-nudge-user] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-19 11:11 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
