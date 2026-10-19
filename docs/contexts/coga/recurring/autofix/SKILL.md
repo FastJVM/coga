@@ -11,6 +11,11 @@ and every `coga recurring launch <name>` (hence `coga dream`, `coga autoclose`,
 (`src/coga/recurring_autofix.py`). It runs after a sweep with nothing due and
 after one that died partway. A gate that refused to launch (closed or parked
 template, period already handled on control) is not a run and is not analyzed.
+Neither is a sweep on an inactive repo
+([inactivity](../scheduling/inactivity/SKILL.md)) that launched nothing: the
+analyst runs there only when the record holds a launch outcome, so an
+all-skipped sweep writes no run record and makes no analyst call, and a
+template error or watchdog escalation with no launch outcome is not analyzed.
 The console output is unchanged.
 
 ## The loop
