@@ -533,3 +533,10 @@ Task: `launch-moves-the-checkout-to-main-before-and-after`
 Recorded: 2026-09-28T18:54:20+00:00
 
     Branch 'launch-normalizes-checkout' is not safe to publish. refs/heads/launch-normalizes-checkout does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task launch-moves-the-checkout-to-main-before-and-after`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: why open-pr refuses a hand-written PR record or a recurring-only stale base

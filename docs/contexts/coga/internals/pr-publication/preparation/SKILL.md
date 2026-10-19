@@ -107,7 +107,12 @@ identity and explicit missing implementation, file, test and review evidence.
 Legacy free-form `## PR` prose is shown as unverified implementation text,
 never as check or review evidence. An empty blackboard `## PR` does not shadow
 a populated ticket-body one. Malformed YAML or fields refuse with a repair
-message. A top-level head/base mismatch is a visible stale-preparation gap that
+message. Two refusals catch hand-written records: `author:` and `reviewer:`
+must be compact identities (1–32 letters, digits, `.`, `_`, `-`), so joint
+authorship is `claude/codex`, never `claude+codex`; and the section must hold
+exactly one complete fenced yaml mapping, so trailing content after the closing
+fence (even a stray `---` rule) refuses with "use one complete fenced yaml
+mapping under ## PR". A top-level head/base mismatch is a visible stale-preparation gap that
 forces `deep` but keeps the prepared explanations; each receipt is judged
 against its own head/base, and stale ones are displayed as historical, not as
 verification of the current diff. An `independent` review whose reviewer equals

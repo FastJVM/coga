@@ -44,7 +44,14 @@ updated.
 3. Freshness: `github_preflight.check_branch_contains_control(head=...)`
    fetches control into its remote-tracking ref and reads that ref, not
    `FETCH_HEAD`. Only non-overlapping generated Coga state is accepted as
-   drift, reported on stderr.
+   drift, reported on stderr. "Generated Coga state" is
+   `github_preflight.is_coga_state_path`, shared with the branch sweep:
+   `<coga>/tasks/**` and `<coga>/log.md` only. Recurring templates under
+   `<coga>/recurring/**` are not in that set even though the state sweep
+   publishes them to control routinely, so a control branch that moved only
+   through recurring-template "Sync coga state" commits still refuses the
+   branch as stale (exit 2) and needs a rebase (seen on PR #909, 2026-09-28).
+   Whether that exclusion is intended is undecided.
 4. An unsafe overlap on the live ticket's own file is reported as a stranded
    ticket write, not ordinary staleness: `stranded_task_state_paths` (run
    against `FETCH_HEAD`) says whether control ever absorbed the branch's
