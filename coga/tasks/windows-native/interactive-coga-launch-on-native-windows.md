@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -475,3 +475,147 @@ to its landed `oscompat` shape.
    shim gets the prompt pointer. Should `coga/install` say "Codex
    untested on native Windows", or should a Codex run on the box be added
    to acceptance?
+
+## Evaluator review
+
+2026-10-19 — **Needs corrections before implementation.** Reviewed the
+Description and Context as the implementer's contract before consulting the
+design notes, then checked current source, tests, fixtures, owning topics and
+the packaged workflow. Reconciled clean main through `d34aeec10`, including
+the owner's newly answered API-key question. The body headings compose
+correctly, the owner gate fits the work, and the platform backend belongs in
+the shared spawn infrastructure. The core-port ticket remains at
+`review-design`; `oscompat.ProcessTree`, the refusal helper and the skip
+marker have not landed. That is the stated prerequisite, not an omission in
+this implementation.
+
+### Must fix before implementation
+
+1. **P1 — An exit-2 idle-timeout refusal still publishes state.** Proposed
+   shape §4 stops before the launch service, but `src/coga/cli.py`
+   `main` calls `_sweep_coga_state` on ordinary `SystemExit`, including
+   2; `_should_sweep_coga_state` includes `launch`. Dirty ticket/log/context
+   edits can therefore be committed and pushed despite acceptance's
+   "before any state change" promise. Specify how this refusal withholds
+   that final sweep while retaining exit 2, using the core port's mechanism
+   if it introduces one. Test through `cli.main`, with dirty Coga state
+   and a Git remote, asserting unchanged files, index, local HEAD and remote
+   tip. `CliRunner.invoke(app, ...)` alone misses this boundary.
+   Existing evidence: `tests/test_cli.py`
+   `test_inherited_assist_still_sweeps_cli_state` and
+   `test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit`.
+
+2. **P1 — Preserve the agent's full Windows exit code through the wrapper.**
+   The reused `src/coga/recurring_clone.py` `_WINDOWS_JOB_WRAPPER` ends
+   with `raise SystemExit(subprocess.call(...))`. Adding ignored
+   SIGINT/SIGBREAK alone does not preserve NTSTATUS codes on the Python 3.11
+   floor: CPython's `_Py_HandleSystemExit` converts with
+   `PyLong_AsLong`, and Windows `long` is signed 32-bit. From those
+   sources, an unsigned status such as `0xC000013A` or `0xC0000005`
+   overflows to -1 (observed by a Windows parent as `0xFFFFFFFF`).
+   The proposed classifier would then misidentify a normal CTRL_BREAK
+   termination as a crash, or lose the real crash code. Specify lossless
+   32-bit propagation in the interactive wrapper and at the outer CLI
+   process exit, without silently changing the deferred recurring/clone
+   contract. Require native Python 3.11 end-to-end cases for ordinary
+   nonzero exit, CTRL_BREAK, and a real NTSTATUS error, including a crash
+   racing a done signal; classifier-only tests cannot catch the wrapper.
+   This is a source-derived finding, not a new box observation.
+   Sources: [CPython 3.11 SystemExit handling](https://github.com/python/cpython/blob/v3.11.17/Python/pythonrun.c#L653-L715),
+   [Microsoft integer ranges](https://learn.microsoft.com/en-us/cpp/cpp/data-type-ranges?view=msvc-170).
+
+3. **P1 — Make the prompt budget a check of the serialized command lines.**
+   §5 recognizes quoting but then prescribes approximately 24,000 UTF-16
+   units for the prompt, without defining the counting point or handling
+   oversized non-prompt arguments. A local serialization probe with
+   `prompt = '"' * 23_000` produces **46,011** UTF-16 units for
+   `subprocess.list2cmdline(["claude.exe", prompt])`, already beyond
+   CreateProcess before the wrapper. `launch._argv_prompt` currently runs
+   before `build_agent_command`, which adds discussion-template tokens,
+   launch flags, title and session ID. Specify a bound on the final quoted
+   agent argv and the wrapper argv, including the terminating NUL; rebuild
+   with the pointer when needed and define an actionable failure if the
+   remaining argv still cannot fit. Add quote/backslash-heavy, non-BMP,
+   discussion-template and boundary cases.
+   Source: [CreateProcessW command-line contract](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw).
+
+4. **P2 — A short pointer is not yet a defined .cmd/.bat transport.**
+   §5 asks for a pointer containing no cmd metacharacters, but
+   `compose.write_prompt_file` uses the user's temp directory, and
+   `launch._argv_prompt` interpolates that path and appends a multiline
+   launch marker. A valid path containing literal `%PATH%` survives
+   `list2cmdline` unchanged and is subject to shell expansion; other argv
+   values from `build_agent_command` are not covered by checking only the
+   pointer. Specify how such paths/arguments and the marker are transported,
+   or explicitly refused before launch effects, and apply the 8,191 limit
+   to the complete shim invocation. Test a native fake .cmd/.bat that
+   records its received argv and reads the indicated file, including spaces,
+   percent signs and other shell-sensitive characters. This tests Coga and
+   does not require the excluded Codex run.
+   Source: [Python subprocess batch-file parsing caveat](https://docs.python.org/3.11/library/subprocess.html#security-considerations).
+
+5. **P2 — Define Ctrl+C handling during the picker's polling intervals.**
+   §6 assumes Ctrl+C will always be `"\x03"` from `getwch`. The
+   existing POSIX `commands/megalaunch._read_key` deliberately enters raw
+   mode; the proposed Windows `kbhit`/sleep loop has no equivalent
+   whole-picker console-mode or signal policy. With
+   `ENABLE_PROCESSED_INPUT`, Windows handles Ctrl+C as a signal instead
+   of putting it in the input buffer. The recorded blocking-key probe does
+   not establish behavior between reads in this polling loop. Specify
+   either mode management with restoration or signal-to-quit handling that
+   also covers idle polling/redraw, and test Ctrl+C in those intervals
+   without saving a selection or launching anything. A mocked
+   `getwch -> "\x03"` test alone cannot establish this contract.
+   Sources: [Windows console input modes](https://learn.microsoft.com/en-us/windows/console/setconsolemode),
+   [Python 3.11 console input](https://docs.python.org/3.11/library/msvcrt.html#console-i-o).
+
+### Recommendations
+
+- Make the Windows admission tests explicitly cover failure before release,
+  failed `SetEvent`, failure after successful release, and compensation
+  failure while the guard is held. Existing POSIX witnesses are
+  `test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write`,
+  `test_no_tty_release_failure_compensates_before_reaping_held_child` and
+  `test_no_tty_interrupt_after_gate_delivery_retains_admission`.
+  Retain the complete-environment test too: resolve the executable against
+  the supplied child environment, rather than accidentally using the
+  parent's PATH. These are useful named entries in the required Windows
+  replacement-test inventory.
+- Extend the documentation checklist to
+  `coga/internals/launch-claims` ("Held child and admission", currently
+  pipe-specific) and `coga/testing/clean-install/windows-aws` ("RDP",
+  currently directing attended launch there), with packaged twins.
+  Give Zach the exact PR-wheel install command: the cited
+  `guide-for-zach.md` currently instructs a PyPI install and describes the
+  old Windows fcntl stop. Correct the baseline cross-reference from §7 to §9.
+- Clarify acceptance's "same" for lifecycle commands: bump advances one
+  step, mark done ends the task, and block records a blocker; use separate
+  disposable tickets. Keep the chain case separate from the one-step
+  owner-handoff case. The owner's new auth/model/test-ticket directions
+  resolve the earlier authentication question and must survive synthesis.
+
+### Verification and limits
+
+Read-only Linux checks, Python 3.12.12:
+
+```sh
+PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q \
+  tests/test_cli.py::test_inherited_assist_still_sweeps_cli_state \
+  tests/test_cli.py::test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit \
+  tests/test_cli.py::test_launch_entry_refusal_through_main_skips_the_sweep \
+  tests/test_repl_supervisor.py::test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write \
+  tests/test_repl_supervisor.py::test_no_tty_release_failure_compensates_before_reaping_held_child \
+  tests/test_repl_supervisor.py::test_no_tty_interrupt_after_gate_delivery_retains_admission \
+  tests/test_launch.py::test_argv_prompt_pointer_repeats_launch_marker
+```
+
+Result: **11 passed**. Local Python probes confirmed the serialized length
+above, literal percent expansion text/newlines in the existing pointer, and
+that the idle-timeout launch argv is sweep-eligible. All six inspected topic
+twins named above are currently byte-identical. No Windows instance was
+provisioned, no new Windows execution evidence is claimed, and the full suites
+remain implementation acceptance. Only this evaluator section was authored;
+the ticket body, code and workflow remain for their owning steps.
+
+
+Final checks: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task windows-native/interactive-coga-launch-on-native-windows --json` exited 0 (one task, no issues); `git diff --check` passed. The final `git fetch origin main` introduced no further changes.
