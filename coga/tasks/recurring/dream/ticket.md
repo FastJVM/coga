@@ -911,3 +911,68 @@ Generated: 2026-10-19T19:15:22+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-10-19T19:40Z · period 2026-W43 · repo-identity coga-source · upstream-coga entries appended: 0
+
+| Phase | Result | Notes |
+| --- | --- | --- |
+| Preflight | ok | git-common-dir, remote, gh |
+| 1 validate-drift | reported | 49 issues: 0 direct-fix, 4 pr-proposal, 45 human-needed |
+| 2 knowledge scan | reported | 32/32 shards; 30 findings after dedupe |
+| 3 contract audit | reported | 8/8 shards; 4 findings (2 merged into Phase 2); 126 twin pairs identical |
+| 4 retro/done-ticket | pr-opened | 175 tickets: 14 knowledge PRs (25 sources), 150 direct deletes |
+| 5 cleanup-orphan-markers | no-op | |
+| 6 disposition | proposed | 7 proposal PRs, 5 draft tickets |
+
+Findings: 32 merged (17 extract done, 1 extract done+checkout, 2 extract canceled, 6 stale, 3 gap, 3 drift).
+Scan dirs deleted after merge (both phases complete).
+
+**PRs opened (all `pr-required`, none auto-merged)**
+- Phase 4 knowledge: #1046–#1059 (see `## Phase 4`).
+- Phase 6 proposals: #1061 `_template` leaf-name example (S4) · #1062 `launch_args` allowlist row (S5) ·
+  #1063 gotchas → AGENTS.md (S6) · #1064 autofix inactive-repo skip (S2) · #1065 branch-sweep blackboard
+  clone-scoped (D2) · #1066 `non-executable-script` contract in coga/testing (X1, done+checkout) ·
+  #1067 validate-drift ticket repairs (`uncomposed-section`, `broken-context` x2).
+
+**Draft tickets created**
+- `slim-the-40-9-kib-blackboard-of-the-macos-and-wind` — validate-drift: large-blackboard (needs owner judgment).
+- `name-the-current-script-assist-preflight-post-call` — D3, deferred behind overlapping Retro PR #1050.
+- `confirm-why-branch-sweep-ran-as-a-shared-period-ta` — D1, human-needed runtime/install question.
+- `file-post-merge-obligations-before-open-pr-because` — G3 gap (sequence after #1055).
+- `publish-coga-0-4-1-to-pypi-which-main-already-decl` — Retro unshipped scope (brief-for-human).
+
+**Already ticketed / covered**
+- S1 design-then-implement Retro wording → `add-a-failed-terminal-status` (must-fix 3).
+- S3 recurring/templates `run_reported` → `gigantic-refactor-move-recurring-recipes-out-of-co`.
+- G1 test_compose root CLAUDE.md → `report-of-usage-incoga-important-should-nudge-user` (open PR #1060).
+- G2 agent-spawn exceptional unwinding → `launch-locks/ticket-ownership-lock`.
+- validate-drift: stuck-in-progress → `validate-drift-stuck-in-progress-11-in-progress-ti` (20 members; 13 new
+  since filed: add-a-failed-terminal-status, dream-s-own-blackboard-trips-large-blackboard-ever,
+  launch-locks/checkout-exclusivity-lock, marketing/publish-coga-1-0-as-the-final-v1-step,
+  marketing/why-i-would-keep-using-coga, prevent-duplicate-session-usage-records-from-infla,
+  record-the-two-self-qa-hazards-from-done-ticket-bl, repair-ticket-referents-when-a-referent-is-renamed,
+  the three validate-drift-* owners themselves, verify-dream-under-codex-on-the-real-repo-w40, webhook-for-slack-is-public).
+- validate-drift: empty-description → `validate-drift-empty-description-23-title-only-tic` (7 members; 4 new:
+  coga-chat-without-context-and-isolation-for-pure-j, in-init-add-a-telemetry-true-message,
+  make-coga-init-initizalizess-also-already-filled-r, review-all-doc).
+
+**Already decided**
+- validate-drift: unfrozen-workflow — 18 members, all draft or canceled; within the recorded decision in
+  `coga/workflows` ("Required at activation, not at draft"). Owner `validate-drift-unfrozen-workflow-11-hand-authored` stays open.
+
+**Retirement debt** (human-typed `coga retire <slug>`)
+- done+checkout: `validate-that-committed-skill-scripts-with-a-sheba` (unlocks X1, PR #1066),
+  `document-the-remedy-for-a-bloated-blackboard-sibli`, `reuse-the-existing-control-worktree-for-recurring`,
+  `service-recurring-from-a-temp-control-worktree-ins`.
+- canceled: 31 tickets; extract findings they unlock: `define-the-split-a-ticket-mechanic-shared-by-code`
+  (coga/tickets — declined split mechanic), `nightly-auto-drain-run-for-ready-tickets` (coga/megalaunch — declined
+  unattended budget drain).
+
+**Machine-local validator issues**: none in Phase 1.
+
+**Human-needed / review gates**
+- Review and merge 21 PRs (#1046–#1059, #1061–#1067).
+- Pre-existing unpushed local branch `codex/retro-recurring-branch-sweep-knowledge` (2026-09-21) — safe to delete; fact already on main.
+- A concurrent session used the primary checkout mid-run (`lazy-cli-imports`, now PR #1045); Dream mutated only isolated worktrees.

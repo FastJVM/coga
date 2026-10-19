@@ -8719,3 +8719,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: why the Python floor stays at 3.11. PR: https://github.com/FastJVM/coga/pull/1057
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: 0.4.1 is bumped on main but unpublished. PR: https://github.com/FastJVM/coga/pull/1058
 2026-10-19 12:22 v1 [recurring/dream] [agent:claude] slack: New context: README launch checks still owed. PR: https://github.com/FastJVM/coga/pull/1059
+2026-10-19 12:23 v1 [recurring/dream] [agent:claude] slack: Dream W43: validate-drift 49 issues (3 classes already ticketed/decided), Retro processed 175 done tickets (14 knowledge PRs, 150 direct deletes), 7 proposal PRs, 5 draft tickets, 0 upstream; 21 PRs await review.
