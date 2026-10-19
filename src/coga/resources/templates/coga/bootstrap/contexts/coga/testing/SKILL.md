@@ -27,6 +27,21 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
+**`coga validate` refuses a shebang script that is not executable**
+(`non-executable-script`, an error). Every regular file under the installed
+skills root or the packaged bootstrap skills that starts with `#!` must carry
+the executable bit: the shebang is the author's declaration that the file is
+run directly, so import-only modules carry none and stay `100644`. Remedy:
+`chmod +x` and commit mode `100755` (`git add --chmod=+x` where Git ignores
+filesystem modes). A finding under the packaged `bootstrap/skills` belongs to
+the installed distribution: upgrade or reinstall Coga, or fix it upstream;
+Dream routes it as human-needed rather than a local PR. Modes come from the
+working tree on POSIX, and from the git index on Windows or under a
+repo-local `core.fileMode=false`; a root with neither trustworthy source is
+skipped, as are untracked files in index mode. The walk skips symlinks and
+prunes `.git`, `__pycache__`, `node_modules`, and `.venv`
+(`validate._check_shebang_executables`).
+
 For artifact-level reproduction, use the
 [Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
