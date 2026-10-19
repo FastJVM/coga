@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -393,3 +393,115 @@ The blackboard is a notepad to be written to often as the human and agent works 
 4. **Harness change in this ticket.** Is extending `aws-windows.sh walk`
    from `main` to any ref acceptable here, or should it be a follow-up
    ticket to the harness?
+
+## Evaluator review
+
+2026-10-19 — **Needs corrections before implementation.** Reviewed the body
+as the implementer's contract, then checked source, tests, owning topics and
+the packaged `code/design-then-implement` workflow against main through
+`47e9c5316`. Description/Context nesting is correct, and the frozen workflow
+correctly hands this review to the owner. The three shared concerns have the
+claimed consumers; the branch-wheel harness change fits this port. No design
+approval is implied by completing this evaluation.
+
+### Must fix
+
+1. **P1 — Port the persisted process-ownership proof, not only live child
+   handles.** In `src/coga/recurring_runner.py`,
+   `_run_repo_recurring` records `inner_pgid`; both
+   `_cleanup_control_worktree` and `_stale_owned_control_worktree` call
+   `_process_group_is_running(pgid)` independently of the proposed live
+   `ProcessTree`. That helper still uses POSIX-only `os.killpg`.
+   Stale recovery also calls `_process_is_running`, whose `os.kill(pid, 0)`
+   is destructive on Windows: non-console-control signals use
+   `TerminateProcess` ([Python 3.11 contract](https://docs.python.org/3.11/library/os.html#os.kill)).
+   Extracting `_WindowsJob` verbatim does not supply this recovery proof.
+   Specify a non-destructive Windows owner probe, the durable tree identity
+   and its lifetime, and how normal cleanup and recovery after supervisor
+   death establish that no descendant can still use the checkout. Add native
+   Windows coverage for a live owner surviving inspection, interrupted-child
+   cleanup, and stale recovery; preserve ambiguous ownership and transcripts.
+   The existing contract is `coga/internals/recurring-temp-worktrees`,
+   sections "Cancellation and cleanup" and "SIGKILL survivors".
+
+2. **P1 — Existing TTY gates are too late for the promised unchanged-state
+   refusal.** `launch._LaunchInvocation._prepare_target` calls
+   `_CheckoutBoundary.enter` before `_align_and_classify` and
+   `_prepare_agent`; `enter` publishes dirty Coga state and prepares/switches
+   the checkout. Direct `bootstrap/orient` does this before target lookup.
+   Separately, `commands/ticket.ticket` calls `_resolve_or_create_target`
+   (and `create_draft`) before `_run_authoring_session` checks its TTY, unless
+   `--pick-agent` was used. Finally, `cli.main` sweeps on ordinary nonzero
+   exits, so merely returning the new message still permits publication.
+   Specify Windows refusal before these effects and how it suppresses the
+   exit sweep. Test through `cli.main` with dirty Coga state, a feature
+   checkout, and a new authoring title, comparing local and control state.
+   Also delimit the promise for hybrid `ticket.py` runs: their script and
+   lifecycle writes already happened when `_require_agent_after_script`
+   refuses. State the retained-work/exit or pause behavior for direct and
+   recurring launches, rather than promising no changes for both. Keep the
+   script-only and prompt-report exceptions explicit.
+
+3. **P2 — Specify UTF-8 reads and writes alongside LF.**
+   `atomicio.atomic_write_text` writes UTF-8, but `Ticket.read` in
+   `src/coga/ticket.py` and the forward readers in `src/coga/logfile.py` use
+   `Path.read_text()` without an encoding; `commands/update.py` also has
+   locale-default template/config reads and writes. Universal newlines fix
+   line separators, not decoding: Python 3.11 text I/O otherwise uses the
+   [locale encoding](https://docs.python.org/3.11/library/functions.html#open).
+   A focused probe of `Ticket.write`/`Ticket.read` with a simulated cp1252
+   default changed body text `Café` to `CafÃ©`. Define the state/template
+   encoding contract and require non-ASCII read-modify-write coverage on
+   Windows without an externally forced UTF-8 mode. LF-only ASCII assertions
+   cannot establish the promised cross-platform byte preservation.
+
+4. **P2 — Update the actual behavioral owners in the implementation PR.**
+   Proposed shape §9 names the source map and harness topic, and conditionally
+   `coga/sync`, which contains no `flock` specification. The lock contract is
+   `docs/contexts/coga/internals/launch-claims/SKILL.md`, "The local state
+   lock". The changed refusal/ordering and hybrid contracts belong in
+   `coga/launch`, `dev/checkouts/launch-boundary`, `coga/tickets/authoring`,
+   `coga/script-tickets` and `coga/recurring/scheduling/failures`; the
+   process-recovery change belongs in `coga/internals/recurring-temp-worktrees`.
+   Add the affected owners and their packaged twins to the deliverables,
+   with one owner per fact and links from related topics. All those twins,
+   including `coga/testing/clean-install/windows-aws`, exist. This follows
+   the repo's same-PR knowledge rule without pulling `coga/install` into scope.
+
+### Optional recommendations
+
+- Correct the "Step 1 alone" smoke milestone: `git.py` and `launch.py`
+  independently import `fcntl` until §2, so guarding only the supervisor and
+  megalaunch modules cannot make `coga --help` import on Windows.
+- Make the shared Windows skip helper accept a specific reason: the example
+  marker's interactive-ticket reason does not describe Unix host-harness or
+  permission tests. Keep mocked orchestration tests runnable where possible
+  (for example `test_megalaunch.py::repo` already stubs the TTY gate), and
+  reserve native refusal tests for the real platform predicate.
+- Exercise CRLF checkouts explicitly despite the fixture default of
+  `core.autocrlf=false`; preserve exact transaction guards while testing their
+  existing Git clean-filter semantics. The native fresh-user walk retains
+  Git for Windows' default `core.autocrlf=true`.
+
+### Verification and limits
+
+Focused existing Linux regressions passed: **8 passed in 9.26s**, using:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q \
+  tests/test_ticket.py::test_ticket_requires_tty_before_spawning \
+  tests/test_ticket.py::test_ticket_pick_agent_requires_tty_before_scaffolding \
+  tests/test_launch.py::test_launch_prepares_a_feature_checkout_and_resolves_a_ticket_created_on_control \
+  tests/test_launch.py::test_orientation_prepares_control_before_resolving_local_override \
+  tests/test_cli.py::test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit \
+  tests/test_cli.py::test_launch_entry_refusal_through_main_skips_the_sweep
+```
+
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/coga validate --task windows-native/core-port-cli-and-test-suite-pass-on-native-window --json`
+reported `ok_count: 1` and no issues. `git diff --check` passed; a byte comparison
+confirmed the original body, frontmatter and blackboard were preserved.
+
+The encoding probe used a temporary file and simulated the reader's default
+encoding on Linux; it was not native Windows evidence. No Windows instance
+was provisioned and neither full suite was run in this design-review step.
+No ticket-body, implementation, branch or PR changes were made.
