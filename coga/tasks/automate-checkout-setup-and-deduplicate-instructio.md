@@ -59,7 +59,8 @@ The current implementation already prepares current control and safely returns o
 - [ ] Ad-hoc chat stays on control during discussion and can prepare its one session-owned branch through the shared operation without a ticket. Repeated calls reuse it, including while it contains the session's dirty work. A different branch, stale session identity, conflicting reservation, or occupied checkout is refused without taking ownership.
 - [ ] Preserve the existing clean-entry, publication, safe-return, recorded-assist, sandbox-clone, configured-remote/control, and Git-disabled/non-Git/remote-less contracts where applicable. Account explicitly for script phases, recurring/delegated launches, megalaunch, and prompt-report rather than broadening dispatch accidentally.
 - [ ] Dirty or unpublished work, stale state, conflicting linkage, and unavailable Git access produce specific diagnostics with the failed stage and recovery location. Publication failure or interruption preserves reservations, refs, and unique work; no code commit, transition, automatic rebase, or destructive rollback is performed by preparation.
-- [ ] After switching, the working ticket and composed ticket describe the same authoritative step and linkage. Only the current ticket may be projected unstaged from control, after checking for stranded or unpublished local intent; no branch ticket commit or wholesale replacement of Coga state is used. Later concurrent changes remain subject to the existing reconciliation/publication guards.
+- [ ] After switching, the working ticket and composed ticket describe the same authoritative step and linkage. Only the current ticket may be projected unstaged from control, after checking for stranded or unpublished local intent; no branch ticket commit or wholesale replacement of Coga state is used. Before spawn, strictly record and verify this ticket's exact projected control blob as cross-process publication provenance, even on a resume with no ticket publication. A real handoff/bump can publish from that baseline; later competing ticket changes still refuse.
+- [ ] A first sandbox Git-write refusal after successful host preparation preserves the prepared branch and all source/ticket edits. Recovery stops the agent's implementation work, uses permitted host access to verify an independent clone, return the primary to control and publish its linkage, then relaunches the same step. The primary may remain on the prepared branch until that recovery succeeds; no in-session host-control API, automatic dirt cleanup, or compensating transition is introduced.
 - [ ] A runtime checkout notice reports the observed branch, relevant ticket path, preparation outcome and return owner. Managed prompts no longer require the agent to perform automated startup/return steps. Pure composition and unmanaged/manual sessions make no claim that preparation ran and link complete guidance.
 - [ ] Already-satisfied work remains an agent judgment backed by evidence. An unused prepared branch does not force a code commit or PR, and preparation never closes a ticket or deletes that branch.
 - [ ] Update the owning checkout, launch, workflow, composition, and extension topics as needed, plus applicable packaged twins. Remove obsolete procedural copies from the base prompt, dev/code overview, code skills, code/docs workflows, and orientation guidance in the same PR. Preserve required instructions in skilled and inline workflow steps.
@@ -70,8 +71,10 @@ The current implementation already prepares current control and safely returns o
 
 The following interface and module names are proposals, not existing commands.
 Implement the shared preparation and its launch integration before removing
-instructions. The owner approved manual fallback for unrecognized behavior
-during design; the remaining product choices are listed on the blackboard.
+instructions. The owner approved manual fallback for unrecognized behavior,
+the narrow chat recipe, retention of an unused prepared branch, and explicit
+host recovery/relaunch for a first sandbox refusal after switching. The
+blackboard records these decisions and the evaluator dispositions.
 
 #### 1. Select from the existing step contract
 
@@ -179,15 +182,46 @@ checkout before each mutation. Do not hold the lock across an agent session.
    Switch normally, then atomically materialize only this ticket from the
    final authoritative control snapshot, unstaged. This also covers a branch
    predating the ticket's creation. Leave the index and branch commits alone.
-6. Verify HEAD and all expected bytes before admitting the agent. The only
+6. Establish and verify the projected ticket's publication baseline as below,
+   then verify HEAD and all expected bytes before admitting the agent. The only
    permitted entry dirt is the identified ticket projection or already-proved
    publication state; say which paths these are in the runtime notice. Do not
    present such a checkout as wholly clean. Return the same ticket object and
    path used for composition and task/expected-step metadata.
 
+**Projection provenance is part of admission.** Under the same short state
+lock, extend the existing per-worktree `git.PUBLISHED_REF` tree to remember
+this ticket's exact blob from the final verified control revision. Its
+meaning now includes a control blob that preparation verified and projected,
+not only blobs this checkout pushed. Update only the current ticket's entry,
+preserve every other entry, and verify the stored OID before spawn. The
+preconditions bind the checkout/root, configured destination, ticket path,
+selected branch, control revision and projected bytes; a receipt or a merely
+read control snapshot alone cannot establish this baseline. No commit to the
+feature branch, push, transition, or refresh of unrelated paths is involved.
+
+Give this admission write a strict error path in the shared Git infrastructure:
+`_record_published` currently catches failures, which is insufficient here.
+A failed or unverifiable baseline write refuses spawn, preserves the ref,
+receipt and projected file, and withholds teardown publication. An interrupted
+projection retries only after proving its recorded snapshot and actual bytes;
+it must not overwrite new notes or bless them as a fetched baseline. Already
+equal publication and a log-only launch audit are not substitutes for this
+explicit write. Keep ordinary publication callers' existing error behavior
+unless a separately justified contract change is necessary.
+
+The durable, per-worktree entry lets a later `bump` process use ordinary
+`_provenance` without an inherited environment variable or an `expect` bypass.
+It records the verified snapshot, never a later fetched ticket over edited
+working bytes. Subsequent competing changes still fail the existing
+compare-and-swap, including a refetch after a rejected push. The provenance
+set and its new source belong in `coga/internals/git-regressions`; the strict
+recording behavior belongs in `coga/internals/state-publication/publish`.
+
 The receipt must make interruption boundaries testable: reserved but not
 created; created but not linked; linkage written but not published; published
-but not switched; switched but projection incomplete. Retry derives progress
+but not switched; switched but projection incomplete; projected but provenance
+not yet verified. Retry derives progress
 from observed refs, exact ticket bytes and the receipt, not a success bit
 alone. An unlinked reserved branch is reusable only with matching reservation
 and creation evidence; unexpected commits or changed linkage are a refusal.
@@ -293,6 +327,45 @@ return and final sweep; conversation turns do not return the checkout.
   path, allocate a competing branch or create a worktree. Preserve the documented
   independent-clone fallback and local-config seeding for restricted agent Git
   access. A missing or conflicting recorded clone needs recovery, not replacement.
+- **First sandbox refusal after automatic switching:** use explicit host
+  recovery and relaunch, as approved at design review. Stop implementation
+  writes and explain the failed Git operation and retained paths. Record the
+  prepared branch/OID and preserve verified copies of all staged, unstaged,
+  untracked and ticket work before any cleanup. A permitted independent clone
+  may be created for preservation, but do not continue implementation in it
+  until the host has completed the sequence below. Do not bypass the sandbox,
+  allocate another feature branch, bump, or signal successful step completion.
+
+  Ask the attending human to finish the recovery from a permitted host shell
+  after ending the agent session; unattended sessions escalate the unavailable
+  capability through their existing conduct. The launcher attempts its normal
+  safe return on exit. It can return a clean or already-published primary;
+  source dirt or failed publication still refuses and remains intact. The
+  primary may stay on the prepared feature branch until host recovery succeeds.
+  Do not claim the recorded-clone entry guarantee held during this first
+  failed session, and do not add automatic same-step relaunch or host RPC.
+
+  On the host, follow reconciliation: create or verify an independent clone
+  using the already-prepared branch at its actual tip, preserve its unique
+  commits and transfer the staged/unstaged/untracked source changes with
+  byte/mode/deletion checks. Keep the ticket and audit authoritative in the
+  primary; do not commit their projection or copy ignored credentials. Verify
+  the retained backups and clone before clearing any replicated primary dirt,
+  and clear only those proved copies under the explicit recovery authorization.
+  Publish/reconcile saved primary ticket state without replaying any lifecycle
+  command, then use the existing safe return to reach clean current control.
+  Only after that succeeds, verify the clone's remote, branch and retained work,
+  seed its local config through the existing helper, and write/publish its
+  `worktree:` beside the unchanged `branch:` under the exact-ticket guard.
+  Confirm the linkage on control before the human relaunches the same step.
+  The ordinary recorded-clone path then keeps the primary on control.
+
+  Any interrupted or refused stage retains its backups, clone, branch and
+  notes, names what remains unpublished and stops; a candidate clone is not
+  active linkage until the host verifies and publishes it. This exception
+  replaces the obsolete instruction to continue immediately after agent-side
+  branch creation fails. Its procedure and primary-HEAD guarantee belong in
+  `dev/checkouts/sandbox-clone`, linked from the other checkout guidance.
 - **Git disabled, non-Git or remote-less:** preserve current exemptions and
   state-publication behavior; report that branch preparation/freshness was not
   provided. Do not create branches merely because the policy says implement.
@@ -337,9 +410,12 @@ base-prompt override; do not overwrite repo-owned prose.
 Keep the complete start/work/handoff/end explanation in `dev/checkouts`, with
 its existing recovery, reconciliation and sandbox leaves owning their focused
 rules. Update `coga/launch`, `coga/workflows`, `coga/prompt-composition` and
-`coga/extension-model` for their portions of the contract, and
-`coga/internals/state-publication/sweep` for the recipe's exit-sweep exclusion;
-neighbouring overviews
+`coga/extension-model` for their portions of the contract,
+`coga/internals/state-publication/sweep` for the recipe's exit-sweep exclusion,
+`coga/internals/git-regressions` and `coga/internals/state-publication/publish`
+for verified projection provenance, and `dev/checkouts/sandbox-clone` for the
+first-refusal host recovery and its different primary-HEAD guarantee.
+Neighbouring overviews
 link rather than restate the mapping or algorithm. Review topic size while
 editing instead of duplicating a short agent version beside the human version.
 
@@ -361,10 +437,33 @@ Extend the existing real-Git fixtures and launch-return tests. Cover creation
 and confirmed linkage before spawn; resume with unique commits; remote-only
 and missing recorded branches; configured remote/control; clean versus dirty
 entry; stale publication races; ignored collisions; competing branch holders;
-and interruption at each reservation/publication/switch/projection boundary.
+and interruption at each reservation/publication/switch/projection/provenance
+boundary.
 Check working ticket bytes, branch OIDs and remote control contents, not just
 return codes. Exercise a final spawn through the real composition/audit path,
 not only a stub that replaces all of `spawn_agent_session`.
+
+Add a real-Git resume whose recorded branch predates another checkout's
+ticket edit, with `status: in_progress`, no activation/linkage write and no
+matching ticket entry in `PUBLISHED_REF`. Launch it through the real audit and
+composition path, add handoff notes, run a real bump from another process and
+return; assert the handoff and exactly one advance reached control. In a
+second case, change that ticket from a competing checkout after preparation
+and prove the local handoff/advance is retained while publication refuses and
+the competing bytes stay intact. Cover baseline-write failure, interrupted
+projection, unrelated provenance entries, and a retry that must not overwrite
+new notes or silently advance their baseline.
+
+Cover a first sandbox refusal with no initial `worktree:`, after successful
+host branch preparation, both before source edits and with new staged,
+unstaged, deleted and untracked files. Assert the host return refuses source
+dirt without losing it; exercise the documented host recovery with a clone
+and verified copies, linkage publication after clean control return, and a
+relaunch of the unchanged step using that clone. A failed copy, conflicting
+clone, denied host access or failed linkage publication must preserve all work
+and prevent continuation. Also exercise an agent-driven rebase with the entry
+ticket projection and new blackboard notes: preserve/reconcile them separately,
+restore them unstaged, and prove the implementation commit contains no ticket.
 
 Parameterize the mapping across every table row, current/older frozen forms,
 owner assists, missing gates, local identical twins, applicable local edits,
@@ -394,8 +493,9 @@ record exact commands, counts and any Python-floor gap per `coga/testing`.
 
 Worktree isolation, branch deletion policy, automatic implementation commits
 or pushes, automatic rebases/conflict resolution, changing owner gates,
-automatic custom-workflow migration, cross-session chat-branch adoption, a
-general lifecycle/publication redesign, and a new execution/plugin framework.
+automatic custom-workflow migration, cross-session chat-branch adoption,
+in-session host-control RPC or automatic sandbox dirt migration, a general
+lifecycle/publication redesign, and a new execution/plugin framework.
 This change does not teach launch to decide that a PR merged or work is done.
 Deliver automation, documentation and instruction removal together.
 
@@ -477,6 +577,24 @@ existing real-Git test approach rather than mocking away checkout behavior.
   `prepare_control_checkout` only prepares control and performs no publication.
   `stale_coga_task_rels` is a fail-open lifecycle warning, not a sufficient
   proof that overwriting a ticket would preserve all prose.
+- `coga/internals/git-regressions`
+  (`docs/contexts/coga/internals/git-regressions/SKILL.md`) and
+  `coga/internals/state-publication/publish`
+  (`docs/contexts/coga/internals/state-publication/publish/SKILL.md`) are cited
+  rather than attached: read "The provenance check", "`publish` and its
+  wrappers", and "Best-effort versus strict". `src/coga/git.py` plus
+  `_provenance` reads HEAD, merge base and `PUBLISHED_REF`; `_record_published`
+  writes the latter but currently swallows write failures. `_publish_locked`
+  returns from an already-equal tree without recording its blobs, and
+  `src/coga/bump.py` plus `advance_step` publishes without an `expect` override.
+  Preparation must establish the strict per-ticket baseline described above.
+- `dev/checkouts/sandbox-clone`
+  (`docs/contexts/dev/checkouts/sandbox-clone/SKILL.md`) is cited rather than
+  attached: read "Sandbox clone fallback" and "What a fresh checkout lacks".
+  `src/coga/launch.py` plus `_CheckoutBoundary.settle` returns after an agent
+  exits but refuses uncommitted source changes; `_supervise_steps` stops on an
+  unchanged step. The new first-refusal recovery uses those boundaries and
+  explicit host action, not a transition or the chat-only preparation recipe.
 - `src/coga/blackboard.py`: `update_blackboard_under_barrier` combines
   `git.state_lock` with expected-byte checks and delegates to
   `src/coga/taskfile.py`'s `replace_blackboard`, preserving text outside the
@@ -497,7 +615,7 @@ existing real-Git test approach rather than mocking away checkout behavior.
   Keep both consistent with the final authoritative ticket. The proposed chat
   recipe takes its session identifier explicitly and need not add a task field
   or depend on inherited shell variables.
-- `src/coga/runner.py`: `run_recipe` selects only `RECIPES` and `run_reported`
+- `src/coga/runner.py`: `run_recipe` selects only `RECIPES` and `_record_failure`
   records failures when there is a valid task blackboard. `src/coga/cli.py`'s
   `_should_sweep_coga_state` already excludes `run publish-state` even before
   dispatch; extend that narrow exclusion for the new recipe. Its
@@ -627,18 +745,9 @@ unstaged, and make repeated preparation a non-publishing no-op.
 
 ## Open Questions
 
-For owner design review, after the evaluator's findings:
-
-1. Ratify the proposed `coga run prepare-checkout --session <id>` contract and
-   one generated branch per live chat. It requires no ticket and works without
-   shell environment inheritance; the tradeoff is that naming a branch or
-   adopting one from an earlier chat remains explicit manual recovery. The
-   current recommendation is this narrow interface, with no force/adopt options.
-2. Accept an unused local branch when an implementation agent discovers the
-   work is already satisfied after startup. The recommendation is to allow
-   evidence-backed closure without creating a commit or PR and leave cleanup
-   policy unchanged. Avoiding even that empty branch would require delaying
-   preparation until an agent decision, changing the proposed entry contract.
+No unresolved product choices. The owner approved both original questions and
+the first-time sandbox recovery choice during review; see Owner design review
+below. Final approval to advance the revised spec to implementation is pending.
 
 ## Verification
 
@@ -774,3 +883,72 @@ this ticket's committed bytes were unchanged.
 Only this Evaluator review was added. The ticket body, frontmatter, existing
 blackboard sections, source, documentation, and tests were not edited; no
 implementation branch or PR was created.
+
+## Owner design review
+
+Review on 2026-10-19, starting from clean control `3db2b4413`, current with the
+fetched remote. This section supersedes the earlier pending product questions
+and records revisions responding to the evaluator; implementation has not begun.
+
+Owner decisions, explicitly confirmed in this attended session:
+
+- Approve `coga run prepare-checkout --session <id>` and one generated branch
+  per live chat, without force/adopt options. Custom naming and adoption of
+  earlier chat work remain manual recovery.
+- Allow an unused prepared branch when the agent proves the work already
+  satisfied. No fabricated commit/PR; existing cleanup policy remains.
+- Use explicit host recovery and relaunch for the first sandbox Git-write
+  refusal after automatic switching. Preserve the prepared branch and all
+  edits; the host verifies the clone, returns the primary to control and
+  publishes linkage before the same step resumes. The accepted tradeoff is a
+  relaunch instead of an in-session host-control interface.
+
+Evaluator dispositions:
+
+- **P1 accepted and specified.** Proposed shape 3 now requires a strict,
+  verified, current-ticket-only update to existing per-worktree publication
+  provenance before spawn. It survives a later bump process without granting
+  permission to overwrite subsequent competing changes. The implementation
+  must update the provenance and publication owners/twins and cover real
+  resumed handoff/bump/return, stale writes and interrupted baseline recording.
+- **P2 accepted and specified with the owner's recovery choice.** Proposed
+  shape 6 now distinguishes first-time failure after switching from entry with
+  an already-recorded clone. The primary can remain on the prepared branch
+  until host recovery succeeds; no claim of a clean control checkout or
+  completed step is made meanwhile. Source dirt is never automatically cleared.
+  The sandbox owner/twin and first-refusal/relaunch coverage are required.
+- **Both optional recommendations accepted.** The verification plan now covers
+  a rebase with the projected ticket plus new notes, and the source map names
+  `runner._record_failure` instead of the nonexistent `run_reported`.
+
+Only the ticket body and blackboard changed. Lifecycle frontmatter and the
+ticket guide remain intact. The owner has not yet asked to advance; remain on
+review-design until explicit approval to bump.
+
+Review verification (Python 3.12.12; no Python 3.11-floor run or implementation
+verification claimed):
+
+- A disposable real-Git probe used the existing test fixtures and
+  `_record_published` to model the proposed per-ticket baseline. A separate
+  process called the real `bump.advance_step`: the handoff and advance reached
+  control, return was clean, the feature tip stayed unchanged, and unrelated
+  log provenance was preserved. With a later competing edit, publication and
+  return refused, preserving the local handoff/advance and the remote edit.
+  Both cases passed. This validates the provenance approach, not the unbuilt
+  strict admission helper or full launch integration. The probe ran via Python
+  stdin with the absolute source/interpreter prefix below; its disposable
+  repositories are under `/tmp/coga-projection-design-probe-lyh5v0sj`.
+- `PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -q tests/test_git.py::test_expect_pins_the_exact_control_copy tests/test_git.py::test_a_feature_checkout_keeps_publishing_its_own_ticket tests/test_launch.py::test_launch_returns_a_feature_branch_handoff_before_the_next_step tests/test_launch.py::test_launch_returns_the_checkout_after_a_failed_session`
+  passed: **4 passed in 2.77s**.
+- `PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --task automate-checkout-setup-and-deduplicate-instructio --json`
+  returned exit 0, 1 task OK, no issues.
+- Read-only `compose.compose_prompt_report` checks verify the revised
+  provenance/recovery requirements and owner dispositions reach the prompt,
+  only Description/Context own body sections, and frontmatter, ticket guide
+  and historical evaluator review are unchanged. `git diff --check` passed.
+
+Reconciled to fetched control `47e9c5316`: only unrelated tickets and the
+audit changed; relevant source, instructions and this ticket's control bytes
+were unchanged. Backed up and verified the complete edit, restored the tracked
+ticket, fast-forwarded, and reapplied it byte-for-byte. Only this ticket is
+edited. Ready for the owner's final approval to advance to implementation.
