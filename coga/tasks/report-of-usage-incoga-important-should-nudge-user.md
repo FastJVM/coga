@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -80,7 +80,9 @@ rendered prefix.
   notification prefix and recipient; preserve any sibling changes that have
   landed when implementation begins.
 
-<!-- coga:blackboard -->## Dev
+<!-- coga:blackboard -->
+
+## Dev
 
 branch: usage-report-owner
 
