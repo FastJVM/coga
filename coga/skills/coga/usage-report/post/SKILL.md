@@ -9,7 +9,7 @@ This skill documents the weekly post behind the `recurring/usage-report/`
 ticket, whose `ticket.py` runs the template's own `report.py` — no agent, no
 composed prompt, no `coga run` recipe. The report is single-consumer
 deterministic work, so it lives beside its ticket and imports only shared core
-infra (`coga.config`, `coga.usage`, `coga.notification`).
+infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
 
 1. **Window.** `report.default_window(today)` is the last completed ISO week:
    previous Monday 00:00 to this Monday 00:00 UTC, half-open `[since, until)`.
@@ -27,9 +27,13 @@ infra (`coga.config`, `coga.usage`, `coga.notification`).
    An empty window still renders and says so.
 3. **Post.** `ticket.py` finds `report.py` through `$COGA_COGA_OS_ROOT`
    (`coga launch` copies only `ticket.py` into the period task), renders the
-   default window, and calls `coga.notification.post(cfg, text,
-   important=True, fatal=False)` — one attempt, on the important route the
-   owner chose. `fatal=False` means a delivery miss is reported on stderr and
+   default window, and supplies the period ticket's owner (or
+   `cfg.current_user` when absent) to `coga.notification.post` with
+   `important=True, fatal=False` — one attempt, on the important route the
+   owner chose. The notification backend adds the repo name and mapped owner
+   mention, retaining plain text for an unmapped owner
+   ([owner mapping](../../../../../docs/contexts/coga/notifications/SKILL.md#pinging-the-owner)).
+   `fatal=False` means a delivery miss is reported on stderr and
    in `log.md` but the shim still closes its step with `coga bump`, so the
    period never sticks `in_progress` over a webhook problem.
 4. **No cursor.** The template declares no `state_keys:`. Given the same

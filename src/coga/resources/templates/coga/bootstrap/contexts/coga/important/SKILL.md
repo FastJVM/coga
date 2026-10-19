@@ -11,6 +11,8 @@ there. A repo may deliberately route its own low-volume periodic report to
 important as an explicit exception: the Coga source repo's weekly usage
 report (`coga/recurring/usage-report`) posts there so token consumption is
 seen on a cadence short enough to notice a change.
+That report identifies its repository and addresses its period ticket's owner
+through the ordinary [owner mapping](../notifications/SKILL.md#pinging-the-owner).
 Everything else Coga posts — explicit FYIs, urgent exceptions, ticket
 outcomes — stays on the flow webhook, and routine lifecycle churn is not
 posted at all ([`coga/notifications`](../notifications/SKILL.md)). Being
