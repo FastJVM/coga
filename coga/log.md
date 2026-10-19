@@ -8698,3 +8698,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:17 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] created (status=draft)
 2026-10-19 12:17 v1 [windows-native/core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-19 12:17 v1 [windows-native/core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] started (active → in_progress) via coga launch
+2026-10-19 12:18 v1 [windows-native/core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] launched (operator=claude, agent=claude)
