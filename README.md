@@ -109,11 +109,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh  # then open a new terminal
 uv tool install coga
 curl -fsSL https://claude.ai/install.sh | bash   # then run: claude (signs you in)
 mkdir myproject && cd myproject && git init && coga init --user <your-name>
-coga build
 ```
 
 With default settings, uv downloads a compatible Python when needed, even
-if your system Python is older than 3.11.
+if your system Python is older than 3.11. Already have a repository? Run
+`coga init --user <your-name>` inside it instead of the last line.
 
 [Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
 repository that already uses Coga, pip/pipx alternatives, and troubleshooting.
