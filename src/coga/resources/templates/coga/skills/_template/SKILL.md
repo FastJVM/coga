@@ -35,7 +35,7 @@ leaves you a real choice, with a real cost either way:
   and hyphens, no slash). Choose it whenever the skill has to satisfy the
   portable grammar or round-trip through `skill-creator`. Coga resolves it to
   the same namespaced ref from the path, so nothing about the skill's
-  addressing changes. `browser/dochub` is the checked-in example, and
+  addressing changes. `clarity` is the checked-in example, and
   vendored or installer-managed imports keep their upstream leaf `name:` for
   the same reason.
 
