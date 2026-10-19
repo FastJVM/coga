@@ -1,6 +1,6 @@
 ---
 title: Weekly usage report should mention its owner and identify the repo
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
