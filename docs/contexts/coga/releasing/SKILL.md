@@ -91,6 +91,17 @@ no-cost way to catch a packaging problem.
 Each version uploads once per index. To re-test on TestPyPI, bump to a dev
 version such as `0.2.0.dev1`. A bad release can be yanked, not deleted.
 
+Landing step 1 is not a release. Status as of 2026-10-19: `pyproject.toml` on
+`main` says `0.4.1` (PR #998), but nothing after step 1 ran: no TestPyPI dry
+run, no pre-tag gate on the merged commit, no `v0.4.1` tag, and PyPI's latest
+is still 0.4.0 (origin carries only the `v0.4.0` tag). So `main` reports 0.4.1
+while the published 0.4.0 lacks post-tag fixes such as 4c9eff54b (publishing
+untracked context files, which leaves `product/vision` uncommitted after
+`coga build` on 0.4.0). Merging the bump auto-closed the release ticket; the
+remaining steps, then `scripts/clean-install/run.sh pypi` and the attended
+`coga build` check that the vision file is committed with `git status` clean,
+are still owed and have no owning ticket.
+
 ## Clean first-install gate
 
 After publishing, use the [clean-install harness release continuation](../testing/clean-install/SKILL.md#verify-a-published-release)

@@ -188,3 +188,10 @@ checks:
   base: 837134972e4da47f137b1feeb05b493438afdd61
   detail: No whitespace errors.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: 0.4.1 is bumped on main but unpublished
