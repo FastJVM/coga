@@ -8704,3 +8704,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:19 v1 [automate-checkout-setup-and-deduplicate-instructio] [human:nicktoper] launched (operator=nicktoper, launch_agent=codex, agent=codex)
 2026-10-19 12:21 v1 [recurring/dream] [agent:claude] slack: New context: macOS clean-install harness lacks VPN-safe SSH and a build passthrough. PR: https://github.com/FastJVM/coga/pull/1046
 2026-10-19 12:21 v1 [recurring/dream] [agent:claude] slack: New context: Codex launch-path testing limits. PR: https://github.com/FastJVM/coga/pull/1047
+2026-10-19 12:21 v1 [recurring/dream] [agent:claude] slack: New context: historical usage records stay uncorrected. PR: https://github.com/FastJVM/coga/pull/1048
