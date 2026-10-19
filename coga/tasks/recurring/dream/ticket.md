@@ -813,3 +813,71 @@ Result: 49 issue(s): 0 direct fix, 4 PR proposal, 45 human-needed.
 - Scan dir: `/home/n/Code/claude/coga/coga/.coga/dream-scans/20261019T175307Z`
   — knowledge-scan 32 shards (ks-01..ks-32), contract-audit 8 shards (ca-01..ca-08).
   Deviation: tickets >60 KB (3 files) priced as ranged `@40000` like oversized contexts.
+- Concurrent actor: at 11:07–11:10 local a `bootstrap/orient` session switched the primary
+  checkout to `lazy-cli-imports` and began uncommitted product edits. Dream does not touch
+  that checkout; every Phase 4/6 mutation runs in an isolated worktree off `origin/main`.
+- Phase 2: `reported` — 32/32 shards complete (distinct ids), 31 blocks → 30 after dedupe.
+- Phase 3: `reported` — 8/8 shards complete, 4 blocks (2 merge into Phase 2 findings).
+  ca-08: all 126 derived live/packaged pairs tracked and byte-identical (cmp); pytest of
+  test_packaging errored at setup only because of the concurrent uncommitted WIP.
+
+## Findings
+
+Full finding text (shard evidence): `.coga/dream-scans/20261019T175307Z/{knowledge-scan,contract-audit}/findings.md`
+(kept until Phase 6 has routed every finding). 32 merged findings.
+
+### extract — grouped by area
+
+- coga/testing
+  - E1 `investigate-successful-codex-sessions-reported-as` — source: done — live-test a launch-path branch via a non-editable scratch install (editable runs main after launch prep).
+  - E5 `fix-git-sync-read-only-errors-after-successful-tra` — source: done — declined Codex launcher-preflight decision, reasons + reopen condition.
+  - E6 `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta` — source: done — macOS walk does not pass `build` through (unshipped follow-up).
+- coga/usage
+  - E3 `match-concurrent-codex-sessions-to-their-launch-so` — source: done — unknown usage never backfilled; Claude transcripts pruned ~30 days bounds diagnosis.
+  - E15 `dedupe-claude-transcript-usage-by-message-id` — source: done — Claude records before 2026-10-01 overcount ~1.6x; not recounted.
+- coga/internals/pr-publication
+  - E4 `keep-multiline-audit-messages-on-one-log-line` — source: done — `## PR` author compact-identity grammar; exactly one fenced yaml mapping.
+  - E10 `launch-moves-the-checkout-to-main-before-and-after` — source: done — `is_coga_state_path` accepts only tasks/** + log.md as drift; recurring/** needs rebase.
+- dev/checkouts
+  - E2 `run-clone-local-recurring-work-in-every-clone` — source: done — committed recurring template edits on a code branch reach control before their code.
+  - E8 `publish-build-vision-before-handing-off-starter-ti` — source: done — pre-branch publish should use `coga run publish-state`.
+- dev/checkout-cleanup
+  - E9 `clean-up-owned-branches-when-tickets-finish-or-are` — source: done — adjacent bug: `branchsweep._local_branches` ignores for-each-ref return code.
+- coga/script-tickets
+  - E7 `recurring-recipe-question` — source: done — why `ticket.py` is a completion contract / fixed name / stat.
+- coga/notifications (+ producers, failures)
+  - E11 `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — source: done — `coga init` tolerates bare SLACK_WEBHOOK_URL.
+  - E14 `decide-whether-the-weekly-usage-report-belongs-on` — source: done — producers inventory scoped to package/bundled producers.
+  - E16 `a-slack-repo-without-important-webhook-can-abort-t` — source: done — config refusal is `typer.Exit` (RuntimeError), not SystemExit.
+- coga/blackboard
+  - E12 `exclude-superseded-designs-from-launch-prompts` — source: done — adjacent bug: blocker parser ignores archives/fences.
+- coga/recurring/templates
+  - E13 `recurring-task-to-manage-all-open-pr-and-address-c` — source: done — shipped templates must leave agent:/owner: unset.
+- coga/tickets
+  - E17 `autofix-write-ups-lose-their-body-to-h2-headings` — source: done — `_parse_inline_sections` fence-unaware; pre-heading prose uncomposed.
+- coga/cli
+  - X1 `validate-that-committed-skill-scripts-with-a-sheba` — source: done+checkout — restore lost `non-executable-script` validate contract (branch `shebang-exec-check` still local).
+- canceled (retirement debt)
+  - C1 `define-the-split-a-ticket-mechanic-shared-by-code` — source: canceled — declined split-a-ticket mechanic (coga/tickets).
+  - C2 `nightly-auto-drain-run-for-ready-tickets` — source: canceled — declined unattended budget-driven drain (coga/megalaunch).
+
+### stale
+
+- S1 `src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md` — review step says `coga retire` runs Retro on done tickets; retire deletes done deterministically. (possible owner: `add-a-failed-terminal-status`)
+- S2 `docs/contexts/coga/recurring/autofix/SKILL.md` — omits inactive-repo skip (no run record / no analyst call).
+- S3 `docs/contexts/coga/recurring/templates/SKILL.md` — reporting contract names only `run_recipe`; ticket-owned scripts use `run_reported`.
+- S4 `coga/skills/_template/SKILL.md` (+twin) — cites removed `browser/dochub` (ks-19, ks-28, ca-05 merged).
+- S5 `docs/contexts/coga/configuration/SKILL.md` (+twin) — `[agents.<name>]` allowlist row omits `launch_args` (ks-26, ca-01 merged).
+- S6 `docs/contexts/coga/codebase/gotchas/SKILL.md` (+twin) — routes Coga-source rules to `coga/context.md`, now the generated principles copy.
+
+### gap
+
+- G1 `tests/test_compose.py` — parametrization still pins root `CLAUDE.md` (removed); case fails on main. No open owner.
+- G2 `docs/contexts/coga/internals/agent-spawn/SKILL.md` — exceptional unwinding leaves agent child unkilled/unreaped. owner: `launch-locks/ticket-ownership-lock`.
+- G3 `docs/contexts/coga/workflows/SKILL.md` — merge-triggered closure drops recorded post-merge obligations (0.4.1 publication, readme-top leftovers, macOS build). No open owner.
+
+### drift
+
+- D1 `coga/recurring/branch-sweep/ticket.md` — 2026-10-19 branch-sweep ran as a shared period task despite `scope: clone` (runtime/install question; needs human confirmation).
+- D2 `coga/recurring/branch-sweep/ticket.md` (+twin) — blackboard paragraph describes repo-scoped weekly period task; contradicts `scope: clone` and `recurring_clone.py`.
+- D3 `docs/contexts/coga/notifications/failures/SKILL.md` (+twin) — names `launch.py _launch` as script-assist `preflight_post` caller; now `_LaunchInvocation._run_initial_script`.
