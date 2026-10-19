@@ -688,3 +688,115 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-10-19T17:51:23+00:00
+Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
+Task: `recurring/dream`
+
+Result: 49 issue(s): 0 direct fix, 4 PR proposal, 45 human-needed.
+
+### PR Proposal
+
+- `autofix/name-cross-repo-retire-follow-ups-with-the-repo-th`: `uncomposed-section` (warn) - ticket body has sections no launch prompt carries: `## What broke`, `## Evidence`, `## Where it lives`, `## What a fix has to do`. Only `## Description` and `## Context` above the blackboard fence are composed, and each section ends at the next `##` heading. Demote each heading to `###` under `## Description` or `## Context`, or move working notes below the blackboard fence
+  Remediation: Propose demoting each named `##` heading to `###` under `## Description` (intent, acceptance, shape) or `## Context` (background), keeping its text verbatim; move working notes below the blackboard fence instead. Do not delete or summarize the section.
+- `marketing/demo-hackability-ask-claude-to-add-a-command-live`: `broken-context` (error) - context 'marketing/plan' does not exist (checked: /home/n/Code/claude/coga/docs/contexts/marketing/plan/SKILL.md, /home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/contexts/marketing/plan/SKILL.md)
+  Remediation: Open a small PR after reading the task: either fix the typo in the reference or add the missing context/skill with reviewable content.
+- `marketing/demo-hackability-ask-claude-to-add-a-command-live`: `broken-context` (error) - context 'marketing/positioning' does not exist (checked: /home/n/Code/claude/coga/docs/contexts/marketing/positioning/SKILL.md, /home/n/Code/coga/src/coga/resources/templates/coga/bootstrap/contexts/marketing/positioning/SKILL.md)
+  Remediation: Open a small PR after reading the task: either fix the typo in the reference or add the missing context/skill with reviewable content.
+- `marketing/fix-installer/test-and-fix-install-on-macos-and-windows`: `large-blackboard` (warn) - blackboard region is 40.9 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
+  Remediation: Propose the `coga/blackboard` bloated-blackboard remedy: promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete.
+
+### Human Needed
+
+- `add-a-failed-terminal-status`: `stuck-in-progress` (warn) - in_progress but idle for 113.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `add-an-applying-a-batch-of-verdicts-section-to-the`: `stuck-in-progress` (warn) - in_progress but idle for 500.8h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `autoclose-should-be-script-only`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `carry-the-apply-the-register-amendment-step-in-a-w`: `stuck-in-progress` (warn) - in_progress but idle for 456.9h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `coga-chat-without-context-and-isolation-for-pure-j`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `dream-s-own-blackboard-trips-large-blackboard-ever`: `stuck-in-progress` (warn) - in_progress but idle for 253.4h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `fix-coga-git-sync-failures-that-leave-main-diverge`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `fix-git-sync-failure`: `unfrozen-workflow` (warn) - workflow 'code/with-self-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `fix-the-commit-git-journal`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `gigantic-refactor-move-recurring-recipes-out-of-co`: `stuck-in-progress` (warn) - in_progress but idle for 456.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `implement-the-include-allowlist-that-url-skill-upd`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `in-init-add-a-telemetry-true-message`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `launch-locks/checkout-exclusivity-lock`: `stuck-in-progress` (warn) - in_progress but idle for 306.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `launch-locks/ticket-ownership-lock`: `stuck-in-progress` (warn) - in_progress but idle for 427.6h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `lifecycle-writes-read-control-s-ticket-before-modi`: `stuck-in-progress` (warn) - in_progress but idle for 502.8h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `make-coga-init-initizalizess-also-already-filled-r`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `make-every-code-workflow-review-with-the-other-age`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `marketing/1st-users`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `marketing/build-the-launch-plan`: `stuck-in-progress` (warn) - in_progress but idle for 576.1h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `marketing/idea-piece`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `marketing/publish-coga-1-0-as-the-final-v1-step`: `stuck-in-progress` (warn) - in_progress but idle for 301.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `marketing/state-the-hatchling-prerequisite-in-the-clean-whee`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `marketing/why-i-would-keep-using-coga`: `stuck-in-progress` (warn) - in_progress but idle for 116.4h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `microkernel/lifecycle-verbs-to-ticket-operations`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `microkernel/read-report-commands-as-ticket-workflows`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `microkernel/residual-command-surfaces`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `microkernel/support-commands-boundary`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `microkernel/work-orchestration-commands-to-tickets`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `open-pr-becomes-detereminstici-mechanic-no-check`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `parse-agents-rejects-cogalocaltoml`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `prevent-duplicate-session-usage-records-from-infla`: `stuck-in-progress` (warn) - in_progress but idle for 232.4h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `record-the-two-self-qa-hazards-from-done-ticket-bl`: `stuck-in-progress` (warn) - in_progress but idle for 300.9h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `recurring-unblock-launch`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `repair-ticket-referents-when-a-referent-is-renamed`: `stuck-in-progress` (warn) - in_progress but idle for 300.8h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `review-all-doc`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
+  Remediation: A title-only ticket (validate reports `uncomposed-section` instead when the write-up sits under extra `##` headings): only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
+- `run-recurring-agent-templates-off-the-control-bran`: `stuck-in-progress` (warn) - in_progress but idle for 401.8h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `stop-creating-linked-worktrees-for-coga-retire`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `ticket-sync-fails-with-read-only-git-inside-agent`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `usage-report-name-the-human-split-per-agent-show-c`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `validate-drift-empty-description-23-title-only-tic`: `stuck-in-progress` (warn) - in_progress but idle for 301.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `validate-drift-stuck-in-progress-11-in-progress-ti`: `stuck-in-progress` (warn) - in_progress but idle for 283.2h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `validate-drift-unfrozen-workflow-11-hand-authored`: `stuck-in-progress` (warn) - in_progress but idle for 302.5h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `verify-dream-under-codex-on-the-real-repo-w40`: `stuck-in-progress` (warn) - in_progress but idle for 283.2h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `webhook-for-slack-is-public`: `stuck-in-progress` (warn) - in_progress but idle for 264.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `where-have-code-review-disappeared`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
