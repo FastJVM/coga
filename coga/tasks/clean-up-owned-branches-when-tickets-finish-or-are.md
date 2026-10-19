@@ -235,3 +235,10 @@ and includes the dated branch-backlog audit.
 Test plan: full pytest suite (3319 passed; later rebases changed only README),
 focused cleanup/retire/packaging tests (370 passed), packaging refresh (23
 passed), example validation (4 valid, no issues), and `git diff --check`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: two unguarded branch-cleanup paths
