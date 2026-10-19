@@ -1,12 +1,12 @@
 ---
 title: Address PR review comments
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
 delegate: bootstrap/address-pr-comments
-period_generation: 7c1ecc10-99e5-4f98-8ec8-e3bd7129fe5f
+period_generation: 96ea7da6-15f2-4b8e-b253-3dab5d8bd91b
 workflow:
   name: direct/body
   steps:
@@ -14,6 +14,7 @@ workflow:
     skills:
     - direct/body
     assignee: agent
+step: 1 (execute)
 ---
 
 ## Description

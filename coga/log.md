@@ -8601,3 +8601,25 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-18 18:49 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [human:zach] launched (operator=claude, agent=claude)
 2026-10-18 20:25 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [agent:claude] advanced to step 4 (review) → zach
 2026-10-18 20:25 v1 [marketing/fix-installer/test-and-fix-install-on-macos-and-windows] [system] {"agent":"claude","agent_turns":8,"cache_creation_input_tokens":149141,"cache_read_input_tokens":1012150,"cli":"claude","content_status":"ok","elapsed_seconds":5736.964657,"ended_at":"2026-10-19T03:25:08.882378Z","human_turns":0,"input_tokens":30,"model":"claude-opus-5","outcome":"Clean on `main`, in sync, `pr:` recorded. Bumping to hand off:","outcome_status":"completed","output_tokens":7686,"provider":"anthropic","request":null,"schema":2,"session_id":"9277e91a-5072-460a-a6b5-b3986c9f0f1e","slug":"marketing/fix-installer/test-and-fix-install-on-macos-and-windows","started_at":"2026-10-19T01:49:31.917721Z","step":"pr","title":"Test and fix install on macOS and Windows","ts":"2026-10-19T03:25:08.882378Z","usage_reason":null,"usage_status":"ok"}
+2026-10-19 10:34 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-19
+2026-10-19 10:34 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-19
+2026-10-19 10:34 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-19
+2026-10-19 10:34 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-19
+2026-10-19 10:34 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-19
+2026-10-19 10:34 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-19
+2026-10-19 10:34 v1 [recurring/branch-sweep] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-10-19
+2026-10-19 10:34 v1 [recurring/dream] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/dream] [system] deleted completed prior-period task before 2026-W43
+2026-10-19 10:34 v1 [recurring/dream] [system] created recurring/dream for 2026-W43
+2026-10-19 10:34 v1 [recurring/phone-home] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/phone-home] [system] created recurring/phone-home for 2026-W43
+2026-10-19 10:34 v1 [recurring/resolve-conflicts] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W43
+2026-10-19 10:34 v1 [recurring/skill-update] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/skill-update] [system] created recurring/skill-update for 2026-W43
+2026-10-19 10:34 v1 [recurring/usage-report] [system] created (status=active)
+2026-10-19 10:34 v1 [recurring/usage-report] [system] created recurring/usage-report for 2026-W43
