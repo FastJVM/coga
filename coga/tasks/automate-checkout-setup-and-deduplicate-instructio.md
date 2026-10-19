@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
@@ -53,23 +53,351 @@ The current implementation already prepares current control and safely returns o
 
 ### Acceptance criteria
 
-- [ ] Fresh implementation prepares a branch and publishes its ticket linkage before the agent edits code. A resumed implementation reuses the recorded branch; repeated preparation does not allocate extra branches or lose commits.
-- [ ] The shipped workflow/step cases above select the correct checkout. Selection uses the current authoritative ticket, including after a chained step; no duplicate phase field, reinterpretation of requires as an entry policy, or arbitrary step-name heuristic is introduced. Define safe behavior for existing frozen tickets, repo-overridden workflows, unsupported/custom workflows, and already-satisfied work.
-- [ ] Ad-hoc chat can move from discussion to requested edits through the shared preparation operation, with no ticket requirement. Repeated requests within the same session reuse the intended branch; ambiguous or occupied work is surfaced rather than taken over.
+- [ ] Before an ordinary implementation agent starts, its branch exists and its `## Dev` linkage is confirmed on configured control. Resumes reuse the first recorded workflow branch without resetting commits; an interrupted allocation retries the same reservation instead of allocating another branch.
+- [ ] The mapping below selects the right checkout for every shipped code/docs step, including design-review and PR-review owner assists, the `pr` spelling, and supported older frozen snapshots. Each chained agent uses freshly authoritative ticket state. There is no new phase/checkout field on tickets or workflow steps, no entry interpretation of `requires:`, and no generic step-name inference.
+- [ ] Unrecognized workflows or locally changed instructions receive an explicit manual fallback. Existing instruction-resolution errors still refuse; missing inline definitions/sections retain their existing composition/validation treatment and never qualify as a recognized contract. Fallback does not hide an error or rewrite a frozen workflow.
+- [ ] Ad-hoc chat stays on control during discussion and can prepare its one session-owned branch through the shared operation without a ticket. Repeated calls reuse it, including while it contains the session's dirty work. A different branch, stale session identity, conflicting reservation, or occupied checkout is refused without taking ownership.
 - [ ] Preserve the existing clean-entry, publication, safe-return, recorded-assist, sandbox-clone, configured-remote/control, and Git-disabled/non-Git/remote-less contracts where applicable. Account explicitly for script phases, recurring/delegated launches, megalaunch, and prompt-report rather than broadening dispatch accidentally.
-- [ ] Dirty or unpublished work, stale state, conflicting linkage, and unavailable Git access produce specific diagnostics. Failure or interruption preserves unique work and never fabricates completion, replays a transition, or silently discards edits to get back to control.
-- [ ] Runtime prompt information matches what preparation actually did. The agent no longer needs to reconstruct the automated startup and return procedure from conditional prose. Manual/API operation and chat still have an explicit way to find the complete guidance.
+- [ ] Dirty or unpublished work, stale state, conflicting linkage, and unavailable Git access produce specific diagnostics with the failed stage and recovery location. Publication failure or interruption preserves reservations, refs, and unique work; no code commit, transition, automatic rebase, or destructive rollback is performed by preparation.
+- [ ] After switching, the working ticket and composed ticket describe the same authoritative step and linkage. Only the current ticket may be projected unstaged from control, after checking for stranded or unpublished local intent; no branch ticket commit or wholesale replacement of Coga state is used. Later concurrent changes remain subject to the existing reconciliation/publication guards.
+- [ ] A runtime checkout notice reports the observed branch, relevant ticket path, preparation outcome and return owner. Managed prompts no longer require the agent to perform automated startup/return steps. Pure composition and unmanaged/manual sessions make no claim that preparation ran and link complete guidance.
+- [ ] Already-satisfied work remains an agent judgment backed by evidence. An unused prepared branch does not force a code commit or PR, and preparation never closes a ticket or deletes that branch.
 - [ ] Update the owning checkout, launch, workflow, composition, and extension topics as needed, plus applicable packaged twins. Remove obsolete procedural copies from the base prompt, dev/code overview, code skills, code/docs workflows, and orientation guidance in the same PR. Preserve required instructions in skilled and inline workflow steps.
 - [ ] Add meaningful real-Git coverage for fresh/resumed work, step selection and chaining, chat discussion-to-edit, repeated calls, interruption, and dirty/publication failures. Update seeded launch fixtures where behavior changes. Run relevant Git/launch/compose/workflow/packaging tests, the required implementation checks, and coga validate --json.
 - [ ] Compare representative prompts through the read-only compose API. Verify required guidance still arrives and repeated checkout recipes have disappeared; do not use a real launch or its sweeping prompt-report option just to measure.
 
-### Design deliverable
+### Proposed shape
 
-Specify the branch-selection and publication sequence, the workflow-to-checkout mapping and its owning surface, and the smallest callable interface for in-session chat. Explain how an ad-hoc branch is identified and reused without ticket metadata, how failed/partial preparation is retried, and how the agent receives the authoritative ticket for its handoff after branch switching. Resolve the placement under coga/extension-model; this work should reuse the existing launch boundary, not introduce a general execution/plugin framework. The operation's spelling and API are design decisions, not existing capabilities.
+The following interface and module names are proposals, not existing commands.
+Implement the shared preparation and its launch integration before removing
+instructions. The owner approved manual fallback for unrecognized behavior
+during design; the remaining product choices are listed on the blackboard.
 
-### Scope boundary
+#### 1. Select from the existing step contract
 
-Deliver automation, documentation, and removal of obsolete instructions together. Preserve the existing checkout model and human workflow gates. Worktree isolation, branch deletion policy, automatic implementation commits, and a general lifecycle/publication redesign are separate work.
+Put the lifecycle and this mapping in `dev/checkouts`; `coga/workflows` links
+it and continues to own freezing and completion gates. Implement a small,
+pure `select_checkout_policy` in a proposed `src/coga/checkout_policy.py`.
+Its inputs are the authoritative frozen workflow/current step and the
+resolved instruction identity. It returns control, create-or-reuse,
+reuse-required, or manual, with a reason. Keep it separate from Git operations.
+
+| Workflow | Current step | Entry policy |
+| --- | --- | --- |
+| `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
+| All four shipped code/docs workflows | `implement` | create-or-reuse recorded branch |
+| `code/with-review`, `docs/with-review` | `peer-review` | reuse recorded branch |
+| `code/with-self-review` | `self-qa` | reuse recorded branch |
+| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
+| `code/with-self-review` | `pr` | control |
+| All four shipped code/docs workflows | owner-held `review` assist | reuse recorded branch |
+
+This is a closed compatibility table, not a name heuristic. A row requires
+the qualified workflow name and the expected current step instruction shape:
+`code/design`, `code/review-design`, `code/implement`, `code/self-qa`,
+`code/open-pr`, or `code/address-pr-comments` as applicable; shipped peer
+review, docs implementation/publication, and design approval are inline.
+An unrelated workflow's `review` or `implement` means nothing to this table.
+Ticket-wide skills do not select entry behavior. Existing routing still
+decides whether a step can launch, including explicit owner assists.
+
+Use the frozen current step, not its ordinal in today's workflow definition.
+Support old snapshots without `evaluate-design` and without `requires:`;
+neither changes the meaning of the remaining steps. Explicitly recognize
+the older empty-`skills` PR `review` entries through their shipped live
+inline instruction contract. Do not infer those semantics for an arbitrary
+skill-less `review` elsewhere, or re-freeze old tickets.
+
+For a matched row, verify the instructions the step actually consumes:
+resolved step-skill bytes, or the applicable live inline section, must match
+the shipped contract. Byte-identical local twins qualify; unrelated changes
+to another workflow section need not disable this step. A changed applicable
+section, changed skill body, additional/replaced step skills, or unknown
+workflow selects manual with its reason. Local-first resolution and its
+existing unreadable/malformed-file failures remain intact. This deliberately
+trades automatic handling of benign local prose edits for no semantic guessing.
+
+For manual policy, ordinary launch still prepares/returns control as today;
+the notice says branch setup was not performed and points to the complete
+procedure before edits. The implementation does not add an override registry
+or infer a policy from gates, prose keywords, or roles alone.
+
+#### 2. One shared preparation implementation
+
+Add a focused `src/coga/checkouts.py` with typed preparation inputs/results
+and entry points such as `prepare_ticket_checkout` and
+`prepare_chat_checkout`. Both call the same branch-preparation implementation
+for preconditions, reservation, branch creation/reuse, switching and final
+verification. Reuse `src/coga/git.py`'s `publish`, `state_lock` and
+`prepare_control_checkout` rather than copying shell recipes. A result records what actually
+happened: checkout root, control revision, branch, ticket projection when
+present, return responsibility, and any manual/exempt reason.
+
+The two actual consumers are ordinary launch and the callable chat recipe
+below. Shared mechanics therefore belong in core under `coga/extension-model`.
+The recipe is a proposed reviewed addition to `src/coga/runner.py`'s fixed
+`RECIPES` table: it needs a repository-independent argv/output/exit contract
+and must agree with launch's private live-session witness and preparation
+receipt. Document that placement in `coga/extension-model`. Do not add a Typer
+command head, alias, ticket plugin, or general preflight/phase registry.
+
+#### 3. Ticket branch transaction and recovery
+
+Operate only after current-control admission and the existing refusing agent
+preflights. Under the existing local state lock, recheck the canonical task,
+expected lifecycle/step, Git destination, branch ownership evidence and
+checkout before each mutation. Do not hold the lock across an agent session.
+
+1. Read the authoritative `## Dev` on control. The first branch is the
+   workflow branch; auxiliary branches remain untouched. Reject invalid or
+   control-named branches and conflicting records. A recorded external
+   checkout follows the exception below instead of creating a local substitute.
+2. With no branch on an implementation step, reserve one generated valid name
+   once, for example `coga/<task-ref>-<short-id>`. Store the task/root identity,
+   chosen name and pinned creation OID atomically in the existing ignored
+   `.coga/` area before creating the ref. This small local receipt is retry
+   evidence, not task state or a workflow phase. Never adopt a pre-existing
+   colliding ref or choose another name silently on retry.
+3. Create the reserved branch at that OID without switching off control.
+   Write only its `branch:` linkage into the current ticket's blackboard,
+   preserving frontmatter, other `## Dev` entries and prose. Publish with an
+   exact expected-ticket guard and strict failure propagation. Confirm the
+   recorded linkage on fetched control and require a clean control checkout
+   before switching. A best-effort sweep's zero process exit is insufficient.
+4. On resume, use the recorded branch. If only its remote ref exists, fetch
+   that exact branch and create the local ref at the fetched OID. A merely
+   behind local branch may fast-forward to the pinned remote tip. Preserve
+   local ahead/divergent commits and report that agent reconciliation is
+   needed; never reset or automatically rebase them onto control. A recorded
+   branch absent locally and remotely is a refusal, not permission to recreate
+   an empty replacement. Check other-worktree occupancy and ignored-file
+   collisions before switching.
+5. Verify the selected branch has no unique committed ticket intent that
+   would be hidden by a control projection. A ticket still at its shared base,
+   or a version proved already incorporated on control, may be replaced in
+   the working tree. Stranded ticket changes require reconciliation first.
+   Switch normally, then atomically materialize only this ticket from the
+   final authoritative control snapshot, unstaged. This also covers a branch
+   predating the ticket's creation. Leave the index and branch commits alone.
+6. Verify HEAD and all expected bytes before admitting the agent. The only
+   permitted entry dirt is the identified ticket projection or already-proved
+   publication state; say which paths these are in the runtime notice. Do not
+   present such a checkout as wholly clean. Return the same ticket object and
+   path used for composition and task/expected-step metadata.
+
+The receipt must make interruption boundaries testable: reserved but not
+created; created but not linked; linkage written but not published; published
+but not switched; switched but projection incomplete. Retry derives progress
+from observed refs, exact ticket bytes and the receipt, not a success bit
+alone. An unlinked reserved branch is reusable only with matching reservation
+and creation evidence; unexpected commits or changed linkage are a refusal.
+A completed reservation never overrides a later authoritative `branch:`.
+Keep ambiguous receipts for diagnosis; receipt cleanup never deletes a branch.
+
+On publication refusal/failure, stay on control if still there, retain the
+branch and ticket edit, identify what did and did not land, and withhold the
+outer sweep. If a later stage already switched, report that actual position
+and preserve it. Do not let teardown blindly retry a refused transaction or
+roll it back. A subsequent invocation recovers against fresh control; it does
+not replay activation, a step transition or a launch audit as a recovery trick.
+
+An idempotent call on this operation's already prepared branch is a validation
+and no-op, even with that session's dirty work. It must not sweep those edits,
+switch through control, or refresh over notes. A different HEAD, changed task
+identity or conflicting receipt fails explicitly.
+
+#### 4. Fit the existing launch order
+
+Keep `src/coga/launch.py`'s `_CheckoutBoundary.enter` as the current-control
+admission boundary.
+Keep scripts on their existing entry path: `ticket.py` runs before any new
+agent-branch preparation, and each deterministic phase settles before the
+next dispatch decision. Do not select a feature branch for a script merely
+because its current step also has an implementation skill.
+
+For each ordinary agent phase, including every chained phase, perform:
+fresh control/config/task read; routing and complete non-mutating agent
+preflights; existing authorized activation/start publication; policy and
+branch/link preparation; final authoritative composition; switch/projection;
+observed checkout notice; spawn. Split preparation's plan/publication from
+its switch where needed to preserve that order. Move or reuse the ordinary
+launch-audit publication so it completes on control before the final snapshot
+and switch, exactly once. A publication that advances control requires
+re-reading and revalidating the task before spawn. If its step, linkage,
+destination or required instructions changed, re-plan from control with a
+bounded retry or refuse; do not spawn the stale prepared step.
+
+Use `src/coga/launch.py`'s existing
+`spawn_agent_session(composed_prompt=...)` seam for the authoritative
+composition. Do not switch and then accidentally recompute
+routing, secrets or instructions from the feature branch's older files.
+Preserve the existing refusal-before-lifecycle-write guarantees for agent
+preflights. A failure after an existing lifecycle write reports the saved
+state and does not fabricate an agent completion or a compensating transition.
+
+The agent writes its handoff into the projected live ticket, never commits
+that projection, and bumps last. It need not run an unconditional Git restore
+that could erase notes. Before handoff, the existing reconciliation rule still
+applies to control changes made during the session; a stale publication needs
+preserving/reconciling prose, never another bump. The existing boundary returns
+after the session, reloads control and only then considers chaining.
+
+#### 5. Callable preparation inside chat
+
+Proposed spelling: `coga run prepare-checkout --session <id>`. The runtime
+notice supplies this exact invocation, so it also works when an agent's shell
+does not inherit launch environment variables. The recipe consumes no task
+ref or workflow, emits no transition/done signal, and does not launch an agent.
+
+Extend the existing direct-orientation occupancy guard with a checkout-local
+receipt identifying its live supervisor/session and one reserved generated
+branch, for example `coga/chat-<id>`. Reserving a name does not create a Git
+branch; discussion-only chats allocate no branch and publish no ticket linkage.
+The recipe must prove the session matches the current root and the still-live
+guard. A stale file or user-supplied identifier alone is not evidence of a live
+session. Keep this a companion to the existing guard, not another lock service.
+Install/invalidate its identity and inspect it under the same short state
+lock, so a newly admitted guard cannot expose a previous session's receipt.
+
+On the first edit request, preparation proves control entry and creates and
+switches to the reserved branch using the shared mechanics. On repeated calls,
+the exact active session/branch association permits a no-op with dirty work;
+do not publish that work as a side effect. Partial preparation retries the
+same reservation. If HEAD moved elsewhere, a receipt conflicts, or the
+supervisor died, fail without adopting another branch. A new chat does not
+silently resume an old chat branch: its work is recovered explicitly under
+`dev/checkouts/launch-boundary`. There is no `--force` or arbitrary adopt option.
+
+Return a concise branch/root/outcome report on stdout; return 0 only for a
+verified prepare/reuse or an explicitly reported Git exemption, 2 for invalid
+invocation, and 75 for stale, occupied or incomplete preparation. Report the
+stage and retained paths on stderr. Exclude this recipe from the CLI's general
+exit sweep on success, failure and pre-dispatch config refusal, following
+`src/coga/cli.py`'s `_should_sweep_coga_state` exception for `publish-state`:
+repeated calls must not publish unfinished contexts or skills. Its own
+required publication remains guarded; a successful no-op emits no misleading
+failed-publication warning.
+Retain the runner's normal failure-report contract without inventing a chat
+blackboard. The direct-chat guard remains held until the launcher's existing
+return and final sweep; conversation turns do not return the checkout.
+
+#### 6. Exemptions and unusual outcomes
+
+- **Recorded assist already in its checkout:** preserve the current exemption,
+  PR-head verification, alignment and assist-attribution rules. Do not layer
+  ordinary branch preparation over it or grant its special identity to a
+  normal owner assist merely because that assist now starts on the PR branch.
+- **Recorded sandbox clone from the primary checkout:** keep the primary on
+  control with the authoritative ticket; verify/name the recorded code checkout
+  and branch, and direct the agent there. Never `chdir`, silently follow a stale
+  path, allocate a competing branch or create a worktree. Preserve the documented
+  independent-clone fallback and local-config seeding for restricted agent Git
+  access. A missing or conflicting recorded clone needs recovery, not replacement.
+- **Git disabled, non-Git or remote-less:** preserve current exemptions and
+  state-publication behavior; report that branch preparation/freshness was not
+  provided. Do not create branches merely because the policy says implement.
+  Without a direct-chat guard, issue no preparation capability or invocation;
+  manual guidance applies. A guarded remote-less chat can report an exemption.
+  Loss of a remote after an admitted managed session is a failure, not a newly
+  available exemption. Use configured remote/control names throughout.
+- **Recurring/delegated launches and megalaunch:** retain their current admission,
+  claim, dispatch and return paths. No automatic step-branch setup in this change;
+  report the manual/exempt behavior and keep the complete procedure reachable.
+  Do not put automatic preparation in the shared spawn function where it would
+  bypass these callers' transaction boundaries. Other bootstrap targets remain
+  exempt; delegated orientation receives no direct-chat preparation capability.
+- **Prompt reports:** no new preparation, branch reservation, session receipt or
+  checkout claims. Preserve the existing report's documented sweep behavior;
+  measurement uses only the read-only compose API.
+- **Already satisfied:** a fresh implementation can discover no work only after
+  its empty branch has been prepared. Permit evidence-backed closure without a
+  fabricated commit or PR; preserve the branch for existing cleanup policy. For
+  self-QA with no branch but prior `## Already satisfied` evidence, stay on control
+  for agent verification and say why. Missing branches without that evidence
+  still fail; the text is permission to verify, never proof for automatic closure.
+- **Exceptional fixes during docs publication:** keep publication on control.
+  Preserve the docs step's mergeability, conflict-resolution, re-verification and
+  refreshed-PR-evidence obligations, but move its conditional checkout/return
+  recipe to the owning checkout procedure. Ordinary code publication retains
+  its existing mechanical-only remit. Do not silently delete a judgment obligation
+  while removing duplicated Git instructions.
+
+#### 7. Runtime guidance and documentation cleanup
+
+Add an optional typed checkout result to `src/coga/compose.py`'s
+`compose_prompt_report` and `compose_prompt`, rendered as a short runtime appendix after the contiguous
+ticket layers and before launch arguments/the launch marker. It names observed
+state, any ticket projection, and who returns the checkout; an eligible direct
+chat also gets its exact preparation invocation. Composition performs no Git operations. With no
+result, it states that preparation was not supplied and points to `dev/checkouts`;
+it must never infer a prepared branch from a workflow or ambient environment.
+Cover repo resource overrides so the runtime truth is independent of an old
+base-prompt override; do not overwrite repo-owned prose.
+
+Keep the complete start/work/handoff/end explanation in `dev/checkouts`, with
+its existing recovery, reconciliation and sandbox leaves owning their focused
+rules. Update `coga/launch`, `coga/workflows`, `coga/prompt-composition` and
+`coga/extension-model` for their portions of the contract, and
+`coga/internals/state-publication/sweep` for the recipe's exit-sweep exclusion;
+neighbouring overviews
+link rather than restate the mapping or algorithm. Review topic size while
+editing instead of duplicating a short agent version beside the human version.
+
+Remove obsolete branch-allocation, pre-branch Python sweep, unconditional
+ticket-restore, start-on-main and conditional-return recipes from
+`src/coga/resources/prompt.md`, `dev/code`, the code implementation/self-QA/
+publication/PR-assist skills, all code/docs workflows, and orientation guidance.
+Keep a short fallback pointer in the shared base/step guidance so older snapshots,
+manual/API sessions and exempt callers remain operable. Keep publication safety,
+selective staging, meaningful reconciliation, test/review requirements, evidence
+and owner gates. PR-assist head/repository/lease verification is not redundant
+with branch selection and must remain. Audit both the skilled and inline prompt
+paths, including inline legacy owner review. Refresh every applicable packaged
+twin in the same implementation PR.
+
+### Verification plan
+
+Extend the existing real-Git fixtures and launch-return tests. Cover creation
+and confirmed linkage before spawn; resume with unique commits; remote-only
+and missing recorded branches; configured remote/control; clean versus dirty
+entry; stale publication races; ignored collisions; competing branch holders;
+and interruption at each reservation/publication/switch/projection boundary.
+Check working ticket bytes, branch OIDs and remote control contents, not just
+return codes. Exercise a final spawn through the real composition/audit path,
+not only a stub that replaces all of `spawn_agent_session`.
+
+Parameterize the mapping across every table row, current/older frozen forms,
+owner assists, missing gates, local identical twins, applicable local edits,
+custom names and contradictory skill lists. Chain implementation to review to
+publication with control advancing between sessions; assert each agent sees
+the correct branch, prompt, expected step and latest blackboard. Add script
+handoff and exemption regressions without replacing existing admission proofs.
+
+Exercise direct chat discussion-only, first preparation, repeated dirty calls,
+partial retries, stale/mismatched session identifiers, second-chat refusal,
+supervisor interruption, safe return and refused return. Invoke the recipe
+through the CLI in at least one test so its sweep behavior is covered.
+
+Before/after read-only composition samples must cover code implementation,
+peer review, self-QA, both owner review kinds, code/docs publication, docs inline
+implementation, an old frozen snapshot, manual/exempt mode and chat. Inspect
+required guidance and removal of actual duplicate recipes, not only token
+counts. Never measure by launching or editing live workflow/frontmatter state.
+
+Run targeted Git, launch/script, compose, workflow/validation, runner, environment
+isolation and packaging/resource tests; then the full suite required by
+`code/implement`, `coga validate --json`, and relevant seeded-fixture validation.
+Use an absolute checkout `PYTHONPATH` and an interpreter with the test extras;
+record exact commands, counts and any Python-floor gap per `coga/testing`.
+
+### Out of scope
+
+Worktree isolation, branch deletion policy, automatic implementation commits
+or pushes, automatic rebases/conflict resolution, changing owner gates,
+automatic custom-workflow migration, cross-session chat-branch adoption, a
+general lifecycle/publication redesign, and a new execution/plugin framework.
+This change does not teach launch to decide that a PR merged or work is done.
+Deliver automation, documentation and instruction removal together.
 
 ## Context
 
@@ -127,6 +455,69 @@ Tests already covering return include `tests/test_launch.py` plus
 `test_launch_returns_a_feature_branch_handoff_before_the_next_step` and
 `test_launch_returns_the_checkout_after_a_failed_session`; extend the
 existing real-Git test approach rather than mocking away checkout behavior.
+
+### Verified integration points
+
+- `src/coga/launch.py`: `_prepare_agent` performs full composition, secrets
+  and push-auth preflights before committing deferred activation and starting
+  the session; `_supervise_steps` then rereads each step and calls
+  `spawn_agent_session`. That function normally composes again and publishes
+  the launch audit after composition. Its `composed_prompt` argument can retain
+  the control-derived prompt, but the new preparation must also account for
+  that later audit write. `_CheckoutBoundary.settle` reloads configuration,
+  publishes state, prepares control and stops chaining on refusal.
+- `src/coga/launch.py`: `_orientation_checkout_guard` holds the nonblocking
+  Git-toplevel lock; `checkout_guard_scope` extends its lifetime through the
+  CLI sweep. It currently has no per-chat branch/session receipt. Add the
+  callable operation here through shared mechanics, not a second launcher.
+- `src/coga/git.py`: `sync_coga_state` catches publication failures;
+  `sync_task_state(strict=True, expect=...)` propagates them after reporting;
+  `publish` supports guarded publication and `require_paths`. A false return
+  can mean there was nothing new to publish, so success needs content proof.
+  `prepare_control_checkout` only prepares control and performs no publication.
+  `stale_coga_task_rels` is a fail-open lifecycle warning, not a sufficient
+  proof that overwriting a ticket would preserve all prose.
+- `src/coga/blackboard.py`: `update_blackboard_under_barrier` combines
+  `git.state_lock` with expected-byte checks and delegates to
+  `src/coga/taskfile.py`'s `replace_blackboard`, preserving text outside the
+  fence. Use this path for linkage rather than round-tripping all frontmatter.
+- `src/coga/autoclose.py`: `parse_branch_names`, `parse_branch_name`,
+  `parse_worktree_path` and `parse_pr_url` interpret the real `## Dev` section
+  and ignore fenced examples. `src/coga/open_pr.py`'s `_stranded_ticket_detail`
+  and publication preflights are relevant preservation checks; do not replace
+  them with branch-name guesses or a lifecycle-rank comparison.
+- `src/coga/compose.py`: `_step_layers` uses frozen skill refs when present,
+  otherwise loads `Workflow.inline_instructions` from the live definition.
+  Thus a legacy empty-skills review still consumes inline prose even when new
+  tickets freeze an assist skill. `src/coga/paths.py`'s
+  `resolve_workflow_path` and `resolve_skill_path` decide local precedence.
+- `src/coga/task_env.py`: `apply_task_env` rebuilds metadata from the supplied
+  ticket/ref; `src/coga/repl_supervisor.py`'s `build_supervised_step_env`
+  separately pins expected task/step and strips inherited return authority.
+  Keep both consistent with the final authoritative ticket. The proposed chat
+  recipe takes its session identifier explicitly and need not add a task field
+  or depend on inherited shell variables.
+- `src/coga/runner.py`: `run_recipe` selects only `RECIPES` and `run_reported`
+  records failures when there is a valid task blackboard. `src/coga/cli.py`'s
+  `_should_sweep_coga_state` already excludes `run publish-state` even before
+  dispatch; extend that narrow exclusion for the new recipe. Its
+  `_sweep_coga_state` also honors `git.state_sweep_withheld`, used by failed
+  launch boundaries. These keep a guarded result from an unrelated publication.
+- `coga/internals/state-publication/sweep`
+  (`docs/contexts/coga/internals/state-publication/sweep/SKILL.md`) is cited
+  rather than attached: read "The end-of-command sweep" and "Strict publication
+  on demand" for the exclusion and failure-recovery contract. Its code owners
+  are `src/coga/cli.py`'s `_should_sweep_coga_state` and
+  `src/coga/publish_state.py`'s `run_publish_state_recipe`.
+- `tests/test_launch.py`: `_CheckoutSession` and `_checkout_launch_env`
+  replace the entire spawn function. They exercise real Git return well but
+  cannot alone prove final prompt/audit ordering; retain real spawn preparation
+  in an additional integration test while replacing only the agent process.
+
+The live-ticket survey found older design snapshots without the evaluator,
+implementation steps without a branch gate, publication steps without a PR
+gate, and owner PR-review steps with empty skills. These are compatibility
+fixtures to encode explicitly, not reasons to modify live ticket frontmatter.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -214,13 +605,66 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-## Authoring handoff
+## Design handoff
 
-The owner approved the direction in an attended orientation discussion:
-automate shared mechanics, use the existing workflow/current step, retain
-complete documentation, and support edits requested during ad-hoc chat.
-This draft captures that agreement; design and implementation have not started.
+Design investigated against `f973db63c` on control. The spec now lives under
+`## Description`, with verified source relationships under `## Context`.
+Only this ticket was edited; implementation and changes to behavior topics,
+templates or tests have not started.
 
-The next launch starts the design step. Settle the workflow mapping's owning
-surface and the callable chat interface at design review. Preserve the
-distinction between agreed behavior and those still-open implementation choices.
+The owner originally approved shared automation, existing workflow/current-step
+selection, complete owning documentation and in-session ad-hoc edits. During
+this design session the owner explicitly approved manual fallback for custom
+workflows or locally changed step instructions. The proposed closed mapping
+therefore verifies the consumed instruction contract and supports the observed
+older frozen forms without changing their metadata or completion gates.
+
+The key integration risks are the launch audit after composition, the stale
+ticket on a resumed branch, and repeated chat preparation accidentally running
+the CLI's general state sweep. The spec addresses these together: publish on
+control before the final snapshot, project only the authoritative ticket
+unstaged, and make repeated preparation a non-publishing no-op.
+
+## Open Questions
+
+For owner design review, after the evaluator's findings:
+
+1. Ratify the proposed `coga run prepare-checkout --session <id>` contract and
+   one generated branch per live chat. It requires no ticket and works without
+   shell environment inheritance; the tradeoff is that naming a branch or
+   adopting one from an earlier chat remains explicit manual recovery. The
+   current recommendation is this narrow interface, with no force/adopt options.
+2. Accept an unused local branch when an implementation agent discovers the
+   work is already satisfied after startup. The recommendation is to allow
+   evidence-backed closure without creating a commit or PR and leave cleanup
+   policy unchanged. Avoiding even that empty branch would require delaying
+   preparation until an agent decision, changing the proposed entry contract.
+
+## Verification
+
+Read-only `compose.compose_prompt_report` sampling covered twelve shipped
+code/docs step cases plus orientation, with in-memory workflow/ticket copies.
+It confirmed repeated checkout instructions in both skill-backed and inline
+paths (the implementation sample alone includes three `git switch` mentions).
+No real launch, prompt-report launch or trial frontmatter mutation was used.
+The live-ticket metadata survey confirmed the compatibility variants above.
+
+- `PYTHONPATH=/home/n/Code/codex/coga/src /home/n/.local/share/uv/tools/coga/bin/python -m coga.cli validate --task automate-checkout-setup-and-deduplicate-instructio --json`
+  returned exit 0, 1 task OK, no issues, including after reconciliation.
+- With the same source/interpreter prefix, `python -m coga.cli validate --json`
+  returned exit 1: 126 OK, 2 errors and 47 warnings. Both errors are missing
+  `marketing/plan` and `marketing/positioning` contexts on
+  `marketing/demo-hackability-ask-claude-to-add-a-command-live`. Its ticket is
+  byte-identical to committed control, where neither context exists in the
+  canonical or packaged tree. These are real unresolved repository errors,
+  independent of this design-only edit; no other ticket was changed.
+- `git diff --check` passed. Read-only compose assertions confirmed unchanged
+  frontmatter and ticket guide, no uncomposed body sections, and all acceptance,
+  proposed-shape, scope, integration and open-question sections present in the
+  prompt. No implementation test run is claimed for this ticket-only step.
+- Final reconciliation fetched and fast-forwarded to `c4cebeea4`, whose
+  intervening changes retire other tasks; the source, governing instructions
+  and this ticket's control copy were unchanged. The design was backed up,
+  restored after fast-forward, and checked byte-for-byte. Only this ticket
+  remains in the working diff. Ready for the independent design evaluator;
+  owner decisions above remain pending.
