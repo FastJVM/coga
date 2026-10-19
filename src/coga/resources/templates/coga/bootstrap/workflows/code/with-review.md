@@ -57,12 +57,10 @@ owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or
 
 ## implement
 
-Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
-so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
-in the ticket copy of the checkout the bump runs from — the feature branch
-after loading control's copy under `COGA_LAUNCH_RETURNS_CHECKOUT=1` (launch
-then returns the checkout), or `main` after a manual session's end-of-step
-return (`dev/checkouts`).
+Agent step, owned by the `code/implement` skill. Launch creates or reuses the
+recorded branch before the agent starts (`dev/checkouts`). The step declares
+`requires: branch`, so `coga bump` refuses to advance until `branch:` is
+recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
 
 ## peer-review
 
@@ -85,18 +83,15 @@ Review the change in this fresh peer-review session:
   actual reviewer identity and independence rather than inferring either from
   the configured peer.
 
-Start with the `dev/checkouts` start check on `main`, and read the change by
-name without switching (`git diff main...<branch>`, `git log
-main..<branch>`) when your tool allows it; a tool that reviews the checked-out
-branch needs the switch below first. To apply must-fix findings (skip nits)
-and freshen the branch, `git switch <branch>`, re-run `python -m pytest`,
-commit (e.g. `peer-review: apply review findings`), and push. Then, with
-`COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load control's copy of
-the ticket (`dev/checkouts`, "In a launched session"), write `## Peer review`
-and `## PR`, and run `coga bump <slug>` last; launch returns the checkout.
-Without it, run the `dev/checkouts` end-of-step return to a clean `main`,
-write the notes there, and `coga bump <slug>` from `main`. If you never
-switched, write them on `main` and bump from there.
+Launch starts this step on the recorded branch, with this ticket projected
+unstaged from control as the only entry dirt (the **Checkout (runtime)**
+notice says so; otherwise follow `dev/checkouts` yourself). Review the diff
+against its base (`git diff main...HEAD`, `git log main..HEAD`). To apply
+must-fix findings (skip nits), re-run `python -m pytest`, commit (e.g.
+`peer-review: apply review findings`), and push. Write `## Peer review` and
+`## PR` in the live ticket and run `coga bump <slug>` last; launch returns
+the checkout (a manual session first returns to `main` per
+`dev/checkouts`).
 
 **Complete the review before you bump.** Finish a direct review and record
 that it **completed**, its findings, and the head/base it covered. If a review
@@ -129,7 +124,8 @@ so anything needing review judgment must be done *here* before you bump:
 
 - **Make the branch fresh, not just conflict-free.** Don't wait for a
   conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
-  feature branch unconditionally, resolve whatever surfaces, re-run
+  feature branch unconditionally, preserving the projected ticket as
+  `dev/checkouts` describes, resolve whatever surfaces, re-run
   `python -m pytest`, commit, and push with `--force-with-lease`. `coga
   open-pr` refuses unsafe material drift,
   and the next step is intentionally mechanical — this step is the last one
@@ -152,9 +148,8 @@ so anything needing review judgment must be done *here* before you bump:
   does not prove independence. Explain omissions; never re-stamp stale results
   after fixes. The workflow's existing tests and review obligations still apply.
 
-Leave the branch committed and pushed with commits ahead of `main`, and the
-checkout back on a clean `main` unless launch returns it; `coga open-pr`
-refuses to publish an empty branch.
+Leave the branch committed and pushed with commits ahead of `main`; `coga
+open-pr` refuses to publish an empty branch.
 
 ## open-pr
 

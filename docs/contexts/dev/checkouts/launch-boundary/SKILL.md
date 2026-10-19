@@ -7,32 +7,6 @@ description: Preparation and return to current control for ordinary tickets and 
 
 Part of [dev/checkouts](../SKILL.md).
 
-## Direct chat occupancy
-
-A direct `bootstrap/orient` launch (`coga chat`) acquires a nonblocking,
-checkout-scoped advisory lock before publishing state or preparing the
-checkout. It holds the guard through the session, checkout return, and the
-CLI's final state sweep. Another direct chat in the same checkout refuses
-with exit 75, without publishing, switching branches, or starting an agent,
-even when the first chat's feature branch is clean. Finish the first chat
-or use a separate checkout; stateless tickets do not isolate shared files.
-
-The guard uses the resolved Git toplevel, so nested Coga roots and symlink
-spellings of one checkout share it; separate clones or linked checkouts do
-not. Its file lives outside the working tree in the per-user system temp
-directory. The OS releases the lock on supervisor process exit; the file
-is not a durable ownership record and must not be deleted to bypass a live
-session. A guard failure refuses rather than assuming the checkout is free.
-This is separate from the short state-publication lock, so agent subprocesses
-can still publish their ticket and log updates.
-
-`--prompt-report`, delegated bootstrap sessions, other launch targets,
-Git-disabled and non-Git workspaces do not acquire this guard. It coordinates
-direct chats running this version, not older supervisors, other launch types,
-manual Git commands, or agents orphaned by a killed supervisor. Do not run
-those concurrently against a chat's checkout. No task ownership lock or
-cross-checkout exclusion is introduced.
-
 ## Preparation and return
 
 An ordinary ticket launch and a direct `bootstrap/orient` launch (`coga chat`)
@@ -107,6 +81,13 @@ including a period that delegates to a bootstrap target: the delegated
 session itself is exempt, but its period settles once that session ends. A
 refusal there exits 75 so the recurring sweep stops launching templates.
 
+Branch preparation ([dev/checkouts](../SKILL.md#in-a-launched-session)) runs
+only inside an ordinary ticket launch whose entry prepared control, before
+each spawn; its refusals exit 75 the same way. Recurring periods and their
+delegated sessions, megalaunch picks, exempt launches, and `--prompt-report`
+get no branch setup; a composed prompt then states that no preparation was
+supplied, or what launch observed instead.
+
 ## Checkout recovery
 
 When preparation refuses, or an agent finds an unexpected starting checkout,
@@ -138,4 +119,5 @@ The base prompt links this procedure for agent-led investigation; launch's
 refusal prints the key checks before exiting 75 without spawning an agent.
 Direct orientation uses the same preparation and return guarantees as ordinary
 tickets, not an automatic stash or a recovery-session bypass. The occupancy
-guard above rejects competing direct chats in the same Git checkout.
+guard ([dev/checkouts/chat](../chat/SKILL.md)) rejects competing direct
+chats in the same Git checkout.

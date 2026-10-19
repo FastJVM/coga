@@ -7,14 +7,59 @@ description: The sandbox clone fallback for a read-only primary `.git`, and what
 
 Part of [dev/checkouts](../SKILL.md).
 
-**Sandbox clone fallback.** When the sandbox mounts the primary `.git`
-read-only so `git switch -c` fails, make `git clone --no-hardlinks` under
-`/tmp`, repoint `origin` at the real remote, fetch the control branch, create
-the branch there, and record the clone's path in `worktree:`. Ticket state, `coga bump`, and
-`coga open-pr` stay in the primary checkout on `main`; `open-pr` runs its git
-checks inside the recorded clone. Do not force writes through protected
-metadata or stop to ask when this fallback is available. A `/tmp` clone dies
-at reboot, so push the branch before ending the session.
+## Sandbox clone fallback
+
+A managed agent sandbox may allow source edits while mounting the primary
+`.git` read-only. The fallback is an independent clone (`git clone
+--no-hardlinks` under `/tmp`, `origin` repointed at the real remote, the
+control branch fetched) on the ticket's branch, recorded as `worktree:` next
+to the unchanged `branch:`. Ticket state, `coga bump`, and `coga open-pr` stay
+in the primary checkout on `main`; `open-pr` runs its git checks inside the
+recorded clone. Never force writes through protected metadata. A `/tmp` clone
+dies at reboot, so push the branch before ending the session.
+
+- **Recorded clone.** Launch from the primary keeps it on control with the
+  authoritative ticket, verifies the clone is a checkout on the recorded
+  branch, and names it in the runtime notice; change code only there. A
+  missing clone or one on another branch refuses: recover or re-record it,
+  never let launch replace it.
+- **Manual session.** When creating the branch fails because metadata is
+  read-only, make the clone, create the branch there, seed it (below), record
+  and publish `worktree:` from the primary ([manual](../manual/SKILL.md)),
+  then work in the clone.
+- **First refusal after launch switched.** Launch prepared and switched the
+  primary on the host, then the agent's first Git write (a commit) is
+  refused. The primary may stay on the prepared branch until host recovery
+  succeeds; the recorded-clone entry guarantee did not hold this session.
+  The agent stops implementation writes, names the failed operation, records
+  the branch and its OID, and preserves verified copies of all staged,
+  unstaged, untracked, and ticket work outside the repo. It may make a
+  preservation clone but does not continue there, allocate another branch,
+  bump, or signal completion. It asks the attending human to finish from a
+  permitted host shell after ending the session (an unattended session
+  escalates the missing capability). On exit, launch's normal return
+  returns a clean or already-published primary; source dirt refuses and
+  stays intact. On the host, following
+  [reconciliation](../reconciliation/SKILL.md):
+  1. Create or verify an independent clone of the prepared branch at its
+     actual tip, keeping its unique commits; transfer the source changes
+     with byte, mode, and deletion checks. Never copy ignored credentials,
+     and never commit the ticket projection.
+  2. Verify the backups and the clone, then clear only those proven copies
+     from the primary. Publish or reconcile saved primary ticket state
+     without replaying any lifecycle command, and use the ordinary return
+     (`coga run publish-state`, then the manual end-of-step return) to reach
+     a clean, current control.
+  3. Only then verify the clone's remote, branch, and retained work, seed
+     its local config, write `worktree:` beside the unchanged `branch:`,
+     publish it with the exact-ticket guard, and confirm it on control.
+  4. Relaunch the same step; the recorded-clone path keeps the primary on
+     control.
+
+  An interrupted or refused stage keeps its backups, clone, branch, and
+  notes, names what remains unpublished, and stops: a candidate clone is not
+  linkage until published. There is no in-session host control, automatic
+  dirt migration, or compensating transition.
 
 ## What a fresh checkout lacks
 

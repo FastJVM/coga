@@ -259,6 +259,11 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         # The recipe owns the required-file transaction. A generic sweep
         # would bypass it even when config loading fails before dispatch.
         return False
+    if command == "run" and recipe_args[:1] == ["prepare-checkout"]:
+        # Called repeatedly from inside a chat: a sweep would publish the
+        # session's unfinished contexts and skills. The launcher's own
+        # return and final sweep own that state.
+        return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
         for arg in args[1:]

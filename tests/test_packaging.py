@@ -440,6 +440,8 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "dev/checkouts",
         "dev/checkouts/reconciliation",
         "dev/checkouts/launch-boundary",
+        "dev/checkouts/chat",
+        "dev/checkouts/manual",
         "dev/checkouts/sandbox-clone",
         "dev/code",
         "dev/dev-record",

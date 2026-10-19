@@ -72,6 +72,52 @@ tokens, and the highest-consequence policy stays readable as one unit.
 
 
 @dataclass(frozen=True)
+class CheckoutNotice:
+    """What launch observed and did to the session's checkout.
+
+    Supplied by the caller that prepared it; composition performs no Git and
+    never infers a branch from a workflow or the environment. `summary` is the
+    observed state and outcome, `projected` an entry-dirt path launch wrote
+    (the current ticket, unstaged), `return_owner` who returns the checkout,
+    and `prepare_command` the exact chat invocation, when one is available.
+    """
+
+    summary: str
+    return_owner: str
+    projected: str | None = None
+    prepare_command: str | None = None
+
+    def render(self) -> str:
+        lines = [self.summary]
+        if self.projected:
+            lines.append(
+                f"The only entry dirt is `{self.projected}`: control's current "
+                "copy of this ticket, projected unstaged. Write your handoff "
+                "there; never stage or commit it, and do not restore it from "
+                "another revision. Every other path started clean."
+            )
+        if self.prepare_command:
+            lines.append(
+                "Discussion needs no branch. Before editing any file, read "
+                "`dev/checkouts` and run exactly "
+                f"`{self.prepare_command}`; it creates or reuses this chat's "
+                "one branch and is safe to repeat."
+            )
+        lines.append(self.return_owner)
+        lines.append(
+            "The full start/work/handoff/end procedure is `dev/checkouts`."
+        )
+        return "\n\n".join(lines)
+
+
+UNSUPPLIED_CHECKOUT_NOTICE = (
+    "No checkout preparation was supplied for this prompt: nothing here claims "
+    "that a branch was prepared or that this checkout will be returned. Before "
+    "editing, follow `dev/checkouts` (\"Start, work, end\") yourself."
+)
+
+
+@dataclass(frozen=True)
 class PromptLayer:
     """One included layer of a composed Coga prompt."""
 
@@ -140,6 +186,7 @@ def compose_prompt(
     *,
     include_blocker_preamble: bool = True,
     launch_context: LaunchContext = "attended",
+    checkout: CheckoutNotice | None = None,
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     return compose_prompt_report(
@@ -148,6 +195,7 @@ def compose_prompt(
         ticket,
         include_blocker_preamble=include_blocker_preamble,
         launch_context=launch_context,
+        checkout=checkout,
     ).prompt
 
 
@@ -158,12 +206,15 @@ def compose_prompt_report(
     *,
     include_blocker_preamble: bool = True,
     launch_context: LaunchContext = "attended",
+    checkout: CheckoutNotice | None = None,
 ) -> PromptComposition:
     """Assemble the prompt and keep per-layer measurement metadata.
 
     `launch_context` selects the one composed session-conduct layer. It
     defaults to `"attended"` so any caller that does not know it is draining a
-    queue gets the ask-a-present-human contract.
+    queue gets the ask-a-present-human contract. `checkout` is the launcher's
+    observed checkout result, rendered as a runtime appendix after the ticket;
+    without one the appendix says that no preparation was supplied.
     """
     layers: list[PromptLayer] = []
 
@@ -322,6 +373,15 @@ def compose_prompt_report(
             ref="ticket.md##blackboard",
             path=str(task_ref.ticket_path),
         ))
+
+    # 7. Runtime checkout notice, after the contiguous ticket and before any
+    # launch arguments the caller appends. Generated, never a resource, so a
+    # repo's old base-prompt override cannot misstate what launch did.
+    layers.append(PromptLayer(
+        "checkout_notice",
+        "Checkout (runtime)",
+        checkout.render() if checkout is not None else UNSUPPLIED_CHECKOUT_NOTICE,
+    ))
 
     return PromptComposition(layers)
 
@@ -505,6 +565,7 @@ def _missing_skill_message(cfg: Config, skill_ref: str, slug: str) -> str:
 
 
 __all__ = [
+    "CheckoutNotice",
     "ComposeError",
     "LaunchContext",
     "SESSION_CONDUCT_RESOURCES",

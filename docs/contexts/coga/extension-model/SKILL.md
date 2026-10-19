@@ -121,7 +121,7 @@ is owned by [coga/script-tickets](../script-tickets/SKILL.md). Recurring
 `runner.RECIPES` is closed: `autoclose`, `blocker-reminders`, `branch-sweep`,
 `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`,
 `autofix-analyze`, `skill-update`, `open-pr`, `delete-task`,
-`publish-state`. Nothing is
+`publish-state`, `prepare-checkout`. Nothing is
 discovered from skills, config, or entry points, and the ticket classifier
 never extends the table. An unknown name exits 2 and prints the known set.
 Every token after the name is forwarded as an ordinary `list[str]`, stdout and
@@ -135,6 +135,12 @@ in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know
 its files reached control (`build/onboarding`); its contract is in
 [coga/internals/state-publication/sweep](../internals/state-publication/sweep/SKILL.md).
+`prepare-checkout` is the one in-chat consumer of the shared branch
+preparation (`src/coga/checkouts.py`) that ordinary launch also calls, so the
+mechanics are shared infra; the recipe is a registered contract because its
+argv, report, and 0/2/75 exits must agree with launch's private live-chat
+receipt. It is not a Typer head, alias, ticket plugin, or general phase
+registry; its contract is in [dev/checkouts/chat](../../dev/checkouts/chat/SKILL.md).
 
 ## Aliases
 

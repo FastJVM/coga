@@ -73,6 +73,13 @@ lines (`logfile.retract_log_lines`) on `StateRegressionError` and
 reconciliation. A strict `mark done` publishes before announcing; the
 ordinary path announces, then publishes. Launch-specific strict publication
 is `coga/internals/launch-claims` and `coga/internals/pr-publication`.
+Launch's branch preparation publishes its `branch:` linkage with
+`sync_task_state(strict=True, expect=...)`, then proves the bytes on fetched
+control; a failure keeps the edit, branch, and reservation for the next
+launch. Recording a projected ticket's provenance
+(`git.record_projected_baseline`) is likewise strict and verified, unlike
+the best-effort `PUBLISHED_REF` update after an ordinary publish: a failure
+refuses the spawn.
 
 ## Failure reporting
 

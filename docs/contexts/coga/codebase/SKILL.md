@@ -32,6 +32,9 @@ The repo separates implementation from the OS it operates:
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `launch.py` (launch API, preparation and supervision),
+  `checkout_policy.py` (pure step-to-entry-checkout table) and
+  `checkouts.py` (shared branch preparation for launch and the
+  `prepare-checkout` chat recipe; [dev/checkouts](../../dev/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,

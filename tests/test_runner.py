@@ -30,6 +30,7 @@ EXPECTED_RECIPES = (
     "open-pr",
     "delete-task",
     "publish-state",
+    "prepare-checkout",
 )
 
 
