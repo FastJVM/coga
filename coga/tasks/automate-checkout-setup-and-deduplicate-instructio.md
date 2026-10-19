@@ -1,10 +1,10 @@
 ---
 title: Automate checkout setup and deduplicate instructions
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/knowledge
-  - coga/extension-model
+- coga/knowledge
+- coga/extension-model
 workflow:
   name: code/design-then-implement
   steps:
@@ -34,6 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
