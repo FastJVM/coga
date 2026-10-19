@@ -1,6 +1,6 @@
 ---
 title: 'Core port: CLI and test suite pass on native Windows'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
