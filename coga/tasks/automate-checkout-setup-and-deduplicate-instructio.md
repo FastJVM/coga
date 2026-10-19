@@ -2,6 +2,9 @@
 title: Automate checkout setup and deduplicate instructions
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga/extension-model
 workflow:
   name: code/design-then-implement
   steps:
@@ -68,6 +71,61 @@ Specify the branch-selection and publication sequence, the workflow-to-checkout 
 Deliver automation, documentation, and removal of obsolete instructions together. Preserve the existing checkout model and human workflow gates. Worktree isolation, branch deletion policy, automatic implementation commits, and a general lifecycle/publication redesign are separate work.
 
 ## Context
+
+The attached knowledge and extension-model topics govern where the explanation
+and the shared implementation belong. The behavior topics below are cited
+rather than attached; read the named sections before designing or changing
+their behavior, and update their owners and packaged twins with implementation.
+
+- `dev/checkouts` (`docs/contexts/dev/checkouts/SKILL.md`): read "Start, work,
+  end", "Publish pre-branch ticket edits", and "Which checkout you invoke
+  Coga from". `src/coga/git.py` plus `sync_coga_state` publishes Coga state;
+  branch switching alone does not publish the ticket linkage. Its
+  `prepare_control_checkout` provides the existing safe control preparation.
+- `dev/checkouts/launch-boundary`
+  (`docs/contexts/dev/checkouts/launch-boundary/SKILL.md`): read "Preparation
+  and return" and "Checkout recovery", including exemptions.
+  `src/coga/launch.py` plus `_CheckoutBoundary.enter` and `.settle` already
+  wrap ordinary launches and direct orientation in state publication and
+  control preparation; `_checkout_exemption` preserves recorded checkouts.
+- `coga/launch` (`docs/contexts/coga/launch/SKILL.md`): read "Checkout boundary"
+  and "Phases and routing". `src/coga/launch.py` plus `_LaunchInvocation`
+  coordinates dispatch, and `_supervise_steps` rereads the ticket for each
+  step. Branch preparation must fit that order without composing from stale
+  feature-branch ticket state or interfering with script phases.
+- `coga/workflows` (`docs/contexts/coga/workflows/SKILL.md`): read step format,
+  freezing, and "Step completion gates". `src/coga/ticket.py` plus
+  `Ticket.current_step` resolves the existing frozen step; `src/coga/workflow.py`
+  plus `Workflow.load` reads workflow definitions. Completion gates do not
+  currently describe entry behavior. Define the checkout mapping without
+  assuming arbitrary custom step names have shipped-workflow semantics.
+- `coga/prompt-composition`
+  (`docs/contexts/coga/prompt-composition/SKILL.md`): read "Layer order" and
+  "What each layer reads". `src/coga/compose.py` plus
+  `compose_prompt_report` measures a prompt without a launch; `_step_layers`
+  selects either step skills or the live inline step body. A skill-backed
+  step does not receive its workflow's inline prose. Links do not load topics.
+- `coga/testing` and `coga/packaging`
+  (`docs/contexts/coga/testing/SKILL.md` and
+  `docs/contexts/coga/packaging/SKILL.md`): read the verification and twin
+  requirements before implementation. `src/coga/paths.py` plus
+  `resolve_context_path` and `resolve_skill_path` select local or packaged
+  resources, rather than composing both copies.
+
+The audit found repeated entry/return instructions in `dev/code`,
+`dev/checkouts`, `coga/skills/code/{implement,self-qa,open-pr,address-pr-comments}/SKILL.md`,
+and packaged `bootstrap/workflows/{code,docs}/` definitions. The implementation
+skill also repeats them within its introduction, procedure, and acceptance
+checklist. Its resumed-branch guidance has no equivalent in the copied docs
+implementation startup procedure. Use these as starting points for the
+cross-surface audit, not a closed list.
+
+Direct chat is `bootstrap/orient`; its packaged `ticket.md` deliberately has
+no task lifecycle. The base prompt is `src/coga/resources/prompt.md`.
+Tests already covering return include `tests/test_launch.py` plus
+`test_launch_returns_a_feature_branch_handoff_before_the_next_step` and
+`test_launch_returns_the_checkout_after_a_failed_session`; extend the
+existing real-Git test approach rather than mocking away checkout behavior.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -155,4 +213,13 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Authoring handoff
+
+The owner approved the direction in an attended orientation discussion:
+automate shared mechanics, use the existing workflow/current step, retain
+complete documentation, and support edits requested during ad-hoc chat.
+This draft captures that agreement; design and implementation have not started.
+
+The next launch starts the design step. Settle the workflow mapping's owning
+surface and the callable chat interface at design review. Preserve the
+distinction between agreed behavior and those still-open implementation choices.
