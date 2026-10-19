@@ -36,6 +36,11 @@ token), and `requires:` (a gate token). The markdown body may carry a
 - A step **without** `skills:` composes its inline section, so that prose is
   load-bearing. Adding `skills:` to a formerly skill-less step replaces the
   prose, so restate any limit it carried inside the skill.
+- Known gap (unresolved, PR #980 follow-up): `workflow._parse_inline_sections`
+  still splits the body with the fence-unaware `_HEADING_RE`, not the shared
+  `taskfile.body_sections`, so a `## <step-name>` line inside a fenced example
+  starts or ends a step's inline section. Keep step-name headings out of code
+  examples in workflow bodies.
 
 ## Frozen snapshot, live content
 

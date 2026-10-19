@@ -226,3 +226,10 @@ Test plan: `PYTHONPATH=/tmp/coga-exclude-superseded-designs/src /tmp/coga-system
   owner's OK the fork was rebased onto `origin/main` (log lines union-merged,
   origin's ticket states kept, backup at `backup/main-fork-20260919`); no
   second bump was made because the ticket was already at this review gate.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: ticket parsers that still ignore code fences

@@ -94,6 +94,15 @@ not end it; fenced examples, prose mentions and similar headings do not
 start it. Every exact section is omitted if duplicates exist, but authors
 must keep one.
 
+Known gap (unresolved, no owning ticket): the blocker reader does not share
+that projection. `blackboard.parse_blockers_text` / `open_blockers` match
+checkbox lines across the whole stored blackboard with no section or
+code-fence awareness, so a fenced `- [ ] [<ts>] [human:x] id=old …` example
+inside `## Superseded designs` (or any code example) still counts as an open
+blocker, and the pre-composition gates in `launch.py` and `megalaunch.py` act
+on it. Until the reader is fixed, never copy a well-formed blocker checkbox
+line into an archive or an example.
+
 ## Draft-activation readiness
 
 The stock placeholder is resource `blackboard.md`, which `render_blackboard`

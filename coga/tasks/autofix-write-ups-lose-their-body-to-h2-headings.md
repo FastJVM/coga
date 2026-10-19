@@ -382,3 +382,10 @@ from `ticket-body-sections`; `pr:` is recorded under Dev. The generated PR
 retains the full ticket snapshot, prior check receipts, and historical
 self-review limitations with a deep-review recommendation. Ready for the
 owner review gate.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: ticket parsers that still ignore code fences

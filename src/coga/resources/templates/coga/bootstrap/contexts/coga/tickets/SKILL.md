@@ -93,3 +93,7 @@ a `##` inside a backtick or tilde code fence is text, a fence never closed is
 not a fence, a heading may be indented up to three spaces and carry a closing
 `#` run, and the region below the blackboard fence is never read as body
 sections.
+Known gap (unresolved, PR #980 follow-up): prose above the first `##`
+heading is outside every section, so it never composes and neither
+`taskfile.uncomposed_sections` nor validate warns about it; that intent is
+still dropped silently.
