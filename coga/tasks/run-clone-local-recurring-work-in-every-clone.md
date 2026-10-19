@@ -272,3 +272,10 @@ checks:
   base: 37f9994e8fabf5bf24d35bcfa6415a94b4d0683b
   detail: Real PTY. Full template names, schedules and clone due labels readable.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: publish pre-branch edits with publish-state; recurring templates outrun their code

@@ -210,3 +210,10 @@ that limitation is explicit in the PR preparation. Advisory depth: deep.
 Fetched/rebased before the fixes and verification, force-with-lease pushed
 final head, then fetched and returned to clean main. No material control
 drift remained. Peer-review work is complete; bump once to open-pr, then stop.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: publish pre-branch edits with publish-state; recurring templates outrun their code

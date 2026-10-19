@@ -130,18 +130,22 @@ checkout's HEAD. It never follows a recorded `worktree:`.
 
 Writing `branch:` or plan notes on `main` does not publish them: Git carries
 uncommitted edits across a branch switch. Before switching, publish those
-edits with the existing state sweep, using a Python interpreter that imports
-the installed Coga package (see [coga/testing](../../coga/testing/SKILL.md)):
+edits strictly, naming each edited file:
 
 ```sh
-python -c 'from coga.config import load_config; from coga.git import sync_coga_state; sync_coga_state(load_config())'
+coga run publish-state coga/tasks/<slug>.md
 git status --porcelain --untracked-files=all
 ```
 
-Require the status output to be empty before switching. The sweep reports
-publication failures without raising, so its exit code alone is not proof.
-If the tree remains dirty, stop and escalate; do not switch, stash, or commit
-the ticket edit on the feature branch. The same publication applies to a
+Exit 0 means every named file is confirmed on control; any non-zero exit
+(contract in [strict publication on
+demand](../../coga/internals/state-publication/sweep/SKILL.md#strict-publication-on-demand))
+is the stop signal. Use the status check only for dirty files you did not name,
+and require it to be empty before switching. Do not fall back to calling the
+sweep through a `python -c` one-liner: the sweep reports publication failures
+without raising, and the shell's `python` often cannot import Coga at all. If
+publication fails or the tree remains dirty, stop and escalate; do not switch,
+stash, or commit the ticket edit on the feature branch. The same publication applies to a
 sandbox clone's `worktree:` record in the primary checkout, before starting
 work in the clone.
 
@@ -153,7 +157,15 @@ work in the clone.
   state from a feature branch), to control, even after a config failure.
   Write deliberate ticket prose and knowledge edits on `main`; commit a
   knowledge edit that belongs to a code PR before running a sweeping command
-  on its branch. Which
+  on its branch. Committing does not hold back recurring templates: committed
+  `coga/recurring/` changes on a feature branch are adopted onto control by the
+  next sweep (for example a `coga create` there), ahead of the code PR they
+  depend on, and every later command on the branch re-adopts them, so a revert
+  on control does not stick. This shipped `scope: clone` templates to main
+  before the runner understood `scope:`. Make a template change that depends on
+  unmerged code also work under the current control code (that fix made the
+  `ticket.py` shims bump `COGA_TASK_SLUG` when set, so old code ran them as
+  one-step periods), or keep it uncommitted until the code lands. Which
   invocations sweep is owned by
   [coga/sync](../../coga/sync/SKILL.md).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch
