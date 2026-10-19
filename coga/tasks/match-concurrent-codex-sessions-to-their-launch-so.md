@@ -200,3 +200,10 @@ and packaged twins. Resumed Codex rollouts and ambiguous Claude discussion
 sessions remain documented limitations; past records are not backfilled.
 
 Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider` → 3273 passed; task-scoped and example validation clean; repo validation retains the independently reproduced `marketing/readme-top` draft error on main. Context twins and `git diff --check origin/main...HEAD` pass.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: historical usage records stay uncorrected

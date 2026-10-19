@@ -66,6 +66,18 @@ unknown count means the totals are a floor, not a measurement. Each unknown
 record carries a path-redacted `usage_reason` saying why; a session that provably never
 reached the API is recorded `ok` with zero tokens rather than unknown.
 
+Past records are never corrected. The log is append-only and the owner declined
+backfill and correction records, so an `unknown` written before the launch-marker
+fix (PR #961, 2026-10-05) stays a floor forever. The only way to explain one is
+to re-match it, on the machine that recorded it, against local agent
+transcripts: for Codex, find the `coga-launch: <uuid>` marker (formerly the
+ticket slug) in a candidate rollout's prompt and take its last cumulative
+`token_count.info.total_token_usage`; nothing writes that estimate back. Claude
+Code prunes local transcripts after about 30 days (its `cleanupPeriodDays`
+setting, which Coga does not control), which bounds that window: in the
+2026-10-05 diagnosis, 37 of 103 unknowns could not be explained because their
+transcripts were already gone.
+
 `coga usage` is read-only: no mutation, no network, and it is in
 `cli._NON_SWEEPING_COMMANDS`, so it never triggers the end-of-command state
 sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,
@@ -76,6 +88,13 @@ which estimates the prompt side before a run.
 - `elapsed_seconds` is whole-session wall time. It is not active human time,
   and gaps between transcript events are not typing measurements.
 - `human_turns` / `agent_turns` count explicit messages only.
+- Claude records written before the once-per-`message.id` fix in
+  `_parse_claude_session` (PR #947, merged 2026-10-01) summed every
+  content-block transcript line and overcount by about 1.6x repo-wide, up to
+  about 1.9x per session (2026-10-01 survey of 69 transcripts: 564M naive vs
+  346M deduplicated). By owner decision they are not recounted or migrated, so
+  a `coga usage --since` window that spans 2026-10-01 mixes inflated and
+  corrected Claude rows. Codex records are unaffected.
 - Sessions observed in the same window are workstreams, not proof of
   simultaneous processes or a productivity multiplier. The dated analysis
   built on these records is `docs/archive/evidence/velocity.md`.
