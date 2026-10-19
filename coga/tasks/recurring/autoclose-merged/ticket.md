@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: aa6ac756-23ba-427e-b13a-7983496ee159
+period_generation: 31ec961d-32a9-4fd8-a2cd-0935be67bfcf
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,12 +13,13 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
 
 Close Coga tickets whose linked GitHub PR has already merged and whose Coga
-workflow is at its final step, then sweep landed branches without live tickets.
+workflow is at its final step, and dispose of their recorded checkouts.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `coga mark done`. Once a day this recurring task fires. Its
@@ -32,10 +33,9 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
 6. disposes of the feature checkout of each ticket it closed that still
    records a `branch:` or `worktree:`, and of every open entry in the durable
    worklist `retires.md` beside this template — worktree removed, then local
-   branch, then remote branch, each under the same safety proofs `coga retire`
-   runs (same-repo linked worktree on the recorded branch, locally pristine,
-   no other live ticket claiming it, no open PR, landed or at the merged PR's
-   exact head), and
+   branch, then remote branch, each under the
+   [checkout proofs](context:dev/checkout-cleanup/proofs) `coga retire` also
+   runs, and
 7. reports what it disposed of and what a proof refused, with the reason: the
    refusals go to the coga-important Slack channel and into `retires.md`,
    keyed by task slug, and
@@ -67,11 +67,13 @@ sweep runs; it does not change which tickets are safe to close.
 
 Done events produced by the sweep go through the shared `mark_done` finalizer,
 so each closure posts live to Slack exactly as a manual `coga mark done` would.
-After the autoclose recipe succeeds, `ticket.py` runs the registered
-`branch-sweep` recipe, even when no ticket closed. It then bumps only if both
-recipes succeeded. The daily cadence and reporting contract live in
+After the autoclose recipe succeeds, `ticket.py` bumps. Landed branches with
+no live ticket are the clone-scoped `branch-sweep` template's, which every
+clone runs daily for its own refs; closure stays here, serviced once per
+period for the whole repository. The daily cadence and reporting contract live in
 [coga/recurring/scheduling](context:coga/recurring/scheduling); the deletion
-proofs and worktree opt-in remain those in
+proofs are in [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs),
+and primary checkouts and other clones are covered in
 [dev/checkout-cleanup](context:dev/checkout-cleanup).
 
 ## Context
@@ -79,69 +81,3 @@ proofs and worktree opt-in remain those in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-10-16T16:42:21+00:00
-Task: `recurring/autoclose-merged`
-
-2 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `codex-sessions-lose-coga-launch-env-through-the-sh` "Codex sessions lose COGA_* launch env through the shared app-server daemon": branch `codex-no-daemon-launch-args`
-- `fix-git-sync-read-only-errors-after-successful-tra` "Fix Git sync read-only errors after successful transitions": branch `git-sync-object-write-diagnostics`
-
-## Branch Sweep
-
-Generated: 2026-10-16T16:42:49+00:00
-Task: `recurring/autoclose-merged`
-
-Result: 1 local and 1 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 22 skipped.
-- deleted local: fix-bump-actor-uses-launched-agent
-- deleted remote: docs/unify-manifesto-principles
-- skipped: archive-stale-docs, autoclose-retires-durable-home, bloated-blackboard-remedy, codex/retro-recurring-branch-sweep-knowledge, docs/archive-reading-opt-in, docs/consolidate-design-history, dream-w40-testing-baseline, fence-aware-section-splitter, fix/codex-peer-review-in-sandbox, guard-reauthor-in-progress, nicktoper-patch-1, publish-off-control, recurring-crlf-lease, recurring-ledger-from-log, retire-worklist-linked-only, scrub-sa-token, shebang-exec-check, slack-important-alert, split-ticket-contract, terminal-branch-cleanup, warn-on-bootstrap-unpublished-edits, wedge-ticket-admin-reproduction
-
-### Decisions
-
-- Branch sweep: terminal ticket 'define-the-split-a-ticket-mechanic-shared-by-code' records checkout '/home/n/Code/coga' outside this repository or unavailable — its branch records grant no cleanup authority here.
-- Branch sweep: terminal ticket 'document-the-remedy-for-a-bloated-blackboard-sibli' records checkout '/home/n/Code/claude/coga-bloated-blackboard-remedy' outside this repository or unavailable — its branch records grant no cleanup authority here.
-- Branch sweep: terminal ticket 'scrub-the-service-account-token-from-the-launch-ch' records checkout '/home/n/Code/claude/coga-scrub-sa-token' outside this repository or unavailable — its branch records grant no cleanup authority here.
-- Branch sweep: terminal ticket 'validate-that-committed-skill-scripts-with-a-sheba' records checkout '/home/n/Code/claude/coga-shebang-exec-check' outside this repository or unavailable — its branch records grant no cleanup authority here.
-- Branch sweep: 'archive-stale-docs' has merged PR #1004 at 691d88740f13, but the ref carries commits touching coga/skills/marketing/write-post/SKILL.md, docs/README.md, docs/archive/cli-extension-audit.md (+70 more) — left in place.
-- Branch cleanup: local 'archive-stale-docs' has unmerged work and no merged PR vouching for it — left in place.
-- Branch cleanup: local 'autoclose-retires-durable-home' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'bloated-blackboard-remedy' has merged PR #856 at 449bf55590e8, but the ref carries commits touching coga/contexts/coga/architecture/SKILL.md, coga/contexts/coga/blackboard/SKILL.md, src/coga/dream_validate_drift.py (+3 more) — left in place.
-- Branch cleanup: local 'bloated-blackboard-remedy' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'codex-sigint-interrupted' is recorded on a live ticket — left in place.
-- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' has merged PR #859 at 9b9e80d36a05, but the ref carries commits touching coga/skills/coga/branch-sweep/sweep/SKILL.md, src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md — left in place.
-- Branch cleanup: local 'codex/retro-recurring-branch-sweep-knowledge' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
-- Branch cleanup: skipping remote origin/docs/archive-reading-opt-in (no merged PR).
-- Branch cleanup: skipping remote origin/docs/consolidate-design-history (no merged PR).
-- Branch sweep: archived 'docs/unify-manifesto-principles' at a62664b5f80ddcc95317d597b1ef521a9d840602 as 'retired/docs/unify-manifesto-principles' on origin.
-- Branch cleanup: deleted remote origin/docs/unify-manifesto-principles.
-- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/dream-w40-testing-baseline (no merged PR).
-- Branch cleanup: skipping remote origin/fence-aware-section-splitter (no merged PR).
-- Branch sweep: archived 'fix-bump-actor-uses-launched-agent' at eeed3bccc6a95be1e95b4e04fb0021db8bfbfe7f as 'retired/fix-bump-actor-uses-launched-agent' on origin.
-- Branch cleanup: force-deleted local 'fix-bump-actor-uses-launched-agent' (was eeed3bccc6a95be1e95b4e04fb0021db8bfbfe7f) — landed on main but `git branch -d` refused on its merge check; recover with `git checkout -b` from the reflog SHA.
-- Branch cleanup: skipping remote origin/fix/codex-peer-review-in-sandbox (no merged PR).
-- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
-- Branch cleanup: local 'guard-reauthor-in-progress' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'marketing/readme-top' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/nicktoper-patch-1 (no merged PR).
-- Branch sweep: 'owned-mac-clean-install' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/publish-off-control (no merged PR).
-- Branch sweep: 'recurring-control-worktree' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/recurring-crlf-lease (no merged PR).
-- Branch cleanup: skipping remote origin/recurring-ledger-from-log (no merged PR).
-- Branch cleanup: skipping remote origin/retire-worklist-linked-only (no merged PR).
-- Branch cleanup: local 'scrub-sa-token' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'self-qa-stale-ticket-and-state-side-effects' is recorded on a live ticket — left in place.
-- Branch sweep: 'shebang-exec-check' has merged PR #800 at a02e2930511f, but the ref carries commits touching coga/skills/anthropic/skill-creator/eval-viewer/generate_review.py, coga/skills/clarity/scripts/validate_package.py, src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/gmail.py (+1 more) — left in place.
-- Branch cleanup: local 'shebang-exec-check' has unmerged work and no merged PR vouching for it — left in place.
-- Branch cleanup: skipping remote origin/slack-important-alert (no merged PR).
-- Branch cleanup: local 'split-ticket-contract' has unmerged work and no merged PR vouching for it — left in place.
-- Branch cleanup: skipping remote origin/terminal-branch-cleanup (no merged PR).
-- Branch cleanup: skipping remote origin/warn-on-bootstrap-unpublished-edits (no merged PR).
-- Branch cleanup: skipping remote origin/wedge-ticket-admin-reproduction (no merged PR).
-- Branch sweep: 'windows-ec2-harness' is recorded on a live ticket — left in place.
