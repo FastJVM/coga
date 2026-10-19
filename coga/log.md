@@ -8695,3 +8695,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 12:17 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] created (status=draft)
 2026-10-19 12:17 v1 [file-post-merge-obligations-before-open-pr-because] [human:nicktoper] created (status=draft)
 2026-10-19 12:17 v1 [publish-coga-0-4-1-to-pypi-which-main-already-decl] [human:nicktoper] created (status=draft)
+2026-10-19 12:17 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] created (status=draft)
