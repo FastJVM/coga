@@ -480,3 +480,10 @@ checks:
     detail: Records interrupted/130/crash and completed/0/done as expected; see table.
 ```
 
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: live-testing launch-path branches and the declined Codex launch preflight

@@ -228,3 +228,10 @@ checks:
 
 - `coga open-pr` opened https://github.com/FastJVM/coga/pull/1017 from `main` (head `a9bda396e`). origin/main had advanced only through unrelated Coga task/log state.
 - No code review has run: `code/design-then-implement` has no review step before open-pr. The owner's `review` step is next.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: live-testing launch-path branches and the declined Codex launch preflight
