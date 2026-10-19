@@ -14,7 +14,6 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.rule import Rule
 from rich.table import Table
 
@@ -91,6 +90,8 @@ def render_show(cfg: Config, task: str, console: Console | None = None) -> None:
     if not ticket_path.is_file():
         console.print("[dim](no ticket.md)[/dim]")
     else:
+        from rich.markdown import Markdown
+
         text = ticket_path.read_text()
         console.print(Markdown(text) if text.strip() else "[dim](empty)[/dim]")
 

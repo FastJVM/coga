@@ -178,7 +178,7 @@ def _stub_slack(monkeypatch):
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _noop_post, raising=False)
+    monkeypatch.setattr("requests.post", _noop_post, raising=False)
 
 
 @pytest.fixture(autouse=True)

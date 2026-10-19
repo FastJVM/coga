@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import importlib
 import shlex
 import signal
 import sys
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import typer
+from typer.core import TyperCommand, TyperGroup
 
 from coga import git
 from coga.aliases import (
@@ -15,34 +16,14 @@ from coga.aliases import (
     DEFAULT_ALIASES as _DEFAULT_ALIASES,
     validate_aliases as _validate_aliases,
 )
-from coga.commands import block as block_cmd
-from coga.commands import create as create_cmd
-from coga.commands import delete as delete_cmd
-from coga.commands import init as init_cmd
-from coga.commands import launch as launch_cmd
-from coga.commands import mark as mark_cmd
-from coga.commands import megalaunch as megalaunch_cmd
-from coga.commands import owner as owner_cmd
-from coga.commands import recurring as recurring_cmd
-from coga.commands import run as run_cmd
-from coga.commands import secret as secret_cmd
-from coga.commands import show as show_cmd
-from coga.commands import slack as slack_cmd
-from coga.commands import status as status_cmd
-from coga.commands import skill as skill_cmd
-from coga.commands import ticket as ticket_cmd
-from coga.commands import bump as bump_cmd
-from coga.commands import uninstall as uninstall_cmd
-from coga.commands import unblock as unblock_cmd
-from coga.commands import usage as usage_cmd
-from coga.commands import validate as validate_cmd
 from coga.config import Config, ConfigError, find_repo_root, load_config
-from coga.recurring_runner import control_relay_started
 
 
 def _print_version_and_exit(value: bool) -> None:
     if not value:
         return
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
     try:
         pkg = _pkg_version("coga")
     except PackageNotFoundError:
@@ -51,11 +32,93 @@ def _print_version_and_exit(value: bool) -> None:
     raise typer.Exit()
 
 
+# Built-in command → (module, attribute, extra `app.command` settings). A
+# `typer.Typer` attribute is a command group. Modules import on first use so
+# `coga <command>` loads only that command's dependencies; listing them all
+# (top-level `--help`, an unknown command) imports everything.
+#
+# Help lists plain commands, then alias placeholders, then groups — the
+# order eager Typer registration produced.
+_GROUP_COMMANDS = ("skill", "mark", "recurring", "secret")
+_LAZY_COMMANDS: dict[str, tuple[str, str, dict[str, object]]] = {
+    "init": ("coga.commands.init", "init", {}),
+    "uninstall": ("coga.commands.uninstall", "uninstall", {}),
+    "create": ("coga.commands.create", "create", {}),
+    "ticket": ("coga.commands.ticket", "ticket", {}),
+    "launch": ("coga.commands.launch", "launch", {}),
+    "megalaunch": ("coga.commands.megalaunch", "megalaunch", {}),
+    "status": ("coga.commands.status", "status", {}),
+    "show": ("coga.commands.show", "show", {}),
+    "bump": ("coga.commands.bump", "bump", {}),
+    "block": ("coga.commands.block", "block", {}),
+    "unblock": ("coga.commands.unblock", "unblock", {}),
+    "owner": ("coga.commands.owner", "owner", {}),
+    "delete": ("coga.commands.delete", "delete", {}),
+    "slack": ("coga.commands.slack", "slack", {}),
+    "usage": ("coga.commands.usage", "usage", {}),
+    "validate": ("coga.commands.validate", "validate", {}),
+    "skill": ("coga.commands.skill", "app", {}),
+    "mark": ("coga.commands.mark", "app", {}),
+    "recurring": ("coga.commands.recurring", "app", {}),
+    "secret": ("coga.commands.secret", "app", {}),
+    "run": (
+        "coga.commands.run",
+        "run",
+        {
+            "context_settings": {
+                "ignore_unknown_options": True,
+                "allow_extra_args": True,
+            },
+        },
+    ),
+}
+
+
+def _load_command(name: str) -> TyperCommand | TyperGroup:
+    module_name, attribute, settings = _LAZY_COMMANDS[name]
+    target = getattr(importlib.import_module(module_name), attribute)
+    if isinstance(target, typer.Typer):
+        command: TyperCommand | TyperGroup = typer.main.get_group(target)
+    else:
+        holder = typer.Typer(add_completion=False)
+        holder.command(name, **settings)(target)
+        command = typer.main.get_command(holder)
+    command.name = name
+    return command
+
+
+class _LazyGroup(TyperGroup):
+    """Root group that builds built-in commands on demand; alias placeholders
+    stay eagerly registered and list after the built-ins."""
+
+    def list_commands(self, ctx: typer.Context) -> list[str]:
+        commands = [n for n in _LAZY_COMMANDS if n not in _GROUP_COMMANDS]
+        aliases = [n for n in self.commands if n not in _LAZY_COMMANDS]
+        return [*commands, *aliases, *_GROUP_COMMANDS]
+
+    def get_command(
+        self, ctx: typer.Context, cmd_name: str
+    ) -> TyperCommand | TyperGroup | None:
+        if cmd_name not in self.commands and cmd_name in _LAZY_COMMANDS:
+            self.commands[cmd_name] = _load_command(cmd_name)
+        return self.commands.get(cmd_name)
+
+    def resolve_command(
+        self, ctx: typer.Context, args: list[str]
+    ) -> tuple[str | None, TyperCommand | TyperGroup | None, list[str]]:
+        if args and args[0] not in self.commands and args[0] not in _LAZY_COMMANDS:
+            # Typer's "Did you mean" draws on loaded commands only.
+            for name in _LAZY_COMMANDS:
+                self.get_command(ctx, name)
+        return super().resolve_command(ctx, args)
+
+
 app = typer.Typer(
     name="coga",
     help="Organize agent work in markdown.",
     no_args_is_help=True,
     add_completion=False,
+    cls=_LazyGroup,
 )
 
 
@@ -70,35 +133,6 @@ def _root(
     ),
 ) -> None:
     """Organize agent work in markdown."""
-
-
-app.command("init")(init_cmd.init)
-app.command("uninstall")(uninstall_cmd.uninstall)
-app.command("create")(create_cmd.create)
-app.command("ticket")(ticket_cmd.ticket)
-app.command("launch")(launch_cmd.launch)
-app.command("megalaunch")(megalaunch_cmd.megalaunch)
-app.command("status")(status_cmd.status)
-app.command("show")(show_cmd.show)
-app.command("bump")(bump_cmd.bump)
-app.command("block")(block_cmd.block)
-app.command("unblock")(unblock_cmd.unblock)
-app.command("owner")(owner_cmd.owner)
-app.command("delete")(delete_cmd.delete)
-app.command("slack")(slack_cmd.slack)
-app.command("usage")(usage_cmd.usage)
-app.command("validate")(validate_cmd.validate)
-app.add_typer(skill_cmd.app, name="skill")
-app.add_typer(mark_cmd.app, name="mark")
-app.add_typer(recurring_cmd.app, name="recurring")
-app.add_typer(secret_cmd.app, name="secret")
-app.command(
-    "run",
-    context_settings={
-        "ignore_unknown_options": True,
-        "allow_extra_args": True,
-    },
-)(run_cmd.run)
 
 
 # Commands that must NOT trigger the end-of-command `coga/` state sweep.
@@ -145,7 +179,7 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
     so it never masks the command's own exit.
     """
-    if control_relay_started.get():
+    if git.control_relay_started.get():
         return
     if git.state_sweep_withheld.get():
         typer.secho(
@@ -256,6 +290,20 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     return False
 
 
+def _needs_no_config(args: list[str]) -> bool:
+    """Whether this invocation reads neither aliases nor config: `--version`,
+    or `--help` under a built-in command (alias names cannot shadow one).
+    Neither sweeps state. Top-level `--help` still loads config to list the
+    repo's `[aliases]`."""
+    if args[:1] == ["--version"]:
+        return True
+    return (
+        bool(args)
+        and args[0] in _BUILTIN_COMMANDS
+        and any(arg in ("--help", "-h") for arg in args[1:])
+    )
+
+
 def _register_alias_placeholder(name: str, expansion: str) -> None:
     """Register a no-op Typer command for `--help` discoverability.
 
@@ -309,6 +357,9 @@ def main() -> None:
     # `uninstall` shares this leniency: a broken/legacy config is itself a
     # reason to remove Coga, so it must not be blocked by config load failure.
     init_invoked = invoked_command in ("init", "uninstall")
+    if _needs_no_config(sys.argv[1:]):
+        app()
+        return
     # This eager load only feeds aliases and the end-of-command state sweep,
     # neither of which reads `current_user` — so it tolerates a missing `user`
     # (a teammate's fresh clone has no gitignored `coga.local.toml` yet).
@@ -405,7 +456,7 @@ def main() -> None:
     from coga.launch import checkout_guard_scope
 
     with checkout_guard_scope():
-        relay_token = control_relay_started.set(False)
+        relay_token = git.control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
         try:
             app()
@@ -430,7 +481,7 @@ def main() -> None:
             _sweep_coga_state(cfg)
         finally:
             git.state_sweep_withheld.reset(withheld_token)
-            control_relay_started.reset(relay_token)
+            git.control_relay_started.reset(relay_token)
 
 
 if __name__ == "__main__":

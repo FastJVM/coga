@@ -55,7 +55,7 @@ def test_post_calls_webhook(cfg_with_webhook, monkeypatch: pytest.MonkeyPatch) -
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(cfg_with_webhook, "task done")
     assert len(calls) == 1
     assert calls[0]["url"] == "https://hooks.slack.com/services/test"
@@ -67,7 +67,7 @@ def test_post_with_owner_prefixes_human(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "task done", owner="marc")
@@ -85,7 +85,7 @@ def test_post_with_image_url_attaches(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(cfg_with_webhook, "🎉 done", image_url="https://media.giphy.com/x.gif")
     payload = calls[0]["json"]
     expected_text = f"[{cfg_with_webhook.project_name}] 🎉 done"
@@ -100,7 +100,7 @@ def test_post_without_image_url_omits_attachments(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "plain")
@@ -175,7 +175,7 @@ def test_notification_channels_dispatch_enabled(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"url": url, "json": json}),
             _SlackResponse(),
@@ -494,7 +494,7 @@ def test_important_post_uses_important_webhook(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(cfg_with_both_webhooks, "fee window closes 2027-01-15", important=True)
     assert len(calls) == 1
     assert calls[0]["url"] == "https://hooks.slack.com/services/important"
@@ -510,7 +510,7 @@ def test_routine_post_still_uses_default_webhook(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(cfg_with_both_webhooks, "task done")
     assert len(calls) == 1
     assert calls[0]["url"] == "https://hooks.slack.com/services/flow"
@@ -533,7 +533,7 @@ def test_important_post_without_important_webhook_crashes(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(cfg_with_webhook, "fee window closes 2027-01-15", important=True)
     assert exc.value.exit_code == 1
@@ -557,7 +557,7 @@ def test_important_post_without_important_webhook_never_reroutes_when_non_fatal(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(
         cfg_with_webhook,
         "fee window closes 2027-01-15",
@@ -721,7 +721,7 @@ def test_post_failure_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise failure
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(cfg_with_webhook, "lost message")
     assert exc.value.exit_code == 1
@@ -753,7 +753,7 @@ def test_post_failure_non_fatal_reports_and_returns(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise failure
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(cfg_with_webhook, "lost message", task_path=task_path, fatal=False)
 
     err = capsys.readouterr().err
@@ -774,7 +774,7 @@ def test_post_failure_can_skip_unleased_audit_append(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     post(
         cfg_with_webhook,
         "lost strict message",
@@ -835,7 +835,7 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     with pytest.raises(typer.Exit):
         post(cfg_with_webhook, "daemon message", task_path=task_path)
 
@@ -948,7 +948,7 @@ def test_post_request_failure_redacts_webhook_from_stderr_and_log(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise failure
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(
             cfg_with_both_webhooks,
@@ -981,7 +981,7 @@ def test_post_revoked_webhook_response_logs_then_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         return _SlackResponse(404, "no_service")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(cfg_with_webhook, "daemon message", task_path=task_path)
     assert exc.value.exit_code == 1
@@ -1004,7 +1004,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     """Stub requests.post and return the list it appends each call's json to."""
     calls: list[dict] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"json": json}),
             _SlackResponse(),

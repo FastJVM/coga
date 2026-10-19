@@ -47,7 +47,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-import requests
 
 from coga import git
 from coga.atomicio import atomic_write_text
@@ -1927,6 +1926,8 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
     implementation matches by `in` rather than equality so minor body changes
     don't break things.
     """
+    import requests
+
     try:
         resp = requests.post(webhook_url, json={"text": ""}, timeout=5)
     except SLACK_TRANSPORT_ERRORS as exc:

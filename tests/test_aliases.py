@@ -119,14 +119,16 @@ def test_main_collision_exits_nonzero(
 
 
 def test_builtin_set_matches_registered_commands() -> None:
-    """The hardcoded set in cli.py must match what's actually registered."""
-    registered = {info.name for info in app.registered_commands}
-    registered |= {grp.name for grp in app.registered_groups}
-    # Subtract any default-alias placeholders that may have been registered
-    # by a previous test run (Typer's app is module-level, so registrations
-    # persist within a pytest session).
-    registered -= set(_DEFAULT_ALIASES)
-    assert _BUILTIN_COMMANDS == registered
+    """The hardcoded set in cli.py must match the commands the CLI can build."""
+    from typer.main import get_group
+
+    from coga.cli import _LAZY_COMMANDS
+
+    assert _BUILTIN_COMMANDS == set(_LAZY_COMMANDS)
+    group = get_group(app)
+    for name in _LAZY_COMMANDS:
+        command = group.get_command(None, name)
+        assert command is not None and command.name == name
 
 
 def test_default_chat_alias_dispatches_without_user_aliases_section(
@@ -545,6 +547,11 @@ def test_main_lets_init_run_through_invalid_alias(
 
     assert captured["argv"] == argv
     err = capsys.readouterr().err
+    if "--help" in argv:
+        # A built-in command's help never loads config, so there is nothing
+        # to warn about.
+        assert err == ""
+        return
     assert "ignoring config error so `init` can run" in err
     assert "alias 'create' collides with built-in command" in err
 

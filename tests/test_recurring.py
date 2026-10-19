@@ -2883,7 +2883,7 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_post)
+    monkeypatch.setattr("requests.post", capture_post)
 
     result = launch_script.run_script_phase(
         cfg,
@@ -4408,7 +4408,7 @@ def test_bare_recurring_launches_delegate_target_directly(
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -4544,7 +4544,7 @@ def test_named_recurring_delegate_timeout_fails_and_remains_retryable(
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("requests.post", capture_slack)
 
     first = CliRunner().invoke(app, ["recurring", "launch", "delegate-check"])
     assert first.exit_code == _TIMEOUT_EXIT_CODE, first.output
@@ -4590,7 +4590,7 @@ def test_delegated_period_checkout_refusal_stops_with_retained_state_exit(
     monkeypatch.setattr("coga.launch.launch_with_before_spawn", fake_launch)
     monkeypatch.setattr(recurring_cmd, "settle_delegated_period", refusing_settle)
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda *a, **k: SimpleNamespace(status_code=200, text="ok"),
     )
 
@@ -5373,7 +5373,7 @@ def test_watchdog_reminders_ping_the_ticket_owner(
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr("requests.post", capture)
     monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
     monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
 
@@ -8844,7 +8844,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
         "coga.recurring_runner._stop_if_unfinished_after_launch",
         lambda *args, **kwargs: None,
     )
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -8916,7 +8916,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         return R()
 
     _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -9173,7 +9173,7 @@ def test_watchdog_timeout_uses_important_live_fallback(
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr("requests.post", capture)
 
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
 
@@ -9191,7 +9191,7 @@ def test_non_timeout_unfinished_pause_stays_silent(
         urls.append(url)
         raise AssertionError("a non-timeout pause must stay silent")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr("requests.post", capture)
 
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=False)
 

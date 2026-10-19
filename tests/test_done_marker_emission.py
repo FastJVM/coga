@@ -308,7 +308,7 @@ def failing_slack(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
 
 
 def test_bump_signals_even_when_the_slack_post_fails(

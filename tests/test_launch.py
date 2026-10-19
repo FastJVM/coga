@@ -1540,7 +1540,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://slack.example.test")
     slack_msgs: list[str] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
     )
     return slack_msgs
@@ -1670,7 +1670,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("requests.post", capture_slack)
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -5160,7 +5160,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     class _Result:
         returncode = 0
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setattr(
         "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: _Result(),
@@ -5952,7 +5952,7 @@ def test_recorded_assist_cancellation_lands_reason_on_control(
     )
     posts: list[str] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: _capture_slack(posts, json),
     )
     child_env = {
@@ -6072,7 +6072,7 @@ def test_recorded_assist_completion_keeps_agent_identity(
     _allow_recorded_assist_pr(monkeypatch)
     posts: list[str] = []
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda url, json=None, timeout=None: _capture_slack(posts, json),
     )
     command = (

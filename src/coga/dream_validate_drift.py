@@ -15,7 +15,7 @@ from typing import Any
 
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, ConfigError, find_repo_root, load_config
-from coga.slack import post
+from coga.notification import post
 from coga.task_env import blackboard_from_env, discover_coga_os_root
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 

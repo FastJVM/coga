@@ -1903,7 +1903,7 @@ def _fake_post_factory(response: _FakeResponse | Exception):
 
 def test_probe_slack_live(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.validate.requests.post",
+        "requests.post",
         _fake_post_factory(_FakeResponse(400, "no_text")),
     )
     status, detail = probe_slack("https://hooks.slack.com/services/x")
@@ -1913,7 +1913,7 @@ def test_probe_slack_live(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.validate.requests.post",
+        "requests.post",
         _fake_post_factory(_FakeResponse(404, "no_service")),
     )
     status, _ = probe_slack("https://hooks.slack.com/services/x")
@@ -1932,7 +1932,7 @@ def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_probe_slack_unreachable(
     monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
-    monkeypatch.setattr("coga.validate.requests.post", _fake_post_factory(failure))
+    monkeypatch.setattr("requests.post", _fake_post_factory(failure))
     status, detail = probe_slack("https://hooks.slack.com/services/x")
     assert status == "unreachable"
     assert type(failure).__name__ in detail
@@ -1956,7 +1956,7 @@ def test_check_slack_redacts_relative_webhook_path_from_validation_output(
         f"https://hooks.slack.com/services/TFAKE/BFAKE/{fake_secret}",
     )
     monkeypatch.setattr(
-        "coga.validate.requests.post",
+        "requests.post",
         _fake_post_factory(
             requests.exceptions.ProxyError(
                 "HTTPSConnectionPool(host='hooks.slack.com', port=443): "
@@ -1985,7 +1985,7 @@ def test_run_check_slack_emits_issue_for_revoked(
         + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
     )
     monkeypatch.setattr(
-        "coga.validate.requests.post",
+        "requests.post",
         _fake_post_factory(_FakeResponse(404, "no_service")),
     )
     cfg = load_config(repo)
@@ -2008,7 +2008,7 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("must not probe the network with no webhook")
 
-    monkeypatch.setattr("coga.validate.requests.post", boom)
+    monkeypatch.setattr("requests.post", boom)
     cfg = load_config(repo)
     report = run(cfg, check_slack=True)
     misconfigured = [i for i in report.issues if i.kind == "slack-misconfigured"]
@@ -2028,7 +2028,7 @@ def test_validate_warns_when_selected_slack_lacks_important_webhook(
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("the setup warning must not probe the network")
 
-    monkeypatch.setattr("coga.validate.requests.post", boom)
+    monkeypatch.setattr("requests.post", boom)
     report = run(load_config(repo))
 
     issue = next(
@@ -2113,7 +2113,7 @@ def test_run_no_slack_check_by_default(
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("network must not be called when --check-slack is off")
 
-    monkeypatch.setattr("coga.validate.requests.post", boom)
+    monkeypatch.setattr("requests.post", boom)
     cfg = load_config(repo)
     run(cfg)  # must not raise
 

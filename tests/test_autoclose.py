@@ -728,7 +728,7 @@ def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake)
+    monkeypatch.setattr("requests.post", fake)
     return posts
 
 
@@ -1704,7 +1704,7 @@ def test_failed_summary_delivery_is_logged_against_the_host_task(
     def offline(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("offline")
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", offline)
+    monkeypatch.setattr("requests.post", offline)
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
