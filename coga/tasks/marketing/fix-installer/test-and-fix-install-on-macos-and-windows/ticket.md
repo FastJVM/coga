@@ -46,16 +46,18 @@ and `repl_supervisor` / `megalaunch` need pty/termios/tty. The deep Windows
 port is `windows-native/core-port-cli-and-test-suite-pass-on-native-window` (owner decision 2026-10-13); this
 ticket feeds it findings and does not duplicate it.
 
-Done when: both walks are done and their findings are listed per OS on the
+Windows moved out on 2026-10-18 (owner). This ticket is macOS only; the
+title predates the split. The Windows walk is
+`marketing/fix-installer/test-install-on-windows`, deferred until the port
+lands because a walk today tests a path that cannot work at all.
+
+Done when: the macOS walk is done and its findings are listed on the
 blackboard (each tagged fixed-in-PR, tracked-elsewhere, or open); fixes that
 fit this ticket are merged as PRs; and the README carries clear install
 instructions in no more than five lines. `docs/contexts/coga/install` is
 being deleted (owner, 2026-10-17), so the blackboard also lists the facts
 from it that are candidates for a surviving context — proposals for review,
-not commitments. Windows is expected to stop
-at `coga --help` (`fcntl`); for Windows, done means the findings up to that
-point are recorded and handed to `windows-native/core-port-cli-and-test-suite-pass-on-native-window`, not that
-coga runs there.
+not commitments.
 
 ## Context
 
@@ -636,9 +638,20 @@ compiler still meets the 3.15 source build.
 Predictions 2 and 3, the silent agent-CLI download and the paid-account
 sign-in, were not separately reported and are not claimed as verified.
 
-## New-user walk: Windows
+## New-user walk: Windows — moved out
 
-(not started)
+Deferred 2026-10-18 by owner decision and recreated as
+`marketing/fix-installer/test-install-on-windows` (draft). A walk today
+would test a path that cannot work, because Coga cannot start on native
+Windows at all; it is worth running once the port lands and there is
+something to install into. Zach runs it on his own Windows PC, which is
+also why it wants its own ticket rather than a section here.
+
+Nothing from the macOS walk is owed to it. The Windows-specific fact this
+work produced — that `coga.git` imports `fcntl` at module top, so even
+`coga --help` fails — already belongs to
+`windows-native/core-port-cli-and-test-suite-pass-on-native-window` and is
+listed above among the facts to rehome when `coga/install` is deleted.
 
 ## Blockers
 
