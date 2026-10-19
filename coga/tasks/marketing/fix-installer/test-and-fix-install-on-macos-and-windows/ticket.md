@@ -110,6 +110,7 @@ Agent-side facts the guide simplifies:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1043
 branch: install-walk-findings
 
 ## Plan (2026-10-15, attended)
@@ -818,9 +819,11 @@ files:
     released package does not have, and a prose sentence for readers who
     already have a repository.
 review:
-  reviewer: claude(self)
-  kind: direct
-  status: completed
+  reviewer: claude
+  kind: self
+  status: passed
+  head: cdf2676b0e20f1616ee458c3e496182e8143b91b
+  base: f6a7145f2cfa8ec3f5602f749d669775ea1be7da
   detail: >-
     Direct review, completed in the self-qa session — not independent.
     `/code-review` is not an invocable skill in this harness, so the diff was
