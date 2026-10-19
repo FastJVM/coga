@@ -8634,3 +8634,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 10:46 v1 [recurring/branch-sweep] [system] task done
 2026-10-19 10:46 v1 [recurring/branch-sweep] [system] script exited with code 0
 2026-10-19 10:47 v1 [recurring/phone-home] [system] started (active → in_progress) via coga launch
+2026-10-19 10:47 v1 [recurring/phone-home] [system] launched as a script (ticket.py)
