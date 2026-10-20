@@ -405,7 +405,7 @@ def test_period_task_posts_with_project_and_owner_before_bumping(
         assert kwargs == {"check": False}
         return subprocess.CompletedProcess(argv, 0)
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setattr(subprocess, "run", bump)
     with pytest.raises(SystemExit) as exc:
         runpy.run_path(str(ref.task_dir / SCRIPT_ENTRY_POINT))
