@@ -90,9 +90,9 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
   `tests/test_compose.py` and grep the other resources before calling a
   sentence redundant. They compose into every repo's launches, not only
   this one's, so a rule about Coga's own source tree (`src/coga/`, the
-  microkernel boundary) belongs in this repo's root `AGENTS.md` and the
-  `coga/extension-model` topic instead (`coga/context.md` is now a
-  generated copy of `coga/principles`);
+  microkernel boundary) belongs in the `coga/extension-model` topic, which
+  owns it; this repo's root `AGENTS.md` carries only a summary and pointer
+  (`coga/context.md` is now a generated copy of `coga/principles`);
   `test_packaged_prompt_layers_carry_no_coga_source_rules` pins that.
 - **Every `files("coga.<pkg>")` anchor must be a regular package.** On a
   directory without `__init__.py`, `importlib.resources.files` returns a
