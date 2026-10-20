@@ -37,7 +37,8 @@ scheduled sweep may already run an earlier period under claude. The owner:
 **Done** when the run passes the preflight and finishes all six phases, and
 it routes findings to real PRs, draft tickets, and markers. Its run record
 must show `usage_status: ok`. Its summary goes on this blackboard, next to
-the W39 claude baseline and the scratch run recorded on the parent ticket.
+the W39 claude baseline and the scratch run recorded in
+`docs/archive/evidence/dream-under-codex-scratch-runs-2026-09.md`.
 The `verify-read-only` step lists every new gap as a proposed ticket with
 evidence; the owner files each one or rejects it. No gap is left only on the
 blackboard.
@@ -46,9 +47,11 @@ Do not launch before `make-dream-run-correctly-under-codex` has merged.
 
 ## Context
 
-- **Parent ticket:** `make-dream-run-correctly-under-codex`. The run/fix
-  loop log on its blackboard shows what the scratch runs hit and how each
-  was fixed.
+- **Parent ticket:** `make-dream-run-correctly-under-codex` (done, PR #891;
+  the ticket file was deleted by Retro). Its run/fix loop log, scratch-run
+  table, and design findings are preserved verbatim in
+  `docs/archive/evidence/dream-under-codex-scratch-runs-2026-09.md`,
+  which shows what the scratch runs hit and how each was fixed.
 - **W39 claude baseline (2026-09-21):**
   - validate-drift: 50 issues, 3 class drafts;
   - 4 knowledge PRs and 7 deletes;
@@ -66,7 +69,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 **Goal.** Run one attended codex Dream on `FastJVM/coga` for the first
 period that has not been serviced since #891 merged, and confirm it matches
-the clean scratch run (parent ticket, iteration 2).
+the clean scratch run (evidence page, iteration 2).
 
 **Which period: W42, not W40.** #891 merged 2026-09-25 (released in coga
 0.4.0, which is the installed `~/.local/bin/coga`). The scheduled sweep then
@@ -122,8 +125,9 @@ to every other codex session in this checkout (accepted 2026-09-22).
 - the `recurring/dream` W42 run record in `coga/log.md` shows
   `agent: codex` and `usage_status: ok`, with session = the parent id;
 - the summary goes here, next to the W39 claude baseline and scratch
-  iteration 2 (see the table on the parent ticket). W40 and W41 under claude
-  are extra comparison points;
+  iteration 2 (see the table in
+  `docs/archive/evidence/dream-under-codex-scratch-runs-2026-09.md`).
+  W40 and W41 under claude are extra comparison points;
 - watch for the known scratch issues. The knowledge scan went `partial`
   because of oversized owner-search output, and actor attribution was wrong
   (`[agent:claude]` on codex lines). Any new gap becomes a proposed ticket
