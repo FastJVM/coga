@@ -8795,3 +8795,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 11:20 v1 [report-of-usage-incoga-important-should-nudge-user] [human:nicktoper] auto-bumped on merge of PR #1060 → done
 2026-10-20 11:20 v1 [recurring/autoclose-merged] [system] task done
 2026-10-20 11:20 v1 [recurring/autoclose-merged] [system] script exited with code 0
+2026-10-20 11:20 v1 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
