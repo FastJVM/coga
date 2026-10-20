@@ -1,6 +1,6 @@
 ---
 title: Slim the 40.9 KiB blackboard of the macOS and Windows install ticket
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
