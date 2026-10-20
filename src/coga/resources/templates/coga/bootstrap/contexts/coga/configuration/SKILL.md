@@ -13,7 +13,11 @@ description: The shared `coga.toml` versus machine-local `coga.local.toml` split
   Coga process in another checkout of the same repo, such as a relay
   worktree, reads the operator's local settings (`local_config_path`).
 
-Both are validated against fixed schemas on every command. Never commit real
+Both are validated against fixed schemas on every command that loads config.
+Two invocations read neither file, so neither validates config nor sweeps
+state: `coga --version`, and `--help`/`-h` under a built-in command (for
+example `coga launch --help`; `cli._needs_no_config`). Top-level `coga --help`
+still loads config to list the repo's `[aliases]`. Never commit real
 credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 ## Allowlists
@@ -64,9 +68,9 @@ overrides it. `user` is always local and never guessed
 Any unrecognized key at any level of a fixed-schema table, in either file,
 raises `ConfigError` naming the offender and listing the allowed keys
 (`_reject_unknown_keys`, `_reject_unknown_sections`, plus the per-table
-parsers). A misspelled `[notification.slak]` therefore stops every command
-instead of silently resolving to "no webhook". Adding a config key means
-adding it to its table's allowlist in the same change.
+parsers). A misspelled `[notification.slak]` therefore stops every
+config-loading command instead of silently resolving to "no webhook". Adding
+a config key means adding it to its table's allowlist in the same change.
 
 Free-form maps are exempt because their keys are data: `[aliases]`,
 `[extensions]` (a repo-owned namespace Coga passes through uninterpreted),
