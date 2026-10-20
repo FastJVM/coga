@@ -59,6 +59,17 @@ Tradeoff, accepted: clone-scoped runs leave no git-visible record beyond the
 worklist publication below. Their evidence is the clone-local ledger and log, the console, and the autofix run
 record.
 
+An install older than clone scope fails silently rather than loudly: it
+ignores the `scope` key it does not know and services a `scope: clone`
+template as an ordinary shared period task, with a log line and no clone
+ledger. This happens when the CLI lags the templates it sweeps, for example an
+editable install whose source checkout sits behind `main`. The shipped clone
+scripts tolerate it: with `COGA_TASK_SLUG` set they bump that task, so the
+period closes instead of stalling. When a sweep creates a shared task for a
+template already declaring clone scope, check the CLI version and editable
+source checkout that created it. Upgrading an install that predates clone
+scope resolves this mismatch ([coga/install](../../install/SKILL.md)).
+
 The shipped clone-scoped template is `branch-sweep` (daily; local refs and
 linked worktrees). In the Coga source repo `upstream-coga` is clone-scoped too
 (it reads machine-local `[upstream]` checkouts). The daily `autoclose-merged`
