@@ -27,8 +27,9 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
-**`coga validate` refuses a shebang script that is not executable**
-(`non-executable-script`, an error). Every regular file under the installed
+**A repo-wide `coga validate` refuses a shebang script that is not
+executable** (`non-executable-script`, an error). `coga validate --task <slug>`
+does not run this check. Every regular file under the installed
 skills root or the packaged bootstrap skills that starts with `#!` must carry
 the executable bit: the shebang is the author's declaration that the file is
 run directly, so import-only modules carry none and stay `100644`. Remedy:
