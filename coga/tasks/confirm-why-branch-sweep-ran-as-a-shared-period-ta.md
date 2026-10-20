@@ -119,3 +119,21 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: docs/clone-scope-install-lag
+
+## Finding (decided with owner 2026-10-19)
+
+Install lag, not a runner bug. The editable install's checkout
+(/home/n/Code/coga) sat at 573824fc5 (2026-10-16 12:29) until a 10:51
+fast-forward on 10-19 (reflog); bbcc1f551 (clone scope) is not its ancestor and
+its `recurring.py` has no `SCOPE_CLONE`, ignoring unknown keys. So the 10:34
+sweep treated branch-sweep as a shared template (39fe8061c); the shim's
+`COGA_TASK_SLUG` branch bumped it to done. Current code: both period-task create
+paths (`recurring.scan` skip via `_declares_clone_scope`, `create_named`
+refusal) are guarded and tested in tests/test_recurring_clone.py; no fix or new
+regression test. Plan: record the failure mode in coga/recurring/scheduling
+(+ packaged twin). Out of scope follow-up: PR #1033 P2 thread "Catch malformed
+clone period keys" (src/coga/recurring.py `scan_clone_due` area) still unanswered.
