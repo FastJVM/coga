@@ -1,6 +1,6 @@
 ---
 title: Slim the 40.9 KiB blackboard of the macOS and Windows install ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
