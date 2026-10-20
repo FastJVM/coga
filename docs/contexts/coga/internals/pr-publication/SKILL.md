@@ -50,7 +50,8 @@ updated.
    `<coga>/recurring/**` are not in that set even though the state sweep
    publishes them to control routinely, so a control branch that moved only
    through recurring-template "Sync coga state" commits still refuses the
-   branch as stale (exit 2) and needs a rebase (seen on PR #909, 2026-09-28).
+   branch as stale (exit 2); rebase or merge the latest control branch, as
+   the refusal itself says (seen on PR #909, 2026-09-28).
    Whether that exclusion is intended is undecided.
 4. An unsafe overlap on the live ticket's own file is reported as a stranded
    ticket write, not ordinary staleness: `stranded_task_state_paths` (run
