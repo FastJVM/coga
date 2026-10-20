@@ -119,3 +119,23 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Outcome, 2026-10-19 (attended, nicktoper)
+
+Done on `main` as a Coga state edit; no branch, because the whole deliverable
+is task state, which `code/implement` forbids committing on a branch. The
+human agreed to close this ticket with `coga mark done` rather than bump
+through `code/with-review`, and took owner judgment of the target ticket
+(asked to be its owner).
+
+- Target blackboard layer: 40.9 KiB -> 18.2 KiB.
+- Moved verbatim to the sibling attachment `macos-walk-findings.md`: Host
+  facts, Pre-walk findings, Carried-over finding, macOS walk run 1, run 2,
+  Verification run. Each heading kept with a pointer.
+- Added `## Findings status`: one line per finding as the live worklist.
+- 2026-10-15 Plan moved into `## Superseded designs`.
+- Noted on the target's Handoff that PR #1043 closed unmerged 2026-10-19.
+- Removed-lines check: every removed line exists in the attachment or the
+  new ticket text (only the Plan heading changed level, by design).
+- `coga validate --task marketing/fix-installer/test-and-fix-install-on-macos-and-windows --json`:
+  ok_count 1, no issues.
