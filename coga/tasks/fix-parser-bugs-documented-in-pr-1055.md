@@ -196,6 +196,8 @@ Parser fixes, regressions, three context owners and packaged twins, and seeded
 smoke examples are committed on `codex/fix-parser-boundaries` at
 `aea91aeab20b1e1248827b4f8e618d66c68ed183`, rebased onto current main
 `3aa78632ab161b9f7cbeb03b98b4ff5362b4f136`. No implementation PR opened.
+The feature branch is pushed to origin at that head. Implementation has not
+bumped; the attending owner's suite-failure decision below is still pending.
 
 All commands use `/home/n/Code/codex/coga/.venv/bin/python` (3.12.12) with
 `PYTHONPATH=/home/n/Code/codex/coga/src` unless explicitly noted:
