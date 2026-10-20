@@ -31,7 +31,10 @@ every task past `draft` carries a workflow.
   blocker as you go. This is a single step, so the blackboard is the only
   durable handoff if the run is relaunched.
 - **Finish by marking the task done.** This is the workflow's only step, so
-  there is no later step to bump into. When the body's work is complete, run
+  there is no later step to bump into. When the body's work is complete,
+  first file every open item the ticket or blackboard still records as its
+  own draft (`coga create`) and link it, since a closed ticket owns nothing
+  (`coga/workflows`, "Obligations the merge does not discharge"). Then run
   `coga mark done <slug>` (with a one-line `--message` summary). If the body
   specifies its own completion command, that command IS this instruction —
   follow it. If something prevents completion, escalate per your launch mode

@@ -18,9 +18,11 @@ this step just makes sure the diff they see is already clean.
    `worktree:`, present only for a sandbox clone) under `## Dev` on the
    blackboard. If there is no branch because the implement step recorded
    concrete `## Already satisfied` evidence, verify that evidence from the
-   repo, add a short `## Self-QA` note, run `coga mark done <slug>`, and
-   stop. Otherwise `git switch <branch>` (or, for a sandbox clone, work in
-   the clone) and confirm it is clean — the previous `code/implement` step
+   repo, add a short `## Self-QA` note, file and link as its own draft any
+   open item the closure would orphan (`coga/workflows`, "Obligations the
+   merge does not discharge"), run `coga mark done <slug>`, and stop.
+   Otherwise `git switch <branch>` (or, for a sandbox clone, work in the
+   clone) and confirm it is clean — the previous `code/implement` step
    committed and pushed. If the branch is missing without already-satisfied
    evidence, escalate per your launch mode — ask the attending human, or
    `coga block` in a queue run — because something is off. Commit only code

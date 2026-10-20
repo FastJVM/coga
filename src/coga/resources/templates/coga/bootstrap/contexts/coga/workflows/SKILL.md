@@ -164,8 +164,11 @@ post-release check, a proof on another platform — is filed as its own draft
 (`coga create`) and linked from the handoff, or the work is kept off a
 merge-closed workflow such as `code/with-review`. The same holds for a manual
 `coga mark done`: a closed ticket owns nothing, so an open item it records is
-an orphan. `code/open-pr` carries the pre-check; `code/address-pr-comments`
-flags an obligation that surfaces during review before the owner merges.
+an orphan. `code/open-pr` carries the pre-check, and each composed path
+that runs `coga mark done` directly (`code/implement` and `code/self-qa` on
+the already-satisfied path, `direct/body`) runs the same check before it
+closes; `code/address-pr-comments` flags an obligation that surfaces during
+review before the owner merges.
 
 Worked case (Dream 2026-W43): three tickets closed with recorded, unowned
 obligations. `marketing/fix-installer/release-0-4-1-so-new-context-files-publish`
