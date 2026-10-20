@@ -158,3 +158,34 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: codex/fix-parser-boundaries
+
+## Implementation plan
+
+Owner confirmed the plan in the attended Codex session on 2026-10-20:
+add failing regressions, reuse the shared Markdown helpers for blocker reading
+and workflow sections, and warn about uncomposed preamble without expanding
+composition. Preserve the archive projection's exact boundaries and unmatched
+fence behavior; update the three owning topics and packaged twins.
+
+Entry: clean main at 631c876982432c7b8dc3b92f32d1a1955a46b182,
+matching freshly fetched origin/main; launch owns checkout return.
+PR #1055 is CLOSED without merge (mergedAt null), head
+14d6863ce33bd4aef747af26a4ccd2e7aa630050. Its workaround documentation
+has not landed; this branch will document the corrected behavior directly.
+The later implementation PR should identify the overlap with #1055.
+
+Actual implementing agent: Codex (GPT-6), overriding the ticket's configured
+Claude agent. Verification uses this checkout's .venv Python 3.12.12 and an
+absolute PYTHONPATH pointing at this checkout's src.
+
+## Adjacent finding
+
+`src/coga/blackboard.py` `resolve_open_blockers` independently scans stored
+lines when rewriting unresolved entries. With a real live blocker present,
+it can rewrite fenced or archived examples too. This ticket fixes the readers
+and eligibility/prompt consumers; the writer issue remains outside that scope.
+No existing follow-up identified yet; retain this finding for review/Retro.
