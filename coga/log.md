@@ -8763,3 +8763,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 21:54 v1 [coga-ctx-vs-ctx-coga] [human:nicktoper] created (status=draft)
 2026-10-19 21:54 v1 [coga-ctx-vs-ctx-coga] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-19 22:03 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [human:nicktoper] created (status=draft)
+2026-10-19 22:03 v1 [context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set] [human:nicktoper] created (status=draft)
