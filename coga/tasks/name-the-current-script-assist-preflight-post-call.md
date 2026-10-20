@@ -120,3 +120,10 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: docs-preflight-post-caller
+
+## Plan
+- Replace `launch.py` `_launch` with `launch.py` `_LaunchInvocation._run_initial_script` in the `preflight_post` callers list of both notifications/failures twins (byte-identical).
+- PR #1050 is still open but its hunk in this file is at the top (`@@ -19`), far from the callers list, so a text conflict is unlikely; landing order is left to open-pr/the owner.
