@@ -48,6 +48,13 @@ engaging these reasons:
   recursive discovery") does not apply: this is one `stat()` at one fixed path
   inside the target's own directory, affecting only that target, with no scan
   or registry, and core subprocesses the file rather than importing it.
+- **Trust caveat, recorded rather than hidden.** A `ticket.py` is a
+  git-tracked file reviewed in the PR that adds it, but it runs arbitrary code
+  at launch. In a repo where `coga/tasks/**` is granted or reviewed more
+  loosely than `src/coga/**`, adding it widens who can cause code to execute
+  during launch. Coga's own trust model treats both as "anyone who can write
+  this repo", so its threat model does not move; a team that splits those
+  permissions should know it.
 
 ## One deterministic phase
 
