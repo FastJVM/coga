@@ -192,6 +192,7 @@ dream = "recurring launch dream"
 # Download/init send nothing. No task content; the peer sees source IP, which
 # project settings discard, with GeoIP disabled. Source/editable builds do not send.
 # Opt out here or locally. Disabling stops sending; movement from the gap may
-# appear in the first count after re-enabling. See coga/telemetry and docs/telemetry.md.
+# appear in the first count after re-enabling. See recurring/phone-home/ticket.md
+# for the contract and recurring/phone-home/operations.md for maintenance.
 [telemetry]
 enabled = true
