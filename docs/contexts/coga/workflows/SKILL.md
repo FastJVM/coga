@@ -38,8 +38,9 @@ token), and `requires:` (a gate token). The markdown body may carry a
   prose, so restate any limit it carried inside the skill.
 - Known gap (unresolved, PR #980 follow-up): `workflow._parse_inline_sections`
   still splits the body with the fence-unaware `_HEADING_RE`, not the shared
-  `taskfile.body_sections`, so a `## <step-name>` line inside a fenced example
-  starts or ends a step's inline section. Keep step-name headings out of code
+  `taskfile.body_sections`, so every `## ` line inside a fenced example ends
+  the preceding step's inline section, whether or not it names a step (one
+  that does also starts that step's section). Keep every H2 line out of code
   examples in workflow bodies.
 
 ## Frozen snapshot, live content
