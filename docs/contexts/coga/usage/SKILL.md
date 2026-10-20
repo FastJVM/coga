@@ -68,7 +68,10 @@ reached the API is recorded `ok` with zero tokens rather than unknown.
 
 Past records are never corrected. The log is append-only and the owner declined
 backfill and correction records, so an `unknown` written before the launch-marker
-fix (PR #961, 2026-10-05) stays a floor forever. The only way to explain one is
+fix stays a floor forever. That fix is PR #961, merged to `main` 2026-10-06
+(merge commit `d59d42d`); a date is only a proxy, since what decides a record
+is whether the Coga install that wrote it already included that merge. The
+only way to explain one is
 to re-match it, on the machine that recorded it, against local agent
 transcripts: for Codex, find the `coga-launch: <uuid>` marker (formerly the
 ticket slug) in a candidate rollout's prompt and take its last cumulative
