@@ -14,7 +14,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
 ---
 
@@ -188,3 +188,24 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## agent-produces (done)
+
+Draft decision record written to `coga/tasks/context-audiences/README.md`
+(all five points; 85 table rows, checked against `find docs/contexts -name SKILL.md`).
+
+Key calls (reasons in the README):
+- Code comments/docstrings in `src/` don't count as shipped consumers, so
+  `coga/codebase/gotchas` needs no split (only a `retire_worklist.py` docstring cites it).
+- Namespace `coga-dev/` for the 23 coga-dev topics; 6 splits (`testing`,
+  `packaging`, `extension-model`, `knowledge`, `internals/state-publication`,
+  `telemetry/operations`); new user topics `coga/sandboxes`, `coga/edge-code`.
+- Clean break confirmed.
+- Found bug: `bootstrap/ticket` skill names local-only `coga/current-direction`
+  and `coga/project-stage`; 02 removes them.
+
+For the owner: confirm the **[owner]** items in the README (namespace name,
+renaming the 6 user topics out of `coga/internals/`, `principles` and
+`patterns` as coga-dev) and the "Weak spots" list. Then approve.
+Evidence script: grep matrix of ref, backticked, relative-link and URL forms
+(scratch only, not committed).
