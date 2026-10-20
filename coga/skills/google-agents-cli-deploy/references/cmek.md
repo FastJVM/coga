@@ -1,6 +1,6 @@
 # Customer-managed encryption keys (CMEK)
 
-An Agent Runtime agent can be encrypted with your Cloud KMS key instead of a Google-managed one.
+An agent on Agent Runtime in Gemini platform can be encrypted with your Cloud KMS key instead of a Google-managed one.
 The key is set at creation and can't be added, changed, or removed later.
 
 ## Where to set the key

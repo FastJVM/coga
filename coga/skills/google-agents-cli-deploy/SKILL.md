@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.9.0
+    github-ref: refs/tags/v1.10.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 052a5d2f6975c1cab50c207201d264f89d1f4902
+    github-tree-sha: 3b814a38e97a4ff5765ba23e943f92a579770c9e
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.9.0
+    version: 1.10.0
 name: google-agents-cli-deploy
 ---
 # Deployment Guide
@@ -32,7 +32,7 @@ For deeper details, consult these reference files in `references/`:
 - **`batch-inference.md`** — BigQuery Remote Function trigger; for Pub/Sub / Eventarc on ADK see `/google-agents-cli-adk-code`
 - **`cicd-pipeline.md`** — Full CI/CD pipeline setup, `infra cicd` flags, runner comparison, WIF auth, pipeline stages
 - **`testing-deployed-agents.md`** — Testing instructions per deployment target, curl examples, load tests
-- **`cmek.md`** — Customer-managed encryption keys on Agent Runtime: key grants, `deploy --key` for dev, Terraform edits for staging/prod
+- **`cmek.md`** — Customer-managed encryption keys on Agent Runtime in Gemini platform: key grants, `deploy --key` for dev, Terraform edits for staging/prod
 
 > **Observability:** See the `/google-agents-cli-observability` skill for Cloud Trace, prompt-response logging, BigQuery Analytics, and third-party integrations.
 
@@ -46,8 +46,8 @@ Choose the right deployment target based on your requirements:
 |----------|-------------|-----------|-----|
 | **Scaling** | Managed auto-scaling (configurable min/max, concurrency) | Fully configurable (min/max instances, concurrency, CPU allocation) | Full Kubernetes scaling (HPA, VPA, node auto-provisioning) |
 | **Networking** | VPC-SC and PSC-I supported (private VPC connectivity via network attachments) | Full VPC support, direct VPC egress, IAP, ingress rules | Full Kubernetes networking |
-| **Session state** | Managed Agent Engine sessions (ADK wires `VertexAiSessionService` automatically) | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend |
-| **Batch/event processing** | Trigger endpoints reachable via the Agent Engine `/api` passthrough | Native trigger endpoints (Pub/Sub, Eventarc); ADK: see `/google-agents-cli-adk-code` | Custom (Kubernetes Jobs, Pub/Sub) |
+| **Session state** | Sessions in Gemini platform (ADK wires `VertexAiSessionService` automatically) | In-memory (dev), Cloud SQL, or a managed sessions backend | In-memory (dev), Cloud SQL, or a managed sessions backend |
+| **Batch/event processing** | Trigger endpoints reachable via the Agent Runtime `/api` passthrough | Native trigger endpoints (Pub/Sub, Eventarc); ADK: see `/google-agents-cli-adk-code` | Custom (Kubernetes Jobs, Pub/Sub) |
 | **Cost model** | vCPU-hours + memory-hours (not billed when idle) | Per-instance-second + min instance costs | Node pool costs (always-on or auto-provisioned) |
 | **Setup complexity** | Lower (managed, purpose-built for agents) | Medium (Dockerfile, Terraform, networking) | Higher (Kubernetes expertise required) |
 | **Best for** | Managed infrastructure, minimal ops | Custom infra, full networking control | Full Kubernetes control |
@@ -56,11 +56,11 @@ Choose the right deployment target based on your requirements:
 
 All three targets are container-based, so any language works.
 
-> **Product name mapping:** "Agent Engine" / "Vertex AI Agent Engine" is now **Agent Runtime**. Use `--deployment-target agent_runtime`.
+> **Product name mapping:** users may say "Agent Engine", "Vertex AI Agent Engine", or "Agent Runtime"; all mean Agent Runtime. Use `--deployment-target agent_runtime`.
 
-> **Ambient / scheduled / event-driven agents (ADK projects):** ADK's `trigger_sources` registers `/apps/{app}/trigger/*` endpoints on the same FastAPI app for **all** targets. On **Cloud Run** / **GKE** these are public HTTP routes you point a Pub/Sub push subscription or Eventarc trigger at; on **Agent Runtime** the same routes are reachable through the Agent Engine `/api` passthrough (e.g. `.../reasoningEngines/v1/{resource}/api/apps/{app}/trigger/pubsub`). Cloud Run remains the simplest target for unauthenticated trigger sources. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
+> **Ambient / scheduled / event-driven agents (ADK projects):** ADK's `trigger_sources` registers `/apps/{app}/trigger/*` endpoints on the same FastAPI app for **all** targets. On **Cloud Run** / **GKE** these are public HTTP routes you point a Pub/Sub push subscription or Eventarc trigger at; on **Agent Runtime** the same routes are reachable through its `/api` passthrough (e.g. `.../reasoningEngines/v1/{resource}/api/apps/{app}/trigger/pubsub`). Cloud Run remains the simplest target for unauthenticated trigger sources. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
-> **OAuth / user consent agents:** Use **Agent Runtime** with Gemini Enterprise for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. For a worked ADK example, look up OAuth user consent in the topic index in `/google-agents-cli-adk-code` → `references/samples.md`.
+> **OAuth / user consent agents:** Use **Agent Runtime**, registered with Gemini, for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. For a worked ADK example, look up OAuth user consent in the topic index in `/google-agents-cli-adk-code` → `references/samples.md`.
 
 > **Live and voice agents:** pass **`--timeout 3600`** on Cloud Run so a session outlives the 300s default, and **`--min-instances 1`** on Cloud Run or Agent Runtime so the first caller after idle does not hear a cold start. GKE sizes pods in Terraform. URL shapes and session caps: `/google-agents-cli-adk-code` (`references/adk-python-live.md`).
 
@@ -102,8 +102,8 @@ agents-cli infra single-project --apply
 | `--region` | GCP region | All |
 | `--service-account` | Service account email for the deployed agent | All |
 | `--service-name` | Override the deployed service name (Cloud Run service or Agent Runtime display name); defaults to the project name. If you override it, consider updating your Terraform and CI (if present) — they name resources from the project name. Not supported for GKE, whose names are fully owned by Terraform. | Agent Runtime, Cloud Run |
-| `--secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs | Agent Runtime, Cloud Run |
-| `--update-env-vars` | Comma-separated `KEY=VALUE` environment variables | Agent Runtime, Cloud Run |
+| `--secrets` / `--update-secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs. Cloud Run adds them to the service's existing secrets; Agent Runtime replaces the agent's existing secrets with the ones you pass. | Agent Runtime, Cloud Run |
+| `--env-vars` / `--update-env-vars` | Comma-separated `KEY=VALUE` environment variables | All |
 | `--agent-identity` | Enable [Agent Identity](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-identity) | Agent Runtime |
 | `--no-agent-identity` | Disable Agent Identity. Passing neither `--agent-identity` nor `--no-agent-identity` defaults to no Agent Identity, when a new agent is created, or keeps the current identity type on subsequent re-deployments. | Agent Runtime |
 | `--network-attachment` | Network attachment resource name for [PSC interface](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/private-service-connect-interface) (enables private VPC connectivity) | Agent Runtime |
@@ -121,7 +121,9 @@ agents-cli infra single-project --apply
 | `--timeout` | Request timeout in seconds, up to `3600` (Cloud Run default: `300`). Applied on create and update; unset leaves the service's current value | Cloud Run |
 | `--port` | Container port | Cloud Run, Agent Runtime |
 | `--build-args` | Comma-separated `KEY=VALUE` Docker build args | Agent Runtime |
-| `--labels` | Comma-separated `KEY=VALUE` resource labels. Additive: adds/updates the labels you name; labels you don't name are preserved. | Agent Runtime, Cloud Run |
+| `--labels` / `--update-labels` | Comma-separated `KEY=VALUE` resource labels to add or update. Additive: adds/updates the labels you name; labels you don't name are preserved. | Agent Runtime, Cloud Run |
+| `--remove-labels` | Comma-separated label `KEY`s to remove. Keys that don't exist are ignored. Can be combined with `--labels`, but a key can't appear in both. Cannot be combined with `--clear-labels`. | Agent Runtime, Cloud Run |
+| `--clear-labels` | Remove all resource labels (Cloud Run keeps its reserved `created-by` label). Combine with `--labels` to replace the label set; the clear is applied first. Cannot be combined with `--remove-labels`. | Agent Runtime, Cloud Run |
 | `--framework` | Framework the deployed container implements (defaults to `framework:` in `agents-cli-manifest.yaml`, which the template sets; `google-adk` when absent). Sets `agent_framework` on the deployment, which picks the Google Cloud console playground and the runtime contract the deployment declares. The API owns the accepted values ([reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1/projects.locations.reasoningEngines#ReasoningEngineSpec)) | Agent Runtime |
 | `--iap` | Enable Identity-Aware Proxy | Cloud Run |
 | `--image` | Container image URI (skips source build; not supported for Agent Runtime) | Cloud Run, GKE |
@@ -176,9 +178,9 @@ For detailed infrastructure configuration (scaling defaults, Dockerfile, FastAPI
 
 ---
 
-## Agent Runtime Specifics
+## Agent Runtime specifics
 
-Agent Runtime is a managed Vertex AI service for deploying agents as containers. Uses container-based deployment: `agents-cli deploy` packages your project and Agent Engine builds the image from your project's `Dockerfile` (required) — the same image that serves Cloud Run and GKE.
+Agent Runtime is a managed Gemini platform service for deploying agents as containers. Uses container-based deployment: `agents-cli deploy` packages your project and Agent Runtime builds the image from your project's `Dockerfile` (required) — the same image that serves Cloud Run and GKE.
 
 > **No `gcloud` CLI exists for Agent Runtime.** Deploy via `agents-cli deploy`. Query via the Python `agentplatform.Client` SDK.
 
@@ -348,7 +350,7 @@ For custom infrastructure patterns, consult `references/terraform-patterns.md` f
 | GitHub Actions auth failed | Re-run `terraform apply` in CI/CD terraform dir; verify WIF pool/provider |
 | Cloud Build authorization pending | Use `github_actions` runner instead |
 | Resource already exists | `terraform import` (see `references/terraform-patterns.md`) |
-| Agent Runtime deploy timeout / hangs | Deployments take 5-10 min; check if engine was created (see Agent Runtime Specifics) |
+| Agent Runtime deploy timeout / hangs | Deployments take 5-10 min; check if engine was created (see Agent Runtime specifics) |
 | Secret not available | Verify `secretAccessor` granted to `app_sa` (not the default compute SA) |
 | Cloud SQL connection failed / 403 | Grant `roles/cloudsql.client` to the runtime service account when using manual deployments |
 | 403 on deploy | Check `deployment/terraform/iam.tf` — `cicd_runner_sa` needs deployment + SA impersonation roles in the target project |
@@ -364,7 +366,7 @@ For custom infrastructure patterns, consult `references/terraform-patterns.md` f
 
 ## Platform Registration
 
-For registering deployed agents with Gemini Enterprise, see `/google-agents-cli-publish`.
+For registering deployed agents with Gemini, see `/google-agents-cli-publish`.
 
 ---
 
@@ -433,4 +435,4 @@ constraints.
 - `/google-agents-cli-eval` — Evaluation methodology, dataset schema, and the eval-fix loop
 - `/google-agents-cli-scaffold` — Project creation and enhancement with `agents-cli scaffold create` / `scaffold enhance`
 - `/google-agents-cli-observability` — Cloud Trace, logging, BigQuery Analytics, and third-party integrations
-- `/google-agents-cli-publish` — Gemini Enterprise registration
+- `/google-agents-cli-publish` — Gemini registration

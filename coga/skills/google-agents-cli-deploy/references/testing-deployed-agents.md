@@ -11,7 +11,7 @@ agents-cli run --url https://my-agent-abc123.run.app --mode a2a "Hello, what can
 # ADK streaming API (ADK projects only)
 agents-cli run --url https://my-agent-abc123.run.app --mode adk "Hello, what can you do?"
 
-# Agent Runtime (auto-detected from URL — works with either mode)
+# Agent Runtime in Gemini platform (auto-detected from URL — works with either mode)
 agents-cli run --url https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/LOCATION/reasoningEngines/ID --mode adk "Hello!"
 
 # Custom auth header (overrides auto-detected credentials)
@@ -20,7 +20,7 @@ agents-cli run --url https://my-agent.run.app --mode a2a -H "Authorization: Bear
 
 The `--mode` flag is required with `--url`: use `a2a` for the A2A protocol, or `adk` for the ADK streaming API (`/run_sse`, or `:streamQuery` for Agent Runtime) if the deployed container serves it. Agent Runtime URLs are detected automatically. Add `-v` for full JSON event payloads.
 
-> On Agent Runtime, Agent Engine exposes the whole container under an `/api/...` HTTP passthrough (`https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/<path>`), so the container's own routes — `/run_sse`, `/a2a/{app_name}`, etc. — are also reachable there. (This is separate from the reasoning_engine adapter, which serves only `/api/reasoning_engine` + `/api/stream_reasoning_engine` for the native `:streamQuery` contract.)
+> Agent Runtime exposes the whole container under an `/api/...` HTTP passthrough (`https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/<path>`), so the container's own routes — `/run_sse`, `/a2a/{app_name}`, etc. — are also reachable there. (This is separate from the reasoning_engine adapter, which serves only `/api/reasoning_engine` + `/api/stream_reasoning_engine` for the native `:streamQuery` contract.)
 
 Auth is auto-detected via Google Cloud credentials. Use `--header` / `-H` to override.
 
@@ -28,7 +28,7 @@ For more control (scripting, direct curl), see the target-specific sections belo
 
 ---
 
-## Agent Runtime Deployment
+## Agent Runtime deployment
 
 Beyond the `run --url` quick test above, you can query the deployment directly.
 

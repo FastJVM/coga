@@ -34,7 +34,7 @@ agents-cli eval optimize --config tests/eval/optimization_config.json
 
 ## `eval submit` / `eval results` (cloud-side)
 
-The managed, asynchronous counterpart to the local path, for large or CI-driven runs: `eval submit` hands the dataset and metrics to the Agent Platform Eval Service, and `eval results` polls and downloads the scores. Pass `--resource-name <agent>` to also run inference server-side (managed `generate` + `grade`); omit it to grade an existing trace (managed `grade`).
+The managed, asynchronous counterpart to the local path, for large or CI-driven runs: `eval submit` hands the dataset and metrics to the Eval Service in Gemini platform, and `eval results` polls and downloads the scores. Pass `--resource-name <agent>` to also run inference server-side (managed `generate` + `grade`); omit it to grade an existing trace (managed `grade`).
 
 ```bash
 # Grade an existing trace server-side; returns a run resource name to poll

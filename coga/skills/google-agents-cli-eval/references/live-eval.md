@@ -2,7 +2,7 @@
 
 `--mode adk_live` runs an eval over the agent's `/run_live` WebSocket instead of
 `/run_sse`. Pass it on its own for a local autoboot, or alongside the agent's
-`https://` `--url` when deployed (for Agent Runtime, the full engine URL). The
+`https://` `--url` when deployed (for Agent Runtime in Gemini platform, the full engine URL). The
 dataset, the trace output, and the `eval grade` step are unchanged.
 
 ```bash
@@ -42,7 +42,7 @@ points at `/run_live` when the cause is agent configuration.
 | Cause | Fix |
 |---|---|
 | The agent is not on a Live model. `--mode adk_live` changes only the transport; it cannot make a non-Live agent bidi. The scaffold default is not a Live model, so a fresh project fails with WebSocket code 1011. | Switch the agent to a Live model. |
-| On Vertex, the model's region is not pinned. Live models are served from a regional endpoint such as `us-central1`, not `global`. Unpinned, the model falls back to `GOOGLE_CLOUD_LOCATION`, which `agents-cli deploy` sets to `global` on Agent Runtime. | Pin the region on the model itself rather than steering `GOOGLE_CLOUD_LOCATION`, which is shared with sessions, telemetry, and grading. |
+| On Gemini platform, the model's region is not pinned. Live models are served from a regional endpoint such as `us-central1`, not `global`. Unpinned, the model falls back to `GOOGLE_CLOUD_LOCATION`, which `agents-cli deploy` sets to `global` on Agent Runtime. | Pin the region on the model itself rather than steering `GOOGLE_CLOUD_LOCATION`, which is shared with sessions, telemetry, and grading. |
 
 Grading is unaffected by either: `eval grade` passes its own location
 (`--region`, default `global`), so `eval run --mode adk_live` chains both steps

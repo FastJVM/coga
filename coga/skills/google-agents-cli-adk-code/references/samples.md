@@ -39,7 +39,8 @@ Capabilities below are **not** scaffold flags — they come from studying a reci
 | No chat interface — records or messages land on a queue and are processed automatically; event-driven, scheduled, batch or headless worker | `ambient-expense-agent` (Pub/Sub queue consumer) · `long-horizon-harness` (routines + scheduler) |
 | Iterative research with cited sources | `deep-search` |
 | Generating images or video — product photography, a model wearing the item (virtual try-on), 360° spins, background replacement — and MCP toolsets | `genmedia-for-commerce` |
-| A2A interop, incl. Gemini Enterprise client quirks | `long-horizon-harness` |
+| A2A interop, incl. Gemini app client quirks | `long-horizon-harness` |
+| Monitoring a deployed agent's quality from its production traces — scheduled evaluation, recurring-failure tracking, root-cause analysis | `ambient-quality-agent` |
 
 In Phase 1, clone the recipes named above and read `/tmp/adk-samples/core/python/<recipe>/AGENTS.md`
 before you write any code. During Phase 0, naming them in the spec is enough — the clone waits for
@@ -47,7 +48,7 @@ approval. A bare how-question has no spec to wait for: clone before you answer i
 
 ## The recipes
 
-These nine are the **complete** set of `core/` python recipes. If a capability isn't listed here,
+These ten are the **complete** set of `core/` python recipes. If a capability isn't listed here,
 there is no core recipe for it — don't guess at a plausible name (`core/python/code-execution` and
 `core/python/human-in-the-loop` do not exist). Check `contrib/` or build it yourself.
 
@@ -57,22 +58,22 @@ there is no core recipe for it — don't guess at a plausible name (`core/python
   that implements it, so lift one pattern without adopting the whole harness.
   - Key files: `AGENTS.md`, `horizon/agent.py`, `horizon/fast_api_app.py`, `docs/architecture.md`, `docs/quickstart.md`
   - Keywords: harness, sandbox, shell execution, code execution, isolated environment, long-horizon, long-running, multi-day, autonomous, resumable, compaction, guardrails, exfil, egress, approval gate, human-in-the-loop, HITL, per-user secrets, credentials, sub-agents, delegation, self-improving, memory bank, routines, scheduler, a2a, skills, model routing
-- **`rag-agent-search`** — managed document search via Agent Platform Search (Discovery Engine) with a
+- **`rag-agent-search`** — managed document search via Search in Gemini platform (Discovery Engine) with a
   fully-managed GCS Data Connector: drop files in a bucket, no ingestion code to maintain.
   - Key files: `AGENTS.md`, `app/agent.py`, `infra/terraform/agent_platform_search.tf`, `infra/terraform/scripts/setup_data_connector.py`
-  - Keywords: RAG, document search, Discovery Engine, Agent Platform Search, managed ingestion, GCS data connector, PDF, HTML, grounding
-- **`rag-vector-search`** — RAG with Vertex AI Vector Search 2.0 and a KFP ingestion pipeline (chunking +
+  - Keywords: RAG, document search, Discovery Engine, Search in Gemini platform, Agent Platform Search, managed ingestion, GCS data connector, PDF, HTML, grounding
+- **`rag-vector-search`** — RAG with Vector Search 2.0 in Gemini platform and a KFP ingestion pipeline (chunking +
   BigQuery staging; embeddings auto-generated server-side).
   - Key files: `AGENTS.md`, `app/agent.py`, `data_ingestion/data_ingestion_pipeline/pipeline.py`, `infra/terraform/scripts/setup_vector_search_collection.py`
   - Keywords: RAG, retrieval, vector search, embeddings, similarity search, ScaNN, semantic search, document Q&A, ingestion pipeline, chunking
-- **`cross-session-memory`** — remembers user preferences and facts across sessions via Vertex AI Memory
-  Bank: written after each turn, recalled at the start of a later one.
+- **`cross-session-memory`** — remembers user preferences and facts across sessions via Memory Bank in
+  Gemini platform: written after each turn, recalled at the start of a later one.
   - Key files: `AGENTS.md`, `app/app_utils/memory_config.py`, `app/agent.py`, `app/fast_api_app.py`
   - Keywords: memory, cross-session, recall, remember, preferences, Memory Bank, PreloadMemoryTool
 - **`oauth-user-consent-flow`** — reads a user's Google Drive on their behalf behind an OAuth 2.0 consent
-  flow; the same code path works in local ADK Web and in production Gemini Enterprise.
+  flow; the same code path works in local ADK Web and in production in the Gemini app.
   - Key files: `AGENTS.md`, `app/auths.py`, `app/tools.py`, `tools/register_oauth.py`
-  - Keywords: OAuth, user consent, authentication, Google Drive, Workspace, Agent Runtime, Gemini Enterprise
+  - Keywords: OAuth, user consent, authentication, Google Drive, Workspace, Agent Runtime, Gemini app, Gemini Enterprise
 - **`ambient-expense-agent`** — no chat loop: Pub/Sub events drive a graph-based `Workflow`, business
   rules stay in code, and only high-value cases reach an LLM that pauses for human approval.
   - Key files: `AGENTS.md`, `expense_agent/agent.py`, `expense_agent/fast_api_app.py`, `terraform/pubsub.tf`
@@ -88,7 +89,12 @@ there is no core recipe for it — don't guess at a plausible name (`core/python
 - **`genmedia-for-commerce`** — full-stack multi-agent retail media: virtual try-on, 360° product spins and
   background swaps, orchestrated through an MCP tool server and Veo pipelines.
   - Key files: `AGENTS.md`, `genmedia4commerce/mcp_server/server.py`, `genmedia4commerce/workflows/shared/vector_search.py`, `genmedia4commerce/agent.py`
-  - Keywords: MCP, media, image generation, video generation, product photography, on-model imagery, virtual try-on, 360° spin, background replacement, Veo, retail, e-commerce, catalogue, full-stack, React, Gemini Enterprise
+  - Keywords: MCP, media, image generation, video generation, product photography, on-model imagery, virtual try-on, 360° spin, background replacement, Veo, retail, e-commerce, catalogue, full-stack, React, Gemini app, Gemini Enterprise
+- **`ambient-quality-agent`** — AQuA: an ADK agent that runs beside the agent it observes, evaluates its
+  production conversations from BigQuery telemetry on a schedule or after each deploy, groups failures into
+  deduplicated insights, and diagnoses root causes against the agent's source. Ships as an agents-cli extension.
+  - Key files: `README.md`, `src/ambient_quality_agent/core/workflow.py`, `src/ambient_quality_agent/core/investigation/job_scheduling.py`, `src/ambient_quality_agent/tools/insights/clustering.py`, `extension/README.md`
+  - Keywords: quality monitoring, production evaluation, observability, traces, telemetry, BigQuery Agent Analytics, LLM-as-a-judge, session review, custom metrics, insights, regressions, root-cause analysis, scheduled investigation, Workflow, agents-cli extension, dashboard
 
 **Nothing above matches?** [`contrib/`](https://github.com/google/adk-samples/tree/main/contrib) holds
 community- and partner-contributed recipes — broader in scope (complete solutions, not isolated patterns)

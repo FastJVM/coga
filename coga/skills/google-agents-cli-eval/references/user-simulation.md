@@ -6,7 +6,7 @@
 
 ## When to Use
 
-Use user simulation when fixed prompts are impractical — the agent may ask for information in different orders or respond in unexpected ways. Instead of hand-recording every user/agent turn, let `agents-cli eval dataset synthesize` ask the Vertex AI evaluation service to generate **user scenarios** for your agent and then play each scenario against an LLM-backed user simulator. The resulting traces (with full `agent_data.turns` populated) drop straight into `agents-cli eval grade`.
+Use user simulation when fixed prompts are impractical — the agent may ask for information in different orders or respond in unexpected ways. Instead of hand-recording every user/agent turn, let `agents-cli eval dataset synthesize` ask the Eval Service in Gemini platform to generate **user scenarios** for your agent and then play each scenario against an LLM-backed user simulator. The resulting traces (with full `agent_data.turns` populated) drop straight into `agents-cli eval grade`.
 
 A user scenario is a `starting_prompt` (the user's opening message) plus a free-text `conversation_plan` (how the simulated user should behave for the rest of the conversation). You don't author these yourself in the agents-cli flow — `eval dataset synthesize` generates them from your agent's tools and instructions.
 
@@ -42,7 +42,7 @@ CLI flags exposed by `agents-cli eval dataset synthesize`:
 | `--max-turns` | Cap on user↔agent turns per scenario (default 5) |
 | `-o / --output` | Output path; defaults to `artifacts/traces/traces_<ts>.json` |
 
-`synthesize` runs your agent locally and reads its config from the agent's `.env` (the whole file — `GOOGLE_GENAI_USE_ENTERPRISE`, `GEMINI_API_KEY`, `GOOGLE_CLOUD_*`, app vars); there are no `--project` / `--region` flags. On Vertex AI, `GOOGLE_CLOUD_LOCATION` also picks the endpoint for the **server-side scenario-generation** call, which only supports a subset of eval regions — keep it `global` (the scaffold default) unless you know your region is supported.
+`synthesize` runs your agent locally and reads its config from the agent's `.env` (the whole file — `GOOGLE_GENAI_USE_ENTERPRISE`, `GEMINI_API_KEY`, `GOOGLE_CLOUD_*`, app vars); there are no `--project` / `--region` flags. On Gemini platform, `GOOGLE_CLOUD_LOCATION` also picks the endpoint for the **server-side scenario-generation** call, which only supports a subset of eval regions — keep it `global` (the scaffold default) unless you know your region is supported.
 
 **Simulator internals are NOT user-configurable from agents-cli.** The LLM-backed user simulator that plays the user side runs inside `_synthesize_runner.py` with hardcoded ADK defaults (`gemini-2.5-flash` for the user voice, default thinking config, no `custom_instructions`). Only `--max-turns` reaches it (as `LlmBackedUserSimulatorConfig.max_allowed_invocations`). There is no `eval_config.yaml` key, no `--simulator-model` flag, and no way to override `custom_instructions` or `model_configuration` short of editing `_synthesize_runner.py` directly.
 

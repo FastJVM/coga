@@ -36,6 +36,10 @@ my-agent/
 └── go.mod                   // module <project-name>
 ```
 
+`app/agent_test.go` tests the sample `GetWeather` tool. When you replace the sample tools in
+`app/agent.go`, rewrite those tests for your tools in the same change: `go build` and
+`agents-cli build` skip `_test.go` files, so only `go test ./...` shows the breakage.
+
 ## 2. Agents
 
 ### Basic Setup
@@ -432,7 +436,7 @@ identical downstream. Pick one and assign it to `llmagent.Config.Model`.
 ```go
 import "google.golang.org/adk/v2/model/gemini"
 
-// Vertex AI (prod) — set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION.
+// Gemini platform (prod) — set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION.
 model, err := gemini.NewModel(ctx, "gemini-3.8-flash", &genai.ClientConfig{
 	Backend: genai.BackendVertexAI,
 })
@@ -550,7 +554,7 @@ resp, err := memSvc.SearchMemory(ctx, &memory.SearchRequest{
 import memoryvertexai "google.golang.org/adk/v2/memory/vertexai"
 
 memSvc, err := memoryvertexai.NewService(ctx, &memoryvertexai.ServiceConfig{
-	AgentEngineData:               engineData, // project, location, agent engine id
+	AgentEngineData:               engineData, // project, location, Agent Runtime ID
 	StateKeySessionLastUpdateTime: "last_memory_update",
 	WaitForCompletion:             false,
 })

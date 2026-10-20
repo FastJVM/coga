@@ -44,9 +44,9 @@ Run `agents-cli eval metric list` for the live set. **Single-turn only** below m
 
 Custom metrics are declared in `eval_config.yaml` (or `.json`) under `custom_metrics`. See SKILL.md's *Evaluation Configuration Schema* section for how `metrics_to_run` selects from the pool. The schema below defines the per-entry fields.
 
-Code-based metrics default to **local in-process execution** (no GCP project or region required); opt into the Vertex AI sandbox with `execution: "remote"`. The metric functions are written in Python, regardless of the project's language.
+Code-based metrics default to **local in-process execution** (no GCP project or region required); opt into the `CodeExecutionMetric` sandbox in Gemini platform with `execution: "remote"`. The metric functions are written in Python, regardless of the project's language.
 
-> **Scaffolded default metric.** The scaffolded `eval_config.yaml` ships `custom_response_quality` as a local LLM-judge in `tests/eval/response_quality.py` (referenced via `custom_function_file`, run in-process via `google-genai`). It grades on either backend — `genai.Client()` uses `GEMINI_API_KEY` (AI Studio) or ADC (Vertex) — and reads each case's `reference` (ground truth) when present. To grade with the managed Vertex eval service instead, replace it with a built-in metric or an `LLMMetric` (`prompt_template`).
+> **Scaffolded default metric.** The scaffolded `eval_config.yaml` ships `custom_response_quality` as a local LLM-judge in `tests/eval/response_quality.py` (referenced via `custom_function_file`, run in-process via `google-genai`). It grades on either backend — `genai.Client()` uses `GEMINI_API_KEY` (AI Studio) or ADC (Gemini platform) — and reads each case's `reference` (ground truth) when present. To grade with the managed Eval Service in Gemini platform instead, replace it with a built-in metric or an `LLMMetric` (`prompt_template`).
 
 ### Example
 
@@ -89,7 +89,7 @@ Metrics receive the eval case's `{prompt}`, `{response}`, and `{agent_data}` (an
 
 ### Schema reference
 
-Each entry in `custom_metrics` must conform to one of two Agent Platform evaluation metric schemas. `custom_function` or `custom_function_file` selects the code-based schema (in-process by default, `CodeExecutionMetric` with `execution: remote`); otherwise it's `LLMMetric`. An entry that carries neither, and whose `name` is a built-in metric, is a *managed metric parameterization* instead (see below).
+Each entry in `custom_metrics` must conform to one of two Gemini platform evaluation metric schemas. `custom_function` or `custom_function_file` selects the code-based schema (in-process by default, `CodeExecutionMetric` with `execution: remote`); otherwise it's `LLMMetric`. An entry that carries neither, and whose `name` is a built-in metric, is a *managed metric parameterization* instead (see below).
 
 #### Code Execution Metric (`CodeExecutionMetric`)
 
@@ -100,7 +100,7 @@ Evaluates responses using custom Python code.
 | `name` | yes | Unique identifier for the metric. |
 | `custom_function` | one of | Python source containing `def evaluate(instance):`. Receives an evaluation instance, returns a numeric score or a `{'score', 'explanation'}` dict. |
 | `custom_function_file` | one of | Path to a `.py` file containing `def evaluate(instance):`, **resolved relative to the eval config file's directory** (absolute paths honored). Keeps the metric a real, lintable/testable module instead of an inline blob. Mutually exclusive with `custom_function`. Works with both `execution` modes (for `remote`, the file's source is uploaded). |
-| `execution` | no | Where the function runs. `"local"` (default) — executed in the CLI process; no GCP project or region required; **runs with the CLI's privileges**, so only use trusted code. `"remote"` — uploaded and executed inside Vertex AI's `CodeExecutionMetric` sandbox; requires a configured GCP project + region. |
+| `execution` | no | Where the function runs. `"local"` (default) — executed in the CLI process; no GCP project or region required; **runs with the CLI's privileges**, so only use trusted code. `"remote"` — uploaded and executed inside the `CodeExecutionMetric` sandbox; requires a configured GCP project + region. |
 
 > **Local metrics grade cases concurrently.** Build the client once per thread, never inside `evaluate()`, which re-does ADC and the TLS handshake every case. Per thread rather than per process: one client cannot serve several threads behind a client certificate. `tests/eval/response_quality.py` has the shape to copy.
 

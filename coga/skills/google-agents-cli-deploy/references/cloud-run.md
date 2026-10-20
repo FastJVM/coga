@@ -32,7 +32,7 @@ A scaffolded Python project serves `uvicorn app.fast_api_app:app` on port 8080; 
 |------|--------------|----------|
 | **In-memory** | Default (`shared://session` resolved by `app_utils/services.py` (in-memory)) | Local dev only; lost on instance restart |
 | **Cloud SQL** | `--session-type cloud_sql` at scaffold time | Production persistent sessions (Postgres 15, IAM auth) |
-| **Agent Runtime** | Managed Agent Engine sessions (`agentengine://{resource_name}`) | When using Agent Runtime as session backend |
+| **Agent Runtime in Gemini platform** | Managed sessions (`agentengine://{resource_name}`) | When using Agent Runtime as session backend |
 
 The concrete session URI for `cloud_sql` / `agent_platform_sessions` is now built inside `app_utils/services.py`, not `fast_api_app.py`.
 

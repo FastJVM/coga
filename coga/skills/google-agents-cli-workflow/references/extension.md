@@ -71,10 +71,10 @@ commands:
 
 ```bash
 agents-cli extension add <ref> [--global] [--ref <branch|tag|sha>] [--yes]
-agents-cli extension list                 # what's active, its scope, and its commands
-agents-cli extension update [<name>]      # advance the pin (re-resolve the tracked ref)
-agents-cli extension remove <name>        # drop it and delete its vendored copy
-agents-cli info                        # shows active extensions + sources + conflicts
+agents-cli extension list                      # what's active, its scope, and its commands
+agents-cli extension update [<name>]           # advance the pin and replace its skills
+agents-cli extension remove <name> [--global]  # drop it, its vendored copy, and skills no other scope uses
+agents-cli info                                # shows active extensions + sources + conflicts
 ```
 
 ### Reference forms
@@ -107,9 +107,13 @@ An extension changes commands. To run a different agent framework, scaffold from
 ### Pinning and updates
 
 - `extension add` resolves the ref to an exact commit SHA and records `source` / `ref` / `sha` under `extensions:` in `agents-cli-extensions.yaml` (its own file at both scopes, so the writer can never touch your project manifest), vendoring a working copy under `extensions/`.
-- `agents-cli install` re-materializes any missing/stale vendored copy from the pinned SHA (verified by a stamp file) — CI and fresh checkouts get the exact reviewed code and command overrides. It never advances a pin.
-- `extension update [name]` advances the pin to the latest commit of the **same tracked ref** (e.g. a branch), re-prompting for third-party trust. Nothing updates in the background. Note: a pinned tag/SHA re-resolves to itself — to move to a **different** tag, re-run `extension add <ref> --ref <new-tag>` (it replaces the existing pin).
-- `extension remove <name>` drops the entry and deletes the working copy. It removes from one scope per call (project before user), so an extension installed at both scopes needs a second `remove`.
+- `agents-cli install` re-materializes any missing/stale vendored copy from the pinned SHA (verified by a stamp file) — CI and fresh checkouts get the exact reviewed code, command overrides and skills. It never advances a pin.
+  - It also deletes the skills of extensions that are no longer recorded.
+  - It deletes none when an extension list for that skills folder cannot be fully read, or when the project's or the user's `.agents/skills` folder is reached through a link.
+  - A project whose `.agents` folder links to `~/.agents` is protected only while `install` runs in that project. `install` in another project can delete its skills from `~/.agents/skills`, and `install` in that project brings them back.
+  - A skill folder with a `.agents-cli-extension` file belongs to the extension: `extension add`, `extension update` and `agents-cli install` replace it whole. To change a skill, copy its folder under a new name.
+- `extension update [name]` advances the pin to the latest commit of the **same tracked ref** (e.g. a branch), re-prompting for third-party trust, and replaces the extension's skills with the new version's. If the new skills cannot be installed, it keeps the old pin. Nothing updates in the background. Note: a pinned tag/SHA re-resolves to itself — to move to a **different** tag, re-run `extension add <ref> --ref <new-tag>` (it replaces the existing pin).
+- `extension remove <name> [--global]` drops the entry and deletes the working copy and the skills it owns. It removes from one scope per call: project before user without `--global`, user scope only with `--global`. If the home folder is a project and the extension is still installed at both scopes, `remove` keeps the shared skills until the other scope is removed too.
 
 Tracking a version:
 

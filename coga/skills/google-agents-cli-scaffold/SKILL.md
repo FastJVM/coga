@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.9.0
+    github-ref: refs/tags/v1.10.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 1389169dfaa6401522c7c63e01d10ad9a2ec39bf
+    github-tree-sha: 545a927448288681ef3353b6bab7490d04f3331b
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.9.0
+    version: 1.10.0
 name: google-agents-cli-scaffold
 ---
 # Project Scaffolding Guide
@@ -44,11 +44,11 @@ Use the `agents-cli` CLI to create new agent projects or enhance existing ones w
 
 ### Product name mapping
 
-Older names → CLI values (`vertexai` SDK package name unchanged):
+Current names (and older names users may say) → CLI values (`vertexai` SDK package name unchanged):
 
-- Agent Engine / Vertex AI Agent Engine → `--deployment-target agent_runtime`
-- Agent Engine sessions / Agent Platform Sessions → `--session-type agent_platform_sessions`
-- Vertex AI Search / Vertex AI Vector Search / RAG → clone-and-study recipe, not a flag
+- Agent Runtime in Gemini platform (Agent Engine / Vertex AI Agent Engine / Agent Runtime) → `--deployment-target agent_runtime`
+- Sessions in Gemini platform (Agent Engine sessions / Agent Platform Sessions) → `--session-type agent_platform_sessions`
+- Search / Vector Search in Gemini platform (Vertex AI Search / Vertex AI Vector Search) / RAG → clone-and-study recipe, not a flag
 
 > **Removed flags.** `--datastore`, the `agentic_rag` template, and `agents-cli infra datastore` /
 > `agents-cli data-ingestion` no longer exist. If you reach for one, you want a recipe instead.
@@ -131,7 +131,7 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 > **`adk` and `adk_go` are the only built-in templates.** `adk` is the default, so a Go project
 > needs `--agent adk_go` explicitly.
 > Other frameworks ship as template repos you scaffold
-> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.9.0`, with nothing installed. The first-party LangChain
+> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.10.0`, with nothing installed. The first-party LangChain
 > template is `extensions/langchain/template/` in the agents-cli repo; see
 > `/google-agents-cli-workflow` → `references/extension.md` to publish your own. Capabilities
 > beyond the template — retrieval, sandboxed execution, memory, OAuth, guardrails — are
@@ -148,7 +148,7 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 
 | Target | Description |
 |--------|-------------|
-| `agent_runtime` | Managed by Google (Vertex AI Agent Runtime). Container-based — Agent Engine builds the project Dockerfile. Sessions handled automatically. |
+| `agent_runtime` | Managed by Google (Agent Runtime). Container-based — Agent Runtime builds the project Dockerfile. Sessions handled automatically. |
 | `cloud_run` | Container-based deployment. More control; you build and deploy the Dockerfile. |
 | `gke` | Container-based on GKE Autopilot. Full Kubernetes control. |
 | `none` | No deployment scaffolding. Code only (still includes a Dockerfile). |

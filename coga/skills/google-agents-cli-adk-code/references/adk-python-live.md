@@ -21,8 +21,8 @@ request/response agents (use a normal `Agent` with `run_async` for those).
 | Continuous audio/video input | Discrete text/multimodal messages |
 | Latency-critical spoken UX | Latency-tolerant |
 
-> **Live agents can't be served over A2A, and can't be published to Gemini
-> Enterprise.** Both are request/response with no Live transport. This has
+> **Live agents can't be served over A2A, and can't be published to Gemini.**
+> Both are request/response with no Live transport. This has
 > consequences for a scaffolded project beyond the model line — see
 > "Converting a scaffolded project to Live" next.
 
@@ -34,11 +34,11 @@ after the first leaves a project whose `uv run pytest` fails.
 
 | # | File | Edit |
 |---|------|------|
-| 1 | `app/agent.py` | Point `MODEL` at a Live model and, on Vertex, add `client_kwargs={"location": …}` to the `Gemini(...)` the scaffold already emits (see "Models"). No `.env` or Terraform change. |
+| 1 | `app/agent.py` | Point `MODEL` at a Live model and, on Gemini platform, add `client_kwargs={"location": …}` to the `Gemini(...)` the scaffold already emits (see "Models"). No `.env` or Terraform change. |
 | 2 | `app/fast_api_app.py` | Delete the `attach_a2a_routes` call and its imports; delete `app/app_utils/a2a.py` and the `a2a-sdk` dependency. `/run_live` comes from `get_fast_api_app` and is untouched. |
 | 3 | `tests/integration/test_agent.py` | Rewrite onto `run_live` (below). |
 | 4 | `tests/integration/test_server_e2e.py` | Repoint the readiness probe, drop the A2A and SSE tests, add a `/run_live` test (below). |
-| 5 | — | Drop `agents-cli publish gemini-enterprise` from the plan; Gemini Enterprise has no Live transport to register against. |
+| 5 | — | Drop `agents-cli publish gemini` from the plan; the Gemini app has no Live transport to register against. |
 
 Steps 3 and 4 are not optional cleanup. Both scaffolded integration tests drive
 the **non-live** path, and a Live model doesn't degrade to text — it rejects it,
@@ -192,7 +192,7 @@ def test_adk_run_live(server_fixture) -> None:
 
 Frame details: the local server sends serialized events as **text** frames (see
 "Events"), so keys are camelCase and absent means unset — `.get()` is the right
-accessor, not truthiness on a guaranteed key. Only Agent Runtime also delivers
+accessor, not truthiness on a guaranteed key. Only Agent Runtime in Gemini platform also delivers
 event JSON as binary frames — see "Deployed URL shapes". `websockets` is
 already available via `google-genai`.
 
@@ -201,7 +201,7 @@ already available via `google-genai`.
 Every supported Live model is **native audio** — audio in, audio out, end to
 end, with no intermediate text-to-speech stage.
 
-| Model | Vertex (Gemini Enterprise Agent Platform) | AI Studio | Use for |
+| Model | Gemini platform | AI Studio | Use for |
 |---|---|---|---|
 | `gemini-3.8-live` | Supported | Supported | **Default.** Low-latency dialogue, interleaved reasoning, no reasoning-induced pauses. |
 | `gemini-3.8-live-extended-thinking` | Supported | Supported | Complex, multi-step problem solving mid-conversation. Runs background reasoning and async tool calls while it keeps streaming audio, trading latency for depth. |
@@ -240,7 +240,7 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 
 MODEL = os.getenv("LIVE_MODEL", "gemini-3.8-live")
-# Vertex only — pins the model's region (see "Region" below). The Gemini API
+# Gemini platform only — pins the model's region (see "Region" below). The Gemini API
 # rejects `location` outright, so leave LIVE_LOCATION empty on AI Studio.
 LIVE_LOCATION = os.getenv("LIVE_LOCATION", "us-central1")
 
@@ -256,11 +256,11 @@ root_agent = Agent(
 
 Confirm the current ID before shipping against
 `https://ai.google.dev/gemini-api/docs/live` (AI Studio) or
-`https://cloud.google.com/vertex-ai/generative-ai/docs/live-api` (Vertex). Load
+`https://cloud.google.com/vertex-ai/generative-ai/docs/live-api` (Gemini platform). Load
 `.env` **before** importing the agent module, or `os.getenv` runs first and
 silently uses the fallback.
 
-**Region.** On Vertex, Live models are served from a **regional** endpoint such
+**Region.** On Gemini platform, Live models are served from a **regional** endpoint such
 as `us-central1`, **not** the `global` endpoint — so a valid model ID still
 fails under the wrong location. Confirm yours in the model × region matrix at
 [Google model endpoint locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations#google-models).
@@ -276,7 +276,7 @@ Runtime — so an env-only fix works locally and then breaks once deployed.
 
 Two things to know about `client_kwargs`:
 
-- **It is Vertex-only.** On AI Studio, a `location` raises `ValueError: Gemini
+- **It is Gemini platform only.** On AI Studio, a `location` raises `ValueError: Gemini
   API does not support project/location.` The Live client is built lazily, so
   this surfaces on connect and looks like a transport failure. Keep the
   `if LIVE_LOCATION else None` guard if the same code runs on both backends.
@@ -302,7 +302,7 @@ root_agent = Agent(
     name="live_assistant",
     model=Gemini(
         model="gemini-3.8-live",
-        # Vertex only — see "Models"; omit on AI Studio.
+        # Gemini platform only — see "Models"; omit on AI Studio.
         client_kwargs={"location": "us-central1"},
     ),
     instruction="You are a helpful voice assistant. Keep replies concise.",
@@ -345,7 +345,7 @@ from google.genai import types
 
 support_llm = Gemini(
     model="gemini-3.8-live",
-    client_kwargs={"location": "us-central1"},  # Vertex only — see "Models"
+    client_kwargs={"location": "us-central1"},  # Gemini platform only — see "Models"
     speech_config=types.SpeechConfig(
         voice_config=types.VoiceConfig(
             prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
