@@ -8750,3 +8750,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 21:06 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-19 21:06 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-19 21:06 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-19 21:31 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [agent:claude] advanced to step 2 (peer-review) → codex

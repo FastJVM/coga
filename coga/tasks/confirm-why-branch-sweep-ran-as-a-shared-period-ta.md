@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -137,3 +137,51 @@ refusal) are guarded and tested in tests/test_recurring_clone.py; no fix or new
 regression test. Plan: record the failure mode in coga/recurring/scheduling
 (+ packaged twin). Out of scope follow-up: PR #1033 P2 thread "Catch malformed
 clone period keys" (src/coga/recurring.py `scan_clone_due` area) still unanswered.
+
+## Handoff (implement)
+
+Changed: docs/contexts/coga/recurring/scheduling/SKILL.md ("Repo scope and
+clone scope") gains one paragraph: an install older than clone scope ignores
+`scope` and runs the template as a shared period task; shipped clone shims bump
+it; the fix is upgrading the install. Packaged twin under
+src/coga/resources/templates/coga/bootstrap/contexts/ updated byte-identically.
+No code change and no new test, as agreed with the owner.
+
+Pre-existing failures (also on base with the change stashed; not caused here):
+- tests/test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]:
+  CLAUDE.md is absent from this checkout (untracked, not present).
+- tests/test_usage_report.py::test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli:
+  shim import set now includes `coga.tasks.read_ticket`/`resolve_task`, which the
+  test's expected map lacks.
+
+## PR
+
+```yaml
+title: Document clone scope under a lagging install
+author: claude
+author_evidence: Attended implement session ran on Claude Opus 5.5 (claude-opus-5-5).
+head: 79416f2d15770af9b9dea166e735a4faec45f7fb
+base: a31e549b1fd5b74db53841c81a5a36c8d2b1335a
+depth: skim
+rationale: Docs-only paragraph in one topic plus its byte-identical packaged twin; the diagnosis is on the blackboard.
+implementation: Adds a paragraph to coga/recurring/scheduling saying an install that predates clone scope services a clone template as a shared period task, the shims bump it, and the cure is upgrading the install.
+deviations: None. Investigation found install lag (editable checkout at 573824fc5, lacking bbcc1f551) rather than a runner bug, so no code fix or regression test.
+limitations: Does not address the unanswered PR 1033 thread on malformed clone period keys.
+files:
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Records the lagging-install failure mode for clone-scoped templates.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Packaged twin kept byte-identical.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No review has run yet; the workflow's later steps own review.
+checks:
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_recurring_clone.py tests/test_recurring_shims.py
+    status: passed
+    head: 79416f2d15770af9b9dea166e735a4faec45f7fb
+    base: a31e549b1fd5b74db53841c81a5a36c8d2b1335a
+    detail: 68 passed, 2 skipped.
+  - command: .venv/bin/python -m pytest -q
+    status: not-run
+    detail: Full suite ran only before the rebase onto a31e549b1 (2 failed, 3801 passed, 7 skipped); both failures are pre-existing and unrelated (see Handoff). Not rerun on this head.
+```
