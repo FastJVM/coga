@@ -11,11 +11,112 @@ from coga.blackboard import (
     PRELAUNCH_SYNTHESIS_TEXT_CHARS,
     blackboard_for_prompt,
     blackboard_size_warning,
+    open_blockers,
+    parse_blockers_text,
     prelaunch_blackboard_synthesis_reason,
     prelaunch_blackboard_synthesis_reason_text,
+    read_blockers,
     render_blackboard,
 )
 from coga.config import Config, load_config
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~", "````"])
+def test_blocker_examples_are_inert_for_readers(tmp_path: Path, fence: str) -> None:
+    text = (
+        "## Blockers\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+        f"{fence}markdown\n"
+        "  resolved: [2026-09-18 13:00] [human:marc] Example answer\n"
+        "## Superseded designs\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=example Example ask\n"
+        "- [2026-09-18 12:00] [human:marc] Legacy example\n"
+        f"{fence}\n"
+        "- [X] [2026-09-18 12:00] [human:marc] id=done Answered ask\n"
+        "  resolved: [2026-09-18 13:00] [human:marc] Real answer\n"
+        "- [2026-09-18 12:00] [human:marc] Legacy live ask\n"
+        "- [2026-09-18 12:00] [human:marc] Legacy answered ask\n"
+        "  resolved: [2026-09-18 13:00] [human:marc] Legacy answer\n"
+    )
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text("---\ntitle: Work\n---\n<!-- coga:blackboard -->\n" + text)
+    before = ticket.read_bytes()
+
+    blockers = parse_blockers_text(text)
+
+    assert [b.id for b in blockers] == ["live", "done", "legacy-1", "legacy-2"]
+    assert [b.resolved for b in blockers] == [False, True, False, True]
+    assert [b.answer for b in blockers] == [None, "Real answer", None, "Legacy answer"]
+    assert read_blockers(ticket) == blockers
+    assert [b.id for b in open_blockers(ticket)] == ["live", "legacy-1"]
+    assert ticket.read_bytes() == before
+
+
+@pytest.mark.parametrize("example", [
+    "```\n{answer}```\n",
+    "~~~\n{answer}~~~\n",
+    "## Superseded designs\n{answer}## Notes\n",
+])
+def test_blocker_resolution_examples_cannot_resolve_a_live_ask(example: str) -> None:
+    text = (
+        "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+        + example.format(
+            answer="  resolved: [2026-09-18 13:00] [human:marc] Example answer\n"
+        )
+    )
+
+    blocker, = parse_blockers_text(text)
+
+    assert blocker.id == "live"
+    assert not blocker.resolved
+    assert blocker.answer is None
+
+
+def test_blockers_archive_boundaries_and_duplicate_sections() -> None:
+    ask = "- [ ] [2026-09-18 12:00] [human:marc] id={id} Ask\n"
+    text = (
+        ask.format(id="before")
+        + "## Superseded designs \t\n"
+        + ask.format(id="archived")
+        + "### Old details\n---\nSetext title\n===\n"
+        + ask.format(id="still-archived")
+        + "~~~markdown\n## Blockers\n~~~\n"
+        + ask.format(id="after-example")
+        + "# Current handoff\n"
+        + ask.format(id="middle")
+        + "## Superseded designs\n"
+        + ask.format(id="second-archive")
+        + "   ## Blockers ##\n"
+        + ask.format(id="after")
+    )
+
+    assert [b.id for b in parse_blockers_text(text)] == ["before", "middle", "after"]
+
+
+@pytest.mark.parametrize("heading", [
+    "## Superseded designs (notes)", "## superseded designs",
+    "## Superseded designs ##", " ## Superseded designs", "### Superseded designs",
+])
+def test_blockers_archive_requires_an_exact_heading(heading: str) -> None:
+    text = heading + "\n- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+
+    assert [b.id for b in parse_blockers_text(text)] == ["live"]
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+def test_blockers_unclosed_fences_preserve_archive_projection(
+    tmp_path: Path, fence: str,
+) -> None:
+    ask = "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+    # The shared line reader treats an unmatched opener as ordinary text.
+    live = f"{fence}markdown\n## Superseded designs\n" + ask
+    assert [b.id for b in parse_blockers_text(live)] == ["live"]
+    assert blackboard_for_prompt(live, tmp_path / "ticket.md") == live
+    # Archive projection keeps its existing fence-to-EOF rule: a heading in
+    # an unmatched archived example cannot bring the rest back into live state.
+    archived = f"## Superseded designs\n{fence}markdown\n## Blockers\n" + ask
+    assert parse_blockers_text(archived) == []
+    assert "Real ask" not in blackboard_for_prompt(archived, tmp_path / "ticket.md")
 
 
 def test_prelaunch_blackboard_treats_stock_placeholder_as_empty() -> None:

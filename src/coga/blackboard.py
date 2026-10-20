@@ -22,6 +22,7 @@ from coga.paths import read_packaged_resource, read_resource
 from coga.taskfile import (
     TaskFileError,
     fence_count,
+    markdown_lines,
     read_blackboard,
     replace_blackboard,
 )
@@ -426,17 +427,21 @@ def append_blocker(
 
 
 def parse_blockers_text(text: str) -> list[Blocker]:
-    """Parse blockers from a blackboard region.
+    """Parse live blockers, excluding archives and closed fenced examples.
 
     New entries use checkbox lines with a stable id. Historical panic entries
     had no checkbox or id; treat them as open until an unblock rewrite marks
-    them resolved.
+    them resolved. Apply the existing archive projection first; its unmatched
+    fences keep their EOF behavior. In the remaining live text, unmatched
+    openers are ordinary text, as in the shared Markdown line reader.
     """
-    lines = text.splitlines()
     blockers: list[Blocker] = []
     pending_index: int | None = None
     legacy_counter = 0
-    for line in lines:
+    for line, fenced in markdown_lines(_without_superseded_designs(text)):
+        if fenced:
+            continue
+        line = line.rstrip("\r\n")
         checkbox = _CHECKBOX_BLOCKER_RE.match(line)
         if checkbox:
             created_at = _parse_ts(checkbox.group("ts"))

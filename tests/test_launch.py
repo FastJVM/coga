@@ -4591,6 +4591,64 @@ def test_launch_prompt_report_warns_for_uncomposed_sections(
     assert "sections no launch prompt carries: `## Acceptance Criteria`" in combined
 
 
+@pytest.mark.parametrize("prompt_report", [False, True])
+@pytest.mark.parametrize("sections", ["", "## Description\nIntent.\n## Context\nContext.\n"])
+@pytest.mark.parametrize("preamble", ["Lost preamble prose.\n\n", " \t\n\n"])
+def test_launch_warns_for_uncomposed_preamble(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, prompt_report: bool, sections: str,
+    preamble: str,
+) -> None:
+    from coga.taskfile import join_task_body, uncomposed_sections_warning
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.body = join_task_body(preamble + sections, "")
+    ticket.write(ref.ticket_path)
+    calls = _launch_single_spawn(monkeypatch)
+    argv = ["launch", ref.id_slug] + (["--prompt-report"] if prompt_report else [])
+
+    result = CliRunner().invoke(app, argv)
+
+    assert result.exit_code == 0, result.output
+    combined = result.output + (result.stderr or "")
+    warning = uncomposed_sections_warning(ref.ticket_path)
+    if preamble.strip():
+        assert warning is not None
+        assert warning in combined
+        assert "preamble before the first `##` heading" in combined
+    else:
+        assert warning is None
+        assert "preamble before the first `##` heading" not in combined
+    if not prompt_report:
+        prompt = _prompt_arg(calls[0])
+        assert "Lost preamble prose." not in prompt
+        if sections:
+            assert "Intent." in prompt
+            assert "Context." in prompt
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+def test_launch_ignores_blocker_examples(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, fence: str,
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path,
+        f"\n{fence}markdown\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=example Fenced ask\n"
+        f"{fence}\n## Superseded designs\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=old Archived ask\n"
+    )
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "Resolve the open blocker first" not in _prompt_arg(calls[0])
+
+
 def test_launch_prompt_report_prints_layers_without_launching(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

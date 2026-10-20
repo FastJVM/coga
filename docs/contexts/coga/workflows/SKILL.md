@@ -31,6 +31,14 @@ declare `skills:` (a list; singular `skill:` is rejected), `assignee:` (a role
 token), and `requires:` (a gate token). The markdown body may carry a
 `## <step-name>` section of inline instructions per step.
 
+`_parse_inline_sections` uses the shared `taskfile.body_sections` parser:
+closed backtick and tilde examples retain their `##` lines and subsequent
+prose inside the current section. Fenced headings cannot supply instructions
+for another step. A real H2 ends the current section even when its name is
+not a step; only headings matching a step name supply instructions. Headings
+may be indented up to three spaces and have a closing `#` run. Unmatched
+fence openers are ordinary text, so they cannot hide later real step headings.
+
 - A step **with** `skills:` composes those skill files; its inline section is
   never read by the agent (human framing only).
 - A step **without** `skills:` composes its inline section, so that prose is

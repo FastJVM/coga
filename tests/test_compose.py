@@ -904,6 +904,36 @@ def test_compose_resolved_blockers_compose_no_preamble(repo: Path) -> None:
     assert "Resolve the open blocker first" not in prompt
 
 
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+@pytest.mark.parametrize("live_ask", [False, True])
+def test_compose_blocker_examples_do_not_supply_preamble(
+    repo: Path, fence: str, live_ask: bool,
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Blocker examples")
+    ref = list_tasks(cfg)[0]
+    text = (
+        f"{fence}markdown\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=example Fenced ask\n"
+        f"{fence}\n"
+        "## Superseded designs\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=old Archived ask\n"
+        "## Blockers\n"
+    )
+    if live_ask:
+        text += "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+    replace_blackboard(ref.ticket_path, "\n" + text)
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    preambles = [layer.text for layer in report.layers if layer.layer == "blocker_preamble"]
+    assert bool(preambles) == live_ask
+    if live_ask:
+        assert "Real ask" in preambles[0]
+        assert "Fenced ask" not in preambles[0]
+        assert "Archived ask" not in preambles[0]
+
+
 def test_compose_inline_step_instructions(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
@@ -938,6 +968,59 @@ def inline_workflow(repo: Path) -> tuple[Config, TaskRef, Ticket, Path]:
     path = repo / "workflows" / "audit-inline.md"
     path.write_text("---\nname: audit-inline\nsteps: [{name: implement}]\n---\n## implement\nDo work.\n")
     return cfg, ref, ticket, path
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+def test_workflow_fenced_headings_retain_inline_instructions(inline_workflow, fence: str) -> None:
+    cfg, ref, ticket, path = inline_workflow
+    instructions = (
+        "Before example.\n"
+        f"{fence}markdown\n## Example\nExample prose.\n## pr\nBogus step.\n{fence}\n"
+        "After example."
+    )
+    path.write_text(
+        "---\nname: audit-inline\nsteps: [{name: implement}, {name: pr}, {name: review}]\n---\n"
+        "## implement\n" + instructions
+        + "\n## Notes\nNot instructions.\n## review\nReal review.\n"
+    )
+
+    workflow = Workflow.load(path)
+    report = compose_prompt_report(cfg, ref, ticket)
+
+    assert workflow.inline_instructions == {"implement": instructions, "review": "Real review."}
+    assert instructions in report.prompt
+    assert "Not instructions." not in report.prompt
+    assert "Real review." not in report.prompt
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+def test_workflow_unclosed_fence_keeps_real_step_boundary(inline_workflow, fence: str) -> None:
+    _, _, _, path = inline_workflow
+    path.write_text(
+        "---\nname: audit-inline\nsteps: [{name: implement}, {name: review}]\n---\n"
+        f"## implement\nBefore.\n{fence}markdown\nUnclosed example.\n"
+        "## review\nReal review.\n"
+    )
+
+    assert Workflow.load(path).inline_instructions == {
+        "implement": f"Before.\n{fence}markdown\nUnclosed example.",
+        "review": "Real review.",
+    }
+
+
+def test_workflow_skill_backed_step_still_ignores_inline_prose(inline_workflow) -> None:
+    cfg, ref, ticket, path = inline_workflow
+    path.write_text(
+        "---\nname: audit-inline\nsteps: [{name: implement, skills: [infra/testing-conventions]}]\n---\n"
+        "## implement\nInline framing only.\n~~~markdown\n## Example\n~~~\nAfter example.\n"
+    )
+    ticket.frontmatter["workflow"] = Workflow.load(path).freeze()
+
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Run tests with pytest." in prompt
+    assert "Inline framing only." not in prompt
+    assert "After example." not in prompt
 
 
 @pytest.mark.parametrize("contents", [

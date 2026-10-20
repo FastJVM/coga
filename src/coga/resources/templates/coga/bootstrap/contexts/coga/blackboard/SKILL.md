@@ -50,6 +50,9 @@ Match the section's regime; do not invent a fourth.
   entries (shape [below](#superseded-designs);
   only an archive pointer composes). `## Blockers` takes one checkbox per ask;
   `coga unblock` marks it `- [x]` and appends `resolved:`.
+  Blocker readers ignore closed backtick/tilde examples and superseded
+  sections, including example `resolved:` lines; live checkbox entries and
+  supported legacy entries retain their resolution state.
 - **Authoring scratch: synthesize before launch.** `## Evaluator review`,
   `## Ticket authoring notes`, `## Proposals`. The `bootstrap/ticket` cleanup
   folds durable substance into the body; for a draft it keeps
@@ -86,13 +89,24 @@ carry one short pointer when a reviewer needs it; keep current decisions and
 their rationale in live notes. `blackboard.blackboard_for_prompt` leaves the
 stored history unchanged and includes only a pointer to it in the prompt.
 
-Composition and draft readiness share `_without_superseded_designs`: only
+Composition, draft readiness, and blocker reading share
+`_without_superseded_designs`: only
 the exact, unindented, case-sensitive heading starts an archive (trailing
 spaces/tabs allowed). It ends at the next ATX `#` or `##` heading outside a
 code fence, or EOF. Deeper headings and Setext underlines (`===`, `---`) do
 not end it; fenced examples, prose mentions and similar headings do not
 start it. Every exact section is omitted if duplicates exist, but authors
 must keep one.
+
+Archive projection treats an unmatched code-fence opener as extending to EOF;
+headings after it cannot start or end an archive. This rule is unchanged by
+blocker filtering. `parse_blockers_text` applies that projection first, then
+uses `taskfile.markdown_lines` to skip closed fenced examples in the live text.
+That shared reader treats unmatched openers as ordinary text, so a stray
+opener in live notes cannot hide a genuine blocker. `read_blockers` /
+`open_blockers`, launch and megalaunch eligibility, and the composed blocker
+preamble all use this interpretation. Stored examples and history remain on
+disk; filtering is a read operation.
 
 ## Draft-activation readiness
 
