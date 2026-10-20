@@ -122,6 +122,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1069
 branch: docs/clone-scope-install-lag
 
 ## Finding (decided with owner 2026-10-19)
