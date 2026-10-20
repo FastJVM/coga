@@ -8827,3 +8827,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 15:00 v1 [fix-parser-bugs-documented-in-pr-1055] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-20 15:00 v1 [fix-parser-bugs-documented-in-pr-1055] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-20 15:02 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-20 15:58 v1 [fix-parser-bugs-documented-in-pr-1055] [agent:codex] advanced to step 2 (peer-review) → codex
