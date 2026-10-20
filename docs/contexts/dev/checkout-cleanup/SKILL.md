@@ -46,7 +46,9 @@ The branch stays debt in the repository that owns it. `worktree_owner`
 records that owner for foreign primary and foreign linked checkouts. Autoclose
 captures ownership before dropping a primary's directory from the closure, and
 infers missing ownership on legacy entries before any branch cleanup or
-discharge check; it never deletes a same-named branch in the sweeping clone.
+discharge check. When the recorded checkout is a primary or its directory is
+gone, it never deletes a same-named branch in the sweeping clone; an existing
+foreign *linked* worktree is the exception, recorded as the known gap below.
 A remaining foreign branch is reported for manual cleanup in its owning
 clone. The owning clone's own daily branch sweep runs the ordinary proofs on
 the entries that record it as `owner`, then discharges and publishes them
@@ -56,6 +58,17 @@ the entry pending, and so does a missing owner of a foreign linked worktree.
 Once the owner's branch is gone, a primary-checkout entry discharges with no
 directory deletion or manual `retires.md` edit; foreign linked worktrees still
 owe their directory cleanup.
+
+Known gap (unresolved, no follow-up ticket): the foreign *linked* branch half is
+unguarded. For a recorded `worktree:` that is another repository's existing
+linked worktree, `checkout_disposal.dispose_checkout` refuses the worktree
+removal but still calls `delete_branch(cfg, root, branch, ...)` against the
+*invoking* clone, so a same-named local branch there can be judged, and
+possibly deleted, in place of the foreign repository's branch. Autoclose
+reaches it through `_dispose_checkouts` / `dispose_worklist_backlog`
+(`_owner_held_branch` returns `None` while the foreign worktree directory still
+exists), and `retire/ticket.py` `_cleanup_checkout` passes the recorded `## Dev`
+values straight in. Found on PR #939; only the foreign-primary path is guarded.
 
 ### Accepted disappearance policy
 
