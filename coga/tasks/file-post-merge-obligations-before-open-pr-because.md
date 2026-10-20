@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -128,3 +128,47 @@ branch: post-merge-obligations
 ## Plan (agreed with owner 2026-10-20)
 
 Docs/skills only: add the rule to coga/workflows "Code review gate", a pre-check in code/open-pr, and a flag-before-merge note in code/address-pr-comments (each with packaged twin). No mechanical gate: autoclose stays unconditional. PR #1055 touches a different hunk of coga/workflows; proceeding without waiting.
+
+## Handoff (implement, 2026-10-20)
+
+Commit `01035ced3` on `post-merge-obligations` (pushed; rebased on origin/main `aef654ea4`).
+
+- `coga/workflows` "Code review gate": new `### Obligations the merge does not discharge` subsection. It states that autoclose closure is unconditional (`autoclose._candidate` + merged check, never reads Done criteria) and says to file un-discharged obligations as drafts before `coga open-pr`, or keep the work off merge-closed workflows. The same goes for manual `coga mark done`. W43's three tickets are the worked case.
+- `code/open-pr`: new step 2 pre-check (steps renumbered 1–4; the "guard in step N" reference updated) plus an acceptance bullet.
+- `code/address-pr-comments`: flag such obligations to the human before merge and file a draft only with their agreement.
+- Packaged twins byte-identical (test_packaging passes).
+- PR #1055 edits a different hunk of coga/workflows (around line 36): no textual conflict expected, but whoever merges second should recheck the twin.
+- Pre-rebase, two unrelated test failures (missing untracked CLAUDE.md; usage_report import allowlist) reproduced on main. Main fixed both; the full suite on the rebased head passes.
+
+## PR
+
+```yaml
+title: File post-merge obligations as drafts before open-pr
+author: claude
+author_evidence: Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under coga launch; ticket agent is claude.
+head: 01035ced34e5ff81365304d8674ba2d769224e59
+base: aef654ea4b6a58b760330a2c3b2ebd8acc658bb1
+depth: skim
+rationale: Docs/skill prose only, no code change; read the new coga/workflows subsection for the rule's wording.
+implementation: States in coga/workflows that merge-triggered autoclose is unconditional and that obligations the merge does not discharge must be filed as drafts before open-pr; adds the matching pre-check to code/open-pr and a flag-before-merge note to code/address-pr-comments.
+deviations: None. Owner approved a procedural rule over a mechanical autoclose gate.
+limitations: Not enforced mechanically; an agent can still skip the pre-check. Autoclose behavior is unchanged.
+files:
+  docs/contexts/coga/workflows/SKILL.md: Owns the new rule and the W43 worked case.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin of the workflows topic.
+  coga/skills/code/open-pr/SKILL.md: Pre-check step and acceptance bullet before running coga open-pr.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Packaged twin of code/open-pr.
+  coga/skills/code/address-pr-comments/SKILL.md: Flag un-discharged obligations before the owner merges.
+  src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: Packaged twin of code/address-pr-comments.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review has not run yet; the workflow's peer-review step follows.
+checks:
+  - command: python -m pytest
+    status: passed
+    head: 01035ced34e5ff81365304d8674ba2d769224e59
+    base: aef654ea4b6a58b760330a2c3b2ebd8acc658bb1
+    detail: 3808 passed, 7 skipped.
+```
