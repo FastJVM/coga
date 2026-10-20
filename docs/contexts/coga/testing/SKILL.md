@@ -73,6 +73,19 @@ Server.
   clone), set top-level `allow_login_shell = false` in that checkout's
   gitignored `.codex/config.toml` and confirm with `command -v coga` from a
   codex session.
+- **Live-test a launch-path branch from a non-editable install.** To exercise
+  a branch's launch, supervisor, or capture code in a real `coga launch` or
+  `coga chat` session, install the branch commit non-editable into a scratch
+  venv and run that venv's `coga` by absolute path (`<venv>/bin/coga launch
+  ...`) without activating the venv: launch prepares the control checkout
+  (`main`), so an editable install of the checkout would run main's code.
+  The agent inherits the supervisor's `PATH` unchanged (`build_launch_env`
+  copies the parent environment), so commands it runs inside the session (for
+  example `coga mark done`) resolve the `coga` on that `PATH`. Without
+  activation only the supervisor/capture side runs the branch; activating the
+  venv or prepending its `bin/` would put the branch install on both sides.
+  Confirm with `command -v coga` from the session, and read the results with
+  that split in mind (seen in the 2026-10-15 Codex SIGINT reproduction).
 - Installed-versus-source skew warnings from `launch`/`validate` are owned by
   [coga/launch](../launch/SKILL.md).
 
@@ -202,6 +215,16 @@ writable_roots = ["<git common dir>"]
   so granting it leaves the common dir read-only.
 - The file is gitignored and machine-local: `writable_roots` needs this
   machine's absolute path. Coga ships no launch machinery for it.
+- A `coga launch` preflight that warns or refuses when the common dir is not
+  writable or the grant is missing was considered and left out (owner-confirmed
+  plan, 2026-10-14). A write probe in the launch parent proves only the
+  parent's access, not the child's effective sandbox; a check for this config
+  file cannot establish child permissions, since codex permissions also come
+  from other config layers and profiles; and a common-dir probe misses an
+  external `GIT_OBJECT_DIRECTORY`. Dream's preflight works because it runs
+  inside the launched agent. Reopening it needs its own capability design:
+  where the probe runs, warn versus refuse, effective object storage, and which
+  alternate configurations comply.
 - Codex reads a project `.codex/config.toml` only for a trusted project
   (`[projects."<absolute repo path>"] trust_level = "trusted"` in
   `~/.codex/config.toml`, which codex's first-run trust prompt writes).
