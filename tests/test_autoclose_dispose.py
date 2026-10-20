@@ -137,7 +137,7 @@ def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake)
+    monkeypatch.setattr("requests.post", fake)
     return posts
 
 
@@ -230,7 +230,7 @@ def test_recipe_finishes_when_every_slack_post_raises_a_non_request_oserror(
             "/nonexistent/certifi/cacert.pem"
         )
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", broken_tls)
+    monkeypatch.setattr("requests.post", broken_tls)
 
     assert am.run_autoclose_recipe(
         load_config(git_repo.coga_os), [], result=am.AutocloseResult()

@@ -95,6 +95,12 @@ STALE_CONTROL_EXIT_CODE = RETRY_WITHOUT_SWEEP_EXIT_CODE
 # picks the routine state back up. The command's exit status is unaffected.
 state_sweep_withheld: ContextVar[bool] = ContextVar("state_sweep_withheld", default=False)
 
+# Set by `recurring_runner` once it forwards a command to the control-branch
+# relay. Scoped by `cli.main`: the forwarding process must not sweep its own
+# checkout, even when the child fails or is interrupted. This is
+# process-local, so the child retains its ordinary end-of-command publication.
+control_relay_started: ContextVar[bool] = ContextVar("control_relay_started", default=False)
+
 # Per-worktree ref (git keeps `refs/worktree/*` private to each checkout)
 # holding a tree of the blobs this checkout itself published. It is what lets
 # a feature-branch or detached checkout keep publishing the same ticket: its
@@ -2312,6 +2318,7 @@ __all__ = [
     "StateRegressionError",
     "UncertainPublishError",
     "classify_checkout",
+    "control_relay_started",
     "control_branch_mismatch_message",
     "control_branch_present",
     "current_branch",

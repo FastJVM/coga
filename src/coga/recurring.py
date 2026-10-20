@@ -13,7 +13,6 @@ from typing import Any
 from uuid import uuid4
 
 import yaml
-from croniter import CroniterError, croniter
 
 from coga.create import create_task
 from coga.config import Config, ConfigError
@@ -1790,6 +1789,8 @@ def firing_stamp(when: datetime | None) -> str:
 
 
 def _last_firing(cron: str, now: datetime) -> datetime:
+    from croniter import croniter
+
     it = croniter(cron, now)
     return it.get_prev(datetime)
 
@@ -1803,6 +1804,8 @@ def _validate_schedule(schedule: Any, now: datetime) -> None:
             "`schedule` is not a valid cron expression: expected exactly "
             f"5 fields, got {field_count}"
         )
+    from croniter import CroniterError, croniter
+
     try:
         croniter(schedule, now).get_prev(datetime)
     except CroniterError as exc:
@@ -1812,6 +1815,8 @@ def _validate_schedule(schedule: Any, now: datetime) -> None:
 
 
 def _next_firing(cron: str, now: datetime) -> datetime:
+    from croniter import croniter
+
     it = croniter(cron, now)
     return it.get_next(datetime)
 

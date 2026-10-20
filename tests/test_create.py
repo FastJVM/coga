@@ -775,7 +775,7 @@ def test_recurring_creates_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
     monkeypatch.setattr(
         "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
@@ -814,7 +814,7 @@ def test_recurring_posts_error_summary(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
     _patch_recurring_command_launch(
         monkeypatch,
         repo_with_bootstrap_ticket,
@@ -846,7 +846,7 @@ def test_cli_create_creates_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -1124,7 +1124,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
     """`coga create --workflow <name>` attaches the workflow to the draft."""
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     runner = CliRunner()
@@ -1163,7 +1163,7 @@ def test_create_draft_without_workflow(
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = create_draft(title="Interview start")
@@ -1179,7 +1179,7 @@ def test_create_draft_path_syntax_places_in_subdir(
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = create_draft(title="v2/Build the flow")
@@ -1197,7 +1197,7 @@ def test_create_draft_parked_capture_is_kept_but_not_listed(
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.notification.slack.requests.post",
+        "requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = create_draft(title="_v2/Some wish")

@@ -118,7 +118,7 @@ def _capture_posts(
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake)
+    monkeypatch.setattr("requests.post", fake)
     return posts
 
 

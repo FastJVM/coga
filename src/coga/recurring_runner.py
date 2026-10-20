@@ -14,7 +14,6 @@ import sys
 import tempfile
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
-from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -279,10 +278,8 @@ def _control_remote_present_at_admission(cfg: Config) -> bool:
 # processes bounce between checkouts.
 _CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
 
-# Scoped by cli.main: the forwarding process must not sweep its own checkout,
-# even when the child fails or is interrupted. This is process-local, so the
-# child retains its ordinary end-of-command publication.
-control_relay_started: ContextVar[bool] = ContextVar("control_relay_started", default=False)
+# Owned by `coga.git` so `cli.main` can scope it without importing this module.
+control_relay_started = git.control_relay_started
 
 
 def _control_branch_holder(cfg: Config) -> Path | None:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-import requests
 
 SlackResponseStatus = Literal["live", "revoked", "unreachable"]
 
@@ -48,6 +47,8 @@ def format_slack_request_error(exc: Exception) -> str:
         hint = str(exc).casefold()
     except Exception:
         hint = ""
+
+    import requests
 
     if isinstance(exc, requests.exceptions.ProxyError):
         category = "proxy connection failure"

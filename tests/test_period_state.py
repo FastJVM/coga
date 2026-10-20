@@ -317,7 +317,7 @@ def test_mark_done_warns_on_unchanged_cursor(repo: Path, monkeypatch) -> None:
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr("requests.post", capture)
     # Parent blackboard untouched — the run "forgot" to advance last_commit.
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
@@ -343,7 +343,7 @@ def test_period_state_important_failure_does_not_undo_mark_done(
 
         return Response()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr("requests.post", capture)
 
     result = CliRunner().invoke(app, ["mark", "done", slug])
 

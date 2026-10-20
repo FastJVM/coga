@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import requests
 import typer
 
 from coga.config import Config
@@ -139,6 +138,8 @@ class SlackChannel:
             # Report first, then raise: `notification.post` decides whether an
             # undeliverable message crashes the command or is only reported.
             raise NotificationDeliveryError(message)
+
+        import requests
 
         try:
             resp = requests.post(

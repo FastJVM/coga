@@ -1038,7 +1038,7 @@ def test_mark_active_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -1057,7 +1057,7 @@ def test_mark_paused_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
@@ -1076,7 +1076,7 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
             text = "ok"
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])
@@ -1099,7 +1099,7 @@ def test_mark_canceled_slack_text_includes_reason(
 
         return R()
 
-    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("requests.post", _capture)
 
     result = CliRunner().invoke(
         app, ["mark", "canceled", slug, "--message", "Owner declined"]
