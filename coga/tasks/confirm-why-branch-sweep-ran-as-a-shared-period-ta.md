@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -132,9 +132,9 @@ fast-forward on 10-19 (reflog); bbcc1f551 (clone scope) is not its ancestor and
 its `recurring.py` has no `SCOPE_CLONE`, ignoring unknown keys. So the 10:34
 sweep treated branch-sweep as a shared template (39fe8061c); the shim's
 `COGA_TASK_SLUG` branch bumped it to done. Current code: both period-task create
-paths (`recurring.scan` skip via `_declares_clone_scope`, `create_named`
+paths (`recurring.scan_due` skip via `_declares_clone_scope`, `create_named`
 refusal) are guarded and tested in tests/test_recurring_clone.py; no fix or new
-regression test. Plan: record the failure mode in coga/recurring/scheduling
+regression test. Recorded the failure mode in coga/recurring/scheduling
 (+ packaged twin). Out of scope follow-up: PR #1033 P2 thread "Catch malformed
 clone period keys" (src/coga/recurring.py `scan_clone_due` area) still unanswered.
 
@@ -154,34 +154,119 @@ Pre-existing failures (also on base with the change stashed; not caused here):
   shim import set now includes `coga.tasks.read_ticket`/`resolve_task`, which the
   test's expected map lacks.
 
+## Peer review
+
+Completed direct Codex review of head `78fc906e6d656d1619c662b0f572927e1f48122f` against
+base `b00587bb208485dc02b3ee7e38c123d4cc8883c7` after the final rebase and wording correction.
+No unresolved must-fix findings remain. No nested reviewer CLI was run.
+
+Authorship: Claude wrote the original paragraph (implement handoff and commit
+co-author evidence). Codex independently reviewed that implementation, then
+made the owner-approved qualification and reviewed the final combined diff.
+The final PR receipt is marked self-review because it includes Codex's own
+wording correction; it does not claim an independent review of that correction.
+
+Resolved finding: a shared task's existence alone does not establish that the
+currently running CLI is stale. The paragraph now asks the operator to check
+the CLI/version and editable source checkout that created a shared task for a
+template already declaring clone scope, and limits the upgrade remedy to that
+mismatch. The owner approved this qualification in the attended review session.
+Both topic copies remain byte-identical, and their install links resolve.
+
+Diagnosis independently checked: HEAD and main reflogs place the editable
+source checkout at `573824fc5` from 2026-10-16 12:29 until 2026-10-19 10:51
+(local -07:00); `bbcc1f551` is not its ancestor. That source has no clone-scope
+handling and ignores the unknown key. At `39fe8061c`, the template already
+says `scope: clone`, and the copied shim bumps a shared task when
+`COGA_TASK_SLUG` is set. Current `scan_due` skips clone templates,
+`create_named` refuses them, and named launch dispatches them to the clone
+runner; existing clone and shim tests cover these paths. No runner fix is
+needed for this observed incident. The PR #1033 malformed-period-key concern
+remains outside this change and was not reevaluated here.
+
+Verification on the final head/base, with Python 3.12.12:
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q`:
+  2 failed, 3801 passed, 7 skipped in 306.61s. The failures are exactly the
+  two described in the implement handoff. Their tests, the usage-report shim,
+  and repository instructions are identical to base; base also has no
+  `CLAUDE.md`. The suite is recorded as failed, not waived.
+- `git diff --check origin/main...HEAD`: passed.
+- `cmp docs/contexts/coga/recurring/scheduling/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md`: passed.
+- No terminal or Slack behavior changed, so interactive surface testing is
+  inapplicable. No new regression test was added for this documentation change.
+
+Earlier suite attempts were interrupted for the approved wording change and
+an unrelated orientation launch that switched this checkout. After the owner
+clarified that the other session was working in another repo, the branch was
+rebased again and the full suite above ran without checkout movement. Those
+interrupted attempts are not current verification receipts.
+
+Reconciled with fetched origin/main at `b00587bb208485dc02b3ee7e38c123d4cc8883c7`, then pushed
+`docs/clone-scope-install-lag` with `--force-with-lease`; it contains two commits
+ahead of main. Loaded control's ticket before this handoff. With
+`COGA_LAUNCH_RETURNS_CHECKOUT=1`, leave checkout return to the launcher after
+bump. PR recommendation is deep because the full suite has recorded failures.
+
 ## PR
 
 ```yaml
 title: Document clone scope under a lagging install
-author: claude
-author_evidence: Attended implement session ran on Claude Opus 5.5 (claude-opus-5-5).
-head: 79416f2d15770af9b9dea166e735a4faec45f7fb
-base: a31e549b1fd5b74db53841c81a5a36c8d2b1335a
-depth: skim
-rationale: Docs-only paragraph in one topic plus its byte-identical packaged twin; the diagnosis is on the blackboard.
-implementation: Adds a paragraph to coga/recurring/scheduling saying an install that predates clone scope services a clone template as a shared period task, the shims bump it, and the cure is upgrading the install.
-deviations: None. Investigation found install lag (editable checkout at 573824fc5, lacking bbcc1f551) rather than a runner bug, so no code fix or regression test.
-limitations: Does not address the unanswered PR 1033 thread on malformed clone period keys.
+author: claude/codex
+author_evidence: The implement handoff and commit co-author identify Claude Opus 5.5 as the original author.
+  In this attended peer-review session, Codex authored the owner-approved diagnostic qualification in
+  the final commit.
+head: 78fc906e6d656d1619c662b0f572927e1f48122f
+base: b00587bb208485dc02b3ee7e38c123d4cc8883c7
+depth: deep
+rationale: The documentation change is bounded and the install-lag diagnosis is supported by historical
+  source and reflogs. Deep is required by the review-depth rubric because the full suite still has two
+  pre-existing failures; the final wording correction also has self-review rather than a separate independent
+  reviewer.
+implementation: 'Documents how a CLI predating clone scope ignores scope: clone, creates a shared period
+  task, and lets the compatible shim close it. Directs troubleshooting to the CLI and editable source
+  checkout that created the task, with an install upgrade as the remedy for that mismatch. Keeps the packaged
+  topic identical.'
+deviations: Investigation established install lag rather than a runner defect, so the owner agreed to
+  documentation only, with no runtime change or new regression test. Peer review qualified the blanket
+  diagnosis with owner approval.
+limitations: 'The full suite is not green because of the two documented baseline failures. The final diff
+  includes a Codex-authored wording correction reviewed by Codex. The malformed clone period-key concern
+  from PR #1033 is outside scope. No interactive surface changed, so no terminal or Slack exercise was
+  applicable.'
 files:
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Records the lagging-install failure mode for clone-scoped templates.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Packaged twin kept byte-identical.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Owns the failure mode, qualified diagnosis, and upgrade
+    remedy for a CLI older than its clone-scoped templates.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Byte-identical
+    packaged twin of the canonical scheduling topic.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No review has run yet; the workflow's later steps own review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 78fc906e6d656d1619c662b0f572927e1f48122f
+  base: b00587bb208485dc02b3ee7e38c123d4cc8883c7
+  detail: Direct review completed on the final head/base with no unresolved findings. Codex independently
+    reviewed the Claude implementation, then made the owner-approved wording qualification and reviewed
+    the final diff. Marked self because that final correction has no separate independent reviewer; no
+    nested review CLI was invoked.
 checks:
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_recurring_clone.py tests/test_recurring_shims.py
-    status: passed
-    head: 79416f2d15770af9b9dea166e735a4faec45f7fb
-    base: a31e549b1fd5b74db53841c81a5a36c8d2b1335a
-    detail: 68 passed, 2 skipped.
-  - command: .venv/bin/python -m pytest -q
-    status: not-run
-    detail: Full suite ran only before the rebase onto a31e549b1 (2 failed, 3801 passed, 7 skipped); both failures are pre-existing and unrelated (see Handoff). Not rerun on this head.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q
+  status: failed
+  head: 78fc906e6d656d1619c662b0f572927e1f48122f
+  base: b00587bb208485dc02b3ee7e38c123d4cc8883c7
+  detail: '2 failed, 3801 passed, 7 skipped in 306.61s on Python 3.12.12. Both failures match the implement
+    baseline: test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]
+    reads an absent file; test_usage_report.py::test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli
+    omits read_ticket/resolve_task from its expected imports. The affected tests and shim are unchanged
+    from base.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 78fc906e6d656d1619c662b0f572927e1f48122f
+  base: b00587bb208485dc02b3ee7e38c123d4cc8883c7
+  detail: No whitespace errors in the final branch diff.
+- command: cmp docs/contexts/coga/recurring/scheduling/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md
+  status: passed
+  head: 78fc906e6d656d1619c662b0f572927e1f48122f
+  base: b00587bb208485dc02b3ee7e38c123d4cc8883c7
+  detail: Canonical and packaged topics are byte-identical. Both relative install links were also inspected
+    and resolve.
 ```
