@@ -1,7 +1,7 @@
 ---
 title: Name the current script-assist preflight_post caller in the notifications failures
   topic
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
