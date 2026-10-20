@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -81,3 +80,14 @@ and primary checkouts and other clones are covered in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-20T18:20:18+00:00
+Task: `recurring/autoclose-merged`
+
+3 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `confirm-why-branch-sweep-ran-as-a-shared-period-ta` "Confirm why branch-sweep ran as a shared period task despite scope clone": branch `docs/clone-scope-install-lag`
+- `microkernel/move-retire-to-a-command-ticket` "Move retire to a command ticket": branch `retire-command-ticket`
+- `report-of-usage-incoga-important-should-nudge-user` "Weekly usage report should mention its owner and identify the repo": branch `usage-report-owner`
