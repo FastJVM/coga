@@ -2,6 +2,8 @@
 title: Fix parser bugs documented in PR 1055
 status: draft
 owner: nicktoper
+contexts:
+  - dev/code
 workflow:
   name: code/with-review
   steps:
@@ -58,6 +60,15 @@ This is one parser/diagnostics bug-fix ticket. Changes to Retro's general follow
 Read and extend the relevant coverage in `tests/test_blackboard.py`, `tests/test_compose.py`, `tests/test_taskfile.py`, `tests/test_validate.py`, `tests/test_launch.py`, and `tests/test_megalaunch.py`; `tests/test_packaging.py` checks the canonical/package twins. Keep the regression coverage focused on the user-visible failures above.
 
 ## Context
+
+The following topics are cited rather than attached. Read their named sections before implementation, and update the owning topic and its packaged twin when its behavior changes:
+
+- `coga/blackboard`, `docs/contexts/coga/blackboard/SKILL.md`, "Section regimes" and "Superseded designs": `blackboard._without_superseded_designs` owns the exact archive projection; `parse_blockers_text` and `open_blockers` currently read the unfiltered stored region.
+- `coga/tickets`, `docs/contexts/coga/tickets/SKILL.md`, "Body regions": `taskfile.body_sections` and `uncomposed_sections` define the existing section and warning boundaries; `compose._extract_section` reads the same section parser. Preamble diagnostics must preserve that composition contract.
+- `coga/workflows`, `docs/contexts/coga/workflows/SKILL.md`, "Definition format" and "Frozen snapshot, live content": `Workflow.load` reads `_parse_inline_sections`; a skill-less step's live inline content reaches the prompt, while a skill-backed step uses its skills.
+- Read `coga/codebase`, `docs/contexts/coga/codebase/SKILL.md`, before editing source; follow `coga/testing`, `docs/contexts/coga/testing/SKILL.md`, for the checkout-specific test environment and verification receipts, and `coga/packaging`, `docs/contexts/coga/packaging/SKILL.md`, for canonical/package twin mapping.
+
+PR #1055 preserves findings from the completed `exclude-superseded-designs-from-launch-prompts` and `autofix-write-ups-lose-their-body-to-h2-headings` tickets. The reproduction details above remain usable after those source tickets are deleted. Recheck current main and that PR before implementation and publication.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
