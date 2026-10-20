@@ -14,8 +14,9 @@ stop shipping as packaged bootstrap contexts.
 
 ## Decision record
 
-_Status: **draft by 01's agent, awaiting owner approval.** Items marked
-**[owner]** are recommendations the owner should confirm or change._
+_Status: **approved by the owner (nicktoper), 2026-10-20.** Every former
+**[owner]** recommendation is confirmed as drafted, and the weak-spot calls
+below stand as written._
 
 Original evidence base: every `docs/contexts/**/SKILL.md` (85 topics) grepped by ref,
 backticked ref, relative link, and `docs/contexts/<ref>/SKILL.md` /
@@ -98,19 +99,19 @@ string in that module.
 | `coga/internals/claim-recovery` | coga-dev | `coga-dev/internals/claim-recovery` | Megalaunch claim recovery machinery | — |
 | `coga/internals/git-refresh` | coga-dev | `coga-dev/internals/git-refresh` | `git.refresh` / staleness implementation | — |
 | `coga/internals/git-regressions` | coga-dev | `coga-dev/internals/git-regressions` | Publish provenance CAS; schema-conversion procedure | — |
-| `coga/internals/human-assist` | user | `coga/human-assist` **[owner]** | Operators run `coga launch --agent` assists on owner steps | — |
+| `coga/internals/human-assist` | user | `coga/human-assist` | Operators run `coga launch --agent` assists on owner steps | — |
 | `coga/internals/launch-claims` | coga-dev | `coga-dev/internals/launch-claims` | Megalaunch claim machinery | — |
-| `coga/internals/pr-publication` | user | `coga/pr-publication` **[owner]** | What `coga open-pr` proves; explains its refusals | `ticket-tpl`; `bw:docs/with-review` |
-| `coga/internals/pr-publication/existing-pr` | user | `coga/pr-publication/existing-pr` **[owner]** | Refreshing an existing PR | `bs:code/open-pr` |
-| `coga/internals/pr-publication/preparation` | user | `coga/pr-publication/preparation` **[owner]** | `## PR` record and review depth | `bs:code/implement`, `bs:code/open-pr`, `bs:code/self-qa`; `bw:code/with-review`, `bw:code/with-self-review`, `bw:code/design-then-implement`, `bw:docs/with-review`; `ticket-tpl` comment |
+| `coga/internals/pr-publication` | user | `coga/pr-publication` | What `coga open-pr` proves; explains its refusals | `ticket-tpl`; `bw:docs/with-review` |
+| `coga/internals/pr-publication/existing-pr` | user | `coga/pr-publication/existing-pr` | Refreshing an existing PR | `bs:code/open-pr` |
+| `coga/internals/pr-publication/preparation` | user | `coga/pr-publication/preparation` | `## PR` record and review depth | `bs:code/implement`, `bs:code/open-pr`, `bs:code/self-qa`; `bw:code/with-review`, `bw:code/with-self-review`, `bw:code/design-then-implement`, `bw:docs/with-review`; `ticket-tpl` comment |
 | `coga/internals/recurring-admission` | coga-dev | `coga-dev/internals/recurring-admission` | Period leases/generations machinery | — |
 | `coga/internals/recurring-control` | coga-dev | `coga-dev/internals/recurring-control` | Control-branch relay machinery (user rule must be in `coga/recurring/scheduling`) | — |
 | `coga/internals/recurring-temp-worktrees` | coga-dev | `coga-dev/internals/recurring-temp-worktrees` | `--all` temp-worktree machinery | — |
 | `coga/internals/spool-merge` | coga-dev | `coga-dev/internals/spool-merge` | Union-merge implementation | — (`logfile.py`, `git.py` comments only) |
 | `coga/internals/state-publication` | split | user cut `coga/state-publication`; remainder `coga-dev/internals/state-publication` | Which files auto-publish and the pre-review hazard are user; invariants are Coga-dev | `bs:code/self-qa` ("Pre-review state publication hazard"); `bs:retro/done-ticket` |
-| `coga/internals/state-publication/authoring` | user | `coga/state-publication/authoring` **[owner]** | What `coga ticket` finalization publishes | `bs:coga/ticket/finalize` |
+| `coga/internals/state-publication/authoring` | user | `coga/state-publication/authoring` | What `coga ticket` finalization publishes | `bs:coga/ticket/finalize` |
 | `coga/internals/state-publication/publish` | coga-dev | `coga-dev/internals/state-publication/publish` | `git.publish` primitive | — |
-| `coga/internals/state-publication/sweep` | user | `coga/state-publication/sweep` **[owner]** | End-of-command sweep and `coga run publish-state` recovery | — (target of the recovery that `[git] sync failed` prints) |
+| `coga/internals/state-publication/sweep` | user | `coga/state-publication/sweep` | End-of-command sweep and `coga run publish-state` recovery | — (target of the recovery that `[git] sync failed` prints) |
 | `coga/knowledge` | split | stays; remainder `coga-dev/archive-access` | Where facts live is user; `docs/archive/` rule is this repo's | `T:contexts/_template`; `bs:bootstrap/ticket`; `bs:bootstrap/dream/scan/knowledge-scan`; `bs:retro/done-ticket` |
 | `coga/launch` | user | | `coga launch` contract | `prompt`; `T:bootstrap/orient` |
 | `coga/launch-internals` | coga-dev | `coga-dev/internals` | Index of coga-dev internals (becomes the namespace parent) | — (`launch.py` docstring only) |
@@ -120,9 +121,9 @@ string in that module.
 | `coga/notifications/failures` | user | | Delivery failures, redaction | — |
 | `coga/notifications/producers` | user | | Which events post | `rec:blocker-reminders`; `bs:coga/blockers/remind`; `T:workflows/blocker-reminders/run` |
 | `coga/packaging` | split | user cut `coga/edge-code` + into `coga/context-layout`; remainder `coga-dev/packaging` | Edge shims, local forks, overriding bundled resources are user; twins and wheel are Coga-dev | — |
-| `coga/patterns` | coga-dev **[owner]** | `coga-dev/patterns` | Rules for designing new Coga features | — |
+| `coga/patterns` | coga-dev | `coga-dev/patterns` | Rules for designing new Coga features | — |
 | `coga/period-task` | user | | Auto-attached to every period task | `recurring.py` auto-attach; `bs:coga/autoclose/sweep` |
-| `coga/principles` | coga-dev **[owner]** | `coga-dev/principles` | Foundation for developing Coga and its README | — (`commands/update.py` legacy gitignore entry only) |
+| `coga/principles` | coga-dev | `coga-dev/principles` | Foundation for developing Coga and its README | — (`commands/update.py` legacy gitignore entry only) |
 | `coga/project-stage` | coga-dev | `coga-dev/project-stage` | Coga's own stage posture; already local-only | `bs:bootstrap/ticket` names it (bug; 02 removes) |
 | `coga/prompt-composition` | user | | Prompt layers and repo overrides | — |
 | `coga/recurring` | user | | Recurring overview | — |
@@ -221,7 +222,7 @@ fact stands alone; any remaining pointer becomes a GitHub URL):
 ### 4. How the audience is expressed
 
 **Decision: namespace split.** Coga-dev topics live under a new top-level
-namespace **`coga-dev/`** **[owner: name]** in this repo's contexts root.
+namespace **`coga-dev/`** in this repo's contexts root.
 `coga/*` and `dev/*` hold only user topics.
 
 | Option | For | Against |
@@ -241,7 +242,7 @@ Consequences 02 implements:
 - `coga-dev/internals/SKILL.md` is the old `coga/launch-internals` index,
   trimmed to coga-dev pages; user pages it listed (`pr-publication`,
   `human-assist`, `state-publication`) are linked from `coga/architecture`.
-- **[owner]** Rename the six user topics out of `coga/internals/` (to
+- **Confirmed:** rename the six user topics out of `coga/internals/` (to
   `coga/pr-publication/**`, `coga/human-assist`, `coga/state-publication/**`)
   so "internals" means coga-dev only. Tradeoff: adopting repos that attach
   those refs break once. Alternative: keep their refs and leave
@@ -260,7 +261,7 @@ Consequences 02 implements:
 - The release note lists every old ref → new ref, and every ref that stops
   shipping (all `coga-dev/` targets).
 
-### Weak spots for the owner
+### Weak spots (owner confirmed as drafted)
 
 - **`coga/principles` → coga-dev.** It is Coga's identity, but nothing shipped
   cites it and its own description says it is for developing Coga. Keep `user`
