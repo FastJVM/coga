@@ -12,6 +12,11 @@ title: "Dream"
 
 Run the Dream cleanup pass for this Coga repo.
 
+This template owns Dream's procedure and contract. With no `workflow:`,
+it runs as `direct/body`. The alias `coga dream` launches this recurring
+template; the scheduler runs Dream last so it sees the periods that
+the same sweep finished (see `coga/recurring/scheduling`).
+
 Dream is Coga's generic cleanup pass. It runs in two halves. The **decide**
 half reads the whole repo while it is still intact and classifies every
 housekeeping repair and knowledge change worth making. The **execute** half
@@ -60,6 +65,10 @@ a Dream phase is a normal change to this template. A phase failing does not
 permit a replacement: record the result and continue only with later phases
 whose inputs do not depend on the blocked one. If a repo wants a different
 maintenance loop, make another task with its own body and ordered phase list.
+
+Destructive actions must be deterministic, narrow, and explicitly named
+in the invoked skill's `May change`; otherwise propose the change for
+review. Missing or failed phases grant no substitute action.
 
 The two deterministic phases (1 and 5) run registered recipes directly from
 this Dream task. Before each run, read the matching skill's
@@ -223,6 +232,14 @@ leaf completed and the de-duplicated findings across all attempts total zero,
 or `partial` when any active leaf did not complete. Superseding a shard changes
 the coverage check; it never discards findings that shard already appended.
 
+### Known corpus limitation
+
+Both scans currently exclude package-backed `bootstrap/skills/**`.
+The knowledge scan owns tickets and `coga/workflows/**`; the contract
+audit adds recurring templates, `README.md`, `docs/*.md`,
+`CLAUDE.md`/`AGENTS.md` and treats `coga/tasks/` as history. Correcting
+this limitation requires a corpus decision for both scans.
+
 ### Phase 2 — knowledge scan
 
 Shard this phase to subagents using the `bootstrap/dream/scan/knowledge-scan`
@@ -289,6 +306,12 @@ its record. A processed `## Retro` marker on a still-present directory does not
 settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
+
+The `retro/done-ticket` skill owns extraction and deletion: knowledge-bearing
+tickets leave in knowledge PRs, and tickets with nothing durable may be
+direct-deleted. Read recurring periods' `## Gotchas` before classifying
+them; unresolved adjacent bugs or unshipped scope are durable knowledge
+unless the owning corpus already preserves them.
 
 Before delegation, create a unique writable temporary run directory outside
 every checkout. Copy the live Retro inputs into its read-only `evidence/`

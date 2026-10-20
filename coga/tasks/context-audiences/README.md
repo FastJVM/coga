@@ -17,10 +17,27 @@ stop shipping as packaged bootstrap contexts.
 _Status: **draft by 01's agent, awaiting owner approval.** Items marked
 **[owner]** are recommendations the owner should confirm or change._
 
-Evidence base: every `docs/contexts/**/SKILL.md` (85 topics) grepped by ref,
+Original evidence base: every `docs/contexts/**/SKILL.md` (85 topics) grepped by ref,
 backticked ref, relative link, and `docs/contexts/<ref>/SKILL.md` /
 GitHub-URL form across `src/`, `docs/contexts/`, `coga/`, `tests/`,
 `README.md`, `AGENTS.md`, `docs/README.md` (main at `ab108fbb9`).
+
+### Ownership relocation — 2026-10-20
+
+The owner approved moving job-specific contracts and procedures out of
+contexts. The inventory below now excludes seven former topics:
+
+- Phone-home owns its contract in `coga/recurring/phone-home/ticket.md`
+  and its maintenance runbook in the sibling `operations.md`.
+- Dream owns its contract in `coga/recurring/dream/ticket.md` and its
+  invoked skills.
+- `coga/releasing` and `coga/testing/clean-install` (including `macos-aws`
+  and `windows-aws`) are skills under `coga/skills/`, with packaged
+  bootstrap skill twins. Their distribution is unchanged by this move.
+
+Do not recreate those contexts during the audience split. Any proposal to
+stop shipping the maintainer skills needs the audience decision; this
+ownership correction does not settle it.
 
 ### 1. Audience criterion
 
@@ -70,7 +87,6 @@ string in that module.
 | `coga/configuration` | user | | `coga.toml` / `coga.local.toml` contract | — |
 | `coga/context-layout` | user | | Layout, resolution, `[layout] contexts`; gains §3 packaging cut | — |
 | `coga/current-direction` | coga-dev | `coga-dev/current-direction` | Coga's own product decisions; already local-only | `bs:bootstrap/ticket` names it (bug: unresolvable outside this repo; 02 removes) |
-| `coga/dream` | user | | Shipped Dream recurring template's contract | — (documents `rec:dream`) |
 | `coga/extension-model` | split | stays; remainder `coga-dev/microkernel` | Repo capability homes and `[aliases]` are user; kernel rule is Coga-dev | — (`launch.py` comment only) |
 | `coga/first-task` | user | | First ticket walk-through | — |
 | `coga/important` | user | | coga-important destination bar | `bs:coga/autoclose/sweep` |
@@ -117,18 +133,12 @@ string in that module.
 | `coga/recurring/scheduling/inactivity` | user | | `idle_days` gate | — |
 | `coga/recurring/scheduling/ledger` | user | | Period keys and ledger | — |
 | `coga/recurring/templates` | user | | Authoring recurring templates | `ticket-tpl` |
-| `coga/releasing` | coga-dev | `coga-dev/releasing` | Publishing Coga to PyPI | — |
 | `coga/script-tickets` | user | | `ticket.py` phase contract | `T:bootstrap/retire` |
 | `coga/secrets` | user | | Ticket secret refs and vault policy | — |
 | `coga/session-conduct` | user | | Conduct per launch context | — |
 | `coga/skill-management` | user | | `coga skill` and skill provenance | — |
 | `coga/sync` | user | | Sync layers overview | — (`commands/megalaunch.py` comment only) |
-| `coga/telemetry` | user | | Phone-home contract every repo runs; gains "Disable delivery" | `T:coga.toml`; `rec:phone-home`; `src/coga_edge/phone_home.py` |
-| `coga/telemetry/operations` | split | user cut into `coga/telemetry`; remainder `coga-dev/telemetry-operations` | Disabling is user; PostHog project/key/deletion is Coga's | — |
 | `coga/testing` | split | user cut `coga/sandboxes`; remainder `coga-dev/testing` | Agent sandbox limits/grants are user; Coga's suite is Coga-dev | `bs:code/self-qa`, `bw:code/with-review`, `rec:dream` (all "Restricted sandboxes"); `bs:bootstrap/dream/scan/scan-protocol` (interpreter; see §3) |
-| `coga/testing/clean-install` | coga-dev | `coga-dev/testing/clean-install` | Coga's release install harness | — |
-| `coga/testing/clean-install/macos-aws` | coga-dev | `coga-dev/testing/clean-install/macos-aws` | Coga's macOS harness | — |
-| `coga/testing/clean-install/windows-aws` | coga-dev | `coga-dev/testing/clean-install/windows-aws` | Coga's Windows harness | — |
 | `coga/tickets` | user | | Ticket file contract | `config.py` msgs; `ticket-tpl`; `bs:code/review-design` |
 | `coga/tickets/authoring` | user | | `coga create` / `coga ticket` | `T:bootstrap/ticket` |
 | `coga/tickets/discovery` | user | | Task discovery and refs | `bs:bootstrap/ticket` |
@@ -147,7 +157,8 @@ string in that module.
 | `dev/code` | user | | Code-ticket conventions | — |
 | `dev/dev-record` | user | | Compatibility pointer for old attachments | — (candidate for deletion under the clean-break rule; out of scope here) |
 
-Count: 85 rows. 56 `user` (6 renamed out of `coga/internals/`), 23 `coga-dev`, 6 `split`.
+Count after the ownership relocation: 78 rows. 54 `user` (6 renamed out of
+`coga/internals/`), 19 `coga-dev`, 5 `split`.
 
 `docs/contexts/coga/manifesto/` is an empty directory with no topic: **remove
 it** in 02 (Git does not track it; delete locally and confirm nothing
@@ -162,7 +173,6 @@ references it).
 | `coga/extension-model` | "Choosing a home", "Parameters and trust boundaries", "`coga run <recipe>`", "Aliases" stay in `coga/extension-model` | "The microkernel rule", "Open command placements", "Migrating a built-in to the edge" → `coga-dev/microkernel` |
 | `coga/knowledge` | Everything except archive access stays | "Archive access" → `coga-dev/archive-access` (`AGENTS.md` links it) |
 | `coga/internals/state-publication` | "The Coga roots" (membership, eligibility) and the pre-review publication hazard → `coga/state-publication` (parent of `authoring` and `sweep`) | "Invariants" and `src/coga/git.py` mechanics → `coga-dev/internals/state-publication` (parent of `publish`) |
-| `coga/telemetry/operations` | "Disable delivery" → merge into `coga/telemetry` | "Project and key", "Clean installed-wheel proof", "Delete one repo's person and events" → `coga-dev/telemetry-operations` |
 
 Not split, though the ticket suspected it: `coga/codebase/gotchas`. Its only
 `src/` citation is a docstring in `retire_worklist.py`, which is Coga-dev
@@ -188,7 +198,6 @@ fact stands alone; any remaining pointer becomes a GitHub URL):
 | `coga/blackboard` | `patterns` |
 | `coga/cli` | `testing` |
 | `coga/context-layout` | `internals/state-publication` |
-| `coga/dream` | `testing` (→ `coga/sandboxes`) |
 | `coga/extension-model` | `packaging` (→ `coga/edge-code`) |
 | `coga/install` | `codebase`, `testing/clean-install/macos-aws` |
 | `coga/internals/human-assist` | `internals/assist-publication` |
@@ -201,7 +210,6 @@ fact stands alone; any remaining pointer becomes a GitHub URL):
 | `coga/recurring/scheduling` | `internals/{recurring-control,recurring-temp-worktrees}` |
 | `coga/recurring/templates`, `coga/script-tickets`, `coga/skill-management` | `packaging` (→ `coga/edge-code` or `coga/context-layout`) |
 | `coga/sync` | `internals/{git-refresh,git-regressions,spool-merge,state-publication,state-publication/publish}`, `patterns` |
-| `coga/telemetry` | `internals/spool-merge`, `packaging`, `telemetry/operations` |
 | `coga/tickets/ownership` | `internals/{claim-recovery,state-publication/publish}` |
 | `coga/usage` | `internals/{activity-capture,spool-merge}` |
 | `dev/checkouts` | `internals/{recurring-temp-worktrees,state-publication}`, `testing` |

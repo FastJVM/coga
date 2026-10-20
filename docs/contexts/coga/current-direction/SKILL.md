@@ -37,7 +37,7 @@ is `coga status` and the ticket bodies; stage posture is
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
-  instrumentation ban. Contract: [`coga/telemetry`](../telemetry/SKILL.md).
+  instrumentation ban. Contract: [`coga/recurring/phone-home/ticket.md`](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
   drafts may be stale or contradictory and owe no verdict. Pull one forward
@@ -61,7 +61,7 @@ is `coga status` and the ticket bodies; stage posture is
   maintenance; dev hygiene is outside Dream.** Done-ticket cleanup is
   Retro-first, and every processed done ticket is deleted — in a knowledge PR
   when it holds durable knowledge, otherwise directly. Contract:
-  [`coga/dream`](../dream/SKILL.md).
+  [`coga/recurring/dream/ticket.md`](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md).
 - **Ticket metadata is cut to what is read; routing is derived.** Operators
   come from the frozen step's role (`owner` | `agent` | `other-agent`) through
   one pure resolver; `agent:` is frozen at activation; overrides are

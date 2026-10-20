@@ -70,6 +70,12 @@ proofs are in [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs)
 and primary checkouts and other clones are covered in
 [dev/checkout-cleanup](context:dev/checkout-cleanup).
 
+### Upgrading an older template
+
+When adopting this template in an older repo, read the persistent
+template's [worklist setup guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md). This is an upgrade
+procedure, not an action to repeat each period.
+
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. The

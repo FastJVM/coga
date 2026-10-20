@@ -1,12 +1,8 @@
----
-name: coga/telemetry/operations
-description: Operator procedures for Coga's weekly telemetry — disabling delivery, the PostHog project and write-only key, the clean installed-wheel ingestion proof, and deleting one repo's person and events.
----
-
 # Telemetry operations
 
-The parent `coga/telemetry` topic owns the event schema, admission gates,
-cursor and loss semantics. This topic owns operator procedures. Weekly snapshots measure repos with active sweeps, not installs.
+The sibling [ticket.md](ticket.md) owns the event schema, admission gates,
+cursor and loss semantics. Read this runbook when operating or verifying
+phone-home; none of these procedures is part of an ordinary weekly run.
 
 ## Disable delivery
 
@@ -51,7 +47,7 @@ Rotation follows [Multiply's key procedure](https://github.com/FastJVM/multiply/
 update the vault source and the edge module constant and release. Adopted shims
 receive it on the next process after wheel upgrade; legacy copies and local
 forks need reviewed reconciliation. Source inspection and adoption commands
-are in [coga/packaging](../../packaging/SKILL.md). Resetting the shared key
+are in [coga/packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/packaging/SKILL.md). Resetting the shared key
 breaks already-shipped Multiply builds too. Moving Coga to a dedicated project
 requires a new constant and Coga release, not a config option. Follow-up in the
 Multiply repo: its expected event catalog should mention `coga_weekly_snapshot`.
@@ -64,9 +60,8 @@ proof below is owner-run from an ordinary shell with no test/CI environment,
 outside all Coga source trees. Do not unset test gates inside automation to make
 it deliver. Do not use an editable installation or target `tests/fixtures/seeded-repo/`.
 
-Record the evidence in the ticket or PR that carries the proof; this runbook
-owns the procedure. For the shipped weekly snapshot, the current work is the
-ticket `marketing/verify-posthog-telemetry-with-the-live-clean-wheel`.
+Record the evidence in the task or PR that carries the proof; this runbook
+owns the reusable procedure.
 
 Build the wheel from `main` at a recorded commit, then install it in a fresh
 external venv:
@@ -110,7 +105,7 @@ JSON `\u0027` becomes a SQL single quote; the shell's single quotes preserve
 posthog-cli api call --json execute-sql '{"query":"SELECT event, distinct_id, timestamp, properties, JSONExtractKeys(properties) AS property_keys FROM events WHERE distinct_id = \u0027<repo UUID>\u0027 AND event = \u0027coga_weekly_snapshot\u0027 ORDER BY timestamp"}'
 ```
 
-Compare every measured value with the prepared event and the context allowlist.
+Compare every measured value with the prepared event and the ticket's closed wire contract.
 Check all returned keys for IP, GeoIP and other unexpected enrichment; record
 service-owned routing metadata separately from client properties. Unexpected
 fields block acceptance until explained and corrected. Keep persons keyed only

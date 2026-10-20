@@ -23,7 +23,7 @@ agent: claude
 Coga's context library mixes two audiences without saying so: topics for
 **operating Coga in any adopting repo** (`coga/launch`, `coga/tickets`,
 `coga/first-task`, ...) and topics for **developing Coga itself**
-(`coga/codebase`, `coga/testing`, `coga/packaging`, `coga/releasing`, most of
+(`coga/codebase`, `coga/testing`, `coga/packaging`, most of
 `coga/internals/*`, ...). Nearly all of them ship to every adopting repo as
 packaged bootstrap contexts, and ticket authors can't tell which set to
 attach. This ticket makes the product decisions. Sibling `02` executes them.

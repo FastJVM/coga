@@ -1,6 +1,6 @@
 ---
 name: coga/notifications/producers
-description: The reviewed inventory of which Coga events post live, post as outcomes, or stay silent, with the module that actually calls post or notify for each and the blocker-reminder one-attempt watermark.
+description: The reviewed inventory of which Coga events post live, post as outcomes, or stay silent, with the module that actually calls post or notify for each.
 ---
 
 # Notification producers
@@ -27,7 +27,7 @@ before adding a row.
 | Megalaunch drain summary (non-empty) | `commands/megalaunch.py` | flow |
 | Autoclose checkout summaries (disposed checkouts flow; refused disposals important) | `autoclose.py` `_report_retire_followups` (`fatal=False`) | flow / important |
 | Autoclose unanswered review-thread summary on the PRs it closes (`coga/autoclose/sweep` skill) | `autoclose.py` `_report_followup` (`fatal=False`) | flow |
-| `recurring/phone-home` weekly snapshot receipt (keyless envelope plus attempt outcome), after a capture attempt only; opt-out, development/test/CI suppression, invalid inventory, or disabled Slack skip it; own three-second worker deadline, failure cannot affect capture or completion ([coga/telemetry](../../telemetry/SKILL.md)) | `coga_edge/phone_home.py` `_receipt`, reached through the phone-home `ticket.py` shim (`fatal=False`, `record_failure=False`) | flow |
+| `recurring/phone-home` weekly snapshot receipt ([job contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)) | `coga_edge/phone_home.py` `_receipt`, reached through the phone-home `ticket.py` shim (`fatal=False`, `record_failure=False`) | flow |
 | Autofix filed a ticket for a problem run (failed, silently idle, or with recorded errors) | `recurring_autofix.py` `run_autofix` and `run_autofix_analyze_recipe` | flow |
 
 Downstream reminder sweeps built on `src/coga/reminders.py` post their alerts
@@ -71,38 +71,5 @@ outcomes). A new template or event kind that appears on none of the three
 surfaces is an unreviewed cadence decision, not a neutral default. Keep this
 inventory in step with `coga/recurring` when templates change.
 
-## Blocker reminders: one attempt per blocker
-
-`scan_blocker_reminders` includes `status: blocked` tasks and `status: paused`
-period tasks under `tasks/recurring/` that still have unresolved `## Blockers`
-asks. The latter covers an agent period whose block was followed by the
-recurring runner's unfinished-run pause. Ordinary paused tickets, paused
-periods without open asks, and terminal tasks are excluded. A human-paused
-period with an open ask also qualifies: the ask remains visible, while the
-reminder leaves status and scheduling untouched.
-
-Blocked-task reminders point to `coga unblock <slug> --answer "..."`. Paused
-period reminders name the paused status and point to `coga launch <slug>` to
-review the ask, then `coga unblock <slug> --answer "..."` inside the resumed
-session to record its answer. Direct unblock requires a blocked or
-in-progress ticket ([lifecycle](../../lifecycle/SKILL.md)).
-
-`remind_blocked_tasks` posts one reminder per unresolved blocker, then
-`record_reminder` appends a `- <fingerprint> last_reminded: <stamp>` line
-under `## Blocker reminders` on the task's blackboard. The fingerprint is a
-**permanent dedup key, not a cooldown**: a watermarked blocker is never
-reminded again, including after a blocked-to-paused transition.
-
-The post uses the default `fatal=True`, so the watermark is written only after
-`post` returns:
-
-- a delivered post, or a post that returned without delivering because no
-  channel is selected or Slack is disabled, burns the one attempt — the
-  blocker can be watermarked with nobody told;
-- a delivery failure or unresolved webhook exits the run before the
-  watermark, so that blocker is retried on the next sweep.
-
-A sweep printing `no unresolved blockers to remind` may mean every open ask is
-already watermarked; read the eligible tasks, not the exit line. Re-reminding
-on an interval, or watermarking only confirmed deliveries, would be a behavior
-change.
+The [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md) owns reminder eligibility,
+recovery guidance and its one-attempt watermark.

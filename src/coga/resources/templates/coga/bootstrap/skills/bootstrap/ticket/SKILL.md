@@ -283,6 +283,10 @@ Do not rewrite an otherwise-valid frozen workflow snapshot.
 
 ## Step 4 — Create missing contexts and skills
 
+Choose the owning file using `coga/knowledge` first. A command ticket or
+recurring template owns its capability's contract and procedures; extend that
+owner instead of creating a context merely to make the material attachable.
+
 If the interview reveals a gap that should be a reusable context or skill,
 create the file inline rather than leaving it as a TODO. Bias toward small,
 focused files — under a page each. Use the `_template/` directories as the

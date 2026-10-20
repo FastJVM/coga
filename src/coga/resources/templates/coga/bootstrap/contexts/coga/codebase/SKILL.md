@@ -17,7 +17,7 @@ The repo separates implementation from the OS it operates:
 ## Source map
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
-  the repo shim; [coga/telemetry](../telemetry/SKILL.md) owns its contract.
+  the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns its contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial
@@ -82,7 +82,7 @@ in [coga/codebase/gotchas](gotchas/SKILL.md).
 - [coga/testing](../testing/SKILL.md): running the suite, environment
   pitfalls, CI posture, verification receipts.
 - [coga/packaging](../packaging/SKILL.md): bundled batteries, twins, wheel.
-- [coga/releasing](../releasing/SKILL.md): PyPI release and install gate.
+- [coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../skill-management/SKILL.md): skill shapes and
   `coga skill`.
 - [dev/code](../../dev/code/SKILL.md): conventions for code tickets,

@@ -11,7 +11,7 @@ git-backed data primitive: the records live in the repository and travel
 wherever the repository's git remote sends them — Coga's state publication
 pushes `coga/log.md` to the control branch (`coga/sync`). Session activity and
 token records are excluded from the weekly aggregate telemetry snapshot;
-[`coga/telemetry`](../telemetry/SKILL.md) owns that separate external boundary.
+[`coga/recurring/phone-home/ticket.md`](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns that separate external boundary.
 
 Consumers (agent autorouting, report views) are separate work. This primitive
 ships the records and the reader and deliberately defines no budget cap, no

@@ -189,7 +189,7 @@ also rebuilds the view.
   hosted account. For the optional weekly snapshot, a UUID v4 lives as
   committed state in the phone-home recurring parent blackboard and is shared
   by synced clones; it is not a human account.
-  [coga/telemetry](../telemetry/SKILL.md) owns its lifecycle and concurrency
+  [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns its lifecycle and concurrency
   limits.
 - **Task capability.** A ticket's declared `secrets:` is a declaration of
   intent, not confinement ([coga/secrets](../secrets/SKILL.md)).

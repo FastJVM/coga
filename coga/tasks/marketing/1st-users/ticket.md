@@ -30,10 +30,10 @@ The audit checks the draft on four points:
    now, e.g. multiple agents on one repo (`claude`/`codex` agent types),
    corrections turning into contexts/skills, recurring maintenance
    workflows. Mark each signal as supported, partial, or aspirational,
-   citing the owning `coga/*` topic: `coga/agents` for multiple agents,
-   `coga/recurring` for recurring maintenance, and `coga/dream` /
+   citing the owning file: `coga/agents` for multiple agents,
+   `coga/recurring` for recurring maintenance, and `coga/recurring/dream/ticket.md` /
    `coga/skill-management` for corrections becoming contexts and skills.
-   Read these topics; they are cited here, not attached.
+   Read these files; they are cited here, not attached.
 3. **Testability.** Can someone decide in one short conversation whether a
    team fits the beachhead ("2–5 engineers, technically novel product,
    several hours a day with agents, repeatedly correcting agent work")?

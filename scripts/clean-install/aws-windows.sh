@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Host-side driver for the Windows clean-install harness on an EC2 Windows
-# Server instance. See the coga/testing/clean-install/windows-aws topic.
+# Server instance. See the coga/testing/clean-install/windows-aws skill.
 set -Eeuo pipefail
 umask 077
 
@@ -247,7 +247,7 @@ provision() {
     if [[ ${COGA_CLEAN_INSTALL_ALLOCATE:-} != yes ]]; then
         cat >&2 <<'EOF'
 Refusing to provision: an EC2 Windows instance bills per second until teardown.
-Follow the approval rule in the coga/testing/clean-install/windows-aws topic,
+Follow the approval rule in the coga/testing/clean-install/windows-aws skill,
 then rerun with COGA_CLEAN_INSTALL_ALLOCATE=yes.
 EOF
         exit 2

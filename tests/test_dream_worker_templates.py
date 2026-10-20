@@ -493,30 +493,6 @@ def test_dream_roots_scan_directories_in_gitignored_coga_state() -> None:
     assert ".coga/" in gitignore.splitlines()
 
 
-def test_dream_sharding_updates_the_dream_contract() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    live = repo_root / "docs" / "contexts" / "coga" / "dream" / "SKILL.md"
-    packaged = (
-        RESOURCES
-        / "templates"
-        / "coga"
-        / "bootstrap"
-        / "contexts"
-        / "coga"
-        / "dream"
-        / "SKILL.md"
-    )
-    text = live.read_text()
-    norm = " ".join(text.replace("**", "").split())
-
-    assert live.read_bytes() == packaged.read_bytes()
-    assert "bounded shard subagents" in norm
-    assert "set of distinct shard ids" in norm
-    assert "never by counting lines" in norm
-    assert "One retry, then `partial`" in norm
-    assert "`no-op`, `reported`, `partial`, `proposed`" in norm
-
-
 def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     """In a client repo Dream must not audit the installed Coga OS files as if
     they were the client's own knowledge: identity is decided once, Rule A is
@@ -616,15 +592,7 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     # template's `## Description` section under compose's plain `^##` regex.
     assert "\n## <title>" not in dream_text
     assert "\n  ## <title>" in dream_text
-    # The live twin is enforced by test_packaging; the vocabulary reaches the
-    # coga/dream contract too.
-    dream_contract = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "dream" / "SKILL.md")
-        .read_text()
-        .split()
-    )
-    assert "`human-needed`, `upstream-captured`" in dream_contract
-    assert "`coga/upstream-coga.md`" in dream_contract
+    # This template owns the contract; test_packaging enforces its live twin.
 
 
 def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
@@ -709,11 +677,7 @@ def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
         .read_text()
         .split()
     )
-    dream_contract = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "dream" / "SKILL.md")
-        .read_text()
-        .split()
-    )
+    dream_contract = " ".join(DREAM_PROMPT.read_text().split())
 
     assert '`.codex/config.toml`: ```toml sandbox_mode = "workspace-write"' in testing
     assert "[sandbox_workspace_write] network_access = true" in testing
@@ -726,7 +690,8 @@ def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
     assert "covers every codex session launched in that checkout" in testing
     assert "agent capability preflight" in dream_contract
     assert "fresh context" in dream_contract
-    assert "`## Restricted sandboxes` recipe" in dream_contract
+    assert "agent sandbox grant recipe in the `coga/testing` topic" in dream_contract
+    assert "`## Restricted sandboxes`" in dream_contract
 
 
 def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:

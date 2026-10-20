@@ -61,16 +61,16 @@ operating rules without a merge.
   [scheduling](../recurring/scheduling/SKILL.md) and its leaves,
   [delegation](../recurring/delegation/SKILL.md),
   [autofix](../recurring/autofix/SKILL.md)),
-  [period-task](../period-task/SKILL.md), [dream](../dream/SKILL.md).
+  [period-task](../period-task/SKILL.md), [dream](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md).
 - **State and notifications**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
   [patterns](../patterns/SKILL.md), [usage](../usage/SKILL.md),
-  [telemetry](../telemetry/SKILL.md).
+  [telemetry](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
 - **Develop Coga**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
   [codebase](../codebase/SKILL.md), [testing](../testing/SKILL.md),
-  [packaging](../packaging/SKILL.md), [releasing](../releasing/SKILL.md);
+  [packaging](../packaging/SKILL.md), [releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md);
   code-task conventions [dev/code](../../dev/code/SKILL.md)
   ([checkouts](../../dev/checkouts/SKILL.md),
   [design history](../blackboard/SKILL.md#superseded-designs),

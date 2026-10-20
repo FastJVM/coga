@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Host-side driver for the macOS clean-install harness on an EC2 Mac
-# (mac2.metal dedicated host). See the coga/testing/clean-install/macos-aws topic.
+# (mac2.metal dedicated host). See the coga/testing/clean-install/macos-aws skill.
 set -Eeuo pipefail
 umask 077
 

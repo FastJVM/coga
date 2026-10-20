@@ -3,7 +3,6 @@ title: Dream's own blackboard trips large-blackboard every run
 status: in_progress
 owner: nicktoper
 contexts:
-- coga/dream
 - coga/period-task
 workflow:
   name: code/design-then-implement
@@ -47,11 +46,11 @@ Options, decided by the owner at the `review-design` gate:
 1. **Attachment.** The template body tells Dream to write bulky per-run sections (Findings, validate-drift detail) to a sibling attachment in the period task directory, and only the summary stays on the blackboard.
 2. **Skip done period tasks.** Don't run `large-blackboard` on a `done` period task that the next firing will delete.
 3. **Exempt.** Exempt recurring period tasks (or their report sections) from `large-blackboard` in some other way.
-4. **Accept.** Accept the warning and record the rationale in `docs/contexts/coga/dream/SKILL.md`.
+4. **Accept.** Accept the warning and record the rationale in `coga/recurring/dream/ticket.md`.
 
 Done when one of the following is merged:
 - Option 1, 2 or 3 is implemented with a test covering the new behavior. A `coga validate --json` run after a Dream-sized period blackboard no longer reports `large-blackboard` for `recurring/dream`. The owning contexts are updated in the same PR.
-- Or the acceptance (option 4) is recorded in `docs/contexts/coga/dream/SKILL.md`.
+- Or the acceptance (option 4) is recorded in `coga/recurring/dream/ticket.md`.
 
 ### Options weighed (design step)
 
@@ -123,7 +122,7 @@ superseded.
       per-run scratch` gets one sentence: a done period's blackboard is not
       size-checked by `coga validate`, so it may hold the full run report.
       Its packaged twin matches.
-- [ ] `docs/contexts/coga/dream/SKILL.md` `## Results and safety` notes that
+- [ ] `coga/recurring/dream/ticket.md` Phase 6 notes that
       the run report stays on the period blackboard and that the done period
       is exempt from `large-blackboard`, linking `coga/blackboard`. Its
       packaged twin matches.
@@ -177,6 +176,8 @@ superseded.
 
 ## Context
 
+Read `coga/recurring/dream/ticket.md` for Dream's procedure and contract.
+
 The design step lays out the options with their tradeoffs and recommends one. If the owner picks option 4, `implement` is a docs-only change.
 
 **Period task vs template (the key fact).** `coga/recurring/dream/ticket.md` is the template. It is byte-identical to its packaged twin `src/coga/resources/templates/coga/recurring/dream/ticket.md` (`coga/packaging`), and that twin is where any change to how Dream writes its report must land. `coga/tasks/recurring/dream/` is the per-firing period task. Its blackboard is per-run scratch that the next period deletes (`coga/period-task`, attached). Phase 6 of the template already describes these sections as an index for a task that "is retired and its blackboard with it". A period task has no packaged twin.
@@ -191,7 +192,7 @@ The design step lays out the options with their tradeoffs and recommends one. If
 - Dream's validate-drift scan, `dream_validate_drift.classify_issue`, turns `large-blackboard` into a PR proposal for the `coga/blackboard` bloated-blackboard remedy. That is why Dream proposes fixing itself.
 - Options 2 and 3 change core validation. Justify them against `coga/extension-model` and `coga/principles`: a lifecycle-based rule (a `done` scratch task) generalizes better than a special case for one recurring job.
 
-**Owner topics to update in the same PR:** `coga/dream` (attached; `## Results and safety` owns the run report). Depending on the option, also `coga/blackboard` (cited: read its bloated-blackboard section), `coga/recurring` (cited: read its period-task/template section) and `coga/period-task`.
+**Owners to update in the same PR:** `coga/recurring/dream/ticket.md` (read explicitly; Phase 6 owns the run report). Depending on the option, also `coga/blackboard` (cited: read its bloated-blackboard section), `coga/recurring` (cited: read its period-task/template section) and `coga/period-task`.
 
 **Out of scope:** changing `BLACKBOARD_WARN_BYTES` for all tasks, and trimming other tasks' blackboards.
 

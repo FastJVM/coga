@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Headless phase of the phone-home period task; behavioral contract: coga/telemetry.
+"""Headless phone-home phase; contract: coga/recurring/phone-home/ticket.md.
 
 Ticket-owned, not a registered recipe: it runs the weekly snapshot under
 the shared recipe-failure floor, then completes the step through the CLI.

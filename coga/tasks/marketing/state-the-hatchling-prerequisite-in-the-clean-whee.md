@@ -7,7 +7,7 @@ workflow: code/with-review
 
 ## Description
 
-The "Clean installed-wheel proof" section of `coga/telemetry/operations`
+The "Clean installed-wheel proof" section of `coga/recurring/phone-home/operations.md`
 builds the wheel with
 `python -m pip wheel --no-deps --no-build-isolation . -w …`. Because
 `--no-build-isolation` makes pip use the running interpreter's packages, this
@@ -28,9 +28,9 @@ passes.
 
 ## Context
 
-- Edit both copies (do not attach the topic):
-  `docs/contexts/coga/telemetry/operations/SKILL.md` and
-  `src/coga/resources/templates/coga/bootstrap/contexts/coga/telemetry/operations/SKILL.md`.
+- Read and edit both runbook copies:
+  `coga/recurring/phone-home/operations.md` and
+  `src/coga/resources/templates/coga/recurring/phone-home/operations.md`.
   `tests/test_packaging.py` requires byte-identity.
 - Why hatchling is not a runtime dependency: `pyproject.toml`
   `[project.optional-dependencies] test` comment, and `coga/testing`

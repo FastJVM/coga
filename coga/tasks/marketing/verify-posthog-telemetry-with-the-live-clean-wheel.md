@@ -2,8 +2,6 @@
 title: Verify PostHog telemetry with the live clean-wheel proof
 status: blocked
 owner: nicktoper
-contexts:
-- coga/telemetry/operations
 workflow:
   name: brief-for-human
   steps:
@@ -54,12 +52,12 @@ agent checks the pasted evidence against the procedure. It runs no
 
 ## Context
 
-The procedure is the attached `coga/telemetry/operations` topic, section
+Read `coga/recurring/phone-home/operations.md`, section
 "Clean installed-wheel proof". Follow it exactly, including
 its project-check and credential rules. Its disable, deletion and rotation
-sections are not part of this task. Two topics are cited rather than attached:
+sections are not part of this task. Also read these supporting contracts:
 
-- The parent `coga/telemetry` (`docs/contexts/coga/telemetry/SKILL.md`). Read
+- The persistent template `coga/recurring/phone-home/ticket.md`. Read
   "Admission and configuration" for why the proof must run outside every Coga
   source tree with no pytest or CI environment.
 - `coga/notifications` (`docs/contexts/coga/notifications/SKILL.md`) for

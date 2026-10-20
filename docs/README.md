@@ -66,7 +66,7 @@ New tickets include a field guide from the
   [delegation](contexts/coga/recurring/delegation/SKILL.md),
   [autofix](contexts/coga/recurring/autofix/SKILL.md),
   [period tasks](contexts/coga/period-task/SKILL.md),
-  [Dream](contexts/coga/dream/SKILL.md).
+  [Dream](../coga/recurring/dream/ticket.md).
 - Team sync: [Git state overview](contexts/coga/sync/SKILL.md),
   [notifications](contexts/coga/notifications/SKILL.md)
   ([producers](contexts/coga/notifications/producers/SKILL.md),
@@ -103,15 +103,15 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [gotchas](contexts/coga/codebase/gotchas/SKILL.md).
 - [Extension model](contexts/coga/extension-model/SKILL.md) — core versus
   edge, aliases, recipes. [Skill management](contexts/coga/skill-management/SKILL.md).
-- [Weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out) and its
-  [operator runbook](contexts/coga/telemetry/operations/SKILL.md) for release
+- [Weekly telemetry](../coga/recurring/phone-home/ticket.md) (opt-out) and its
+  [operator runbook](../coga/recurring/phone-home/operations.md) for release
   verification, read-back and deletion.
-- [Testing](contexts/coga/testing/SKILL.md) and its clean-install harnesses
-  ([Linux](contexts/coga/testing/clean-install/SKILL.md),
-  [macOS on AWS](contexts/coga/testing/clean-install/macos-aws/SKILL.md),
-  [Windows on AWS](contexts/coga/testing/clean-install/windows-aws/SKILL.md)),
+- [Testing](contexts/coga/testing/SKILL.md) and the clean-install skills
+  ([Linux](../coga/skills/coga/testing/clean-install/SKILL.md),
+  [macOS on AWS](../coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
+  [Windows on AWS](../coga/skills/coga/testing/clean-install/windows-aws/SKILL.md)),
   [packaging](contexts/coga/packaging/SKILL.md),
-  [releasing](contexts/coga/releasing/SKILL.md).
+  [release skill](../coga/skills/coga/releasing/SKILL.md).
 - Code-task conventions: [overview](contexts/dev/code/SKILL.md),
   [checkouts](contexts/dev/checkouts/SKILL.md)
   ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),

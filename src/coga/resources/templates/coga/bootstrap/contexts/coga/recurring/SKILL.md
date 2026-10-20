@@ -64,7 +64,7 @@ launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
   one-shot analyst, autofix tickets, and template-damage detection.
 - [coga/period-task](../period-task/SKILL.md) — the small context the creator
   attaches to every period task: parent-blackboard state versus per-run scratch.
-- [coga/dream](../dream/SKILL.md) — the built-in janitor template and its fixed
+- [Dream template](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md) — the built-in janitor template and its fixed
   phases; REM for repo-specific maintenance.
 - Internals: [recurring-control](../internals/recurring-control/SKILL.md)
   (control-branch requirement, relay, owner authorization),
