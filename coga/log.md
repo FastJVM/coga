@@ -8792,3 +8792,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 11:19 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-10-20 11:19 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] auto-bumped on merge of PR #1069 → done
 2026-10-20 11:19 v1 [microkernel/move-retire-to-a-command-ticket] [human:nicktoper] auto-bumped on merge of PR #1042 → done
+2026-10-20 11:20 v1 [report-of-usage-incoga-important-should-nudge-user] [human:nicktoper] auto-bumped on merge of PR #1060 → done
