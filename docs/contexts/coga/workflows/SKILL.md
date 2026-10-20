@@ -152,6 +152,30 @@ and names every unresolved, non-outdated, reply-less thread in the closure's
 `coga/log.md` line, its sweep report, and one Slack line, report-only
 (`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
 
+### Obligations the merge does not discharge
+
+Merge-triggered closure is unconditional: `autoclose-merged` marks a ticket
+`done` when it sits on its final step, is `active` or `in_progress`, and its
+recorded PR has merged (`coga.autoclose._candidate` plus the merged-state
+check). It never reads Done criteria, acceptance checklists, or a "still open"
+list on the blackboard. So, before `coga open-pr` runs, every obligation the
+merge will not discharge — a release publication, an attended or
+post-release check, a proof on another platform — is filed as its own draft
+(`coga create`) and linked from the handoff, or the work is kept off a
+merge-closed workflow such as `code/with-review`. The same holds for a manual
+`coga mark done`: a closed ticket owns nothing, so an open item it records is
+an orphan. `code/open-pr` carries the pre-check; `code/address-pr-comments`
+flags an obligation that surfaces during review before the owner merges.
+
+Worked case (Dream 2026-W43): three tickets closed with recorded, unowned
+obligations. `marketing/fix-installer/release-0-4-1-so-new-context-files-publish`
+was auto-closed on the merge of PR #998 while its PyPI publication and
+post-PyPI clean-install checks were still owed; `marketing/readme-top` was
+marked done with a "Still open" list; and
+`marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+left the macOS walk without a build passthrough. Retro W43 kept them only as
+known gaps in PRs #1058, #1059, and #1046.
+
 Reading rules: a ticket still on `review` with a merged PR is not backlog
 (autoclose closes it on its next run); count only open PRs as the live queue.
 A measurement over retired tickets and merged PRs should gate on a closed time

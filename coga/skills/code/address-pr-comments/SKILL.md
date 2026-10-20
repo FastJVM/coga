@@ -33,6 +33,13 @@ so the launch supervisor stops after this assist instead of chaining another
 session. The existing `autoclose-merged` sweep marks the ticket done after the
 human merges.
 
+That closure is unconditional (`coga/workflows`, "Obligations the merge does
+not discharge"). If review turns up an obligation the merge will not
+discharge (a release step, an attended check, a follow-up proof), name it to
+the human before they merge and offer to file it as its own draft
+(`coga create`). File it only if they agree; don't rely on a reply or a
+blackboard note to carry it past closure.
+
 ## 1. Verify the recorded PR and checkout
 
 Read the current ticket's `## Dev` block. Require both recorded values:
