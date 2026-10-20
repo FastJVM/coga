@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -129,35 +129,80 @@ branch: docs-preflight-post-caller
 - PR #1050 is still OPEN. Its hunk in this file is `@@ -19,6 +19,13` (top of file); this change is at line ~67, so no text conflict is expected. Ticket asked to land after #1050 is reviewed; open-pr/owner should honor that ordering at merge time.
 - No adjacent bugs found.
 
+## Peer review
+
+- Codex completed a direct, independent review on 2026-10-20 in launch
+  `a215b83d-db31-4ef2-a21b-8d9be493e74c`. Claude authored the implementation,
+  as recorded above and in the commit's co-author trailer; this Codex session
+  made no implementation edits. No nested reviewer was invoked.
+- Reviewed final head `da6105143715ab1a6fbf2dcbd6e560e35b1ff799` against base
+  `6583d275e9ba07e1b2d3a68afd9a5c51a3673048`, after fetching main and rebasing.
+  No findings or required fixes. `launch.py` `_LaunchInvocation._run_initial_script`
+  contains `preflight_post(self.cfg)` before assist lifecycle writes, and
+  `_launch` includes that method in its phase sequence. Both topic copies
+  identify the correct caller and remain byte-identical.
+- `.venv/bin/python -m pytest` completed on that head/base with **3808 passed,
+  7 skipped** in 455.24s under Python 3.12.12, including all 22 packaging
+  tests. `git diff --check origin/main...HEAD` and the twin `cmp` passed.
+  No interactive terminal or Slack-rendering check applies to this prose-only
+  change; no config, workflow, or task-model change requires fixture validation.
+- The final fetch confirmed main was unchanged. Force-pushed the rebased
+  branch with an explicit lease on its previous remote head; it is one commit
+  ahead of main. Loaded control's ticket before writing this handoff. The
+  checkout stays on the feature branch for the launcher's return to main
+  (`COGA_LAUNCH_RETURNS_CHECKOUT=1`).
+- PR #1050 remains open. Its current head
+  `4658651e6e31eb56af5a6f4581b4327056d6398e` has a completed automated Codex
+  review with no findings; no submitted human review is recorded. Its topic
+  hunk is separate from this correction. Preserve the ticket's requested
+  landing order after #1050 is reviewed; the owner decides when to merge.
+
 ## PR
 ```yaml
 title: Name _LaunchInvocation._run_initial_script as the script-assist preflight_post caller
 author: claude
 author_evidence: Implement session ran Claude Code (claude-opus-5-5), attended launch f13d35ed-f2dd-48f1-9dc8-702fd672b735.
-head: dcbb8fbab4dedd96458e955c2ae27bcd2518177b
-base: 6287d557695112d446fa8cb59b0f2b76b26ab66e
+head: da6105143715ab1a6fbf2dcbd6e560e35b1ff799
+base: 6583d275e9ba07e1b2d3a68afd9a5c51a3673048
 depth: skim
-rationale: One-line documentation correction in a twinned topic; no runtime behavior changes. Not yet reviewed.
+rationale: >-
+  Bounded documentation correction with completed independent review and a
+  passing full suite on the final rebased head. Skim the landing-order note
+  for PR #1050; runtime behavior is unchanged.
 implementation: Renames the script-assist preflight_post caller in the notifications/failures topic and its packaged twin to the method that now holds the call.
 deviations: None.
-limitations: Lands best after open PR #1050, which edits a different hunk of the same file.
+limitations: >-
+  Honor the ticket's request to land after PR #1050 is reviewed. That PR remains
+  open with a completed automated Codex review on its current head and no
+  submitted human review; its hunk in this topic is separate. No interactive
+  terminal or Slack-rendering check applies to this prose-only correction.
 files:
   docs/contexts/coga/notifications/failures/SKILL.md: Name the current preflight_post caller in the canonical topic.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md: Keep the packaged bootstrap twin byte-identical.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step does not review; later workflow steps own review.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: da6105143715ab1a6fbf2dcbd6e560e35b1ff799
+  base: 6583d275e9ba07e1b2d3a68afd9a5c51a3673048
+  detail: >-
+    Direct Codex review completed in a fresh peer-review session after rebase,
+    independently of Claude's implementation. No findings. Inspected both
+    changed topics, the actual preflight_post call, and the phase coordinator.
 checks:
-  - command: .venv/bin/python -m pytest tests/test_packaging.py
-    status: passed
-    head: dcbb8fbab4dedd96458e955c2ae27bcd2518177b
-    base: 6287d557695112d446fa8cb59b0f2b76b26ab66e
-    detail: 22 passed on the committed, pushed head (twin byte-identity).
   - command: .venv/bin/python -m pytest
     status: passed
-    head: 8d313064b1ed8334362c3297e62535222b0fc62e
-    base: 8d313064b1ed8334362c3297e62535222b0fc62e
-    detail: 3808 passed, 7 skipped, on the uncommitted docs change atop 8d31306 before rebasing over the ticket-state sync commit 6287d55 (ticket file only); recorded as historical for that tree.
+    head: da6105143715ab1a6fbf2dcbd6e560e35b1ff799
+    base: 6583d275e9ba07e1b2d3a68afd9a5c51a3673048
+    detail: 3808 passed, 7 skipped in 455.24s under Python 3.12.12, including all 22 packaging tests, on the committed final head.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: da6105143715ab1a6fbf2dcbd6e560e35b1ff799
+    base: 6583d275e9ba07e1b2d3a68afd9a5c51a3673048
+    detail: No whitespace errors in the final branch diff.
+  - command: cmp docs/contexts/coga/notifications/failures/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md
+    status: passed
+    head: da6105143715ab1a6fbf2dcbd6e560e35b1ff799
+    base: 6583d275e9ba07e1b2d3a68afd9a5c51a3673048
+    detail: Canonical and packaged topics are byte-identical after rebase.
 ```
