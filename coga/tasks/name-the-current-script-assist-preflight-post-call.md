@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -124,6 +124,40 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: docs-preflight-post-caller
 
-## Plan
-- Replace `launch.py` `_launch` with `launch.py` `_LaunchInvocation._run_initial_script` in the `preflight_post` callers list of both notifications/failures twins (byte-identical).
-- PR #1050 is still open but its hunk in this file is at the top (`@@ -19`), far from the callers list, so a text conflict is unlikely; landing order is left to open-pr/the owner.
+## Handoff (implement)
+- Changed the `preflight_post` callers list in `coga/notifications/failures` (both twins, byte-identical): `launch.py` `_launch` -> `launch.py` `_LaunchInvocation._run_initial_script`, noting it is the initial-script phase `_launch` coordinates (`_launch` passes `invocation._run_initial_script` as a phase).
+- PR #1050 is still OPEN. Its hunk in this file is `@@ -19,6 +19,13` (top of file); this change is at line ~67, so no text conflict is expected. Ticket asked to land after #1050 is reviewed; open-pr/owner should honor that ordering at merge time.
+- No adjacent bugs found.
+
+## PR
+```yaml
+title: Name _LaunchInvocation._run_initial_script as the script-assist preflight_post caller
+author: claude
+author_evidence: Implement session ran Claude Code (claude-opus-5-5), attended launch f13d35ed-f2dd-48f1-9dc8-702fd672b735.
+head: dcbb8fbab4dedd96458e955c2ae27bcd2518177b
+base: 6287d557695112d446fa8cb59b0f2b76b26ab66e
+depth: skim
+rationale: One-line documentation correction in a twinned topic; no runtime behavior changes. Not yet reviewed.
+implementation: Renames the script-assist preflight_post caller in the notifications/failures topic and its packaged twin to the method that now holds the call.
+deviations: None.
+limitations: Lands best after open PR #1050, which edits a different hunk of the same file.
+files:
+  docs/contexts/coga/notifications/failures/SKILL.md: Name the current preflight_post caller in the canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md: Keep the packaged bootstrap twin byte-identical.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step does not review; later workflow steps own review.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_packaging.py
+    status: passed
+    head: dcbb8fbab4dedd96458e955c2ae27bcd2518177b
+    base: 6287d557695112d446fa8cb59b0f2b76b26ab66e
+    detail: 22 passed on the committed, pushed head (twin byte-identity).
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: 8d313064b1ed8334362c3297e62535222b0fc62e
+    base: 8d313064b1ed8334362c3297e62535222b0fc62e
+    detail: 3808 passed, 7 skipped, on the uncommitted docs change atop 8d31306 before rebasing over the ticket-state sync commit 6287d55 (ticket file only); recorded as historical for that tree.
+```

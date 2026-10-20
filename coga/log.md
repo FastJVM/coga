@@ -8807,3 +8807,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 11:34 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-20 11:34 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-20 11:34 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-20 11:43 v1 [name-the-current-script-assist-preflight-post-call] [agent:claude] advanced to step 2 (peer-review) → codex
