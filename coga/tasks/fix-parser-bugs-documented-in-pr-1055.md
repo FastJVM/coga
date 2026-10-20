@@ -189,3 +189,185 @@ lines when rewriting unresolved entries. With a real live blocker present,
 it can rewrite fenced or archived examples too. This ticket fixes the readers
 and eligibility/prompt consumers; the writer issue remains outside that scope.
 No existing follow-up identified yet; retain this finding for review/Retro.
+
+## Implementation verification — awaiting suite-failure decision
+
+Parser fixes, regressions, three context owners and packaged twins, and seeded
+smoke examples are committed on `codex/fix-parser-boundaries` at
+`aea91aeab20b1e1248827b4f8e618d66c68ed183`, rebased onto current main
+`3aa78632ab161b9f7cbeb03b98b4ff5362b4f136`. No implementation PR opened.
+
+All commands use `/home/n/Code/codex/coga/.venv/bin/python` (3.12.12) with
+`PYTHONPATH=/home/n/Code/codex/coga/src` unless explicitly noted:
+
+- Initial seven-file baseline: 621 passed in 37.12s.
+- Regression selection before source changes: 29 failed, 17 passed,
+  603 deselected in 9.95s, reproducing all three defects. After fixes:
+  46 passed, 603 deselected in 1.73s. Logs:
+  `/tmp/coga-parser-regressions-before.txt`.
+- Broader focused run including primitives, seeded smoke, and packaging:
+  692 passed in 40.85s before rebase. Committed tree
+  `cb47acb8d65ca40bdb5181a91d02d2b01684fd6d` at
+  `2d6806a3db2288837fd9365e177d67ec2350c740` exactly matches that tested tree
+  (index/worktree clean and `git write-tree` equals `HEAD^{tree}`).
+- After rebase, focused regressions plus packaging:
+  73 passed, 603 deselected in 4.98s; log
+  `/tmp/coga-parser-final-focused.txt`.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`:
+  **6 failed, 3849 passed, 7 skipped in 303.09s**;
+  `/tmp/coga-parser-full.txt`.
+- Repository `python -m coga.validate --json`: exit 0, 125 tasks counted OK,
+  0 errors, 46 warnings (20 stuck-in-progress, 18 unfrozen-workflow,
+  1 uncomposed-section, 7 empty-description).
+- Seeded fixture validation with `env -u SLACK_WEBHOOK_URL`, absolute
+  PYTHONPATH, and the same interpreter: exit 0, 4 tasks counted OK,
+  no errors or warnings.
+
+All six full-suite failures are parametrizations of
+`tests/test_usage_report.py` `test_period_task_posts_with_project_and_owner_before_bumping`.
+The test patches `coga.notification.slack.requests.post`, but
+`src/coga/notification/slack.py` `SlackChannel.send` imports `requests`
+locally; the module attribute does not exist. These files are unchanged by
+this branch. A standalone run on this branch gives 6 failed, 15 passed in
+7.70s. A clean exported snapshot of main at the OID above reproduces the
+same six failures (15 passed in 0.79s):
+
+```sh
+cd /tmp/coga-parser-main-baseline-_jy12of1
+PYTHONPATH=/tmp/coga-parser-main-baseline-_jy12of1/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -q tests/test_usage_report.py --tb=short
+```
+
+Baseline log: `/tmp/coga-parser-usage-main.txt`. Awaiting the attending
+owner's decision per code/implement: hand off the parser change with these
+pre-existing failures documented, or include the small test-only mock repair.
+
+The separate `resolve_open_blockers` writer issue above was also reproduced
+in a temporary ticket: resolving a live ask changed an archived checkbox to
+resolved. No writer fix was included.
+
+## PR
+
+```yaml
+title: Fix blocker and workflow parsing and warn on omitted preambles
+author: codex
+author_evidence: Implementation ran in this attended Codex (GPT-6) session, overriding
+  the ticket's configured Claude agent; no subagents or external reviewer were used.
+head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+depth: deep
+rationale: Three bounded parser/diagnostic corrections with direct and consumer regressions.
+  Full suite has six usage-report mock-target failures reproduced on unchanged main,
+  and independent review is pending; inspect the diff and these limits.
+implementation: Blocker readers apply the existing archive projection and skip closed
+  fenced examples, including example resolutions. Inline workflow content uses the
+  shared H2 parser, preserving fenced examples and following prose while keeping skill-backed
+  steps unchanged. Launch and validate share a diagnostic for non-whitespace preamble
+  omitted from the unchanged Description/Context composition contract. Owning contexts,
+  packaged twins, and seeded examples accompany the fixes.
+deviations: 'No scope expansion. PR #1055 is closed without merge at 14d6863ce33bd4aef747af26a4ccd2e7aa630050:
+  its proposed known-gap/workaround text did not land. This change overlaps its three
+  context topics and twins with corrected behavior, without deleting its source tickets.'
+limitations: 'Verification uses Python 3.12.12 on Linux, not a separate Python 3.11
+  or native Windows run. Adjacent pre-existing resolve_open_blockers writer bug remains:
+  with a real live ask present it can rewrite archived/fenced examples; reproduced
+  separately and retained below for follow-up. Full suite currently reports six pre-existing
+  usage-report test failures: obsolete coga.notification.slack.requests.post monkeypatch
+  target after requests became a local import. Same six failures reproduce on main.'
+files:
+  docs/contexts/coga/blackboard/SKILL.md: Define live blocker interpretation and the
+    preserved unmatched-fence/archive rules.
+  docs/contexts/coga/tickets/SKILL.md: Document omitted preamble diagnostics and unchanged
+    composition and terminal-validation policy.
+  docs/contexts/coga/workflows/SKILL.md: Document shared fence-aware inline section
+    parsing and real heading boundaries.
+  src/coga/blackboard.py: Filter archived and fenced examples before interpreting
+    blockers or resolutions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Ship
+    the byte-identical blackboard contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Ship
+    the byte-identical ticket contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Ship
+    the byte-identical workflow contract.
+  src/coga/taskfile.py: Share preamble and uncomposed-section diagnostics without
+    altering body section composition.
+  src/coga/validate.py: Use the shared omitted-body diagnostic and avoid duplicate
+    empty-description warnings.
+  src/coga/workflow.py: Replace the fence-unaware heading regex with existing body_sections
+    parsing.
+  tests/fixtures/seeded-repo/coga/tasks/auto/triage-inbound-email.md: Exercise archived
+    and fenced blocker examples in the seeded task.
+  tests/fixtures/seeded-repo/coga/workflows/code/with-review.md: Exercise a fenced
+    H2 and subsequent inline instructions in the seeded workflow.
+  tests/test_blackboard.py: Cover direct readers, resolution isolation, legacy/live
+    entries, exact/duplicate archives, and unmatched fences.
+  tests/test_compose.py: Cover blocker preambles and inline workflow fences, real
+    boundaries, and skill-backed behavior.
+  tests/test_launch.py: Cover actual launch and prompt-report preamble diagnostics
+    and inert blocker examples.
+  tests/test_megalaunch.py: Prove queue eligibility ignores examples while real asks
+    still block.
+  tests/test_smoke.py: Verify seeded blocker examples and inline workflow instructions
+    through the lifecycle.
+  tests/test_taskfile.py: Cover preamble/section boundaries, whitespace, prose-only
+    bodies, and combined warnings.
+  tests/test_validate.py: Cover shared preamble warnings, suppression of duplicate
+    empty-description warnings, and terminal policy.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step only. Independent code review belongs to the next peer-review
+    step; owner approval of the implementation plan is not code review.
+checks:
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q tests/test_blackboard.py
+    tests/test_taskfile.py tests/test_compose.py tests/test_validate.py tests/test_launch.py
+    tests/test_megalaunch.py tests/test_packaging.py -k 'blocker_examples or blocker_resolution_examples
+    or blockers_archive or blockers_unclosed or workflow_fenced or workflow_unclosed
+    or workflow_skill_backed or preamble or packaging'
+  status: passed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: 73 passed, 603 deselected in 4.98s. Python 3.12.12; checkout source; all
+    packaging tests included.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
+  status: failed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: '6 failed, 3849 passed, 7 skipped in 303.09s. Failures are six parametrizations
+    in test_usage_report.py due to a pre-existing stale mock target; 7 native Windows
+    tests skipped on Linux. Log: /tmp/coga-parser-full.txt.'
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.validate
+    --json
+  status: passed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: 'Exit 0; 125 tasks OK; 0 errors, 46 warnings: 20 stuck-in-progress, 18 unfrozen-workflow,
+    1 uncomposed-section, 7 empty-description. Log: /tmp/coga-parser-repo-validation.json.'
+- command: cd /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL
+    PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.validate --json
+  status: passed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: 'Exit 0; 4 tasks OK; 0 errors or warnings. Log: /tmp/coga-parser-fixture-validation.json.'
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q tests/test_usage_report.py
+    --tb=short
+  status: failed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: '6 failed, 15 passed in 7.70s; same stale mock target in isolation. Log:
+    /tmp/coga-parser-usage-isolated.txt.'
+- command: cd /tmp/coga-parser-main-baseline-_jy12of1 && PYTHONPATH=/tmp/coga-parser-main-baseline-_jy12of1/src
+    /home/n/Code/codex/coga/.venv/bin/python -m pytest -q tests/test_usage_report.py
+    --tb=short
+  status: failed
+  head: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: 'Unchanged exported main snapshot: 6 failed, 15 passed in 0.79s, proving
+    baseline failures. Log: /tmp/coga-parser-usage-main.txt.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: aea91aeab20b1e1248827b4f8e618d66c68ed183
+  base: 3aa78632ab161b9f7cbeb03b98b4ff5362b4f136
+  detail: Exit 0; no whitespace errors.
+```
