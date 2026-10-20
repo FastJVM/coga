@@ -1,6 +1,6 @@
 ---
 title: Confirm why branch-sweep ran as a shared period task despite scope clone
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
