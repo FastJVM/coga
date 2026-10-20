@@ -78,8 +78,10 @@ session with `teardown` plus `status`.
       runs over `ssh -tt`, driven from a host-side PTY. The REPL renders and
       takes input. When the session's agent runs `coga bump`, the session
       ends: `[coga watcher]` reports the done trigger, `coga launch` exits 0,
-      and the ticket advanced exactly one step. Separate runs show the same
-      for `coga mark done` and `coga block`. After each run, the Job's active
+      and the ticket advanced exactly one step to an owner-held step.
+      Use separate disposable tickets for `coga mark done` (task becomes
+      done) and `coga block` (task becomes blocked with the requested reason);
+      both report the done trigger and exit 0. After each run, the Job's active
       process count is 0, and `tasklist` shows no `claude.exe` and no node
       or bash children left by the session. The console input/output modes
       after the launch equal the modes before it.
@@ -91,6 +93,8 @@ session with `teardown` plus `status`.
         with exit 124 and kind `timeout`.
       - `coga launch --idle-timeout N` exits 2 before any state change,
         with a message naming the Windows limitation and `--max-session`.
+        The final CLI state sweep is withheld: pre-existing dirty files,
+        the index, checkout branch, local HEAD and remote tip are unchanged.
       - A Python caller that passes `idle_timeout` (megalaunch, recurring)
         gets one `[coga watcher]` warning that idle-timeout is unavailable
         on Windows, and the session runs with `max_session` only.
@@ -99,14 +103,32 @@ session with `teardown` plus `status`.
       the `coga` parent does not raise `KeyboardInterrupt`. Closing the SSH
       connection mid-session leaves no orphaned agent processes, because
       the Job is kill-on-close.
+- [ ] **Exit codes on native Python 3.11.** Ordinary nonzero exits,
+      CTRL_BREAK termination, and an NTSTATUS error retain their complete
+      32-bit value through the interactive wrapper and the outer Coga CLI
+      process. A crash racing a matching sentinel remains `crash` with
+      `done_signalled=True`; done and timeout retain their defined 0/124
+      outcomes when there is no independent crash.
 - [ ] **Megalaunch picker** works over `ssh -tt`: ↑/↓/j/k move, Space
       toggles, `a`/`n` select all/none, Enter confirms, and `q`/Esc/Ctrl+C
-      quits. A terminal resize redraws within about 0.2 s.
+      quits. Ctrl+C also quits during idle polling and redraw, with no
+      traceback, saved selection, or launch. Console modes and prior signal
+      handlers are restored on confirmation, cancellation, and failure.
+      A terminal resize redraws within about 0.2 s.
 - [ ] **Large prompts.** A composed prompt larger than the Windows
       command-line budget reaches the agent through the existing
       prompt-file pointer, not a `CreateProcess` failure. An agent CLI that
       resolves to a `.cmd`/`.bat` shim (npm-installed Codex) always gets
-      the pointer.
+      the pointer. Budgets cover the actual serialized agent, wrapper,
+      and shell command lines, including their terminating NUL, rather
+      than the unquoted prompt alone. Shell-sensitive paths and arguments
+      must round-trip losslessly through fake `.cmd` and `.bat` agents
+      (owner, review-design, 2026-10-19); a character allowlist that
+      refuses those inputs is not the chosen solution. Raw CR/LF in
+      non-prompt batch arguments is the specific accepted exception:
+      refuse in preflight, identifying the argument and suggesting a native
+      executable or removing those line breaks. Multiline prompts stay in
+      the file; the generated pointer uses the line separators in §5.
 - [ ] **The core ticket's refusal is gone.** `agent_sessions_supported()`
       and its message, every caller of it, and `spawn_agent_session`'s
       Windows backstop are deleted. Every test the core ticket skipped
@@ -118,15 +140,23 @@ session with `teardown` plus `status`.
       one is listed in the PR.
 - [ ] **Suites.** The full `python -m pytest` passes natively on a fresh
       box and on Linux. No POSIX test is newly skipped or weakened, and the
-      POSIX supervisor path is byte-for-byte behavior-unchanged.
+      POSIX supervisor behavior is unchanged. The only POSIX restructuring
+      is the shared admission-helper extraction in §2; preserve its callback,
+      compensation, interrupt and pipe-write semantics.
 - [ ] **Docs** (canonical and packaged twins in sync, `tests/test_packaging.py`
       green):
       - `coga/install` lists native Windows as supported and adds a
-        Windows baseline (see *Proposed shape* §7).
+        Windows baseline (see *Proposed shape* §9).
       - `coga/internals/agent-spawn` describes the Windows supervisor.
+      - `coga/internals/launch-claims` describes both pipe and named-event
+        admission without changing the transaction.
+      - `coga/internals/activity-capture` accounts for Windows DWORD exit
+        codes and the batch pointer's existing exact-line marker matching.
       - `coga/launch` notes the Windows idle-timeout refusal under
         *Options and exits*.
       - `coga/codebase` lists the new module.
+      - `coga/testing/clean-install/windows-aws` describes the attended
+        `ssh -tt` check, retaining RDP as a fallback.
       - The README sentence "Coga runs on Linux, Windows or macOS…"
         stays true, unedited.
 - [ ] **Teardown.** Every box is torn down, `status` confirms nothing is
@@ -137,7 +167,9 @@ session with `teardown` plus `status`.
       `marketing/fix-installer/test-and-fix-install-on-macos-and-windows`'s
       guide. He walks install, then `coga init`, then a first `coga ticket`.
       The owner's `review` step tracks his findings, and blocking ones are
-      fixed before merge.
+      fixed before merge. The handoff includes the exact PR-wheel install
+      command and source commit; update the guide's PyPI-only instruction
+      and old expected `fcntl` stop for this check.
 
 ### Proposed shape
 
@@ -147,8 +179,8 @@ session with `teardown` plus `status`.
    `src/coga/repl_supervisor.py` `run_with_done_marker()`, branch with
    `if os.name == "nt": return repl_supervisor_nt.run(...)`, passing every
    argument through. Do it after the existing argument validation. The
-   POSIX body below is untouched. Callers (`launch.spawn_agent_session`)
-   do not change.
+   POSIX body below changes only for the admission-helper extraction in
+   §2. The supervisor entry and outcome contracts stay shared.
 2. **New module `src/coga/repl_supervisor_nt.py`.** It is the Windows
    backend and is imported lazily, so POSIX never loads it. It is
    core infra by the microkernel rule, because it is half of the shared
@@ -158,9 +190,12 @@ session with `teardown` plus `status`.
      it through `oscompat.ProcessTree` (the Job Object with
      `KILL_ON_JOB_CLOSE` and the join-the-job wrapper from the core
      ticket) with `CREATE_NEW_PROCESS_GROUP`. Resolve `cmd[0]` with
-     `shutil.which`, so `.exe`/`.cmd` resolve the way the POSIX path's
-     `execvpe` does. A missing binary raises `AgentCliNotFound(cmd[0])`,
-     matching the non-TTY branch.
+     an explicit search of the supplied child environment's PATH and
+     PATHEXT, rather than accidentally searching the parent's environment.
+     Carry the resolved absolute executable into the command plan in §5
+     and the wrapper; do not resolve it a second time using ambient state.
+     A missing binary raises `AgentCliNotFound(cmd[0])`, matching the
+     non-TTY branch.
    - **Held-child gate.** When `after_spawn` is given, the wrapper joins
      the Job and then waits on a per-spawn named event
      (`Local\coga-gate-<uuid>`) before it runs `cmd`. The parent runs
@@ -172,11 +207,19 @@ session with `teardown` plus `status`.
      re-raises. Lift that admission sequence out of the POSIX function
      into a shared private helper parameterized by a `release()`
      callable, rather than copying it. The probe proved this gate on the
-     box.
+     box. Test all four failure boundaries: before release, failed
+     `SetEvent`, failure after successful release, and failed compensation
+     while the release guard is held. After release, retain the admission
+     effects even if a later callback fails, as on POSIX.
    - **Wrapper.** The wrapper sets `SIGINT` and `SIGBREAK` to `SIG_IGN`
      before it waits, so a CTRL_BREAK stops the agent while the wrapper
      survives to propagate the agent's real exit code. Without this,
      Python's default CTRL_BREAK handling kills the wrapper first.
+     Preserve the child DWORD losslessly: retain its unsigned value for
+     classification, but pass its signed 32-bit equivalent to Python 3.11
+     `SystemExit` (`code` below `0x80000000`, otherwise `code - 0x100000000`).
+     Passing an unsigned NTSTATUS directly to `SystemExit` overflows
+     Python 3.11's Windows C `long` conversion.
    - **Supervise.** Poll every `_SENTINEL_POLL_INTERVAL` with no `select`,
      and wait on the process with a timeout. Keep the same latching rules:
      `done_signalled` is latched even mid-teardown, and there is one
@@ -213,33 +256,118 @@ session with `teardown` plus `status`.
        than `0xC000013A` (STATUS_CONTROL_C_EXIT) and the Job terminate
        code. Then the outcome is `crash` with that raw code. The notes
        mirror POSIX.
+   - **Outer CLI exit.** Keep unsigned raw codes in `ReplOutcome`,
+     `AgentSessionResult` and the launch service's result/error. Carry
+     interactive-result provenance through `LaunchBail` as needed, and
+     convert to the signed equivalent only when the CLI adapter raises
+     its final exit for that Windows interactive result. This must cover
+     both the result and exception routes through `commands/launch.py`;
+     `cli.main` still runs normal cleanup and its eligible state sweep.
+     Do not call `ExitProcess` early and bypass `finally`, or normalize
+     every unrelated CLI exit. Installed `coga.exe` and
+     `python -m coga.cli` must both preserve the DWORD as observed by a
+     native parent process, not by SSH's narrower exit-status transport.
 3. **`oscompat.ProcessTree` (core ticket) grows only what the supervisor
    needs**: an optional held-start gate, an optional new process group,
    and a graceful `interrupt()` (CTRL_BREAK on Windows) separate from
    `kill()`. Existing consumers (`recurring_clone`, `recurring_runner`)
-   keep their current calls and behavior. Keep the wrapper short. It
+   keep their current calls and behavior, including their existing wrapper
+   exit policy: the interactive wrapper mode opts into the signal and
+   lossless-exit behavior in §2. Keep the wrapper short. It
    counts against the Windows command-line budget in §5, so if it is a
    `-c` string, keep it to a few hundred characters, or move it to a
    tiny importable module run as `python -m`.
 4. **`coga launch --idle-timeout` refusal.** In
    `src/coga/commands/launch.py`, when `os.name == "nt"` and
-   `idle_timeout is not None`, exit 2 before calling `_launch`, so no
-   state changes. The message names the limitation and suggests
-   `--max-session`. Python callers are not refused (§2 warns instead).
-5. **Prompt delivery on Windows.** In `src/coga/launch.py`,
-   `_argv_prompt()` currently compares UTF-8 bytes with
-   `_MAX_PROMPT_ARG_BYTES` (the Linux `MAX_ARG_STRLEN` bound).
-   `CreateProcess` instead caps the *whole* command line at 32,767 UTF-16
-   units, after `subprocess.list2cmdline` quoting and including the
-   wrapper. On Windows, use a separate budget of about 24,000 UTF-16
-   units for the prompt, chosen to leave headroom for the wrapper, the
-   discussion template and flags. Name it beside the existing constant,
-   and verify the headroom on the box. When `build_agent_command`'s
-   resolved CLI ends in `.cmd`/`.bat`, always use the pointer: `cmd.exe`
-   caps lines at 8,191 characters and expands `%`/`^`/`&`. Check that the
-   pointer text (a prompt-file path plus fixed prose) contains no cmd
-   metacharacters; the temp path can contain spaces, which quoting
-   handles. POSIX keeps today's rule.
+   `idle_timeout is not None`, set `git.state_sweep_withheld` and exit 2
+   before calling the launch service. Reuse the core port's refusal
+   mechanism if its merged implementation supplies an equivalent.
+   `cli.main` must honor the flag on its `SystemExit` path without
+   changing this refusal to exit 75 or suppressing ordinary exit-2 sweeps.
+   The message names the limitation and suggests `--max-session`; any
+   sweep-withheld diagnostic must accurately describe this option refusal.
+   Test through `cli.main`, with a remote and dirty Coga state, asserting
+   unchanged file bytes, index, branch, local HEAD and remote tip. Direct
+   `CliRunner.invoke(app, ...)` coverage is not enough. Python callers are
+   not refused (§2 warns instead).
+5. **Prompt and command delivery on Windows.** POSIX keeps
+   `_argv_prompt()`'s existing `_MAX_PROMPT_ARG_BYTES` rule. Windows
+   chooses between the complete prompt and its file pointer by planning
+   the complete command, after `build_agent_command` and the kickoff:
+   - For a native executable, build the final argv with its resolved
+     executable, launch flags, discussion-template tokens, title,
+     session ID and kickoff. Serialize with `subprocess.list2cmdline`;
+     count `len(serialized.encode("utf-16-le")) // 2 + 1`, including the
+     terminating NUL. Require at most 32,767 UTF-16 units.
+   - Independently serialize and bound the Python wrapper invocation.
+     Reuse the actual wrapper-argv builder, not a guessed allowance.
+     Reserve its job/gate identifiers before measuring, or use a proved
+     worst-case serialized width for those fixed-format identifiers only;
+     check the actual resulting wrapper line again before `CreateProcess`.
+     A raw 24,000-character prompt threshold is not a correctness check.
+   - If either native command line is too large, rebuild the complete
+     command with the prompt-file pointer and repeat both checks. A
+     resolved `.cmd`/`.bat` always starts with pointer form and also uses
+     the lossless shell transport below. The full prompt stays byte-exact
+     in its UTF-8 file for the whole session.
+   - If pointer form still exceeds a limit, refuse before agent spawn,
+     launch audit or spawn admission, with exit 2 naming the offending
+     command line, measured size, limit and remedy (shorten configured
+     launch/discussion arguments or use a native executable for a shim
+     limit). Do not print sensitive argv values in that error. Reuse this
+     planner at the callers' pre-activation/claim preflight, and withhold
+     the final state sweep on refusal. Earlier completed script phases
+     or sessions retain their existing state; no rollback of their work.
+   - **Batch transport (owner choice, 2026-10-19).** Support shell-sensitive
+     paths and arguments losslessly using one per-spawn environment
+     variable containing the quoted command, rather than interpolating
+     user values into shell source. Choose a fresh ASCII variable name
+     (`COGA_BATCH_<uuid>`) without replacing an existing child variable.
+     Its value is the resolved batch path followed by every final argv
+     token, each always quoted: double embedded double quotes; double a
+     run of backslashes immediately before those quotes or the closing
+     quote; leave other backslashes and characters literal. This differs
+     from CRT `list2cmdline` and needs its own serializer.
+   - The interactive wrapper invokes an absolute Windows system
+     `cmd.exe` with the **raw command-line string**
+     `cmd.exe /d /e:on /v:off /s /c "%COGA_BATCH_<uuid>%"`, using the
+     selected variable's real name. No `CALL`, extra shell, or
+     `list2cmdline` pass over that shell source. AutoRun and delayed
+     expansion are disabled. The command variable expands once, so
+     percent sequences introduced by its value remain literal; quoted
+     metacharacters remain data. Pass the transport variable in the child
+     environment, without changing the parent's environment or writing
+     an extra batch script. The optional interactive wrapper mode in §3
+     distinguishes native argv from this shell plan; do not change the
+     existing recurring/clone wrapper.
+   - Bound both the literal shell invocation and its fully expanded
+     command line at a conservative 8,191 UTF-16 units including NUL,
+     and bound the outer Python wrapper at 32,767. A short variable
+     reference does not waive the expanded-command or environment-value
+     limit. Tests compare received argv and prompt-file bytes through
+     direct and npm-style `%*` forwarders in both `.cmd` and `.bat` files,
+     with special characters in the script path as well as arguments.
+     The transport owns Coga's quoting; it cannot repair an agent shim
+     that deliberately reparses or transforms its own arguments.
+   - **Line breaks.** The Windows batch pointer separates its fixed
+     prose and `coga-launch: <uuid>` with U+2028 LINE SEPARATOR, including
+     a trailing separator. `usage._has_marker_line` already uses
+     `str.splitlines()`, so the marker stays an exact standalone line
+     without relaxing transcript matching. The full prompt file retains
+     its original bytes and normal marker line; native executable and
+     POSIX pointers keep their existing format. Test marker attribution
+     and exclusion of pointer text from captured human content.
+   - Raw CR or LF in any other final batch argument is refused with exit
+     2 in the caller's preflight, with the sweep withheld and a remedy
+     naming the argument's role (title, launch option, discussion token,
+     or kickoff), not its potentially sensitive value. This narrow
+     exception is owner-approved after the native probe showed truncation
+     or loss of CR/LF; do not extend it to punctuation or valid paths.
+     Validate before activation, authoring draft creation or queue
+     admission; recheck the actual spawn command too. Initial refusal
+     must not publish unrelated dirt. Native executable arguments retain
+     their existing line-break support. Embedded NUL remains invalid at
+     the OS process boundary on all paths.
 6. **Megalaunch picker** (`src/coga/commands/megalaunch.py`). Replace
    `_read_key()` and the SIGWINCH self-pipe in `_pick_selection()` with a
    pair of platform functions behind the same "return one action string"
@@ -252,6 +380,16 @@ session with `teardown` plus `status`.
      box showed ↑ arrives as `"\xe0H"` and ↓ as `"\xe0P"` (map to
      `ESC [ A` / `ESC [ B`, and accept the `"\x00"` prefix too). Esc
      arrives as `"\x1b"`, Ctrl+C as `"\x03"`, Enter as `"\r"`.
+   - For the entire Windows picker, from before the first render until
+     confirmation/cancellation, install a SIGINT handler that sets a
+     quit flag. A processed Ctrl+C can arrive as a signal between reads;
+     the `"\x03"` key form and this flag both mean `"quit"`. Check the
+     flag before reads, after each polling sleep and redraw, and before
+     accepting Enter; cancellation wins over a queued confirmation.
+     Restore previous handlers and console modes in `finally`, including
+     setup/render errors. The handler does no rendering, saving or
+     launching. Test native Ctrl+C during idle polling and during redraw;
+     mocked `getwch -> "\x03"` is only key-decoder coverage.
 7. **Remove the core ticket's refusal.** Delete
    `agent_sessions_supported()`/`_refuse_unsupported_platform()`, the
    message constant, and every call site the core ticket added (`launch.py`
@@ -268,16 +406,30 @@ session with `teardown` plus `status`.
        `cmd /c ping`) also die, with Job active count 0;
      - a child that ignores CTRL_BREAK is killed after the grace;
      - `max_session` gives 124/`timeout`;
-     - natural exit passes the code through;
-     - an NTSTATUS crash gives `crash`;
-     - the gate holds the child until release, and admission failure
-       kills it with the rollback called;
+     - natural exit passes ordinary nonzero and full DWORD codes through;
+     - CTRL_BREAK and an NTSTATUS error cross the real interactive wrapper
+       and outer CLI on Python 3.11, including a crash racing done;
+     - the gate holds the child until release; the four failure boundaries
+       in §2 preserve the guard, rollback and post-release retention rules;
+     - the supplied complete environment reaches the child and executable
+       resolution uses its PATH/PATHEXT even when the parent's differ;
      - console modes are restored;
      - `done_signalled` is latched after exit;
      - an idle-timeout warning is emitted.
    - Add Windows cases for the picker's key mapping and resize poll in
-     `tests/test_megalaunch.py` (monkeypatch `msvcrt`), plus the
-     `--idle-timeout` refusal and the `.cmd` prompt-pointer rule.
+     `tests/test_megalaunch.py` (monkeypatch `msvcrt`), plus native
+     signal-during-idle/redraw cases proving no selection is saved and no
+     session starts. Require console/handler restoration on all exits.
+   - Add the `cli.main` no-sweep refusal case from §4 and serialized
+     command-budget tests from §5: quote/backslash-heavy prompts, non-BMP
+     text, discussion templates, title/session/launch/kickoff arguments,
+     both sides of each limit, and an oversized pointer-form command.
+     Fake native `.cmd`/`.bat` agents record their received argv and read
+     the indicated prompt file; compare exact strings and file bytes,
+     including shell-sensitive paths, rather than merely asserting that
+     a pointer was selected. Include raw-CR/LF refusal without lifecycle,
+     audit or sweep effects, plus the U+2028 pointer's existing exact-line
+     usage matching. Retain ordinary POSIX marker tests unchanged.
    - The box run for the first acceptance item is a manual, recorded
      check, not a pytest. Drive it from a host-side PTY, as the
      blackboard's probe did, and record it in the PR.
@@ -292,13 +444,26 @@ session with `teardown` plus `status`.
      `uv tool update-shell` and a new terminal;
    - Git for Windows (its installer's default `core.autocrlf=true` is
      fine, since Coga writes LF and Git normalizes);
-   - PowerShell or Windows Terminal as the shell (Coga needs no bash);
+   - PowerShell, for example in Windows Terminal (Coga needs no bash);
    - agent CLIs: Claude Code's native installer is the tested agent;
      Codex is untested on native Windows;
    - the `--idle-timeout` limitation.
-   Also update `coga/internals/agent-spawn` (*The supervisor* section),
-   `coga/launch` (*Options and exits*: the Windows idle-timeout refusal),
-   and `coga/codebase` (the new module). Check each one's packaged twin.
+   Also update `coga/internals/agent-spawn` (*The supervisor* and
+   *Large prompts*: serialized budgets and batch transport),
+   `coga/launch` (*Options and exits*: the Windows idle-timeout and
+   unrepresentable-command refusals),
+   `coga/internals/launch-claims` (*Held child and admission*: pipe versus
+   named event), `coga/internals/activity-capture` (Windows exit-code
+   representation and batch-pointer marker matching), `coga/codebase`
+   (the new module), and
+   `coga/testing/clean-install/windows-aws` (SSH attended check with RDP
+   fallback). Check each one's packaged twin. Update
+   `coga/tasks/marketing/fix-installer/test-and-fix-install-on-macos-and-windows/guide-for-zach.md`
+   with the exact PR-wheel install instruction and remove the obsolete
+   expected `fcntl` stop for that walk. The PR supplies the wheel location,
+   source commit and digest; use
+   `uv tool install --force --python 3.11 <the-downloaded-PR-wheel.whl>`,
+   with the real filename filled in, rather than a PyPI release.
 
 ### Out of scope
 
@@ -336,6 +501,13 @@ session with `teardown` plus `status`.
     `git.state_lock` as the release guard) into `run_with_done_marker`.
 - `src/coga/commands/launch.py`: the Typer `--idle-timeout` /
   `--max-session` options.
+- `src/coga/cli.py`: `main` and `_sweep_coga_state` own the final sweep;
+  `git.state_sweep_withheld` prevents a refusal from publishing dirty state
+  while preserving its exit code.
+- `src/coga/usage.py`: `_has_marker_line` matches exact stripped lines
+  from `str.splitlines()`, which already recognizes U+2028. Preserve the
+  message-role filters and exact-match rule; only batch-pointer formatting
+  changes.
 - `src/coga/recurring_runner.py`: `_recurring_idle_timeout()` (900 s
   default, `COGA_REPL_IDLE_TIMEOUT`, `[launch].idle_timeout`) and
   `_recurring_max_session()` feed unattended sessions. `src/coga/megalaunch.py`
@@ -475,6 +647,17 @@ to its landed `oscompat` shape.
    shim gets the prompt pointer. Should `coga/install` say "Codex
    untested on native Windows", or should a Codex run on the box be added
    to acceptance?
+4. **Answered (owner, review-design, 2026-10-19): support shell-sensitive
+   paths and arguments losslessly.** The owner chose the additional
+   transport work and native tests over refusing these configurations.
+   This concerns fake `.cmd`/`.bat` agents and Coga's argv delivery;
+   it does not add a Codex acceptance run.
+5. **Answered (owner, review-design, 2026-10-19): reject raw CR/LF only
+   in batch-agent arguments.** The native probe showed those bytes are
+   lost or truncate the command, while punctuation/path support succeeds.
+   Keep full multiline prompts byte-exact in the file and use Unicode
+   line separators in the generated batch pointer. Refuse affected
+   configured arguments in preflight with a clear remedy.
 
 ## Evaluator review
 
@@ -619,3 +802,96 @@ the ticket body, code and workflow remain for their owning steps.
 
 
 Final checks: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task windows-native/interactive-coga-launch-on-native-windows --json` exited 0 (one task, no issues); `git diff --check` passed. The final `git fetch origin main` introduced no further changes.
+
+## Review-design corrections — 2026-10-19
+
+All five evaluator findings are accepted and addressed in the spec above:
+
+1. §4 withholds the outer CLI sweep while keeping exit 2, with a
+   `cli.main` test over dirty state and a remote.
+2. §§2–3 preserve the interactive child's DWORD through both Python 3.11
+   exit boundaries, without changing recurring/clone behavior. Native
+   wrapper-plus-CLI tests must include CTRL_BREAK and a real crash racing
+   done; classifier-only coverage is insufficient.
+3. §5 measures the final serialized agent, wrapper and shell commands,
+   rebuilds with the pointer, and defines preflight failure if that still
+   cannot fit. No guessed prompt-only allowance remains.
+4. §5 specifies a batch serializer and one-expansion environment
+   transport, with native `.cmd`/`.bat` argument and file-content tests.
+   The owner's lossless-punctuation choice and narrow raw-CR/LF exception
+   are recorded in answers 4–5 above.
+5. §6 handles Ctrl+C for the whole picker, including idle polling and
+   redraw, and requires restoration and cancellation tests.
+
+No finding was rejected. The admission-failure matrix, supplied-environment
+resolution, lifecycle distinctions, documentation twins and Zach's exact
+PR-wheel handoff recommendations are also incorporated. API-key delivery,
+Haiku-only throwaway tickets, Server 2025 as the tested version and the
+exclusion of a real Codex run remain as the owner decided.
+
+### Native transport evidence
+
+Standalone fake-agent probes on native Python 3.11.17; no repository
+implementation or real-agent session was tested in this review:
+
+- The selected whole-command environment transport passed **80/80**
+  representable cases across `.cmd` and `.bat`, each with direct and
+  npm-style `%*` forwarding. Exact argv and prompt-file hashes matched.
+  Paths and arguments included spaces, percent sequences, exclamation
+  marks, carets, shell operators, quotes, backslashes and Unicode. The
+  injection-like input created no unexpected file.
+- Raw LF, CR and CRLF failed all **12/12** selected-transport cases,
+  motivating the owner-approved preflight exception. The broader
+  four-transport comparison was 320/368; every failure was one of those
+  line-break cases.
+- A separate selected-transport stress run passed **184/184**, including
+  deterministic mixed punctuation, empty arguments, long quote/backslash
+  runs, non-BMP characters, Japanese paths and U+2028/U+2029. The batch
+  pointer's exact standalone marker survived; full prompt bytes matched.
+- A synthetic `ExitProcess` probe confirmed the Python 3.11 boundary:
+  passing unsigned `0xC000013A` or `0xC0000005` to `SystemExit` produced
+  `0xFFFFFFFF`; passing the signed equivalent preserved the original
+  DWORD. Ordinary code 7 survived both forms. This proves exit transport,
+  **not** real CTRL_BREAK, crash classification or Coga CLI acceptance.
+- The transport's one-expansion premise agrees with Microsoft's
+  [cmd variable-substitution contract](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd).
+  Local checking of the existing `usage._has_marker_line` confirmed
+  U+2028 preserves exact-marker matching without changing its parser.
+
+Local, ignored evidence is under
+`.coga/clean-install/win-argv-review2-1019/`: `argv-review.py`,
+`argv-stress.py`, their JSON results, `baseline.txt` and `host.txt`.
+The scripts run with native `python.exe` through harness `ssh` and create
+their fake agents in the box's temp directory. They are design probes,
+not a replacement for the committed implementation tests in §8.
+
+### Box receipt and remaining work
+
+- Run `win-argv-review2-1019`: **i-0b4adfddaa3220e7a**, **us-east-1a**,
+  t3.large, AMI **ami-0b16ced290e00a1a3**
+  (`Windows_Server-2025-English-Full-Base-2026.10.14`), Server 2025
+  build 26100.33650. Git 2.56.0.windows.2, uv 0.13.3, Python 3.11.17.
+- Launched **2026-10-20T03:57:53Z**; harness teardown recorded termination
+  at **2026-10-20T04:08:48Z**, security-group deletion at **04:08:50Z**
+  and key-pair deletion at **04:08:51Z**. Final harness `status` confirmed
+  `terminated`, no tagged volumes and no remaining security group or key.
+- The first attempt, `win-argv-review-1019`, failed before allocation
+  because sandbox permissions prevented an AWS SSO cache refresh.
+  Its teardown and status also confirmed no resources. No API key or
+  agent authentication was needed for either standalone probe.
+
+Reconciled with main through `5adbea7a7`; intervening changes affected other
+tickets, not this spec or its governing contracts. Only this ticket is
+edited. The task remains at the owner's `review-design` gate; no workflow
+transition is authorized by the transport-policy answers. The core-port
+ticket is still at `review-design`, and implementation must wait for its
+merge, then adapt to the landed `ProcessTree`. Full suites, actual
+interactive launch acceptance and Zach's machine check remain future work.
+
+Review validation: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python
+-m coga.cli validate --task
+windows-native/interactive-coga-launch-on-native-windows --json` exited 0
+(one task, no issues); `git diff --check` passed. Local assertions confirmed
+unchanged frontmatter, one blackboard fence, the required composable
+Description subsections, and positive/negative exact-marker matching for
+the U+2028 batch pointer.
