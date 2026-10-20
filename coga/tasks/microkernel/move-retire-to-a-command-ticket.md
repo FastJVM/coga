@@ -1,6 +1,6 @@
 ---
 title: Move retire to a command ticket
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -30,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 contexts:
 - coga/principles
 - coga/extension-model
