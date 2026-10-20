@@ -140,7 +140,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [velocity](archive/evidence/velocity.md),
   [admin and patent flexibility](archive/evidence/admin-and-patent-flexibility-2026-09-12.md),
   [Claude cache TTL survey](archive/evidence/claude-cache-ttl-survey.md),
-  [macOS clean-install runs](archive/evidence/macos-clean-install-runs-2026-10.md).
+  [macOS clean-install runs](archive/evidence/macos-clean-install-runs-2026-10.md),
+  [Dream under codex scratch runs](archive/evidence/dream-under-codex-scratch-runs-2026-09.md).
 - Archived, unimplemented design: [CLI external surface](archive/design/cli-external-surface.md).
 - Archive: [origins](archive/origins.md),
   [market landscape](archive/market-landscape.md),
