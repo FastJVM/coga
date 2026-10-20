@@ -130,10 +130,12 @@ checkout's HEAD. It never follows a recorded `worktree:`.
 
 Writing `branch:` or plan notes on `main` does not publish them: Git carries
 uncommitted edits across a branch switch. Before switching, publish those
-edits strictly, naming each edited file:
+edits strictly, naming each edited file. The recipe resolves paths against
+the current directory, which launch preserves, so anchor them at the checkout
+root:
 
 ```sh
-coga run publish-state coga/tasks/<slug>.md
+coga run publish-state "$(git rev-parse --show-toplevel)/coga/tasks/<slug>.md"
 git status --porcelain --untracked-files=all
 ```
 
@@ -165,7 +167,9 @@ work in the clone.
   before the runner understood `scope:`. Make a template change that depends on
   unmerged code also work under the current control code (that fix made the
   `ticket.py` shims bump `COGA_TASK_SLUG` when set, so old code ran them as
-  one-step periods), or keep it uncommitted until the code lands. Which
+  one-step periods), or keep the edit out of the Coga roots until the code
+  lands. Leaving it uncommitted is not enough: the sweep publishes every dirty
+  file there too. Which
   invocations sweep is owned by
   [coga/sync](../../coga/sync/SKILL.md).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch
