@@ -8769,3 +8769,9 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 22:07 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-19 22:12 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [agent:claude] advanced to step 2 (human-owns-and-finishes) → nicktoper — Decision record drafted in context-audiences/README.md; [owner] items await your call
 2026-10-19 22:12 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [system] {"agent":"claude","agent_turns":4,"cache_creation_input_tokens":95686,"cache_read_input_tokens":1972444,"cli":"claude","content_status":"ok","elapsed_seconds":328.754967,"ended_at":"2026-10-20T05:12:37.633324Z","exit_code":0,"exit_kind":"done","human_turns":0,"input_tokens":44,"model":"claude-opus-5-5","outcome":"Data's in. Writing the decision record now.","outcome_status":"completed","output_tokens":31093,"provider":"anthropic","request":null,"schema":2,"session_id":"d058b8ba-fefb-46cf-8fe9-90fddfb6964b","slug":"context-audiences/01-classify-contexts-by-audience-and-decide-the-la","started_at":"2026-10-20T05:07:08.878357Z","step":"agent-produces","title":"01 Classify contexts by audience and decide the layout","ts":"2026-10-20T05:12:37.633324Z","usage_reason":null,"usage_status":"ok"}
+2026-10-20 10:49 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-20 10:49 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-20
+2026-10-20 10:49 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-20 10:49 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-20
+2026-10-20 10:49 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-20 10:49 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-20
