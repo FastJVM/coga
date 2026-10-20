@@ -8799,3 +8799,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 11:20 v1 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
 2026-10-20 11:20 v1 [recurring/blocker-reminders] [system] task done
 2026-10-20 11:20 v1 [recurring/blocker-reminders] [system] script exited with code 0
+2026-10-20 11:27 v1 [file-post-merge-obligations-before-open-pr-because] [agent:codex] advanced to step 3 (open-pr) → claude

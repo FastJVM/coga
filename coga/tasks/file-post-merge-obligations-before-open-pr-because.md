@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -140,19 +140,57 @@ Commit `01035ced3` on `post-merge-obligations` (pushed; rebased on origin/main `
 - PR #1055 edits a different hunk of coga/workflows (around line 36): no textual conflict expected, but whoever merges second should recheck the twin.
 - Pre-rebase, two unrelated test failures (missing untracked CLAUDE.md; usage_report import allowlist) reproduced on main. Main fixed both; the full suite on the rebased head passes.
 
+## Peer review
+
+Completed direct, independent review by Codex on 2026-10-20; no must-fix
+findings. The implement handoff records Claude as the author; this Codex
+session made no implementation edits and did not start a nested reviewer.
+Reviewed head `ea25137d4801cb20edda39d58bfb32b17c55e853` against base
+`793bc026fd55727cbb02a4d2d6b19fa11cbb17a7`.
+
+- Rebased unconditionally onto fetched main before reviewing and testing.
+  `git range-diff` confirms the implementation patch is unchanged from
+  `01035ced3`; pushed the new head with an explicit force-with-lease.
+- Checked the closure claim against `autoclose._candidate`, `_on_final_step`,
+  and `_try_bump_one`, and the worked examples against the live tickets and
+  Retro PR patches. Reviewed the pre-publication pre-check, escalation,
+  owner-controlled review assist, renumbered references, and all three
+  byte-identical packaged twins.
+- Composed the changed skills from the frozen workflow at `aef654ea4`:
+  attended and megalaunch open-pr, plus attended review. All three include
+  the new obligation guidance; the review assist still forbids bumping and
+  requires owner agreement before filing. Only in-memory step selection
+  changed. No terminal, pager, or Slack rendering changed, so a TTY exercise
+  is inapplicable.
+- Required full suite on Python 3.12.12: 3,808 passed, 7 skipped. Scoped
+  validation: one valid ticket, no issues. Exact commands and revision
+  receipts are under `## PR`. No Python 3.11 run; this diff changes prose only.
+- Reviewed the workflows topic for splitting after it crossed the byte-size
+  guidance. Keep this bounded addition beside the Code review gate here:
+  separating its closure rule from that gate would add navigation without
+  removing unrelated material.
+- Final freshness fetch reached `89c92b650f3452f27ccd95ae5603d8538c73c552`.
+  Its changes since the reviewed base are only unrelated generated ticket/log
+  state, which the publication contract permits; neither the six reviewed
+  paths nor this ticket changed. The head/base receipts remain current.
+- PR #1055 remains open and changes a separate Definition format hunk in
+  workflows and its twin. No must-fix interaction found. This docs/skills
+  ticket has no additional obligation that its merge leaves unfinished;
+  backfilling the historical release/platform work is outside the agreed scope.
+
 ## PR
 
 ```yaml
 title: File post-merge obligations as drafts before open-pr
 author: claude
-author_evidence: Implement session ran as Claude Opus 5.5 (claude-opus-5-5) under coga launch; ticket agent is claude.
-head: 01035ced34e5ff81365304d8674ba2d769224e59
-base: aef654ea4b6a58b760330a2c3b2ebd8acc658bb1
+author_evidence: The implement handoff records Claude Opus 5.5 (claude-opus-5-5) under coga launch as the author of 01035ced3. This independent Codex review session rebased that unchanged patch and made no implementation edits.
+head: ea25137d4801cb20edda39d58bfb32b17c55e853
+base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
 depth: skim
-rationale: Docs/skill prose only, no code change; read the new coga/workflows subsection for the rule's wording.
+rationale: Bounded docs/skills change with completed independent review, a green full suite, and pre-change frozen-workflow composition checks. Skim the new rule and its procedural enforcement tradeoff.
 implementation: States in coga/workflows that merge-triggered autoclose is unconditional and that obligations the merge does not discharge must be filed as drafts before open-pr; adds the matching pre-check to code/open-pr and a flag-before-merge note to code/address-pr-comments.
 deviations: None. Owner approved a procedural rule over a mechanical autoclose gate.
-limitations: Not enforced mechanically; an agent can still skip the pre-check. Autoclose behavior is unchanged.
+limitations: Not enforced mechanically; an agent can still skip the pre-check. Autoclose behavior is unchanged. Tests ran on Python 3.12.12, not 3.11; no runtime code changed. No TTY exercise was needed because no interactive or rendered terminal surface changed.
 files:
   docs/contexts/coga/workflows/SKILL.md: Owns the new rule and the W43 worked case.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin of the workflows topic.
@@ -161,14 +199,31 @@ files:
   coga/skills/code/address-pr-comments/SKILL.md: Flag un-discharged obligations before the owner merges.
   src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: Packaged twin of code/address-pr-comments.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Code review has not run yet; the workflow's peer-review step follows.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: ea25137d4801cb20edda39d58bfb32b17c55e853
+  base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
+  detail: Direct independent review completed on the rebased head with no must-fix findings. Checked the closure implementation, obligation guidance, owner gate, worked examples, packaged twins, and compatibility with the existing frozen workflow. No nested review tool was invoked.
 checks:
-  - command: python -m pytest
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
     status: passed
-    head: 01035ced34e5ff81365304d8674ba2d769224e59
-    base: aef654ea4b6a58b760330a2c3b2ebd8acc658bb1
-    detail: 3808 passed, 7 skipped.
+    head: ea25137d4801cb20edda39d58bfb32b17c55e853
+    base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
+    detail: 3808 passed, 7 skipped in 450.12 seconds on Python 3.12.12, including packaging and composition tests.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-post-merge-review-470d3d57/check_composition.py
+    status: passed
+    head: ea25137d4801cb20edda39d58bfb32b17c55e853
+    base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
+    detail: Three read-only compositions using this ticket's pre-change frozen workflow from aef654ea4 passed. Inspected attended and megalaunch open-pr guidance and attended review guidance; owner agreement and the no-bump rule remain present.
+  - command: coga validate --task file-post-merge-obligations-before-open-pr-because --json
+    status: passed
+    head: ea25137d4801cb20edda39d58bfb32b17c55e853
+    base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
+    detail: One valid ticket, no issues or fixes.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: ea25137d4801cb20edda39d58bfb32b17c55e853
+    base: 793bc026fd55727cbb02a4d2d6b19fa11cbb17a7
+    detail: No whitespace errors in the six-file branch diff.
 ```
