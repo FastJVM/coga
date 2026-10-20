@@ -1,6 +1,6 @@
 ---
 title: 01 Classify contexts by audience and decide the layout
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: draft-for-human

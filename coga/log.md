@@ -8765,3 +8765,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 22:03 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [human:nicktoper] created (status=draft)
 2026-10-19 22:03 v1 [context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set] [human:nicktoper] created (status=draft)
 2026-10-19 22:07 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [human:nicktoper] activated (draft → active) — auto on launch
+2026-10-19 22:07 v1 [context-audiences/01-classify-contexts-by-audience-and-decide-the-la] [human:nicktoper] started (active → in_progress) via coga launch
