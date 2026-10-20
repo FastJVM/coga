@@ -1,12 +1,12 @@
 ---
 name: coga/cli
-description: Command index — maps every installed `coga` command and default alias to the topic that owns its contract. Attaching it loads only this index, not the linked topics; exact syntax is `coga <command> --help`.
+description: Command index — maps every installed `coga` command and default alias to its contract owner. Attaching it loads only this index, not the linked owners; exact syntax is `coga <command> --help`.
 ---
 
 # coga CLI — command index
 
 The installed CLI is the syntax authority: run `coga --help` and
-`coga <command> --help`. This page only says which topic owns each
+`coga <command> --help`. This page only says which file owns each
 command's behavior. Attach that topic when a task depends on it.
 
 ## Setup
@@ -40,7 +40,7 @@ command's behavior. Attach that topic when a task depends on it.
 | `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
 | `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
 | `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
-| `dream` → `recurring launch dream` | [coga/dream](../dream/SKILL.md) |
+| `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md) |
 | `autoclose` → `recurring launch autoclose-merged` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
 | `skill-update` → `recurring launch skill-update` | [coga/skill-management](../skill-management/SKILL.md) |
 

@@ -92,7 +92,7 @@ The ordinary delivery-miss path appends an audit line. Two paths do not:
   `_receipt`, reached through the phone-home `ticket.py` shim):
   a best-effort telemetry receipt from a bounded worker whose failure must
   not affect capture or completion, so a delivery miss must not dirty
-  `coga/log.md` ([coga/telemetry](../../telemetry/SKILL.md)).
+  `coga/log.md` ([phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)).
 
 ## Never render a raw Slack error
 

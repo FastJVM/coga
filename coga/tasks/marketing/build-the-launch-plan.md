@@ -49,7 +49,7 @@ in the idea-piece ticket or README.
   owned by `marketing/fix-installer/complete-the-authenticated-clean-install-audit`;
   the earlier installer audit closed with authentication blockers and does
   not establish a completed first task. Track that evidence alongside
-  the [weekly snapshot contract](../../../docs/contexts/coga/telemetry/SKILL.md). Record the verified first-run
+  the [weekly snapshot contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md). Record the verified first-run
   path and PostHog acceptance evidence; this ticket does not implement them.
 - `marketing/idea-piece` produces the single argument and concrete proof.
   The owner chooses its publication venue and approves/publishes the copy.

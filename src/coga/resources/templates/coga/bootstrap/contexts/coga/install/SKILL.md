@@ -105,7 +105,7 @@ Install Python 3.11+ separately (`uv tool install` can manage its own Python).
 A clean-install walk has reproduced the SSH error on a fresh macOS host;
 the dialog path is unverified. This topic owns the
 headless steps; the clean-install runbook,
-[coga/testing/clean-install/macos-aws](../testing/clean-install/macos-aws/SKILL.md),
+[coga/testing/clean-install/macos-aws](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
 applies them to its walk host.
 
 Coga does not own your identity. It uses tools you already authenticate

@@ -1,15 +1,15 @@
 ---
-name: coga/testing/clean-install/macos-aws
-description: The macOS clean-install harness on an EC2 Mac dedicated host — cost approval, region choice, provision, install/init walk, SSH or VNC continuation, and teardown with host release.
+name: macos-aws
+description: Provision, use, and tear down an AWS Mac for Coga clean-install verification. Use for the macOS harness, including attended SSH or VNC continuation.
 ---
 
 # macOS clean-install harness on AWS
 
-The macOS counterpart of the [Linux clean-install harness](../SKILL.md). It
+The macOS counterpart of the [Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It
 runs the same walk script, `scripts/clean-install/container.sh`, as a fresh
 macOS user on an EC2 Mac (`mac2.metal`, Apple silicon), and checks the
-documented [install](../../../install/SKILL.md), [init](../../../init/SKILL.md)
-and [first-task](../../../first-task/SKILL.md) path against an installed
+documented [install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md), [init](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md)
+and [first-task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md) path against an installed
 artifact. Like the Linux harness, it is repository tooling and is not
 installed with Coga:
 
@@ -17,10 +17,8 @@ installed with Coga:
   CLI, SSH and the build of the `main` wheel.
 - `scripts/clean-install/macos-walk.sh` runs on the Mac as `ec2-user`.
 
-**Size exception.** This runbook stays one topic past the 200-line review
-line ([coga/knowledge](../../../knowledge/SKILL.md)) because its sections are
-one ordered procedure from a paid host allocation to its release, and a leaf
-attached without the teardown and release steps would leave a host billing.
+Keep provisioning and teardown in one procedure: allocating a paid host
+without its release steps would leave it billing.
 
 ## Cost and approval
 
@@ -131,7 +129,7 @@ install dialog instead. That stop is the new-user finding. To continue, install
 the CLT: as a new user would, over VNC (below) by clicking **Install** in the
 dialog or accepting `xcode-select --install`; or headless over SSH with the
 `softwareupdate` steps that
-[coga/install](../../../install/SKILL.md#macos-install-the-command-line-tools-first)
+[coga/install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-install-the-command-line-tools-first)
 owns.
 
 Then run a walk with a **new** macOS user. The CLT install is machine-wide;

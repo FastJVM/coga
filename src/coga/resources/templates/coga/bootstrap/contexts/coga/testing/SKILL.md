@@ -28,13 +28,13 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 variable for the one command; do not edit the fixture's config to satisfy it.
 
 For artifact-level reproduction, use the
-[Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
+[Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
 continuation for agent login, the first-run `coga build`, and the first
 ticket. The
-[macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
+[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host, and the
-[Windows harness on AWS](clean-install/windows-aws/SKILL.md) on EC2 Windows
+[Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
 Server.
 
 ## Which code you are actually testing
@@ -102,7 +102,7 @@ Server.
 ## CI posture and receipts
 
 The only GitHub Actions workflow is the publish-only
-`.github/workflows/release.yml` ([coga/releasing](../releasing/SKILL.md)).
+`.github/workflows/release.yml` ([coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md)).
 Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 `coga validate` on any branch, PR, push, or tag, so the local suite plus
 validation are the release gate, and the pristine-tree wheel collision is

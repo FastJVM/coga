@@ -26,8 +26,8 @@ A `scope: clone` template is serviced once per period **in every clone that
 sweeps** (`recurring_clone`, `recurring.scan_clone_due`). It requires a
 reserved `ticket.py` and rejects `delegate`, `state_keys` and `workflow`.
 The sweep runs the script directly, after the shared launches. No period task
-is created, nothing is committed except where a template names its one
-publication below, and no log line is written. The script gets
+is created, the runner commits nothing, and no log line is written.
+A script's own state changes and publication belong to its template. The script gets
 the template's `secrets` and `COGA_RECURRING_SCOPE=clone`,
 `COGA_RECURRING_TEMPLATE` and `COGA_RECURRING_PERIOD`, but no `COGA_TASK_*`
 variables, so there is nothing to bump. Exit 0 records the period in
@@ -55,9 +55,9 @@ never replaced by best-effort PID lookup. This adds one wrapper process on Windo
 The limit can interrupt legitimate long maintenance work, and truncation loses
 middle output; increase the explicit runner limit when a job requires it.
 
-Tradeoff, accepted: clone-scoped runs leave no git-visible record beyond the
-worklist publication below. Their evidence is the clone-local ledger and log, the console, and the autofix run
-record.
+Tradeoff, accepted: clone-scoped runs leave no runner-owned git-visible record.
+Their evidence is the clone-local ledger and log, the console, and the autofix
+run record.
 
 An install older than clone scope fails silently rather than loudly: it
 ignores the `scope` key it does not know and services a `scope: clone`
@@ -70,32 +70,11 @@ template already declaring clone scope, check the CLI version and editable
 source checkout that created it. Upgrading an install that predates clone
 scope resolves this mismatch ([coga/install](../../install/SKILL.md)).
 
-The shipped clone-scoped template is `branch-sweep` (daily; local refs and
-linked worktrees). In the Coga source repo `upstream-coga` is clone-scoped too
-(it reads machine-local `[upstream]` checkouts). The daily `autoclose-merged`
-template stays repo-scoped: it runs the `autoclose` recipe, then bumps. Ticket
-closure is shared state. The landed-branch pass for branches with no live
-ticket is clone-local, so every clone's daily `branch-sweep` does it. Both use
-the existing [checkout cleanup proofs](../../../dev/checkout-cleanup/proofs/SKILL.md);
-frequency grants no new deletion authority. That includes the
-[terminal-owner rule](../../../dev/checkout-cleanup/terminal-owners/SKILL.md):
-a branch whose PR closed unmerged is released only when a done or canceled
-ticket owns it. The daily clone pass is the integration point for terminal
-transitions, which delete nothing themselves. A refusal is reported under
-`## Branch Sweep` and retried the next day.
-
-The same clone pass settles the `retires.md` entries that record this clone
-as `owner`, which the clone servicing `autoclose-merged` can only report. It
-runs them through autoclose's backlog walk and proofs, from the control branch
-only, and judges no other entry. A worklist it changed is the one exception to
-"nothing is committed": `git.publish` of that file alone, pinned to the bytes
-it read, with no log line. Reconcile and publication hold the local state
-lock together. A failed or skipped publish fails the run and restores the
-pre-pass bytes, so the next run judges and publishes them again. If an
-outside writer changed the file meanwhile, its contents are preserved and
-the conflict is reported instead. With Git sync disabled, the pass is skipped
-without disposing of or rewriting follow-ups. An ownerless entry stays with
-autoclose, which backfills `owner` while the foreign directory still exists.
+The shipped `branch-sweep` template uses clone scope for local refs and
+worktrees; its [ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/branch-sweep/ticket.md)
+owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
+because ticket closure is shared state. This repo's `upstream-coga` is
+clone-scoped because it reads machine-local checkouts.
 
 ## What a sweep does per template
 

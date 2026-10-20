@@ -10,9 +10,10 @@ is right. Choose the owner by what the knowledge is:
 
 | Knowledge | Owner |
 | --- | --- |
-| Facts and contracts: behavior, invariants, edge cases, product intent | a topic under the configured contexts root (`<ref>/SKILL.md`) |
+| Shared facts and contracts: behavior, invariants, edge cases, product intent used across capabilities | a topic under the configured contexts root (`<ref>/SKILL.md`) |
 | Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
-| One command ticket's own procedure: what its verb does, step by step | that command ticket's `bootstrap/<name>/ticket.md` |
+| One ticket-defined capability's behavior and procedure | its command ticket (`bootstrap/<name>/ticket.md`) or recurring template (`recurring/<name>/ticket.md`) |
+| Maintenance procedures specific to that capability | supporting files beside its persistent ticket, linked for reading when needed |
 | Per-ticket field guide: a summary carried by new tickets that links the owning topics | inline ticket template (`src/coga/resources/ticket.md`) |
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
@@ -20,23 +21,35 @@ is right. Choose the owner by what the knowledge is:
 | Archived, unimplemented proposals | `docs/archive/design/` pages |
 | Other retired history | `docs/archive/` pages |
 
-Humans and agents read the same topic file. Do not keep a short agent
+Humans and agents read the same owning file. Do not keep a short agent
 rendition beside a longer human one: that is two owners of one fact, and the
-copies drift independently. Pick the topic whose subject already covers the
-neighbouring facts; when two fit, the more narrowly attached one wins, because
-the fact then costs tokens only where it is needed.
+copies drift independently. For shared facts, pick the topic whose subject
+already covers the neighbouring facts; when two fit, the more narrowly
+attached one wins, because the fact then costs tokens only where it is needed.
+
+Durability alone does not make a document a context. Command tickets and
+recurring templates persist; their individual executions and period tasks do
+not. Keep a job's contract with the job: phone-home owns its snapshot boundary,
+and Dream owns its phase order. Extract shared facts into a context and
+reusable procedures into a skill when other capabilities need them.
+
+Keep maintenance instructions separate from instructions for each run. A
+template may link a sibling runbook, but recurring creation copies only
+`ticket.py`, not supporting Markdown. Name the persistent template path when
+directing a period to a supporting file; do not assume it is beside that
+period's ticket. Skills and runbooks remain readable documentation for humans.
 
 An owner decision *not* to act ("we looked at X and chose not to do it") is
-product intent, so its owner is the topic that owns X, never the ticket that
-recorded it: the lifecycle retires tickets, and a decision left in one gets
-re-raised. State what was declined, why, and what would reopen it.
+product intent, so it belongs with X's standing owner: the shared topic, skill,
+command ticket or recurring template, never only the temporary task that
+recorded it. The lifecycle retires work tickets and period tasks; a decision
+left in one gets re-raised. State what was declined, why, and what would reopen it.
 
 The same retirement breaks links. Retro and `coga delete` remove a ticket
 without repairing inbound references, so a topic that names a ticket by path
 as the owner of an open question dangles once it retires. Point durable
-surfaces at the question's standing owner (a topic, or the role that decides
-it), not at the transient ticket working it, and grep for inbound references
-to a slug before it retires.
+surfaces at the question's standing owner, not at the transient ticket working
+it, and grep for inbound references to a slug before it retires.
 
 ## Narrative links, never restates
 
@@ -45,11 +58,10 @@ the owner, but carries no specification-grade detail: no ordered lists, exact
 names, counts or field lists that can drift on their own. "Launch stacks
 conduct before task material, ticket last; the order is in
 `coga/prompt-composition`" is a summary; copying the layer list is a second
-specification. Command semantics live in the topic that owns the behavior,
-or, for a verb implemented by a command ticket, in that ticket's `ticket.md`
-(`bootstrap/retire/ticket.md` owns `coga retire`); rules several jobs share
-stay in a topic the ticket links. `coga/cli` is an index, and installed
-`coga <cmd> --help` is the syntax authority.
+specification. Command semantics live with their owning capability. A command
+ticket or recurring template owns its own behavior (`bootstrap/retire/ticket.md`
+owns `coga retire`); rules several jobs share stay in a topic the ticket links.
+`coga/cli` is an index, and installed `coga <cmd> --help` is the syntax authority.
 
 **Sync rule.** A PR that changes an owner greps other surfaces for the fact
 and fixes or deletes any restatement in the same PR. No test enforces this
@@ -65,8 +77,9 @@ Composition includes attached refs only
 ([coga/prompt-composition](../prompt-composition/SKILL.md)). A markdown link
 in a topic, skill, or ticket is navigation: the agent reads the target only if
 it chooses to open the file, subject to the archive access rule below. So an
-overview does not bring in its children, and knowledge a step requires must
-be attached explicitly by ref.
+overview does not bring in its children. Knowledge a step requires must be
+attached explicitly by ref or named as a required read in the task or skill;
+a navigation link alone does neither.
 
 ## Archive access
 
@@ -84,6 +97,10 @@ evidence, not current instructions. This is an agent instruction, not a
 filesystem access restriction.
 
 ## Attach or cite
+
+For a job-owned contract or supporting file, name its persistent path and the
+sections to read in the task's `## Context`. Invoke a reusable skill by ref.
+Do not recreate either as a context just to put it in `contexts:`.
 
 `contexts:` is one ticket-wide list, composed whole into every launch of
 every step. Decide per ticket across all planned steps:

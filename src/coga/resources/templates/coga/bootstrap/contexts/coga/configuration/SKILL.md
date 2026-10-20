@@ -102,7 +102,7 @@ Coga argv ([coga/cli](../cli/SKILL.md)).
 `Config.telemetry_enabled` defaults true. Both `[telemetry]` layers are
 validated even when overridden. No endpoint, key, cadence, or test bypass is
 configurable. Delivery, state and payload belong to
-[coga/telemetry](../telemetry/SKILL.md); git and notification switches remain
+[phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md); git and notification switches remain
 independent.
 
 `[recurring].idle_days` is team policy and cannot be overridden locally.

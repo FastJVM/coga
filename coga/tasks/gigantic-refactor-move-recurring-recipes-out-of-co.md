@@ -284,7 +284,7 @@ status; this ticket does not settle every command head.
 Summarize and link that owner from `AGENTS.md`, `CLAUDE.md`,
 `src/coga/resources/prompt.md`, and `coga/codebase`. Update
 `coga/recurring/templates` for the reporting helper and delivery mechanism;
-`coga/script-tickets`, `coga/dream`, `coga/recurring/scheduling`,
+`coga/script-tickets`, `coga/recurring/dream/ticket.md`, `coga/recurring/scheduling`,
 `coga/notifications/producers`, and `coga/notifications/failures` for moved
 symbols and invocation changes; `coga/internals/state-publication` for the
 shared CLI/edge exit boundary; and `coga/packaging` only where the shipped
@@ -426,7 +426,7 @@ read and update at the named sections, not specifications to duplicate here:
 - `coga/script-tickets` (`docs/contexts/coga/script-tickets/SKILL.md`):
   “Classifier”, “One deterministic phase”, and “COGA_TASK_* contract”. Only
   the exact `ticket.py` filename participates in launch dispatch.
-- `coga/dream` (`docs/contexts/coga/dream/SKILL.md`): the ordered phases;
+- `coga/recurring/dream/ticket.md`: the ordered phases;
   `coga/internals/pr-publication`
   (`docs/contexts/coga/internals/pr-publication/SKILL.md`): “Checks, in order”
   and “Where the record lands”; `coga/recurring/autofix`

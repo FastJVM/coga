@@ -11,6 +11,12 @@ persists across every run. A non-underscore directory with a valid `schedule:`
 is live; rename `foo/` to `_foo/` to park it (the scanner and validation skip
 it). There is no starter directory — copy an existing template.
 
+The template owns its job's behavior and run procedure. Shared machinery stays
+in contexts; reusable process stays in skills. Keep job-specific maintenance
+in supporting files beside the template and link them for reading when needed,
+with the persistent template path: periods do not copy supporting Markdown.
+The ownership rule is [coga/knowledge](../../knowledge/SKILL.md).
+
 ## Fields
 
 - `schedule` — required 5-field cron. Missing or malformed: the sweep skips the
@@ -102,11 +108,7 @@ template sibling in a fixed shape (`autoclose-merged/retires.md`, owned by
 `src/coga/retire_worklist.py`, `merge=union`, CAS-written; rules in the
 `coga/autoclose/sweep` skill); or one-line facts in `coga/log.md`. The schedule
 high-water mark lives only in the log (see [scheduling](../scheduling/ledger/SKILL.md)).
-A repo initialized before `retires.md` shipped needs `**/retires.md
-merge=union` in `coga/.gitattributes` (fresh `coga init` writes it) and
-refreshed local copies of the packaged `autoclose-merged` template and
-`workflows/autoclose-merged/sweep.md`, whose prose composes into every period;
-behavior comes from the upgraded package. Backfill line shape is in the skill.
+The [autoclose template's upgrade guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md) owns worklist setup for older repos.
 
 ## `ticket.py` completion and reporting
 
@@ -147,4 +149,4 @@ stale tracking ref, as `src/coga/skill_manager.py` does.
 `ticket.py` is a shim to the wheel-owned implementation, with a one-step
 `phone-home/run` workflow. Distribution, local forks and adopting the shim in
 existing copies are owned by [coga/packaging](../../packaging/SKILL.md). Its changing parent marker, bounded delivery, production suppression
-and opt-out contract belong to [coga/telemetry](../../telemetry/SKILL.md).
+and opt-out contract belong to [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).

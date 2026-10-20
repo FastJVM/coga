@@ -1,6 +1,6 @@
 ---
-name: coga/releasing
-description: How Coga is published to PyPI and TestPyPI through Trusted Publishing, the one-time index setup, and the clean first-install gate run after a release.
+name: releasing
+description: Publish Coga to TestPyPI or PyPI and verify the release. Use for Coga release preparation, Trusted Publishing setup, and post-release acceptance.
 ---
 
 # Releasing Coga
@@ -18,9 +18,9 @@ API token is created, stored, or pasted anywhere.
   `pypa/gh-action-pypi-publish` in environment `testpypi` or `pypi`, with
   only `contents: read` and `id-token: write`.
 - It is the only workflow and runs no tests. The local suite is the release
-  gate; see [coga/testing](../testing/SKILL.md). Because it builds from a
+  gate; see [coga/testing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/testing/SKILL.md). Because it builds from a
   pristine checkout it can catch the wheel collision described in
-  [coga/packaging](../packaging/SKILL.md), but only at release time.
+  [coga/packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/packaging/SKILL.md), but only at release time.
 
 ## One-time setup per index
 
@@ -69,7 +69,7 @@ no-cost way to catch a packaging problem.
    no tests, so this is the only behavioral check before an immutable upload:
    - the full suite against that checkout,
      `PYTHONPATH=<checkout>/src python -m pytest`, with its count recorded
-     ([coga/testing](../testing/SKILL.md));
+     ([coga/testing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/testing/SKILL.md));
    - build both distributions and `twine check dist/*`;
    - install the built wheel into a fresh Python 3.11 venv (the
      `requires-python` floor), then run `coga --version`,
@@ -93,7 +93,7 @@ version such as `0.2.0.dev1`. A bad release can be yanked, not deleted.
 
 ## Clean first-install gate
 
-After publishing, use the [clean-install harness release continuation](../testing/clean-install/SKILL.md#verify-a-published-release)
+After publishing, use the [clean-install harness release continuation](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md#verify-a-published-release)
 with the exact published version. It combines a fresh install with an attended,
 authenticated agent launch and verifies that the task finished with durable
 state and a clean repository. Keep the resulting receipts with the release

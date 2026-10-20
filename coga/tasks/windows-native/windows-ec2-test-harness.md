@@ -63,9 +63,9 @@ Deliverables:
   provision installs uv and Python 3.11 for that account. Walk users are
   always new local users, so a fix-loop install never leaks into a walk:
   `uv tool install` is per user.
-- A runbook topic, `coga/testing/clean-install/windows-aws`. It covers cost,
+- A runbook skill, `coga/testing/clean-install/windows-aws`. It covers cost,
   credentials, provision, walk, the fix-loop helpers, RDP and teardown. Link
-  it from the parent `coga/testing/clean-install` topic.
+  it from the parent `coga/testing/clean-install` skill.
 
 ### Acceptance
 
@@ -121,7 +121,7 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
 
 - Pattern to copy: `scripts/clean-install/aws-mac.sh` and the runbook
   `coga/testing/clean-install/macos-aws`
-  (`docs/contexts/coga/testing/clean-install/macos-aws/SKILL.md`). The
+  (`coga/skills/coga/testing/clean-install/macos-aws/SKILL.md`). The
   runbook is cited, not attached. Read its Provision, Walk and Teardown
   sections. Reuse:
   - the key-pair and `/32` SSH security-group setup;
@@ -140,11 +140,10 @@ The runbook and its packaged twin also pass `tests/test_packaging.py`.
   key-pair private key, and reach port 3389 only through an SSH tunnel. Never
   open 3389 in the security group. The port ticket needs a real console for
   its attended `coga launch` check.
-- The new topic is a packaged twin. Put it in both
-  `docs/contexts/coga/testing/clean-install/windows-aws/SKILL.md` and
-  `src/coga/resources/templates/coga/bootstrap/contexts/…`, and add the ref
-  next to `coga/testing/clean-install/macos-aws` in
-  `tests/test_packaging.py`'s required bootstrap context refs.
+- The skill has a packaged twin. Put it in both
+  `coga/skills/coga/testing/clean-install/windows-aws/SKILL.md` and
+  `src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md`.
+  `tests/test_packaging.py` checks the twin and required wheel resources.
   `coga/packaging` owns the twin rule.
 
 ### Gotchas carried over

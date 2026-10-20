@@ -2,7 +2,7 @@
 # this file to C:\coga-clean-install\ on the EC2 instance and runs it over SSH
 # with powershell.exe -File, so its exit code reaches the host. Keep it to the
 # stock Windows PowerShell 5.1 and to ASCII (5.1 reads BOM-less files as ANSI).
-# See the coga/testing/clean-install/windows-aws topic.
+# See the coga/testing/clean-install/windows-aws skill.
 param(
     [Parameter(Position = 0)][string]$Mode,
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)][string[]]$Rest

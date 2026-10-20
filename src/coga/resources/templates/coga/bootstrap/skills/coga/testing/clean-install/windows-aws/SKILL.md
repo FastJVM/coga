@@ -1,14 +1,14 @@
 ---
-name: coga/testing/clean-install/windows-aws
-description: The native Windows clean-install harness on an EC2 Windows Server 2025 instance — approval rule, credentials, provision, install/init walk, the fix-loop checkout and remote commands, RDP through an SSH tunnel, and teardown.
+name: windows-aws
+description: Provision, use, and tear down an AWS Windows host for Coga clean-install verification or the native Windows fix loop, including attended SSH or RDP checks.
 ---
 
 # Windows clean-install harness on AWS
 
-The Windows counterpart of the [macOS harness](../macos-aws/SKILL.md). It rents
+The Windows counterpart of the [macOS harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md). It rents
 a fresh native Windows machine (EC2 Windows Server 2025), drives it over SSH,
 and throws it away. It serves two purposes. **Walks** run the documented
-[install](../../../install/SKILL.md) and [init](../../../init/SKILL.md) path as
+[install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md) and [init](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md) path as
 a new local user. The **fix loop** checks out a branch and runs commands and
 the test suite on native Windows for the `windows-native/` port. Like the other
 harnesses, it is repository tooling and is not installed with Coga:
