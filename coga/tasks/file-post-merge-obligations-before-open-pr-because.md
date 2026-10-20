@@ -1,7 +1,7 @@
 ---
 title: File post-merge obligations before open-pr because merge-triggered closure
   is unconditional
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
