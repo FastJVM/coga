@@ -19,9 +19,86 @@ step: 1 (agent-produces)
 
 ## Description
 
-placeholder
+Coga's context library mixes two audiences without saying so: topics for
+**operating Coga in any adopting repo** (`coga/launch`, `coga/tickets`,
+`coga/first-task`, ...) and topics for **developing Coga itself**
+(`coga/codebase`, `coga/testing`, `coga/packaging`, `coga/releasing`, most of
+`coga/internals/*`, ...). Nearly all of them ship to every adopting repo as
+packaged bootstrap contexts, and ticket authors can't tell which set to
+attach. This ticket makes the product decisions. Sibling `02` executes them.
+
+The agent drafts, and the owner finishes and approves, a decision record in
+this group's `README.md` (`coga/tasks/context-audiences/README.md`):
+
+1. **The audience criterion**, worded so it can go straight into the docs.
+   Working wording: "does an agent or human in an adopting repo need this
+   topic to operate Coga correctly?"
+2. **A classification table** listing every topic under `docs/contexts/`
+   (there are about 85 SKILL.md topics). Each row gives the ref, the audience
+   (`user` or `coga-dev`), a one-line reason, and the shipped consumers that
+   force `user` (prompt, source module, bundled skill/workflow) where there
+   are any.
+3. **Mixed topics** that must be split into a shipped part and a Coga-dev
+   remainder, with the proposed cut for each.
+4. **How the audience is expressed.** A namespace split is the leading
+   candidate (e.g. keep `coga/*` and `dev/*` for users, move Coga-dev topics
+   under a new namespace). Weigh it against a frontmatter field or test lists
+   only. Record the target ref for every topic that moves.
+5. **Compatibility.** The expected answer is a clean break (see Context).
+   Confirm it, or record the concrete user-blocking reason for anything else.
+
+No files under `docs/contexts/` or `src/` change in this ticket.
+
+Done when the owner has approved the README decision record and it covers all
+five points, with a table row for every topic under `docs/contexts/`.
+`02` can then run from the README without reopening any product question.
 
 ## Context
+
+### Classification is not "path prefix decides"
+
+Shipped behavior points at some topics a naive reading would file as Coga-dev,
+so those must stay `user`:
+
+- The base prompt (`src/coga/resources/prompt.md`) tells every launched agent
+  in every repo to read `dev/checkouts/launch-boundary` and
+  `dev/checkouts/reconciliation` "from the configured contexts root or the
+  bundled package".
+- Core source strings cite `dev/checkouts`, `dev/checkout-cleanup` (and its
+  `terminal-owners` / `branch-sweep` children), and `coga/codebase/gotchas`.
+  Modules include `launch`, `open_pr`, `autoclose`, `branchsweep`,
+  `branchcleanup`, `retire_worklist`, `config`, `step_gate`,
+  `repl_supervisor`, `recurring_runner`. Re-grep rather than trusting this
+  list. `coga/codebase/gotchas` is cited by `retire_worklist`, so it may need
+  splitting out of `coga/codebase`.
+- Bundled skills and workflows under
+  `src/coga/resources/templates/coga/bootstrap/` run in adopting repos, e.g.
+  `code/self-qa` cites `coga/testing` "Restricted sandboxes", and
+  `code/implement` / `code/open-pr` / `code/self-qa` cite
+  `coga/internals/pr-publication/preparation`. Some cite by GitHub URL
+  (`https://github.com/FastJVM/coga/blob/main/docs/contexts/<ref>/SKILL.md`).
+
+For each topic, grep the ref and its URL/path form across `src/`,
+`docs/contexts/`, `coga/`, `tests/`, `README.md`, `AGENTS.md`. A citation from
+something that ships means `user`, or a split.
+
+Also: `docs/contexts/coga/manifesto/` is an empty directory with no SKILL.md.
+Recommend removing it or classify it. `coga/current-direction` and
+`coga/project-stage` are already local-only (`LOCAL_ONLY_CONTEXT_REFS` in
+`tests/test_packaging.py`), so they are `coga-dev` by definition.
+
+### Compatibility
+
+`coga/project-stage` ("Compatibility is migration-only", "Code review") rules
+out open-ended aliases and deprecation shims. The expected answer is a clean
+break: renamed or de-packaged refs fail loud in adopting repos, and the release
+notes name the renames.
+
+### Where the result goes
+
+The README is shared group material and isn't composed into either ticket's
+prompt. `02` reads it explicitly. Write it for that reader: tables over prose,
+and no rationale beyond one line per row.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

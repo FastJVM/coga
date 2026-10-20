@@ -27,9 +27,76 @@ step: 1 (implement)
 
 ## Description
 
-placeholder
+Carry out the decision record in `coga/tasks/context-audiences/README.md`,
+which sibling `01` writes and the owner approves. It defines two context
+audiences, for repos that use Coga and for developing Coga. Make the split real
+in the tree, the package, the tests and the guidance docs. Do not reopen the
+README's product decisions. If the README is missing, unapproved, or doesn't
+cover something you hit, ask the owner.
+
+1. **Move and split topics** as the README's classification table says, in
+   `docs/contexts/` and in the packaged twins under
+   `src/coga/resources/templates/coga/bootstrap/contexts/`.
+2. **Stop shipping Coga-dev topics.** Delete their packaged copies and make
+   `tests/test_packaging.py` enforce the split: `REQUIRED_BOOTSTRAP_CONTEXT_REFS`
+   holds only user topics. `LOCAL_ONLY_CONTEXT_REFS` currently demands a reason
+   per topic, so change how it expresses a whole local-only audience (e.g. by
+   namespace) rather than listing about 30 identical reasons.
+3. **Update every ref and link** to a moved topic: ticket `contexts:` in
+   `coga/tasks/`, skills, workflows, source strings, tests, fixtures
+   (`tests/fixtures/seeded-repo/`), `README.md`, `AGENTS.md`, and GitHub-URL
+   links in packaged templates.
+4. **Update the guidance docs** so they name both sets and the criterion:
+   `docs/README.md`, `coga/knowledge`, `coga/packaging`,
+   `coga/context-layout`, the `bootstrap/ticket` skill's "Context and skill
+   selection contract", and `AGENTS.md`'s canonical-topics list.
+5. **Release note** naming the renamed and de-packaged refs, per the README's
+   compatibility decision.
+
+Done when every topic under `docs/contexts/` matches its README row, the
+packaged bootstrap set contains only `user` topics and the packaging test
+enforces it, no reference to an old ref or URL remains outside
+`docs/archive/`, `docs/README.md` and `bootstrap/ticket`'s selection contract
+each name both sets and the criterion, and `python -m pytest` and
+`coga validate --json` pass.
 
 ## Context
+
+### Depends on 01
+
+Don't start until `context-audiences/01-classify-contexts-by-audience-and-decide-the-la`
+is done and the README decision record is approved. Read the README first. It
+is not composed into this prompt.
+
+### Topics this ticket edits (cited, not attached)
+
+These are read and edited, so they are left off `contexts:`:
+
+- `coga/packaging` (`docs/contexts/coga/packaging/SKILL.md`): twin mapping,
+  the "Local-only" definition, and the bootstrap/init-seeded/local-only
+  categories. Read it whole before touching twins.
+- `coga/knowledge` (`docs/contexts/coga/knowledge/SKILL.md`): "Attach or
+  cite".
+- `coga/context-layout` (`docs/contexts/coga/context-layout/SKILL.md`). This
+  repo sets `[layout] contexts = "docs/contexts"` in `coga/coga.toml`, and
+  `config.contexts_root` resolves it.
+- `docs/README.md`, whose Start / Understand / Operate / Internals grouping is
+  a rough precursor of the split.
+- The `bootstrap/ticket` skill
+  (`src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/`). It
+  has no live twin under `coga/skills/`.
+- `AGENTS.md`.
+
+### Mechanics
+
+- Packaged twins must stay byte-identical with their canonical copies, which
+  `tests/test_packaging.py` derives and enforces. A moved user topic moves in
+  both trees. A de-packaged topic loses its packaged copy and becomes
+  local-only.
+- Composition fails loud on an unknown ref, so a missed `contexts:` entry in
+  `coga/tasks/` breaks that ticket's next launch. Grep refs, `docs/contexts/<ref>`
+  paths, and `github.com/FastJVM/coga/blob/main/docs/contexts/` URLs.
+- Exclude `docs/archive/**` from the rewrite. It is dated history.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
