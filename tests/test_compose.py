@@ -334,13 +334,10 @@ def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> Non
         assert marker not in text, (resource, marker)
 
 
-@pytest.mark.parametrize("instructions", ["AGENTS.md", "CLAUDE.md"])
-def test_coga_repo_instructions_carry_the_minimal_core_boundary(
-    instructions: str,
-) -> None:
-    """The source-tree boundary remains in each agent's repository instructions."""
+def test_coga_repo_instructions_carry_the_minimal_core_boundary() -> None:
+    """The source-tree boundary remains in the shared repository instructions."""
     repo_root = Path(__file__).resolve().parents[1]
-    text = (repo_root / instructions).read_text()
+    text = (repo_root / "AGENTS.md").read_text()
 
     assert "Keep core minimal" in text
     assert "≥2 real consumers" in text

@@ -11,12 +11,14 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import runpy
 import shutil
+import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from textwrap import dedent
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -257,6 +259,8 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
     assert imported == {
         "load_config": "coga.config",
         "post": "coga.notification",
+        "read_ticket": "coga.tasks",
+        "resolve_task": "coga.tasks",
         "Path": "pathlib",
         "datetime": "datetime",
         "timezone": "datetime",
@@ -297,7 +301,7 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
 
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A throwaway copy of the seeded fixture repo (see `test_recurring_shims`)."""
+    """A seeded fixture repo with the live usage-report template installed."""
     dest = tmp_path / "example"
     shutil.copytree(
         SEEDED_REPO,
@@ -305,8 +309,116 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,
     )
-    monkeypatch.chdir(dest / "coga")
-    return dest / "coga"
+    root = dest / "coga"
+    shutil.copytree(TEMPLATE, root / "recurring" / "usage-report")
+    shutil.copy(WORKFLOW, _mkdir(root / "workflows" / "usage-report") / "post.md")
+    # Period creation resolves the step's skill, so the live skill rides along.
+    shutil.copy(SKILL, _mkdir(root / "skills" / "coga" / "usage-report" / "post") / "SKILL.md")
+    monkeypatch.chdir(root)
+    return root
+
+
+@pytest.mark.parametrize(
+    ("owner", "recipient"),
+    [("ada", "<@U02ADA>"), (None, "<@U01MARC>"), ("stranger", "stranger")],
+)
+@pytest.mark.parametrize("status_code", [200, 503])
+def test_period_task_posts_with_project_and_owner_before_bumping(
+    seeded: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    owner: str | None,
+    recipient: str,
+    status_code: int,
+) -> None:
+    """Run the copied shim for a fixed window through the real renderer,
+    capturing transport and the CLI bump. A delivery miss must still bump once.
+    """
+    local = seeded / "coga.local.toml"
+    local.write_text(local.read_text() + dedent("""
+        [notification]
+        channels = ["slack"]
+        [notification.slack]
+        webhook = "env:USAGE_REPORT_FLOW_WEBHOOK"
+        important_webhook = "env:USAGE_REPORT_IMPORTANT_WEBHOOK"
+        [notification.slack.users]
+        marc = "U01MARC"
+        ada = "U02ADA"
+    """))
+    monkeypatch.setenv("USAGE_REPORT_FLOW_WEBHOOK", "https://example.test/slack/flow")
+    important_webhook = "https://example.test/slack/important"
+    monkeypatch.setenv("USAGE_REPORT_IMPORTANT_WEBHOOK", important_webhook)
+    cfg = load_config(seeded)
+    assert cfg.project_name == "example"
+    assert cfg.current_user == "marc"
+    outcome = create_named(
+        cfg, "usage-report", now=datetime(2026, 9, 7, 8, tzinfo=timezone.utc)
+    )
+    ref = outcome.ref
+    ticket = read_ticket(ref)
+    if owner is None:
+        ticket.frontmatter.pop("owner", None)
+    else:
+        ticket.frontmatter["owner"] = owner
+    ticket.write(ref.ticket_path)
+
+    since, until = date(2026, 8, 31), date(2026, 9, 7)
+    records = [
+        _record("2026-09-01T10:00:00Z", tokens=(10, 20, 30, 40)),
+        _record("2026-09-02T10:00:00Z", model=None, tokens=None),
+        _record("2026-09-07T00:00:00Z"),  # Next week, outside the window.
+    ]
+    for record in records:
+        append_record(cfg, record)
+    expected = report.render(report.build_report(records, since, until))
+    assert expected.splitlines()[0] == "Agent usage — week of 2026-08-31 (Mon–Sun)"
+    assert expected.splitlines()[1] == (
+        "100 tokens across 2 sessions (1 session has unknown counts, so this is a floor)"
+    )
+
+    # Fix the window and restore the shim's module/search-path changes at teardown.
+    monkeypatch.setattr(report, "default_window", lambda today: (since, until))
+    monkeypatch.setitem(sys.modules, "report", report)
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setenv("COGA_COGA_OS_ROOT", str(seeded))
+    monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+    monkeypatch.setenv("COGA_TASK_TICKET", str(ref.ticket_path))
+    calls: list[tuple[str, object]] = []
+
+    def fake_post(
+        url: str,
+        json: dict[str, object] | None = None,
+        timeout: int | None = None,
+    ) -> SimpleNamespace:
+        calls.append(("post", {"url": url, "json": json}))
+        return SimpleNamespace(
+            status_code=status_code,
+            text="ok" if status_code == 200 else "unavailable",
+        )
+
+    run = subprocess.run
+
+    def bump(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        if argv[1:4] != ["-m", "coga.cli", "bump"]:
+            return run(argv, **kwargs)
+        calls.append(("bump", argv))
+        assert kwargs == {"check": False}
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr(subprocess, "run", bump)
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(ref.task_dir / SCRIPT_ENTRY_POINT))
+
+    assert exc.value.code == 0
+    assert calls == [
+        ("post", {
+            "url": important_webhook,
+            "json": {"text": f"[example] [{recipient}] {expected}"},
+        }),
+        ("bump", [sys.executable, "-m", "coga.cli", "bump", ref.id_slug]),
+    ]
+    assert ("post failed:" in capsys.readouterr().err) == (status_code == 503)
 
 
 def test_period_task_renders_last_week_from_the_template_and_closes_its_step(
@@ -320,11 +432,6 @@ def test_period_task_renders_last_week_from_the_template_and_closes_its_step(
     echoes the message it would have sent to stderr, where `capfd` reads it
     from the subprocess, and the shim's own `coga bump` closes the step.
     """
-    shutil.copytree(TEMPLATE, seeded / "recurring" / "usage-report")
-    shutil.copy(WORKFLOW, _mkdir(seeded / "workflows" / "usage-report") / "post.md")
-    # Period creation resolves the step's skill, so the live skill rides along.
-    shutil.copy(SKILL, _mkdir(seeded / "skills" / "coga" / "usage-report" / "post") / "SKILL.md")
-
     cfg = load_config(seeded)
     since, until = report.default_window(datetime.now(timezone.utc).date())
     inside = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc)
