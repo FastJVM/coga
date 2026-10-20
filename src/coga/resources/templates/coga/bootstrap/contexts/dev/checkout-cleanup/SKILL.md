@@ -46,7 +46,9 @@ The branch stays debt in the repository that owns it. `worktree_owner`
 records that owner for foreign primary and foreign linked checkouts. Autoclose
 captures ownership before dropping a primary's directory from the closure, and
 infers missing ownership on legacy entries before any branch cleanup or
-discharge check; it never deletes a same-named branch in the sweeping clone.
+discharge check. When the recorded checkout is a primary or its directory is
+gone, it never deletes a same-named branch in the sweeping clone; an existing
+foreign *linked* worktree is the exception, recorded as the known gap below.
 A remaining foreign branch is reported for manual cleanup in its owning
 clone. The owning clone's own daily branch sweep runs the ordinary proofs on
 the entries that record it as `owner`, then discharges and publishes them
