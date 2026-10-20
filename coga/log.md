@@ -8790,3 +8790,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 11:19 v1 [recurring/address-pr-comments] [system] completed (delegated bootstrap/address-pr-comments run finished) via coga recurring
 2026-10-20 11:19 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-20 11:19 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-10-20 11:19 v1 [confirm-why-branch-sweep-ran-as-a-shared-period-ta] [human:nicktoper] auto-bumped on merge of PR #1069 → done
