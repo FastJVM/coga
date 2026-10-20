@@ -1,6 +1,6 @@
 ---
 title: 01 Classify contexts by audience and decide the layout
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -15,6 +15,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
