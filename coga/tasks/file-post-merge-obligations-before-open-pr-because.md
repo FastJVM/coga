@@ -120,3 +120,11 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: post-merge-obligations
+
+## Plan (agreed with owner 2026-10-20)
+
+Docs/skills only: add the rule to coga/workflows "Code review gate", a pre-check in code/open-pr, and a flag-before-merge note in code/address-pr-comments (each with packaged twin). No mechanical gate: autoclose stays unconditional. PR #1055 touches a different hunk of coga/workflows; proceeding without waiting.
