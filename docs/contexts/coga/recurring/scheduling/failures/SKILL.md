@@ -41,7 +41,12 @@ refused or errored template never reports "No recurring tasks due".
 Two exits stop immediately: **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`,
 retained assist state needing reconciliation) and **≥ 128** (interrupt). Whatever
 stops the loop, `recurring_runner._record_abandoned_due` names the stopping task
-and each due task "admitted as due but never launched" in `problems:`. Absence
+and each due task "admitted as due but never launched" in `problems:`.
+Known gap (unresolved, no owning ticket): `_record_unlaunched_creates` runs in
+`run_recurring_scan`'s `try` body after `_launch_due_tasks` returns, not in its
+`finally`, so when an exception escapes the launch loop (exit 75, ≥ 128, or a
+launch/bookkeeping error) periods created this sweep and refused at admission
+(`scan.admission_skips`) are never named in `problems:`. Absence
 is a failure: an admitted watchdog recovery or a created period with no launch
 outcome makes the sweep exit 2, except `skip (already handled on control)`.
 A create sync to control that fails is non-fatal for the task — the created
