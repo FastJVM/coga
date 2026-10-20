@@ -8744,3 +8744,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-19 20:51 v1 [windows-native/interactive-coga-launch-on-native-windows] [human:nicktoper] launched (operator=nicktoper, launch_agent=codex, agent=codex)
 2026-10-19 20:55 v1 [slim-the-40-9-kib-blackboard-of-the-macos-and-wind] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-19 20:55 v1 [slim-the-40-9-kib-blackboard-of-the-macos-and-wind] [human:nicktoper] started (active → in_progress) via coga launch
+2026-10-19 20:55 v1 [slim-the-40-9-kib-blackboard-of-the-macos-and-wind] [human:nicktoper] launched (operator=claude, agent=claude)
