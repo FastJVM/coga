@@ -66,7 +66,7 @@ entry stops describing a real divergence. Packaged batteries with no live
 counterpart (`bootstrap/orient/`, `bootstrap/workflows/` fallbacks,
 `tasks/coga-build.md`) are not pairs; `EXPECTED_BOOTSTRAP_RESOURCES` keeps them
 shipping. The Coga repo root keeps only `AGENTS.md`, which Claude Code reads
-when no `CLAUDE.md` or `CLAUDE.local.md` exists (see `coga/agents`); do not
+when no `CLAUDE.md` or `CLAUDE.local.md` exists (see `coga/init`); do not
 add a root `CLAUDE.md` copy.
 
 Hazards:

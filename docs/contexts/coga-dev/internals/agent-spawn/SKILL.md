@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/agent-spawn
-description: The single shared agent-spawn path (`spawn_agent_session`) — its compose/prompt-file/argv/audit/spawn/teardown order, per-caller parameters, large-prompt file delivery, the PTY supervisor's done sentinel and exit classification, and the missing-file versus missing-CLI split.
+description: The single shared agent-spawn path (`spawn_agent_session`) — its compose/prompt-file/argv/audit/spawn/teardown order, per-caller parameters, large-prompt file delivery, the PTY supervisor's done sentinel and exit classification, the unsignalled-advance advisory, and the missing-file versus missing-CLI split.
 ---
 
 # Shared agent spawn
@@ -78,7 +78,14 @@ Otherwise argv is
 `<cli> [launch_args...] [name_flag title] [session_id_flag uuid] <prompt>`.
 The agent's `launch_args` tokens (`shlex`-split, empty by default) also follow
 `<cli>` in the discussion shape, so every interactive spawn carries them; the
-recurring `analyze` argv does not ([coga/agents](../../../coga/agents/SKILL.md)).
+recurring `analyze` argv does not ([agent config](../agent-config/SKILL.md)).
+Codex's interactive TUI attaches by default to a shared `codex app-server`
+daemon (observed in codex-cli 0.162.x) that spawns shell commands with its own
+environment, so the `COGA_*` variables above never reach them; the shipped
+`coga.toml` therefore sets `launch_args = "--no-daemon"` for codex. Core adds
+no built-in default. Codex rejects the flag only with `--remote` and the
+`agents`, `queue`, and `remote-control` subcommands, none of which Coga uses;
+the one-shot `codex exec` analyze argv already inherits the environment.
 
 ## Large prompts
 
@@ -114,12 +121,34 @@ classification, so a done signal followed by a real crash stays a `crash`
 with `done_signalled` true. The non-TTY path has no sentinel channel and
 reports false (no observation). Launch and megalaunch freeze `(status, step)`
 immediately before spawn. They compare it with post-session state through
-`repl_supervisor.unsignalled_advance_warning` to print the advisory owned by
-[coga/agents](../../../coga/agents/SKILL.md#launch-environment-inheritance). After a Coga teardown the
+`repl_supervisor.unsignalled_advance_warning` to print the
+[advisory](#unsignalled-advance-advisory) below. After a Coga teardown the
 terminal's input modes are reset. A stateless bootstrap target has no
 lifecycle: its final `coga slack --task bootstrap/<name>` FYI is the
 completion signal, attributed to its explicit agent or the configured
 default; an invalid explicit agent refuses that FYI before posting.
+
+## Unsignalled-advance advisory
+
+If the post-session `(status, step)` differs from the pre-spawn freeze and
+no matching done signal was observed, launch and megalaunch print a yellow
+stderr warning naming the task and the codex `launch_args` remedy. Missing
+`COGA_*` is the likely cause, but the warning says only that it *may* be: a
+human or another session could also have moved the ticket, so the
+observation never establishes who did. Observation limits:
+
+- Launch reads state after its checkout return and reload, so an advance
+  published from elsewhere is seen. It skips the check when the return or
+  reload refuses, the target was removed, or the ticket cannot be read or
+  parsed. Exempt checkouts read their current copy. Megalaunch uses its
+  existing post-session read.
+- A session whose unresolved blocked resume launch reblocks itself is not
+  diagnosed, so the supervisor's own write is never attributed to the agent.
+  Megalaunch observes before its reblock.
+- The warning appears only after the session ends. It never changes exit
+  codes, chaining, or result handling. Bump-time detection (sniffing vendor
+  environment markers) is deliberately out of scope: it would put vendor
+  knowledge in core and misfire on unsupervised sessions.
 
 ## Missing files versus missing CLI
 

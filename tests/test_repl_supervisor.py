@@ -683,7 +683,7 @@ def test_unsignalled_advance_warning_truth_table() -> None:
     assert "fix-retry" in warning
     assert "in_progress @ 1 (implement)" in warning
     assert "in_progress @ 2 (review)" in warning
-    assert "coga/agents" in warning
+    assert 'launch_args = "--no-daemon" under [agents.codex]' in warning
     assert "may have run without the COGA_*" in warning
     assert "could credit" in warning
     assert "a human or another session may" in warning

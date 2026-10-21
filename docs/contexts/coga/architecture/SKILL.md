@@ -42,6 +42,21 @@ An agent errs; the human fixes the owning file and commits; the next launch
 composes the fix. Dream proposes corrections as PRs; nothing changes
 operating rules without a merge.
 
+## Who Coga acts as
+
+- **Operator.** The OS user plus tools they already authenticate: `git`, SSH
+  agent or credential helper, `gh`. Coga stores no GitHub token. Git transport
+  uses your remote, GitHub API work uses `gh` auth, and a missing login fails
+  with a setup hint (`gh auth login`, fix your remote).
+- **Repo.** Identified by its Git checkout and `coga/` config. There is no
+  hosted account. For the optional weekly snapshot, a UUID v4 lives as
+  committed state in the phone-home recurring parent blackboard and is shared
+  by synced clones; it is not a human account.
+  [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns its lifecycle and concurrency
+  limits.
+- **Task capability.** A ticket's declared `secrets:` is a declaration of
+  intent, not confinement ([secrets](../secrets/SKILL.md)).
+
 ## Topic map
 
 - **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
@@ -50,7 +65,7 @@ operating rules without a merge.
 - **Understand**: [knowledge](../knowledge/SKILL.md) and the model topics
   linked above.
 - **Configure**: [configuration](../configuration/SKILL.md),
-  [context-layout](../context-layout/SKILL.md), [agents](../agents/SKILL.md),
+  [context-layout](../context-layout/SKILL.md),
   [secrets](../secrets/SKILL.md).
 - **Run work**: [launch](../launch/SKILL.md),
   [script-tickets](../script-tickets/SKILL.md),

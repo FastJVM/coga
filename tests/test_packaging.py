@@ -368,7 +368,6 @@ def test_intentional_divergences_stay_real_and_explained() -> None:
 # that policy without repeating the same reason for every development topic.
 REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
     {
-        "coga/agents",
         "coga/architecture",
         "coga/blackboard",
         "coga/cli",

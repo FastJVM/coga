@@ -37,7 +37,8 @@ draft is exactly those four (`status: draft`, `workflow: null`) plus a body.
 - An activated task must have an `agent` naming a configured agent. Null,
   blank, unknown, or since-removed names fail validation. Activation fills
   an absent draft value using `Config.default_agent()`; default resolution
-  belongs to [coga/agents](../agents/SKILL.md#the-default-agent).
+  is explained beside `default_agent` in the shipped `coga.toml`
+  ([coga/configuration](../configuration/SKILL.md)).
 - `contexts`, `skills`, `secrets`: absence is empty and an empty list is not
   written. A malformed falsy value (`contexts:` null, `""`, `0`) stays on disk
   so validation names it. `secrets` syntax is owned by

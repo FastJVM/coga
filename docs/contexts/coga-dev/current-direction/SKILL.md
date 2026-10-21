@@ -67,7 +67,7 @@ is `coga status` and the ticket bodies; stage posture is
   one pure resolver; `agent:` is frozen at activation; overrides are
   ephemeral; removed fields are rejected, not tolerated. Contracts:
   [`coga/tickets`](../../coga/tickets/SKILL.md), [`coga/lifecycle`](../../coga/lifecycle/SKILL.md),
-  [`coga/agents`](../../coga/agents/SKILL.md).
+  [`coga-dev/internals/agent-config`](../internals/agent-config/SKILL.md).
 - **Delegated recurring periods are bounded to one explicit agent step.**
   Contract: [`coga/recurring/delegation`](../../coga/recurring/delegation/SKILL.md).
 - **Thin tickets are designed before they are built.** Use

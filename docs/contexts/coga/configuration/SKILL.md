@@ -31,11 +31,12 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 `default_agent` is a string in both files. The local value wins, and each
 present value must name a type in the merged `[agents.*]`; it is validated at
-load ([coga/agents](../agents/SKILL.md#the-default-agent)).
+load. Precedence, freezing at activation, and what it does not move are
+explained beside the key in the shipped `coga.toml`.
 
 | Table | Keys | Where |
 |---|---|---|
-| `[agents.<name>]` | `cli`, `file` (both required), `mode`, `name_flag`, `session_id_flag`, `launch_args`, `discussion`, `analyze`, `peer` | both; local overlays shared ([coga/agents](../agents/SKILL.md)) |
+| `[agents.<name>]` | `cli`, `file` (both required), `mode`, `name_flag`, `session_id_flag`, `launch_args`, `discussion`, `analyze`, `peer` | both; local overlays shared key by key (explained in the shipped `coga.toml`) |
 | `[notification]` | `channels`, `slack` | both |
 | `[notification.slack]` | `webhook`, `important_webhook`, `enabled`, `gifs`, `users` | both; local wins ([coga/notifications](../notifications/SKILL.md)) |
 | `[git]` | `enabled`, `remote`, `control_branch`, `worktrees_ticket_owned` | shared |
