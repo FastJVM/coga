@@ -316,3 +316,12 @@ checks:
   detail: The full suite ran on Python 3.12. Real Python 3.11 verified affected config/autofix behavior
     plus packaging and resource loading; a second full-suite interpreter matrix was not required.
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `let-the-autofix-generator-attach-repo-default-contexts`
+Recorded: 2026-10-21T19:01:06+00:00
+
+    Branch 'coga/let-the-autofix-generator-attach-repo-default-co-140a79' is not safe to publish. refs/heads/coga/let-the-autofix-generator-attach-repo-default-co-140a79 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: src/coga/config.py. Reconcile it and relaunch, or `coga block --task let-the-autofix-generator-attach-repo-default-contexts`.
