@@ -8926,3 +8926,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 12:22 v1 [blocks/02-delete-the-code-topic-and-remove-coga-repo-only] [human:nicktoper] created (status=draft)
 2026-10-21 12:35 v1 [marketing/fix-installer/separate-installing-coga-from-installing-its-depen] [human:zach] created (status=draft)
 2026-10-21 12:36 v1 [marketing/fix-installer/handle-gh-not-being-installed-by-default] [human:zach] created (status=draft)
+2026-10-21 12:36 v1 [marketing/fix-installer/find-out-what-macos-actually-ships] [human:zach] created (status=draft)
