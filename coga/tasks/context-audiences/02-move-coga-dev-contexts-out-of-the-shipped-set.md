@@ -185,4 +185,20 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: context-audiences-split
+
+## Implement plan
+
+The owner-approved decision record covers 78 topics; sibling 01 is done.
+Implement its namespace moves and five content cuts, enforce the local-only
+audience in packaging checks, and update guidance and release notes. The
+attending owner requested a broken-reference check and repairs: audit topic
+refs, relative Markdown links, and GitHub URLs, including shipped consumers.
+Keep dated archives untouched. Coordinate ticket and recurring ref migration
+with the topic moves so automatic state publication cannot strand consumers.
+
+Actual implementing agent: Codex (GPT-6), overriding the ticket's configured
+Claude agent. Entry: clean main at f0a26f39ff4b1f62baabe3dfec0c12af07c464d9,
+freshly fetched; COGA_LAUNCH_RETURNS_CHECKOUT=1.
