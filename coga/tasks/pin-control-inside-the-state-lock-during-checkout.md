@@ -26,7 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -36,12 +36,12 @@ agent: claude
 
 ### Acceptance criteria
 
-- [ ] Local control moving forward to a commit already on the remote, between the fetch and the plan in `prepare_control_checkout`, no longer produces an `unpublished` (or any) refusal. Either the pin and the read of local control happen under the same `state_lock`, or a not-an-ancestor result re-fetches once inside the lock and re-plans before refusing.
-- [ ] The pre-mutation re-observation (`again = _plan_preparation(...)`) is checked against a pin that is current for the same lock hold. A pin that moved meanwhile re-plans; it does not apply a stale plan.
-- [ ] Genuine refusals are unchanged: a local hand commit of Coga state not on control still refuses `unpublished`, and a foreign commit still refuses `foreign`.
-- [ ] Regression test in `tests/test_git.py` (real Git, `git_repo` fixture): pin control, then publish a log line from the same checkout (or update-ref local control to a new remote commit) before `_plan_preparation` runs, and assert that preparation succeeds and lands on the new commit. A hook or monkeypatch on `_fetch_control`/`state_lock` entry may inject the interleaving deterministically.
-- [ ] Audit the other pin-then-lock readers of local control (`fast_forward_control` callers in `publish` and `refresh`, `git.py:467-560`) for the same window, and fix or explicitly rule out each one on the blackboard.
-- [ ] If behavior or wording changes, update `docs/contexts/dev/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and/or `docs/contexts/coga/internals/git-refresh/SKILL.md`, plus their packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`; `tests/test_packaging.py` passes.
+- [x] Local control moving forward to a commit already on the remote, between the fetch and the plan in `prepare_control_checkout`, no longer produces an `unpublished` (or any) refusal. Either the pin and the read of local control happen under the same `state_lock`, or a not-an-ancestor result re-fetches once inside the lock and re-plans before refusing.
+- [x] The pre-mutation re-observation (`again = _plan_preparation(...)`) is checked against a pin that is current for the same lock hold. A pin that moved meanwhile re-plans; it does not apply a stale plan.
+- [x] Genuine refusals are unchanged: a local hand commit of Coga state not on control still refuses `unpublished`, and a foreign commit still refuses `foreign`.
+- [x] Regression test in `tests/test_git.py` (real Git, `git_repo` fixture): pin control, then publish a log line from the same checkout (or update-ref local control to a new remote commit) before `_plan_preparation` runs, and assert that preparation succeeds and lands on the new commit. A hook or monkeypatch on `_fetch_control`/`state_lock` entry may inject the interleaving deterministically.
+- [x] Audit the other pin-then-lock readers of local control (`fast_forward_control` callers in `publish` and `refresh`, `git.py:467-560`) for the same window, and fix or explicitly rule out each one on the blackboard.
+- [x] If behavior or wording changes, update `docs/contexts/dev/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and/or `docs/contexts/coga/internals/git-refresh/SKILL.md`, plus their packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`; `tests/test_packaging.py` passes.
 
 ## Context
 
@@ -95,89 +95,132 @@ Tests (`tests/test_git.py`):
 
 Env note: the shell's `python` lacks tomlkit; tests run with `.venv/bin/python -m pytest`.
 
-
 ## Peer review
 
-Codex direct review, 2026-10-20. Review of the implementation completed on
-`d9c0753a97ee06c92114a5ec13a8a034adacc6b2` against
-`00b22b5e148a186ab98a66956f5b85302644260a` after a clean rebase. This is an
-independent review of Claude's implementation; no nested reviewer CLI ran.
-One must-fix finding remains; the attending human has been asked before code
-changes, per Session conduct. The full suite passed: `.venv/bin/python -m pytest`
-reported **3941 passed, 7 skipped in 353.63s** on Python 3.12.12, including
-the packaging twin checks. No claim of a Python 3.11 run. The rebased branch
-was pushed with an explicit lease; `git range-diff` confirms its implementation
-patch is unchanged. No workflow transition has been run.
+Completed 2026-10-21: Codex directly reviewed final head `8c3d0105dde810a86b826183e62ac3f72f32c71f`
+against base `eacb72c97ac616d727853d597a3ec9692487f56e`. No nested reviewer CLI ran.
+The initial review was independent of Claude's implementation; Codex then
+implemented the human-approved review fix and completed a self-review of the
+final diff. No independent review of that follow-up fix is claimed.
+There are no unresolved must-fix findings.
+Pushed `fix/prep-pin-under-state-lock` at `8c3d0105d` with an explicit
+lease. The final presentation rendered successfully with all six diff paths
+covered, current receipts, and no publication evidence gaps.
 
-- **P2 — retry a published local-control advance between observations.** A
-  sibling's push updates the tracking ref before its later local-control
-  fast-forward. If the first planning pass observes the push, the loop
-  re-pins; if the sibling then advances local control between the next two
-  planning passes, the tracking ref is already stable. The evidence mismatch
-  returns `refused: the checkout changed while it was being examined; retry`
-  even though local control equals remote control and the checkout is clean.
-  This happens before the final pin check/apply gap already disclosed in the
-  implement handoff. Reproduced using real Git with
-  `.venv/bin/python /tmp/coga-pin-peer-probe.py`: first pass pushes/fetches a
-  log-line commit, second pass advances local main to it after recording its
-  plan, third pass observes the new local main and refuses. An immediate
-  ordinary retry prepares successfully. Proposed fix: retry within the same
-  bound when only a proven published forward move of local control changed
-  the evidence; preserve unrelated evidence-change and unpublished/foreign
-  refusal behavior. Confirmation pending.
-- Additional real-Git probes passed:
-  `.venv/bin/python /tmp/coga-pin-peer-entry-probe.py` verifies a same-checkout
-  log publication on lock entry (including asserting preparation's fetch
-  occurs inside the lock) and `refresh` when control advances past its pin.
-- No interactive terminal, pager, or rendered-message surface changes in this
-  diff; the review concerns Git/state behavior and plain diagnostics.
+- **Resolved P2:** a sibling push followed by its delayed local-control
+  fast-forward could cause a false evidence-change refusal. The loop now
+  retries within the existing bound only when local control advances to a
+  commit contained in the pin and all other evidence matches. HEAD may follow
+  that move only when control is checked out. It builds and re-observes a new
+  plan before mutation. Changed files, staging, branch, feature HEAD, or
+  realignment evidence still refuse. The exhausted-retry diagnostic now names
+  control refs, since either local or remote-tracking control may be moving.
+- Reproduction and regression evidence: the initial independent review on
+  `d9c0753a97ee06c92114a5ec13a8a034adacc6b2` / base
+  `00b22b5e148a186ab98a66956f5b85302644260a` reproduced the false refusal
+  using `.venv/bin/python /tmp/coga-pin-peer-probe.py`. After the clean
+  rebase to `5a9c6d41c7264431cb08e6bfb1bdb036897613a6` / base `eacb72c97ac616d727853d597a3ec9692487f56e`,
+  the new focused tests first reported 3 failed / 3 passed before the code fix.
+  The final seven-case focused run passed before committing those changes as
+  `8c3d0105d`; all seven are included in the committed-tree suite below.
+- `.venv/bin/python -m pytest` on the final head/base: **3948 passed, 7 skipped
+  in 425.80s**, Python 3.12.12, including `tests/test_packaging.py`. No Python
+  3.11 run was performed. The initial review's 3941/7 result was historical.
+- Both standalone real-Git probes were rerun on the final head/base: the split
+  push/local-move reproduction now prepares on its first call; a same-checkout
+  publication on lock entry prepares with fetch inside the lock; `refresh`
+  succeeds when published control advances past its pin. Exact commands and
+  receipts are in `## PR`.
+- Final reconciliation: the unconditional rebase included current main at
+  `eacb72c97ac616d727853d597a3ec9692487f56e`. Later main commits through `30d006850` changed only
+  unrelated recurring tickets and the log. `check_branch_contains_control`
+  returned `ok=True`, `state-only-drift`; no implementation or governing
+  contract drift remains. The actual review base is still `eacb72c97ac616d727853d597a3ec9692487f56e`.
+- No terminal, pager, TTY prompt, or rendered-message behavior changed; an
+  interactive surface check is inapplicable. The remaining final-check/apply
+  race and the possible dirty published files are disclosed in `## PR`.
 
 ## PR
 
 ```yaml
-title: Re-pin control when it moves under checkout preparation
-author: claude
-author_evidence: Implement session ran as Claude Code on claude-opus-5-5 (attended launch ebccd116-f981-405d-bf57-577b082b032d).
-head: d9c0753a97ee06c92114a5ec13a8a034adacc6b2
-base: 00b22b5e148a186ab98a66956f5b85302644260a
+title: Re-pin control when it moves during checkout preparation
+author: claude/codex
+author_evidence: Claude authored the initial implementation in attended launch ebccd116-f981-405d-bf57-577b082b032d
+  (claude-opus-5-5). Codex authored review fix 8c3d0105d after the human approved it on 2026-10-21.
+head: 8c3d0105dde810a86b826183e62ac3f72f32c71f
+base: eacb72c97ac616d727853d597a3ec9692487f56e
 depth: deep
-rationale: Direct review found an unresolved false refusal when a sibling advances local control after its push has already been re-pinned. Git checkout mutation and concurrency behavior warrant inspection; implementation approval for the review fix is pending.
-implementation: Fetch, pin and plan share one state_lock hold; a remote-tracking ref that moved past the pin re-pins and re-plans (bounded). fast_forward_control treats local control that already contains new and is on the tracking ref as level.
-deviations: None from the ticket. Re-reads the tracking ref (no network) instead of re-fetching, since every in-repo move of local control also moves the shared tracking ref.
-limitations: A sibling push followed by a delayed local-control advance between observations still produces a false refusal (see Peer review). The previously disclosed final re-check/apply race reports failed; the shortcut may leave just-published files dirty for the next sweep.
+rationale: Inspect the Git checkout cleanup and concurrent shared-ref behavior. The final diff has passed
+  the full suite and direct review, but the follow-up review fix was self-reviewed; the final-check/apply
+  race remains explicit.
+implementation: Fetch, pin and both preparation observations share one state_lock hold. A changed tracking
+  ref re-pins and re-plans within three attempts. The same bound retries a delayed local-control fast-forward
+  already contained in the pin when all other evidence matches, including HEAD following control only
+  when checked out. fast_forward_control treats local control already past its requested commit and contained
+  in the tracking ref as level.
+deviations: The approved peer-review fix also handles a sibling push and local fast-forward arriving separately.
+  Tracking-ref movement is checked locally without another fetch. No change to unpublished or foreign-commit
+  refusals.
+limitations: A sibling move after the final check and before apply is not retried; the guarded ref update
+  or post-apply verification reports failed. The fast_forward_control shortcut can leave just-published
+  files dirty for the next sweep. Verification used Python 3.12.12, not Python 3.11. No interactive surface
+  changed.
 files:
-  src/coga/git.py: Re-pin loop in prepare_control_checkout, _moved_pin, _published_control, fast_forward_control shortcut, PREPARATION_ATTEMPTS.
-  tests/test_git.py: Regression tests for a moved pin at plan and re-observation, the bounded refusal, and the fast_forward_control shortcut.
-  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Step 2 states the pin is taken under the lock and re-pinned when control moves.
-  docs/contexts/coga/internals/git-refresh/SKILL.md: Documents the fast_forward_control level case and the re-pin in prepare_control_checkout.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-refresh/SKILL.md: Packaged twin, byte-identical.
+  src/coga/git.py: Pin inside the state lock, retry moved tracking refs and otherwise unchanged published
+    local-control advances, and avoid stale fast_forward_control refusals.
+  tests/test_git.py: Real-Git regressions for both pin observations, delayed local advances from feature/control,
+    unchanged refusal behavior for other evidence changes, retry bounds, and the shared fast-forward shortcut.
+  docs/contexts/coga/internals/git-refresh/SKILL.md: Describe the shared fast-forward level case and both
+    bounded preparation retries.
+  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Describe locked pinning, published local-control
+    progress, and the remaining evidence refusal rule.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-refresh/SKILL.md: Packaged twin
+    of the updated git-refresh contract, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged
+    twin of the updated launch-boundary contract, byte-identical.
 review:
   reviewer: codex
-  kind: independent
-  status: failed
-  head: d9c0753a97ee06c92114a5ec13a8a034adacc6b2
-  base: 00b22b5e148a186ab98a66956f5b85302644260a
-  detail: Direct review completed with one unresolved P2 false-refusal finding, reproduced in a real-Git probe. The original same-checkout race and the refresh shortcut passed additional probes. No interactive surface changed.
+  kind: self
+  status: passed
+  head: 8c3d0105dde810a86b826183e62ac3f72f32c71f
+  base: eacb72c97ac616d727853d597a3ec9692487f56e
+  detail: Direct review completed on the final diff with no unresolved must-fix findings. The earlier
+    independent Codex review of Claude implementation found one P2; Codex implemented its approved fix
+    and completed final self-review. No independent review of the follow-up fix or nested reviewer CLI
+    is claimed.
 checks:
-  - command: .venv/bin/python -m pytest
-    status: passed
-    head: d9c0753a97ee06c92114a5ec13a8a034adacc6b2
-    base: 00b22b5e148a186ab98a66956f5b85302644260a
-    detail: 3941 passed, 7 skipped in 353.63s on Python 3.12.12 after the clean rebase, including packaging twins; no Python 3.11 run. Log at /tmp/coga-pin-peer-review-pytest.log.
-  - command: .venv/bin/python /tmp/coga-pin-peer-probe.py
-    status: failed
-    head: d9c0753a97ee06c92114a5ec13a8a034adacc6b2
-    base: 00b22b5e148a186ab98a66956f5b85302644260a
-    detail: Real-Git interleaving still refuses a clean checkout with local main equal to the remote; an ordinary retry succeeds.
-  - command: .venv/bin/python /tmp/coga-pin-peer-entry-probe.py
-    status: passed
-    head: d9c0753a97ee06c92114a5ec13a8a034adacc6b2
-    base: 00b22b5e148a186ab98a66956f5b85302644260a
-    detail: Preparation fetch occurs under the lock and succeeds after a same-checkout publish on lock entry; refresh succeeds when published control advances past its pin.
-  - command: .venv/bin/python -m pytest
-    status: passed
-    head: 4e324fdeb45d9b8c74f91546355f991e3bb805f8
-    base: 495debcbcaecf142bf783b344572be6b3d06703c
-    detail: 3941 passed, 7 skipped in 326.70s (committed tree, after rebase).
+- command: .venv/bin/python -m pytest
+  status: passed
+  head: 8c3d0105dde810a86b826183e62ac3f72f32c71f
+  base: eacb72c97ac616d727853d597a3ec9692487f56e
+  detail: '3948 passed, 7 skipped in 425.80s on Python 3.12.12, including all seven new regression cases
+    and packaging twin checks. Log: /tmp/coga-pin-peer-final-pytest.log.'
+- command: .venv/bin/python /tmp/coga-pin-peer-probe.py && .venv/bin/python /tmp/coga-pin-peer-entry-probe.py
+    && git diff --check
+  status: passed
+  head: 8c3d0105dde810a86b826183e62ac3f72f32c71f
+  base: eacb72c97ac616d727853d597a3ec9692487f56e
+  detail: 'Real-Git probes passed: the split push/local-ref move prepares immediately; publication on
+    lock entry prepares with fetch inside the lock; refresh succeeds after published control advances.
+    Diff whitespace check passed.'
+- command: '.venv/bin/python - <<''PY''
+
+    from pathlib import Path
+
+    from coga.github_preflight import check_branch_contains_control
+
+    root = Path.cwd()
+
+    result = check_branch_contains_control(''origin'', ''main'', cwd=root, coga_root=root / ''coga'')
+
+    print(result)
+
+    assert result.ok, result.detail
+
+    PY'
+  status: passed
+  head: 8c3d0105dde810a86b826183e62ac3f72f32c71f
+  base: eacb72c97ac616d727853d597a3ec9692487f56e
+  detail: ok=True, state-only-drift. Main advanced only through non-overlapping recurring tickets and
+    log changes through 30d006850; the branch is safe to publish.
 ```
