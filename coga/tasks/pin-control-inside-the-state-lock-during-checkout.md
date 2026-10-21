@@ -1,11 +1,11 @@
 ---
 title: Pin control inside the state lock during checkout preparation
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/internals/git-refresh
-  - dev/checkouts/launch-boundary
-  - coga/internals/state-publication
+- coga/internals/git-refresh
+- dev/checkouts/launch-boundary
+- coga/internals/state-publication
 workflow:
   name: code/with-review
   steps:
@@ -27,6 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
