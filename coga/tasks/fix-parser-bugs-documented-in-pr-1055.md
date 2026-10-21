@@ -1,6 +1,6 @@
 ---
 title: Fix parser bugs documented in PR 1055
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - dev/code
@@ -24,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
