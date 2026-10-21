@@ -1,8 +1,10 @@
 # Context audiences — next release
 
 Coga now ships only contexts needed to operate Coga in an adopting repo.
-User topics remain under `coga/` and `dev/`. Development topics move to
-`coga-dev/` in Coga’s own source library and are absent from the wheel.
+User topics, including the former `dev/` code-task conventions, now all live
+under `coga/`. Development topics move to `coga-dev/` in Coga’s own source
+library and are absent from the wheel. The namespace states the audience:
+`coga/` ships, `coga-dev/` never does.
 The [audience criterion](../contexts/coga/context-layout/SKILL.md#context-audiences)
 explains the boundary.
 
@@ -25,6 +27,18 @@ not usable references.
 | `coga/internals/pr-publication/preparation` | `coga/pr-publication/preparation` |
 | `coga/internals/state-publication/authoring` | `coga/state-publication/authoring` |
 | `coga/internals/state-publication/sweep` | `coga/state-publication/sweep` |
+| `dev/checkout-cleanup` | `coga/checkout-cleanup` |
+| `dev/checkout-cleanup/branch-sweep` | `coga/checkout-cleanup/branch-sweep` |
+| `dev/checkout-cleanup/proofs` | `coga/checkout-cleanup/proofs` |
+| `dev/checkout-cleanup/terminal-owners` | `coga/checkout-cleanup/terminal-owners` |
+| `dev/checkouts` | `coga/checkouts` |
+| `dev/checkouts/chat` | `coga/checkouts/chat` |
+| `dev/checkouts/launch-boundary` | `coga/checkouts/launch-boundary` |
+| `dev/checkouts/manual` | `coga/checkouts/manual` |
+| `dev/checkouts/reconciliation` | `coga/checkouts/reconciliation` |
+| `dev/checkouts/sandbox-clone` | `coga/checkouts/sandbox-clone` |
+| `dev/code` | `coga/code` |
+| `dev/dev-record` | `coga/dev-record` |
 
 ## Split topics
 

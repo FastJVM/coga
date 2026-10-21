@@ -25,8 +25,8 @@ the current attempt. The earlier ticket
 `detect-stranded-ticket-writes-across-checkouts` is provenance for that
 distinction, not a dependency on its continued existence.
 
-Current checkout behavior is documented in `dev/checkouts`
-(`docs/contexts/dev/checkouts/SKILL.md`), cited rather than attached; read
+Current checkout behavior is documented in `coga/checkouts`
+(`docs/contexts/coga/checkouts/SKILL.md`), cited rather than attached; read
 "Start, work, end" before designing a guard. A supervised session may bump
 from its feature branch before launch returns the checkout; a manual session
 returns to the control branch first. Therefore a universal requirement that
@@ -62,4 +62,4 @@ attempt-tracking machinery; reconsider on a concrete wrong-branch handoff in
 the current ordinary-ticket flow.
 Recurring worktrees remain out of scope; the documented sandbox clone fallback
 does not justify restoring ordinary-worktree assumptions. No implementation or tests were changed. The owner decision is preserved in
-`docs/contexts/dev/dev-record/SKILL.md` and its packaged twin.
+`docs/contexts/coga/dev-record/SKILL.md` and its packaged twin.

@@ -34,7 +34,7 @@ The repo separates implementation from the OS it operates:
 - `launch.py` (launch API, preparation and supervision),
   `checkout_policy.py` (pure step-to-entry-checkout table) and
   `checkouts.py` (shared branch preparation for launch and the
-  `prepare-checkout` chat recipe; [dev/checkouts](../../dev/checkouts/SKILL.md)),
+  `prepare-checkout` chat recipe; [coga/checkouts](../../coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
@@ -88,5 +88,5 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 - [coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../../coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.
-- [dev/code](../../dev/code/SKILL.md): conventions for code tickets,
+- [coga/code](../../coga/code/SKILL.md): conventions for code tickets,
   checkouts, and PR linkage.

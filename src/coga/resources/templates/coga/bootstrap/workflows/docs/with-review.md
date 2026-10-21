@@ -63,7 +63,7 @@ Implement the docs change on a feature branch in the launch checkout,
 commit and push it, and hand off; stop before the PR. Under `coga launch`
 the branch is already created or reused and launch returns the checkout
 after you bump; the **Checkout (runtime)** notice says so. Otherwise follow
-`dev/checkouts` yourself — no linked worktrees. The mechanics match a code
+`coga/checkouts` yourself — no linked worktrees. The mechanics match a code
 task, but the verification bar is
 docs-oriented: prove the changed markdown, workflow, context, or template is
 accurate and reachable rather than running tests that cover nothing.
@@ -75,11 +75,11 @@ accurate and reachable rather than running tests that cover nothing.
 2. **Confirm the checkout.** On a prepared branch the only entry dirt is
    this ticket, projected unstaged from control: write notes and the
    handoff there, and never stage or commit it. A notice reporting kept
-   local commits means reconcile per `dev/checkouts/reconciliation` before
+   local commits means reconcile per `coga/checkouts/reconciliation` before
    pushing; anything unexpected means stop and escalate per your launch
-   mode. With no prepared branch, perform the `dev/checkouts` manual start
+   mode. With no prepared branch, perform the `coga/checkouts` manual start
    check and branch setup. A read-only `.git` uses the
-   sandbox clone fallback in `dev/checkouts/sandbox-clone`; seed each clone,
+   sandbox clone fallback in `coga/checkouts/sandbox-clone`; seed each clone,
    on creation and on resume, with
    `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
 3. **Edit on the feature branch.** Keep the diff scoped to the ticket; no
@@ -102,8 +102,8 @@ accurate and reachable rather than running tests that cover nothing.
 
 6. **Commit and push.** Use a short factual subject and mention the
    ticket slug in the body, rebase onto fetched `origin/main` as
-   `dev/checkouts` describes, then push the branch. A manual session then
-   runs the `dev/checkouts` end-of-step return.
+   `coga/checkouts` describes, then push the branch. A manual session then
+   runs the `coga/checkouts` end-of-step return.
 7. **Hand off and bump.** Write the handoff in the live ticket, confirm
    `## Dev` records `branch:`, then run `coga bump <slug>` last. If
    you cannot reach a clean committed state, write the blocker to the
@@ -118,7 +118,7 @@ independent authorship: an explicit launch override can make the same agent
 implement and review a change, so do not assume you did not write this diff.
 
 Review the **content**. Launch starts this step on the recorded branch (the
-notice says so; otherwise follow `dev/checkouts`). Read the changed markdown
+notice says so; otherwise follow `coga/checkouts`). Read the changed markdown
 against its base (`git diff main...HEAD -- '*.md'` plus any non-markdown docs
 the ticket names) and check:
 
@@ -144,7 +144,7 @@ Record the outcome under `## Peer review` on the blackboard, and refresh the
 Apply must-fix findings (skip nits) on the branch, commit (e.g.
 `peer-review: apply review findings`), and push. Write your notes in the
 live ticket and run `coga bump <slug>` last (a manual session first returns
-to `main` per `dev/checkouts`). If the change reads as wrong
+to `main` per `coga/checkouts`). If the change reads as wrong
 in premise (documents behavior that doesn't exist, or contradicts a
 canonical context), write to the blackboard and escalate per your launch mode
 — ask the attending human, or `coga block` in a queue run — instead of patching
@@ -158,7 +158,7 @@ declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
 
 1. **Find the branch.** This step runs from a clean, current `main` (the
    notice says whether launch prepared it; otherwise perform the
-   `dev/checkouts` manual start check). Read `branch:` under `## Dev` on the
+   `coga/checkouts` manual start check). Read `branch:` under `## Dev` on the
    blackboard (and `worktree:`, present only for a sandbox clone). Confirm
    the branch has commits ahead of `main`.
 2. **Run `coga open-pr <slug>` from `main`.** It pushes the recorded branch
@@ -173,7 +173,7 @@ declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
 After the PR is open, **resolve any merge conflicts with the base branch
 before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 <PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
-`main`, resolve it on the feature branch with the `dev/checkouts/manual`
+`main`, resolve it on the feature branch with the `coga/checkouts/manual`
 procedure — switch, merge or rebase `main`, resolve, push, and return to a
 clean `main` before writing any ticket notes — so the human reviewer
 receives a clean, mergeable PR.
@@ -217,5 +217,5 @@ owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
 same proofs on whatever checkout remains, then deletes the done ticket with no
 agent: its learning already landed with the merged PR. The packaged
 `bootstrap/retire/ticket.md` owns that procedure, and the
-`dev/checkout-cleanup` context owns what the shared proofs prove, preserve,
+`coga/checkout-cleanup` context owns what the shared proofs prove, preserve,
 and record for later sweeps.

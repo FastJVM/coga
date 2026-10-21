@@ -57,7 +57,7 @@ its bootstrap target, so a repo-local override is read from current control.
 Direct chats in one Git checkout are serialized by a nonblocking occupancy
 guard; a second chat refuses before publishing or preparing anything. Its
 scope and lifetime are owned by
-[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md).
+[coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md).
 For ordinary tasks, target
 resolution and the recorded-checkout test only classify; then launch
 publishes Coga state (the sweep over the Coga roots) and prepares the
@@ -85,7 +85,7 @@ targets and delegated bootstrap sessions,
 `--prompt-report`, Git-disabled, non-Git, or
 remote-less workspaces, the recorded assist or sandbox-clone checkout, a
 released megalaunch witness) are owned by
-[dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md). Exempt launches keep the
+[coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md). Exempt launches keep the
 teardown refresh below.
 
 Inside an ordinary task launch whose entry prepared control, each agent
@@ -97,7 +97,7 @@ composes the prompt from control state; only then does it publish its
 re-prove control (recomposing if the ticket gained notes), switch, project
 the ticket, and spawn with that exact prompt
 (`spawn_agent_session(composed_prompt=...)`). The policy table, refusals, and
-recovery are owned by [dev/checkouts](../../dev/checkouts/SKILL.md);
+recovery are owned by [coga/checkouts](../checkouts/SKILL.md);
 `ticket.py` phases run first and are never moved to a feature branch, and
 recurring, delegated, caller-guarded, recorded-checkout, and megalaunch
 spawns keep their own paths with no branch setup. Every composed prompt ends

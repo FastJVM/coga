@@ -86,16 +86,16 @@ Sources (multiply repo, both `status: done`, both still carry `worktree:`):
 branch". The source says something different: the feature checkout's *copy of
 the ticket* is stale against control, so a reviewer judges against outdated
 acceptance criteria. The draft follows the source. A missing or mismatched
-recorded checkout is already `dev/checkout-cleanup` territory.
+recorded checkout is already `coga/checkout-cleanup` territory.
 
 Weak spots and choices to check:
 - The "keep only the code edits" rule partly overlaps `## Order of operations`
   step 1 ("Commit only code on the branch") and the existing state-publication
   gotcha. It earns its place by naming the review/simplify passes as the
   source and saying to preserve, not discard, unpublished state, which matches
-  `dev/checkouts` "Never discard unpublished state".
+  `coga/checkouts` "Never discard unpublished state".
 - The examples are anonymized ("one `codex review`…"), because multiply ticket
   paths would mean nothing to other repos that get the packaged skill.
-- Hazard 1 arguably belongs to `dev/checkouts` as well, because peer review and
+- Hazard 1 arguably belongs to `coga/checkouts` as well, because peer review and
   `open-pr` also read the branch. The draft keeps it in `code/self-qa` only;
   widen it if wanted.

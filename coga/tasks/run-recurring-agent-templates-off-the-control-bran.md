@@ -242,7 +242,7 @@ Reasoning, checked against code on `main` as of 2026-10-02:
    the case only arises when a human is at the terminal. That human gets a
    refusal (`recurring_runner._refuse_non_control_branch`) naming
    `git switch <control>` as a remedy.
-2. **Being off control is now short-lived.** Under `dev/checkouts`, every
+2. **Being off control is now short-lived.** Under `coga/checkouts`, every
    code step starts and ends on `main`, and `coga launch`
    (`git.prepare_control_checkout` plus the return half) moves the invoking
    checkout back to `main` around each session. Between steps the operator's
@@ -274,7 +274,7 @@ Reasoning, checked against code on `main` as of 2026-10-02:
      sweep can afford that lock; an attended agent session cannot.
    On top of that, the created checkout would need `.agent-skills/` and the
    ignored `.claude/skills/coga` / `.codex/skills/coga` discovery links.
-   `dev/checkouts` notes that those links do *not* self-heal.
+   `coga/checkouts` notes that those links do *not* self-heal.
 5. **The "operator creates it by hand" branch is already shipped** (sibling 2,
    relay), and it inherits conflict 3. So the honest remedy is
    `git switch <control>`, not a new artifact.
@@ -349,7 +349,7 @@ the throwaway shape must answer whichever survive.
    `ticket.md` and can pass or fail on a stale `## Dev` block; the gate never
    notices the worktree is gone, and `open-pr` is where that surfaces.
    *Depends on:* `stop-using-worktrees` decides whether `worktree:` is kept,
-   dropped, or made optional in `dev/dev-record`, and reworks
+   dropped, or made optional in `coga/dev-record`, and reworks
    `open_pr._checkout_mode`. Re-read `_has_branch_linkage` and `open_pr` after
    it merges; if neither requires a surviving recorded checkout, this break is
    gone.

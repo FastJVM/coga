@@ -366,7 +366,7 @@ def test_open_pr_fails_when_recorded_branch_is_not_a_local_ref(tmp_path, monkeyp
 def _feature_branch(repo, branch: str, *, commit: bool) -> None:
     """Commit on `branch` in the primary checkout, then return it to `main`.
 
-    The `dev/checkouts` end-of-step shape: the branch exists as a ref and
+    The `coga/checkouts` end-of-step shape: the branch exists as a ref and
     nothing holds it checked out.
     """
     repo.checkout_branch(branch)

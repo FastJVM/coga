@@ -1014,7 +1014,7 @@ def test_documented_rebase_keeps_projection_and_notes_out_of_commits(
         subprocess.run(["git", "-C", str(other), "add", "upstream.py"], check=True)
         subprocess.run(["git", "-C", str(other), "commit", "-qm", "upstream"], check=True)
         subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
-        # dev/checkouts: copy the ticket out, restore it from HEAD, rebase,
+        # coga/checkouts: copy the ticket out, restore it from HEAD, rebase,
         # write the copy back unstaged.
         saved = ref.ticket_path.read_bytes()
         git_repo.git("restore", "--source=HEAD", "--worktree", "--", rel)
@@ -1086,7 +1086,7 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
     # The ticket handoff was routine state: the refused return published it.
     assert "sandbox refused the commit" in _control(git_repo, rel)
 
-    # Host recovery (dev/checkouts/sandbox-clone): clone the prepared branch,
+    # Host recovery (coga/checkouts/sandbox-clone): clone the prepared branch,
     # transfer and verify the source changes, then clear only the copies.
     clone = _clone_checkout(git_repo, "sandbox")
     subprocess.run(["git", "-C", str(clone), "fetch", "-q", str(git_repo.root), branch], check=True)

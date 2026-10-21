@@ -130,7 +130,7 @@ no remote, or no remote control branch unless `require_remote_control`),
 `refused` (nothing but the remote-tracking ref changed), or `failed` (where
 it stopped after mutation began). Its only caller is the launch checkout
 boundary. The rules it enforces are owned by
-[dev/checkouts/launch-boundary](../../../dev/checkouts/launch-boundary/SKILL.md).
+[coga/checkouts/launch-boundary](../../../coga/checkouts/launch-boundary/SKILL.md).
 
 `fetch_control(cfg, root)` fetches and returns the commit to read control from
 (the tracking ref, or local control with no remote); megalaunch and the

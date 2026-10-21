@@ -12,7 +12,7 @@ without creating a linked worktree per ticket. No implementation work remains.
 
 ## Context
 
-`dev/checkouts` (`docs/contexts/dev/checkouts/SKILL.md`) owns the current
+`coga/checkouts` (`docs/contexts/coga/checkouts/SKILL.md`) owns the current
 checkout policy. Recurring background jobs may still create temporary control
 worktrees through `recurring_runner._service_from_control_worktree`; the owner
 explicitly confirmed that this exception is acceptable.

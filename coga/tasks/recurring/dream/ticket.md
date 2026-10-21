@@ -837,10 +837,10 @@ Full finding text (shard evidence): `.coga/dream-scans/20261019T175307Z/{knowled
 - coga/pr-publication
   - E4 `keep-multiline-audit-messages-on-one-log-line` — source: done — `## PR` author compact-identity grammar; exactly one fenced yaml mapping.
   - E10 `launch-moves-the-checkout-to-main-before-and-after` — source: done — `is_coga_state_path` accepts only tasks/** + log.md as drift; recurring/** needs rebase.
-- dev/checkouts
+- coga/checkouts
   - E2 `run-clone-local-recurring-work-in-every-clone` — source: done — committed recurring template edits on a code branch reach control before their code.
   - E8 `publish-build-vision-before-handing-off-starter-ti` — source: done — pre-branch publish should use `coga run publish-state`.
-- dev/checkout-cleanup
+- coga/checkout-cleanup
   - E9 `clean-up-owned-branches-when-tickets-finish-or-are` — source: done — adjacent bug: `branchsweep._local_branches` ignores for-each-ref return code.
 - coga/script-tickets
   - E7 `recurring-recipe-question` — source: done — why `ticket.py` is a completion contract / fixed name / stat.

@@ -27,7 +27,7 @@ Leaves:
 open-pr runs from the launch checkout on the control branch, where the live
 ticket is, and refuses any other branch. The launch checkout boundary puts a
 launched step on control before it starts, and a manual session returns
-itself ([dev/checkouts](../../dev/checkouts/SKILL.md)), so there is no
+itself ([coga/checkouts](../checkouts/SKILL.md)), so there is no
 feature-branch mode, and a sandbox clone's stale ticket copy can never be
 updated.
 
@@ -87,4 +87,4 @@ examples, including example section headings. An empty field cannot borrow
 the next line's prose. The first branch record
 is the workflow checkout; multiple tickets may link to the same branch and PR.
 Cleanup's ownership rules are in
-[terminal owners](../../dev/checkout-cleanup/terminal-owners/SKILL.md).
+[terminal owners](../checkout-cleanup/terminal-owners/SKILL.md).

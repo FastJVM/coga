@@ -91,8 +91,8 @@ def test_resolve_context_path_falls_back_to_packaged_bootstrap(tmp_path):
 
 def test_legacy_dev_record_context_still_resolves_after_upgrade(tmp_path):
     cfg = _cfg(tmp_path)
-    resolved = resolve_context_path(cfg, "dev/dev-record")
-    assert resolved == bootstrap_context_path(cfg, "dev/dev-record")
+    resolved = resolve_context_path(cfg, "coga/dev-record")
+    assert resolved == bootstrap_context_path(cfg, "coga/dev-record")
     assert resolved.is_file()
 
 

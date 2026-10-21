@@ -28,7 +28,7 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
    records a `branch:` or `worktree:`, and of every open entry in the durable
    worklist `retires.md` beside this template — worktree removed, then local
    branch, then remote branch, each under the
-   [checkout proofs](context:dev/checkout-cleanup/proofs) `coga retire` also
+   [checkout proofs](context:coga/checkout-cleanup/proofs) `coga retire` also
    runs, and
 7. reports what it disposed of and what a proof refused, with the reason: the
    refusals go to the coga-important Slack channel and into `retires.md`,
@@ -66,9 +66,9 @@ no live ticket are the clone-scoped `branch-sweep` template's, which every
 clone runs daily for its own refs; closure stays here, serviced once per
 period for the whole repository. The daily cadence and reporting contract live in
 [coga/recurring/scheduling](context:coga/recurring/scheduling); the deletion
-proofs are in [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs),
+proofs are in [coga/checkout-cleanup/proofs](context:coga/checkout-cleanup/proofs),
 and primary checkouts and other clones are covered in
-[dev/checkout-cleanup](context:dev/checkout-cleanup).
+[coga/checkout-cleanup](context:coga/checkout-cleanup).
 
 ### Upgrading an older template
 

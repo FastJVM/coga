@@ -7128,7 +7128,7 @@ def test_missing_launch_file_message_survives_a_filename_less_error() -> None:
     assert "not the agent CLI" in message
 
 
-# --- checkout normalization (dev/checkouts) -------------------------------------
+# --- checkout normalization (coga/checkouts) -------------------------------------
 
 
 class _CheckoutSession:
@@ -7217,7 +7217,7 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
         git_repo.git("add", "feature.py")
         git_repo.git("commit", "-m", "Implement feature")
         # The ticket copy on the branch predates control; load control's copy
-        # before writing the handoff (dev/checkouts).
+        # before writing the handoff (coga/checkouts).
         rel = str(ref.ticket_path.relative_to(git_repo.root))
         git_repo.git("restore", "--source=origin/main", "--worktree", "--", rel)
         replace_blackboard(

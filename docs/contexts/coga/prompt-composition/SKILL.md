@@ -25,7 +25,7 @@ Each layer is a `PromptLayer`; in order:
 1. **Header**: task ref, title, exact task directory, status.
 2. **Base prompt** (resource `prompt.md`): the operating loop; neutral on
    conduct. Its shared reconciliation checkpoint directs agents to
-   [dev/checkouts/reconciliation](../../dev/checkouts/reconciliation/SKILL.md).
+   [coga/checkouts/reconciliation](../checkouts/reconciliation/SKILL.md).
 3. **Session conduct**: exactly one resource chosen by launch context
    ([coga/session-conduct](../session-conduct/SKILL.md)).
 4. **Blocker preamble** (`prompt-blocker-resolution.md`), only when the
@@ -44,7 +44,7 @@ Each layer is a `PromptLayer`; in order:
    runs no Git and infers nothing from the workflow: without a notice
    (`compose_prompt_report` alone, megalaunch, recurring) it states that no
    preparation was supplied and points to
-   [dev/checkouts](../../dev/checkouts/SKILL.md). Being generated, it stays
+   [coga/checkouts](../checkouts/SKILL.md). Being generated, it stays
    true under a repo's older `resources/prompt.md` override.
 
 After the task layers, launch appends a `## Launch arguments` JSON block only

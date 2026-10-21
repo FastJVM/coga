@@ -7,7 +7,7 @@ contexts:
 - coga-dev/principles
 - coga/usage
 - coga/prompt-composition
-- dev/checkouts
+- coga/checkouts
 workflow:
   name: code/with-review
   steps:
@@ -144,7 +144,7 @@ premise check before the remaining work is pulled forward.
 - The original report measured 35.8 KiB / approximately 9,095 tokens. The
   largest layers were `relay/current-direction`, `prompt.md`, and
   `relay/architecture`. Trimming this ticket's contexts from six refs to
-  three (`relay/principles`, `relay/codebase`, `dev/code` at the time)
+  three (`relay/principles`, `relay/codebase`, `coga/code` at the time)
   reduced the report to about 25 KiB / 6.4k estimated tokens. The latter
   included the growing blackboard, so this was a prompt-size observation,
   not a controlled precision or total-cost comparison.

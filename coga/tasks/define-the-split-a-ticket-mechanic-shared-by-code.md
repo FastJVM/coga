@@ -76,7 +76,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
   A `## Splitting a ticket` section in `code/implement` and `code/design`,
   byte-identical, enforced by a test the way live/packaged twins are. A third
   owner (a `code/split-ticket` skill or a context) was rejected: nothing
-  composes it at the moment the split decision arises, `dev/code` is opt-in
+  composes it at the moment the split decision arises, `coga/code` is opt-in
   per ticket and declares itself narrow, and no CLI prints a bundled
   non-step skill for a downstream repo's agent to read.
 - **Sibling slug: whatever `coga create` makes of a title that names the

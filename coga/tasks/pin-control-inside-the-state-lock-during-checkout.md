@@ -4,7 +4,7 @@ status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/internals/git-refresh
-- dev/checkouts/launch-boundary
+- coga/checkouts/launch-boundary
 - coga/state-publication
 - coga-dev/internals/state-publication
 workflow:
@@ -42,7 +42,7 @@ agent: claude
 - [x] Genuine refusals are unchanged: a local hand commit of Coga state not on control still refuses `unpublished`, and a foreign commit still refuses `foreign`.
 - [x] Regression test in `tests/test_git.py` (real Git, `git_repo` fixture): pin control, then publish a log line from the same checkout (or update-ref local control to a new remote commit) before `_plan_preparation` runs, and assert that preparation succeeds and lands on the new commit. A hook or monkeypatch on `_fetch_control`/`state_lock` entry may inject the interleaving deterministically.
 - [x] Audit the other pin-then-lock readers of local control (`fast_forward_control` callers in `publish` and `refresh`, `git.py:467-560`) for the same window, and fix or explicitly rule out each one on the blackboard.
-- [x] If behavior or wording changes, update `docs/contexts/dev/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and its packaged twin, and/or the local-only `docs/contexts/coga-dev/internals/git-refresh/SKILL.md`; `tests/test_packaging.py` passes.
+- [x] If behavior or wording changes, update `docs/contexts/coga/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and its packaged twin, and/or the local-only `docs/contexts/coga-dev/internals/git-refresh/SKILL.md`; `tests/test_packaging.py` passes.
 
 ## Context
 
@@ -174,11 +174,11 @@ files:
     unchanged refusal behavior for other evidence changes, retry bounds, and the shared fast-forward shortcut.
   docs/contexts/coga/internals/git-refresh/SKILL.md: Describe the shared fast-forward level case and both
     bounded preparation retries.
-  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Describe locked pinning, published local-control
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Describe locked pinning, published local-control
     progress, and the remaining evidence refusal rule.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-refresh/SKILL.md: Packaged twin
     of the updated git-refresh contract, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Packaged
     twin of the updated launch-boundary contract, byte-identical.
 review:
   reviewer: codex

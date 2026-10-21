@@ -39,7 +39,7 @@ contexts:
   - coga-dev/internals/git-refresh
   - coga-dev/packaging
   - coga-dev/testing
-  - dev/checkouts
+  - coga/checkouts
 ---
 
 ## Description

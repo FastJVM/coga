@@ -308,7 +308,7 @@ def test_open_pr_refuses_primary_checkout_on_feature_branch(tmp_path, monkeypatc
 
 
 def _sandbox_clone(repo, tmp_path: Path, branch: str) -> Path:
-    """The `dev/checkouts` sandbox clone fallback, with one feature commit."""
+    """The `coga/checkouts` sandbox clone fallback, with one feature commit."""
     clone = tmp_path / "feature-clone"
     repo.git("clone", "--no-hardlinks", str(repo.root), str(clone), cwd=tmp_path)
     repo.git("config", "user.email", "clone@example.com", cwd=clone)

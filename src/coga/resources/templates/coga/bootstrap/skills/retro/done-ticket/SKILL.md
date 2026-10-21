@@ -291,7 +291,7 @@ tip, checked in one call:
 `git diff --name-only <remote>/<control-branch> -- <every listed path>` prints
 nothing. A landed direct delete still lists as a working-tree deletion,
 because `--keep-control-checkout` does not advance the temporary branch (see
-`dev/checkout-cleanup`); that is landed, not dirty. After checking every
+`coga/checkout-cleanup`); that is landed, not dirty. After checking every
 result is durable, remove the copied
 `coga.local.toml`. For a linked checkout, run `git worktree remove <path>` from
 outside it and delete the caller-created temporary branch with
@@ -458,7 +458,7 @@ marker for the same source task.
    most five source tickets, touch at most three knowledge files, and create at
    most one new context or skill file; all of a batch's extracted facts must
    fit one obvious theme or one existing context/skill area. Treat a batch as
-   too broad when it would touch both `coga/*` and `dev/*`, touch both
+   too broad when it would touch unrelated `coga/*` topic areas, touch both
    contexts and skills for unrelated reasons, create more than one new
    context/skill file, or need "and" in the PR title to describe the knowledge
    change. Split a too-broad batch into more PRs rather than dropping tickets —

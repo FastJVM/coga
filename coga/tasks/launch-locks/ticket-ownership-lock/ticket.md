@@ -252,7 +252,7 @@ repo boundaries. The following protocol gaps must be resolved first.
 - State rollout assumptions: older launchers and publishers do not enforce
   these locks. Name the writer-upgrade/quiet-window requirement or explicitly
   limit guarantees to participating versions. Include
-  `coga-dev/internals/agent-spawn`, recurring ownership topics and `dev/checkouts`
+  `coga-dev/internals/agent-spawn`, recurring ownership topics and `coga/checkouts`
   in the eventual contract changes if the fixes above change their behavior.
 - Owner still decides general launch cost/availability, `unlock` command
   placement, existing-ticket authoring, and local-only scope. The all-writer

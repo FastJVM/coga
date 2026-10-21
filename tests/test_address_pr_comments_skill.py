@@ -24,7 +24,7 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "Require exactly one" in skill
     assert "multi-push remote" in skill
     assert "<verified-push-url>" in skill
-    assert "`dev/checkouts` manual start check" in skill
+    assert "`coga/checkouts` manual start check" in skill
     assert "python -m pytest" in skill
     assert "git push --force-with-lease=refs/heads/<branch-name>:" in skill
     assert "git merge-base --is-ancestor <verified-remote-oid> HEAD" in skill
@@ -40,8 +40,8 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "Do not read `FETCH_HEAD`" in skill
     assert skill.count("FETCH_HEAD") == 1
     assert "applicable post-push or no-change proof" in skill
-    assert "`dev/checkouts` end-of-step return" in skill
-    assert "`git switch main`" not in skill  # the return recipe lives in dev/checkouts
+    assert "`coga/checkouts` end-of-step return" in skill
+    assert "`git switch main`" not in skill  # the return recipe lives in coga/checkouts
     assert "Do not merge" in skill
     assert "Do not resolve" in skill
     assert "Do not run `coga bump`" in skill

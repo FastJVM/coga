@@ -21,7 +21,7 @@ this step just makes sure the diff they see is already clean.
    `## Self-QA` note, file and link as its own draft any open item the
    closure would orphan (`coga/workflows`, "Obligations the merge does not
    discharge"), run `coga mark done <slug>`, and stop. A notice with
-   no prepared branch means perform the `dev/checkouts` manual start and
+   no prepared branch means perform the `coga/checkouts` manual start and
    switch yourself (or, for a recorded sandbox clone, work in the clone it
    names). Anything unexpected means stop and escalate per your launch mode
    — ask the attending human, or `coga block` in a queue run. Commit only
@@ -114,7 +114,7 @@ this step just makes sure the diff they see is already clean.
    escalate per your launch mode — ask the attending human, or `coga block` in a
    queue run — rather than bumping. Finally, write the `## Self-QA` note in
    the live ticket and run `coga bump <slug>` last to advance to `pr`; a
-   manual session first performs the `dev/checkouts` end-of-step return and
+   manual session first performs the `coga/checkouts` end-of-step return and
    writes the note on `main`.
 
 ## Acceptance for this step

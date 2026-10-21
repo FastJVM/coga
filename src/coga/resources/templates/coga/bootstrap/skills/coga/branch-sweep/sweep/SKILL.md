@@ -21,7 +21,7 @@ without going through retire or a session dies mid-flight.
    worktrees,
 2. enumerate every local branch and every branch on `[git].remote`,
 3. skip `[git].control_branch`, the checked-out branch, the shared skill-update
-   branch protected by [dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep),
+   branch protected by [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep),
    and any branch a
    non-terminal ticket names anywhere in its task files
    (`_live_ticket_branches`): the whole ticket above and below the fence plus
@@ -43,7 +43,7 @@ without going through retire or a session dies mid-flight.
    and no PR currently open for it, judged by `merged_pr_verdict`. Its
    local-ref proof accepts landed history, whitespace-sensitive patch
    equivalence for rebased copies, and Coga state-only follow-ups; the
-   contract is in [dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep),
+   contract is in [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep),
    *Branch-sweep protection and archive*.
    A changed patch or unmerged source work preserves the ref and reports the
    offending paths. Inspect that difference before any manual clearance:
@@ -56,7 +56,7 @@ without going through retire or a session dies mid-flight.
    (`_terminal_owners`, `_closed_pr_claim`). A closed PR alone or a prose
    mention never authorizes, and an owned branch with no merged or closed PR
    is reported for a human. The contract is
-   [dev/checkout-cleanup/terminal-owners](context:dev/checkout-cleanup/terminal-owners), *Terminal owners and
+   [coga/checkout-cleanup/terminal-owners](context:coga/checkout-cleanup/terminal-owners), *Terminal owners and
    closed PRs*. `only=` restricts a pass to named branches; retire and
    autoclose use it for a disposed ticket's owned branches,
 5. for a branch whose **local tip** landed either way but is still held by
@@ -66,7 +66,7 @@ without going through retire or a session dies mid-flight.
    preserve both refs and report the distinct, non-fatal
    `skipped-worktree-pinned` outcome. With it `true`, the repo has declared
    that every linked worktree of its git repository belongs to a Coga ticket
-   (the assumption is stated in the `dev/checkout-cleanup/branch-sweep` context, *Unrecorded
+   (the assumption is stated in the `coga/checkout-cleanup/branch-sweep` context, *Unrecorded
    worktrees*),
    so a landed one nobody claims is finished work: qualify the worktree for
    removal after archival in step 6. The worktree proofs are retire's,
@@ -83,7 +83,7 @@ without going through retire or a session dies mid-flight.
    worktree that fails any proof keeps both refs `skipped-worktree-pinned`,
    with the reason in the run record,
 6. publish the retirement tag under
-   [dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep) before any worktree
+   [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep) before any worktree
    removal or ref deletion. An archive failure preserves the refs and
    worktree, records the reason, and makes the recipe fail after checking the
    other branches. Remove an eligible worktree with unforced `git worktree

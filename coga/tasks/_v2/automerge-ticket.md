@@ -4,7 +4,7 @@ status: paused
 owner: nicktoper
 agent: claude
 contexts:
-- dev/checkouts
+- coga/checkouts
 - coga/workflows
 - coga-dev/packaging
 workflow:
@@ -77,7 +77,7 @@ original author; that's fine). This needs the **new skill** `code/merge-pr` —
 `code/open-pr` cannot be reused: its remit is the deterministic push/open/record
 command, and its worked case (PR #723, in that skill) records the owner's precedent
 that merging without a returned review is the failure mode to avoid. The merge skill
-should: read `pr:` from the blackboard `## Dev` section (the `dev/dev-record` convention,
+should: read `pr:` from the blackboard `## Dev` section (the `coga/dev-record` convention,
 attached as a context); require the `## Peer review` note to record that the review
 **returned** (the same evidence `code/open-pr` gates on); require the verification
 gate below; run `gh pr merge <pr-url> --match-head-commit <verified-head-sha>`;
@@ -167,7 +167,7 @@ Key design facts captured in ticket `## Context`:
   step, which the merge step already is) — call `relay mark done` directly.
 - `code/` workflow namespace is NOT in the packaged template
   (`src/relay/resources/templates/relay-os/`), so no dual-copy sync needed.
-- Attached context: `dev/code` (the `## Dev` / `pr:` blackboard convention the
+- Attached context: `coga/code` (the `## Dev` / `pr:` blackboard convention the
   merge skill reads).
 
 ## Evaluator review
@@ -187,10 +187,10 @@ This is the clearest weakness. The work is "write two markdown files" (a workflo
 **3. Contexts (none attached; facts in `## Context`).**
 
 `contexts: []` and `skills: []` are both empty, and the durable facts are pasted into prose. The implementer will want at least two contexts wired in that they'll otherwise have to find by hand:
-- the `dev/code` context (the `pr:` / `## Dev` blackboard convention) — referenced by name but not attached;
+- the `coga/code` context (the `pr:` / `## Dev` blackboard convention) — referenced by name but not attached;
 - the `architecture` context, which is where `watchers`, `other-agent`, and step/assignee resolution are actually defined.
 
-Missing facts the implementer will wish were here: the field is `watchers` (plural list), not `watcher` (the ticket says "watcher" singular twice) — and crucially, **this ticket's own frontmatter has no `watchers:` field at all**, so the "ensure owner is also a watcher" instruction has no worked example to copy. Also missing: the exact name of the `dev/code` context file, and a pointer to `src/relay/bump.py` where `other-agent` resolution lives.
+Missing facts the implementer will wish were here: the field is `watchers` (plural list), not `watcher` (the ticket says "watcher" singular twice) — and crucially, **this ticket's own frontmatter has no `watchers:` field at all**, so the "ensure owner is also a watcher" instruction has no worked example to copy. Also missing: the exact name of the `coga/code` context file, and a pointer to `src/relay/bump.py` where `other-agent` resolution lives.
 
 **4. Scope.**
 
@@ -219,7 +219,7 @@ Net: the core idea is implementable with existing primitives, but two of its loa
 ---
 
 (Note: the ticket was revised after this review to address points 1, 3, 4, and 5 —
-final-step `assignee: agent` now specified; `dev/code` attached + `architecture`/`bump.py`
+final-step `assignee: agent` now specified; `coga/code` attached + `architecture`/`bump.py`
 pointers added; `watcher`→`watchers` corrected and the self-cc redundancy called out;
 automerge-backstop framing fixed; CI-gate override of open-pr made explicit; markdown-only
 "no pytest" caveat added. Point 2 — workflow heaviness — left as-is per nick's choice of

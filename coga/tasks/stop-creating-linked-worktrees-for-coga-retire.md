@@ -45,7 +45,7 @@ which fixes the recurring refusal text only.
   checkout.
 - **Options to weigh in design (each costs something):**
   1. Run in the operator's checkout with `git switch`, like
-     `stop-using-worktrees` did for ticket work (`dev/checkouts`). No extra
+     `stop-using-worktrees` did for ticket work (`coga/checkouts`). No extra
      disk, but it needs a clean tree and takes the checkout for the whole run.
   2. Temp clone under the run dir, deleted on exit. No worktree metadata, but
      it costs disk and leaves litter if cleanup fails.
@@ -69,7 +69,7 @@ which fixes the recurring refusal text only.
 - **Twins.** `retro/done-ticket` exists only as the packaged copy (there is
   no `coga/skills/retro/`). Dream's ticket has a live copy at
   `coga/recurring/dream/ticket.md` paired with the packaged one.
-- **Name clash.** `dev/checkouts` uses "retire" for disposing of leftover
+- **Name clash.** `coga/checkouts` uses "retire" for disposing of leftover
   linked worktrees. That is unrelated to `coga retire` the command, so don't
   conflate them, though that topic is a useful read on cleanup.
 - Behavior changes update `retire.md`, the packaged skill, any live/packaged

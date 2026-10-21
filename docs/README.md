@@ -6,7 +6,7 @@ file by ref (`contexts: [coga/launch]`) to put it in an agent's prompt. A
 link never loads anything — ticket contexts include exactly the refs listed.
 How a fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
-The library has two audiences. **User topics** under `coga/` and `dev/`
+The library has two audiences. **User topics** under `coga/`
 are needed to configure, launch, author, recover, or understand refusals in
 any repo using Coga; they ship as bootstrap fallbacks. **Coga-dev topics**
 under `coga-dev/` explain building, testing, releasing, or steering Coga
@@ -95,15 +95,15 @@ New tickets include a field guide from the
   [edge code and forks](contexts/coga/edge-code/SKILL.md),
   [agent sandboxes](contexts/coga/sandboxes/SKILL.md).
 
-- Code-task conventions: [overview](contexts/dev/code/SKILL.md),
-  [checkouts](contexts/dev/checkouts/SKILL.md)
-  ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
-  [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
+- Code-task conventions: [overview](contexts/coga/code/SKILL.md),
+  [checkouts](contexts/coga/checkouts/SKILL.md)
+  ([launch boundary](contexts/coga/checkouts/launch-boundary/SKILL.md),
+  [sandbox clone](contexts/coga/checkouts/sandbox-clone/SKILL.md)),
   [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
-  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
-  ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
-  [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
-  [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
+  [checkout cleanup](contexts/coga/checkout-cleanup/SKILL.md)
+  ([proofs](contexts/coga/checkout-cleanup/proofs/SKILL.md),
+  [terminal owners](contexts/coga/checkout-cleanup/terminal-owners/SKILL.md),
+  [branch sweep](contexts/coga/checkout-cleanup/branch-sweep/SKILL.md)).
 
 ## Develop Coga
 

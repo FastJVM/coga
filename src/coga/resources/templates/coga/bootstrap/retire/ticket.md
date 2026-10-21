@@ -33,10 +33,10 @@ deleting it.
 2. **Dispose of the checkout.** Read `branch:`, `worktree:` and `pr:` from
    the ticket's `## Dev` section while the ticket still exists, and dispose of
    the recorded worktree and every owned branch under the
-   [checkout proofs](context:dev/checkout-cleanup/proofs), including the
-   [terminal-owner rule](context:dev/checkout-cleanup/terminal-owners).
+   [checkout proofs](context:coga/checkout-cleanup/proofs), including the
+   [terminal-owner rule](context:coga/checkout-cleanup/terminal-owners).
    Primary checkouts and other clones are never disposed of
-   ([dev/checkout-cleanup](context:dev/checkout-cleanup)). This runs only from
+   ([coga/checkout-cleanup](context:coga/checkout-cleanup)). This runs only from
    a checkout on `[git].control_branch`: off control, with `[git].enabled`
    false, or outside a Git work tree, retire prints
    `Retire: checkout cleanup skipped ...` and leaves the checkout and branch to

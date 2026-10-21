@@ -15,7 +15,7 @@ deliberately left retryable state dirty (stale recurring control, refused
 `bump` rewind, a launch checkout-boundary entry refusal). The launch checkout
 boundary also calls `sync_coga_state` itself, at entry and before each
 checkout return, so routine state lands before the checkout moves
-([dev/checkouts](../../../dev/checkouts/launch-boundary/SKILL.md)). The sweep:
+([coga/checkouts](../../checkouts/launch-boundary/SKILL.md)). The sweep:
 
 - runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
   bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,

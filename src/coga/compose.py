@@ -99,13 +99,13 @@ class CheckoutNotice:
         if self.prepare_command:
             lines.append(
                 "Discussion needs no branch. Before editing any file, read "
-                "`dev/checkouts` and run exactly "
+                "`coga/checkouts` and run exactly "
                 f"`{self.prepare_command}`; it creates or reuses this chat's "
                 "one branch and is safe to repeat."
             )
         lines.append(self.return_owner)
         lines.append(
-            "The full start/work/handoff/end procedure is `dev/checkouts`."
+            "The full start/work/handoff/end procedure is `coga/checkouts`."
         )
         return "\n\n".join(lines)
 
@@ -113,7 +113,7 @@ class CheckoutNotice:
 UNSUPPLIED_CHECKOUT_NOTICE = (
     "No checkout preparation was supplied for this prompt: nothing here claims "
     "that a branch was prepared or that this checkout will be returned. Before "
-    "editing, follow `dev/checkouts` (\"Start, work, end\") yourself."
+    "editing, follow `coga/checkouts` (\"Start, work, end\") yourself."
 )
 
 

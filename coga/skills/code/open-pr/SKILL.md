@@ -24,7 +24,7 @@ gate, not your say-so.
 
 1. **Confirm the handoff state.** This step runs from a clean, current
    `main`; the **Checkout (runtime)** notice says whether launch prepared it
-   (otherwise perform the `dev/checkouts` manual start check). If the
+   (otherwise perform the `coga/checkouts` manual start check). If the
    checkout is anywhere else, stop and ask the attending human, or
    `coga block` in a queue run; do not switch or stash your way past it.
    Then read the
@@ -168,7 +168,7 @@ Fix the cause and re-run it — it is idempotent:
   launch mode if that needs human direction.
 - Refused because the checkout is not on `main` → an earlier step did not
   return it. If it is this ticket's branch and clean apart from Coga state
-  already on `origin/main`, run the `dev/checkouts/manual` end-of-step
+  already on `origin/main`, run the `coga/checkouts/manual` end-of-step
   return and re-run. Anything else — another ticket's branch, unpublished dirt — stop
   and escalate; do not commit, stash, or discard it.
 - Stranded ticket write (the refusal names this ticket's own file and says
@@ -181,7 +181,7 @@ Fix the cause and re-run it — it is idempotent:
   `git merge origin/main`, not a rebase.
 - Stale branch → switch to the branch, rebase onto `origin/main`, re-run
   `python -m pytest`, commit, and push with `--force-with-lease`; then run
-  the `dev/checkouts/manual` end-of-step return and re-run `coga open-pr`
+  the `coga/checkouts/manual` end-of-step return and re-run `coga open-pr`
   from `main`.
 - `git` / `gh` auth failure → follow the setup hint the command prints (fix the
   remote, load your SSH key / credential helper, `gh auth login`), then re-run.
@@ -193,7 +193,7 @@ Fix the cause and re-run it — it is idempotent:
   Do not commit or stash confirmed duplicates to satisfy the gate.
   Intentional `ticket.py`/attachment changes can belong to the
   implementation and stay in the feature diff. Authored ticket-body changes
-  belong in the live ticket on control. See `dev/checkouts`,
+  belong in the live ticket on control. See `coga/checkouts`,
   "Stranded ticket writes".
 
 ## Acceptance for this step

@@ -85,7 +85,7 @@ a navigation link alone does neither.
 
 Choose from the two audiences defined in
 [context layout](../context-layout/SKILL.md#context-audiences): user topics
-under `coga/` and `dev/` support operating Coga in adopting repos; the local
+under `coga/` support operating Coga in adopting repos; the local
 Coga-dev set supports developing Coga itself. Select by the task's need,
 then apply the attach-or-cite test below. A shipped instruction must resolve
 its required knowledge from the user set; a development link is optional
@@ -110,7 +110,7 @@ Measure relative size at authoring time with `approx_tokens` from a
 read-only `compose.compose_prompt_report` on an in-memory ticket copy with the
 candidate added. `coga launch --prompt-report` sweeps like any launch, so it
 would publish a trial `contexts:` edit (see
-[dev/checkouts](../../dev/checkouts/SKILL.md)); do not edit lifecycle
+[coga/checkouts](../checkouts/SKILL.md)); do not edit lifecycle
 frontmatter to measure, and do not quote sizes (they go stale). No topic is
 always-attach or always-cite.
 

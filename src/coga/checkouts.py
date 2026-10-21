@@ -1,4 +1,4 @@
-"""Shared branch preparation for ticket launch and ad-hoc chat (`dev/checkouts`).
+"""Shared branch preparation for ticket launch and ad-hoc chat (`coga/checkouts`).
 
 Two consumers call one implementation of the Git mechanics: ordinary
 `coga launch`, for a shipped step whose policy (`checkout_policy`) names a
@@ -346,7 +346,7 @@ def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
         summary = (
             f"Launch prepared {plan.root} on a clean {control!r} but did not set up "
             f"a branch: {plan.policy.reason}. Before any edit, follow the complete "
-            "procedure in `dev/checkouts` yourself."
+            "procedure in `coga/checkouts` yourself."
         )
         return CheckoutNotice(summary=summary, return_owner=returns)
     summary = (
@@ -445,7 +445,7 @@ def _verify_recorded_clone(cfg: Config, branch: str, worktree: str) -> str:
         raise CheckoutPreparationError(
             "recorded clone",
             f"the recorded worktree {worktree} is not a Git checkout. Recover or "
-            "re-record it under dev/checkouts/sandbox-clone; launch does not "
+            "re-record it under coga/checkouts/sandbox-clone; launch does not "
             "replace it. This checkout stayed on control.",
         )
     if same_git_checkout(cfg.repo_root, str(clone)):
@@ -458,7 +458,7 @@ def _verify_recorded_clone(cfg: Config, branch: str, worktree: str) -> str:
         raise CheckoutPreparationError(
             "recorded clone",
             f"the recorded clone {clone} is on {head!r}, not {branch!r}; reconcile "
-            "it under dev/checkouts/sandbox-clone before relaunching",
+            "it under coga/checkouts/sandbox-clone before relaunching",
         )
     return f"The clone is on `{branch}`."
 
@@ -634,7 +634,7 @@ def _reuse_recorded_branch(
     relation = "ahead of" if git._is_ancestor(root, remote_oid, local) else "diverged from"
     note = (
         f"Local `{branch}` is {relation} {remote}/{branch}; its commits were kept. "
-        "Reconcile per dev/checkouts/reconciliation before pushing."
+        "Reconcile per coga/checkouts/reconciliation before pushing."
     )
     return local, (note,)
 
@@ -672,7 +672,7 @@ def _guard_stranded_ticket(
         "stranded ticket",
         f"{branch!r} commits its own {rel} that control does not carry; "
         "preserve what it holds in the control ticket and restore the merge "
-        "base's copy on the branch (dev/checkouts, \"Stranded ticket writes\") "
+        "base's copy on the branch (coga/checkouts, \"Stranded ticket writes\") "
         "before relaunching",
     )
 
@@ -970,7 +970,7 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
                 "session",
                 f"session {session_id!r} is not the live chat in {root}; a new chat "
                 "does not adopt an earlier chat's branch — recover it under "
-                "dev/checkouts/launch-boundary",
+                "coga/checkouts/launch-boundary",
             )
         session = ChatSession(
             session_id, root.resolve(), data["pid"], str(data["branch"]), receipt
@@ -993,7 +993,7 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
             return ChatPreparation(
                 "exempt", root, None,
                 f"no {cfg.git_remote!r} remote: no branch was prepared; follow "
-                "dev/checkouts manually",
+                "coga/checkouts manually",
             )
     _, control_oid = _prove_control(cfg, "entry")
     with git.state_lock(cfg):

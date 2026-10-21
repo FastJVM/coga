@@ -1,4 +1,4 @@
-"""Which checkout a shipped workflow step starts in (`dev/checkouts`).
+"""Which checkout a shipped workflow step starts in (`coga/checkouts`).
 
 A closed compatibility table, not a name heuristic. A row applies only to the
 qualified workflow name, the frozen current step's name, and one of its known
