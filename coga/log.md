@@ -8919,3 +8919,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 12:21 v1 [blocks/04-trim-and-consolidate-the-recurring-family] [human:nicktoper] created (status=draft)
 2026-10-21 12:22 v1 [blocks/05-trim-the-notifications-family] [human:nicktoper] created (status=draft)
 2026-10-21 12:22 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] created (status=draft)
+2026-10-21 12:22 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] created (status=draft)
