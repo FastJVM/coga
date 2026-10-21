@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 0abb87eb-3972-4fa0-9fc3-8e5478a7c407
+period_generation: ee16a258-e4d2-40d0-9ce2-d86177f91ef7
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -75,19 +76,14 @@ proofs are in [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs)
 and primary checkouts and other clones are covered in
 [dev/checkout-cleanup](context:dev/checkout-cleanup).
 
+### Upgrading an older template
+
+When adopting this template in an older repo, read the persistent
+template's [worklist setup guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md). This is an upgrade
+procedure, not an action to repeat each period.
+
 ## Context
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-10-20T18:20:18+00:00
-Task: `recurring/autoclose-merged`
-
-3 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `confirm-why-branch-sweep-ran-as-a-shared-period-ta` "Confirm why branch-sweep ran as a shared period task despite scope clone": branch `docs/clone-scope-install-lag`
-- `microkernel/move-retire-to-a-command-ticket` "Move retire to a command ticket": branch `retire-command-ticket`
-- `report-of-usage-incoga-important-should-nudge-user` "Weekly usage report should mention its owner and identify the repo": branch `usage-report-owner`
