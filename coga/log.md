@@ -8935,3 +8935,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 12:55 v1 [marketing/fix-installer/find-out-what-macos-actually-ships] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-21 13:57 v1 [marketing/fix-installer/install-link-for-claude-code-yields-the-desktop-ap] [human:zach] created (status=draft)
 2026-10-21 13:57 v1 [marketing/fix-installer/init-sends-the-user-to-edit-a-toml-nothing-can-ope] [human:zach] created (status=draft)
+2026-10-21 13:57 v1 [marketing/fix-installer/link-uninstall-from-the-readme] [human:zach] created (status=draft)
