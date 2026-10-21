@@ -8853,3 +8853,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 22:23 v1 [file-post-merge-obligations-before-open-pr-because] [human:nicktoper] auto-bumped on merge of PR #1070 → done
 2026-10-20 22:23 v1 [fix-parser-bugs-documented-in-pr-1055] [human:nicktoper] auto-bumped on merge of PR #1075 → done
 2026-10-20 22:23 v1 [name-the-current-script-assist-preflight-post-call] [human:nicktoper] auto-bumped on merge of PR #1072 → done
+2026-10-20 22:30 v1 [pin-control-inside-the-state-lock-during-checkout] [agent:claude] advanced to step 2 (peer-review) → codex

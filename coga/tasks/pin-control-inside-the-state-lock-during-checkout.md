@@ -26,7 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -69,3 +69,61 @@ branch: fix/prep-pin-under-state-lock
 
 - `prepare_control_checkout`: fetch + pin + plan inside one `state_lock` hold; re-read the remote-tracking ref after the plan and after the re-observation, re-pin and re-plan (bounded attempts) when it moved. Covers sibling worktrees, whose pushes update the shared tracking ref.
 - `fast_forward_control`: when local control already contains `new` and is contained in the current tracking ref, it is level — return True instead of a false realign refusal (covers `publish` and lock-free `refresh`).
+
+## Handoff (implement, 2026-10-20)
+
+Pushed `fix/prep-pin-under-state-lock` @ 4e324fdeb, rebased on origin/main 495debcbc.
+
+What changed:
+- `git.prepare_control_checkout`: `_fetch_control`, the pin and both `_plan_preparation` calls now run inside one `state_lock` hold. After the plan and again after the re-observation, `git._moved_pin` re-reads `refs/remotes/<remote>/<control>`; if it moved, re-pin and re-plan (bounded by `git.PREPARATION_ATTEMPTS = 3`, then refuse with "kept moving; retry"). A stale plan is never applied, and a refusal decided against a stale pin is never returned. Genuine refusals pay no extra fetch (the tracking ref is unchanged).
+- Why both the lock and the re-read: `state_lock` is per checkout, but sibling worktrees share `refs/heads/<control>` and the tracking ref. A sibling publish (its push updates the shared tracking ref, and its fast-forward moves local control) is caught only by the re-read.
+- `git.fast_forward_control`: when local is not an ancestor of `new`, but `new` is an ancestor of local and local is on the tracking ref (`git._published_control`), return True (already level) instead of `_realign_control` giving a false `unpublished`.
+- Docs: launch-boundary step 2 and git-refresh (`fast_forward_control` and `prepare_control_checkout` bullets), plus their bootstrap twins (byte-identical).
+
+Audit of other pin-then-read paths:
+- `_publish_locked` → `fast_forward_control(new)`: base, fetch and push all run under this checkout's lock, but a sibling can publish past `new` before the local read → false realign note (the return value is ignored with a remote). Fixed by the shortcut. In the no-remote branch, local can't get ahead of `new` (siblings build on local control only after our move), so it's unaffected.
+- `refresh`: takes no lock; fetch → rev-parse → `fast_forward_control` has the same window, and a false False made recurring exit 75. Fixed by the same shortcut.
+- The "already on control" `fast_forward_control(base)` in publish: same shortcut applies.
+- Remaining gap (accepted): a sibling move between the last `_moved_pin` and `_apply_preparation`. The guarded `update-ref` (realign) or the post-apply verify reports `failed`; it is never silent.
+
+Tests (`tests/test_git.py`):
+- `test_prepare_repins_when_control_moves_under_it[plan|re-observation]`
+- `test_prepare_refuses_when_control_keeps_moving`
+- `test_fast_forward_treats_control_already_moved_past_new_as_level`
+- Before the fix, with the git.py change stashed, all 4 failed. The repin cases reproduced the reported `unpublished` coga/log.md refusal.
+- Genuine refusals stay covered by the existing `test_prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing` (foreign), `test_prepare_names_the_rebase_for_an_unpublished_hand_commit_and_retry_recovers` (unpublished), `test_fast_forward_leaves_an_ahead_main_alone_and_names_the_fix`, and `test_refresh_refuses_an_ahead_or_diverged_control_checkout`. All pass.
+
+Env note: the shell's `python` lacks tomlkit; tests run with `.venv/bin/python -m pytest`.
+
+## PR
+
+```yaml
+title: Re-pin control when it moves under checkout preparation
+author: claude
+author_evidence: Implement session ran as Claude Code on claude-opus-5-5 (attended launch ebccd116-f981-405d-bf57-577b082b032d).
+head: 4e324fdeb45d9b8c74f91546355f991e3bb805f8
+base: 495debcbcaecf142bf783b344572be6b3d06703c
+depth: careful
+rationale: Concurrency fix in checkout preparation and the shared control-ref mover; read the re-pin loop and the fast_forward_control shortcut closely.
+implementation: Fetch, pin and plan share one state_lock hold; a remote-tracking ref that moved past the pin re-pins and re-plans (bounded). fast_forward_control treats local control that already contains new and is on the tracking ref as level.
+deviations: None from the ticket. Re-reads the tracking ref (no network) instead of re-fetching, since every in-repo move of local control also moves the shared tracking ref.
+limitations: A sibling move between the final re-check and apply is not retried; the guarded update-ref or post-apply verify reports failed. The shortcut skips staging this process's just-published files in that race; they stay dirty-but-equal for the next sweep.
+files:
+  src/coga/git.py: Re-pin loop in prepare_control_checkout, _moved_pin, _published_control, fast_forward_control shortcut, PREPARATION_ATTEMPTS.
+  tests/test_git.py: Regression tests for a moved pin at plan and re-observation, the bounded refusal, and the fast_forward_control shortcut.
+  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Step 2 states the pin is taken under the lock and re-pinned when control moves.
+  docs/contexts/coga/internals/git-refresh/SKILL.md: Documents the fast_forward_control level case and the re-pin in prepare_control_checkout.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-refresh/SKILL.md: Packaged twin, byte-identical.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Review has not run yet; the human agreed the plan before implementation, which is not code review.
+checks:
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: 4e324fdeb45d9b8c74f91546355f991e3bb805f8
+    base: 495debcbcaecf142bf783b344572be6b3d06703c
+    detail: 3941 passed, 7 skipped in 326.70s (committed tree, after rebase).
+```
