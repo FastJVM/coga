@@ -1,6 +1,6 @@
 ---
 title: Publish coga 0.4.1 to PyPI, which main already declares
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
