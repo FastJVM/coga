@@ -1,7 +1,7 @@
 ---
 title: File post-merge obligations before open-pr because merge-triggered closure
   is unconditional
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
