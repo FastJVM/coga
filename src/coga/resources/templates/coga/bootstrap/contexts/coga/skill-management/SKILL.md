@@ -38,7 +38,7 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
   reviewed upstream revision and deliberately reapplying recorded changes.
   Keep the upstream leaf `name:`.
 - **Bundled**: package-backed under `bootstrap/skills/`; `coga skill` never
-  writes into `coga/bootstrap/`. See [coga/packaging](../packaging/SKILL.md).
+  writes into `coga/bootstrap/`. See [coga/context-layout](../context-layout/SKILL.md).
   A repo copy of a bundled skill shadows it and `coga skill status` reports it
   as `local-override`. Upgrading `coga` refreshes the package copy, not the repo twin.
 

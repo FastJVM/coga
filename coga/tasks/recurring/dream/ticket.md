@@ -98,11 +98,11 @@ Print one console line with the result, for example
 `preflight: git-common-dir ok, remote ok, gh ok`. If any check fails, the
 preflight fails before Phase 1: do not start Phase 1 or any later phase. Name
 the missing capability and the failing command's error, and point at the
-agent sandbox grant recipe in the `coga/testing` topic, under
+agent sandbox grant recipe in the `coga-dev/testing` topic, under
 `## Restricted sandboxes`. Then escalate per this prompt's Session conduct
 layer: attended, ask the human and wait; unattended, run
 `coga block --task <this-dream-task> --reason "<missing capability>; see the
-coga/testing Restricted sandboxes recipe"`. A sandbox grant takes effect only
+coga-dev/testing Restricted sandboxes recipe"`. A sandbox grant takes effect only
 in a new agent session, so after fixing it the human relaunches Dream. An
 agent with ordinary machine access passes all three checks unchanged.
 
@@ -827,14 +827,14 @@ Full finding text (shard evidence): `.coga/dream-scans/20261019T175307Z/{knowled
 
 ### extract — grouped by area
 
-- coga/testing
+- coga-dev/testing
   - E1 `investigate-successful-codex-sessions-reported-as` — source: done — live-test a launch-path branch via a non-editable scratch install (editable runs main after launch prep).
   - E5 `fix-git-sync-read-only-errors-after-successful-tra` — source: done — declined Codex launcher-preflight decision, reasons + reopen condition.
   - E6 `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta` — source: done — macOS walk does not pass `build` through (unshipped follow-up).
 - coga/usage
   - E3 `match-concurrent-codex-sessions-to-their-launch-so` — source: done — unknown usage never backfilled; Claude transcripts pruned ~30 days bounds diagnosis.
   - E15 `dedupe-claude-transcript-usage-by-message-id` — source: done — Claude records before 2026-10-01 overcount ~1.6x; not recounted.
-- coga/internals/pr-publication
+- coga/pr-publication
   - E4 `keep-multiline-audit-messages-on-one-log-line` — source: done — `## PR` author compact-identity grammar; exactly one fenced yaml mapping.
   - E10 `launch-moves-the-checkout-to-main-before-and-after` — source: done — `is_coga_state_path` accepts only tasks/** + log.md as drift; recurring/** needs rebase.
 - dev/checkouts
@@ -867,12 +867,12 @@ Full finding text (shard evidence): `.coga/dream-scans/20261019T175307Z/{knowled
 - S3 `docs/contexts/coga/recurring/templates/SKILL.md` — reporting contract names only `run_recipe`; ticket-owned scripts use `run_reported`.
 - S4 `coga/skills/_template/SKILL.md` (+twin) — cites removed `browser/dochub` (ks-19, ks-28, ca-05 merged).
 - S5 `docs/contexts/coga/configuration/SKILL.md` (+twin) — `[agents.<name>]` allowlist row omits `launch_args` (ks-26, ca-01 merged).
-- S6 `docs/contexts/coga/codebase/gotchas/SKILL.md` (+twin) — routes Coga-source rules to `coga/context.md`, now the generated principles copy.
+- S6 `docs/contexts/coga-dev/codebase/gotchas/SKILL.md` (+twin) — routes Coga-source rules to `coga/context.md`, now the generated principles copy.
 
 ### gap
 
 - G1 `tests/test_compose.py` — parametrization still pins root `CLAUDE.md` (removed); case fails on main. No open owner.
-- G2 `docs/contexts/coga/internals/agent-spawn/SKILL.md` — exceptional unwinding leaves agent child unkilled/unreaped. owner: `launch-locks/ticket-ownership-lock`.
+- G2 `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md` — exceptional unwinding leaves agent child unkilled/unreaped. owner: `launch-locks/ticket-ownership-lock`.
 - G3 `docs/contexts/coga/workflows/SKILL.md` — merge-triggered closure drops recorded post-merge obligations (0.4.1 publication, readme-top leftovers, macOS build). No open owner.
 
 ### drift
@@ -932,7 +932,7 @@ Scan dirs deleted after merge (both phases complete).
 - Phase 4 knowledge: #1046–#1059 (see `## Phase 4`).
 - Phase 6 proposals: #1061 `_template` leaf-name example (S4) · #1062 `launch_args` allowlist row (S5) ·
   #1063 gotchas → AGENTS.md (S6) · #1064 autofix inactive-repo skip (S2) · #1065 branch-sweep blackboard
-  clone-scoped (D2) · #1066 `non-executable-script` contract in coga/testing (X1, done+checkout) ·
+  clone-scoped (D2) · #1066 `non-executable-script` contract in coga-dev/testing (X1, done+checkout) ·
   #1067 validate-drift ticket repairs (`uncomposed-section`, `broken-context` x2).
 
 **Draft tickets created**

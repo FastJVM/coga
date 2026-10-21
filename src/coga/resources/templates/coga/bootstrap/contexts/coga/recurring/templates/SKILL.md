@@ -145,7 +145,7 @@ The `COGA_TASK_*` variables a script and recipe receive are specified in
 Shipped templates have a packaged twin under
 `src/coga/resources/templates/coga/recurring/<name>/`; edit both, since the body
 is the run prompt `coga init` installs (`tests/test_packaging.py` enforces it;
-see [coga/packaging](../../packaging/SKILL.md)). Downstream and promoted
+see [Coga development packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/packaging/SKILL.md)). Downstream and promoted
 templates need no twin. A job that force-pushes a reused branch must resolve the
 remote tip at push time (`git ls-remote`) rather than lease against a possibly
 stale tracking ref, as `src/coga/skill_manager.py` does.
@@ -155,5 +155,5 @@ stale tracking ref, as `src/coga/skill_manager.py` does.
 `phone-home` is ticket-owned code, not a registered recipe: its reserved
 `ticket.py` is a shim to the wheel-owned implementation, with a one-step
 `phone-home/run` workflow. Distribution, local forks and adopting the shim in
-existing copies are owned by [coga/packaging](../../packaging/SKILL.md). Its changing parent marker, bounded delivery, production suppression
+existing copies are owned by [coga/edge-code](../../edge-code/SKILL.md). Its changing parent marker, bounded delivery, production suppression
 and opt-out contract belong to [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).

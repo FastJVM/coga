@@ -126,7 +126,7 @@ task-specific guidance, and each topic remains the owner of its contract.
   `Config.contexts_root`. Invalid local artifacts must fail rather than
   silently selecting a bundled context; unignored local files need not
   already be committed.
-- `coga/testing` at `docs/contexts/coga/testing/SKILL.md` is cited rather
+- `coga-dev/testing` at `docs/contexts/coga-dev/testing/SKILL.md` is cited rather
   than attached: read **Commands**, **Which code you are actually testing**,
   **Test-writing rules**, and **CI posture and receipts**. Use an absolute
   checkout `PYTHONPATH` and an available Python 3.11+ interpreter so subprocess

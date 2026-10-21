@@ -89,7 +89,7 @@ evidence. Keep preserves the existing disposition, including terminal ones.
 | Exact task ref | Verdict / grade | Evidence and premise result | Exact cancellation reason / action |
 | --- | --- | --- | --- |
 | `v2/audit-rules-md-usage-across-relay-and-decide-wheth` | **cancel — recorded; already canceled** | Binding 2026-09-16 verdict at `coga/log.md:5422`; do not re-adjudicate. | No new command. Recorded reason: "Premise-dead (adjudicate-parked-and-active-tickets-whose-premise): the 'Global rules' prompt layer, coga/rules.md, paths.rules_path() and the compose.py rules layer this draft audits no longer exist anywhere in src/, coga/ or docs/ — rules.md survives only as a stale-artifact fixture in tests/test_init.py's prune test. Its 'known facts (verified)' block is wrong and there is nothing left to keep, gut, or remove." |
-| `v2/document-workflow-less-concept-capture-drafts-as-s` | **keep — recorded `done`** | `coga/log.md:5427` closes it as satisfied by architecture's "Workflow gated at activation, not draft time" (`coga/contexts/coga/architecture/SKILL.md:490`). | None; preserve done, not a new cancellation. |
+| `v2/document-workflow-less-concept-capture-drafts-as-s` | **keep — recorded `done`** | `coga/log.md:5427` closes it as satisfied by architecture's "Workflow gated at activation, not draft time" (`docs/contexts/coga/architecture/SKILL.md:490`). | None; preserve done, not a new cancellation. |
 | `v2/split-context-to-doc-user-accessible-and-editable` | **keep — recorded, guarded `draft`** | Its Description and Context (`coga/tasks/v2/split-context-to-doc-user-accessible-and-editable.md:36`) retain relocation and the documentation owner gate; PR #826 / `23420a91` recorded the rewrite. | None; preserve the prior keep and gate. |
 | `v2/dev-loop-git-hygiene-lift-sync-with-main-into-code` | **keep — recorded `done`, subsequently deleted** | `coga/log.md:4984` records both delivered changes and remaining inline-prose residue. Deletion history identifies `b73b20d0` on 2026-09-14. | None; do not recreate or re-adjudicate. |
 | `v2/autotrigger-ticket-type` | **keep-with-follow-up — verified** | Subject: schedule/idle unification is unbuilt; `recurring.scan_due` (`src/coga/recurring.py:639`) and `recurring_runner.run_recurring_scan` (`src/coga/recurring_runner.py:1470`) still serve recurring schedules. Surfaces: `mark.mark_in_progress` (`src/coga/mark.py:754`) survives; six cited slugs are absent, but the four retired hazard sources are recoverable (Context below). | None. Preserve the concept; repair dependency prose with recovered substance and current lifecycle facts. Blackboard synthesis remains future authoring. |
@@ -276,8 +276,8 @@ numbers, including the suggestion to cancel a ticket that is already done.
   lives at `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md`;
   its manual discovery is not the proposed query/rank command. The draft's
   inlined rubric makes the retired import-ticket citation provenance only.
-  `coga/current-direction`'s missing-skill decision rejects a static gap lint,
-  not search. `coga/extension-model`'s microkernel rule governs implementation home,
+  `coga-dev/current-direction`'s missing-skill decision rejects a static gap lint,
+  not search. `coga-dev/microkernel`'s microkernel rule governs implementation home,
   not whether this capability request still exists.
 - **Lifecycle and composition:** `commands.mark.canceled` delegates to
   `mark.mark_canceled`, preserving body/blackboard while clearing the step and
@@ -293,7 +293,7 @@ numbers, including the suggestion to cancel a ticket that is already done.
   fixture in a prune test (`tests/test_init.py:1379`); the "Global rules" compose layer it audits is
   gone (`grep rules src/coga/compose.py src/coga/paths.py` is empty).
 - `document-workflow-less-concept-capture-drafts-as-s` — deliverable shipped at
-  `coga/contexts/coga/architecture/SKILL.md:363-400`, which names the exact validator-nagging
+  `docs/contexts/coga/architecture/SKILL.md:363-400`, which names the exact validator-nagging
   problem the draft was written about.
 
 **Subject was never built, not deleted — this is NOT the README's premise test:**
@@ -413,7 +413,7 @@ and reason-only preservation of the dirty-file preflight bug at `review-design`.
   `src/coga/commands/skill.py::app`, the source-metadata constants in
   `src/coga/skill_manager.py`, and packaged `bootstrap/import`'s
   `Finding a candidate` section support keeping search. Its implementation
-  home properly remains undecided under `coga/codebase`'s microkernel rule.
+  home properly remains undecided under `coga-dev/codebase`'s microkernel rule.
 - **Execution contract:** the frozen workflow matches packaged
   `code/design-then-implement`: evaluator, then owner approval, then implement.
   `src/coga/mark.py::mark_canceled` preserves body/blackboard, clears lifecycle
@@ -428,7 +428,7 @@ and reason-only preservation of the dirty-file preflight bug at `review-design`.
 In skill search's planned `### Premise review`, explicitly label the
 `detect-missing-skills` link as historical. Its current Context and Out of
 scope still describe that ticket as a future trigger/owner, whereas
-`coga/current-direction`'s `Recent decisions (missing-skill detection)`
+`coga-dev/current-direction`'s `Recent decisions (missing-skill detection)`
 records its closure and no programmatic handoff. This is not a prerequisite
 for search and does not weaken the keep verdict; the clarification fits the
 already-scoped prose edit.

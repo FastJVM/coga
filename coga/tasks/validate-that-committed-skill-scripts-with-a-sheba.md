@@ -180,7 +180,7 @@ Bundled-root coverage also confirms that packaged scripts are checked.
 
 The full-suite failure is
 `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`:
-`coga/contexts/coga/codebase/SKILL.md` differs from its packaged twin in the
+`docs/contexts/coga-dev/codebase/SKILL.md` differs from its packaged twin in the
 `text.py` and skill-update paragraphs. Reproduced on the primary `main`
 checkout with the isolated packaging test; this change touches neither file.
 The pending packaged-side repair is recorded under
@@ -215,4 +215,4 @@ Use working-tree modes on POSIX and the Git index on Windows or when
 queries keep validation offline. Prune dependency directories before traversal
 and preserve non-ASCII Git paths when reading the index.
 
-Test plan: `python -m pytest -q -p no:cacheprovider --tb=short` with the feature `src` on `PYTHONPATH` (2443 passed, 1 pre-existing failure); `coga validate --json` in `coga/` and `example/coga/` (zero shebang errors; example has zero issues). The full-suite failure is unrelated `coga/codebase` live/packaged drift, also reproduced on `main` and tracked in PR #796.
+Test plan: `python -m pytest -q -p no:cacheprovider --tb=short` with the feature `src` on `PYTHONPATH` (2443 passed, 1 pre-existing failure); `coga validate --json` in `coga/` and `example/coga/` (zero shebang errors; example has zero issues). The full-suite failure is unrelated `coga-dev/codebase` live/packaged drift, also reproduced on `main` and tracked in PR #796.

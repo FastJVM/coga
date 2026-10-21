@@ -53,7 +53,7 @@ Evidence (two independent tickets, same remedy, no context to reach for):
   only says "if it is large, record the path or link".
 
 Proposed change — one paragraph after the "how a bloated blackboard gets
-noticed" sentence in `coga/contexts/coga/architecture/SKILL.md` (and its
+noticed" sentence in `docs/contexts/coga/architecture/SKILL.md` (and its
 packaged twin under `src/coga/resources/templates/coga/bootstrap/contexts/`):
 
 ```markdown
@@ -92,7 +92,7 @@ over).
 
 What changed:
 
-- `coga/contexts/coga/architecture/SKILL.md` + packaged twin: the proposed
+- `docs/contexts/coga/architecture/SKILL.md` + packaged twin: the proposed
   remedy paragraph now follows the "how a bloated blackboard gets noticed"
   sentence in the Layer-6 passage. Two additions beyond the ticket's draft,
   each verified: it points back at the promotion recipe already in the
@@ -106,7 +106,7 @@ What changed:
   context, "move, do not delete"). Test added in
   `tests/test_dream_validate_drift.py::test_classifies_large_blackboard_as_attachment_remedy`,
   mirroring the neighbouring `classify_issue` tests.
-- `coga/contexts/coga/blackboard/SKILL.md` + packaged twin: one clause after
+- `docs/contexts/coga/blackboard/SKILL.md` + packaged twin: one clause after
   the `BLACKBOARD_WARN_BYTES` sentence saying the remedy is owned by
   `coga/architecture` — a pointer, not a restatement, per "one owner per
   fact".

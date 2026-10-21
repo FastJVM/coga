@@ -29,7 +29,7 @@ requested ref has a valid record at or after its target period; because
 stops the read. The first scan of a new period therefore walks the whole log;
 later scans resolve from the tail. Malformed history older than the stop point
 is allowed to heal. Freshness against control at publication is in
-[recurring-admission](../../../internals/recurring-admission/SKILL.md).
+[recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md).
 
 Current period only: missed periods are not chased, so a monthly run of a
 weekly template produces one run.

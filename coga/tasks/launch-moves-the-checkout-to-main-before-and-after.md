@@ -157,7 +157,7 @@ This replaces the rule requiring those handoffs to be written on main first.
    the newly approved supervised feature-branch handoff and manual-session
    fallback. `docs/contexts/coga/launch/SKILL.md` owns placement in dispatch,
    chaining, exclusions, and exits, linking to the checkout policy.
-   Update `coga/internals/agent-spawn` and `coga/internals/git-refresh` for
+   Update `coga-dev/internals/agent-spawn` and `coga-dev/internals/git-refresh` for
    changed caller relationships without duplicating the procedure. Update
    `coga/skills/code/{implement,self-qa,open-pr,address-pr-comments}/SKILL.md`
    to link to the owner and remove conflicting instructions and acceptance
@@ -196,9 +196,9 @@ Cited rather than attached: read `dev/checkouts` at
 `docs/contexts/dev/checkouts/SKILL.md` (Start, work, end; Publish pre-branch
 ticket edits; sandbox fallback), `coga/launch` at
 `docs/contexts/coga/launch/SKILL.md` (preflight and chain), and
-`coga/internals/git-refresh` at
-`docs/contexts/coga/internals/git-refresh/SKILL.md` (refresh and fast-forward).
-Read `coga/testing` and `coga/packaging` before verifying the implementation.
+`coga-dev/internals/git-refresh` at
+`docs/contexts/coga-dev/internals/git-refresh/SKILL.md` (refresh and fast-forward).
+Read `coga-dev/testing` and `coga-dev/packaging` before verifying the implementation.
 These are existing contracts to update, not evidence that this proposal is
 already implemented.
 
@@ -288,7 +288,7 @@ What changed:
 - Docs: `dev/checkouts` owns the policy (new "The launch boundary" and a
   launched/manual split of "Start, work, end"). Also updated `coga/launch`,
   internals `agent-spawn`/`git-refresh`/`state-publication`/`pr-publication`/
-  `human-assist`, `dev/code`, `dev/dev-record`, `coga/codebase`, and the
+  `human-assist`, `dev/code`, `dev/dev-record`, `coga-dev/codebase`, and the
   `code/{implement,self-qa,open-pr,address-pr-comments}` skills. Packaged
   twins synced.
 
@@ -382,8 +382,8 @@ Implementer defaults for items 5–10 (owner may redirect):
    ticket bytes when the invoking copy lacks `branch:`/`pr:`.
 9. "Publish through the existing lifecycle command" means `coga bump`
    (`sync_task_state`); the agent does not run `sync_coga_state` manually.
-10. Also update `coga/internals/state-publication`, and check
-    `coga/internals/human-assist`, `coga/internals/pr-publication`, `coga/cli`.
+10. Also update `coga/state-publication`, and check
+    `coga/human-assist`, `coga/pr-publication`, `coga/cli`.
 
 ## Open Questions
 
@@ -397,7 +397,7 @@ Cold review (claude, evaluate-design, 2026-09-25). Verified against
 `src/coga/commands/launch.py`, `launch_script.py`, `git.py`, `cli.py`,
 `repl_supervisor.py`, `megalaunch.py`, `recurring_runner.py`, `recurring.py`,
 `.gitattributes`, and `dev/checkouts`, `coga/launch`,
-`coga/internals/state-publication`. Everything the Context section says
+`coga/state-publication`. Everything the Context section says
 about the code checks out: `refresh` does not move feature or detached
 checkouts, `fast_forward_control` may move a different holder,
 `run_script_chain` loops on its own, delegates are always `BootstrapRef`
@@ -474,7 +474,7 @@ paths.
    Also say how a between-step or teardown refusal reaches the in-process
    `coga recurring` loop (a return kind or `SystemExit(75)`), and whether
    later periods in the same sweep continue. Cite
-   `coga/internals/recurring-temp-worktrees` and `recurring-admission`.
+   `coga-dev/internals/recurring-temp-worktrees` and `recurring-admission`.
 6. **Sweep-suppression scope under in-process recurring.** One
    `coga recurring` invocation runs many periods. Invocation-wide suppression
    after one period's teardown refusal also withholds other periods'
@@ -500,10 +500,10 @@ paths.
    ambiguous. Is that `bump` itself (which publishes the whole ticket file
    and log via `sync_task_state`) or the `sync_coga_state` one-liner from
    `dev/checkouts`? Name the command.
-10. **Missing owning topics.** `coga/internals/state-publication` owns the
+10. **Missing owning topics.** `coga/state-publication` owns the
     sweep contract, including the 75 exception ("The end-of-command sweep").
     The new suppression mechanism changes it, so add it to step 5. Also check
-    `coga/internals/human-assist`, `coga/internals/pr-publication` ("open-pr
+    `coga/human-assist`, `coga/pr-publication` ("open-pr
     runs from the launch checkout on the control branch"), and
     `coga/cli` for restatements.
 

@@ -152,7 +152,9 @@ string in that module.
 | `dev/checkout-cleanup/proofs` | user | | Checkout removal proofs | `rec:autoclose-merged`, `rec:branch-sweep`; `T:bootstrap/retire`; `bs:coga/autoclose/sweep` |
 | `dev/checkout-cleanup/terminal-owners` | user | | Closed-PR branch deletion | `T:bootstrap/retire`; `bs:coga/branch-sweep/sweep`, `bs:coga/autoclose/sweep` |
 | `dev/checkouts` | user | | Where agent work runs; end-of-step return | `open_pr.py`, `step_gate.py` msgs; `bs:code/{implement,open-pr,self-qa,address-pr-comments}`; `bs:coga/autoclose/sweep`; all `bw:code/*`, `bw:docs/with-review` |
+| `dev/checkouts/chat` | user | | Direct chat occupancy and the shipped `prepare-checkout` recipe | `T:bootstrap/orient`; `dev/checkouts` |
 | `dev/checkouts/launch-boundary` | user | | Checkout recovery every launch cites | `prompt`; `launch.py` refusal msg; `T:bootstrap/orient` |
+| `dev/checkouts/manual` | user | | Checkout procedure when launch did not prepare a branch | `bs:code/implement`; `dev/checkouts` |
 | `dev/checkouts/reconciliation` | user | | Reconcile with main | `prompt`; `bs:code/implement` |
 | `dev/checkouts/sandbox-clone` | user | | Read-only `.git` fallback | `bs:code/implement` |
 | `dev/code` | user | | Code-ticket conventions | — |
@@ -160,6 +162,12 @@ string in that module.
 
 Count after the ownership relocation: 78 rows. 54 `user` (6 renamed out of
 `coga/internals/`), 19 `coga-dev`, 5 `split`.
+
+Implementation reconciliation: main added `dev/checkouts/chat` and
+`dev/checkouts/manual` in PR #1068. Both have shipped consumers and therefore
+remain user topics under the approved criterion. Including these two rows,
+the inventory is 80 rows: 56 `user`, 19 `coga-dev`, 5 `split`, yielding 61
+user topics and 24 Coga-dev topics after the cuts below.
 
 `docs/contexts/coga/manifesto/` is an empty directory with no topic: **remove
 it** in 02 (Git does not track it; delete locally and confirm nothing

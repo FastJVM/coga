@@ -4,17 +4,17 @@ status: draft
 owner: nicktoper
 agent: codex
 contexts:
-  - coga/principles
+  - coga-dev/principles
   - coga/init
   - coga/tickets
   - coga/skill-management
   - coga/recurring/scheduling
   - dev/checkout-cleanup
-  - coga/codebase
-  - coga/testing
-  - coga/current-direction
-  - coga/extension-model
-  - coga/project-stage
+  - coga-dev/codebase
+  - coga-dev/testing
+  - coga-dev/current-direction
+  - coga-dev/microkernel
+  - coga-dev/project-stage
   - coga/cli
   - dev/checkouts
 workflow: code/design-then-implement
@@ -37,11 +37,11 @@ Close the two residual rows of the "Open command placements" table:
 
 ### Acceptance criteria
 
-- [ ] `ticket` has a written co-versioning proof in `coga/extension-model`,
+- [ ] `ticket` has a written co-versioning proof in `coga-dev/microkernel`,
       or is moved to the edge with unchanged behavior and tests.
 - [ ] `skill *` has an explicit classification and reason in
-      `coga/extension-model`.
-- [ ] Both rows leave the table (both copies);
+      `coga-dev/microkernel`.
+- [ ] Both rows leave the local-only `coga-dev/microkernel` table;
       `docs/archive/cli-extension-audit.md`, `coga/tickets/authoring`,
       `coga/skill-management` and the `coga/cli` index match.
 - [ ] Any migration found here becomes its own follow-up ticket.

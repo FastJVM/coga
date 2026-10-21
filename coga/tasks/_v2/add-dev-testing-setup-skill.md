@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/knowledge
-- coga/project-stage
+- coga-dev/project-stage
 - dev/checkouts
 workflow:
   name: code/with-review

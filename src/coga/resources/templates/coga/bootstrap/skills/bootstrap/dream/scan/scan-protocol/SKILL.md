@@ -106,7 +106,7 @@ sibling under `coga/skills/direct/`.
 
 The block below derives the set. It must run under the interpreter that backs
 the active `coga` — the ambient `python3` usually cannot import `coga` — so
-locate that interpreter first, exactly as the `coga/testing` context does:
+locate that interpreter first:
 
 ```sh
 COGA_PY=$(python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")')

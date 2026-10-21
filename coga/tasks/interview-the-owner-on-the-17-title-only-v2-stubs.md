@@ -166,7 +166,7 @@ Per-stub facts the implement step should carry into `## Context` for any `descri
 | --- | --- | --- |
 | `add-subproject` | 2026-06-06 | No "subproject" concept in `src/`, contexts, docs, or `coga.toml`. Cold. |
 | `autoroute-agent-based-on-remaining-usage` | 2026-06-09 | Folded "as superseded" into `nightly-auto-drain-run-for-ready-tickets` (`:155,:223`), which is itself `canceled`. `coga usage` (`src/coga/commands/usage.py`) exists; no routing on it anywhere in `launch.py`. |
-| `create-vault6-and-service-account-for-high-trust-s` | 2026-07-20 (zach) | `coga/contexts/coga/secrets/SKILL.md:16-40` now rules **one SA, one automation vault**; trust-tiered vaults are a human taxonomy the SA is never granted, and widening scope is a migration. A second SA/vault contradicts the recorded model. |
+| `create-vault6-and-service-account-for-high-trust-s` | 2026-07-20 (zach) | `docs/contexts/coga/secrets/SKILL.md:16-40` now rules **one SA, one automation vault**; trust-tiered vaults are a human taxonomy the SA is never granted, and widening scope is a migration. A second SA/vault contradicts the recorded model. |
 | `create-vault-and-service-account-for-mid-trust-sec` | 2026-07-20 (zach) | Same as above. |
 | `docs-and-contt-block-should-be-merged` | 2026-06-15 | Empty duplicate of `redo-documentation-dir-and-merge-it-with-context-b` (`in_progress`, `:753` classifies it so); also listed by `the-human-doc-vs-agent-context-boundary-is-decided:52`, `adjudicate-parked-and-active-tickets-whose-premise:74`, and Dream D21. |
 | `generic-lib-to-use-e-g-patent-models` | 2026-05-27 | Only echo: `ship-a-shared-recurring-reminder-engine-battery` (`canceled`) named patents/admin hand-rolled sweep logic as the shared-lib case. No `patent` anywhere in `src/`. |
@@ -234,7 +234,7 @@ now would exceed the stated scope.
   `coga/coga.toml` agent tables, and `src/coga/commands/launch.py`. There is no
   first-class model field or per-step model routing. Use that full launch path
   when writing the surviving draft's Context.
-- Cancellation evidence checked: `coga/contexts/coga/secrets/SKILL.md`,
+- Cancellation evidence checked: `docs/contexts/coga/secrets/SKILL.md`,
   "The service account and its vault"; the canceled
   `coga/tasks/nightly-auto-drain-run-for-ready-tickets.md` and its explicit
   supersession decision; the related-work section of
@@ -372,7 +372,7 @@ Two things recorded so they are not lost:
   discovery skips `_`-prefixed dirs (`tasks.list_tasks`), so `git mv coga/tasks/v2 coga/tasks/_v2`
   hides all 81 in one commit — but `coga/roadmap` ("Deferred work"), `coga/tasks/v2/README.md`,
   `coga create "v2/<title>"` as the only supported bare-capture spelling (`create.py`, `ticket.py`,
-  `validate.py`), Dream's weekly premise pass, `coga/architecture`, `coga/codebase`,
+  `validate.py`), Dream's weekly premise pass, `coga/architecture`, `coga-dev/codebase`,
   `current-direction`, and tests (`test_create`, `test_validate`, `test_megalaunch`, `test_ticket`)
   all assume the directory is live. The sibling tickets
   `adjudicate-the-eight-premise-dead-v2-drafts` and

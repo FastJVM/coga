@@ -1,0 +1,106 @@
+---
+name: coga-dev/codebase/gotchas
+description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, create guards, Typer calls, branch probes, resource packages, prompt resources).
+---
+
+# Editing gotchas in Coga's source
+
+Each item names a real seam a new caller must keep. Environment and test
+pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
+[dev/checkouts](../../../dev/checkouts/SKILL.md).
+
+## Seams
+
+- **One operator resolver.** `bump.resolve_operator` is the single pure
+  resolver that launch, transitions, script handoffs, status/show,
+  notifications, and sweep eligibility read. Nothing stores or caches an
+  assignment; a new consumer calls the resolver.
+- **Activation splits at `prepare_active` / `mark_active`.** `prepare_active`
+  validates, freezes the workflow ref, selects the main agent, re-derives the
+  operator, and mutates an in-memory copy without writing. `mark_active`
+  writes, validates, audits, and optionally syncs. `megalaunch._PREPARE_ACTIVE_ERRORS`
+  encodes the division: `WorkflowMissing`, `WorkflowError`,
+  `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`,
+  `MainAgentUnavailable`, and `RepoResourceUnreadable` refuse before any
+  byte is written;
+  `TaskValidationError` comes from the post-write `assert_task_valid`.
+  Megalaunch prepares on a throwaway copy (`_prepare_for_launch`), preflights
+  prompt, env, and agent there, commits only after every refusal passes, and
+  refuses if the ticket bytes moved. The dependency-drain call site activates
+  before resolving blockers on purpose, so both land in one publication; see
+  [coga/megalaunch](../../../coga/megalaunch/SKILL.md).
+- **Blackboard writers are fence-aware.** Persist state below
+  `<!-- coga:blackboard -->` only through `taskfile.read_blackboard` /
+  `replace_blackboard` or `blackboard.append_blackboard_report` /
+  `append_to_section`, from a `ticket.py`, recipe, or helper alike. A raw
+  append onto a file ending at the fence line glues text to the marker,
+  `fence_count` drops to zero, and every reader raises `TaskFileError`. A
+  whole-file marker search mistakes body prose for state. Pass captured
+  `expected_bytes` to `read_blackboard` / `replace_blackboard` /
+  `append_to_section`; `append_blackboard_report(cfg, ticket_path, report)`
+  checks its own bytes and holds the state-publication barrier. Known gap:
+  `replace_blackboard` splices directly after the marker, so when the file
+  ends at the fence with no newline, start your content with a newline.
+- **`create_task` validates after it writes and logs.** It calls
+  `git.write_ticket`, then `append_log`, then `assert_task_valid`, so a failed
+  validation leaves the ticket and a `created` log line on disk. For the
+  `description` argument, `create.description_structure_problem` rejects a
+  `##` line outside a code fence and an own-line blackboard fence before
+  anything is written, for every caller; generated text such as the autofix
+  analyst's body must be fitted first (`recurring_autofix.demote_headings`).
+  The verbatim `body` argument has no such guard: an extra `##` there only
+  earns validate's `uncomposed-section` warning.
+- **Recipes report to the repo under test.** Pass the discovered root to
+  `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard
+  outside that root's `tasks/` tree and fails closed to stdout.
+- **Shipped recipe-backed `ticket.py` shims go through the runner.** They call
+  `run_recipe(load_config(), "<name>", [])` rather than importing the recipe
+  function, so the recipe failure report applies;
+  `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
+  a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
+  `from coga_edge.phone_home import main`) and has no `RECIPES` entry; do not
+  turn it into a registry entry ([coga/edge-code](../../../coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+- **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
+  scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
+  report, and posts alerts through `coga slack` by default (a `ticket.py` gets
+  no operands). Date math, frontmatter reads, and acks (blackboard
+  `key: value` lines read with `period_state.parse_keys`) stay in each script;
+  `tests/fixtures/reminders/` holds worked examples.
+- **`checkout_disposal.py` is imported lazily by `autoclose.py`**, because
+  `branchcleanup` imports `autoclose`'s `## Dev` parsers at load time.
+
+## Code-level hazards
+
+- **Calling a Typer command from Python passes `OptionInfo` sentinels** for
+  every omitted option, not defaults (this crashed `repl_supervisor`'s timeout
+  comparison once). Pass every parameter, or better call a non-Typer helper.
+  An alias avoids it because it goes through real CLI parsing.
+- **Use `git branch --show-current`, never `rev-parse --abbrev-ref HEAD`.** A
+  tag with the branch's name makes the latter return `heads/<name>`. Fail
+  closed when the probe errors instead of treating it as "not control".
+  `branchcleanup._current_branch` is correct. The shared `git.current_branch`
+  still uses the shadowable form and has the widest reach (refresh, launch,
+  `bump`, `retire`, autoclose); `branchsweep._current_branch` and two call
+  sites in `open_pr.py` also use that form and map a failed probe to `""`.
+- **Prompt resources are the only copy of a rule most agents see.**
+  `src/coga/resources/prompt*.md` compose into every launch, while contexts
+  attach per ticket. Restate a rule there completely or point at the topic,
+  never halfway (an abridgement once dropped the `runner.RECIPES` exception).
+  When a guard spans two resources, pin both halves in
+  `tests/test_compose.py` and grep the other resources before calling a
+  sentence redundant. They compose into every repo's launches, not only
+  this one's, so a rule about Coga's own source tree (`src/coga/`, the
+  microkernel boundary) belongs in the `coga-dev/microkernel` topic, which
+  owns it; this repo's root `AGENTS.md` carries only a summary and pointer
+  (`coga/context.md` is now a generated copy of `coga-dev/principles`);
+  `test_packaged_prompt_layers_carry_no_coga_source_rules` pins that.
+- **Every `files("coga.<pkg>")` anchor must be a regular package.** On a
+  directory without `__init__.py`, `importlib.resources.files` returns a
+  `MultiplexedPath`; before 3.12 its `joinpath` takes one segment and it has
+  no `__fspath__`, so a multi-segment lookup raises `TypeError` (it broke
+  `coga init` on 3.11, #831). Keep `src/coga/resources/__init__.py`;
+  `test_coga_resources_is_a_regular_package` pins it. A green
+  3.12 run says nothing about the declared 3.11 floor: run resource-lookup or
+  version-sensitive stdlib changes on a real 3.11 too.
+- **A recorded "rebases clean" expires.** Re-measure drift at implement time;
+  never let an inherited note stand in for running the rebase.

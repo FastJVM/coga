@@ -38,7 +38,7 @@ final sweep, preserving the session's edits. Each time it:
    observations; file, index, branch, and realignment evidence must match. Local
    `main` must exist and be equal to or behind it, or carry only commits of
    Coga state whose content is already on the pinned commit (proved commit
-   by commit and path by path; [coga/internals/git-refresh](../../../coga/internals/git-refresh/SKILL.md)),
+   by commit and path by path; [coga-dev/internals/git-refresh](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-refresh/SKILL.md)),
    in which case it is realigned rather than fast-forwarded. A detached HEAD,
    a merge, rebase, cherry-pick, revert, or bisect in progress, `main` checked
    out in another worktree, or any other ahead or diverged `main` refuses.

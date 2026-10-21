@@ -64,7 +64,7 @@ checkout.
   Every Retro knowledge edit lands in a reviewable PR; the caller's knowledge
   files stay unchanged. This is Retro's deliberate review policy, not a
   general requirement for files inside the automatically published Coga roots
-  (see `coga/internals/state-publication`). Commit each knowledge batch before
+  (see `coga/state-publication`). Commit each knowledge batch before
   invoking any sweeping Coga command in its checkout: dirty knowledge files
   publish directly even on a feature branch.
 - Idempotency: for each source task, the task directory is gone, or an open PR

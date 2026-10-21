@@ -9,7 +9,7 @@ workflow: code/with-review
 ## Description
 
 `coga skill install-url` records an `include` allowlist in `.coga-source.json`,
-and both `coga/contexts/coga/codebase/SKILL.md` and the `recurring/skill-update`
+and both `docs/contexts/coga-dev/codebase/SKILL.md` and the `recurring/skill-update`
 template described that allowlist as re-applied on every update. It is not.
 **`include` is never read anywhere in `src/coga/skill_manager.py`** (zero
 occurrences). PR #773's review caught the docs; this ticket is the code half.

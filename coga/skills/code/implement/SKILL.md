@@ -113,7 +113,7 @@ after review and fixes.
    launch returns the checkout; a manual session performs the
    `dev/checkouts` end-of-step return instead. In the sandbox clone layout,
    push from the clone.
-10. **Prepare publication evidence.** Read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
+10. **Prepare publication evidence.** Read [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md),
     “Presentation and review-depth rubric” and “Preparation record”. Before the
     handoff, retain the actual implementing agent identity from this session
     (including overrides), exact check commands/results/counts and omission

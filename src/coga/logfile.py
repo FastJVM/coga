@@ -17,7 +17,7 @@ LF only. Only v1-marked messages are decoded; unmarked messages stay raw.
 Lines written before the encoding existed may be followed by
 untagged continuation lines (no timestamp); readers skip them, and
 `task_log_lines` keeps them attached to the event they follow.
-`coga/internals/spool-merge` owns this rule.
+`coga-dev/internals/spool-merge` owns this rule.
 
 Why global rather than per-task: the log is the one thing that grows without
 bound, and it is deliberately **never** a prompt-composition layer. Pulling it

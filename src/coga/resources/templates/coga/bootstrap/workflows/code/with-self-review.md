@@ -58,7 +58,7 @@ line exists.
 
 The command is deterministic and has no judgment of its own, which is why the
 preceding `self-qa` step prepares the evidence and advisory review depth under
-[coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md)
+[coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md)
 and rebases the branch. Self-review is reported explicitly; a configured peer
 or a planned tool call is not evidence of independent review.
 

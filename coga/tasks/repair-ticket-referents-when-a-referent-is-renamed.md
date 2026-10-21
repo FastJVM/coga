@@ -87,7 +87,8 @@ second bug the ticket didn't name).
   validate-drift runs it; classified `human-needed` in `dream_validate_drift.py`).
 - `coga mark canceled` → after a successful cancel, prints each live dependent it stranded + remedy
   (best-effort, never fails the cancel).
-- `coga/lifecycle` + `coga/codebase` topics updated (packaged twins copied, byte-identical).
+- `coga/lifecycle` + `coga-dev/codebase` topics updated. Only `coga/lifecycle` has a packaged twin
+  (copied, byte-identical); `coga-dev/codebase` is local-only and has none.
 - `tests/test_dependency_asks.py` (8 tests).
 
 **Decisions / weak spots for the human:**

@@ -351,25 +351,25 @@ online lifecycle transaction and narrower automatic merging than a blind
 ## Context
 
 Topics are cited rather than attached because this change edits their owning
-contracts. Read `coga/internals/state-publication`
-(`docs/contexts/coga/internals/state-publication/SKILL.md`), especially
+contracts. Read `coga/state-publication`
+(`docs/contexts/coga/state-publication/SKILL.md`), especially
 "Invariants", "Best-effort versus strict", and "The end-of-command sweep";
-`coga/internals/git-regressions`
-(`docs/contexts/coga/internals/git-regressions/SKILL.md`), "The provenance
+`coga-dev/internals/git-regressions`
+(`docs/contexts/coga-dev/internals/git-regressions/SKILL.md`), "The provenance
 check", "Hooks", and "Other refusals"; and `coga/sync`
 (`docs/contexts/coga/sync/SKILL.md`), "Control versus feature checkouts".
 The implementation must update their packaged copies under
 `src/coga/resources/templates/coga/bootstrap/contexts/` too.
 
 Also cite and read `coga/lifecycle` (`docs/contexts/coga/lifecycle/SKILL.md`),
-"Status", "Step", and "Writer validation timing"; `coga/internals/git-refresh`
-(`docs/contexts/coga/internals/git-refresh/SKILL.md`), the inbound-refresh
-contract; `coga/internals/agent-spawn`
-(`docs/contexts/coga/internals/agent-spawn/SKILL.md`), "Order inside one call";
-and `coga/internals/launch-claims`
-(`docs/contexts/coga/internals/launch-claims/SKILL.md`), its exact-byte and
-pending-seal rules. Update affected summaries in `coga/launch` and
-`coga/internals/assist-publication` with their twins; link to the owner rather
+"Status", "Step", and "Writer validation timing"; `coga-dev/internals/git-refresh`
+(`docs/contexts/coga-dev/internals/git-refresh/SKILL.md`), the inbound-refresh
+contract; `coga-dev/internals/agent-spawn`
+(`docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`), "Order inside one call";
+and `coga-dev/internals/launch-claims`
+(`docs/contexts/coga-dev/internals/launch-claims/SKILL.md`), its exact-byte and
+pending-seal rules. Update affected summaries in `coga/launch` and its packaged
+twin, and in the local-only `coga-dev/internals/assist-publication`; link to the owner rather
 than duplicating the new merge specification. In particular, git-refresh's
 blanket statement that state sync never copies a control ticket into a feature
 checkout must distinguish whole-checkout refresh from this new preparation.

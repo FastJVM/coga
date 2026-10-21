@@ -12,7 +12,7 @@ choices live in `marketing/idea-piece`; publication sequencing lives in
 `marketing/build-the-launch-plan`.
 
 Archives require an explicit human request under
-[the archive access rule](../../../../docs/contexts/coga/knowledge/SKILL.md#archive-access).
+[the archive access rule](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/archive-access/SKILL.md#archive-access).
 They do not supply defaults for a new brief.
 
 ## Entry condition

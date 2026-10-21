@@ -4,16 +4,16 @@ status: paused
 owner: nicktoper
 agent: codex
 contexts:
-- coga/principles
+- coga-dev/principles
 - coga/launch
 - coga/script-tickets
-- coga/internals/agent-spawn
-- coga/codebase
-- coga/codebase/gotchas
-- coga/testing
-- coga/current-direction
-- coga/extension-model
-- coga/project-stage
+- coga-dev/internals/agent-spawn
+- coga-dev/codebase
+- coga-dev/codebase/gotchas
+- coga-dev/testing
+- coga-dev/current-direction
+- coga-dev/microkernel
+- coga-dev/project-stage
 - dev/checkouts
 workflow:
   name: code/design-then-implement
@@ -129,8 +129,8 @@ verb migration unless it is required to prove the launch split.
       the full pytest suite, `git diff --check`, and
       `coga validate --task microkernel/launch-decomposition --json`
       pass.
-- [ ] `coga/launch`, `coga/script-tickets`, `coga/internals/agent-spawn`,
-      `coga/codebase`, `coga/extension-model`, and
+- [ ] `coga/launch`, `coga/script-tickets`, `coga-dev/internals/agent-spawn`,
+      `coga-dev/codebase`, `coga-dev/microkernel`, and
       `docs/archive/cli-extension-audit.md` describe the new source boundary. Any
       changed shipped context is updated in both the live and packaged copies.
 

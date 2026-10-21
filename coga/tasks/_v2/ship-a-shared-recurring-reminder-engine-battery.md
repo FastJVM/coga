@@ -104,7 +104,7 @@ Zach chose the `.py`-only cut in session. One commit on the branch, rebased on
   `recorded/brex/README.md` labels `receipts-missing.json` as a
   reconstruction (every `posted_at` is a synthetic `T12:00:00.000Z`; the GL
   and record-shape files are real captures).
-- `coga/codebase` context (live + packaged twin, still byte-identical) gained a
+- `coga-dev/codebase` context (live + packaged twin, still byte-identical) gained a
   `reminders.py` entry under Source layout.
 
 ### Microkernel note for the reviewer

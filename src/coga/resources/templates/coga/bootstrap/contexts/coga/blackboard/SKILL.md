@@ -186,7 +186,7 @@ blackboard update landing in between can be overwritten by the old body.
 Megalaunch's strict writes compare source bytes under the lock and are safe.
 
 Atomic rename gives crash-safety, not serialization
-([coga/patterns](../patterns/SKILL.md)). So: read the region immediately
+([coga-dev/patterns](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md)). So: read the region immediately
 before writing, prefer section appends to whole-region rewrites, keep writes
 as small as the change, and use the shipped helpers. Cross-checkout
 reconciliation is out of scope here ([coga/sync](../sync/SKILL.md)).

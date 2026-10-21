@@ -41,7 +41,8 @@ apply across those boundaries.
 - A `recurring/<name>` period is gated first (control branch, owner,
   verified control catch-up, exit 75 when stale) and a frozen `delegate:`
   period routes straight to its bootstrap target; see
-  `coga/recurring/delegation` and `coga/internals/recurring-admission`.
+  [recurring delegation](../recurring/delegation/SKILL.md) and
+  [scheduling](../recurring/scheduling/SKILL.md).
 
 Trailing positional arguments reach an agent prompt as an ordered JSON
 `## Launch arguments` block, and a bootstrap `ticket.py` as its argv. A
@@ -125,7 +126,7 @@ TTY-less launches of a blocked ticket are refused until `coga unblock`.
 
 Divergent workers are visible and recoverable in git; a lock's stale state
 is not. Megalaunch's claim and the local state lock are not ownership locks
-([launch claims](../internals/launch-claims/SKILL.md)).
+([launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md)).
 
 ## Phases and routing
 
@@ -138,7 +139,7 @@ The operator is derived, never stored per step: `bump.resolve_operator` reads
 owner-held step is a hard handoff and launch refuses it. `--agent <type>`
 selects a configured agent for this launch only and never rewrites the
 ticket. On an owner step it is the human assist
-([human assist](../internals/human-assist/SKILL.md)); on an agent step it is
+([human assist](../human-assist/SKILL.md)); on an agent step it is
 an ordinary override that continues (`consecutive_agent_override`) only while
 the first and each directly following step *explicitly* declare
 `assignee: agent`. An omitted role, `owner`, or `other-agent` ends it for the
@@ -148,7 +149,7 @@ On an override of an agent-held step, a later lifecycle line's
 attribute it to the CLI that actually ran, read the preceding
 `launched (operator=…, launch_agent=…, agent=…)` line's `launch_agent=`. An
 assist on an owner-held step is the exception: its lines credit the assisting
-agent ([coga/internals/human-assist](../internals/human-assist/SKILL.md)).
+agent ([coga/human-assist](../human-assist/SKILL.md)).
 
 ## Agent preflight order
 
@@ -165,7 +166,7 @@ mid-session sync miss is reported and non-fatal.
 ## The step chain
 
 Each step spawns a fresh agent process through the shared spawn path
-([agent spawn](../internals/agent-spawn/SKILL.md)). After a clean exit the
+([agent spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md)). After a clean exit the
 supervisor rereads the ticket and continues only when the task is still
 `in_progress`, the step advanced, and the next operator is an agent
 (`agent` and `other-agent` rotate CLIs). It stops at owner handoffs,

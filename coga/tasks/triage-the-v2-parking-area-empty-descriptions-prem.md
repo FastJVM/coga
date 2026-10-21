@@ -90,7 +90,7 @@ Do not treat the original 8 as a uniform "confirmed dead" list. It is not.
   fixture in a prune test (`tests/test_init.py:1379`); the "Global rules" compose layer it audits is
   gone (`grep rules src/coga/compose.py src/coga/paths.py` is empty).
 - `document-workflow-less-concept-capture-drafts-as-s` — deliverable shipped at
-  `coga/contexts/coga/architecture/SKILL.md:363-400`, which names the exact validator-nagging
+  `docs/contexts/coga/architecture/SKILL.md:363-400`, which names the exact validator-nagging
   problem the draft was written about.
 
 **Subject was never built, not deleted — this is NOT the README's premise test:**
@@ -137,7 +137,7 @@ refs, because `coga/workflows/code/` does not exist. The `code/*` workflows reso
 
 `measure-relay-prompt-scope-and-agent-precision` (4,215-char blackboard) and
 `use-worktree-when-starting-a-dev-task` keep the synthesis route; do **not** synthesize any draft you
-cancel. "Synthesize" is defined in `coga/contexts/coga/architecture/SKILL.md` (~lines 720-730): fold
+cancel. "Synthesize" is defined in `docs/contexts/coga/architecture/SKILL.md` (~lines 720-730): fold
 durable content from the blackboard up into the ticket body, or move deliberate launch notes under a
 `## Production notes` heading, which the validator accepts as the alternative. Read that passage
 before starting — it is not attached as a context because the file is 59 KB.
@@ -217,9 +217,9 @@ The mitigation would be adequate if it (i) tested launch mode instead of asserti
 
 ### 3. Contexts — the no-contexts call is right, with one real omission
 
-Attaching nothing is defensible on size alone: `coga/contexts/coga/architecture/SKILL.md` is 59 KB (~15k tokens), which would quadruple a 20 KiB prompt to answer a handful of questions. Copying facts in was the right call.
+Attaching nothing is defensible on size alone: `docs/contexts/coga/architecture/SKILL.md` is 59 KB (~15k tokens), which would quadruple a 20 KiB prompt to answer a handful of questions. Copying facts in was the right call.
 
-**But one required fact wasn't copied.** The ticket assigns two blackboard syntheses and never says what "synthesize" means. The only place in the repo that defines it — including the `## Production notes` marker that is the alternative — is `coga/contexts/coga/architecture/SKILL.md:~720-730`. Copy those three lines in, or cite the file:line. `measure-relay-prompt-scope-and-agent-precision`'s blackboard is 4,215 characters — this is not a trivial synthesis to improvise.
+**But one required fact wasn't copied.** The ticket assigns two blackboard syntheses and never says what "synthesize" means. The only place in the repo that defines it — including the `## Production notes` marker that is the alternative — is `docs/contexts/coga/architecture/SKILL.md:~720-730`. Copy those three lines in, or cite the file:line. `measure-relay-prompt-scope-and-agent-precision`'s blackboard is 4,215 characters — this is not a trivial synthesis to improvise.
 
 ### 4. Context breadth — one item is too broad, one claim is wrong
 
@@ -259,7 +259,7 @@ I spot-checked four of the eight.
 
 **Holds cleanly (2):**
 - `audit-rules-md-usage-across-relay-and-decide-wheth` — confirmed dead. `rules.md` exists nowhere except as a stale-artifact fixture in a prune test (`tests/test_init.py:1379`). `grep rules src/coga/compose.py src/coga/paths.py` returns nothing — the "Global rules" layer the draft audits no longer exists.
-- `document-workflow-less-concept-capture-drafts-as-s` — confirmed dead. Its deliverable shipped: `coga/contexts/coga/architecture/SKILL.md:363-400` documents workflow-less drafts as a valid authoring state and explicitly names the validator-nagging problem the draft was written about.
+- `document-workflow-less-concept-capture-drafts-as-s` — confirmed dead. Its deliverable shipped: `docs/contexts/coga/architecture/SKILL.md:363-400` documents workflow-less drafts as a valid authoring state and explicitly names the validator-nagging problem the draft was written about.
 
 **Does not hold as stated (1) — highest-value flag:**
 - `add-relay-skill-search-with-candidate-eval` is listed under "each settled the other way." I find no settlement. `coga skill --help` shows install / install-local / install-url / update / remove / status — **no `search`**. The subject the draft proposes was never built, and the surfaces it names are still live. `coga/log.md` contains only its creation and two unrelated git-sync failures — no decision, no cancel, no counter-ticket. By the README's own two-question test it passes both. It is a live gap, not premise-dead. Cancelling it would delete an open gap with a recorded reason that isn't true.

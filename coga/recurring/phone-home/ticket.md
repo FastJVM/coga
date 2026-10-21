@@ -20,7 +20,7 @@ bumps once through the CLI; bump failure propagates. `phone-home/run` has one
 agent-owned `send` step with no skills, so normal completion needs no agent.
 Run by hand outside a launch, it prints its report without advancing a task.
 Upgrades, full local forks and legacy adoption are owned by
-[coga/packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/packaging/SKILL.md).
+[coga/edge-code](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/edge-code/SKILL.md).
 The schedule is declared in this template's frontmatter (operator-local time).
 New templates are due on the first sweep, too. Coga installs no scheduler.
 Downloads, init, and ordinary commands send no events. Repos that never sweep
@@ -100,7 +100,7 @@ excludes templates, READMEs and attachments. Explicit zeros for all seven
 
 Movement counts complete valid timestamp/ref/actor audit envelopes for work
 refs (including deleted tasks), using the versioned/legacy decoding contract
-in [coga/internals/spool-merge](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/spool-merge/SKILL.md). The decoded
+in [coga-dev/internals/spool-merge](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md). The decoded
 message is exactly one of:
 
 - `advanced to step <positive integer> (<step name>)`, optionally followed by

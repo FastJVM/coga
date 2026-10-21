@@ -78,10 +78,10 @@ a forced relaunch keeps its prompt-size warning no matter what validate does.
    matter, after the run and before the scanner deletes the task. The `launch`
    warning stays intact for the one path that relaunches the task. This is a
    rule about a lifecycle state (terminal scratch the runner deletes), not a
-   special case for Dream, so it does not conflict with `coga/extension-model`.
+   special case for Dream, so it does not conflict with `coga-dev/microkernel`.
    No new module and no new consumer. It also keeps the blackboard as the
    legible index that Phase 6 already describes, which fits
-   `coga/principles`.
+   `coga-dev/principles`.
 3. **Exempt by section or by every period task.** Exempting sections means
    validation has to understand Dream's report headings, a Dream-specific
    rule in core. Exempting in-progress period tasks would also hide real
@@ -180,7 +180,7 @@ Read `coga/recurring/dream/ticket.md` for Dream's procedure and contract.
 
 The design step lays out the options with their tradeoffs and recommends one. If the owner picks option 4, `implement` is a docs-only change.
 
-**Period task vs template (the key fact).** `coga/recurring/dream/ticket.md` is the template. It is byte-identical to its packaged twin `src/coga/resources/templates/coga/recurring/dream/ticket.md` (`coga/packaging`), and that twin is where any change to how Dream writes its report must land. `coga/tasks/recurring/dream/` is the per-firing period task. Its blackboard is per-run scratch that the next period deletes (`coga/period-task`, attached). Phase 6 of the template already describes these sections as an index for a task that "is retired and its blackboard with it". A period task has no packaged twin.
+**Period task vs template (the key fact).** `coga/recurring/dream/ticket.md` is the template. It is byte-identical to its packaged twin `src/coga/resources/templates/coga/recurring/dream/ticket.md` (`coga-dev/packaging`), and that twin is where any change to how Dream writes its report must land. `coga/tasks/recurring/dream/` is the per-firing period task. Its blackboard is per-run scratch that the next period deletes (`coga/period-task`, attached). Phase 6 of the template already describes these sections as an index for a task that "is retired and its blackboard with it". A period task has no packaged twin.
 
 **Who writes the oversized sections.**
 - The Dream agent writes `## Findings` and `## Dream Run Summary` itself, following the template body: the Phase 2/3 step "Merge into the blackboard" merges the scan's `findings.md`, and Phase 6 appends `## Dream Run Summary`. The scan skills under `bootstrap/dream/scan/` (`scan-protocol`, `knowledge-scan`, `contract-audit`) only write `findings.md` in their scan directory.
@@ -190,7 +190,7 @@ The design step lays out the options with their tradeoffs and recommends one. If
 **The check.**
 - `validate._check_one_task` calls `blackboard.blackboard_size_warning` and emits `large-blackboard` (warn). The threshold is `blackboard.BLACKBOARD_WARN_BYTES` (32 KiB), which `launch` also uses for its own warning.
 - Dream's validate-drift scan, `dream_validate_drift.classify_issue`, turns `large-blackboard` into a PR proposal for the `coga/blackboard` bloated-blackboard remedy. That is why Dream proposes fixing itself.
-- Options 2 and 3 change core validation. Justify them against `coga/extension-model` and `coga/principles`: a lifecycle-based rule (a `done` scratch task) generalizes better than a special case for one recurring job.
+- Options 2 and 3 change core validation. Justify them against `coga-dev/microkernel` and `coga-dev/principles`: a lifecycle-based rule (a `done` scratch task) generalizes better than a special case for one recurring job.
 
 **Owners to update in the same PR:** `coga/recurring/dream/ticket.md` (read explicitly; Phase 6 owns the run report). Depending on the option, also `coga/blackboard` (cited: read its bloated-blackboard section), `coga/recurring` (cited: read its period-task/template section) and `coga/period-task`.
 

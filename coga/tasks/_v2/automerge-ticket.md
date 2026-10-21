@@ -6,7 +6,7 @@ agent: claude
 contexts:
 - dev/checkouts
 - coga/workflows
-- coga/packaging
+- coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -89,7 +89,7 @@ old `panic` command), not a note-and-bump.
 "CI gate = required (hard stop)". This repo has **no PR test job**: the only GitHub
 Actions workflow is the publish-only `release.yml`, so `gh pr checks` has nothing to
 report (see `no-context-records-the-ci-posture-publish-only-rel`, which records this
-in `coga/testing`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
+in `coga-dev/testing`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
 can only mean a local gate, which the skill must spell out:
 
 - After any rebase and push, capture the PR's `headRefOid` from

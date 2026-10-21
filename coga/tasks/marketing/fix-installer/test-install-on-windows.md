@@ -89,7 +89,7 @@ the workflow branch.
 
 Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
 author, head/base OIDs, review depth, files, review, checks). Record only actual
-implementation and evidence, never placeholders; coga/internals/pr-publication/
+implementation and evidence, never placeholders; coga/pr-publication/
 preparation owns the fields and the publishing workflow the review rules.
 
 Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve

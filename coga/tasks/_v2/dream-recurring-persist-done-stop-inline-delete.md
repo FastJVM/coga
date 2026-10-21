@@ -6,7 +6,7 @@ agent: claude
 contexts:
 - coga/recurring
 - coga/architecture
-- coga/current-direction
+- coga-dev/current-direction
 workflow:
   name: code/with-review
   steps:

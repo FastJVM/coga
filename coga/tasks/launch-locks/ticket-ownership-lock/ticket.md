@@ -33,10 +33,11 @@ workflow:
 step: 3 (review-design)
 contexts:
 - coga/launch
-- coga/internals/launch-claims
-- coga/internals/claim-recovery
-- coga/internals/state-publication
-- coga/internals/git-regressions
+- coga-dev/internals/launch-claims
+- coga-dev/internals/claim-recovery
+- coga/state-publication
+- coga-dev/internals/state-publication
+- coga-dev/internals/git-regressions
 agent: claude
 ---
 
@@ -50,7 +51,7 @@ Hold ownership across script and agent phases, workflow bumps and chained steps,
 
 Evaluate a daily recurring collector for stale claims; never clear a potentially live worker solely because the claim is old. Immediate restart recovery must not depend on a daily job. Define local-only behavior when Git sync is unavailable.
 
-Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. When both ship, acquire the checkout lock first, then the ticket lock (the sibling already fixes this order); release in reverse order (ticket lock before the checkout lock, whose release follows the outer `cli.main` sweep); specify how a refusal of either unwinds the other. Include concurrency/crash acceptance scenarios and update owning contracts and packaged twins in the eventual implementation PR. The design requires owner approval before code. The design step is done when the design is on the blackboard (per `code/design`), ending with the concurrency/crash acceptance-scenario list, and names the `coga/internals/*` topic that will own the lock contract.
+Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. When both ship, acquire the checkout lock first, then the ticket lock (the sibling already fixes this order); release in reverse order (ticket lock before the checkout lock, whose release follows the outer `cli.main` sweep); specify how a refusal of either unwinds the other. Include concurrency/crash acceptance scenarios and update owning contracts in the eventual implementation PR, with packaged twins for user topics only. The design requires owner approval before code. The design step is done when the design is on the blackboard (per `code/design`), ending with the concurrency/crash acceptance-scenario list, and names the local-only `coga-dev/internals/*` topic that will own the implementation contract and the shipped user topics that will own operator behavior and recovery.
 
 The design spec for this ticket lives in the sibling attachment `design.md` (moved from the blackboard's `## Design` for size on 2026-10-06), as the step instruction above requires; `## Open Questions` on the blackboard lists what the owner decides in `review-design`.
 
@@ -60,7 +61,7 @@ Owner priority: design and ship ticket ownership locking before checkout exclusi
 
 The owner clarified "fast git sync" means immediate lock acquisition/release publication, not general state-sync performance work. Publish the claim immediately and confirm acquisition on control before work starts; publish removal immediately when the launch finishes. Do not depend on delayed sweeps. Failed or uncertain acquisition must not start work; failed release must remain visible for reconciliation. Fast publication alone is not mutual exclusion: simultaneous claims still require an atomic remote decision.
 
-Contract being revised: `coga/launch` (`docs/contexts/coga/launch/SKILL.md`, "Status is the signal") currently says there is no task-ownership mutex and that megalaunch's claim and `git.state_lock` are not ownership locks. The implementation PR rewrites that paragraph and the related lines in `coga/internals/launch-claims` and `coga/internals/claim-recovery`.
+Contract being revised: `coga/launch` (`docs/contexts/coga/launch/SKILL.md`, "Status is the signal") currently says there is no task-ownership mutex and that megalaunch's claim and `git.state_lock` are not ownership locks. The implementation PR rewrites that paragraph and the related lines in `coga-dev/internals/launch-claims` and `coga-dev/internals/claim-recovery`.
 
 Code anchors (cite by symbol; line numbers drift):
 
@@ -76,7 +77,7 @@ Cited, not attached — `coga/recurring/scheduling` (`docs/contexts/coga/recurri
 
 Sweep interaction (main gap from the authoring review): `git.sync_coga_state`, the end-of-command sweep, publishes every dirty path under the tasks directory. A lock file beside the ticket would therefore be pushed by any unrelated `coga` command in any clone, including an unconfirmed, stale, or deleted claim. The design must state whether the sweep, `delete-task`/Retro, and moving a task skip, carry, or refuse lock paths.
 
-Cited, not attached — `coga/internals/agent-spawn` (`docs/contexts/coga/internals/agent-spawn/SKILL.md`): read it for supervisor death with a surviving agent child, which crash recovery must handle (the sibling attaches it for the same case).
+Cited, not attached — `coga-dev/internals/agent-spawn` (`docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`): read it for supervisor death with a surviving agent child, which crash recovery must handle (the sibling attaches it for the same case).
 
 Open design questions:
 
@@ -251,7 +252,7 @@ repo boundaries. The following protocol gaps must be resolved first.
 - State rollout assumptions: older launchers and publishers do not enforce
   these locks. Name the writer-upgrade/quiet-window requirement or explicitly
   limit guarantees to participating versions. Include
-  `coga/internals/agent-spawn`, recurring ownership topics and `dev/checkouts`
+  `coga-dev/internals/agent-spawn`, recurring ownership topics and `dev/checkouts`
   in the eventual contract changes if the fixes above change their behavior.
 - Owner still decides general launch cost/availability, `unlock` command
   placement, existing-ticket authoring, and local-only scope. The all-writer

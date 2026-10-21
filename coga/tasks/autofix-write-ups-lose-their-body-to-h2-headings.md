@@ -4,8 +4,8 @@ status: done
 owner: nicktoper
 agent: codex
 contexts:
-- coga/testing
-- coga/packaging
+- coga-dev/testing
+- coga-dev/packaging
 workflow:
   name: code/with-review
   steps:

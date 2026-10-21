@@ -294,7 +294,7 @@ Codebase facts an implementer needs.
 - `tests/test_packaging.py` — twins are derived only from
   `src/coga/resources/templates/coga/`; a top-level resource has no twin.
   `docs/contexts/coga/usage/SKILL.md` now has a packaged counterpart under
-  `templates/coga/bootstrap/contexts/coga/usage/` (see `coga/packaging`).
+  `templates/coga/bootstrap/contexts/coga/usage/` (see `coga-dev/packaging`).
 - `tests/test_usage.py` — 14 tests; `test_rollup_filters_and_groups_records`
   (L458) is the model for rollup tests; `test_usage_command_outputs_json`
   (L517) for the CLI.

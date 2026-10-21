@@ -57,7 +57,7 @@ rationale survives this ticket's deletion.
 Done means the refusal offers `git switch <control>` as the way forward, no
 Coga refusal or
 recurring topic tells the operator to create a control worktree, and the
-declined decision is published in `coga/internals/recurring-control`.
+declined decision is published in `coga-dev/internals/recurring-control`.
 
 ### Acceptance criteria
 
@@ -74,12 +74,12 @@ declined decision is published in `coga/internals/recurring-control`.
       the shared closing sentence after `absence`; restructure the message
       so the remedy order reads correctly in each branch.
 - [ ] The function's docstring stops describing a `git worktree add` remedy.
-- [ ] `docs/contexts/coga/internals/recurring-control/SKILL.md` and its
-      packaged twin
-      (`src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/recurring-control/SKILL.md`)
-      describe the new refusal text and stay byte-identical
-      (`tests/test_packaging.py`).
-- [ ] The same topic gains a short **declined** note, per `coga/knowledge`
+- [ ] `docs/contexts/coga/recurring/scheduling/SKILL.md` and its packaged
+      twin describe the operator-visible refusal and remedy and stay
+      byte-identical (`tests/test_packaging.py`). Update the local-only
+      `docs/contexts/coga-dev/internals/recurring-control/SKILL.md` for
+      implementation detail; it has no packaged twin.
+- [ ] The local-only implementation topic gains a short **declined** note, per `coga/knowledge`
       ("Where knowledge lives": an owner decision not to act lives in the
       owning topic and says what was declined, why, and what would reopen
       it). Substance: Coga will not create a throwaway or persistent control
@@ -110,7 +110,7 @@ declined decision is published in `coga/internals/recurring-control`.
 
 - Any Coga-created checkout for agent sessions (declined; see above).
 - Removing the existing-control-worktree relay.
-- `--all` temp control worktrees (`coga/internals/recurring-temp-worktrees`).
+- `--all` temp control worktrees (`coga-dev/internals/recurring-temp-worktrees`).
   These are Coga-owned, marker-tracked, and reaped, which is the allowed
   exception.
 - `coga retire`'s isolated Retro checkout (`src/coga/resources/retire.md`,
@@ -300,8 +300,10 @@ ticket to the follow-up instead of canceling, its shape is: in
 `recurring_runner._refuse_non_control_branch`, change both `absence` messages
 (no holder; unusable holder) so `git switch <control>` is the primary remedy
 and creating a control worktree is either dropped or carries a warning that it
-blocks ticket launches. Mirror that in `coga/internals/recurring-control` and
-its packaged twin, and update the tests that assert the refusal text.
+blocks ticket launches. Update `coga/recurring/scheduling` and its packaged
+twin for the operator remedy, and the local-only
+`coga-dev/internals/recurring-control` for implementation detail. Update the
+tests that assert the refusal text.
 
 ##### Out of scope
 
@@ -397,7 +399,7 @@ Sibling state as of 2026-09-25: both siblings are `done`.
 - `reuse-the-existing-control-worktree-for-recurring` landed as `eb725dfa3`
   (PR #846). It **does** admit agent templates and `delegate:` templates into an
   existing control worktree (stdio and TTY inherited; see
-  `coga/internals/recurring-control`), and ships `config.LOCAL_CONFIG_ENV`
+  `coga-dev/internals/recurring-control`), and ships `config.LOCAL_CONFIG_ENV`
   (`COGA_LOCAL_CONFIG`). So the remaining gap is exactly "agent template, off
   control, no control worktree exists".
 
@@ -406,7 +408,7 @@ Sibling state as of 2026-09-25: both siblings are `done`.
 Owner direction (2026-09-25): ordinary ticket work stops using linked
 worktrees; Coga-internal recurring/Dream worktrees stay. That is ticket
 `stop-using-worktrees` (`in_progress` at `review` as of 2026-09-25), whose
-description keeps `coga/internals/recurring-temp-worktrees` explicitly out of
+description keeps `coga-dev/internals/recurring-temp-worktrees` explicitly out of
 scope. Its effect here: an agent session inside a created control checkout
 would branch and commit in that checkout, not in a sibling `../coga-<branch>`,
 and must end back on `main` — which is exactly the control branch the created
@@ -471,22 +473,22 @@ state it: it changes what the feature *means*, not just how it is built.
 
 ##### Context to read and update
 
-The old monolithic `coga/contexts/coga/recurring/SKILL.md` was split into
+The old monolithic `docs/contexts/coga/recurring/SKILL.md` was split into
 focused topics under `docs/contexts/`. They are cited, not attached; read them
 fresh, since they may move again before launch:
 
-- `coga/internals/recurring-control`
-  (`docs/contexts/coga/internals/recurring-control/SKILL.md`) — where recurring
+- `coga-dev/internals/recurring-control`
+  (`docs/contexts/coga-dev/internals/recurring-control/SKILL.md`) — where recurring
   runs may start: the control-branch requirement and off-branch relay (formerly
   `## Recurring runs start on the control branch`). The contract in question.
-- `coga/internals/recurring-temp-worktrees`
-  (`docs/contexts/coga/internals/recurring-temp-worktrees/SKILL.md`) — how an
+- `coga-dev/internals/recurring-temp-worktrees`
+  (`docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md`) — how an
   `--all` child services an off-branch checkout from a temporary worktree
   (formerly `## An --all child services an off-branch checkout from a temporary
   worktree`, added by sibling 1, `e44e7c29`). This is where the current
   created-worktree contract lives, and the topic a design here extends or
   contradicts.
-- `coga/internals/recurring-admission` for per-child refresh and period
+- `coga-dev/internals/recurring-admission` for per-child refresh and period
   leases, and `coga/recurring/delegation` / `coga/recurring/scheduling` for TTY
   admission of delegated and agent launches (formerly the `delegate:` gotcha).
 
@@ -542,7 +544,7 @@ observable, but the closure plan omits the durable decision below.
    `docs/contexts/coga/knowledge/SKILL.md`, “Where knowledge lives,” explicitly
    requires an owner decision not to act to live in the owning topic, stating
    what was declined, why, and what would reopen it. The current
-   `docs/contexts/coga/internals/recurring-control/SKILL.md`, “Recurring runs
+   `docs/contexts/coga-dev/internals/recurring-control/SKILL.md`, “Recurring runs
    start on the control branch,” describes the relay but not this rejection;
    `recurring-temp-worktrees`, “Deterministic only,” explains the existing
    temporary restriction but not the persistent-checkout decision. On
@@ -600,7 +602,7 @@ No ticket-body, runtime, workflow, or topic edits; no branch or PR created.
 #### Open Questions
 
 - The relay's refusal (`recurring_runner._refuse_non_control_branch`, both
-  `absence` branches) and `coga/internals/recurring-control` still tell the
+  `absence` branches) and `coga-dev/internals/recurring-control` still tell the
   operator to `git worktree add ../<repo>-<control> <control>`. Following that
   advice now makes every `coga launch <ticket>` from the primary checkout
   refuse via `git.prepare_control_checkout`. Should this be filed as a small

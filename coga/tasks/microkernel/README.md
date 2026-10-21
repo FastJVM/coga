@@ -7,14 +7,14 @@ Launch one of the child tickets below, not this file.
 ## Status
 
 Pulled forward from the parked `_v2/` wish list into v1 scope by owner
-decision on 2026-10-16 (recorded in `coga/current-direction`). Each draft was
+decision on 2026-10-16 (recorded in `coga-dev/current-direction`). Each draft was
 premise-checked against `main` @ `5d72ffe6e` with the `_v2/README.md`
 procedure, reusing Dream 2026-W39 findings F46-F49 and F53 and the W40
 correction to F49; each ticket's blackboard records its own outcome.
 
 ## The boundary
 
-The target is the **current** rule in `coga/extension-model`, not the July
+The target is the **current** rule in `coga-dev/microkernel`, not the July
 2026 direction that only `create` is irreducibly core. The owner confirmed on
 2026-10-16 that the kernel stays: launch/compose and what launch calls
 mid-flight (`mark`, `bump`, secret injection, notify dispatch), what must
@@ -22,7 +22,7 @@ exist before any launch (`create`, fresh `init`), the `block`/`unblock`
 transitions, the fixed `runner.RECIPES`, and proven co-versioned commands.
 
 v1 is done here when the "Open command placements" table in
-`coga/extension-model` is empty: every listed head is either moved to the edge
+`coga-dev/microkernel` is empty: every listed head is either moved to the edge
 (command ticket, `ticket.py`, `src/coga_edge/`, alias) or carries a written
 co-versioning proof.
 
@@ -32,9 +32,10 @@ co-versioning proof.
   entrypoints thin; move single-consumer substance to the edge.
 - Moving logic out of the kernel moves it unchanged (extension-model
   "No inversion"): deterministic Python stays Python.
-- When a placement changes, update in the same PR `coga/extension-model`
-  (and its packaged twin), `docs/archive/cli-extension-audit.md`, the
-  `coga/cli` index, and the topic that owns the moved command.
+- When a placement changes, update in the same PR the local-only
+  `coga-dev/microkernel`, `docs/archive/cli-extension-audit.md`, the
+  `coga/cli` index, and the topic that owns the moved command. Update
+  packaged twins only for user topics.
 - Split implementation by command shape after design review; one PR per
   move.
 

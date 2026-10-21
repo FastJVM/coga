@@ -39,7 +39,7 @@ does not, because the surfaces it names keep moving. Four questions, in order:
    at another ticket's blackboard or body for its requirements may have lost
    them: that ticket can be retired and deleted. Recover the missing substance
    from git history with the
-   [retired-task recipe in `coga/tickets`](../../../docs/contexts/coga/tickets/SKILL.md#where-tasks-live-and-how-they-are-named)
+   [retired-task recipe in `coga/tickets/discovery`](../../../docs/contexts/coga/tickets/discovery/SKILL.md#where-tasks-live-and-how-they-are-named)
    (it covers the pre-rename `relay-os/tasks/` too) and inline it; never
    repoint the citation at a different live ticket. Citations kept only for
    provenance are fine.

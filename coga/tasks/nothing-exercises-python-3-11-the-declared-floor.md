@@ -29,8 +29,8 @@ workflow:
 
 `pyproject.toml` declares `requires-python = ">=3.11"`, but nothing runs the
 suite on 3.11. `.github/workflows/` contains only `release.yml`, a PyPI publish
-workflow with no pytest step, and `coga/testing` (`docs/contexts/coga/testing/SKILL.md`,
-formerly part of `coga/codebase`) tells
+workflow with no pytest step, and `coga-dev/testing` (`docs/contexts/coga-dev/testing/SKILL.md`,
+formerly part of `coga-dev/codebase`) tells
 the reader to run `PYTHONPATH=$PWD/src python3.12 -m pytest` because the ambient
 `python3` is often 3.9. That guidance is correct about 3.9 and silently makes
 the declared floor untested.
@@ -55,9 +55,9 @@ Two things are wanted and they are separable:
 1. A real 3.11 verification step, so the declared floor is exercised rather
    than assumed. There is no test CI workflow at all today, which is the larger
    half of this.
-2. The rule written into its owning topic — `coga/codebase/gotchas`
-   (`docs/contexts/coga/codebase/gotchas/SKILL.md`) for the package-marker
-   hazard and `coga/testing` for what a green run proves — and their
+2. The rule written into its owning topic — `coga-dev/codebase/gotchas`
+   (`docs/contexts/coga-dev/codebase/gotchas/SKILL.md`) for the package-marker
+   hazard and `coga-dev/testing` for what a green run proves — and their
    enforced packaged twins: never add a new `files("coga.<pkg>")` consumer
    without a package marker, and a green 3.12 run is not evidence for the
    declared floor.
@@ -84,7 +84,7 @@ was closed and its branch and worktree deleted; the CI port survives as commit
 PR #895.
 
 Re-ported onto main 2026-09-24 in an orient session (old commit 28541821b was
-624 commits behind): guidance now lives in coga/testing and coga/packaging, and
+624 commits behind): guidance now lives in coga-dev/testing and coga-dev/packaging, and
 PR #894 also exempts the phone-home ticket's live `period_state` from the twin
 check. Local 3.11 run: 2933 passed + packaging suite green after the exemption.
 
@@ -116,7 +116,7 @@ check. Local 3.11 run: 2933 passed + packaging suite green after the exemption.
   pushes to main, read-only repository permissions, explicit interpreter
   selection, `python -m pip install -e ".[test]"`, absolute source
   `PYTHONPATH`, and `python -m pytest`. Both jobs run even if one fails.
-- `coga/contexts/coga/codebase/SKILL.md` and its packaged twin now require
+- `docs/contexts/coga-dev/codebase/SKILL.md` and its packaged twin now require
   package markers for `files("coga.<pkg>")` anchors and verification on the
   declared floor, and describe the test workflow separately from publishing.
 - `docs/development.md` creates the example venv with Python 3.11 and links

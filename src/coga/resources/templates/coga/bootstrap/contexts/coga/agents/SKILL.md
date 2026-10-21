@@ -43,7 +43,7 @@ An explicit local `launch_args = ""` clears a shared value.
 A supervised session works only if the agent's **shell commands** inherit
 the environment Coga hands the agent process: `COGA_SUPERVISED`,
 `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, `COGA_DONE_SENTINEL`, and
-`COGA_TASK_*` ([coga/internals/agent-spawn](../internals/agent-spawn/SKILL.md)).
+`COGA_TASK_*` ([coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md)).
 Without them, an in-session `coga bump` is credited `human:<user>` rather than
 `agent:<type>`, the stale-step guard in `coga bump` does not run, and the done
 sentinel never fires. The session then stays open after the bump until the

@@ -1,12 +1,13 @@
-<!-- Moved from the blackboard of launch-locks/checkout-exclusivity-lock on 2026-10-06 (large-blackboard remedy, coga/blackboard). Verbatim. -->
+<!-- Moved from the blackboard of launch-locks/checkout-exclusivity-lock on 2026-10-06 (large-blackboard remedy, coga/blackboard). Context locations and distribution updated for the audience split. -->
 
 ## Design (step 1, 2026-10-06)
 
-Owning contract topic: **new `coga/internals/checkout-lock`**
-(`docs/contexts/coga/internals/checkout-lock/SKILL.md`, its packaged twin under
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/checkout-lock/SKILL.md`,
-and an entry in `tests/test_packaging.py` `REQUIRED_BOOTSTRAP_CONTEXT_REFS`
-beside the other `coga/internals/*` refs). Code home: new
+Implementation contract topic: **new `coga-dev/internals/checkout-lock`**
+(`docs/contexts/coga-dev/internals/checkout-lock/SKILL.md`), local-only with no
+packaged twin or `REQUIRED_BOOTSTRAP_CONTEXT_REFS` entry. Operator behavior,
+refusals, and recovery belong in the shipped user topics `coga/launch` and
+`dev/checkouts`, with their packaged twins; they must not require the
+development topic. Code home: new
 `src/coga/checkout_lock.py`. It is shared infra with several consumers:
 `cli.main` acquires, releases, and gates `init`/`uninstall`;
 `repl_supervisor` and `launch_script` record children; and the recovery
@@ -256,8 +257,8 @@ anything.
       - A checkout-lock refusal means the ticket lock is never attempted.
       - A ticket-lock refusal unwinds through `cli.main`'s `finally`, which
         releases the checkout lock.
-- [ ] Contracts updated in the implementation PR, each with its packaged
-      bootstrap twin:
+- [ ] Contracts updated in the implementation PR; only user topics have
+      packaged bootstrap twins:
       - `coga/launch`: § Targets drops "concurrent launches safe" for
         bootstrap targets and states the checkout lock; add a "Checkout
         lock" paragraph and the 75 refusal under Options and exits.
@@ -265,16 +266,16 @@ anything.
         the in-session and manual sections note that `coga` launch-class
         commands from inside a session are nested; § What a fresh checkout
         lacks lists `.coga/launch.lock`.
-      - `coga/internals/state-publication`: the sweep is followed by
+      - `coga/state-publication`: the sweep is followed by
         release; `checkout-lock` is non-sweeping.
-      - `coga/internals/agent-spawn`: child recording and the witness.
+      - `coga-dev/internals/agent-spawn`: child recording and the witness.
       - `coga/megalaunch`: the queue holds one checkout lock throughout.
       - `coga/recurring/delegation`: delegated sessions run in-process
         under the period's lock.
       - `coga/cli`: the new command.
-      - `coga/extension-model`: the command-placement note.
-      - `coga/packaging`: the `.coga/` runtime-file list.
-      - The new `coga/internals/checkout-lock`.
+      - `coga-dev/microkernel`: the command-placement note (local-only).
+      - `coga-dev/packaging`: the `.coga/` runtime-file list.
+      - The new `coga-dev/internals/checkout-lock` (local-only).
 
 ### Proposed shape (order of work)
 

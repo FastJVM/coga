@@ -50,7 +50,7 @@ Inspect `src/coga/compose.py::compose_prompt_report`, `blackboard.prelaunch_blac
 - Heading boundaries are explicit: exact top-level archives are omitted, similar names or prose/code examples are not silently discarded. Cover nested historical headings and duplicate exact sections defensively.
 - Draft validation and activation retain the shipped synthesis exemption and preserve the archive; unrelated authoring scratch remains subject to the existing gate.
 - `--prompt-report` measures the actual composed blackboard. Test composition and draft activation in `tests/test_compose.py`, `tests/test_blackboard.py`, and `tests/test_mark.py`.
-- Update the owning convention `coga/contexts/dev/code/SKILL.md`, the Layer-6 contract in `coga/contexts/coga/architecture/SKILL.md`, the PR 755 `coga/codebase` gotcha, and any affected authoring instructions. Keep each packaged twin under `src/coga/resources/templates/coga/bootstrap/` synchronized and run packaging checks.
+- Update the owning convention `docs/contexts/dev/code/SKILL.md`, the Layer-6 contract in `docs/contexts/coga/architecture/SKILL.md`, the PR 755 `coga-dev/codebase` gotcha, and any affected authoring instructions. Keep each packaged twin under `src/coga/resources/templates/coga/bootstrap/` synchronized and run packaging checks.
 
 Related [blackboard-bloat remedy](document-the-remedy-for-a-bloated-blackboard-sibli.md) offers manual archival guidance; it does not change this automatic inclusion rule and is not an equivalent fix. Coordinate shared context edits without changing that ticket's workflow.
 

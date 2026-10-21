@@ -135,7 +135,7 @@ what happens to a delegating template in this mode.
 
 ### Context to read and update
 
-`coga/contexts/coga/recurring/SKILL.md` is deliberately **not attached** — at
+`docs/contexts/coga/recurring/SKILL.md` is deliberately **not attached** — at
 ~9.2k tokens it was 70% of the composed prompt for a handful of facts. Read it
 directly. The section `## Recurring runs start on the control branch` states
 the contract this ticket changes ("Every launching entry point requires the
@@ -273,7 +273,7 @@ raises `GitError` on a failed listing; `_worktree_holding_branch` becomes a thin
 wrapper keeping the `_WORKTREES_UNKNOWN` sentinel and stderr note for the
 ref-update caller. No second worktree helper was built, per the ticket.
 
-**`coga/contexts/coga/recurring/SKILL.md`** — `## Recurring runs start on the
+**`docs/contexts/coga/recurring/SKILL.md`** — `## Recurring runs start on the
 control branch` rewritten: the requirement is now "runs happen *on* control",
 with the relay, its five consequences (control-tip reads, agent admission and
 the un-gated dirty worktree, delegation, the `coga.local.toml` handoff, one

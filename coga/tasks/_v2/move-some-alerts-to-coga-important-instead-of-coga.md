@@ -74,10 +74,10 @@ post.
 - [ ] The owner-selected missing-`important_webhook` policy is explicit in code,
   tests, and `coga/sync`; it is not silently changed as a side effect of the
   routing work.
-- [ ] `coga/contexts/coga/important/SKILL.md` defines the new
+- [ ] `docs/contexts/coga/important/SKILL.md` defines the new
   “human action or high-signal outcome” bar and directly answers both the
   tune-out and duplicate-blocker-queue objections.
-- [ ] `coga/contexts/coga/sync/SKILL.md` describes cadence and destination as
+- [ ] `docs/contexts/coga/sync/SKILL.md` describes cadence and destination as
   separate routing axes and accurately inventories the resulting flow and
   important surfaces.
 - [ ] The packaged copies at

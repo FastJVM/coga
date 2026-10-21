@@ -4,16 +4,16 @@ status: draft
 owner: nicktoper
 agent: codex
 contexts:
-  - coga/principles
+  - coga-dev/principles
   - coga/megalaunch
   - dev/checkout-cleanup
   - coga/notifications
   - coga/recurring/scheduling
-  - coga/codebase
-  - coga/testing
-  - coga/current-direction
-  - coga/extension-model
-  - coga/project-stage
+  - coga-dev/codebase
+  - coga-dev/testing
+  - coga-dev/current-direction
+  - coga-dev/microkernel
+  - coga-dev/project-stage
   - coga/cli
   - dev/checkouts
 workflow: code/design-then-implement
@@ -36,7 +36,7 @@ record why it must be co-versioned with the package.
       Its state rule stays: a canceled ticket gets a retire task; a done
       ticket is deleted in place.
 - [ ] `megalaunch` and `slack` are each moved or given a co-versioning proof
-      in `coga/extension-model`. Megalaunch's queue selection, liveness
+      in `coga-dev/microkernel`. Megalaunch's queue selection, liveness
       defaults and timeout classification are caller policy, not executor
       substrate.
 - [ ] Implementation is split per command shape after design review.

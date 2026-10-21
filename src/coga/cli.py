@@ -137,7 +137,7 @@ def _root(
 
 # Commands that must NOT trigger the end-of-command `coga/` state sweep.
 # Read-only commands must not publish dirty state as a side effect; see
-# `coga/internals/state-publication/sweep` for the exclusions.
+# `coga/state-publication/sweep` for the exclusions.
 # `init`/`uninstall` are excluded because they create or remove the repo itself
 # and run with a possibly-absent config — not the steady-state boundary the
 # sweep is for.

@@ -34,9 +34,10 @@ step: 3 (review-design)
 contexts:
 - coga/launch
 - dev/checkouts
-- coga/internals/launch-claims
-- coga/internals/agent-spawn
-- coga/internals/state-publication
+- coga-dev/internals/launch-claims
+- coga-dev/internals/agent-spawn
+- coga/state-publication
+- coga-dev/internals/state-publication
 agent: claude
 ---
 
@@ -66,14 +67,14 @@ Code anchors (cite by symbol; line numbers drift):
 - The release must happen after the checkout return and the outer `cli.main` sweep. That means ownership spans the whole `cli.main` invocation, not just `_launch`.
 - Routes to cover: `coga chat` / `bootstrap/*` (currently documented as "concurrent launches safe" in `coga/launch` § Targets; that claim must change), recurring periods and their `delegate:` bootstrap sessions (`coga/recurring/delegation`, cited not attached), megalaunch picks (`coga/megalaunch`, cited), and `coga ticket` authoring, which also uses `spawn_agent_session`. Nested `coga` commands inside a session (`bump`, `block`, `mark`, `slack`, `run`) must recognize the owning session, and must not deadlock. `launch_script` pops `COGA_SUPERVISED` from a `ticket.py` child's env, so a `ticket.py` that calls `coga` would lose that witness. The lock likely needs its own env witness, not `COGA_SUPERVISED`.
 - Lock location and scope (owner decision): one lock per Coga root, at `cfg.repo_root / ".coga" / "launch.lock"`, beside existing runtime state such as megalaunch's `.coga/megalaunch-selection.json`. `commands/update.ensure_host_gitignore` already writes `.coga/` into Coga's ignore block, so no new ignore entry is expected. Verify it holds for root and nested layouts and for repos initialized before that rule existed. Known accepted limitation: two Coga roots nested in one git checkout (`config.find_checkout_root`) hold separate locks, though both launches move the same checkout's HEAD. Document this rather than solve it. `sync_coga_state` never sweeps `.coga/`. The launch-boundary "proves every change" check in `dev/checkouts` ignores ignored files, but the design must confirm the lock never trips its "ignored file the move would overwrite" refusal.
-- Teardown signals: `repl_supervisor.run_with_done_marker` handles SIGTERM/SIGKILL teardown and the `crash` classification (`coga/internals/agent-spawn`). The supervisor's own teardown already kills the whole process group (`os.killpg`); the dangerous case is an external SIGKILL of the supervisor, which runs no Python cleanup, so the agent child can survive with the lock file left behind. Recovery must detect that child (for example by process group or recorded child PID plus start time) and not just the supervisor PID.
+- Teardown signals: `repl_supervisor.run_with_done_marker` handles SIGTERM/SIGKILL teardown and the `crash` classification (`coga-dev/internals/agent-spawn`). The supervisor's own teardown already kills the whole process group (`os.killpg`); the dangerous case is an external SIGKILL of the supervisor, which runs no Python cleanup, so the agent child can survive with the lock file left behind. Recovery must detect that child (for example by process group or recorded child PID plus start time) and not just the supervisor PID.
 
-The design deliverable goes on the blackboard via `code/design`, ending with the acceptance-case list from `## Description`. Owner review comes before any code. The eventual PR updates `coga/launch`, `dev/checkouts`, the relevant `coga/internals/*` topic, and the bootstrap "concurrent launches safe" wording, plus their packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`.
+The design deliverable goes on the blackboard via `code/design`, ending with the acceptance-case list from `## Description`. Owner review comes before any code. The eventual PR updates `coga/launch`, `dev/checkouts`, the relevant local-only `coga-dev/internals/*` topic, and the bootstrap "concurrent launches safe" wording. Update packaged twins for user topics only; operator behavior, refusals, and recovery must be complete in those user topics.
 
 Open design questions from the cold review (decide in `code/design`):
 - Refusal exit code: reuse 75 (`RETRY_WITHOUT_SWEEP_EXIT_CODE`) or a distinct "occupied" code that still skips the sweep.
 - Whether `coga ticket` authoring sessions take the lock.
-- Name the `coga/internals/*` topic (existing or new) that owns the lock contract.
+- Name the local-only `coga-dev/internals/*` topic (existing or new) that owns the implementation contract, and the shipped user topics that own operator behavior and recovery.
 - Recovery tooling may split into a follow-up ticket if the PR grows.
 
 <!-- coga:blackboard -->
@@ -242,7 +243,7 @@ advancing to implementation.
   to accept, not approvals issued by this review.
 - Keep this one PR focused on admission and conservative recovery. The new
   shared module has real launch/CLI consumers, and a guarded recovery command
-  has a plausible co-versioned transaction under `coga/extension-model`.
+  has a plausible co-versioned transaction under `coga-dev/microkernel`.
   Cross-platform liveness automation is optional; an unknown verdict and a
   safe manual procedure fit the requested small design better than extending
   it into a process monitor.

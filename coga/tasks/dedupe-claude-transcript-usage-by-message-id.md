@@ -69,13 +69,13 @@ owning topic says that usage is counted once per message.
   cached-read tokens from input. It is not affected.
 - **Historical records are out of scope** (owner decision). Already-written
   `coga/log.md` lines stay as they are. Do not add a recount or migration.
-- The owning contract is `coga/internals/activity-capture`
-  (`docs/contexts/coga/internals/activity-capture/SKILL.md`, cited rather than
+- The owning contract is `coga-dev/internals/activity-capture`
+  (`docs/contexts/coga-dev/internals/activity-capture/SKILL.md`, cited rather than
   attached because this ticket edits it). In its Claude matching/token-counting
   section, the current text says the parser "sums `message.usage.*` over
   `assistant` lines". Update that text to say each `message.id` is counted once.
   It has a byte-identical packaged twin at
-  `src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/activity-capture/SKILL.md`,
+  `docs/contexts/coga-dev/internals/activity-capture/SKILL.md`,
   which `tests/test_packaging.py` enforces, so edit both.
   `coga/usage` (`docs/contexts/coga/usage/SKILL.md` plus its twin) is the
   read-side topic. Its "a session's tokens go to its last model" caveat says

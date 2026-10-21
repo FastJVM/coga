@@ -100,11 +100,11 @@ Print one console line with the result, for example
 `preflight: git-common-dir ok, remote ok, gh ok`. If any check fails, the
 preflight fails before Phase 1: do not start Phase 1 or any later phase. Name
 the missing capability and the failing command's error, and point at the
-agent sandbox grant recipe in the `coga/testing` topic, under
+agent sandbox grant recipe in the `coga/sandboxes` topic, under
 `## Restricted sandboxes`. Then escalate per this prompt's Session conduct
 layer: attended, ask the human and wait; unattended, run
 `coga block --task <this-dream-task> --reason "<missing capability>; see the
-coga/testing Restricted sandboxes recipe"`. A sandbox grant takes effect only
+coga/sandboxes Restricted sandboxes recipe"`. A sandbox grant takes effect only
 in a new agent session, so after fixing it the human relaunches Dream. An
 agent with ordinary machine access passes all three checks unchanged.
 

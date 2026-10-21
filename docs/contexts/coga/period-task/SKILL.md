@@ -1,6 +1,6 @@
 ---
 name: coga/period-task
-description: For whoever runs one firing of a recurring task — agent or the template's `ticket.py`: cross-run state lives in the parent template's blackboard, this period's blackboard is per-run scratch. Auto-attached to every period task.
+description: "For whoever runs one firing of a recurring task — agent or the template's `ticket.py`: cross-run state lives in the parent template's blackboard, this period's blackboard is per-run scratch. Auto-attached to every period task."
 ---
 
 # You are a period task

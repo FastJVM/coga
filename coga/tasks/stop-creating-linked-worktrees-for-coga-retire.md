@@ -50,7 +50,7 @@ which fixes the recurring refusal text only.
   2. Temp clone under the run dir, deleted on exit. No worktree metadata, but
      it costs disk and leaves litter if cleanup fails.
   3. Coga-owned temp worktree with marker-based reaping, reusing
-     `coga/internals/recurring-temp-worktrees` machinery
+     `coga-dev/internals/recurring-temp-worktrees` machinery
      (`workspace_discovery.CONTROL_WORKTREE_OWNER_FILE`, stale reaping).
      Still a worktree, but it cleans up after itself, which is the
      exception the owner allows.

@@ -64,7 +64,7 @@ see what goes in. For intensive use, we find that easier to manage.
 ## Philosophy
 
 Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. The [design principles](docs/contexts/coga/principles/SKILL.md)
+into the next task. The [design principles](docs/contexts/coga-dev/principles/SKILL.md)
 describe the philosophy behind Coga.
 
 ## Example
@@ -153,12 +153,12 @@ surface it.
 
 - [Documentation index](docs/README.md): start, understand, operate and
   develop.
-- [Design principles](docs/contexts/coga/principles/SKILL.md): the philosophy and design
+- [Design principles](docs/contexts/coga-dev/principles/SKILL.md): the philosophy and design
   principles behind Coga.
 - [Contributing](CONTRIBUTING.md).
 - Limits: contexts go into the prompt as truth, so a stale one misleads.
   Managing prompts and instructions as files has close precedents; see the
-  [evidence pages](docs/archive/evidence/) for dated comparisons.
+  [evidence pages](docs/archive/evidence) for dated comparisons.
 
 Coga is free software licensed under
 [Apache-2.0](LICENSE).

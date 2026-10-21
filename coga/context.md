@@ -1,7 +1,7 @@
-<!-- Generated from docs/contexts/coga/principles/SKILL.md; edit that owner and refresh this copy. -->
+<!-- Generated from docs/contexts/coga-dev/principles/SKILL.md; edit that owner and refresh this copy. -->
 
 ---
-name: coga/principles
+name: coga-dev/principles
 description: Coga's design principles — the shared foundation for developing Coga and writing its README.
 ---
 
@@ -35,4 +35,4 @@ understanding, and tools we can reshape as we learn.
 These principles guide Coga's design. The
 [README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them; edits to the README must stay
 aligned. Behavioral topics own current implementation contracts, including
-Git. The [reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/principles/reading-list.md) records our influences.
+Git. The [reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/reading-list.md) records our influences.

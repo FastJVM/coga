@@ -6,9 +6,9 @@ agent: claude
 contexts:
 - coga/skill-management
 - coga/extension-model
-- coga/testing
-- coga/current-direction
-- coga/project-stage
+- coga-dev/testing
+- coga-dev/current-direction
+- coga-dev/project-stage
 - dev/checkouts
 workflow:
   name: code/with-review

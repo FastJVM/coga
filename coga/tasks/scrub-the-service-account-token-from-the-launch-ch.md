@@ -177,9 +177,9 @@ So no narrower mechanism is needed; the scrub lives entirely inside
   destination survives; `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` replaces;
   `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` stays scrubbed. Three of them
   fail on the old code (checked via stash).
-- Docs: `coga/contexts/coga/architecture/SKILL.md` "declaration, not a
+- Docs: `docs/contexts/coga/architecture/SKILL.md` "declaration, not a
   sandbox" paragraph + packaged twin under `bootstrap/` (byte-identical);
-  `coga/contexts/coga/secrets/SKILL.md` "Scoping bounds the grant" section and
+  `docs/contexts/coga/secrets/SKILL.md` "Scoping bounds the grant" section and
   the following `op` auto-auth paragraph (now also names the `coga secret get`
   in-child consequence).
 
