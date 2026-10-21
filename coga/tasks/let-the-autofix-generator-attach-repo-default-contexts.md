@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -142,5 +142,120 @@ task-specific guidance, and each topic remains the owner of its contract.
 
 branch: coga/let-the-autofix-generator-attach-repo-default-co-140a79
 
+## Implement handoff
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+- Implemented the approved plan: shared context defaults are validated at
+  config load with the existing resolver and attached only to new autofix
+  tickets. `Config.autofix_contexts` is an ordered tuple; the resolver import
+  is deferred until config construction to avoid the `paths`/`config` cycle.
+  The analyst protocol and existing agent selection are unchanged.
+- Updated both owning topics and their packaged twins. The related autofix
+  fixture covers local guidance, a local override, and bundled fallback.
+- Actual implementing agent: Codex (launch override), despite the ticket's
+  configured `agent: claude`. The attending human approved the plan before
+  code edits. No independent code review has run; peer-review is next.
+- Reconciled main's context-audience reorganization, read its updated governing
+  instructions, and retained control's updated testing citation in this ticket.
+  The test fixture now uses the still-shipped `coga/context-layout` ref.
+- Pushed `ed1ff078763a795cb33a5b02e258d492edeb46dc` to the branch above. It
+  contains current `origin/main` at `04f4597dc682f1d10efbed4ab2bb5a78e1be453f`;
+  the final fetch after testing found no further drift. No PR opened.
+- No unresolved implementation items or adjacent bugs found. Review the diff
+  and refresh the preparation after any fixes; the advisory depth is `deep`
+  because code review has not run yet.
+
+## Verification history
+
+- Baseline Python 3.11 config/autofix run: 273 passed. Adding the regressions
+  before the implementation produced 28 failures and 273 passes on the
+  uncommitted test tree based on `7a1d5642226f4b1079aab0659b73f77e54b62eb5`.
+  Failures exposed the missing config field/allowlist and ticket defaults.
+- Before main's context reorganization, commit
+  `008c139de15459a6bdf2ee056081d158de731148` (base
+  `7a1d5642226f4b1079aab0659b73f77e54b62eb5`) passed 301 Python 3.11
+  config/autofix tests, 22 Python 3.11 packaging tests, and the Python 3.12
+  full suite (3976 passed, 7 skipped). These are historical results, not
+  receipts for the rebased head. Fresh results are recorded below.
+- The final Python 3.11 test tree was verified identical to the committed tree
+  `b978d81a850a231a388d4feda30f45de3cd201e6`; the full Python 3.12 rerun
+  executed after the final commit. The projected ticket was never committed.
+
+## PR
+
+```yaml
+title: Attach repo-default contexts to generated autofix tickets
+author: codex
+author_evidence: This attended implementation session ran in Codex; the launch environment records COGA_EXPECTED_AGENT=codex,
+  overriding the ticket-configured claude identity. No model override was exposed in the session evidence.
+head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+depth: deep
+rationale: Bounded config/generator change with passing checks, but code review is pending the next peer-review
+  step. Review the deliberate effect of invalid defaults on every config-loading command.
+implementation: Adds optional shared [autofix].contexts, stores refs in declaration order, validates shape
+  and local-first/bundled resolution during config load, and attaches the defaults to newly generated
+  autofix tickets. Existing agent selection, workflow, run log, and analyst protocol are preserved.
+deviations: None. Reconciliation with main required using the still-shipped coga/context-layout topic
+  in the test fixture after coga/principles moved to the local-only development library.
+limitations: Existing tickets are not backfilled. Configured missing or invalid contexts stop config-loading
+  commands by design. Full-suite coverage is on Python 3.12; Python 3.11 coverage includes config, autofix,
+  and packaging. Seven native Windows checks were skipped on Linux.
+files:
+  src/coga/config.py: Parse ordered shared autofix context defaults and validate them through the existing
+    resolver at config load.
+  src/coga/recurring_autofix.py: Pass configured context defaults to every newly generated autofix ticket.
+  tests/test_config.py: Cover default/empty/contexts-only settings, order, relocated roots, bundled fallback,
+    malformed values, missing refs, invalid local overrides, and shared-only policy.
+  tests/test_recurring_autofix.py: Extend the related repo fixture and prove frontmatter, composed local/bundled
+    bodies, agent/workflow/run-log preservation, and no backfill; dispatch the fake analyst by argv.
+  docs/contexts/coga/configuration/SKILL.md: Add contexts to the shared autofix allowlist and link its
+    owning operator guidance.
+  docs/contexts/coga/recurring/autofix/SKILL.md: Document defaults, eager validation, lookup semantics,
+    and the boundary between repo policy and the text-only analyst.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Keep the packaged
+    configuration topic byte-identical to its canonical owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: Keep the packaged
+    autofix topic byte-identical to its canonical owner.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: The implement step stops before code review; the next frozen workflow step is peer-review. Human
+    approach confirmation was not code review.
+checks:
+- command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -ra
+  status: passed
+  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  detail: 'Python 3.12.12: 3984 passed, 7 skipped in 373.59s. Skips: 2 Windows job-object integration
+    tests and 5 native Windows PowerShell 5.1 tests. Run directly on this committed head.'
+- command: PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-autofix-py311/bin/python -m pytest tests/test_config.py
+    tests/test_recurring_autofix.py tests/test_packaging.py -q
+  status: passed
+  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  detail: 'Python 3.11.15: 331 passed in 4.82s. Ran before the final amend; staged tree b978d81a850a231a388d4feda30f45de3cd201e6
+    matched the committed tree, and only this projected ticket remained dirty.'
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  detail: 'Working directory: /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga. 4 checks OK, 0
+    issues, 0 fixes.'
+- command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli
+    validate --task let-the-autofix-generator-attach-repo-default-contexts --json
+  status: passed
+  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  detail: 1 task OK, 0 issues, 0 fixes.
+- command: git diff --check
+  status: passed
+  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
+  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  detail: Passed with no whitespace errors.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-autofix-py311/bin/python -m pytest
+  status: not-run
+  detail: The full suite ran on Python 3.12. Real Python 3.11 verified all affected config/autofix tests
+    plus packaging and resource loading; a second full-suite interpreter matrix was not required.
+```
