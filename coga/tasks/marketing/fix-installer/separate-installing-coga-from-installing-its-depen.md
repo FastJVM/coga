@@ -11,7 +11,8 @@ The README install block installs uv, runs `git init`, installs an agent CLI
 and installs coga in one copy-paste sequence. Someone who already has uv, git
 and Claude Code runs it and damages a working setup. Split it into a short
 sequence that installs coga and nothing else, and a separate section for the
-dependencies.
+dependencies. That section also has to say which dependencies are required and
+which are optional.
 
 Done when: the README install section installs coga only, and dependency setup
 lives in its own section.
@@ -29,6 +30,10 @@ lives in its own section.
   `install-walk-findings`, PR #1043, closed unmerged on 2026-10-19.
 - This ticket decides what the install section contains;
   `make-the-readme-install-section-the-only-install-p` decides where it lives.
+- Nico's position on 2026-10-19 is that this split is work Zach does himself.
+- Zach on 2026-10-21: the dependency list needs its own split between required
+  and optional, which `handle-gh-not-being-installed-by-default` and
+  `position-op-as-optional` settle for those two tools.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

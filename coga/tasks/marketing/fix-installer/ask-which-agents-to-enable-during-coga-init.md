@@ -11,10 +11,10 @@ The packaged `coga.toml` ships `[agents.claude]` and `[agents.codex]` blocks
 unconditionally, and most people have one agent CLI, not both. `coga init` asks
 which agent CLI to install only when none is on PATH, and returns early when
 more than one is. Make init ask which agents to enable and where they are, and
-write only those into `coga.toml`.
+write only those into `coga.toml`. Add Gemini as a third agent coga can drive.
 
-Done when: `coga init` asks, and the resulting `coga.toml` declares only the
-agents the user chose.
+Done when: `coga init` asks, the resulting `coga.toml` declares only the agents
+the user chose, and Gemini is one of the agents it can choose.
 
 ## Context
 
@@ -30,6 +30,12 @@ agents the user chose.
   this extends it rather than building it from nothing.
 - `agent_cli_setup.py` is absent from the released v0.4.0, so a user who ran
   `uv tool install coga` gets none of it.
+- Zach on 2026-10-21: init should open with a question about which agent the
+  `coga.toml` should enable.
+- Nico wants Gemini offered as an agent coga can use, which makes it a third
+  entry beside Claude and Codex rather than a note about a gap.
+- Nico thinks adding Gemini is easy; Zach's recorded caution is that what Nico
+  calls easy usually is not, so scope it before committing to it.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

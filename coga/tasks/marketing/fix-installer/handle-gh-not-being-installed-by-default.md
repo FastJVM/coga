@@ -11,10 +11,11 @@ workflow: null
 cannot fire there. `_package_manager` at `src/coga/commands/init.py:471`
 returns brew as the only macOS candidate, a fresh Mac has no brew, and
 `_offer_install` at `:485` returns False as soon as the manager is None.
-Decide how a new user gets `gh` and make the install path say so.
+Decide how a new user gets `gh`, and say in the install path that `gh` is
+needed rather than listing it as one more optional tool.
 
 Done when: a new user on a fresh Mac has a working or documented route to
-`gh`.
+`gh`, and the install path does not present it as optional.
 
 ## Context
 
@@ -29,6 +30,16 @@ Done when: a new user on a fresh Mac has a working or documented route to
   first-impression problem rather than a hard failure.
 - Zach's note from the walk on 2026-10-15: `gh` is listed as optional, and for
   him it was not optional.
+- Zach on 2026-10-21: `gh` is required and should be installed, offered through
+  `coga init` if that is the way to do it.
+- The code already separates the two tools by prompt default — `gh` is
+  `offer_install=True` at `src/coga/dependencies.py:78`, `op` is
+  `offer_install=False` at `:99`.
+- The printed list does not: `_offer_optional_tools` at
+  `src/coga/commands/init.py:460` puts both under one "Optional tools not on
+  PATH (init continues without them)" heading with no sign `gh` matters more.
+- `position-op-as-optional` is the other half of the same decision about that
+  message; settle them together.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

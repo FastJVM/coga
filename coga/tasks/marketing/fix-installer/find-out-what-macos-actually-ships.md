@@ -160,3 +160,57 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+I read the ticket cold, then verified every factual claim. Here's the assessment.
+
+### Verified as correct
+
+- **`pyproject.toml:10`** is exactly `requires-python = ">=3.11"`. Precise.
+- **All three `macos-walk.sh` citations hold** (`/Users/zach2179/dev/coga/scripts/clean-install/macos-walk.sh`, 90 lines): `reset` case line 43 is the git-shim echo; line 30 is the "EC2 Mac AMIs ship Command Line Tools for their Homebrew" comment with the deletion at line 35; `walk` case lines 59-61 carry the 3.9-below-floor/provision-3.11 comment. Module-plus-symbol shape with line numbers as drifting aids — correct convention.
+- **Ownership boundaries are real and non-duplicative.** `separate-installing-coga-from-installing-its-depen.md` says verbatim "This ticket decides what the install section contains"; `make-the-readme-install-section-the-only-install-p.md` says "Before removing it, carry over the facts on that page that have no other home"; `test-and-fix-install-on-macos-and-windows/ticket.md` lines 135-138 do list "The macOS Command Line Tools trap … and that the CLT ships Python 3.9" as orphan-fact candidates. Every claim about the `affordable-macos-testing` design (no-CLT Tart image, arm64-only, Intel `attach` never resets, fresh account doesn't isolate) checks out too.
+- **No citation justifies itself by size or token count.** Clean.
+
+### Findings that would change the work
+
+**1. The two richest sources are uncited — this is the biggest problem.** The ticket says "the run evidence already in this repo" but cites only `macos-walk.sh`, whose comments are the harness author's *assertions*. The actual evidence is in two files the agent will not find:
+
+- `/Users/zach2179/dev/coga/coga/tasks/marketing/fix-installer/test-and-fix-install-on-macos-and-windows/macos-walk-findings.md` (496 lines) holds the walked answer to exactly this question: a fresh macOS 26.6.2 arm64 baseline showing no CLT with `/usr/bin/git` and `/usr/bin/python3` as stubs, and a 2026-10-18 walk recording `python3 -m pip install coga` → `xcode-select: note: No developer tools were found, requesting install.` It also already corrected the stale `0.0.1` placeholder claim.
+- `/Users/zach2179/dev/coga/docs/contexts/coga/install/SKILL.md` already documents the second answer: "On an older interpreter, `pip install coga` fails with `Could not find a version that satisfies the requirement coga` and `Requires-Python >=3.11` diagnostics", that CLT "provides Python 3.9 as `/usr/bin/python3`", and that a venv on an old interpreter doesn't help.
+
+Cite both. Much of the "research" is sourcing and reconciling what's already written, not discovery — and the ticket's framing ("nobody has checked") will send an agent to Apple's docs to re-derive it.
+
+**2. The Description's central inference is wrong as stated, and stated as settled.** It asserts "a native `pip` only helps if a 3.11 interpreter is already present." I checked PyPI: `uv` declares `requires-python = ">=3.8"` (uv 0.13.4). So on a Mac with CLT, `pip3 install uv` succeeds on Python 3.9, and uv then provisions 3.11 and installs coga. A native pip helps even with no 3.11 present — as a bootstrap for uv that avoids `curl … | sh`, which is precisely what `separate-installing-coga-from-installing-its-depen` would want to know. (`macos-walk-findings.md` dismissed uv-via-PyPI as "needs the absent Python" — true on the no-CLT machine, false on the CLT machine, which is the very split this ticket is about.) Re-pose it as a question and add `pip install uv` as a third sub-question.
+
+**On your risk #8 specifically:** the reasoning holds narrowly — `pip install coga` on CLT 3.9 genuinely fails the `>=3.11` floor, and that's already verified and documented. But the leap from "can't install coga" to "a native pip doesn't help" does not hold. Prominence isn't the issue; correctness is.
+
+**3. "Recorded per macOS version" is likely unachievable from the permitted sources,** so the done criterion can't be met as written. The repo's run evidence covers one macOS version (26.6.2) plus an unrecorded `amzn-ec2-macos-*` AMI, and Apple publishes no per-release table of CLT contents. The ticket's own best insight — "Machine state is the variable" — points at the right axis. Recommend restating as: answer per *machine state* (no-CLT / CLT-installed / Migration Assistant), recording the macOS version each observation came from, with "not documented by Apple; inferred from run X" an acceptable sourced answer. Otherwise "each claim carries the source it came from" pressures the agent to manufacture authority Apple never published.
+
+### Worth fixing before launch
+
+**4. Two cited tickets no longer exist on disk.** `pin-python-3-11-in-the-macos-clean-install-harness` and `document-the-macos-command-line-tools-prerequisite` were done (`bdc189c14`, `2be274ee0`) then **deleted** (`8d62dcd6b`, `20f6dcfaa`). `find` and `grep` over the tree return nothing. "Both done" is historically true but unverifiable by an agent in the working tree. Drop the names — `macos-walk.sh` is the durable artifact and is already cited.
+
+**5. `affordable-macos-testing-on-owned-macs-and-per-min` is `status: blocked`** and states "No local-Mac implementation has been made." The ticket cites it as established ("designates disposable Apple Silicon VMs as the vessel"). The content is accurate but it's a proposed design, not a capability. Say "proposes".
+
+**6. Precision slip on the one fact at issue.** Context repeats `macos-walk.sh`'s loose "macOS ships `/usr/bin/python3` 3.9". The careful repo statement — in the orphan-facts list and confirmed by the baseline — is that `/usr/bin/python3` is a *stub* on a fresh Mac and the **CLT** ships 3.9. The whole ticket turns on that distinction; restating the loose version as settled is a hazard.
+
+**7. Missing sub-question that decides the answer.** Even if `pip3` exists, Apple's framework Python installs `--user` into `~/Library/Python/3.9/bin`, which is not on the default PATH, and PEP 668 `EXTERNALLY-MANAGED` may block plain `pip install`. I grepped: the repo has **zero** evidence on either. The ticket asks "whether they put `pip3` on PATH" but not where pip *installs to*, which is what determines whether `pip3 install uv` actually works.
+
+### Workflow fit (#3)
+
+`docs/with-review` is right in shape — peer-review's "spot-check anything load-bearing against the source it describes" is exactly what sourced desk research needs. One real tension: **the ticket never names a file for the answer to land in.** It says "add the pip answer there" (on `make-the-readme…`) and "the two install-path tickets have what they need" — i.e. the deliverable may be text in *sibling ticket bodies*. But `implement` requires a branch and `open-pr` requires a PR, and the workflow explicitly warns that the live ticket is "projected unstaged from control: … never stage or commit it." Editing sibling tickets is a control-plane edit, not a PR. Name a concrete committable path (a findings file beside `macos-walk-findings.md` is the obvious home). Also note: if the answer lands in `docs/contexts/coga/install/`, peer-review's cross-copy sync applies — there's a byte-identical packaged twin under `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`.
+
+### Contexts (#4)
+
+No-attachment is defensible — the inputs are specific files, not standing rules. But `coga/install` is a genuine candidate, not as a rule set but because it already contains the answer-shaped prose the work must confirm or correct. Inline citation is enough; attachment is optional.
+
+### Scope (#6) and assumptions (#7)
+
+Scope is fine — one question, one ticket, explicitly excludes editing install instructions. **No split warranted.** If anything it's under-scoped against its title; the Context admits this ("the open question is narrower than the title"), which is honest.
+
+On the machine-state premise: it's sound and well-supported (baseline shows stubs, walk shows the CLT prompt), and the ticket correctly leaves room to be wrong — "Confirm or kill that as the explanation." That's the right framing. The inconsistency worth noting is that the ticket hedges this hypothesis properly while hard-asserting the pip-is-useless conclusion in the Description. Flip the second to match the first.
+
+### Prompt budget
+
+Nothing warrants a trim. `task_context` at 1932 tokens is 39% of the 4954 total — just under your threshold, and 5132 B of its 7.5 KiB is the stock ticket guide. Author prose is ~2568 B, roughly 646 tokens, about 13% of the composed prompt. That's lean. `base_prompt` at 33% is the next largest and is fixed overhead. The correct move here is to **add** the two missing citations, not cut.

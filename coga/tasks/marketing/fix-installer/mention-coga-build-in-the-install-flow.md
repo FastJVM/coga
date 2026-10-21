@@ -8,9 +8,12 @@ workflow: null
 ## Description
 
 `coga build` is not named in the install flow, so a user who finishes the
-install is not told the next command. Put it where it belongs in the flow.
+install is not told the next command. Name it as the first step for someone
+starting a new repo, and not for someone installing into a repo that already
+has files.
 
-Done when: the install flow names `coga build` and says when to run it.
+Done when: the install flow names `coga build` for the new-repo case and sends
+the existing-repo case somewhere else.
 
 ## Context
 
@@ -26,6 +29,10 @@ Done when: the install flow names `coga build` and says when to run it.
   unconditionally and exceeded the five-line cap.
 - So this is a question of where `coga build` belongs in the flow, not of
   adding it back to the install block.
+- Zach on 2026-10-21: the install flow he floated to Nico is wrong as it
+  stands, and `coga build` belongs to the new-repo case only.
+- `scan-for-an-existing-repo-during-install` decides the branch this depends
+  on; settle them together.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

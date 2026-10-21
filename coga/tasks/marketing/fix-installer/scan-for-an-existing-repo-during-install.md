@@ -9,9 +9,11 @@ workflow: null
 
 The install path assumes the user already has a git repository, and the first
 steps differ for someone who does not. Work out which case the user is in and
-give each case its own path.
+give each case its own path. A user installing into a repo that already has
+files should not run `coga build`; their first step is `coga ticket` or
+`coga create`. A user starting a new repo runs `coga build`.
 
-Done when: both cases have a path and neither asks the user to work out which
+Done when: both cases have a path, and neither asks the user to work out which
 one applies to them.
 
 ## Context
@@ -32,6 +34,10 @@ one applies to them.
   coga.
 - He separately floated scanning an existing repo to build documentation from
   what is in it; that is a different idea and not this ticket.
+- Zach set the branch on 2026-10-21: an existing repo with files goes to
+  `coga ticket` or `coga create`, and a new repo goes to `coga build`.
+- That is the same branch `mention-coga-build-in-the-install-flow` turns on, so
+  the two tickets decide one thing between them.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

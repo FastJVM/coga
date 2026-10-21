@@ -26,6 +26,15 @@ it.
 - The gap is how the install path positions it, not the dependency declaration.
 - Zach hit it on the walk on 2026-10-15: init lists `gh` and `op` together as
   optional tools without saying who actually needs either.
+- Zach on 2026-10-21: people may have their own secret management system, so
+  `op` should never read as something coga init sets up for them.
+- The prompt default is already right — `offer_install=False` at
+  `src/coga/dependencies.py:99`. The printed list is what misleads.
+- `_offer_optional_tools` at `src/coga/commands/init.py:460` groups `op` with
+  `gh` under one "Optional tools not on PATH" heading, which reads as though
+  init handles both.
+- `handle-gh-not-being-installed-by-default` is the other half of the same
+  decision about that message; settle them together.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

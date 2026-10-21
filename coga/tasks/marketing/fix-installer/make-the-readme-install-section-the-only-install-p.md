@@ -31,6 +31,9 @@ the README install section stands on its own.
   links reads as written for agents.
 - The canonical page has a byte-identical packaged twin at
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`.
+- Zach on 2026-10-21: there should be no separate page detailing the install at
+  all, because having to click into other pages to work out how to install coga
+  is where it gets confusing.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
