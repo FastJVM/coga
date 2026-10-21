@@ -2638,6 +2638,192 @@ def test_prepare_refuses_when_evidence_changes_before_mutation(git_repo, monkeyp
     assert _head(git_repo)[0] == "feature/x"
 
 
+def _sibling_publishes_a_log_line(git_repo) -> str:
+    """What a sibling worktree's publish leaves in the shared refs.
+
+    It pushes a log line, its push advances `origin/main`, and its
+    fast-forward moves the shared local `main`: this checkout's own state lock
+    never sees it. Returns the new control commit.
+    """
+    git_repo.push_competing_commit("coga/log.md", "- sibling launch\n")
+    git_repo.git("fetch", "--quiet", "origin", "+refs/heads/main:refs/remotes/origin/main")
+    tip = git_repo.git("rev-parse", "refs/remotes/origin/main").strip()
+    git_repo.git("update-ref", "refs/heads/main", tip)
+    return tip
+
+
+@pytest.mark.parametrize("call", [0, 1], ids=["plan", "re-observation"])
+def test_prepare_repins_when_control_moves_under_it(git_repo, monkeypatch, call):
+    """The 2026-10-16 shape: control moved forward after the pin was taken.
+
+    A publish between the pin and the read of local `main` made local look
+    ahead of a stale pin and refused `unpublished`; it must re-pin instead,
+    including when the move lands between the plan and its re-observation.
+    """
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    real = git._plan_preparation
+    calls = []
+
+    def plan_with_interleaved_publish(*args, **kwargs):
+        if len(calls) == call:
+            calls.append(_sibling_publishes_a_log_line(git_repo))
+        else:
+            calls.append(None)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_with_interleaved_publish)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    moved = next(tip for tip in calls if tip is not None)
+    _assert_prepared(git_repo, outcome)
+    assert outcome.commit == moved
+    assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
+
+
+@pytest.mark.parametrize("on_control", [False, True], ids=["feature", "control"])
+def test_prepare_retries_a_delayed_published_control_advance(
+    git_repo, monkeypatch, on_control,
+):
+    """A sibling's push and its local fast-forward are separate operations."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    if not on_control:
+        git_repo.checkout_branch("feature/x")
+    real = git._plan_preparation
+    calls = []
+    moved = []
+
+    def plan_with_delayed_fast_forward(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if not calls:
+            git_repo.push_competing_commit("coga/log.md", "- sibling launch\n")
+            git_repo.git("fetch", "--quiet", "origin")
+            moved.append(git_repo.git("rev-parse", "origin/main").strip())
+        elif len(calls) == 1:
+            if on_control:
+                git_repo.git("merge", "--ff-only", "--quiet", moved[0])
+            else:
+                git_repo.git("update-ref", "refs/heads/main", moved[0])
+        calls.append(plan)
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_with_delayed_fast_forward)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    _assert_prepared(git_repo, outcome)
+    assert outcome.commit == moved[0]
+    assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
+
+
+@pytest.mark.parametrize("change", ["working", "index", "branch", "head"])
+def test_prepare_refuses_other_changes_during_a_published_control_advance(
+    git_repo, monkeypatch, change,
+):
+    """Published control moving must not hide other changed evidence."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    published = _ticket_text(blackboard="already published\n")
+    git_repo.push_competing_commit("coga/tasks/demo.md", published)
+    if change == "index":
+        ticket.write_text(published)
+    real = git._plan_preparation
+    snapshots = []
+
+    def plan_then_change(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if not snapshots:
+            git_repo.git("update-ref", "refs/heads/main", "origin/main")
+            if change == "working":
+                ticket.write_text(published)
+            elif change == "index":
+                git_repo.git("add", "coga/tasks/demo.md")
+            elif change == "branch":
+                git_repo.checkout_branch("feature/y")
+            else:
+                git_repo.git("merge", "--ff-only", "--quiet", "origin/main")
+            snapshots.append(_snapshot(git_repo))
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_then_change)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "changed while it was being examined" in outcome.reason
+    assert _snapshot(git_repo) == snapshots[0]
+
+
+def test_prepare_bounds_retries_when_only_local_control_keeps_advancing(
+    git_repo, monkeypatch,
+):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    tips = []
+    for number in range(git.PREPARATION_ATTEMPTS):
+        git_repo.push_competing_commit("coga/log.md", f"- sibling {number}\n")
+        tips.append(_origin_tip(git_repo))
+    real = git._plan_preparation
+    calls = []
+
+    def plan_then_advance(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if len(calls) % 2 == 0:
+            git_repo.git("update-ref", "refs/heads/main", tips[len(calls) // 2])
+        calls.append(plan)
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_then_advance)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "kept moving" in outcome.reason
+    assert len(calls) == 2 * git.PREPARATION_ATTEMPTS
+    assert _head(git_repo)[0] == "feature/x"
+    assert _dirty(git_repo) == set()
+
+
+def test_prepare_refuses_when_control_keeps_moving(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    real = git._plan_preparation
+    lines = itertools.count()
+
+    def plan_while_control_moves(*args, **kwargs):
+        git_repo.push_competing_commit("coga/log.md", f"- sibling {next(lines)}\n")
+        git_repo.git("fetch", "--quiet", "origin")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_while_control_moves)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "kept moving" in outcome.reason
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_fast_forward_treats_control_already_moved_past_new_as_level(git_repo, capsys):
+    """A peer published past `new` before this caller read local control."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    stale = git_repo.git("rev-parse", "main").strip()
+    moved = _sibling_publishes_a_log_line(git_repo)
+
+    assert git.fast_forward_control(cfg, git_repo.root, stale) is True
+
+    assert git_repo.git("rev-parse", "main").strip() == moved
+    assert "note" not in capsys.readouterr().err
+
+
 def test_prepare_is_exempt_without_git_or_a_remote(git_repo, tmp_path, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     assert git.prepare_control_checkout(replace(cfg, git_enabled=False)).kind == "exempt"

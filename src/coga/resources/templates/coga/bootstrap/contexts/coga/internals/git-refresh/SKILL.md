@@ -39,7 +39,11 @@ naming what failed. Only `ok` permits a move; everything else fails closed.
 The only code that moves the local control ref, used after a publish and
 inside `refresh`.
 
-- Ancestry is checked first. When local control is ahead or diverged, the
+- Ancestry is checked first. Local control that already contains `new` and
+  is itself contained in the remote-tracking ref was moved forward by a
+  concurrent publish (another process, or a sibling worktree sharing the
+  ref): it counts as level, returns `True`, and is left alone.
+- When local control is otherwise ahead or diverged, the
   invoking checkout is first checked for an in-progress merge, rebase,
   cherry-pick, revert, or bisect (the same markers preparation uses); one
   present, or a failed inspection, returns `False` with a finish-or-abort
@@ -103,10 +107,16 @@ left dirty. Admission details are `coga/internals/recurring-admission`.
 ## `prepare_control_checkout(cfg, *, require_remote_control=False)`
 
 Confined to the invoking checkout, and never implemented with
-`fast_forward_control`, which may move another holder: it fetches and pins
-the remote control commit, proves every change is already published Coga
-state, then restores or removes those paths, switches HEAD to the control
-branch, and fast-forwards it with `merge --ff-only`. When local control is
+`fast_forward_control`, which may move another holder: under one
+`state_lock` hold it fetches and pins the remote control commit, re-pinning
+and re-planning (up to `PREPARATION_ATTEMPTS`) when the remote-tracking ref
+moves past the pin before the plan or its re-observation completes. A sibling's
+local-control fast-forward may lag its push; the same loop retries that move
+between observations when it is already contained in the pin and all other
+evidence matches (HEAD follows local control when checked out). It proves
+every change is already published Coga state, then restores or removes those
+paths, switches HEAD to the control branch, and fast-forwards it with
+`merge --ff-only`. When local control is
 ahead or diverged, the realignment proof decides: `ok` (its evidence,
 union-attribute decisions included, is part of the re-observed plan) moves
 control to the pinned commit with `read-tree -m -u HEAD <pinned>` and a

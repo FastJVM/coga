@@ -29,7 +29,13 @@ final sweep, preserving the session's edits. Each time it:
    script did not publish, plus eligible committed state such as a hand
    commit on local `main` whose control copy has not moved since. Only what
    publication cannot land stays dirty or unpublished.
-2. **Pins control.** `git fetch origin main` and pin that commit. Local
+2. **Pins control.** Under the checkout's state lock, `git fetch origin main`
+   and pin that commit; when `origin/main` moves past the pin during planning
+   or re-observation (a sibling worktree's publish), re-pin and re-plan, a few
+   times at most, rather than refuse on a stale pin. The same bound covers a
+   later forward move of local `main` to a commit contained in that pin:
+   re-plan if only local control, and HEAD when on control, changed between
+   observations; file, index, branch, and realignment evidence must match. Local
    `main` must exist and be equal to or behind it, or carry only commits of
    Coga state whose content is already on the pinned commit (proved commit
    by commit and path by path; [coga/internals/git-refresh](../../../coga/internals/git-refresh/SKILL.md)),
@@ -52,7 +58,8 @@ final sweep, preserving the session's edits. Each time it:
    changes refuse even with equal bytes. Ignored files are never candidates;
    one the move would overwrite refuses.
 4. **Mutates only after full proof.** The whole plan is re-observed just
-   before the first write, and changed evidence refuses. Then proven tracked
+   before the first write; apart from the published control progress in step 2,
+   changed evidence refuses. Then proven tracked
    paths are restored to HEAD, proven untracked files removed, HEAD switched
    to `main`, and `main` fast-forwarded to the pinned commit — or realigned
    to it (`read-tree -m -u` and an old-value-guarded `update-ref`), with the
