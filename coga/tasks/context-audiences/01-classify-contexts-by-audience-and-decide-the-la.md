@@ -1,6 +1,6 @@
 ---
 title: 01 Classify contexts by audience and decide the layout
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 ---
 
