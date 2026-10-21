@@ -80,7 +80,7 @@ from coga.ticket import (
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention.
 MAX_PUBLISH_ATTEMPTS = 5
-# Re-pins `prepare_control_checkout` allows when control moves under it.
+# Planning attempts `prepare_control_checkout` allows while control refs move.
 PREPARATION_ATTEMPTS = 3
 
 # Process exit code meaning "the command deliberately retained retryable local
@@ -1235,8 +1235,10 @@ def prepare_control_checkout(
     `merge=union` file when union-merging it onto that tree changes nothing),
     with any staged copy equal to HEAD's or the published one. Ignored files
     are never candidates, and one the move would overwrite refuses. The whole
-    plan is validated and then re-observed before the first mutation; changed
-    evidence refuses. Only then are proven paths restored to HEAD or removed,
+    plan is validated and then re-observed before the first mutation. Only a
+    published forward move of local control (and HEAD when on control) may
+    re-plan within the same bound; other changed evidence refuses.
+    Only then are proven paths restored to HEAD or removed,
     HEAD switched to control, and control fast-forwarded — or realigned with
     `read-tree -m -u` and an old-value-guarded `update-ref`, naming the
     dropped commits on stderr. Never stashes, rebases, resets, force-switches,
@@ -1282,9 +1284,9 @@ def prepare_control_checkout(
                     continue
                 if isinstance(plan, CheckoutPreparation):
                     return plan
-                # Re-observe immediately before mutating: a concurrent edit,
-                # stage, or branch move between the checks and the first write
-                # refuses instead of being discarded on stale evidence.
+                # Re-observe immediately before mutating. A sibling's local
+                # fast-forward can lag its push; retry that published advance,
+                # but refuse other changed evidence instead of discarding it.
                 again = _plan_preparation(cfg, root, pinned, previous_contexts_root)
                 moved = _moved_pin(root, remote_ref, pinned)
                 if moved is not None:
@@ -1293,6 +1295,8 @@ def prepare_control_checkout(
                 if isinstance(again, CheckoutPreparation):
                     return again
                 if again.evidence != plan.evidence:
+                    if _only_published_control_advanced(root, control, pinned, plan, again):
+                        continue
                     return CheckoutPreparation(
                         "refused",
                         "the checkout changed while it was being examined; retry",
@@ -1300,8 +1304,7 @@ def prepare_control_checkout(
                 return _apply_preparation(cfg, root, pinned, plan, previous_contexts_root)
             return CheckoutPreparation(
                 "refused",
-                f"{remote}/{control} kept moving while the checkout was being "
-                "examined; retry",
+                "control refs kept moving while the checkout was being examined; retry",
             )
     except GitError as exc:
         return CheckoutPreparation("refused", f"could not inspect the checkout: {exc}")
@@ -1313,6 +1316,29 @@ def _moved_pin(root: Path, remote_ref: str, pinned: str) -> str | None:
         return None
     current = run_git(root, "rev-parse", remote_ref).strip()
     return None if current == pinned else current
+
+
+def _only_published_control_advanced(
+    root: Path, control: str, pinned: str,
+    plan: _PreparationPlan, again: _PreparationPlan,
+) -> bool:
+    """Retry a peer's delayed fast-forward without accepting other changed evidence."""
+    if plan.local_control == again.local_control:
+        return False
+    branch, head, _local, *state = plan.evidence
+    new_branch, new_head, _new_local, *new_state = again.evidence
+    if branch != new_branch or state != new_state:
+        return False
+    if branch == control:
+        # HEAD must follow the same control move in both observations.
+        if head != plan.local_control or new_head != again.local_control:
+            return False
+    elif head != new_head:
+        return False
+    return (
+        _is_ancestor(root, plan.local_control, again.local_control)
+        and _is_ancestor(root, again.local_control, pinned)
+    )
 
 
 def _plan_preparation(

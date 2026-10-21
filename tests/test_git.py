@@ -2683,6 +2683,112 @@ def test_prepare_repins_when_control_moves_under_it(git_repo, monkeypatch, call)
     assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
 
 
+@pytest.mark.parametrize("on_control", [False, True], ids=["feature", "control"])
+def test_prepare_retries_a_delayed_published_control_advance(
+    git_repo, monkeypatch, on_control,
+):
+    """A sibling's push and its local fast-forward are separate operations."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    if not on_control:
+        git_repo.checkout_branch("feature/x")
+    real = git._plan_preparation
+    calls = []
+    moved = []
+
+    def plan_with_delayed_fast_forward(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if not calls:
+            git_repo.push_competing_commit("coga/log.md", "- sibling launch\n")
+            git_repo.git("fetch", "--quiet", "origin")
+            moved.append(git_repo.git("rev-parse", "origin/main").strip())
+        elif len(calls) == 1:
+            if on_control:
+                git_repo.git("merge", "--ff-only", "--quiet", moved[0])
+            else:
+                git_repo.git("update-ref", "refs/heads/main", moved[0])
+        calls.append(plan)
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_with_delayed_fast_forward)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    _assert_prepared(git_repo, outcome)
+    assert outcome.commit == moved[0]
+    assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
+
+
+@pytest.mark.parametrize("change", ["working", "index", "branch", "head"])
+def test_prepare_refuses_other_changes_during_a_published_control_advance(
+    git_repo, monkeypatch, change,
+):
+    """Published control moving must not hide other changed evidence."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    published = _ticket_text(blackboard="already published\n")
+    git_repo.push_competing_commit("coga/tasks/demo.md", published)
+    if change == "index":
+        ticket.write_text(published)
+    real = git._plan_preparation
+    snapshots = []
+
+    def plan_then_change(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if not snapshots:
+            git_repo.git("update-ref", "refs/heads/main", "origin/main")
+            if change == "working":
+                ticket.write_text(published)
+            elif change == "index":
+                git_repo.git("add", "coga/tasks/demo.md")
+            elif change == "branch":
+                git_repo.checkout_branch("feature/y")
+            else:
+                git_repo.git("merge", "--ff-only", "--quiet", "origin/main")
+            snapshots.append(_snapshot(git_repo))
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_then_change)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "changed while it was being examined" in outcome.reason
+    assert _snapshot(git_repo) == snapshots[0]
+
+
+def test_prepare_bounds_retries_when_only_local_control_keeps_advancing(
+    git_repo, monkeypatch,
+):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    tips = []
+    for number in range(git.PREPARATION_ATTEMPTS):
+        git_repo.push_competing_commit("coga/log.md", f"- sibling {number}\n")
+        tips.append(_origin_tip(git_repo))
+    real = git._plan_preparation
+    calls = []
+
+    def plan_then_advance(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if len(calls) % 2 == 0:
+            git_repo.git("update-ref", "refs/heads/main", tips[len(calls) // 2])
+        calls.append(plan)
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_then_advance)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "kept moving" in outcome.reason
+    assert len(calls) == 2 * git.PREPARATION_ATTEMPTS
+    assert _head(git_repo)[0] == "feature/x"
+    assert _dirty(git_repo) == set()
+
+
 def test_prepare_refuses_when_control_keeps_moving(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)

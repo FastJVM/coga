@@ -110,9 +110,13 @@ Confined to the invoking checkout, and never implemented with
 `fast_forward_control`, which may move another holder: under one
 `state_lock` hold it fetches and pins the remote control commit, re-pinning
 and re-planning (up to `PREPARATION_ATTEMPTS`) when the remote-tracking ref
-moves past the pin before the plan or its re-observation completes, proves every change is already published Coga
-state, then restores or removes those paths, switches HEAD to the control
-branch, and fast-forwards it with `merge --ff-only`. When local control is
+moves past the pin before the plan or its re-observation completes. A sibling's
+local-control fast-forward may lag its push; the same loop retries that move
+between observations when it is already contained in the pin and all other
+evidence matches (HEAD follows local control when checked out). It proves
+every change is already published Coga state, then restores or removes those
+paths, switches HEAD to the control branch, and fast-forwards it with
+`merge --ff-only`. When local control is
 ahead or diverged, the realignment proof decides: `ok` (its evidence,
 union-attribute decisions included, is part of the re-observed plan) moves
 control to the pinned commit with `read-tree -m -u HEAD <pinned>` and a
