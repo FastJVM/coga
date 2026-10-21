@@ -22,11 +22,12 @@ gate, not your say-so.
 
 ## Order of operations
 
-1. **Confirm the handoff state.** Run the `dev/checkouts` start check: the
-   launch checkout is on `main`, clean, and fast-forwarded to `origin/main`
-   (under `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already brought it there).
-   If it is not, stop and ask the attending human, or `coga block` in a queue
-   run; do not switch or stash your way past it. Then read the
+1. **Confirm the handoff state.** This step runs from a clean, current
+   `main`; the **Checkout (runtime)** notice says whether launch prepared it
+   (otherwise perform the `dev/checkouts` manual start check). If the
+   checkout is anywhere else, stop and ask the attending human, or
+   `coga block` in a queue run; do not switch or stash your way past it.
+   Then read the
    machine-readable `branch:` field (and `worktree:`, present only for a
    sandbox clone) under `## Dev` on the blackboard. A trailing annotation
    must follow a backtick-delimited value or live on a separate line; bare
@@ -167,8 +168,8 @@ Fix the cause and re-run it — it is idempotent:
   launch mode if that needs human direction.
 - Refused because the checkout is not on `main` → an earlier step did not
   return it. If it is this ticket's branch and clean apart from Coga state
-  already on `origin/main`, run the `dev/checkouts` end-of-step return and
-  re-run. Anything else — another ticket's branch, unpublished dirt — stop
+  already on `origin/main`, run the `dev/checkouts/manual` end-of-step
+  return and re-run. Anything else — another ticket's branch, unpublished dirt — stop
   and escalate; do not commit, stash, or discard it.
 - Stranded ticket write (the refusal names this ticket's own file and says
   not to rebase) → switch to the branch, inspect the diff it prints,
@@ -180,8 +181,8 @@ Fix the cause and re-run it — it is idempotent:
   `git merge origin/main`, not a rebase.
 - Stale branch → switch to the branch, rebase onto `origin/main`, re-run
   `python -m pytest`, commit, and push with `--force-with-lease`; then run
-  the `dev/checkouts` end-of-step return and re-run `coga open-pr` from
-  `main`.
+  the `dev/checkouts/manual` end-of-step return and re-run `coga open-pr`
+  from `main`.
 - `git` / `gh` auth failure → follow the setup hint the command prints (fix the
   remote, load your SSH key / credential helper, `gh auth login`), then re-run.
 - Dirty sandbox clone → inspect the diff. The refusal names this ticket's

@@ -1,15 +1,16 @@
 ---
 name: dev/checkouts
-description: Reconciling all agent work with moving main, where code-ticket work runs, the start check and end-of-step return, publishing pre-branch ticket edits, and which checkout to invoke Coga from; the launch boundary and sandbox clone fallback live in its leaves.
+description: The complete checkout lifecycle — which checkout each shipped step starts in, launch's branch preparation and handoff, the manual start/work/end procedure, chat preparation, and which checkout to invoke Coga from; reconciliation, the launch boundary, and the sandbox clone live in its leaves.
 ---
 
 # Feature checkouts
 
 Code-ticket work runs in the checkout the session was launched from. There are
-no linked worktrees and no control checkouts for ticket work: every code step
-starts on `main` and ends on `main`, and the feature branch is only checked out
-while code is being changed. Under `coga launch` the launcher performs both
-moves; in any other session the agent does. Linked worktrees left over from an
+no linked worktrees and no control checkouts for ticket work: every session
+starts from a clean, current `main`, a step that changes code works on its
+feature branch, and the session ends back on `main`. Under `coga launch` the
+launcher performs the branch setup and both moves; in any other session the
+agent does. Linked worktrees left over from an
 earlier layout are still disposed of by `coga retire` and autoclose
 ([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)); nothing creates new ones
 for ticket work. Two owner-accepted exceptions create linked worktrees: the
@@ -36,8 +37,14 @@ that publication carries ([coga/internals/state-publication](../../coga/internal
 - [dev/checkouts/launch-boundary](launch-boundary/SKILL.md) — how ordinary
   ticket launches and chat/orientation prepare and return the invoking
   checkout, how to investigate refusals, and which launches skip it.
+- [dev/checkouts/chat](chat/SKILL.md) — direct chat's occupancy guard and
+  its session-owned branch preparation.
+- [dev/checkouts/manual](manual/SKILL.md) — the start check, work, and
+  end-of-step return an agent performs itself when launch did not prepare
+  the branch, and publishing pre-branch ticket edits.
 - [dev/checkouts/sandbox-clone](sandbox-clone/SKILL.md) — the sandbox clone
-  fallback and seeding what a fresh checkout lacks.
+  fallback, recovery from a first sandbox refusal, and seeding what a fresh
+  checkout lacks.
 
 ## Start, work, end
 
@@ -45,111 +52,131 @@ Main can advance during any session. Follow
 [reconciliation](reconciliation/SKILL.md) for the shared freshness and conflict
 policy, including documentation, ticket edits, and ad-hoc work.
 
+### Which checkout a step starts in
+
+`checkout_policy.select_checkout_policy` maps the frozen current step of a
+shipped workflow to its entry checkout. It is a closed table, not a step-name
+heuristic:
+
+| Workflow | Current step | Entry |
+| --- | --- | --- |
+| `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
+| all four shipped code/docs workflows | `implement` | create or reuse the recorded branch |
+| `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
+| `code/with-self-review` | `self-qa` | reuse the recorded branch |
+| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
+| `code/with-self-review` | `pr` | control |
+| all four | owner-held `review` (an explicit assist) | reuse the recorded branch |
+
+A row applies only when the step's instructions are the shipped ones: the
+named step skill (`code/design`, `code/review-design`, `code/implement`,
+`code/self-qa`, `code/open-pr`, `code/address-pr-comments`) resolves to bytes
+equal to the packaged copy, or the inline step's live `## <step>` section
+equals the packaged section. Older frozen snapshots without
+`evaluate-design` or `requires:`, and the older empty-skills `review` that
+consumes the live inline section, match the same rows. Anything else — a
+custom workflow, a local edit of the consumed skill or section, extra or
+replaced step skills — gets **manual**: launch still prepares and returns
+control, but sets up no branch and says so. Ticket-wide `skills:`,
+completion gates, and roles never select entry behavior.
+
+After each control refresh during preparation, the ticket's status, step and
+complete frozen workflow must still match the copy already routed and
+preflighted. Preparation also re-selects the checkout policy from the refreshed
+instructions. A changed workflow or policy refuses before further branch work
+or spawn, even if the status and step index are unchanged; retry the launch so
+routing and preflights run again. New blackboard notes and the preparation's
+own linkage publication do not change that contract.
+
 ### In a launched session
 
-`coga launch` sets `COGA_LAUNCH_RETURNS_CHECKOUT=1` in the session only when
-it prepared the checkout and will return it.
+An ordinary `coga launch` of an agent-held step (or an explicit assist on an
+owner-held step) runs this for every step it chains, from a fresh control
+read: publish routine state and prepare control (the [launch
+boundary](launch-boundary/SKILL.md)), routing and refusing preflights,
+activation, branch preparation and composition from control, the launch
+audit on control (only once preparation there succeeded, so a refusal
+records no launch), the switch, and spawn. It sets
+`COGA_LAUNCH_RETURNS_CHECKOUT=1` only when it will return the checkout. The
+prompt's **Checkout (runtime)** notice states what it observed and did.
 
-1. **Confirm entry.** HEAD is `main`, clean (`git status --porcelain
-   --untracked-files=all` prints nothing), at `origin/main`. Anything else
-   means stop and escalate: ask the attending human, or `coga block` in a
-   queue run.
-2. **Work.** Record `branch:` on `main` and publish it (below), then switch to
-   the feature branch and change code there. Commit only code: stage paths by
-   name, never `git add -A` or `commit -a` over Coga state. A context, skill,
-   or workflow edit that belongs to the code PR (a canonical topic with a
-   packaged twin, say) is committed with it before any sweeping Coga command
-   runs in this checkout; left dirty, the sweep publishes it directly. Test,
-   commit, rebase onto `origin/main`, push.
-3. **Hand off from the branch.** The branch's copy of the ticket predates
-   what was published on control, so load control's copy first:
-   `git fetch origin main && git restore --source=origin/main --worktree --
-   <task path>`. Do not stage it. Write the handoff, then run `coga bump`
-   last; it publishes the ticket and log. Do not return to `main`: launch
-   does that after the session. A bump that prints `[git] sync failed` or
-   `sync refused` left the handoff unpublished, and launch's return will
-   refuse over it; say so in the session rather than discarding it. The bump
-   itself was recorded, so never bump again to publish it: after a
+1. **Entry.** For a create step with no `branch:`, launch reserves one name
+   (`coga/<task>-<hex>`), creates it at control without switching, writes
+   `branch:` into `## Dev`, publishes the ticket strictly, and re-proves a
+   clean control carrying that linkage. Otherwise it reuses the first
+   recorded `branch:`: a local ref as is (a behind one fast-forwards to its
+   remote; ahead or diverged commits are kept and reported), or one created
+   from its remote tip. It refuses — on control, starting nothing — a
+   recorded branch absent everywhere, a reuse step with no branch (unless
+   `## Already satisfied` evidence exists: the agent then verifies from
+   control), a branch committing ticket intent control lacks ([stranded
+   ticket writes](#stranded-ticket-writes)), one held by another worktree,
+   or ignored files the switch would overwrite; these switch checks run
+   before the audit and again, under the state lock, at the switch. A
+   failure after the switch reports that the checkout was switched. After
+   switching it projects
+   only this ticket from that control revision, unstaged, and records its
+   blob as this worktree's publication provenance
+   ([git-regressions](../../coga/internals/git-regressions/SKILL.md#the-provenance-check)).
+   That projected ticket is the session's only entry dirt.
+2. **Work.** Commit only code: stage paths by name, never `git add -A` or
+   `commit -a`. Never stage, commit, or restore the projected ticket. A
+   context, skill, or workflow edit that belongs to the code PR (a canonical
+   topic with a packaged twin, say) is committed with it before any sweeping
+   Coga command runs in this checkout; left dirty, the sweep publishes it.
+   To rebase, first copy the ticket outside the repo and verify the copy,
+   restore it from HEAD (delete it if HEAD lacks it), rebase, then write the
+   copy back unstaged and compare bytes. Test, commit, rebase onto
+   `origin/main`, push.
+3. **Hand off from the branch.** Write the handoff in the projected ticket,
+   then run `coga bump` last; it publishes the ticket and log. Launch
+   returns the checkout to a clean `main` afterwards. A bump that prints
+   `[git] sync failed` or `sync refused` left the handoff unpublished, and
+   launch's return will refuse over it; say so rather than discarding it.
+   The bump itself was recorded, so never bump again to publish it: after a
    `sync failed`, once Git access is restored, run the `coga run
    publish-state` recovery the report prints
    ([sweep](../../coga/internals/state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
+   After a `sync refused` (control's ticket changed meanwhile), preserve the
+   handoff and reconcile it onto control's copy
+   ([reconciliation](reconciliation/SKILL.md)). An unused prepared branch
+   needs no commit or PR when the work proves already satisfied.
+
+A control step sees `main`; publication (`coga open-pr`) reads and pushes the
+branch by name from there. A step that must exceptionally change code from
+control — a docs publication fix — follows the [manual procedure](manual/SKILL.md). A
+preparation failure exits 75 naming the stage and where the checkout stands;
+it withholds the sweep, never rolls back, and keeps the reservation so the
+next launch retries the same branch name. Once control's ticket records the
+branch, the reservation is dropped, so removing that line later never brings
+back its name or base. A recorded `worktree:` (a sandbox
+clone) keeps this primary on control and names the clone, which must exist on
+the recorded branch; see [sandbox-clone](sandbox-clone/SKILL.md), which also
+owns the first sandbox refusal after launch switched.
 
 ### Manual or API sessions, megalaunch picks, and exempt checkouts
 
-Without the witness, the agent performs both moves:
+Without the witness, and before editing in a manual-policy step, the agent
+performs the start check, branch work, and end-of-step return itself, and
+publishes its pre-branch ticket edits explicitly:
+[dev/checkouts/manual](manual/SKILL.md).
 
-1. **Start check.** Before anything else, `git fetch origin main`, then require
-   HEAD on `main`, a clean tree with Coga state included, and a successful
-   `git merge --ff-only origin/main`. Launch regenerates the ignored
-   `coga/.agent-skills/` view; a repo initialized before `coga init` wrote that
-   ignore rule sees it as dirt — add `.agent-skills/` to `coga/.gitignore`,
-   never commit it. Anything else — dirty files, another ticket's branch, a
-   diverged `main` — means stop: ask the attending human, or `coga block` in a
-   queue run. Do not work around an occupied checkout with a linked worktree,
-   a control checkout, a stash, or a switch.
-2. **Work.** Write any ticket state you need while still on `main` (plan,
-   blackboard notes), publish it as described below, then create or switch to
-   the feature branch and change code there. On the branch, edit code only:
-   ticket and blackboard edits made on a feature branch are not published
-   until the next sweep, so the end procedure would find them unpublished.
-3. **End.** Commit, push the branch (`git push -u origin <branch>`, or
-   `--force-with-lease` after a rebase), then return:
-   - `git fetch origin main`;
-   - for every dirty path under the Coga roots, verify it is already on
-     `origin/main` by the rules of
-     [the launch boundary](launch-boundary/SKILL.md) (`git diff --quiet origin/main -- <path>`;
-     for `coga/log.md`, every added line is on `origin/main`) and discard it
-     (`git restore --source=HEAD --staged --worktree -- <path>`). `git diff`
-     skips untracked files, so compare an untracked one with
-     `git show origin/main:<path> | cmp - <path>` and delete it only when
-     identical;
-   - `git switch main`, then `git merge --ff-only origin/main`.
+The recorded human assist keeps its own rules: it runs on its recorded PR
+branch in that checkout under
+[coga/internals/human-assist](../../coga/internals/human-assist/SKILL.md).
 
-   If any dirty path under the Coga roots is *not* already on `origin/main`,
-   or any other path is dirty, stop and escalate. Never discard unpublished state.
-   Then write the step's handoff (`## Dev`, blackboard notes) on `main` and
-   run `coga bump`, which publishes it. The session leaves the checkout on
-   `main`, clean.
+### Direct chat
 
-The recorded human assist and the sandbox clone keep their own rules: an
-assist runs on its recorded PR branch under
-[coga/internals/human-assist](../../coga/internals/human-assist/SKILL.md),
-and a sandbox clone's primary checkout never leaves `main`.
-
-Steps that only read the branch — peer review's first pass, open-pr — never
-switch: `git diff main...<branch>` and `git log main..<branch>` read it by
-name, and `coga open-pr` pushes it by name from `main`. A step that then needs
-to change code (fixes, a rebase) follows start/work/end above.
+`coga chat` starts on a clean, current `main` and may stay discussion-only.
+Before its first edit the agent runs the exact `coga run prepare-checkout
+--session <id>` its notice names, which creates or reuses that chat's one
+branch through the same mechanics; launch returns the checkout when the chat
+ends. The contract is [dev/checkouts/chat](chat/SKILL.md).
 
 **Launch never changes directory.** `repl_supervisor.run_with_done_marker`
 takes no `cwd` and `src/coga/` has no `os.chdir`: the session inherits the
 cwd `coga launch` was typed in, and the launch boundary moves only that
 checkout's HEAD. It never follows a recorded `worktree:`.
-
-### Publish pre-branch ticket edits
-
-Writing `branch:` or plan notes on `main` does not publish them: Git carries
-uncommitted edits across a branch switch. Before switching, publish those
-edits strictly, naming each edited file. The recipe resolves paths against
-the current directory, which launch preserves, so anchor them at the checkout
-root:
-
-```sh
-coga run publish-state "$(git rev-parse --show-toplevel)/coga/tasks/<slug>.md"
-git status --porcelain --untracked-files=all
-```
-
-Exit 0 means every named file is confirmed on control; any non-zero exit
-(contract in [strict publication on
-demand](../../coga/internals/state-publication/sweep/SKILL.md#strict-publication-on-demand))
-is the stop signal. Use the status check only for dirty files you did not name,
-and require it to be empty before switching. Do not fall back to calling the
-sweep through a `python -c` one-liner: the sweep reports publication failures
-without raising, and the shell's `python` often cannot import Coga at all. If
-publication fails or the tree remains dirty, stop and escalate; do not switch,
-stash, or commit the ticket edit on the feature branch. The same publication applies to a
-sandbox clone's `worktree:` record in the primary checkout, before starting
-work in the clone.
 
 ## Which checkout you invoke Coga from
 

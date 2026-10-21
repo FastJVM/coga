@@ -12,23 +12,20 @@ this step just makes sure the diff they see is already clean.
 
 ## Order of operations
 
-1. **Confirm state.** Run the `dev/checkouts` start check: the launch
-   checkout is on `main`, clean, and fast-forwarded to `origin/main`;
-   otherwise stop and escalate per your launch mode. Read `branch:` (and
-   `worktree:`, present only for a sandbox clone) under `## Dev` on the
-   blackboard. If there is no branch because the implement step recorded
-   concrete `## Already satisfied` evidence, verify that evidence from the
-   repo, add a short `## Self-QA` note, file and link as its own draft any
-   open item the closure would orphan (`coga/workflows`, "Obligations the
-   merge does not discharge"), run `coga mark done <slug>`, and stop.
-   Otherwise `git switch <branch>` (or, for a sandbox clone, work in the
-   clone) and confirm it is clean — the previous `code/implement` step
-   committed and pushed. If the branch is missing without already-satisfied
-   evidence, escalate per your launch mode — ask the attending human, or
-   `coga block` in a queue run — because something is off. Commit only code
-   on the branch. Without `COGA_LAUNCH_RETURNS_CHECKOUT=1`, also edit code
-   only until you return to `main`, and keep review notes for the blackboard
-   until then.
+1. **Confirm state.** The **Checkout (runtime)** notice says where you
+   are. Under `coga launch` this step starts on the recorded `branch:`
+   (reused, never reset), with this ticket projected unstaged from control
+   as the only entry dirt; never stage or commit it. If the notice says the
+   recorded branch is missing but `## Already satisfied` evidence exists,
+   you are on control: verify that evidence from the repo, add a short
+   `## Self-QA` note, file and link as its own draft any open item the
+   closure would orphan (`coga/workflows`, "Obligations the merge does not
+   discharge"), run `coga mark done <slug>`, and stop. A notice with
+   no prepared branch means perform the `dev/checkouts` manual start and
+   switch yourself (or, for a recorded sandbox clone, work in the clone it
+   names). Anything unexpected means stop and escalate per your launch mode
+   — ask the attending human, or `coga block` in a queue run. Commit only
+   code on the branch.
 2. **Review the diff.** As Codex, review the branch directly in this session:
    inspect the diff, affected code and contracts, and look for regressions.
    Do not start another Codex CLI through your shell tools; see
@@ -115,20 +112,17 @@ this step just makes sure the diff they see is already clean.
    cannot otherwise tell a returned review from one still in flight, and the
    note is the only thing that crosses the session boundary. If you cannot wait,
    escalate per your launch mode — ask the attending human, or `coga block` in a
-   queue run — rather than bumping. Finally, with
-   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load control's copy
-   of the ticket (`dev/checkouts`, "In a launched session"), write the
-   `## Self-QA` note, and run `coga bump <slug>` last; launch returns the
-   checkout. Without it, run the `dev/checkouts` end-of-step return to
-   `main`, write the note there, and run `coga bump <slug>` from `main` to
-   advance to `pr`.
+   queue run — rather than bumping. Finally, write the `## Self-QA` note in
+   the live ticket and run `coga bump <slug>` last to advance to `pr`; a
+   manual session first performs the `dev/checkouts` end-of-step return and
+   writes the note on `main`.
 
 ## Acceptance for this step
 
 - The direct or `/code-review` pass is complete, and `/simplify` has run
   against the branch.
 - Findings worth acting on are applied, committed, and tested.
-- Working tree is clean; tests pass.
+- Nothing is left uncommitted beyond the projected ticket; tests pass.
 - Direct review has **completed**, and every review tool this step started
   has **returned** — none is still in flight at the bump.
 - Any surface automated tests cannot reach has been swept by hand, with the

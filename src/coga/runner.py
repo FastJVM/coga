@@ -18,6 +18,7 @@ from coga.autoclose import run_autoclose_recipe
 from coga.blackboard import append_blackboard_report
 from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.branchsweep import run_branch_sweep_recipe
+from coga.checkouts import run_prepare_checkout_recipe
 from coga.config import Config
 from coga.delete_task import run_delete_task_recipe
 from coga.dream_cleanup_orphan_markers import (
@@ -56,6 +57,7 @@ RECIPES: dict[str, RecipeFn] = {
     "open-pr": run_open_pr_recipe,
     "delete-task": run_delete_task_recipe,
     "publish-state": run_publish_state_recipe,
+    "prepare-checkout": run_prepare_checkout_recipe,
 }
 
 RECIPE_FAILURE_HEADING = "Recipe Failure"

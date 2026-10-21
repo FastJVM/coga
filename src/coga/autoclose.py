@@ -420,6 +420,26 @@ def _delimited_value(raw: str) -> str:
 
 def _dev_section_text(blackboard_text: str) -> str:
     """Read the live Dev section without interpreting fenced examples."""
+    section = _DEV_SECTION_RE.search(_unfenced_text(blackboard_text))
+    if not section:
+        return ""
+    return section.group(1)
+
+
+def dev_heading_line(blackboard_text: str) -> int | None:
+    """Index of the live `## Dev` heading in `splitlines(keepends=True)`.
+
+    Fenced examples are ignored, as by the `## Dev` parsers.
+    """
+    text = _unfenced_text(blackboard_text)
+    section = _DEV_SECTION_RE.search(text)
+    if not section:
+        return None
+    return len(text[:section.start()].splitlines(keepends=True))
+
+
+def _unfenced_text(blackboard_text: str) -> str:
+    """The text with each fenced line blanked, keeping one line per line."""
     # Examples cannot create ownership or terminate the real Dev section.
     # A shorter or differently marked fence does not close the current one.
     lines: list[str] = []
@@ -440,10 +460,7 @@ def _dev_section_text(blackboard_text: str) -> str:
             lines.append("\n")
         else:
             lines.append(line)
-    section = _DEV_SECTION_RE.search("".join(lines))
-    if not section:
-        return ""
-    return section.group(1)
+    return "".join(lines)
 
 
 def parse_pr_url(blackboard_text: str) -> str | None:

@@ -19,7 +19,6 @@ composes and starts the agent.
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import os
 import shlex
@@ -27,7 +26,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -57,6 +55,7 @@ from coga.blackboard import (
 from coga.compose import (
     ComposeError,
     LaunchContext,
+    CheckoutNotice,
     PromptComposition,
     compose_prompt,
     compose_prompt_report,
@@ -72,8 +71,10 @@ from coga.config import (
 )
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
+from coga import checkouts
 from coga import git
 from coga import pr_assist
+from coga.checkout_policy import select_checkout_policy
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
@@ -177,6 +178,10 @@ _T = TypeVar("_T")
 _CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
     "checkout_guard_scope", default=None
 )
+# The live direct chat this process guards, for its runtime checkout notice.
+_CHAT_SESSION: ContextVar[checkouts.ChatSession | None] = ContextVar(
+    "chat_session", default=None
+)
 
 
 @contextmanager
@@ -198,6 +203,8 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
     command. It is keyed by Git toplevel, so nested Coga roots share it while
     separate checkouts do not. The kernel releases it on process exit; the
     file is deliberately never unlinked (which would permit two lock inodes).
+    Once held, a companion receipt names this live session and its one
+    reserved branch name, which `coga run prepare-checkout` must match.
     """
     if not cfg.git_enabled:
         yield
@@ -213,10 +220,9 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
         yield
         return
     try:
-        checkout = hashlib.sha256(os.fsencode(root.resolve())).hexdigest()
-        lock_root = Path(tempfile.gettempdir()) / f"coga-orientation-{os.getuid()}"
-        lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd = os.open(lock_root / f"{checkout}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+        lock_file, _ = checkouts.orientation_lock_paths(root)
+        lock_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(lock_file, os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as exc:
         _bail(
             f"Cannot guard this chat's checkout: {exc}. No work was started.",
@@ -237,7 +243,22 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
                 f"Cannot guard this chat's checkout: {exc}. No work was started.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
-        yield
+        try:
+            session = checkouts.install_chat_session(cfg, root)
+        except (OSError, git.GitError) as exc:
+            _bail(
+                f"Cannot record this chat's session: {exc}. No work was started.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        token = _CHAT_SESSION.set(session)
+        try:
+            yield
+        finally:
+            try:
+                _CHAT_SESSION.reset(token)
+            except ValueError:  # released from the CLI's outer sweep scope
+                _CHAT_SESSION.set(None)
+            checkouts.clear_chat_session(cfg, session)
     finally:
         os.close(fd)
 
@@ -804,6 +825,7 @@ class _LaunchInvocation:
         self.recurring_authorized = recurring_authorized
         self.agent_spawn_refusal = agent_spawn_refusal
         self.script_retained_state = False
+        self.kept_checkout_reason: str | None = None
 
     def _prepare_target(self) -> LaunchResult | None:
         """Resolve and admit the current target, including delegated periods."""
@@ -928,6 +950,7 @@ class _LaunchInvocation:
             else:
                 exemption = _checkout_exemption(self.cfg, self.ref)
                 if exemption is not None:
+                    self.kept_checkout_reason = exemption
                     _report(
                         f"Launch: keeping this checkout for {self.ref.id_slug}: {exemption}"
                     )
@@ -1965,6 +1988,24 @@ class _LaunchInvocation:
                         guard()
                     state_before_session = _diagnostic_ticket_state(spawn_ref)
 
+                log_message = _launch_log_message(
+                    _operator_display(self.cfg, self.ref, self.ticket),
+                    step_agent or self.launch_agent,
+                    self.agent.name,
+                )
+                actor = f"human:{self.cfg.current_user}"
+                checkout_notice: CheckoutNotice | None = None
+                composed_prompt: str | None = None
+                record_launch = self.record_launch
+                if self._manages_branch_checkout():
+                    spawn_ticket, composed_prompt = self._prepare_step_checkout(
+                        spawn_ticket, actor=actor, log_message=log_message
+                    )
+                    self.ticket = spawn_ticket
+                    record_launch = False
+                else:
+                    checkout_notice = self._unmanaged_checkout_notice()
+
                 step_env = build_supervised_step_env(
                     self.env,
                     task_path=self.ref.path,
@@ -1981,12 +2022,8 @@ class _LaunchInvocation:
                         spawn_ticket,
                         self.agent,
                         env=step_env,
-                        actor=f"human:{self.cfg.current_user}",
-                        log_message=_launch_log_message(
-                            _operator_display(self.cfg, self.ref, self.ticket),
-                            step_agent or self.launch_agent,
-                            self.agent.name,
-                        ),
+                        actor=actor,
+                        log_message=log_message,
                         name=self.ticket.title or "",
                         discussion=_is_discussion_bootstrap(self.ref),
                         kickoff=_bootstrap_kickoff(self.ref),
@@ -1996,10 +2033,10 @@ class _LaunchInvocation:
                         max_session=self.max_session,
                         label="Launch",
                         warn_blackboard=True,
-                        # Publish the launch line before the agent starts: a code
-                        # step's start check (`dev/checkouts`) requires a clean
-                        # tree, Coga state included, and a bootstrap target has no
-                        # later task-state sync to carry the line anyway.
+                        # Publish the launch line before the agent starts: a
+                        # bootstrap target has no later task-state sync to carry
+                        # it. A managed branch checkout already published it on
+                        # control, before preparation switched.
                         commit_log=True,
                         assist_branch=assist_branch,
                         assist_agent=(
@@ -2009,7 +2046,9 @@ class _LaunchInvocation:
                         ),
                         before_recompose=session_before_recompose,
                         before_spawn=freeze_state_before_session,
-                        record_launch=self.record_launch,
+                        record_launch=record_launch,
+                        composed_prompt=composed_prompt,
+                        checkout_notice=checkout_notice,
                     )
                 except ComposeError as exc:
                     _bail(str(exc))
@@ -2155,6 +2194,126 @@ class _LaunchInvocation:
             self.return_checkout()
 
         return LaunchResult('script' if self.return_timeout and ended_by_script else None)
+
+    def _manages_branch_checkout(self) -> bool:
+        """Whether this step's checkout is prepared here (`dev/checkouts`).
+
+        Only an ordinary task launch whose boundary entered and armed on
+        control. Recurring, delegated and caller-guarded launches keep their
+        own admission and spawn transactions; a recorded checkout, bootstrap
+        command and prompt report are exempt; megalaunch never comes here.
+        """
+        return (
+            isinstance(self.ref, TaskRef)
+            and not self.is_bootstrap
+            and not self.prompt_report
+            and self.ref.directory != "recurring"
+            and self.boundary.entered
+            and self.boundary.armed
+            and not self.boundary.stopped
+            and not self.recurring_authorized
+            and not self.require_agent_target
+            and self.before_recompose is None
+            and self.before_final_spawn is None
+            and self.single_checkout_assist_branch is None
+            and self.launch_context == "attended"
+        )
+
+    def _prepare_step_checkout(
+        self, ticket: Ticket, *, actor: str, log_message: str
+    ) -> tuple[Ticket, str]:
+        """Plan and link on control, compose, audit, then switch and project.
+
+        The `launched` audit line is appended and published only after
+        planning and composition on control succeeded, so a refused
+        preparation leaves no launch record; the switch-time checks were
+        already run once while planning. Returns the authoritative ticket and
+        the prompt composed from control state; the spawn must use both
+        unchanged. A refusal reports where the checkout stands and stops the
+        launch without a sweep or a return over state it did not start.
+        """
+        assert isinstance(self.ref, TaskRef)
+        policy = select_checkout_policy(self.cfg, ticket)
+        _report(f"Launch: checkout policy {policy.kind} — {policy.reason}")
+
+        def compose(
+            plan: checkouts.TicketCheckoutPlan,
+        ) -> tuple[Ticket, CheckoutNotice, str]:
+            assert isinstance(self.ref, TaskRef)
+            current = self._read(self.ref)
+            notice = checkouts.ticket_notice(self.cfg, plan)
+            try:
+                prompt = compose_prompt(
+                    self.cfg, self.ref, current,
+                    launch_context=self.launch_context, checkout=notice,
+                )
+            except ComposeError as exc:
+                _bail(str(exc))
+            return current, notice, prompt
+
+        try:
+            plan = checkouts.plan_ticket_checkout(self.cfg, self.ref, ticket, policy)
+            current, notice, prompt = compose(plan)
+            if self.record_launch:
+                append_log(self.cfg, self.ref.id_slug, actor, log_message)
+                git.sync_log(self.cfg, message=f"Log: {self.ref.id_slug}")
+                confirmed = checkouts.confirm_ticket_checkout(
+                    self.cfg, self.ref, ticket, plan
+                )
+                if confirmed.ticket_bytes != plan.ticket_bytes:
+                    # Control's ticket gained notes meanwhile: compose from it.
+                    current, notice, prompt = compose(confirmed)
+                plan = confirmed
+            checkouts.enter_ticket_checkout(self.cfg, self.ref, plan)
+        except (checkouts.CheckoutPreparationError, git.GitError, OSError) as exc:
+            switched = getattr(exc, "switched", False)
+            self.boundary.stopped = True
+            git.state_sweep_withheld.set(True)
+            where = (
+                "This checkout was left where preparation stopped, with every "
+                "change preserved; launch did not return or sweep it."
+                if switched
+                else "No agent was started; nothing was swept or discarded."
+            )
+            _bail(
+                f"Cannot launch {self.ref.id_slug}: {exc}\n{where} See "
+                "dev/checkouts/launch-boundary for recovery.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        _report(f"Launch: checkout {plan.action} — {notice.summary}")
+        return current, prompt
+
+    def _unmanaged_checkout_notice(self) -> CheckoutNotice | None:
+        """A truthful notice for a launch that prepared no branch, or None."""
+        if self.prompt_report:
+            return None
+        if self.is_bootstrap:
+            if self.ref.id_slug != "bootstrap/orient" or not self.boundary.entered:
+                return None
+            return checkouts.chat_notice(
+                self.cfg, _CHAT_SESSION.get(), armed=self.boundary.armed,
+                reason=self.boundary.exempt_reason or "",
+            )
+        if self.kept_checkout_reason is not None:
+            return CheckoutNotice(
+                summary=(
+                    "Launch kept this checkout and did not prepare or switch it: "
+                    f"{self.kept_checkout_reason}."
+                ),
+                return_owner=(
+                    "Launch does not return this checkout; follow dev/checkouts "
+                    "for the end of the step."
+                ),
+            )
+        if self.boundary.entered and not self.boundary.armed:
+            return CheckoutNotice(
+                summary=(
+                    "Launch did not prepare a branch or claim freshness against "
+                    f"control: {self.boundary.exempt_reason or 'Git is unavailable'}."
+                ),
+                return_owner="Nothing returns this checkout automatically.",
+            )
+        return None
 
     def _read(self, target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket from disk.
@@ -2768,12 +2927,14 @@ class _CheckoutBoundary:
         self._remote_expected = False
         self._destination: tuple[object, ...] | None = None
         self._contexts_root: Path | None = None
+        self.exempt_reason: str | None = None
 
     def enter(self, cfg: Config, target: str) -> Config:
         self.entered = True
         git.sync_coga_state(cfg, message="Sync coga state before launch")
         outcome = git.prepare_control_checkout(cfg)
         if outcome.kind == "exempt":
+            self.exempt_reason = outcome.reason
             return cfg
         if outcome.kind != "prepared":
             _bail(
@@ -3243,6 +3404,7 @@ def spawn_agent_session(
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
     composed_prompt: str | None = None,
+    checkout_notice: CheckoutNotice | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -3267,7 +3429,8 @@ def spawn_agent_session(
     session must leave a blocked ticket and its open asks intact.
     `composed_prompt` carries a prompt a caller already materialized at its
     own preflight boundary. The spawn uses those exact bytes instead of
-    recomposing after intervening lifecycle publication.
+    recomposing after intervening lifecycle publication. `checkout_notice`
+    is the caller's observed checkout result for a prompt composed here.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately publishes the `log.md` launch append (via
@@ -3354,6 +3517,7 @@ def spawn_agent_session(
             ticket,
             include_blocker_preamble=include_blocker_preamble,
             launch_context=launch_context,
+            checkout=checkout_notice,
         )
     else:
         _report(f"{label}: using preflighted prompt")

@@ -87,6 +87,22 @@ released megalaunch witness) are owned by
 [dev/checkouts/launch-boundary](../../dev/checkouts/launch-boundary/SKILL.md). Exempt launches keep the
 teardown refresh below.
 
+Inside an ordinary task launch whose entry prepared control, each agent
+step's checkout is then prepared from its frozen step: after activation and
+the start publication, launch selects the step's entry policy, creates or
+reuses and publishes the recorded branch where the policy names one, and
+composes the prompt from control state; only then does it publish its
+`launched` audit line on control (a refused preparation records no launch),
+re-prove control (recomposing if the ticket gained notes), switch, project
+the ticket, and spawn with that exact prompt
+(`spawn_agent_session(composed_prompt=...)`). The policy table, refusals, and
+recovery are owned by [dev/checkouts](../../dev/checkouts/SKILL.md);
+`ticket.py` phases run first and are never moved to a feature branch, and
+recurring, delegated, caller-guarded, recorded-checkout, and megalaunch
+spawns keep their own paths with no branch setup. Every composed prompt ends
+with a runtime **Checkout (runtime)** notice of what launch observed and who
+returns the checkout ([prompt composition](../prompt-composition/SKILL.md)).
+
 ## Status is the signal
 
 There is no task-ownership mutex: `status` says whether someone is working.

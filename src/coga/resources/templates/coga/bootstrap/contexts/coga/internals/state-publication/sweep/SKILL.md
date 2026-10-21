@@ -20,9 +20,14 @@ checkout return, so routine state lands before the checkout moves
 - runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
   bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,
   `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
-  --all`, `run publish-state`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
-  outside their sweeping sets;
-- is skipped when authoring finalization failed, or a launch's checkout return refused or stopped part-way
+  --all`, `run publish-state`, `run prepare-checkout`, `bump
+  --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands outside
+  their sweeping sets. `prepare-checkout` is skipped on success, failure,
+  and a configuration refusal before dispatch alike: a chat calls it
+  repeatedly over unfinished contexts and skills, which only its launcher's
+  return and final sweep publish;
+- is skipped when authoring finalization failed, or a launch's checkout
+  preparation or return refused or stopped part-way
   (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
   covers an in-process `coga recurring` run): the preserved dirt is what the
   sweep must not publish, the command's exit status is unchanged, and the

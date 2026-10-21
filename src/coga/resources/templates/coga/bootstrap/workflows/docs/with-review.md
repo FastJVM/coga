@@ -60,10 +60,11 @@ state.
 ## implement
 
 Implement the docs change on a feature branch in the launch checkout,
-commit and push it, and hand off; stop before the PR. `coga launch` returns
-the checkout to `main` when the session has `COGA_LAUNCH_RETURNS_CHECKOUT=1`;
-otherwise you return it yourself.
-Follow `dev/checkouts` ("Start, work, end") — no linked worktrees. The mechanics match a code task, but the verification bar is
+commit and push it, and hand off; stop before the PR. Under `coga launch`
+the branch is already created or reused and launch returns the checkout
+after you bump; the **Checkout (runtime)** notice says so. Otherwise follow
+`dev/checkouts` yourself — no linked worktrees. The mechanics match a code
+task, but the verification bar is
 docs-oriented: prove the changed markdown, workflow, context, or template is
 accurate and reachable rather than running tests that cover nothing.
 
@@ -71,21 +72,16 @@ accurate and reachable rather than running tests that cover nothing.
    the ticket touches real code, write that mismatch to the blackboard and
    escalate per your launch mode — ask the attending human, or `coga block`
    in a queue run — so the task can move to `code/with-review`.
-2. **Start check, then branch.** Run the `dev/checkouts` start check:
-   HEAD on `main`, a clean tree (Coga state included), and a successful
-   `git merge --ff-only origin/main` after a fetch; otherwise stop and
-   escalate per your launch mode — do not work around it with a worktree,
-   a stash, or a switch. Create the branch without leaving `main`
-   (`git branch <branch-name>`), write `branch: <branch-name>` under
-   `## Dev` on the blackboard, publish it using `dev/checkouts` ("Publish
-   pre-branch ticket edits"), and require a clean tree before
-   `git switch <branch-name>`. If Git
-   metadata is read-only, use the sandbox clone fallback described in
-   `code/implement`: record its path as `worktree:` and publish that record
-   with the same procedure before working in the clone. Before the first
-   Coga command there (and again on resume) seed its local config with
+2. **Confirm the checkout.** On a prepared branch the only entry dirt is
+   this ticket, projected unstaged from control: write notes and the
+   handoff there, and never stage or commit it. A notice reporting kept
+   local commits means reconcile per `dev/checkouts/reconciliation` before
+   pushing; anything unexpected means stop and escalate per your launch
+   mode. With no prepared branch, perform the `dev/checkouts` manual start
+   check and branch setup. A read-only `.git` uses the
+   sandbox clone fallback in `dev/checkouts/sandbox-clone`; seed each clone,
+   on creation and on resume, with
    `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
-   The launch checkout then stays on `main`.
 3. **Edit on the feature branch.** Keep the diff scoped to the ticket; no
    opportunistic rewrites. Edit docs only while on the branch — note
    adjacent cleanup for a follow-up and write it to the blackboard with the
@@ -105,13 +101,11 @@ accurate and reachable rather than running tests that cover nothing.
      A pure prose edit does not require the full suite.
 
 6. **Commit and push.** Use a short factual subject and mention the
-   ticket slug in the body, then push the branch. Under the launch witness,
-   stay on the branch; launch returns the checkout after the session.
-   Otherwise run the `dev/checkouts` end-of-step return to a clean `main`.
-7. **Hand off and bump.** Under the launch witness, load control's copy of
-   the ticket on the feature branch (`dev/checkouts`, "In a launched
-   session") and write the handoff there; otherwise write it on `main`.
-   Confirm `## Dev` records `branch:`, then run `coga bump <slug>` last. If
+   ticket slug in the body, rebase onto fetched `origin/main` as
+   `dev/checkouts` describes, then push the branch. A manual session then
+   runs the `dev/checkouts` end-of-step return.
+7. **Hand off and bump.** Write the handoff in the live ticket, confirm
+   `## Dev` records `branch:`, then run `coga bump <slug>` last. If
    you cannot reach a clean committed state, write the blocker to the
    blackboard and escalate per your launch mode — ask the attending human,
    or `coga block` in a queue run.
@@ -123,10 +117,10 @@ the main agent's configured peer, but peer selection alone does not prove
 independent authorship: an explicit launch override can make the same agent
 implement and review a change, so do not assume you did not write this diff.
 
-Review the **content**.
-From `main`, without switching, read the changed markdown by branch name
-(`git diff main...<branch> -- '*.md'` plus any non-markdown docs the ticket
-names) and check:
+Review the **content**. Launch starts this step on the recorded branch (the
+notice says so; otherwise follow `dev/checkouts`). Read the changed markdown
+against its base (`git diff main...HEAD -- '*.md'` plus any non-markdown docs
+the ticket names) and check:
 
 - **Accuracy** — do the claims match how the system actually behaves?
   Commands, paths, flags, and references should be real. Spot-check
@@ -147,14 +141,10 @@ Record the outcome under `## Peer review` on the blackboard, and refresh the
 ([coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
 “Preparation record”) so the `open-pr` step has evidence to format.
 
-To apply must-fix findings (skip nits), follow `dev/checkouts`: switch to
-the recorded branch, commit (e.g. `peer-review: apply review findings`), and
-push. Then, with `COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load
-control's copy of the ticket (`dev/checkouts`, "In a launched session"),
-write your notes, and run `coga bump <slug>` last; launch returns the
-checkout. Without it, return to a clean `main`, then write your notes and
-`coga bump <slug>` there. If you never switched, write them on `main` and
-bump from there. If the change reads as wrong
+Apply must-fix findings (skip nits) on the branch, commit (e.g.
+`peer-review: apply review findings`), and push. Write your notes in the
+live ticket and run `coga bump <slug>` last (a manual session first returns
+to `main` per `dev/checkouts`). If the change reads as wrong
 in premise (documents behavior that doesn't exist, or contradicts a
 canonical context), write to the blackboard and escalate per your launch mode
 — ask the attending human, or `coga block` in a queue run — instead of patching
@@ -166,11 +156,11 @@ Push the reviewed branch and open the PR. This step is still docs-oriented,
 but it owns the same publication and handoff guarantees as a code PR, and
 declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
 
-1. **Find the branch.** Run the `dev/checkouts` start check (under
-   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already brought the checkout
-   there), then read `branch:` under `## Dev` on the blackboard (and
-   `worktree:`, present only for a sandbox clone). Confirm the branch has
-   commits ahead of `main`.
+1. **Find the branch.** This step runs from a clean, current `main` (the
+   notice says whether launch prepared it; otherwise perform the
+   `dev/checkouts` manual start check). Read `branch:` under `## Dev` on the
+   blackboard (and `worktree:`, present only for a sandbox clone). Confirm
+   the branch has commits ahead of `main`.
 2. **Run `coga open-pr <slug>` from `main`.** It pushes the recorded branch
    by name, opens the PR (or readies a draft, or refreshes an open one),
    formats the blackboard `## PR` preparation record into the body, and
@@ -183,11 +173,10 @@ declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
 After the PR is open, **resolve any merge conflicts with the base branch
 before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 <PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
-`main`, switch to the feature branch, merge/rebase `main` into it, resolve
-the conflicts, and push so the human reviewer receives a clean, mergeable
-PR. Under the launch witness, stay on the branch and load control's copy of
-the ticket before the bump; otherwise return to a clean `main`
-(`dev/checkouts`).
+`main`, resolve it on the feature branch with the `dev/checkouts/manual`
+procedure — switch, merge or rebase `main`, resolve, push, and return to a
+clean `main` before writing any ticket notes — so the human reviewer
+receives a clean, mergeable PR.
 If conflict resolution touches code or fixtures, run `python -m pytest`;
 otherwise re-run the docs-specific verification that applies to the changed
 files. A resolution push moves the head the PR body describes: refresh the
