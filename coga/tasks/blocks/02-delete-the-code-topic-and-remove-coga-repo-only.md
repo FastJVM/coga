@@ -209,6 +209,28 @@ Pre-existing, unrelated: `coga validate --json` exits 1 on
 `marketing/fix-installer/find-out-what-macos-actually-ships`
 (`unsynthesized-draft-blackboard`); same 48 issues on main.
 
+## Peer review
+
+Direct Codex review is in progress after the required rebase onto
+`b888023bb`. The implementing commit records Claude Opus 5.5; this is a fresh
+Codex reviewer session, not self-review. No nested reviewer was launched.
+
+Must-fix finding: deleting the package fallback leaves two stored tickets
+with unresolved `contexts: coga/code` attachments, which source-backed
+validation reports even though both tickets are done. Repoint
+`fix-parser-bugs-documented-in-pr-1055` to `coga/checkouts` and remove the
+duplicate obsolete attachment from
+`match-concurrent-codex-sessions-to-their-launch-so`, which already attaches
+`coga/checkouts`. Historical prose mentions remain untouched.
+
+Initial source-backed validation at `2ce7a2aec` reports 50 issues: the two
+new `broken-context` errors above, the existing
+`marketing/fix-installer/find-out-what-macos-actually-ships`
+`unsynthesized-draft-blackboard` error, and 47 warnings. The macOS ticket
+matches control byte-for-byte and belongs to a separate owner; it has an
+unsynthesized evaluator review, not a harmless formatting problem. Do not
+claim repository validation passed or silently waive the acceptance gate.
+
 ## PR
 
 ```yaml

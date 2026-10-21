@@ -3,7 +3,6 @@ title: Match concurrent Codex sessions to their launch so usage stops undercount
 status: done
 owner: nicktoper
 contexts:
-- coga/code
 - coga/checkouts
 - coga/usage
 - coga-dev/internals/activity-capture
