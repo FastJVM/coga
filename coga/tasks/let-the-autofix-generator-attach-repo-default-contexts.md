@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -318,11 +318,16 @@ checks:
     plus packaging and resource loading; a second full-suite interpreter matrix was not required.
 ```
 
-## Recipe Failure
+## Open PR
 
-Recipe: `open-pr`
-Exit: 2
-Task: `let-the-autofix-generator-attach-repo-default-contexts`
-Recorded: 2026-10-21T19:01:06+00:00
-
-    Branch 'coga/let-the-autofix-generator-attach-repo-default-co-140a79' is not safe to publish. refs/heads/coga/let-the-autofix-generator-attach-repo-default-co-140a79 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: src/coga/config.py. Reconcile it and relaunch, or `coga block --task let-the-autofix-generator-attach-repo-default-contexts`.
+- First `coga open-pr` refused (2026-10-21T19:01Z): main's `dev/`→`coga/`
+  context fold (`6644febac`) overlapped `src/coga/config.py`. Rebased the
+  branch in a temporary worktree onto `14cd61245` with no conflicts; diff
+  is still the same eight paths, no stale `dev/` refs, `git diff --check` clean.
+- Rebased head `8821884cfef6210209f0292afa06db671e1ddcdb`: Python 3.11
+  config/autofix/packaging 335 passed; full Python 3.12 suite 3988 passed,
+  7 skipped (366.61s). Pushed with a lease on `ba8527cf`.
+- The `## PR` review/check receipts name pre-rebase head `ba8527cf`; the
+  rebase only replayed onto a reorg with no conflicts and was not re-reviewed.
+- Re-ran `coga open-pr` (only Coga state drift since): PR #1079 opened.
+- Merge-undischarged obligations: none (no backfill is in-scope by design).
