@@ -73,6 +73,9 @@ Only `## Description`, `## Context`, and the live blackboard reach the agent
 to the next `##` line, so any other `##` above the fence is **uncomposed**: a
 `## Acceptance Criteria` or `## Proposed Shape`, and equally a `## What broke`
 written after Description prose, which also cuts that Description short.
+Text before the first real `##` heading is also uncomposed, including the
+entire body when it has no such heading. Move substantive preamble prose into
+`## Description` or `## Context`; whitespace alone needs no repair.
 
 The contract is relocate, not compose. Spec material (acceptance criteria,
 proposed shape, out of scope, evidence) goes as `###` subsections under
@@ -84,10 +87,13 @@ section allowed above the fence (legacy PR preparation read by `open_pr`,
 never composed).
 
 The drop is not silent. `coga validate` warns `uncomposed-section` on every
-non-terminal ticket, naming each heading and the repair; `coga launch` and
-`--prompt-report` print the same warning; while a body has uncomposed
-sections, validate reports them instead of `empty-description`, because the
-write-up is probably under them. Compose, validate, `open_pr`'s request
+non-terminal ticket, naming each omitted heading or preamble and the repair;
+`coga launch` and `--prompt-report` use the same diagnostic from
+`taskfile.uncomposed_body_message`. A nonempty Description does not suppress
+the preamble warning. While a body has either kind of omitted material,
+validate reports it instead of `empty-description`, because the write-up is
+already on disk. Terminal tickets remain exempt from these validation
+warnings. Compose, validate, `open_pr`'s request
 snapshot and create-time checks share one parser, `taskfile.body_sections`:
 a `##` inside a backtick or tilde code fence is text, a fence never closed is
 not a fence, a heading may be indented up to three spaces and carry a closing

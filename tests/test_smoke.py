@@ -19,6 +19,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga.cli import app
+from coga.blackboard import open_blockers
 from coga.create import create_task
 from coga.compose import compose_prompt
 from coga.config import load_config
@@ -113,6 +114,8 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Keep the grouped task layout described in the current body." in archived_prompt
     assert str(archived_ref.ticket_path) in archived_prompt
     assert archived_ref.ticket_path.read_bytes() == archived_before
+    assert open_blockers(archived_ref.ticket_path) == []
+    assert "Resolve the open blocker first" not in archived_prompt
 
     # 3. Advance steps. Each gated step refuses until its required artifact is
     #    recorded — `implement` needs the `branch:` line, `pr` needs the
@@ -129,6 +132,9 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 0, r.output
+    pr_prompt = compose_prompt(cfg, task_ref, read_ticket(task_ref))
+    assert "## Summary\nDescribe the resulting behavior." in pr_prompt
+    assert "Keep verification receipts current after preparing the summary." in pr_prompt
     r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 2
     assert "requires a recorded `pr`" in r.output

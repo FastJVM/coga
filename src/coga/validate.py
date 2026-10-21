@@ -76,8 +76,7 @@ from coga.taskfile import (
     TaskFileError,
     fence_count,
     split_body,
-    uncomposed_sections,
-    uncomposed_sections_message,
+    uncomposed_body_message,
 )
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
@@ -497,14 +496,11 @@ def _check_one_task(
     # (`_`-prefixed) directory, which discovery never reaches (`coga/tickets`).
     if fences == 1 and ticket.status not in TERMINAL_STATUSES:
         above, _ = split_body(ticket.body, blackboard_required=False)
-        # A section that does not compose is the silent half of the same loss:
-        # it can follow Description prose, or cut Description off entirely.
-        headings = uncomposed_sections(above)
-        # With uncomposed sections the write-up is probably under them, and
-        # `uncomposed-section` names the repair; a separate empty-description
-        # would only ask a human to rewrite what a heading demotion restores.
-        # Once the headings are demoted, a truly empty Description shows here.
-        if not headings and not _extract_section(above, "Description"):
+        # Preamble prose and extra sections can hold the missing write-up.
+        # Name the relocation repair instead of asking the author to recreate
+        # intent that is already on disk with an empty-description warning.
+        uncomposed = uncomposed_body_message(above)
+        if not uncomposed and not _extract_section(above, "Description"):
             out.append(Issue(
                 kind="empty-description",
                 task=task_label,
@@ -517,11 +513,11 @@ def _check_one_task(
                 ),
                 severity="warn",
             ))
-        if headings:
+        if uncomposed:
             out.append(Issue(
                 kind="uncomposed-section",
                 task=task_label,
-                message=uncomposed_sections_message(headings),
+                message=uncomposed,
                 severity="warn",
             ))
 

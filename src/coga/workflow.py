@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from coga.taskfile import body_sections
+
 
 class WorkflowError(Exception):
     """Raised on invalid workflow definitions."""
@@ -20,7 +22,6 @@ class WorkflowNotFoundError(WorkflowError, FileNotFoundError):
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
-_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
 # Role tokens a workflow step may declare under `assignee:`. This is the whole
@@ -178,19 +179,14 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
 def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
     """Split the markdown body by `## <heading>` into sections keyed by heading text.
 
-    Only returns sections whose heading matches a step name.
+    Only returns sections whose heading matches a step name. Use the shared
+    section parser so fenced example headings cannot split or create steps.
     """
-    matches = list(_HEADING_RE.finditer(body))
-    if not matches:
-        return {}
-    sections: dict[str, str] = {}
-    for i, m in enumerate(matches):
-        heading = m.group(1).strip()
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-        if heading in step_names:
-            sections[heading] = body[start:end].strip()
-    return sections
+    return {
+        section.heading: body[section.content_start:section.end].strip()
+        for section in body_sections(body)
+        if section.heading in step_names
+    }
 
 
 __all__ = [

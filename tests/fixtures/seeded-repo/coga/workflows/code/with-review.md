@@ -30,6 +30,15 @@ Run `coga open-pr <slug>` to publish the presentation and verbatim ticket
 snapshot. It reports missing evidence honestly and preserves external human
 notes on reruns. Test obligations remain those selected by this workflow.
 
+For example, a PR summary can contain an H2 without ending these instructions:
+
+```markdown
+## Summary
+Describe the resulting behavior.
+```
+
+Keep verification receipts current after preparing the summary.
+
 ## approve
 Review the PR. If changes are needed, comment and wait. If approved, advance.
 

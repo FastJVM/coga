@@ -1886,6 +1886,36 @@ def test_uncomposed_section_is_silent_on_terminal_tickets(repo: Path) -> None:
     assert not [i for i in report.issues if i.kind == "uncomposed-section"]
 
 
+@pytest.mark.parametrize("sections", ["", "## Description\nIntent.\n## Context\nContext.\n"])
+@pytest.mark.parametrize("preamble", ["Lost prose.\n\n", " \t\n\n"])
+def test_uncomposed_preamble_warning(repo: Path, sections: str, preamble: str) -> None:
+    from coga.taskfile import uncomposed_sections_warning
+
+    cfg = load_config(repo)
+    _write_spec_ticket(repo, preamble + sections + "<!-- coga:blackboard -->\n")
+
+    issues = {i.kind: i for i in run(cfg).issues if i.task == "spec"}
+
+    if preamble.strip():
+        warning = issues["uncomposed-section"]
+        assert warning.severity == "warn"
+        assert warning.message == uncomposed_sections_warning(repo / "tasks" / "spec.md")
+        assert "preamble before the first `##` heading" in warning.message
+        assert "`## Description` or `## Context`" in warning.message
+        assert "empty-description" not in issues
+    else:
+        assert "uncomposed-section" not in issues
+        assert ("empty-description" in issues) == (not sections)
+
+
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_uncomposed_preamble_is_silent_on_terminal_tickets(repo: Path, status: str) -> None:
+    cfg = load_config(repo)
+    _write_spec_ticket(repo, "Old prose.\n<!-- coga:blackboard -->\n", status=status)
+
+    assert not [i for i in run(cfg).issues if i.kind in {"uncomposed-section", "empty-description"}]
+
+
 class _FakeResponse:
     def __init__(self, status_code: int, text: str = "") -> None:
         self.status_code = status_code

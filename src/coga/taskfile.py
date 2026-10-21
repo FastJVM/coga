@@ -304,9 +304,9 @@ def _fence_flags(
 def body_sections(text: str) -> list[BodySection]:
     """Every level-2 section of `text`, in order, skipping code-fenced lines.
 
-    The one section parser for ticket bodies: compose, validate, `open_pr` and
-    create-time description checks all read it, so a heading inside a backtick
-    or tilde fenced example is text to every one of them. A section runs from
+    The shared section parser for ticket bodies and inline workflow content:
+    a heading inside a backtick or tilde fenced example is text to every
+    consumer. A section runs from
     its heading line to the next one or EOF; `###` and deeper stay inside it.
     Callers split off the blackboard first (`split_body`) when they mean the
     ticket body above the fence.
@@ -349,14 +349,31 @@ def uncomposed_sections_message(headings: list[str]) -> str:
     )
 
 
+def uncomposed_body_message(body_above: str) -> str | None:
+    """Shared diagnostic for omitted preamble prose and uncomposed sections."""
+    sections = body_sections(body_above)
+    preamble_end = sections[0].start if sections else len(body_above)
+    messages: list[str] = []
+    if body_above[:preamble_end].strip():
+        messages.append(
+            "ticket body has a preamble before the first `##` heading "
+            "(or the entire body when no heading exists) that no launch "
+            "prompt carries. Move this text under `## Description` or "
+            "`## Context`"
+        )
+    headings = uncomposed_sections(body_above)
+    if headings:
+        messages.append(uncomposed_sections_message(headings))
+    return ". ".join(messages) if messages else None
+
+
 def uncomposed_sections_warning(ticket_path: Path) -> str | None:
-    """`uncomposed_sections_message` for a ticket file, or None when clean."""
+    """`uncomposed_body_message` for a ticket file, or None when clean."""
     try:
         body = read_task_file(ticket_path).body
     except (FileNotFoundError, TaskFileError):
         return None
-    headings = uncomposed_sections(body)
-    return uncomposed_sections_message(headings) if headings else None
+    return uncomposed_body_message(body)
 
 
 def join_task_body(body_above: str, blackboard_text: str) -> str:
@@ -389,5 +406,6 @@ __all__ = [
     "markdown_lines",
     "uncomposed_sections",
     "uncomposed_sections_message",
+    "uncomposed_body_message",
     "uncomposed_sections_warning",
 ]

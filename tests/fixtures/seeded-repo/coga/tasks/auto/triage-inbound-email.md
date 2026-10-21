@@ -56,6 +56,14 @@ Reason: Keep related tasks together without changing their lifecycle.
 
 Place every inbound-email ticket directly in the top-level tasks directory.
 
+- [ ] [2026-09-18 12:00] [human:marc] id=old-layout Retired layout question.
+
 ## Handoff
 
 Keep the grouped task layout described in the current body.
+
+Example of a blocker entry, not a live ask:
+
+```markdown
+- [ ] [2026-09-18 12:00] [human:marc] id=example Example layout question.
+```

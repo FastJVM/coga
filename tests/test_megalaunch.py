@@ -1159,6 +1159,55 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
     assert "need owner answer" in run.results[0].detail
 
 
+@pytest.mark.parametrize("fence", ["```", "~~~"])
+@pytest.mark.parametrize("live_ask", [False, True])
+def test_megalaunch_ignores_blocker_examples(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, fence: str, live_ask: bool,
+) -> None:
+    from coga.taskfile import replace_blackboard
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title="Blocker examples", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="active",
+    )
+    text = (
+        f"{fence}markdown\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=example Fenced ask\n"
+        f"{fence}\n## Superseded designs\n"
+        "- [ ] [2026-09-18 12:00] [human:marc] id=old Archived ask\n"
+        "## Blockers\n"
+    )
+    if live_ask:
+        text += "- [ ] [2026-09-18 12:00] [human:marc] id=live Real ask\n"
+    replace_blackboard(Path(ref["path"]), "\n" + text)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    prompts: list[str] = []
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
+        prompts.append(compose_prompt(cfg, ref_obj, ticket))
+        ticket.frontmatter["status"] = "done"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(ref_obj.ticket_path)
+        return AgentSessionResult(exit_code=0, termination_kind="done", done_signalled=True)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    if live_ask:
+        assert run.counts["skipped-unresolved-blocker"] == 1
+        assert prompts == []
+        assert "Real ask" in run.results[0].detail
+        assert "Fenced ask" not in run.results[0].detail
+        assert "Archived ask" not in run.results[0].detail
+    else:
+        assert run.counts["launched"] == 1
+        assert run.counts["completed"] == 1
+        assert len(prompts) == 1
+        assert "Resolve the open blocker first" not in prompts[0]
+
+
 @pytest.mark.parametrize(
     ("late_change", "expected_outcome", "expected_detail"),
     [
