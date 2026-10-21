@@ -11,6 +11,9 @@ and every `coga recurring launch <name>` (hence `coga dream`, `coga autoclose`,
 (`src/coga/recurring_autofix.py`). It runs after a sweep with nothing due and
 after one that died partway. A gate that refused to launch (closed or parked
 template, period already handled on control) is not a run and is not analyzed.
+Neither is a sweep on an inactive repo that launched nothing; the
+[inactivity](../scheduling/inactivity/SKILL.md) topic owns when autofix runs
+there.
 The console output is unchanged.
 
 ## The loop
