@@ -1,6 +1,6 @@
 ---
 title: 03 Trim the checkouts and checkout-cleanup family
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:0805ef43-3619-4904-990f-79ad6d3c0b87
 ---
 
 ## Description
