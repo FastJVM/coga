@@ -156,6 +156,7 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1080
 branch: coga/blocks-01-self-document-coga-toml-and-split-the--38a971
 
 ## Handoff (implement)
@@ -187,6 +188,8 @@ Commit `a9af1c8c4` on the branch, rebased onto origin/main `4c59a11bd` and pushe
 For the owner:
 - This repo's `coga/coga.toml` (not editable by agents) still says
   "See `coga/agents`." beside codex `launch_args`; it should get the shipped wording.
+  Filed as draft `update-this-repo-s-coga-toml-codex-comment-after-t`
+  (open-pr step, at the human's request).
 - `coga/architecture` is now about 1,300 tokens (ceil(chars/4)), over the
   1,000-token overview target, because of the "Who Coga acts as" section the
   ticket placed there. Ticket 09 (architecture trim) can rebalance it.
