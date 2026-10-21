@@ -152,7 +152,7 @@ Rules:
 
 - Select the audience before choosing refs. The user set (`coga/`, `dev/`)
   supports configuring, launching, authoring, recovering, and understanding
-  refusals in any adopting repo. The Coga-dev set is local to Coga's own
+  refusals in any adopting repo. The Coga-dev set (`coga-dev/`) is local to Coga's own
   repository and explains building, testing, releasing, or steering Coga;
   it is not a bundled fallback. Anything required by a shipped surface must
   be in the user set. The criterion and distribution are owned by

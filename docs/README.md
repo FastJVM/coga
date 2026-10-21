@@ -95,16 +95,25 @@ New tickets include a field guide from the
   [edge code and forks](contexts/coga/edge-code/SKILL.md),
   [agent sandboxes](contexts/coga/sandboxes/SKILL.md).
 
+- Code-task conventions: [overview](contexts/dev/code/SKILL.md),
+  [checkouts](contexts/dev/checkouts/SKILL.md)
+  ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
+  [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
+  [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
+  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
+  ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
+  [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
+  [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
+
 ## Develop Coga
 
-This is the local-only Coga-dev set.
+The local-only Coga-dev set and the skills used by Coga maintainers:
 
 - [Design principles](contexts/coga-dev/principles/SKILL.md),
   [patterns](contexts/coga-dev/patterns/SKILL.md), and the
   [microkernel boundary](contexts/coga-dev/microkernel/SKILL.md).
 - [Internals index](contexts/coga-dev/internals/SKILL.md) for concurrency,
   publication transactions, recurring admission, and activity capture.
-
 - [Codebase](contexts/coga-dev/codebase/SKILL.md) source map and
   [gotchas](contexts/coga-dev/codebase/gotchas/SKILL.md).
 - [Weekly telemetry](../coga/recurring/phone-home/ticket.md) (opt-out) and its
@@ -116,15 +125,6 @@ This is the local-only Coga-dev set.
   [Windows on AWS](../coga/skills/coga/testing/clean-install/windows-aws/SKILL.md)),
   [packaging](contexts/coga-dev/packaging/SKILL.md),
   [release skill](../coga/skills/coga/releasing/SKILL.md).
-- Code-task conventions: [overview](contexts/dev/code/SKILL.md),
-  [checkouts](contexts/dev/checkouts/SKILL.md)
-  ([launch boundary](contexts/dev/checkouts/launch-boundary/SKILL.md),
-  [sandbox clone](contexts/dev/checkouts/sandbox-clone/SKILL.md)),
-  [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
-  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md)
-  ([proofs](contexts/dev/checkout-cleanup/proofs/SKILL.md),
-  [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
-  [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
 - This repo's posture (dated, local to this repo):
   [current direction](contexts/coga-dev/current-direction/SKILL.md),
   [project stage](contexts/coga-dev/project-stage/SKILL.md).

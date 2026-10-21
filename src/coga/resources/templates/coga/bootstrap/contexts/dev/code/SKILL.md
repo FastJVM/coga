@@ -39,9 +39,8 @@ record directly.
 - **Branch naming**: no requirement to match the slug; the record makes the
   link explicit.
 - **PR description shape**: owned by the workflow step's skill.
-- **Changing the stored ticket format**: a branch that rewrites committed
-  `coga/tasks/**` with the code that reads them follows the stored-ticket
-  schema conversion rules in
-  [coga-dev/internals/git-regressions](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md#shipping-a-stored-ticket-schema-conversion).
-- **Working on Coga's own source**: see
-  [coga-dev/codebase](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md).
+- **Working on Coga itself**: its
+  [source map](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md)
+  and [stored-ticket conversion procedure](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md#shipping-a-stored-ticket-schema-conversion)
+  are development references outside this user contract. Operating an adopting
+  repo does not require that local-only library.
