@@ -162,4 +162,5 @@ from live queues, clears its step, and keeps its body and blackboard as history.
 There is no separate `superseded` status. Leaving the replaced ticket paused or
 draft keeps it live. If file readers need the pointer, open `## Context` with
 **Superseded by `<new>` (<date>).** as a courtesy copy of the logged reason.
-A superseded design within one ticket follows [coga/code](../code/SKILL.md).
+A superseded design within one ticket follows
+[coga/blackboard](../blackboard/SKILL.md#superseded-designs).

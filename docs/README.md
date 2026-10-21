@@ -95,8 +95,7 @@ New tickets include a field guide from the
   [edge code and forks](contexts/coga/edge-code/SKILL.md),
   [agent sandboxes](contexts/coga/sandboxes/SKILL.md).
 
-- Code-task conventions: [overview](contexts/coga/code/SKILL.md),
-  [checkouts](contexts/coga/checkouts/SKILL.md)
+- Code-task conventions: [checkouts](contexts/coga/checkouts/SKILL.md)
   ([launch boundary](contexts/coga/checkouts/launch-boundary/SKILL.md),
   [sandbox clone](contexts/coga/checkouts/sandbox-clone/SKILL.md)),
   [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),

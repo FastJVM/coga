@@ -98,9 +98,7 @@ enforces this.
 **Do not repair a missing bundled resource by copying it into
 `coga/bootstrap/`.** Fix package data or the resolver; a mirror hides the bug
 and drifts. Deliberate authoring there is fine: a repo mints its own command
-ticket or intentionally overrides a shipped one. This repo overrides
-`coga/bootstrap/resolve-conflicts/ticket.md` and
-`coga/bootstrap/address-pr-comments/ticket.md`; those are twins like any other.
+ticket or intentionally overrides a shipped one.
 
 ## Relocating: `[layout] contexts`
 

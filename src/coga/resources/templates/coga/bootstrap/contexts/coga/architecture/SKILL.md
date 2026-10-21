@@ -73,10 +73,9 @@ operating rules without a merge.
 - **Extend a repo**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
   [edge code](../edge-code/SKILL.md), [sandboxes](../sandboxes/SKILL.md);
-  code-task conventions [coga/code](../code/SKILL.md)
-  ([checkouts](../checkouts/SKILL.md),
+  code tickets: [checkouts](../checkouts/SKILL.md),
   [design history](../blackboard/SKILL.md#superseded-designs),
-  [checkout-cleanup](../checkout-cleanup/SKILL.md)), each with its leaves;
+  [checkout-cleanup](../checkout-cleanup/SKILL.md), each with its leaves;
   [PR publication](../pr-publication/SKILL.md)
   ([preparation](../pr-publication/preparation/SKILL.md),
   [existing PRs](../pr-publication/existing-pr/SKILL.md)).

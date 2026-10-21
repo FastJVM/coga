@@ -33,8 +33,7 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
   absence from a weekly report does not mean it was checked.
 - **Hand-vendored**: committed under a namespace with `ATTRIBUTION.md` or
   `NOTICE.txt` plus `LICENSE.txt` recording source, license, and
-  modifications, and no installer metadata. `anthropic/skill-creator/` is
-  the verbatim example. Refresh by re-copying the
+  modifications, and no installer metadata. Refresh by re-copying the
   reviewed upstream revision and deliberately reapplying recorded changes.
   Keep the upstream leaf `name:`.
 - **Bundled**: package-backed under `bootstrap/skills/`; `coga skill` never
@@ -133,20 +132,16 @@ updates left in the working tree.
   upstream, or convert to a hand-vendored namespaced copy.
 - **Refresh only through `coga skill update`.** The weekly
   `recurring/skill-update` job runs `coga skill update --all --pr`. Ignore a
-  pack's own bootstrap instructions (for example
-  `google-agents-cli-workflow` telling the agent to run
-  `uvx google-agents-cli setup`); following them installs an unmanaged second
-  copy.
+  pack's own bootstrap instructions (for example a skill telling the agent
+  to run the pack's setup command); following them installs an unmanaged
+  second copy.
 - **Keep Coga-managed skills flat** at `coga/skills/<ref>/`; `gh skill update
   --dir` has a known bug that relocates skills in nested directories.
-- This repo keeps seven `google-agents-cli-*` packs on purpose as the live
-  target of the GitHub-backed update path; no ticket does ADK work.
 
 ## Dependencies
 
 Coga installs nothing for a skill. The convention is a `requirements.txt`
 beside `SKILL.md` that the operator installs into whatever Python runs the
-skill's script; a failing import should name it. No skill in this repo carries
-one yet. Upstream `metadata.requires.bins` / `metadata.requires.install`
-frontmatter (present in the Google packs) is read nowhere by Coga; it only
-informs the reading agent.
+skill's script; a failing import should name it. Upstream
+`metadata.requires.bins` / `metadata.requires.install` frontmatter is read
+nowhere by Coga; it only informs the reading agent.

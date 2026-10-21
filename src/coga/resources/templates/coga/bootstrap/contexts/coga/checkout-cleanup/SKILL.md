@@ -48,7 +48,8 @@ captures ownership before dropping a primary's directory from the closure, and
 infers missing ownership on legacy entries before any branch cleanup or
 discharge check. When the recorded checkout is a primary or its directory is
 gone, it never deletes a same-named branch in the sweeping clone; an existing
-foreign *linked* worktree is the exception, recorded as the known gap below.
+foreign *linked* worktree is the exception, whose recorded branch is judged in
+the sweeping clone.
 A remaining foreign branch is reported for manual cleanup in its owning
 clone. The owning clone's own daily branch sweep runs the ordinary proofs on
 the entries that record it as `owner`, then discharges and publishes them
@@ -59,26 +60,13 @@ Once the owner's branch is gone, a primary-checkout entry discharges with no
 directory deletion or manual `retires.md` edit; foreign linked worktrees still
 owe their directory cleanup.
 
-Known gap (unresolved, no follow-up ticket): the foreign *linked* branch half is
-unguarded. For a recorded `worktree:` that is another repository's existing
-linked worktree, `checkout_disposal.dispose_checkout` refuses the worktree
-removal but still calls `delete_branch(cfg, root, branch, ...)` against the
-*invoking* clone, so a same-named local branch there can be judged, and
-possibly deleted, in place of the foreign repository's branch. Autoclose
-reaches it through `_dispose_checkouts` / `dispose_worklist_backlog`
-(`_owner_held_branch` returns `None` while the foreign worktree directory still
-exists), and `retire/ticket.py` `_cleanup_checkout` passes the recorded `## Dev`
-values straight in. Found on PR #939; only the foreign-primary path is guarded.
-
 ### Accepted disappearance policy
 
 For an independent clone recorded as its own owner, a missing directory is
 treated as deletion of the clone and its branch, so the entry clears (owner
 decision, 2026-10-01). A missing path does not prove deletion — relocation or
 a temporarily unavailable filesystem looks the same — but automatic discharge
-keeps deleted sandbox clones from generating reminders forever, replacing the
-repeated-posting failure in
-[the September incident](../../../archive/evidence/independent-clone-worklist-2026-09.md).
+keeps deleted sandbox clones from generating reminders forever.
 The cost: a surviving clone's branch cleanup can be forgotten if its recorded
 path disappears. The policy drops bookkeeping only; it never deletes a clone.
 
