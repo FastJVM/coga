@@ -8849,3 +8849,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-20 22:06 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-20 22:06 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-20 22:06 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-20 22:23 v1 [automate-checkout-setup-and-deduplicate-instructio] [human:nicktoper] auto-bumped on merge of PR #1068 → done

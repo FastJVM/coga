@@ -1,6 +1,6 @@
 ---
 title: Automate checkout setup and deduplicate instructions
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -33,7 +33,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 
