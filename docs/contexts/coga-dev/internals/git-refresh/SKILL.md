@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/git-refresh
-description: How a checkout is brought level with the control branch — `git.refresh`, `fast_forward_control`, `fetch_control` — plus the read-only staleness probe behind `coga status` and the stranded-ticket-write detection used by `coga bump` and `coga open-pr`.
+description: How a checkout is brought level with the control branch — `git.refresh`, `fast_forward_control`, `fetch_control` — plus the read-only staleness probe behind `coga status`, the stranded-ticket-write detection used by `coga bump` and `coga open-pr`, and launch's branch-preparation details.
 ---
 
 # Refreshing from control, staleness, and stranded writes
@@ -170,3 +170,54 @@ a branch may legitimately edit other tickets:
 - `coga open-pr` uses it to word its freshness refusal: inspect a stranded
   copy before dropping it, or drop a copy control already absorbed, then bring
   control in with a merge rather than a rebase (`coga/pr-publication`).
+
+Decision (2026-10-06, owner): do not add a general cross-checkout detector for
+uncommitted blackboard prose. The remaining working-memory loss is rare and
+low stakes; missing checkout pointers, independent clones, detached worktrees,
+and normal control-ahead divergence make reliable detection disproportionate.
+Revisit if concrete lost-note incidents justify the complexity. Any future
+comparison should report content the control copy lacks, without
+automatically merging or overwriting either copy.
+
+## Launch preparation details
+
+The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
+[its launch boundary](../../../coga/checkouts/launch-boundary/SKILL.md).
+
+- **Order.** From a fresh control read, launch publishes routine state and
+  prepares control, runs routing and refusing preflights, activates, prepares
+  the branch and composes from control, writes the launch audit on control
+  (only once preparation there succeeded, so a refusal records no launch),
+  switches, and spawns. The switch checks run before the audit and again,
+  under the state lock, at the switch; a failure after the switch reports
+  that the checkout was switched.
+- **Re-preflight after refresh.** After each control refresh during
+  preparation, the ticket's status, step and complete frozen workflow must
+  still match the copy already routed and preflighted, and
+  `checkout_policy.select_checkout_policy` is re-run on the refreshed
+  instructions. A changed workflow or policy refuses before further branch
+  work or spawn, even with an unchanged status and step index. New blackboard
+  notes and the preparation's own linkage publication do not change that
+  contract.
+- **Branch creation.** A create step reserves one name, creates it at control
+  without switching, writes `branch:`, publishes the ticket strictly, and
+  re-proves a clean control carrying that linkage. A preparation failure
+  withholds the sweep and keeps the reservation; once control's ticket
+  records the branch the reservation is dropped, so removing that line later
+  never brings back its name or base. After switching, the projected ticket's
+  blob is recorded as this worktree's publication provenance
+  ([git-regressions](../git-regressions/SKILL.md#the-provenance-check)).
+- **Contexts-root capture.** The boundary captures the contexts root at
+  admission and at each successful return, and keeps the previous root in
+  the next return's publication and cleanup membership, so a relocation
+  publishes both sides together. A script's own config reload before its
+  return callback cannot replace the captured root.
+- **Launch never changes directory.** `repl_supervisor.run_with_done_marker`
+  takes no `cwd` and `src/coga/` has no `os.chdir`: the session inherits the
+  cwd `coga launch` was typed in, and the boundary moves only that checkout's
+  HEAD.
+- **Committed recurring templates on a branch.** The sweep adopts committed
+  `coga/recurring/` changes from a feature branch onto control. This once
+  shipped `scope: clone` templates to main before the runner understood
+  `scope:`; the fix made the `ticket.py` shims bump `COGA_TASK_SLUG` when
+  set, so old code ran them as one-step periods.

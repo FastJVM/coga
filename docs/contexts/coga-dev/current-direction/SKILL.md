@@ -15,6 +15,13 @@ is `coga status` and the ticket bodies; stage posture is
 
 ## In force
 
+- **Two linked-worktree exceptions (2026-10-14).** Ticket work creates no
+  linked worktrees, except the recurring runner's temporary control worktree
+  for a parked checkout ([recurring temp worktrees](../internals/recurring-temp-worktrees/SKILL.md))
+  and Retro's isolated checkout, created and removed for one Retro pass so
+  Retro runs while the operator keeps working in the main tree. Revisit if
+  those worktrees leak or become operator-visible noise. Contract:
+  [`coga/checkouts`](../../coga/checkouts/SKILL.md).
 - **The microkernel cleanup is v1 scope (2026-10-16).** The six
   `microkernel/*` tickets came back from `_v2/`; v1 ships with
   `coga-dev/microkernel`'s "Open command placements" table empty. The target is the

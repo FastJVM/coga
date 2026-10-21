@@ -17,14 +17,12 @@ with exit 75, without publishing, switching branches, or starting an agent,
 even when the first chat's feature branch is clean. Finish the first chat
 or use a separate checkout; stateless tickets do not isolate shared files.
 
-The guard uses the resolved Git toplevel, so nested Coga roots and symlink
-spellings of one checkout share it; separate clones or linked checkouts do
-not. Its file lives outside the working tree in the per-user system temp
-directory. The OS releases the lock on supervisor process exit; the file
-is not a durable ownership record and must not be deleted to bypass a live
-session. A guard failure refuses rather than assuming the checkout is free.
-This is separate from the short state-publication lock, so agent subprocesses
-can still publish their ticket and log updates.
+The guard is per Git checkout: nested Coga roots and symlink spellings of
+one checkout share it; separate clones or linked checkouts do not. It is
+released when the supervisor process exits; never delete its lock file to
+bypass a live session. A guard failure refuses rather than assuming the
+checkout is free. Agent subprocesses can still publish their ticket and log
+updates while it is held.
 
 `--prompt-report`, delegated bootstrap sessions, other launch targets,
 Git-disabled and non-Git workspaces do not acquire this guard. It coordinates
@@ -56,18 +54,10 @@ returns the checkout when the chat ends, not after each turn. Without the
 guard (Git disabled, non-Git) no invocation is offered: follow the
 [manual procedure](../manual/SKILL.md).
 
-The guard's companion receipt (beside its lock file) records the live
-session, its supervisor, and the reserved name; reserving creates no branch.
-The first preparation pins the creation commit in that reservation before
-attempting to create the ref. Creation is recorded separately, only after the
-ref is verified at that commit. A failed creation or interrupted receipt write
-keeps the reservation: retrying the same command creates the missing ref or
-verifies the matching ref at the original commit, even if control advanced.
-A conflicting ref, a confirmed branch moved to a non-descendant, or deletion
-of an already-confirmed branch still refuses. The create-and-verify step is
-the one ticket preparation uses; only the receipt differs, because it is
-bound to the live guard rather than a task.
-It is installed and removed under the state lock with the guard, so a new
-chat never exposes an earlier session's receipt. The preparation recipe is a
-fixed `coga run` entry ([coga/extension-model](../../extension-model/SKILL.md));
-it is not a task: no ticket, workflow, transition, or blackboard.
+After a failed or interrupted preparation, retry the same command: it
+finishes creating the branch at the original commit even if control
+advanced. A conflicting ref, a confirmed branch moved to a non-descendant,
+or deletion of an already-confirmed branch still refuses. The preparation
+recipe is a fixed `coga run` entry
+([coga/extension-model](../../extension-model/SKILL.md)); it is not a task:
+no ticket, workflow, transition, or blackboard.
