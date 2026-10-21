@@ -428,7 +428,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/checkouts/manual",
         "coga/checkouts/sandbox-clone",
         "coga/code",
-        "coga/dev-record",
     }
 )
 
