@@ -5,7 +5,7 @@ description: How a checkout is brought level with the control branch — `git.re
 
 # Refreshing from control, staleness, and stranded writes
 
-Publishing is [`coga/state-publication`](../state-publication/SKILL.md);
+Publishing is [`coga-dev/internals/state-publication`](../state-publication/SKILL.md);
 this page is the inbound direction. State sync never copies control's Coga
 state into a feature checkout: only the local control branch moves, by
 fast-forward, or by *realignment* when its own local-only commits are proven

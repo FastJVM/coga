@@ -5,7 +5,7 @@ description: The `git.publish` primitive step by step, its wrappers, how best-ef
 
 # `publish`, its callers, and the state lock
 
-Part of [coga/state-publication](../SKILL.md).
+Part of [coga-dev/internals/state-publication](../SKILL.md).
 
 ## `publish` and its wrappers
 
