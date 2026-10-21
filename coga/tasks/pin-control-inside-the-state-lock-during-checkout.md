@@ -63,6 +63,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1076
 branch: fix/prep-pin-under-state-lock
 
 ## Plan (agreed with human 2026-10-20)
