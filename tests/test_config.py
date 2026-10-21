@@ -592,10 +592,11 @@ def test_autofix_agent_parsed(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text()
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[autofix]\nagent = "codex"\n'
+        + '\n[autofix]\nagent = "codex"\ncontexts = ["coga/architecture"]\n'
     )
     cfg = load_config(repo)
     assert cfg.autofix_agent == "codex"
+    assert cfg.autofix_contexts == ("coga/architecture",)
     assert cfg.default_agent().name == "claude"
 
 
@@ -629,6 +630,142 @@ def test_autofix_agent_non_string_rejected(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match=r"\[autofix\].agent must be a non-empty"):
         load_config(repo)
+
+
+@pytest.mark.parametrize(
+    "settings",
+    ["", "\n[autofix]\n", '\n[autofix]\nagent = "claude"\n',
+     "\n[autofix]\ncontexts = []\n"],
+)
+def test_autofix_contexts_default_to_empty(repo: Path, settings: str) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(toml.read_text() + settings)
+    assert load_config(repo).autofix_contexts == ()
+
+
+@pytest.mark.parametrize("contexts_root", ["contexts", "docs/contexts"])
+def test_autofix_contexts_resolve_locally_in_declaration_order(
+    layout_repo: Path, contexts_root: str,
+) -> None:
+    from coga.paths import resolve_context_path
+
+    refs = ("team/triage", "coga/architecture")
+    for ref in refs:
+        path = layout_repo / contexts_root / ref / "SKILL.md"
+        path.parent.mkdir(parents=True)
+        path.write_text(f"---\nname: {ref}\ndescription: Local guidance.\n---\nLocal {ref}.\n")
+    if contexts_root != "contexts":
+        _set_layout_contexts(layout_repo, contexts_root)
+    toml = layout_repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture"]\n'
+    )
+
+    cfg = load_config(layout_repo)
+
+    assert cfg.autofix_contexts == refs
+    assert cfg.autofix_agent is None  # A contexts-only table keeps agent fallback.
+    assert cfg.default_agent().name == "claude"
+    # Uncommitted, unignored contexts work, including an override of a bundle ref.
+    for ref in refs:
+        assert resolve_context_path(cfg, ref) == layout_repo / contexts_root / ref / "SKILL.md"
+
+
+@pytest.mark.parametrize("contexts_root", ["contexts", "docs/contexts"])
+def test_autofix_contexts_use_bundled_fallback(
+    layout_repo: Path, contexts_root: str,
+) -> None:
+    from coga.paths import bootstrap_context_path, resolve_context_path
+
+    if contexts_root != "contexts":
+        root = layout_repo / contexts_root
+        root.mkdir(parents=True)
+        (root / ".gitkeep").write_text("")
+        _set_layout_contexts(layout_repo, contexts_root)
+    toml = layout_repo / "coga.toml"
+    toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
+
+    cfg = load_config(layout_repo)
+
+    assert cfg.autofix_contexts == ("coga/architecture",)
+    assert resolve_context_path(cfg, "coga/architecture") == bootstrap_context_path(
+        cfg, "coga/architecture"
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "offender"),
+    [
+        ('"team/triage"', "'team/triage'"),
+        ("1", "1"),
+        ("true", "True"),
+        ('{ref = "team/triage"}', "{'ref': 'team/triage'}"),
+        ('[""]', "''"),
+        ('["  "]', "'  '"),
+        ('["\\t"]', "'\\t'"),
+        ('["coga/architecture", 1]', "1"),
+        ("[false]", "False"),
+        ('[["team/triage"]]', "['team/triage']"),
+    ],
+)
+def test_autofix_contexts_invalid_values_rejected(
+    repo: Path, value: str, offender: str,
+) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(toml.read_text() + f"\n[autofix]\ncontexts = {value}\n")
+
+    with pytest.raises(ConfigError) as exc:
+        load_config(repo)
+
+    assert "[autofix].contexts" in str(exc.value)
+    assert f"got {offender}" in str(exc.value)
+
+
+@pytest.mark.parametrize("require_user", [True, False])
+def test_autofix_contexts_missing_ref_fails_at_config_load(
+    repo: Path, require_user: bool,
+) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["team/missing"]\n')
+
+    with pytest.raises(ConfigError) as exc:
+        load_config(repo, require_user=require_user)
+
+    message = str(exc.value)
+    assert "[autofix].contexts" in message
+    assert "team/missing" in message
+    assert str(repo / "contexts" / "team" / "missing" / "SKILL.md") in message
+    assert "bootstrap/contexts/team/missing/SKILL.md" in message
+
+
+@pytest.mark.parametrize(
+    ("artifact", "reason"),
+    [("symlink", "symlink"), ("directory", "not a regular file"),
+     ("ignored", "neither tracked nor unignored")],
+)
+def test_autofix_contexts_reject_invalid_local_override_of_bundled_ref(
+    layout_repo: Path, artifact: str, reason: str,
+) -> None:
+    path = layout_repo / "contexts" / "coga" / "architecture" / "SKILL.md"
+    path.parent.mkdir(parents=True)
+    if artifact == "symlink":
+        path.symlink_to(layout_repo / "missing.md")
+    elif artifact == "directory":
+        path.mkdir()
+    else:
+        path.write_text("Local guidance.\n")
+        (layout_repo / ".gitignore").write_text("contexts/\n")
+    toml = layout_repo / "coga.toml"
+    toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
+
+    with pytest.raises(ConfigError) as exc:
+        load_config(layout_repo)
+
+    message = str(exc.value)
+    assert "[autofix].contexts" in message
+    assert "coga/architecture" in message
+    assert reason in message
 
 
 _CODEX_TABLE = '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
@@ -702,7 +839,7 @@ def test_default_agent_broken_shared_value_fails_even_when_local_wins(
 
 
 def test_autofix_unknown_key_rejected(repo: Path) -> None:
-    """One key, one branch: `[autofix]` is not a general agent-routing table."""
+    """`[autofix]` is not a general agent-routing table."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text() + '\n[autofix]\nmodel = "opus"\n'
     )
@@ -710,11 +847,12 @@ def test_autofix_unknown_key_rejected(repo: Path) -> None:
         load_config(repo)
 
 
-def test_autofix_table_is_shared_only(repo: Path) -> None:
-    """Which vendor analyzes the sweep is repo policy, so the table is rejected
+@pytest.mark.parametrize("settings", ['agent = "claude"', "contexts = []"])
+def test_autofix_table_is_shared_only(repo: Path, settings: str) -> None:
+    """Autofix defaults are repo policy, so the table is rejected
     from `coga.local.toml` like `[layout]` and `[launch]`."""
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text() + '\n[autofix]\nagent = "claude"\n'
+        (repo / "coga.local.toml").read_text() + f"\n[autofix]\n{settings}\n"
     )
     with pytest.raises(ConfigError, match=r"coga.local.toml has unknown key\(s\).*autofix"):
         load_config(repo)

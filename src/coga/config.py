@@ -179,6 +179,9 @@ class Config:
     # without changing the default or rerouting the whole sweep.
     # Read by `coga.recurring_autofix._analyze_agent`; nothing else does.
     autofix_agent: str | None = None
+    # Shared `[autofix].contexts`, resolved at load and attached in declaration
+    # order to newly generated autofix tickets. Empty means no defaults.
+    autofix_contexts: tuple[str, ...] = ()
     # Agent type named by top-level `default_agent`, machine-local
     # `coga.local.toml` winning over shared `coga.toml`. None means unset in
     # both and `default_agent()` falls back to the first-declared `[agents.*]`
@@ -420,7 +423,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     ) = _parse_launch(shared.get("launch"))
     contexts_dir = _parse_layout(shared.get("layout"), root)
     upstream_checkouts = _parse_upstream(local.get("upstream"))
-    autofix_agent = _parse_autofix(shared.get("autofix"), agents)
+    autofix_agent, autofix_contexts = _parse_autofix(shared.get("autofix"), agents)
     authoring_agent = _parse_authoring(local.get("authoring"))
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
@@ -449,7 +452,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
             )
         current_user = ""
 
-    return Config(
+    cfg = Config(
         repo_root=root,
         current_user=current_user,
         default_status=default_status,
@@ -476,9 +479,28 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         contexts_dir=contexts_dir,
         upstream_checkouts=upstream_checkouts,
         autofix_agent=autofix_agent,
+        autofix_contexts=autofix_contexts,
         default_agent_name=default_agent_name,
         authoring_agent=authoring_agent,
     )
+    if cfg.autofix_contexts:
+        # paths imports Config; defer this import until the config is built so
+        # defaults use the same local-first artifact checks as composition.
+        from coga.paths import context_resolution_paths, resolve_context_path
+
+        for ref in cfg.autofix_contexts:
+            try:
+                path = resolve_context_path(cfg, ref)
+            except ConfigError as exc:
+                raise ConfigError(f"[autofix].contexts reference {ref!r}: {exc}") from exc
+            if path is None:
+                checked = ", ".join(str(p) for p in context_resolution_paths(cfg, ref))
+                raise ConfigError(
+                    f"[autofix].contexts references context {ref!r}, but no context "
+                    f"file exists for it. Checked: {checked}. Create one of those "
+                    f"files or remove {ref!r} from [autofix].contexts."
+                )
+    return cfg
 
 
 # --- parsing helpers -----------------------------------------------------------
@@ -587,10 +609,9 @@ _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
 # so it is deliberately absent from `_ALLOWED_LOCAL_SECTIONS`: one clone must
 # not resolve a context ref somewhere another clone doesn't.
 _ALLOWED_LAYOUT_KEYS: frozenset[str] = frozenset({"contexts"})
-# `[autofix]` is likewise shared-only: which vendor analyzes the sweep is team
-# policy, and it is deliberately one key — not a per-command agent-routing
-# table. See `Config.autofix_agent`.
-_ALLOWED_AUTOFIX_KEYS: frozenset[str] = frozenset({"agent"})
+# `[autofix]` is likewise shared-only: the analyst and generated tickets'
+# contexts are repo policy. See `Config.autofix_agent` and `autofix_contexts`.
+_ALLOWED_AUTOFIX_KEYS: frozenset[str] = frozenset({"agent", "contexts"})
 # `[upstream]` is the mirror image of `[layout]`: local-only, never shared.
 # Its `checkouts` are absolute paths to *other* repos on this machine, so
 # committing them in coga.toml would name directories no other clone has.
@@ -1690,34 +1711,46 @@ def _parse_authoring(local: object) -> str:
     return value.strip()
 
 
-def _parse_autofix(shared: object, agents: dict[str, AgentType]) -> str | None:
-    """Parse `[autofix] agent` — the analyst's own agent type, or None if unset.
+def _parse_autofix(
+    shared: object, agents: dict[str, AgentType],
+) -> tuple[str | None, tuple[str, ...]]:
+    """Parse `[autofix]` analyst selection and generated-ticket context refs.
 
-    The value must name a type in the effective `[agents.*]` table (shared and
-    machine-local merged), checked here rather than when the sweep ends: a
-    typo that only surfaced after a full unattended sweep would be reported by
-    the very analyst it misconfigured. An absent table changes nothing —
-    `_analyze_agent` keeps falling back to `default_agent()`.
+    Validate the agent against the effective shared/local agent table here;
+    load_config resolves contexts once Config carries the effective root.
+    Both keys are optional. An absent agent keeps default_agent() fallback.
     """
     if shared is None:
-        return None
+        return None, ()
     if not isinstance(shared, dict):
         raise ConfigError(f"[autofix] must be a table (got {type(shared).__name__})")
     _reject_unknown_keys(shared, _ALLOWED_AUTOFIX_KEYS, "[autofix]")
-    if "agent" not in shared:
-        return None
-    value = shared["agent"]
-    if not isinstance(value, str) or not value.strip():
+    name = None
+    if "agent" in shared:
+        value = shared["agent"]
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(
+                f"[autofix].agent must be a non-empty agent type name (got {value!r})"
+            )
+        name = value.strip()
+        if name not in agents:
+            raise ConfigError(
+                f"[autofix].agent names {name!r}, which is not defined in [agents]. "
+                f"Known: {sorted(agents)}."
+            )
+    contexts = shared.get("contexts", [])
+    if not isinstance(contexts, list):
         raise ConfigError(
-            f"[autofix].agent must be a non-empty agent type name (got {value!r})"
+            "[autofix].contexts must be a list of non-empty context refs "
+            f"(got {contexts!r})"
         )
-    name = value.strip()
-    if name not in agents:
-        raise ConfigError(
-            f"[autofix].agent names {name!r}, which is not defined in [agents]. "
-            f"Known: {sorted(agents)}."
-        )
-    return name
+    for index, ref in enumerate(contexts):
+        if not isinstance(ref, str) or not ref.strip():
+            raise ConfigError(
+                f"[autofix].contexts[{index}] must be a non-empty context ref "
+                f"(got {ref!r})"
+            )
+    return name, tuple(contexts)
 
 
 def _parse_default_agent(
