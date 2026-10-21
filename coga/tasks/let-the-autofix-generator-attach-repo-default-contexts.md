@@ -1,6 +1,6 @@
 ---
 title: Let the autofix generator attach repo-default contexts
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
