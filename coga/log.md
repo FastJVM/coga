@@ -8897,3 +8897,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 11:15 v1 [count-failed-important-alerts-in-recurring-problem] [human:nicktoper] created (status=draft)
 2026-10-21 11:16 v1 [match-dream-report-headings-only-in-the-blackboard] [human:nicktoper] created (status=draft)
 2026-10-21 11:16 v1 [triage-dream-eligibility-drift-in-client-templates] [human:nicktoper] created (status=draft)
+2026-10-21 11:22 v1 [publish-coga-0-4-1-to-pypi-which-main-already-decl] [agent:claude] task done — 0.4.1 already on PyPI; wheel matches v0.4.1 source, fresh install passes. Attended checks skipped by owner decision.

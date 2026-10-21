@@ -1,6 +1,6 @@
 ---
 title: Publish coga 0.4.1 to PyPI, which main already declares
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
 agent: claude
 ---
 
