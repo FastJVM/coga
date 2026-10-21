@@ -140,6 +140,7 @@ task-specific guidance, and each topic remains the owner of its contract.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1079
 branch: coga/let-the-autofix-generator-attach-repo-default-co-140a79
 
 ## Implement handoff
