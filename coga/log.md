@@ -8889,3 +8889,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 11:05 v1 [publish-coga-0-4-1-to-pypi-which-main-already-decl] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-21 11:05 v1 [publish-coga-0-4-1-to-pypi-which-main-already-decl] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-21 11:06 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-21 11:05 v1 [let-the-autofix-generator-attach-repo-default-contexts] [human:nicktoper] ticket authoring launched (interviewer=codex, agent=codex)
