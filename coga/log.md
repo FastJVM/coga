@@ -8940,3 +8940,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 15:03 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-21 15:03 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-21 15:03 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-21 15:27 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [agent:claude] advanced to step 2 (peer-review) → codex
