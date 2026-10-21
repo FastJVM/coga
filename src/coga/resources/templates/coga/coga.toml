@@ -11,8 +11,8 @@ default_status = "draft"
 # (local wins); either value must name a configured type or config load fails.
 # Activation writes it into the ticket's `agent:`, so changing it affects only
 # tickets activated afterwards. It does not move `coga chat` or `coga ticket`:
-# their packaged tickets pin `agent: claude`, so use `--agent` or
-# `[authoring] agent` in coga.local.toml for those.
+# their packaged tickets pin `agent: claude`. Use `--agent` for either command;
+# `[authoring] agent` in coga.local.toml also selects the `coga ticket` interviewer.
 # default_agent = "claude"
 
 # Optional: the one operator who may run recurring sweeps in this repo.
