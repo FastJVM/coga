@@ -38,7 +38,17 @@ gate, not your say-so.
    a one-line reason in a queue run. Those steps are also not finished while
    a review they ordered is still running — see *Refuse to publish ahead of a
    review in flight* below before you run anything.
-2. **Run `coga open-pr <slug>` from `main`.** Never switch to the feature
+2. **Account for obligations the merge will not discharge.** Merging this PR
+   closes the ticket unconditionally (`coga/workflows`, "Obligations the
+   merge does not discharge"). Read the ticket's Done or acceptance criteria
+   and the blackboard for open items. Each one must be discharged by the
+   merge itself or already be filed as its own draft (`coga create`) and
+   linked from the handoff. File any that are missing before you run
+   `coga open-pr`, and link them on the blackboard. If you can't tell whether
+   an item is owed, or the obligation means the work does not belong on a
+   merge-closed workflow, escalate per your launch mode instead of
+   publishing.
+3. **Run `coga open-pr <slug>` from `main`.** Never switch to the feature
    branch for this step: the command checks and pushes it by name, and
    refuses to run on any branch other than `main`. **Never hand-open the PR
    with `gh pr create` to route around a refusal** without explicit human
@@ -75,14 +85,14 @@ gate, not your say-so.
    instead of overwriting it; notes outside the markers survive. An unmarked
    legacy PR is adopted with its old body kept below the generated region
    when its title is still the ticket title; a human-renamed one refuses.
-3. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
+4. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
    `## Dev`, run `coga bump <slug>` from `main` to hand off to the next step.
    The bump's `requires: pr` gate will pass because the URL is now recorded.
    The checkout never left `main`, so there is nothing to return from.
 
 ## Refuse to publish ahead of a review in flight
 
-Alongside the "never hand-open the PR" guard in step 2, this step carries a
+Alongside the "never hand-open the PR" guard in step 3, this step carries a
 second refusal: **a step must not be bumped, and `coga open-pr` must not run,
 while the review that step ordered is still in flight.** Mergeability belongs to
 the earlier implement / peer-review step, and that step is not complete when a
@@ -190,6 +200,8 @@ Fix the cause and re-run it — it is idempotent:
 - The preceding step's direct review has completed or its review tool has
   returned, and its must-fix findings are addressed or explicitly deferred by
   the owner.
+- Every obligation the merge will not discharge is filed as its own draft
+  and linked from the handoff.
 - `coga open-pr <slug>` has been run and `pr: <url>` is recorded under `## Dev`.
 - `coga bump <slug>` has advanced the workflow (its `requires: pr` gate passed).
 

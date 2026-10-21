@@ -33,9 +33,12 @@ later `code/open-pr` step does that, after review and fixes.
    no branch, diff, or PR to create, do not manufacture one and do not
    `coga block` — a blocker is for an unanswered human question, not for
    finished work. Write per-item evidence under `## Already satisfied`
-   on the blackboard, then run `coga mark done <slug>` and stop. Use this
-   only when the evidence is concrete; if a human decision is genuinely
-   needed, escalate that ask per your launch mode instead (ask the
+   on the blackboard. Before closing, file every open item the ticket or
+   blackboard still records as its own draft (`coga create`) and link it,
+   since a closed ticket owns nothing (`coga/workflows`, "Obligations the
+   merge does not discharge"). Then run `coga mark done <slug>` and stop.
+   Use this only when the evidence is concrete; if a human decision is
+   genuinely needed, escalate that ask per your launch mode instead (ask the
    attending human; `coga block` in a queue run).
 3. **Start check, then branch.** Follow `dev/checkouts` ("Start, work,
    end"). Under the launch witness, confirm HEAD is a clean `main` at
