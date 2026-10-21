@@ -500,6 +500,12 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
                     f"file exists for it. Checked: {checked}. Create one of those "
                     f"files or remove {ref!r} from [autofix].contexts."
                 )
+    if contexts_dir is not None:
+        # Check the rest of a relocated tree after autofix refs so an invalid
+        # configured default retains its setting and ref in the diagnostic.
+        checkout = find_checkout_root(root)
+        assert checkout is not None
+        _require_trackable_context_entry(checkout, contexts_dir)
     return cfg
 
 
@@ -1275,7 +1281,7 @@ def _parse_git(shared: dict | None) -> tuple[str, str, bool]:
 def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     """Resolve `[layout] contexts` to an absolute directory, or None if unset.
 
-    Every check here is fail-loud on purpose. `resolve_context_path` falls back
+    Root checks here are fail-loud on purpose. `resolve_context_path` falls back
     to the packaged `bootstrap/contexts/` batteries when a ref misses locally,
     which is right for a single missing ref and catastrophic for a mistyped
     *directory*: every repo-local context would silently vanish from composed
@@ -1285,9 +1291,10 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     The value is a relative path anchored at the git checkout root (see
     `find_checkout_root`), and must resolve to a reproducible child directory
     inside that checkout. Absolute/outside/checkout-root paths, symlinked path
-    components, Git pathspec metacharacters, and empty or ignored context trees
-    are rejected — coga's state is git-backed, so the directory must be safely
-    selectable and survive a clone.
+    components and Git pathspec metacharacters are rejected here. load_config
+    checks tree trackability after validating autofix refs so their failures
+    identify the configured default. Empty or ignored trees still fail load:
+    coga's state is git-backed, so the directory must survive a clone.
 
     An unset key skips all of it, so a repo that never touches `[layout]`
     behaves exactly as it did before the key existed.
@@ -1306,9 +1313,6 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
         raise ConfigError(
             f"[layout].contexts points at {resolved}, which is not a directory."
         )
-    checkout = find_checkout_root(repo_root)
-    assert checkout is not None
-    _require_trackable_context_entry(checkout, resolved)
     return resolved
 
 
@@ -1359,9 +1363,9 @@ def _parse_upstream(raw: object) -> tuple[Path, ...]:
 def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
     """Resolve `[layout] contexts` without requiring its target to exist.
 
-    Config loading adds the filesystem and Git-trackability checks in
-    `_parse_layout`. Fresh scaffolding uses this location-only half before it
-    copies anything, so `coga init` can materialize its context templates at
+    `_parse_layout` checks the directory; load_config validates its artifacts
+    and Git trackability. Fresh scaffolding uses this location-only half
+    before copying anything, so `coga init` can materialize its templates at
     the configured destination without first creating a knowingly-invalid
     default tree.
     """

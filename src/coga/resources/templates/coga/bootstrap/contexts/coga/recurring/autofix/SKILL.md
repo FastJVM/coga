@@ -94,8 +94,10 @@ the last run's output into the next run's instructions.
   declaration order to every newly generated `autofix/` ticket; existing
   tickets keep their contexts. An absent table/key or `contexts = []` attaches
   none, and a contexts-only table keeps the agent fallback above. Non-string
-  or blank entries fail config loading. Every ref must resolve at config
-  load through the [context layout](../../context-layout/SKILL.md): the
+  or blank entries fail config loading. Errors for these defaults name
+  `[autofix].contexts` and the offending value or ref, including invalid local
+  overrides under a relocated root. Every ref must resolve at config load
+  through the [context layout](../../context-layout/SKILL.md): the
   effective local root (including `[layout] contexts`) first, bundled fallback
   only when the local artifact is absent. An invalid local override is an
   error even when a bundled copy exists. A missing ref deliberately stops

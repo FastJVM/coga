@@ -744,18 +744,22 @@ def test_autofix_contexts_missing_ref_fails_at_config_load(
     [("symlink", "symlink"), ("directory", "not a regular file"),
      ("ignored", "neither tracked nor unignored")],
 )
+@pytest.mark.parametrize("contexts_root", ["contexts", "docs/contexts"])
 def test_autofix_contexts_reject_invalid_local_override_of_bundled_ref(
-    layout_repo: Path, artifact: str, reason: str,
+    layout_repo: Path, artifact: str, reason: str, contexts_root: str,
 ) -> None:
-    path = layout_repo / "contexts" / "coga" / "architecture" / "SKILL.md"
+    path = layout_repo / contexts_root / "coga" / "architecture" / "SKILL.md"
     path.parent.mkdir(parents=True)
+    (layout_repo / contexts_root / ".gitkeep").write_text("")
+    if contexts_root != "contexts":
+        _set_layout_contexts(layout_repo, contexts_root)
     if artifact == "symlink":
         path.symlink_to(layout_repo / "missing.md")
     elif artifact == "directory":
         path.mkdir()
     else:
         path.write_text("Local guidance.\n")
-        (layout_repo / ".gitignore").write_text("contexts/\n")
+        (layout_repo / ".gitignore").write_text(f"{contexts_root}/**/SKILL.md\n")
     toml = layout_repo / "coga.toml"
     toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
 
@@ -1908,8 +1912,9 @@ def test_layout_contexts_ignored_root_rejected_even_with_tracked_context(
         load_config(layout_repo)
 
 
+@pytest.mark.parametrize("with_autofix_defaults", [False, True])
 def test_layout_contexts_ignored_context_rejected_even_with_trackable_marker(
-    layout_repo: Path,
+    layout_repo: Path, with_autofix_defaults: bool,
 ) -> None:
     contexts = layout_repo / "docs" / "contexts"
     context = contexts / "team" / "style" / "SKILL.md"
@@ -1918,6 +1923,9 @@ def test_layout_contexts_ignored_context_rejected_even_with_trackable_marker(
     (contexts / ".gitkeep").write_text("")
     (layout_repo / ".gitignore").write_text("docs/contexts/**/SKILL.md\n")
     _set_layout_contexts(layout_repo, "docs/contexts")
+    if with_autofix_defaults:
+        toml = layout_repo / "coga.toml"
+        toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
 
     with pytest.raises(ConfigError, match="context file is neither tracked nor unignored"):
         load_config(layout_repo)
