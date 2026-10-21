@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -166,4 +166,73 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 branch: coga/blocks-02-delete-the-code-topic-and-remove-coga--23a0ec
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implement handoff (2026-10-21)
+
+Done on the branch (commit `d487710bb`), all twins byte-identical:
+
+- Deleted `coga/code` (both copies; dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`).
+  Repointed `architecture` map, `lifecycle` (→ `blackboard#superseded-designs`),
+  `docs/README.md`, `coga-dev/codebase`. The "record is explicit, not inferred
+  from the slug" rationale is now a paragraph in `coga/checkouts` intro.
+- Coga-repo-only text: `checkout-cleanup` archive link dropped;
+  `recurring/scheduling` upstream-coga sentence dropped (its own ticket states
+  `scope: clone`); `context-layout` override sentence → `coga-dev/packaging`;
+  `important` usage-report example generalized (usage-report ticket owns its
+  routing); `knowledge` three archive rows → one generic row, Coga's paths →
+  `coga-dev/archive-access`; `skill-management` google/anthropic examples
+  generalized, pack decision → `coga-dev/current-direction`; `tickets/discovery`
+  relay-os pathspecs → `coga-dev/codebase/gotchas`; `usage` subscription clause
+  and archive links dropped, links → `coga-dev/internals/activity-capture`.
+- Known gaps → drafts (top level): `guard-foreign-linked-worktree-branch-cleanup`,
+  `fail-the-branch-sweep-when-local-branch-enumeratio`,
+  `name-unlaunched-created-periods-when-the-recurring`,
+  `report-failed-create-syncs-from-named-recurring-la`. Paragraphs deleted;
+  `checkout-cleanup` "known gap below" pointer rewritten as a behavior fact.
+- `sandboxes`: trigger is now "creating the feature branch fails because the
+  primary `.git` is read-only". `cli`: `prepare-checkout` added to recipes.
+- Left alone on purpose: `workflows` "known gaps in PRs #1058…" (W43 history,
+  ticket 08); `tests/test_init.py` synthetic `coga/code` fixture strings;
+  `docs/release-notes/context-audiences.md` rename table (history, not a link);
+  `sandbox-clone` "this repo's checkout root" (means the adopting repo).
+- Audit disagreement: none.
+
+**Incident — main is red until this PR lands.** Running `coga create` with the
+docs edits uncommitted made its exit sweep publish the whole `docs/contexts/`
+half to main as `001aad66f` "Sync coga state" (the contexts root is Coga state).
+Main therefore has the canonical edits and the `coga/code` deletion but not the
+packaged twins or the `test_packaging.py` line: on `origin/main` (a0982d68c)
+`tests/test_packaging.py` has 3 failures. After rebase this branch's diff is
+only the twins + test (18 files). Lesson: commit before any mutating `coga`
+command when contexts-root files are dirty.
+
+Pre-existing, unrelated: `coga validate --json` exits 1 on
+`marketing/fix-installer/find-out-what-macos-actually-ships`
+(`unsynthesized-draft-blackboard`); same 48 issues on main.
+
+## PR
+
+```yaml
+title: Delete coga/code and strip Coga-repo-only text from shipped topics
+author:
+  agent: claude
+  model: claude-opus-5-5
+head: d487710bb3d18bf1b9351b356bae6afd71325284
+base: a0982d68cd1f9c3648db491c99b50d84a0460b9d
+review_depth: standard
+review_depth_rationale: Docs-only twin sync plus one test-list line; the canonical half already landed on main via an accidental state sweep, so this PR restores twin byte-identity.
+implementation: Packaged twins of the edited coga/* topics, deletion of the packaged coga/code topic, and removal of coga/code from REQUIRED_BOOTSTRAP_CONTEXT_REFS. The canonical docs/contexts edits are already on main (001aad66f).
+deviations: Canonical half landed on main outside the PR (see blackboard incident).
+limitations: None known.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/**: packaged twins of the canonical edits; code/ deleted
+  docs/README.md: drop the coga/code overview link
+  tests/test_packaging.py: drop coga/code from required bootstrap refs
+review: not run; code review is a later workflow step
+checks:
+  - command: .venv/bin/python -m pytest -q
+    result: 3955 passed, 7 skipped (pre-rebase tree; content identical after rebase)
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py
+    result: 30 passed at d487710bb
+  - command: coga validate --json
+    result: exit 1, 48 issues, the single error pre-existing and unrelated; identical count on main
+```
