@@ -12,7 +12,7 @@ under `## Dev`.
 The contract callers depend on is the **bare PR URL on stdout** (so
 `$(coga open-pr <slug>)` captures exactly the URL). The command runs from the
 launch checkout on the control branch and checks the recorded branch by name;
-only a recorded sandbox clone (`worktree:`, see `dev/checkouts`) is entered.
+only a recorded sandbox clone (`worktree:`, see `coga/checkouts`) is entered.
 """
 
 from __future__ import annotations
@@ -901,7 +901,7 @@ def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
     the control branch, which holds the authoritative ticket, and pushes the
     `## Dev` branch by name (from inside a recorded sandbox clone when there is
     one). Every code step returns the checkout to the control branch before
-    its handoff (`dev/checkouts`), so no feature-branch mode exists.
+    its handoff (`coga/checkouts`), so no feature-branch mode exists.
 
     Stdout carries the bare PR URL and nothing else; every refusal goes to
     stderr and returns 2, so nothing advances and the open-pr step's
@@ -950,7 +950,7 @@ def _checkout_mode(cfg: Config) -> str | None:
     return (
         "`coga open-pr` must run from the launch checkout on "
         f"{cfg.git_control_branch!r}, not branch {actual!r}. Return to "
-        f"{cfg.git_control_branch!r} (`dev/checkouts`, end of step) and rerun "
+        f"{cfg.git_control_branch!r} (`coga/checkouts`, end of step) and rerun "
         "it; the command pushes the recorded feature branch by name."
     )
 

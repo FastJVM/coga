@@ -134,14 +134,14 @@ agent owns the step. Unknown tokens fail. Human rewinds are never gated.
 
 Tokens own their predicate and remediation; bump hardcodes no skill name, and
 gate transitions publish only to control. Branch and PR mechanics are
-[dev/checkouts](../../dev/checkouts/SKILL.md) and
+[coga/checkouts](../checkouts/SKILL.md) and
 [coga/pr-publication](../pr-publication/SKILL.md).
 
 Gates are exit checks only: no gate, role, or step name says where a step
 starts. Launch selects entry checkouts from a closed table of shipped
 workflow steps whose consumed instructions match the packaged ones, and
 gives every other step manual guidance; that table belongs to
-[dev/checkouts](../../dev/checkouts/SKILL.md#which-checkout-a-step-starts-in).
+[coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in).
 Workflow definitions and frozen snapshots carry no checkout field.
 
 ## Branch gate scope

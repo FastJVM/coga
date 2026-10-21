@@ -61,10 +61,10 @@ Shipped behavior points at some topics a naive reading would file as Coga-dev,
 so those must stay `user`:
 
 - The base prompt (`src/coga/resources/prompt.md`) tells every launched agent
-  in every repo to read `dev/checkouts/launch-boundary` and
-  `dev/checkouts/reconciliation` "from the configured contexts root or the
+  in every repo to read `coga/checkouts/launch-boundary` and
+  `coga/checkouts/reconciliation` "from the configured contexts root or the
   bundled package".
-- Core source strings cite `dev/checkouts`, `dev/checkout-cleanup` (and its
+- Core source strings cite `coga/checkouts`, `coga/checkout-cleanup` (and its
   `terminal-owners` / `branch-sweep` children), and `coga/codebase/gotchas`.
   Modules include `launch`, `open_pr`, `autoclose`, `branchsweep`,
   `branchcleanup`, `retire_worklist`, `config`, `step_gate`,

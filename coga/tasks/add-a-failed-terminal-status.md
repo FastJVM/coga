@@ -36,7 +36,7 @@ agent: claude
 
 ## Description
 
-Owner decision (2026-10-14), revising #1014. A terminal ticket can end three ways, and they need different retirement: done (positive learning landed in the merged PR); canceled (superseded, duplicate or no longer wanted, so nothing to learn, and the --message reason persists in coga/log.md); and the new failed (an approach was tried and did not work, so there is negative learning to extract: what was tried, why it failed, what would reopen it). Add `failed` as a third terminal status, set with `coga mark failed --message <reason>` (reason required, as for canceled). Retirement: `coga retire` deletes done and canceled tickets deterministically with no agent (checkout disposal, worklist discharge, `coga delete` and sync), and runs the Retro task (retro/done-ticket through retire.md) only on failed tickets, extracting the lesson into the topic that owns the subject, per the coga/knowledge rule that a decision not to act is owned by the topic, not the ticket. Rejected alternatives: one canceled status with no Retro, since failure lessons would depend on remembering to write them; and a --retro flag on cancel, since an explicit status is clearer. Design step: inventory every consumer of the status set and of the literal 'canceled' (src/coga/lifecycle.py VALID_STATUSES, TERMINAL_STATUSES and CANCELABLE_STATUSES; mark, megalaunch, views/coga status, notifications and GIF kinds, git/state publication, recurring and recurring_runner, retire, autoclose and branch-sweep terminal-owner rules, validate, create), and decide for each whether failed behaves like canceled. Decide the notification emoji and GIF key, whether autoclose or recurring can ever produce failed, and how Dream Phase 4 and Phase 6 and bootstrap/dream/scan/knowledge-scan route failed versus canceled findings (#1014 routed canceled to Retro). Update coga/lifecycle (status table and terminal rules), coga/tickets/discovery, dev/checkout-cleanup and its terminal-owners leaf, coga/recurring/dream/ticket.md, coga/notifications and the cli index, with live and packaged twins byte-identical. Done means: three terminal statuses with distinct retirement as above, no prompt or topic still promising Retro for canceled tickets, tests covering mark failed and retire for each terminal status, and the full suite and coga validate passing.
+Owner decision (2026-10-14), revising #1014. A terminal ticket can end three ways, and they need different retirement: done (positive learning landed in the merged PR); canceled (superseded, duplicate or no longer wanted, so nothing to learn, and the --message reason persists in coga/log.md); and the new failed (an approach was tried and did not work, so there is negative learning to extract: what was tried, why it failed, what would reopen it). Add `failed` as a third terminal status, set with `coga mark failed --message <reason>` (reason required, as for canceled). Retirement: `coga retire` deletes done and canceled tickets deterministically with no agent (checkout disposal, worklist discharge, `coga delete` and sync), and runs the Retro task (retro/done-ticket through retire.md) only on failed tickets, extracting the lesson into the topic that owns the subject, per the coga/knowledge rule that a decision not to act is owned by the topic, not the ticket. Rejected alternatives: one canceled status with no Retro, since failure lessons would depend on remembering to write them; and a --retro flag on cancel, since an explicit status is clearer. Design step: inventory every consumer of the status set and of the literal 'canceled' (src/coga/lifecycle.py VALID_STATUSES, TERMINAL_STATUSES and CANCELABLE_STATUSES; mark, megalaunch, views/coga status, notifications and GIF kinds, git/state publication, recurring and recurring_runner, retire, autoclose and branch-sweep terminal-owner rules, validate, create), and decide for each whether failed behaves like canceled. Decide the notification emoji and GIF key, whether autoclose or recurring can ever produce failed, and how Dream Phase 4 and Phase 6 and bootstrap/dream/scan/knowledge-scan route failed versus canceled findings (#1014 routed canceled to Retro). Update coga/lifecycle (status table and terminal rules), coga/tickets/discovery, coga/checkout-cleanup and its terminal-owners leaf, coga/recurring/dream/ticket.md, coga/notifications and the cli index, with live and packaged twins byte-identical. Done means: three terminal statuses with distinct retirement as above, no prompt or topic still promising Retro for canceled tickets, tests covering mark failed and retire for each terminal status, and the full suite and coga validate passing.
 
 ### Acceptance criteria
 
@@ -170,11 +170,11 @@ notification, counts). Both are "terminal, did not land, never reactivated".
      cancellation rules → "terminal rules".
    - `coga/tickets/discovery`: "`coga retire` accepts only a terminal
      (`done`, `failed` or `canceled`) ticket".
-   - `dev/checkout-cleanup`: retire section — done and canceled deterministic,
+   - `coga/checkout-cleanup`: retire section — done and canceled deterministic,
      failed gets the Retro task; kept-checkout paragraph split "done or
      canceled" vs "failed"; record the 2026-10-14 owner decision revising
      2026-10-13 and the two rejected alternatives (single canceled with no
-     Retro; `--retro` flag). `dev/checkout-cleanup/terminal-owners`: "owner
+     Retro; `--retro` flag). `coga/checkout-cleanup/terminal-owners`: "owner
      must be `done`, `failed` or `canceled`"; "When it runs" adds
      `coga mark failed`; "A canceled or failed ticket deleted before any
      pass ran...".
@@ -217,7 +217,7 @@ notification, counts). Both are "terminal, did not land, never reactivated".
      period: terminal, refused by `--force`, delete to rerun),
      `coga/recurring/templates`, `coga/recurring/phone-home/ticket.md` (`tickets_failed`),
      `coga/workflows` (unfrozen-workflow accepted on canceled and failed),
-     `dev/dev-record`, branch-sweep sweep skill (live `coga/skills/...` +
+     `coga/dev-record`, branch-sweep sweep skill (live `coga/skills/...` +
      packaged), `code/with-review` and `docs/with-review` workflows,
      `bootstrap/ticket` skill status lists: add `failed` wherever they
      enumerate terminal statuses.
@@ -375,7 +375,7 @@ workflow and sends this review to the owner next. No code or spec edits made.
    design. Step 6 names `code/with-review` and `docs/with-review` but omits
    this active workflow; a canceled-only grep cannot catch it. Include it
    in the retirement-semantics audit, preferably replacing the duplicated
-   procedure with a short link to `dev/checkout-cleanup` per `coga/knowledge`.
+   procedure with a short link to `coga/checkout-cleanup` per `coga/knowledge`.
 
 ### Optional recommendations and owner choices
 

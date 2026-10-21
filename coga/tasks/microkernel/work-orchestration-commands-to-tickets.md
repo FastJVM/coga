@@ -6,7 +6,7 @@ agent: codex
 contexts:
   - coga-dev/principles
   - coga/megalaunch
-  - dev/checkout-cleanup
+  - coga/checkout-cleanup
   - coga/notifications
   - coga/recurring/scheduling
   - coga-dev/codebase
@@ -15,7 +15,7 @@ contexts:
   - coga-dev/microkernel
   - coga-dev/project-stage
   - coga/cli
-  - dev/checkouts
+  - coga/checkouts
 workflow: code/design-then-implement
 ---
 
@@ -43,7 +43,7 @@ record why it must be co-versioned with the package.
 - [ ] Human-visible side effects stay durable (blackboards, `coga/log.md`,
       sync commits, notifications).
 - [ ] The three heads leave (retire through its follow-up) the "Open command placements" table (both
-      copies); `coga/megalaunch`, `dev/checkout-cleanup`,
+      copies); `coga/megalaunch`, `coga/checkout-cleanup`,
       `coga/notifications` and the `coga/cli` index match; tests pass.
       Retire's exit is implemented on branch `retire-command-ticket`
       (`microkernel/move-retire-to-a-command-ticket`, pending review and

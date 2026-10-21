@@ -74,7 +74,7 @@ Confirm `gh auth status` succeeds. Then, in the launch checkout:
    with this ticket projected unstaged from control as the only entry dirt;
    never stage or commit it with a fix. A notice that reports kept local
    commits means reconcile before pushing. If the notice says no branch was
-   prepared, perform the `dev/checkouts` manual start check and switch.
+   prepared, perform the `coga/checkouts` manual start check and switch.
 2. Verify HEAD is `<branch-name>` and nothing else is dirty. Do not absorb
    unrelated local changes or stage `coga/log.md` with a fix. If anything
    differs, stop and ask the attending human; do not stash, commit, or
@@ -266,7 +266,7 @@ gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutatio
 In a recorded legacy checkout, finish on the recorded branch and leave the
 launch-published Coga state as it is. Otherwise finish on the feature branch
 when launch returns the checkout (the notice says so); a manual session runs
-the `dev/checkouts` end-of-step return, stopping to ask instead of
+the `coga/checkouts` end-of-step return, stopping to ask instead of
 discarding anything unpublished or outside Coga state.
 Then give the attending human a compact list of addressed
 threads, the pushed commit, the exact test result, and anything that still

@@ -7,8 +7,8 @@ contexts:
 - coga-dev/codebase
 - coga/state-publication
 - coga-dev/internals/state-publication
-- dev/checkouts
-- dev/checkout-cleanup
+- coga/checkouts
+- coga/checkout-cleanup
 workflow:
   name: code/with-review
   steps:
@@ -33,7 +33,7 @@ step: 1 (implement)
 
 Make dev-task code work happen in a dedicated git worktree at a
 deterministic, slug-keyed path, and clean that worktree up when the task
-finishes. Today `dev/code/SKILL.md` only says "a path outside the primary
+finishes. Today `coga/code/SKILL.md` only says "a path outside the primary
 checkout," so agents scatter worktrees into `~/code` next to real repos and
 nothing ever removes them. The result is litter that accumulates forever.
 
@@ -57,7 +57,7 @@ which deterministic placement + automatic cleanup fixes.
 sync works — worktree lifecycle intersects with it (`git.py:sync_task_state`
 already has a feature-branch path that lands task-state on the control branch
 via working-tree-free plumbing, so worktrees and the control plane already
-coexist; don't break that). `dev/checkouts` is the context whose checkout-layout
+coexist; don't break that). `coga/checkouts` is the context whose checkout-layout
 guidance currently encodes the vague convention and must be updated
 to name the exact `<repo>/worktree/<slug>` path.
 
@@ -94,7 +94,7 @@ needs a design call.
   the convention.
 - **`git clean -fdx` hazard.** A gitignored `worktree/<slug>` holding
   uncommitted feature work is exactly what `git clean -x` in the primary
-  checkout deletes. Worth a note in `dev/checkouts` so nobody torches in-flight
+  checkout deletes. Worth a note in `coga/checkouts` so nobody torches in-flight
   worktrees.
 - **The template `.gitignore` change is a product decision.** Editing
   `src/relay/resources/templates/relay-os/.gitignore` imposes the
@@ -116,8 +116,8 @@ the actual problem as scattered placement plus missing cleanup. It combined
 creation and cleanup here, with the proposed slug-keyed path, context refs,
 sibling relationship, and peer-review workflow recorded above. This is the
 historical proposal; synthesis does not approve it as today's checkout
-contract. Recheck the premise against current `dev/checkouts` and
-`dev/checkout-cleanup` before pulling it
+contract. Recheck the premise against current `coga/checkouts` and
+`coga/checkout-cleanup` before pulling it
 forward.
 
 The evaluator's safety findings were already folded into `## Context` under

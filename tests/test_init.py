@@ -146,9 +146,9 @@ def _seed_fake_templates(templates: Path) -> None:
     (templates / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
         "coga/sync context\n"
     )
-    (templates / "bootstrap" / "contexts" / "dev" / "code").mkdir(parents=True)
-    (templates / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").write_text(
-        "dev/code context\n"
+    (templates / "bootstrap" / "contexts" / "coga" / "code").mkdir(parents=True)
+    (templates / "bootstrap" / "contexts" / "coga" / "code" / "SKILL.md").write_text(
+        "coga/code context\n"
     )
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
@@ -266,7 +266,6 @@ def test_init_into_empty_dir(tmp_path: Path, fake_vendor) -> None:
     assert not (target / "coga" / "bootstrap").exists()
     assert not (target / "coga" / "skills" / "retro").exists()
     assert not (target / "coga" / "skills" / "coga").exists()
-    assert not (target / "coga" / "contexts" / "dev").exists()
     assert not (target / "coga" / "contexts" / "coga").exists()
     assert (
         target / "coga" / ".agent-skills" / "retro" / "done-ticket"
@@ -1381,9 +1380,9 @@ def _seed_local_coga_os(root: Path) -> Path:
     (coga_os / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
         "OLD coga/sync context\n"
     )
-    (coga_os / "contexts" / "dev" / "code").mkdir(parents=True)
-    (coga_os / "contexts" / "dev" / "code" / "SKILL.md").write_text(
-        "OLD dev/code context\n"
+    (coga_os / "contexts" / "coga" / "code").mkdir(parents=True)
+    (coga_os / "contexts" / "coga" / "code" / "SKILL.md").write_text(
+        "OLD coga/code context\n"
     )
     # Stale `_*` create upstream no longer ships (rename or removal).
     (coga_os / "recurring").mkdir(exist_ok=True)

@@ -62,7 +62,7 @@ The current implementation already prepares current control and safely returns o
 - [ ] A first sandbox Git-write refusal after successful host preparation preserves the prepared branch and all source/ticket edits. Recovery stops the agent's implementation work, uses permitted host access to verify an independent clone, return the primary to control and publish its linkage, then relaunches the same step. The primary may remain on the prepared branch until that recovery succeeds; no in-session host-control API, automatic dirt cleanup, or compensating transition is introduced.
 - [ ] A runtime checkout notice reports the observed branch, relevant ticket path, preparation outcome and return owner. Managed prompts no longer require the agent to perform automated startup/return steps. Pure composition and unmanaged/manual sessions make no claim that preparation ran and link complete guidance.
 - [ ] Already-satisfied work remains an agent judgment backed by evidence. An unused prepared branch does not force a code commit or PR, and preparation never closes a ticket or deletes that branch.
-- [ ] Update the owning checkout, launch, workflow, composition, and extension topics as needed, plus applicable packaged twins. Remove obsolete procedural copies from the base prompt, dev/code overview, code skills, code/docs workflows, and orientation guidance in the same PR. Preserve required instructions in skilled and inline workflow steps.
+- [ ] Update the owning checkout, launch, workflow, composition, and extension topics as needed, plus applicable packaged twins. Remove obsolete procedural copies from the base prompt, coga/code overview, code skills, code/docs workflows, and orientation guidance in the same PR. Preserve required instructions in skilled and inline workflow steps.
 - [ ] Add meaningful real-Git coverage for fresh/resumed work, step selection and chaining, chat discussion-to-edit, repeated calls, interruption, and dirty/publication failures. Update seeded launch fixtures where behavior changes. Run relevant Git/launch/compose/workflow/packaging tests, the required implementation checks, and coga validate --json.
 - [ ] Compare representative prompts through the read-only compose API. Verify required guidance still arrives and repeated checkout recipes have disappeared; do not use a real launch or its sweeping prompt-report option just to measure.
 
@@ -77,7 +77,7 @@ blackboard records these decisions and the evaluator dispositions.
 
 #### 1. Select from the existing step contract
 
-Put the lifecycle and this mapping in `dev/checkouts`; `coga/workflows` links
+Put the lifecycle and this mapping in `coga/checkouts`; `coga/workflows` links
 it and continues to own freezing and completion gates. Implement a small,
 pure `select_checkout_policy` in a proposed `src/coga/checkout_policy.py`.
 Its inputs are the authoritative frozen workflow/current step and the
@@ -299,7 +299,7 @@ do not publish that work as a side effect. Partial preparation retries the
 same reservation. If HEAD moved elsewhere, a receipt conflicts, or the
 supervisor died, fail without adopting another branch. A new chat does not
 silently resume an old chat branch: its work is recovered explicitly under
-`dev/checkouts/launch-boundary`. There is no `--force` or arbitrary adopt option.
+`coga/checkouts/launch-boundary`. There is no `--force` or arbitrary adopt option.
 
 Return a concise branch/root/outcome report on stdout; return 0 only for a
 verified prepare/reuse or an explicitly reported Git exemption, 2 for invalid
@@ -364,7 +364,7 @@ return and final sweep; conversation turns do not return the checkout.
   active linkage until the host verifies and publishes it. This exception
   replaces the obsolete instruction to continue immediately after agent-side
   branch creation fails. Its procedure and primary-HEAD guarantee belong in
-  `dev/checkouts/sandbox-clone`, linked from the other checkout guidance.
+  `coga/checkouts/sandbox-clone`, linked from the other checkout guidance.
 - **Git disabled, non-Git or remote-less:** preserve current exemptions and
   state-publication behavior; report that branch preparation/freshness was not
   provided. Do not create branches merely because the policy says implement.
@@ -401,18 +401,18 @@ Add an optional typed checkout result to `src/coga/compose.py`'s
 ticket layers and before launch arguments/the launch marker. It names observed
 state, any ticket projection, and who returns the checkout; an eligible direct
 chat also gets its exact preparation invocation. Composition performs no Git operations. With no
-result, it states that preparation was not supplied and points to `dev/checkouts`;
+result, it states that preparation was not supplied and points to `coga/checkouts`;
 it must never infer a prepared branch from a workflow or ambient environment.
 Cover repo resource overrides so the runtime truth is independent of an old
 base-prompt override; do not overwrite repo-owned prose.
 
-Keep the complete start/work/handoff/end explanation in `dev/checkouts`, with
+Keep the complete start/work/handoff/end explanation in `coga/checkouts`, with
 its existing recovery, reconciliation and sandbox leaves owning their focused
 rules. Update `coga/launch`, `coga/workflows`, `coga/prompt-composition` and
 `coga/extension-model` for their portions of the contract,
 `coga/state-publication/sweep` for the recipe's exit-sweep exclusion,
 `coga-dev/internals/git-regressions` and `coga-dev/internals/state-publication/publish`
-for verified projection provenance, and `dev/checkouts/sandbox-clone` for the
+for verified projection provenance, and `coga/checkouts/sandbox-clone` for the
 first-refusal host recovery and its different primary-HEAD guarantee.
 Neighbouring overviews
 link rather than restate the mapping or algorithm. Review topic size while
@@ -420,7 +420,7 @@ editing instead of duplicating a short agent version beside the human version.
 
 Remove obsolete branch-allocation, pre-branch Python sweep, unconditional
 ticket-restore, start-on-main and conditional-return recipes from
-`src/coga/resources/prompt.md`, `dev/code`, the code implementation/self-QA/
+`src/coga/resources/prompt.md`, `coga/code`, the code implementation/self-QA/
 publication/PR-assist skills, all code/docs workflows, and orientation guidance.
 Keep a short fallback pointer in the shared base/step guidance so older snapshots,
 manual/API sessions and exempt callers remain operable. Keep publication safety,
@@ -505,13 +505,13 @@ and the shared implementation belong. The behavior topics below are cited
 rather than attached; read the named sections before designing or changing
 their behavior, and update their owners and packaged twins with implementation.
 
-- `dev/checkouts` (`docs/contexts/dev/checkouts/SKILL.md`): read "Start, work,
+- `coga/checkouts` (`docs/contexts/coga/checkouts/SKILL.md`): read "Start, work,
   end", "Publish pre-branch ticket edits", and "Which checkout you invoke
   Coga from". `src/coga/git.py` plus `sync_coga_state` publishes Coga state;
   branch switching alone does not publish the ticket linkage. Its
   `prepare_control_checkout` provides the existing safe control preparation.
-- `dev/checkouts/launch-boundary`
-  (`docs/contexts/dev/checkouts/launch-boundary/SKILL.md`): read "Preparation
+- `coga/checkouts/launch-boundary`
+  (`docs/contexts/coga/checkouts/launch-boundary/SKILL.md`): read "Preparation
   and return" and "Checkout recovery", including exemptions.
   `src/coga/launch.py` plus `_CheckoutBoundary.enter` and `.settle` already
   wrap ordinary launches and direct orientation in state publication and
@@ -540,8 +540,8 @@ their behavior, and update their owners and packaged twins with implementation.
   `resolve_context_path` and `resolve_skill_path` select local or packaged
   resources, rather than composing both copies.
 
-The audit found repeated entry/return instructions in `dev/code`,
-`dev/checkouts`, `coga/skills/code/{implement,self-qa,open-pr,address-pr-comments}/SKILL.md`,
+The audit found repeated entry/return instructions in `coga/code`,
+`coga/checkouts`, `coga/skills/code/{implement,self-qa,open-pr,address-pr-comments}/SKILL.md`,
 and packaged `bootstrap/workflows/{code,docs}/` definitions. The implementation
 skill also repeats them within its introduction, procedure, and acceptance
 checklist. Its resumed-branch guidance has no equivalent in the copied docs
@@ -587,8 +587,8 @@ existing real-Git test approach rather than mocking away checkout behavior.
   returns from an already-equal tree without recording its blobs, and
   `src/coga/bump.py` plus `advance_step` publishes without an `expect` override.
   Preparation must establish the strict per-ticket baseline described above.
-- `dev/checkouts/sandbox-clone`
-  (`docs/contexts/dev/checkouts/sandbox-clone/SKILL.md`) is cited rather than
+- `coga/checkouts/sandbox-clone`
+  (`docs/contexts/coga/checkouts/sandbox-clone/SKILL.md`) is cited rather than
   attached: read "Sandbox clone fallback" and "What a fresh checkout lacks".
   `src/coga/launch.py` plus `_CheckoutBoundary.settle` returns after an agent
   exits but refuses uncommitted source changes; `_supervise_steps` stops on an
@@ -757,13 +757,13 @@ What changed:
   the ticket; unsupplied text when absent.
 - `git.py`: `record_projected_baseline` (strict, read back); best-effort
   `_record_published` unchanged in behavior. `autoclose.dev_heading_line`.
-- Docs: `dev/checkouts` owns the mapping and launched lifecycle; new leaves
-  `dev/checkouts/chat` (occupancy guard moved here + chat recipe) and
-  `dev/checkouts/manual` (manual start/work/end + pre-branch publication);
+- Docs: `coga/checkouts` owns the mapping and launched lifecycle; new leaves
+  `coga/checkouts/chat` (occupancy guard moved here + chat recipe) and
+  `coga/checkouts/manual` (manual start/work/end + pre-branch publication);
   sandbox-clone gains recorded-clone, manual (full recipe), and first-refusal
   host recovery. Updated launch, workflows, prompt-composition,
   extension-model, codebase, git-regressions, publish, sweep. Removed the
-  branch/return recipes from `prompt.md`, `dev/code`, code skills, all four
+  branch/return recipes from `prompt.md`, `coga/code`, code skills, all four
   workflows and orient guidance. All twins byte-identical.
 
 Deviations from the proposed shape (decide at review if unwanted):
@@ -776,7 +776,7 @@ Deviations from the proposed shape (decide at review if unwanted):
   launch's entry sweep publishes it and the matching receipt/branch are
   reused (tested). Changed control during preparation refuses (75) instead
   of a bounded automatic re-plan.
-- `dev/checkouts` is 221 lines / ~13 KB (was 202 / 11.5 KB, already over the
+- `coga/checkouts` is 221 lines / ~13 KB (was 202 / 11.5 KB, already over the
   review threshold) after splitting out two leaves; the single owned mapping
   table is the reason for not splitting further.
 
@@ -810,9 +810,9 @@ head: eb821639b06fa8640cb6f982ded53490926804bf
 base: 31a8f1828d0c19fb94f8e8cd406e651372da8fc9
 depth: deep
 rationale: Changes launch dispatch order, branch creation, ticket projection and publication provenance, adds a recipe, and rewrites agent instructions; no code review has run.
-implementation: Closed step-to-checkout policy table; shared checkouts module used by ordinary launch (plan+publish on control, compose, switch+project+strict provenance) and the chat prepare-checkout recipe; runtime checkout notice in composition; dev/checkouts owns the lifecycle with new chat and manual leaves; procedural copies removed from prompt, skills, workflows and orientation.
+implementation: Closed step-to-checkout policy table; shared checkouts module used by ordinary launch (plan+publish on control, compose, switch+project+strict provenance) and the chat prepare-checkout recipe; runtime checkout notice in composition; coga/checkouts owns the lifecycle with new chat and manual leaves; procedural copies removed from prompt, skills, workflows and orientation.
 deviations: Ticket reservation receipts are stored in the per-worktree Git dir instead of .coga/; the chat receipt sits beside the guard lock; control movement during preparation refuses (exit 75) rather than re-planning automatically.
-limitations: Not every receipt interruption stage or chat supervisor-death case has its own test; owner review assist reuse is covered by policy tests, not an integration launch; dev/checkouts stays over the 200-line review threshold.
+limitations: Not every receipt interruption stage or chat supervisor-death case has its own test; owner review assist reuse is covered by policy tests, not an integration launch; coga/checkouts stays over the 200-line review threshold.
 files:
   coga/skills/code/address-pr-comments/SKILL.md: Start from the notice's prepared PR branch; drop the switch/return recipe.
   coga/skills/code/implement/SKILL.md: Confirm the prepared checkout, sandbox first-refusal pointer, keep judgment steps; drop branch/publish/restore recipes.
@@ -825,13 +825,13 @@ files:
   docs/contexts/coga/internals/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
   docs/contexts/coga/launch/SKILL.md: Per-step branch preparation order and exclusions.
   docs/contexts/coga/prompt-composition/SKILL.md: Checkout notice layer.
-  docs/contexts/coga/workflows/SKILL.md: Gates are exit-only; entry table lives in dev/checkouts.
-  docs/contexts/dev/checkouts/SKILL.md: Owner of the mapping and launched lifecycle.
-  docs/contexts/dev/checkouts/chat/SKILL.md: New leaf; chat occupancy guard and prepare-checkout contract.
-  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Occupancy moved out; branch preparation scope note.
-  docs/contexts/dev/checkouts/manual/SKILL.md: New leaf; manual start/work/end and pre-branch publication.
-  docs/contexts/dev/checkouts/sandbox-clone/SKILL.md: Recorded clone, manual clone recipe, first-refusal host recovery.
-  docs/contexts/dev/code/SKILL.md: Summary of launch-prepared checkouts.
+  docs/contexts/coga/workflows/SKILL.md: Gates are exit-only; entry table lives in coga/checkouts.
+  docs/contexts/coga/checkouts/SKILL.md: Owner of the mapping and launched lifecycle.
+  docs/contexts/coga/checkouts/chat/SKILL.md: New leaf; chat occupancy guard and prepare-checkout contract.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Occupancy moved out; branch preparation scope note.
+  docs/contexts/coga/checkouts/manual/SKILL.md: New leaf; manual start/work/end and pre-branch publication.
+  docs/contexts/coga/checkouts/sandbox-clone/SKILL.md: Recorded clone, manual clone recipe, first-refusal host recovery.
+  docs/contexts/coga/code/SKILL.md: Summary of launch-prepared checkouts.
   src/coga/autoclose.py: Fence-aware dev_heading_line helper for linkage insertion.
   src/coga/checkout_policy.py: New pure policy table.
   src/coga/checkouts.py: New shared branch preparation, chat session and recipe.
@@ -839,7 +839,7 @@ files:
   src/coga/compose.py: CheckoutNotice and the runtime notice layer.
   src/coga/git.py: Strict record_projected_baseline sharing the published-ref writer.
   src/coga/launch.py: Chat receipt in the guard, per-step managed preparation, unmanaged notices.
-  src/coga/resources/prompt.md: Base prompt defers to the runtime notice and dev/checkouts.
+  src/coga/resources/prompt.md: Base prompt defers to the runtime notice and coga/checkouts.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-regressions/SKILL.md: Packaged twin.
@@ -848,12 +848,12 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/chat/SKILL.md: Packaged twin of the new leaf.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/manual/SKILL.md: Packaged twin of the new leaf.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/sandbox-clone/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/code/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Packaged twin of the new leaf.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: Packaged twin of the new leaf.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/sandbox-clone/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/code/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/orient/ticket.md: Chat edits run prepare-checkout first.
   src/coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Packaged twin.
@@ -864,7 +864,7 @@ files:
   src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: implement and already-satisfied wording.
   src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Inline implement/peer-review/open-pr recipes replaced by notice + owner pointers; judgment obligations kept.
   src/coga/runner.py: Register prepare-checkout.
-  tests/test_address_pr_comments_skill.py: Assert the return recipe moved to dev/checkouts.
+  tests/test_address_pr_comments_skill.py: Assert the return recipe moved to coga/checkouts.
   tests/test_checkouts.py: New real-Git policy, launch, chat, provenance and recovery coverage.
   tests/test_code_implement_skill.py: Clone recipe asserted in its owning topic.
   tests/test_packaging.py: Register the chat and manual leaves.
@@ -1005,7 +1005,7 @@ Automation and removal of its replaced instructions form one coherent PR.
    the primary Git metadata. At that point the primary is already on the
    prepared feature branch, possibly with new source edits.
 
-   `docs/contexts/dev/checkouts/sandbox-clone/SKILL.md`, "Sandbox clone
+   `docs/contexts/coga/checkouts/sandbox-clone/SKILL.md`, "Sandbox clone
    fallback", and `coga/skills/code/implement/SKILL.md`, step 3, currently
    create the independent clone after agent-side branch creation fails and
    keep the primary on control. That startup sequence no longer applies;

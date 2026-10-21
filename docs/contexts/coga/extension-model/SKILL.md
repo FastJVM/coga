@@ -67,7 +67,7 @@ command exits with the recipe's integer code. `runner.run_recipe` also records
 a `## Recipe Failure` section on non-zero exit; that reporting contract belongs
 to [coga/recurring](../recurring/SKILL.md). `open-pr` and `delete-task` take a
 task ref; see [PR publication](../pr-publication/SKILL.md) and
-[dev/checkouts](../../dev/checkouts/SKILL.md). `autofix-analyze` is covered
+[coga/checkouts](../checkouts/SKILL.md). `autofix-analyze` is covered
 in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know
 its files reached control (`build/onboarding`); its contract is in
@@ -77,7 +77,7 @@ preparation (`src/coga/checkouts.py`) that ordinary launch also calls, so the
 mechanics are shared infra; the recipe is a registered contract because its
 argv, report, and 0/2/75 exits must agree with launch's private live-chat
 receipt. It is not a Typer head, alias, ticket plugin, or general phase
-registry; its contract is in [dev/checkouts/chat](../../dev/checkouts/chat/SKILL.md).
+registry; its contract is in [coga/checkouts/chat](../checkouts/chat/SKILL.md).
 
 ## Aliases
 

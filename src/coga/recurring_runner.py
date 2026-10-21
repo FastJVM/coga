@@ -2353,7 +2353,7 @@ def _launch_due_tasks(
                         f"{task.ref.id_slug} changed after sweep admission; skipped"
                     )
                     continue
-                # The period's return half (`dev/checkouts`): the delegated
+                # The period's return half (`coga/checkouts`): the delegated
                 # bootstrap session is exempt from normalization, the period
                 # that dispatched it is not. A refusal stops the sweep here.
                 settled = settle_delegated_period(cfg, task.ref)

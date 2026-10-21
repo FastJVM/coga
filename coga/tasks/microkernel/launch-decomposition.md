@@ -14,7 +14,7 @@ contexts:
 - coga-dev/current-direction
 - coga-dev/microkernel
 - coga-dev/project-stage
-- dev/checkouts
+- coga/checkouts
 workflow:
   name: code/design-then-implement
   steps:

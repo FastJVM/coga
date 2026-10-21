@@ -462,7 +462,7 @@ approval is implied by completing this evaluation.
    `coga/sync`, which contains no `flock` specification. The lock contract is
    `docs/contexts/coga-dev/internals/launch-claims/SKILL.md`, "The local state
    lock". The changed refusal/ordering and hybrid contracts belong in
-   `coga/launch`, `dev/checkouts/launch-boundary`, `coga/tickets/authoring`,
+   `coga/launch`, `coga/checkouts/launch-boundary`, `coga/tickets/authoring`,
    `coga/script-tickets` and `coga/recurring/scheduling/failures`; the
    process-recovery change belongs in `coga-dev/internals/recurring-temp-worktrees`.
    Add the affected owners to the deliverables, with one owner per fact and

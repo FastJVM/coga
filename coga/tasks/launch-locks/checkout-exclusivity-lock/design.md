@@ -6,7 +6,7 @@ Implementation contract topic: **new `coga-dev/internals/checkout-lock`**
 (`docs/contexts/coga-dev/internals/checkout-lock/SKILL.md`), local-only with no
 packaged twin or `REQUIRED_BOOTSTRAP_CONTEXT_REFS` entry. Operator behavior,
 refusals, and recovery belong in the shipped user topics `coga/launch` and
-`dev/checkouts`, with their packaged twins; they must not require the
+`coga/checkouts`, with their packaged twins; they must not require the
 development topic. Code home: new
 `src/coga/checkout_lock.py`. It is shared infra with several consumers:
 `cli.main` acquires, releases, and gates `init`/`uninstall`;
@@ -262,7 +262,7 @@ anything.
       - `coga/launch`: § Targets drops "concurrent launches safe" for
         bootstrap targets and states the checkout lock; add a "Checkout
         lock" paragraph and the 75 refusal under Options and exits.
-      - `dev/checkouts`: § Launch boundary gets acquisition-before-entry;
+      - `coga/checkouts`: § Launch boundary gets acquisition-before-entry;
         the in-session and manual sections note that `coga` launch-class
         commands from inside a session are nested; § What a fresh checkout
         lacks lists `.coga/launch.lock`.

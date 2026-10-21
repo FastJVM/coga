@@ -45,7 +45,7 @@ real blocker (`coga block`), not an already-satisfied closure.
 ## implement
 
 Agent step, owned by the `code/implement` skill. Launch creates or reuses the
-recorded branch before the agent starts (`dev/checkouts`). The step declares
+recorded branch before the agent starts (`coga/checkouts`). The step declares
 `requires: branch`, so `coga bump` refuses to advance until `branch:` is
 recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
 
@@ -83,5 +83,5 @@ owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
 same proofs on whatever checkout remains, then deletes the done ticket with no
 agent: its learning already landed with the merged PR. The packaged
 `bootstrap/retire/ticket.md` owns that procedure, and the
-`dev/checkout-cleanup` context owns what the shared proofs prove, preserve,
+`coga/checkout-cleanup` context owns what the shared proofs prove, preserve,
 and record for later sweeps.

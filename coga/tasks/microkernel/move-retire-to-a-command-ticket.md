@@ -35,8 +35,8 @@ contexts:
 - coga-dev/microkernel
 - coga/script-tickets
 - coga/launch
-- dev/checkout-cleanup
-- dev/checkout-cleanup/proofs
+- coga/checkout-cleanup
+- coga/checkout-cleanup/proofs
 - coga/recurring/scheduling
 - coga/cli
 - coga-dev/codebase
@@ -54,7 +54,7 @@ edge as a stateless script command ticket, `bootstrap/retire`, reached by a
 default alias, without changing what it does. Then let each of the three
 cleanup tickets (`bootstrap/retire`, `recurring/autoclose-merged`,
 `recurring/branch-sweep`) own the description of its own job in `ticket.md`,
-so `dev/checkout-cleanup` keeps only the rules they share.
+so `coga/checkout-cleanup` keeps only the rules they share.
 
 Three parts in order, one PR: (1) script command tickets receive trailing
 argv, (2) move retire, (3) split the docs. Part 1 is required because a
@@ -133,7 +133,7 @@ Part 2 — retire as a command ticket
       bootstrap launch's exit-time `git.refresh` of a control checkout.
 - [ ] Retire still works from a checkout off the control branch (bootstrap
       targets are exempt from checkout preparation per
-      `dev/checkouts/launch-boundary`) and still prints
+      `coga/checkouts/launch-boundary`) and still prints
       `Retire: checkout cleanup skipped ...` there.
 - [ ] A packaged `bootstrap/retire/ticket.md` exists with no `status:` or
       `workflow:` (a stateless command ticket), plus the body in Part 3. No
@@ -174,19 +174,19 @@ Part 3 — descriptions own their job
       `direct/body` running `retro/done-ticket`, launched unless
       `--no-launch`; `--agent` only affects that task. It carries the
       2026-10-13 owner decision and links (`context:` links) to
-      `dev/checkout-cleanup/proofs`, `dev/checkout-cleanup` (primary
-      checkouts) and `dev/checkout-cleanup/terminal-owners` instead of
+      `coga/checkout-cleanup/proofs`, `coga/checkout-cleanup` (primary
+      checkouts) and `coga/checkout-cleanup/terminal-owners` instead of
       restating the proofs. This is the old `## coga retire` section of
-      `dev/checkout-cleanup`, moved.
+      `coga/checkout-cleanup`, moved.
 - [ ] `recurring/autoclose-merged/ticket.md` and
       `recurring/branch-sweep/ticket.md` (live + packaged) keep their
       step-by-step job descriptions but replace inline restatements of the
       shared proofs (for example autoclose step 6's parenthesized proof list,
       branch-sweep's references to "the same landing policy `coga retire`
-      uses") with links to `dev/checkout-cleanup/proofs` /
-      `dev/checkout-cleanup/branch-sweep`. Text that says retire runs "daily"
+      uses") with links to `coga/checkout-cleanup/proofs` /
+      `coga/checkout-cleanup/branch-sweep`. Text that says retire runs "daily"
       or is "best-effort" is corrected to match the current retire contract.
-- [ ] `dev/checkout-cleanup` (live + packaged) loses its
+- [ ] `coga/checkout-cleanup` (live + packaged) loses its
       `## coga retire <slug> ...` section and keeps: intro, Leaves, Primary
       checkouts and other clones, Accepted disappearance policy, `/tmp`
       recovery, and `## coga delete <slug>`. `coga delete` stays because it's a
@@ -194,7 +194,7 @@ Part 3 — descriptions own their job
       retire procedure lives in `bootstrap/retire/ticket.md` and the
       autoclose/branch-sweep procedures in their templates.
 - [ ] Inbound pointers follow: `coga/cli` splits the `delete`, `retire`
-      row: `delete` stays → `dev/checkout-cleanup`, and
+      row: `delete` stays → `coga/checkout-cleanup`, and
       `retire` → `launch bootstrap/retire --` points at
       `bootstrap/retire/ticket.md`, in the alias-row style;
       `coga-dev/microkernel` drops `retire` from the Open command placements
@@ -314,8 +314,8 @@ Codebase facts the implementer relies on:
 - Recurring script precedent for completing via the CLI rather than
   in-process: `coga/recurring/autoclose-merged/ticket.py` runs
   `[sys.executable, "-m", "coga.cli", "bump", ...]`.
-- Prior work: #1041 folded `dev/checkout-cleanup/foreign-ownership` into
-  `dev/checkout-cleanup`. #1033 (clone-scoped recurring) shipped the
+- Prior work: #1041 folded `coga/checkout-cleanup/foreign-ownership` into
+  `coga/checkout-cleanup`. #1033 (clone-scoped recurring) shipped the
   packaged recurring templates that the live ones must be re-synced to.
 
 <!-- coga:blackboard -->
@@ -339,7 +339,7 @@ Findings:
 
 ## Open Questions
 
-- Should `coga delete` move out of `dev/checkout-cleanup` too? Spec keeps it
+- Should `coga delete` move out of `coga/checkout-cleanup` too? Spec keeps it
   (kernel command, no ticket to own it), which departs from the original
   keep-list.
 - Is changing the canceled path from in-process `launch()` to a subprocess
@@ -524,7 +524,7 @@ What changed, by owner disposition above:
   delete, no-agents done delete, `--no-launch`, unknown slug, `--help`).
 - Part 3: recurring live templates restored to packaged bytes and the
   upstream-coga rollback of 28cba8f70 reversed (no later edits to preserve);
-  retire section moved out of `dev/checkout-cleanup`; autoclose and
+  retire section moved out of `coga/checkout-cleanup`; autoclose and
   branch-sweep templates link the proofs; `coga/knowledge` gains the
   command-ticket ownership row; stale summaries fixed (branch-sweep sweep
   skill, four packaged workflow review sections, and the test that pinned
@@ -555,7 +555,7 @@ head: a93a674acec6615e314397c47a3dd924d11324a8
 base: 5d6a7737d15fa4efb7cd53974824e5739f5875a8
 depth: deep
 rationale: Changes launch's script dispatch (argv, a new stateful refusal, operator tolerance, and an exit-75 retained-state contract) and moves a destructive command out of core; no code review yet.
-implementation: Bootstrap ticket.py targets receive trailing launch args as argv; stateful script targets refuse them before any effect; a script-only bootstrap target needs no agent; a bootstrap script exiting 75 skips launch's teardown refresh and the CLI sweep. coga retire becomes the default alias "launch bootstrap/retire --" whose packaged ticket.py holds the unchanged command body, launching a canceled ticket's retire task in-process and exiting 75 when that launch withheld the sweep. Docs move retire's procedure into bootstrap/retire/ticket.md and leave shared rules in dev/checkout-cleanup.
+implementation: Bootstrap ticket.py targets receive trailing launch args as argv; stateful script targets refuse them before any effect; a script-only bootstrap target needs no agent; a bootstrap script exiting 75 skips launch's teardown refresh and the CLI sweep. coga retire becomes the default alias "launch bootstrap/retire --" whose packaged ticket.py holds the unchanged command body, launching a canceled ticket's retire task in-process and exiting 75 when that launch withheld the sweep. Docs move retire's procedure into bootstrap/retire/ticket.md and leave shared rules in coga/checkout-cleanup.
 deviations: Per the owner's implement-step disposition of the evaluator review, the canceled path stays in-process (not the designed subprocess), with the exit-75 channel; help needs a configured workspace. The live recurring templates are re-synced to their packaged clone-scoped versions.
 limitations: coga retire --help no longer works without coga.local.toml. Launch framing now appears on stderr. The nested-launch withheld path is covered by unit tests (fake launch setting the flag) and a subprocess exit-75 launch test, not by a real refused checkout return under retire.
 files:
@@ -572,7 +572,7 @@ files:
   docs/contexts/coga/knowledge/SKILL.md: A command ticket's ticket.md owns its verb's contract.
   docs/contexts/coga/launch/SKILL.md: Targets section documents bootstrap argv and the stateful refusal.
   docs/contexts/coga/script-tickets/SKILL.md: Step 4 argv contract, no-agent bootstrap scripts, exit-75 retained state.
-  docs/contexts/dev/checkout-cleanup/SKILL.md: Remove the retire section; keep shared rules and point to job owners.
+  docs/contexts/coga/checkout-cleanup/SKILL.md: Remove the retire section; keep shared rules and point to job owners.
   src/coga/aliases.py: Add the retire default alias; drop retire from built-ins.
   src/coga/cli.py: Unregister the retire command and its sweeping entry.
   src/coga/commands/launch.py: args help text describes bootstrap argv and stateful refusal.
@@ -583,7 +583,7 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Twin of docs/contexts/coga/knowledge.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Twin of docs/contexts/coga/launch.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Twin of docs/contexts/coga/script-tickets.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/SKILL.md: Twin of docs/contexts/dev/checkout-cleanup.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Twin of docs/contexts/coga/checkout-cleanup.
   src/coga/resources/templates/coga/bootstrap/retire/ticket.md: New stateless command ticket owning retire's procedure.
   src/coga/commands/retire.py: Removed; moved to the packaged bootstrap/retire/ticket.py.
   src/coga/resources/templates/coga/bootstrap/retire/ticket.py: Retire body moved unchanged plus Typer app, in-process launch with exit-75 handoff, __main__ guard.

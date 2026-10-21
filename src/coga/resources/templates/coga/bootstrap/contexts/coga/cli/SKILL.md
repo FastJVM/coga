@@ -27,10 +27,10 @@ command's behavior. Attach that topic when a task depends on it.
 | `create`, `ticket`, `show` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
 | `owner` | [coga/tickets/ownership](../tickets/ownership/SKILL.md) |
 | `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
-| `delete` | [dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md) |
+| `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
 | `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
-| `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [dev/checkouts](../../dev/checkouts/SKILL.md) |
+| `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [coga/checkouts](../checkouts/SKILL.md) |
 
 ## Running work
 

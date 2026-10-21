@@ -9,14 +9,14 @@ contexts:
   - coga/tickets
   - coga/skill-management
   - coga/recurring/scheduling
-  - dev/checkout-cleanup
+  - coga/checkout-cleanup
   - coga-dev/codebase
   - coga-dev/testing
   - coga-dev/current-direction
   - coga-dev/microkernel
   - coga-dev/project-stage
   - coga/cli
-  - dev/checkouts
+  - coga/checkouts
 workflow: code/design-then-implement
 ---
 

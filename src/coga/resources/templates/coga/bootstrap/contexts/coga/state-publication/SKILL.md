@@ -42,7 +42,7 @@ the roots — ticket prose, log, recurring template (including `ticket.py`),
 context, skill, or workflow — land on control before review. Committed ones
 on a feature branch stay with the branch unless they are routine state, so
 commit an edit you want reviewed before running a sweeping Coga command in
-that checkout. Checkout practice is `dev/checkouts`.
+that checkout. Checkout practice is `coga/checkouts`.
 
 Never `git add` `coga/tasks/**` or `coga/log.md` into a PR; `coga open-pr`
 excludes that state from its cleanliness gate and refuses a branch whose only

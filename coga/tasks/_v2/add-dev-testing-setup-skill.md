@@ -6,7 +6,7 @@ agent: claude
 contexts:
 - coga/knowledge
 - coga-dev/project-stage
-- dev/checkouts
+- coga/checkouts
 workflow:
   name: code/with-review
   steps:

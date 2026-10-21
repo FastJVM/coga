@@ -60,7 +60,7 @@ EXPECTED_AGENT_ENV = "COGA_EXPECTED_AGENT"
 
 # Minted only by `coga launch` for a step whose invoking checkout it prepared
 # on entry and will return to a clean control branch when the session ends
-# (`dev/checkouts`). A code step may then publish its handoff and bump from
+# (`coga/checkouts`). A code step may then publish its handoff and bump from
 # the feature branch. `build_supervised_step_env` never sets it: megalaunch,
 # bootstrap targets, and exempt checkouts keep the manual return.
 CHECKOUT_RETURN_ENV = "COGA_LAUNCH_RETURNS_CHECKOUT"

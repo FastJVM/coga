@@ -6,7 +6,7 @@ Start with [Coga's design principles](docs/contexts/coga-dev/principles/SKILL.md
 Exclude `docs/archive/**` from searches and reading unless the human explicitly requests archive use for the task. Follow [the archive access rule](docs/contexts/coga-dev/archive-access/SKILL.md#archive-access).
 
 Canonical Coga topics (under `docs/contexts/`) have two audiences. User topics
-under `coga/` and `dev/` are needed to operate Coga in adopting repos and ship
+under `coga/` are needed to operate Coga in adopting repos and ship
 as fallbacks. Coga-dev topics under `coga-dev/` explain developing Coga itself
 and stay local. [Context layout](docs/contexts/coga/context-layout/SKILL.md#context-audiences)
 owns the criterion; a shipped surface's required reading must be user knowledge.
@@ -42,7 +42,7 @@ Target Python 3.11+, use 4-space indentation, `from __future__ import annotation
 Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `tests/fixtures/seeded-repo/` repo or related fixtures so the smoke path remains representative.
 
 ## Commit & Pull Request Guidelines
-Before publishing or handing off edits, follow [dev/checkouts/reconciliation](docs/contexts/dev/checkouts/reconciliation/SKILL.md), including in sessions outside `coga launch`.
+Before publishing or handing off edits, follow [coga/checkouts/reconciliation](docs/contexts/coga/checkouts/reconciliation/SKILL.md), including in sessions outside `coga launch`.
 
 Recent commits use short, factual subjects, for example `Route recurring jobs through registered recipes` or `Drop redundant \`dream\` alias from coga.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.
 

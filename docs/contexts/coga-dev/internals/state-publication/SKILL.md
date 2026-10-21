@@ -35,7 +35,7 @@ description: State publication invariants and shared root membership machinery i
 plus `Config.contexts_root` (which `[layout] contexts` may move outside the
 Coga root), a root nested in the other listed once. In the root layout the
 Coga root is the checkout itself. The sweep, guided authoring, checkout
-preparation and return (`dev/checkouts/launch-boundary`), state-only commit recovery
+preparation and return (`coga/checkouts/launch-boundary`), state-only commit recovery
 (`_local_control_subsumed`), the recorded assist-checkout alignment, and the
 `mark done` stranding guard all read it.
 

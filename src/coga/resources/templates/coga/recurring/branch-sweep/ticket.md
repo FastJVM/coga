@@ -63,17 +63,17 @@ which:
    fails any of those proofs stays `skipped-worktree-pinned` with the reason,
 6. publishes the retirement tag before removing the worktree or deleting
    either ref, under the archive gate in
-   [dev/checkout-cleanup/branch-sweep](context:dev/checkout-cleanup/branch-sweep). Failed archival
+   [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep). Failed archival
    preserves the refs and worktree and records a failing sweep outcome.
    Then it removes the eligible worktree, reported under `removed worktree`,
    and deletes the local branch and/or remote ref under the local-before-remote
    deletion rules in
-   [dev/checkout-cleanup/proofs](context:dev/checkout-cleanup/proofs) that
+   [coga/checkout-cleanup/proofs](context:coga/checkout-cleanup/proofs) that
    `coga retire` also follows, skipping and reporting anything unmerged with no
    merged PR,
 7. from the control branch, disposes of the `retires.md` entries that record
    this clone as `owner` under the
-   [checkout proofs](context:dev/checkout-cleanup/proofs) autoclose runs, and
+   [checkout proofs](context:coga/checkout-cleanup/proofs) autoclose runs, and
    publishes just that worklist when it discharged or refreshed one — the
    only commit this clone-scoped run makes, and
 8. prints a `## Branch Sweep` report — the outcome lists and every
@@ -83,7 +83,7 @@ which:
 
 The sweep is defined in `coga.branchsweep.sweep_branches`. The worktree
 removal is a direct destructive change gated on a repo-level opt-in; the
-`dev/checkout-cleanup/branch-sweep` context states the assumption the key asserts, and the
+`coga/checkout-cleanup/branch-sweep` context states the assumption the key asserts, and the
 `coga/branch-sweep/sweep` skill names the proofs. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and

@@ -44,7 +44,7 @@ def _has_pr(blackboard_text: str) -> object:
 
 def _has_branch_linkage(blackboard_text: str) -> object:
     # Lazy for the same import-cycle reason as `_has_pr`. `worktree:` is
-    # recorded only for the sandbox clone fallback (`dev/checkouts`), so the
+    # recorded only for the sandbox clone fallback (`coga/checkouts`), so the
     # branch is the whole linkage.
     from coga.autoclose import parse_branch_name
 
@@ -58,7 +58,7 @@ STEP_GATES: dict[str, StepGate] = {
         remediation=(
             "This step must record `branch:` under `## Dev` on the blackboard, "
             "and `coga bump` only sees the ticket copy in the checkout it runs "
-            "from. Return to `main` (`dev/checkouts`, end of step), record the "
+            "from. Return to `main` (`coga/checkouts`, end of step), record the "
             "line there, and bump. Confirm the recorded line describes *this* "
             "attempt's branch — a stale `## Dev` left by an earlier attempt "
             "satisfies this gate but strands the current one. Or `coga block "

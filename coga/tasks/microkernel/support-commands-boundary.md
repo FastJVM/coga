@@ -14,7 +14,7 @@ contexts:
   - coga-dev/microkernel
   - coga-dev/project-stage
   - coga/cli
-  - dev/checkouts
+  - coga/checkouts
 workflow: code/design-then-implement
 ---
 

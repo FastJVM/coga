@@ -9,7 +9,7 @@ contexts:
 - coga-dev/testing
 - coga-dev/current-direction
 - coga-dev/project-stage
-- dev/checkouts
+- coga/checkouts
 workflow:
   name: code/with-review
   steps:

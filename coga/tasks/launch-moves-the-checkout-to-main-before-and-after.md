@@ -153,7 +153,7 @@ This replaces the rule requiring those handoffs to be written on main first.
    recurring callers. Do not use process-global sticky state or change child
    exit classification. Normal successful lifecycle publication still happens;
    cleanup must never publish dirt merely to make it safe to discard.
-5. `docs/contexts/dev/checkouts/SKILL.md` owns start/work/end policy, including
+5. `docs/contexts/coga/checkouts/SKILL.md` owns start/work/end policy, including
    the newly approved supervised feature-branch handoff and manual-session
    fallback. `docs/contexts/coga/launch/SKILL.md` owns placement in dispatch,
    chaining, exclusions, and exits, linking to the checkout policy.
@@ -192,8 +192,8 @@ Requested in a `bootstrap/orient` chat on 2026-09-25 after a session started
 on leftover `daily-autoclose-branches`. #896 (`stop-using-worktrees`) added the
 agent-operated procedure that this ticket moves into launch.
 
-Cited rather than attached: read `dev/checkouts` at
-`docs/contexts/dev/checkouts/SKILL.md` (Start, work, end; Publish pre-branch
+Cited rather than attached: read `coga/checkouts` at
+`docs/contexts/coga/checkouts/SKILL.md` (Start, work, end; Publish pre-branch
 ticket edits; sandbox fallback), `coga/launch` at
 `docs/contexts/coga/launch/SKILL.md` (preflight and chain), and
 `coga-dev/internals/git-refresh` at
@@ -285,10 +285,10 @@ What changed:
   refresh. `COGA_LAUNCH_RETURNS_CHECKOUT` (`repl_supervisor.CHECKOUT_RETURN_ENV`)
   is set per step only when armed; `build_supervised_step_env` strips an
   inherited copy.
-- Docs: `dev/checkouts` owns the policy (new "The launch boundary" and a
+- Docs: `coga/checkouts` owns the policy (new "The launch boundary" and a
   launched/manual split of "Start, work, end"). Also updated `coga/launch`,
   internals `agent-spawn`/`git-refresh`/`state-publication`/`pr-publication`/
-  `human-assist`, `dev/code`, `dev/dev-record`, `coga-dev/codebase`, and the
+  `human-assist`, `coga/code`, `coga/dev-record`, `coga-dev/codebase`, and the
   `code/{implement,self-qa,open-pr,address-pr-comments}` skills. Packaged
   twins synced.
 
@@ -396,7 +396,7 @@ suppression across in-process recurring calls.
 Cold review (claude, evaluate-design, 2026-09-25). Verified against
 `src/coga/commands/launch.py`, `launch_script.py`, `git.py`, `cli.py`,
 `repl_supervisor.py`, `megalaunch.py`, `recurring_runner.py`, `recurring.py`,
-`.gitattributes`, and `dev/checkouts`, `coga/launch`,
+`.gitattributes`, and `coga/checkouts`, `coga/launch`,
 `coga/state-publication`. Everything the Context section says
 about the code checks out: `refresh` does not move feature or detached
 checkouts, `fast_forward_control` may move a different holder,
@@ -419,7 +419,7 @@ paths.
    after the branch point: always for `address-pr-comments` on an existing
    branch, and often during `implement`. Teardown would refuse on nearly
    every code step, which defeats the ticket. The current manual procedure
-   (`dev/checkouts` End, `git diff --quiet origin/main`) has the same flaw.
+   (`coga/checkouts` End, `git diff --quiet origin/main`) has the same flaw.
    Define a published-proof rule for union paths, for example "union-merging
    the working file onto the pinned tree with base HEAD is a no-op" (every
    working line is already on control), or a `PUBLISHED_REF`-based
@@ -485,7 +485,7 @@ paths.
    the rule, for example "invoking toplevel equals the target ticket's
    recorded `worktree:`, read from the invoking checkout, and it is not the
    repo's primary checkout". `_recorded_single_checkout_assist_branch`'s
-   `same_git_checkout` is the obvious helper. Per `dev/checkouts`, launch is
+   `same_git_checkout` is the obvious helper. Per `coga/checkouts`, launch is
    not normally run in the clone, so also confirm the exemption is needed.
 8. **Recorded-assist classification reads stale bytes.** Classification
    only happens when `agent_override is not None`, and
@@ -499,7 +499,7 @@ paths.
 9. **"Publish it through the existing lifecycle command, and bump last"** is
    ambiguous. Is that `bump` itself (which publishes the whole ticket file
    and log via `sync_task_state`) or the `sync_coga_state` one-liner from
-   `dev/checkouts`? Name the command.
+   `coga/checkouts`? Name the command.
 10. **Missing owning topics.** `coga/state-publication` owns the
     sweep contract, including the 75 exception ("The end-of-command sweep").
     The new suppression mechanism changes it, so add it to step 5. Also check

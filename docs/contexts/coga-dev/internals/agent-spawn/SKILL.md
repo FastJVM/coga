@@ -23,7 +23,7 @@ PTY watcher and REPLs stopped releasing on the sentinel.
 4. `validate_before_spawn` guard; append the launch audit (unless deferred
    into the spawn gate) and, with `commit_log`, publish it at once. `coga
    launch` always sets `commit_log`, so a code step's start check
-   ([dev/checkouts](../../../dev/checkouts/SKILL.md)) finds a clean tree;
+   ([coga/checkouts](../../../coga/checkouts/SKILL.md)) finds a clean tree;
    megalaunch's deferred audit publishes with its launch admission.
    `before_recompose` (recurring: after the audit
    publishes, exit this pass so the caller reloads and recomposes);

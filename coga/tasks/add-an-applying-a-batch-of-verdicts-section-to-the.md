@@ -57,7 +57,7 @@ branch: docs/v2-batch-verdicts
   this adjudication ticket's own state stays on `main`.
 - Added the workflow PR-gate note, put the prose-only publication boundary in
   `coga/pr-publication`, and clarified the matching exception in
-  `dev/checkouts`. All three packaged twins match. The README links these
+  `coga/checkouts`. All three packaged twins match. The README links these
   owners and warns that mutating commands sweep uncommitted ticket prose
   directly to control.
 - Updated the existing Dream README assertion to apply to the default premise
@@ -90,7 +90,7 @@ branch: docs/v2-batch-verdicts
 - `docs/contexts/coga/workflows/SKILL.md` and its packaged twin, under
   `Step completion gates`, still say `branch` requires both `branch:` and
   `worktree:`. `src/coga/step_gate.py` `_has_branch_linkage` requires only a
-  usable branch, consistent with `dev/checkouts` and `dev/dev-record`;
+  usable branch, consistent with `coga/checkouts` and `coga/dev-record`;
   `worktree:` is only for a sandbox clone. The completed
   `stop-using-worktrees` ticket records the layout change; no open follow-up
   for this stale sentence was identified. Left outside this change's scope.

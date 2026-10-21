@@ -150,7 +150,7 @@ token and precision cost.
 
 Rules:
 
-- Select the audience before choosing refs. The user set (`coga/`, `dev/`)
+- Select the audience before choosing refs. The user set (`coga/`)
   supports configuring, launching, authoring, recovering, and understanding
   refusals in any adopting repo. The Coga-dev set (`coga-dev/`) is local to Coga's own
   repository and explains building, testing, releasing, or steering Coga;

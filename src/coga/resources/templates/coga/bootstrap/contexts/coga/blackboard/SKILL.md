@@ -45,7 +45,7 @@ Match the section's regime; do not invent a fourth.
 
 - **Live state: rewrite in place.** One current value per named line. `## Dev`
   (`branch:`, `worktree:`, `pr:`) is canonical; its shape is
-  [dev/dev-record](../../dev/dev-record/SKILL.md). Old values live in git.
+  [coga/dev-record](../dev-record/SKILL.md). Old values live in git.
 - **Record: append, never delete.** `## Superseded designs` takes dated
   entries (shape [below](#superseded-designs);
   only an archive pointer composes). `## Blockers` takes one checkbox per ask;

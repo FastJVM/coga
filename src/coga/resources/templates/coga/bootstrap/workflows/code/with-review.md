@@ -58,7 +58,7 @@ owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or
 ## implement
 
 Agent step, owned by the `code/implement` skill. Launch creates or reuses the
-recorded branch before the agent starts (`dev/checkouts`). The step declares
+recorded branch before the agent starts (`coga/checkouts`). The step declares
 `requires: branch`, so `coga bump` refuses to advance until `branch:` is
 recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
 
@@ -85,13 +85,13 @@ Review the change in this fresh peer-review session:
 
 Launch starts this step on the recorded branch, with this ticket projected
 unstaged from control as the only entry dirt (the **Checkout (runtime)**
-notice says so; otherwise follow `dev/checkouts` yourself). Review the diff
+notice says so; otherwise follow `coga/checkouts` yourself). Review the diff
 against its base (`git diff main...HEAD`, `git log main..HEAD`). To apply
 must-fix findings (skip nits), re-run `python -m pytest`, commit (e.g.
 `peer-review: apply review findings`), and push. Write `## Peer review` and
 `## PR` in the live ticket and run `coga bump <slug>` last; launch returns
 the checkout (a manual session first returns to `main` per
-`dev/checkouts`).
+`coga/checkouts`).
 
 **Complete the review before you bump.** Finish a direct review and record
 that it **completed**, its findings, and the head/base it covered. If a review
@@ -125,7 +125,7 @@ so anything needing review judgment must be done *here* before you bump:
 - **Make the branch fresh, not just conflict-free.** Don't wait for a
   conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
   feature branch unconditionally, preserving the projected ticket as
-  `dev/checkouts` describes, resolve whatever surfaces, re-run
+  `coga/checkouts` describes, resolve whatever surfaces, re-run
   `python -m pytest`, commit, and push with `--force-with-lease`. `coga
   open-pr` refuses unsafe material drift,
   and the next step is intentionally mechanical — this step is the last one
@@ -181,5 +181,5 @@ owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
 same proofs on whatever checkout remains, then deletes the done ticket with no
 agent: its learning already landed with the merged PR. The packaged
 `bootstrap/retire/ticket.md` owns that procedure, and the
-`dev/checkout-cleanup` context owns what the shared proofs prove, preserve,
+`coga/checkout-cleanup` context owns what the shared proofs prove, preserve,
 and record for later sweeps.

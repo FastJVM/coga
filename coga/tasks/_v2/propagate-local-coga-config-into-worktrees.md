@@ -103,7 +103,7 @@ worktree: /tmp/coga-local-config
 - Feature worktree created from main; primary checkout retains its existing log change.
 - Recovery guidance moved from the ticket's stale recipe.py reference to
   src/coga/open_pr.py, open_pr. Updating that current surface.
-- dev/code owns the copy/resume policy; changed skills and docs workflow point to it.
+- coga/code owns the copy/resume policy; changed skills and docs workflow point to it.
 - Regression suite covers linked worktrees, independent clones, missing/invalid
   source, same-actor resume and broad permissions, conflicting/invalid destination,
   symlinks, and absence of sentinel values from output and Git state.
@@ -119,7 +119,7 @@ worktree: /tmp/coga-local-config
 - Added ordinary seed_local_config.py attachment; it validates source/destination
   config, verifies ignored/untracked placement, copies bytes privately, preserves
   same-actor destination contents, and fails without revealing config values.
-- Updated live and packaged code/implement and dev/code, bundled docs/with-review,
+- Updated live and packaged code/implement and coga/code, bundled docs/with-review,
   and open_pr recovery guidance. Packaged helper inclusion and twin identity pass.
 - Actual feature checkout seeded successfully using the helper. Its ignored local
   config stays in place for subsequent steps; no teardown is part of this step.
@@ -143,11 +143,11 @@ worktree: /tmp/coga-local-config
 - `codex review --base main` ran in `/tmp/coga-local-config` and returned.
   It found one P2: the bundled-helper discovery snippet called
   `bootstrap_skill_dir` without its required config argument. Corrected live
-  and packaged `dev/code` to use configuration-independent
+  and packaged `coga/code` to use configuration-independent
   `packaged_template_path`; executed the lookup and verified the helper exists.
 - Manual review found stale `coga-dev/codebase` guidance describing the old policy
   and this ticket as a draft. Replaced it with a pointer to the owning
-  `dev/code` contract in both live and packaged contexts.
+  `coga/code` contract in both live and packaged contexts.
 - Review initially could not initialize under the filesystem sandbox; rerun
   outside the sandbox returned successfully. Its default Python lacked
   `tomlkit`; verification uses the prepared test environment instead.
@@ -184,7 +184,7 @@ same-actor contents while restricting permissions, and refuses invalid or
 conflicting config without exposing credentials.
 
 Creation, resume, docs workflow, and missing-checkout recovery guidance now
-require setup before running Coga. The `dev/code` context owns the policy;
+require setup before running Coga. The `coga/code` context owns the policy;
 live and packaged guidance stays synchronized, including the corrected bundled
 helper lookup. Regression coverage exercises real worktrees and clones,
 permissions, actor conflicts, invalid source/destination config, and exclusion

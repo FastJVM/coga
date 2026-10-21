@@ -7,7 +7,7 @@ contexts:
 - coga-dev/codebase
 - coga/architecture
 - coga/sync
-- dev/code
+- coga/code
 workflow:
   name: code/with-self-review
   steps:
@@ -128,7 +128,7 @@ Step could not run; ticket canceled as premise-dead with the owner's decision.
 - Implement work unrecoverable: `codex/auto-persist-launch-dirt` has no local
   or remote ref, `/tmp/coga-auto-persist-launch-dirt` no longer exists, and
   commit `8f6e7846` is not a valid object in this repository. The branch was
-  never pushed and its `/tmp` checkout was wiped — the exact failure `dev/code`
+  never pushed and its `/tmp` checkout was wiped — the exact failure `coga/code`
   › "Keep the feature checkout durable" describes.
 - Premise removed: `[launch].worktree` per-launch isolation was deleted in
   PR #547 (`667120e8`, 2026-07-14). `config._ALLOWED_LAUNCH_KEYS` is

@@ -147,24 +147,24 @@ string in that module.
 | `coga/uninstall` | user | | `coga uninstall` | — |
 | `coga/usage` | user | | `coga usage` | — |
 | `coga/workflows` | user | | Workflow definitions and gates | `bs:bootstrap/ticket`; `bs:bootstrap/dream/scan/{scan-protocol,knowledge-scan}`; `bs:coga/autoclose/sweep` |
-| `dev/checkout-cleanup` | user | | Disposing finished checkouts | `autoclose.py` msg; `rec:autoclose-merged`; `T:bootstrap/retire`; `bs:coga/autoclose/sweep`; `bs:retro/done-ticket`; all `bw:code/*`, `bw:docs/with-review` |
-| `dev/checkout-cleanup/branch-sweep` | user | | Branch sweep archive rules | `T:coga.toml`; `rec:branch-sweep`, `rec:skill-update`; `bs:bootstrap/skill-update`; `bs:coga/branch-sweep/sweep`; `T:workflows/{branch-sweep/sweep,skill-update/run}` |
-| `dev/checkout-cleanup/proofs` | user | | Checkout removal proofs | `rec:autoclose-merged`, `rec:branch-sweep`; `T:bootstrap/retire`; `bs:coga/autoclose/sweep` |
-| `dev/checkout-cleanup/terminal-owners` | user | | Closed-PR branch deletion | `T:bootstrap/retire`; `bs:coga/branch-sweep/sweep`, `bs:coga/autoclose/sweep` |
-| `dev/checkouts` | user | | Where agent work runs; end-of-step return | `open_pr.py`, `step_gate.py` msgs; `bs:code/{implement,open-pr,self-qa,address-pr-comments}`; `bs:coga/autoclose/sweep`; all `bw:code/*`, `bw:docs/with-review` |
-| `dev/checkouts/chat` | user | | Direct chat occupancy and the shipped `prepare-checkout` recipe | `T:bootstrap/orient`; `dev/checkouts` |
-| `dev/checkouts/launch-boundary` | user | | Checkout recovery every launch cites | `prompt`; `launch.py` refusal msg; `T:bootstrap/orient` |
-| `dev/checkouts/manual` | user | | Checkout procedure when launch did not prepare a branch | `bs:code/implement`; `dev/checkouts` |
-| `dev/checkouts/reconciliation` | user | | Reconcile with main | `prompt`; `bs:code/implement` |
-| `dev/checkouts/sandbox-clone` | user | | Read-only `.git` fallback | `bs:code/implement` |
-| `dev/code` | user | | Code-ticket conventions | — |
-| `dev/dev-record` | user | | Compatibility pointer for old attachments | — (candidate for deletion under the clean-break rule; out of scope here) |
+| `coga/checkout-cleanup` | user | | Disposing finished checkouts | `autoclose.py` msg; `rec:autoclose-merged`; `T:bootstrap/retire`; `bs:coga/autoclose/sweep`; `bs:retro/done-ticket`; all `bw:code/*`, `bw:docs/with-review` |
+| `coga/checkout-cleanup/branch-sweep` | user | | Branch sweep archive rules | `T:coga.toml`; `rec:branch-sweep`, `rec:skill-update`; `bs:bootstrap/skill-update`; `bs:coga/branch-sweep/sweep`; `T:workflows/{branch-sweep/sweep,skill-update/run}` |
+| `coga/checkout-cleanup/proofs` | user | | Checkout removal proofs | `rec:autoclose-merged`, `rec:branch-sweep`; `T:bootstrap/retire`; `bs:coga/autoclose/sweep` |
+| `coga/checkout-cleanup/terminal-owners` | user | | Closed-PR branch deletion | `T:bootstrap/retire`; `bs:coga/branch-sweep/sweep`, `bs:coga/autoclose/sweep` |
+| `coga/checkouts` | user | | Where agent work runs; end-of-step return | `open_pr.py`, `step_gate.py` msgs; `bs:code/{implement,open-pr,self-qa,address-pr-comments}`; `bs:coga/autoclose/sweep`; all `bw:code/*`, `bw:docs/with-review` |
+| `coga/checkouts/chat` | user | | Direct chat occupancy and the shipped `prepare-checkout` recipe | `T:bootstrap/orient`; `coga/checkouts` |
+| `coga/checkouts/launch-boundary` | user | | Checkout recovery every launch cites | `prompt`; `launch.py` refusal msg; `T:bootstrap/orient` |
+| `coga/checkouts/manual` | user | | Checkout procedure when launch did not prepare a branch | `bs:code/implement`; `coga/checkouts` |
+| `coga/checkouts/reconciliation` | user | | Reconcile with main | `prompt`; `bs:code/implement` |
+| `coga/checkouts/sandbox-clone` | user | | Read-only `.git` fallback | `bs:code/implement` |
+| `coga/code` | user | | Code-ticket conventions | — |
+| `coga/dev-record` | user | | Compatibility pointer for old attachments | — (candidate for deletion under the clean-break rule; out of scope here) |
 
 Count after the ownership relocation: 78 rows. 54 `user` (6 renamed out of
 `coga/internals/`), 19 `coga-dev`, 5 `split`.
 
-Implementation reconciliation: main added `dev/checkouts/chat` and
-`dev/checkouts/manual` in PR #1068. Both have shipped consumers and therefore
+Implementation reconciliation: main added `coga/checkouts/chat` and
+`coga/checkouts/manual` in PR #1068. Both have shipped consumers and therefore
 remain user topics under the approved criterion. Including these two rows,
 the inventory is 80 rows: 56 `user`, 19 `coga-dev`, 5 `split`, yielding 61
 user topics and 24 Coga-dev topics after the cuts below.
@@ -221,9 +221,9 @@ fact stands alone; any remaining pointer becomes a GitHub URL):
 | `coga/sync` | `internals/{git-refresh,git-regressions,spool-merge,state-publication,state-publication/publish}`, `patterns` |
 | `coga/tickets/ownership` | `internals/{claim-recovery,state-publication/publish}` |
 | `coga/usage` | `internals/{activity-capture,spool-merge}` |
-| `dev/checkouts` | `internals/{recurring-temp-worktrees,state-publication}`, `testing` |
-| `dev/checkouts/launch-boundary` | `internals/git-refresh` |
-| `dev/code` | `codebase`, `internals/git-regressions` |
+| `coga/checkouts` | `internals/{recurring-temp-worktrees,state-publication}`, `testing` |
+| `coga/checkouts/launch-boundary` | `internals/git-refresh` |
+| `coga/code` | `codebase`, `internals/git-regressions` |
 
 (Refs abbreviated: `internals/x` = `coga/internals/x`; others are `coga/x`.)
 

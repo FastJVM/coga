@@ -204,7 +204,7 @@ def test_task_launch_publishes_its_launch_line_before_each_spawn(
 ) -> None:
     """Every supervised task step asks spawn to publish its `launched` line.
 
-    A code step's start check (`dev/checkouts`) requires a clean tree, Coga
+    A code step's start check (`coga/checkouts`) requires a clean tree, Coga
     state included, so the launch audit cannot wait for teardown's sweep.
     """
     slug = _create_agent_task(plain_repo, ["implement", "finish"])

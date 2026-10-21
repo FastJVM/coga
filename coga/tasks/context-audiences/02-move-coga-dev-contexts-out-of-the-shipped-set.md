@@ -274,7 +274,7 @@ implementation: 'Implements all 78 original approved rows plus two user topics a
   ticket contexts, enforces namespace, wheel, twin and link boundaries, and documents the clean break.
   Review fixes correct split-topic ownership citations, the release upgrade-runbook path, and live task/design
   requirements for local-only topics.'
-deviations: 'No audience decisions changed; PR #1068 added dev/checkouts/chat and dev/checkouts/manual,
+deviations: 'No audience decisions changed; PR #1068 added coga/checkouts/chat and coga/checkouts/manual,
   both user topics under the approved shipped-consumer criterion. Stored-ticket ref conversion travels
   with the topics under the coordinated-conversion procedure; lifecycle fields and titles are preserved.
   Two already-broken links were repaired during the requested audit. The owner approved all three review
@@ -606,12 +606,12 @@ files:
   docs/contexts/coga/tickets/ownership/SKILL.md: Keep user facts and navigation at the approved ref.
   docs/contexts/coga/usage/SKILL.md: Keep user facts and navigation at the approved ref.
   docs/contexts/coga/workflows/SKILL.md: Keep user facts and navigation at the approved ref.
-  docs/contexts/dev/checkouts/SKILL.md: Keep user facts and navigation at the approved ref.
-  docs/contexts/dev/checkouts/launch-boundary/SKILL.md: Keep user facts and navigation at the approved
+  docs/contexts/coga/checkouts/SKILL.md: Keep user facts and navigation at the approved ref.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Keep user facts and navigation at the approved
     ref.
-  docs/contexts/dev/checkouts/manual/SKILL.md: Keep user facts and navigation at the approved ref.
-  docs/contexts/dev/code/SKILL.md: Keep user facts and navigation at the approved ref.
-  docs/contexts/dev/dev-record/SKILL.md: Keep user facts and navigation at the approved ref.
+  docs/contexts/coga/checkouts/manual/SKILL.md: Keep user facts and navigation at the approved ref.
+  docs/contexts/coga/code/SKILL.md: Keep user facts and navigation at the approved ref.
+  docs/contexts/coga/dev-record/SKILL.md: Keep user facts and navigation at the approved ref.
   docs/release-notes/context-audiences.md: Document all renamed and de-packaged refs for the clean break.
   src/coga/cli.py: Update the source comment or docstring owning-topic citation.
   src/coga/git.py: Update the source comment or docstring owning-topic citation.
@@ -742,15 +742,15 @@ files:
     byte-for-byte.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Ship the canonical user
     topic byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/SKILL.md: Ship the canonical user
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Ship the canonical user
     topic byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/launch-boundary/SKILL.md: Ship the
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Ship the
     canonical user topic byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/manual/SKILL.md: Ship the canonical
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: Ship the canonical
     user topic byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/code/SKILL.md: Ship the canonical user topic
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/code/SKILL.md: Ship the canonical user topic
     byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/dev/dev-record/SKILL.md: Ship the canonical user
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/dev-record/SKILL.md: Ship the canonical user
     topic byte-for-byte.
   src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md: Update
     audience guidance and links to the correct topic owners.

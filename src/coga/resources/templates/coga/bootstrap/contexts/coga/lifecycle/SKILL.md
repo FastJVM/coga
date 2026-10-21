@@ -47,7 +47,7 @@ Tickets without a workflow move through statuses only via `coga mark`.
   is deleted with no retro agent, because its positive learning landed in its
   merged PR; a canceled one goes through Retro first, which extracts the
   cancellation reason and any other negative learning
-  ([dev/checkout-cleanup/terminal-owners](../../dev/checkout-cleanup/terminal-owners/SKILL.md)).
+  ([coga/checkout-cleanup/terminal-owners](../checkout-cleanup/terminal-owners/SKILL.md)).
   `mark done --force` / final-step `bump --force` finish a `direct/body`
   ticket while acknowledging product code stranded off the control branch.
 - **Convention: `done` means the work landed; `canceled` means it did not.**
@@ -100,7 +100,7 @@ refuse a blocked ticket until `coga unblock` records an answer.
   `coga mark done`. `--message` rides the transition notification. A forward
   bump from a step with a usable `## Dev` `branch:` warns on stderr (never
   blocks) about stranded ticket writes; see
-  [dev/checkouts](../../dev/checkouts/SKILL.md).
+  [coga/checkouts](../checkouts/SKILL.md).
 - `--to` / `--backward` is a **human** rewind; agents inside a supervised
   launch are refused (`COGA_SUPERVISED`). It is recovery when a step went
   wrong but the ticket's premise still holds: because status and blackboard
@@ -162,4 +162,4 @@ from live queues, clears its step, and keeps its body and blackboard as history.
 There is no separate `superseded` status. Leaving the replaced ticket paused or
 draft keeps it live. If file readers need the pointer, open `## Context` with
 **Superseded by `<new>` (<date>).** as a courtesy copy of the logged reason.
-A superseded design within one ticket follows [dev/code](../../dev/code/SKILL.md).
+A superseded design within one ticket follows [coga/code](../code/SKILL.md).

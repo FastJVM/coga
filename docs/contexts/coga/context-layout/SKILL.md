@@ -34,7 +34,8 @@ A **user** topic is knowledge an agent or human in a repo adopting Coga needs
 to configure, launch, author, recover, or understand a shipped command's
 refusal. Anything a shipped command, prompt, skill, workflow, or recurring
 template requires the reader to read is a user topic. User topics live under
-`coga/` and `dev/` and ship as bootstrap fallbacks.
+`coga/` and ship as bootstrap fallbacks, so the namespace states the
+audience: `coga/` ships with every install, `coga-dev/` never does.
 
 The **Coga-dev** set explains how Coga itself is built, tested, released, or
 steered. It lives under the `coga-dev/` namespace in Coga's own context
@@ -71,7 +72,7 @@ This policy covers context refs only, not skills or ordinary attachments.
 ## Three distribution states for a context
 
 - **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
-  (`coga/*` bootstrap topics, `dev/*`). `coga init` skips
+  (every `coga/*` topic). `coga init` skips
   `bootstrap/`; `resolve_context_path` reads the package copy when the repo has
   no local `<ref>/SKILL.md`. A repo overrides by creating the local file.
 - **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds

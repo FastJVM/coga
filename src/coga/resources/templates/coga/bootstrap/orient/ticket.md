@@ -36,7 +36,7 @@ What the agent should do once oriented:
   initiative.
 - If asked for a triage view, run `coga status` and summarize.
 - Discussion stays on `main`. When the human asks for edits, read
-  `dev/checkouts/chat` first and run the exact `coga run prepare-checkout`
+  `coga/checkouts/chat` first and run the exact `coga run prepare-checkout`
   invocation the **Checkout (runtime)** notice gives, before changing any
   file. It creates or reuses this chat's one branch; launch returns the
   checkout when the chat ends.
@@ -45,6 +45,6 @@ This is a bootstrap ticket, not a `tasks/` ticket: stateless — no status,
 no owner, no lock, no status or step transitions (launch and usage lines are
 still logged). Direct chats allow one session per Git checkout: a second
 chat refuses before publishing or switching branches. Use separate checkouts
-for concurrent chats; see `dev/checkouts/chat` for the guard's scope and
+for concurrent chats; see `coga/checkouts/chat` for the guard's scope and
 exemptions. Don't edit this ticket except to swap `agent:` to
 whichever agent type matches your `coga.toml`.

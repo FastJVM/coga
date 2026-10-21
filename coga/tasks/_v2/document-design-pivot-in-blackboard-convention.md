@@ -34,7 +34,7 @@ Several open drafts (`autotrigger-ticket-type`,
 `debug-surface-for-recurring-tasks-streamed-output`) carry the same pattern
 with "Open threads for next session" or "Design pivot" headings inline.
 
-The convention exists in practice but is undocumented. `dev/code` only
+The convention exists in practice but is undocumented. `coga/code` only
 documents the `## Dev` section. Document the pivot-trail convention so future
 ticket authors know where ditched directions go and can write them in a
 findable shape.
@@ -42,7 +42,7 @@ findable shape.
 Draft outline:
 
 - Add section **"Design pivots and superseded plans"** to
-  `relay-os/contexts/dev/code/SKILL.md` (or a new
+  `relay-os/contexts/coga/code/SKILL.md` (or a new
   `relay-os/contexts/relay/blackboard-conventions/SKILL.md`).
 - 2-3 bullets: ticket body is current intent only; superseded design lives in
   blackboard under a dated `## Design decision ... — SUPERSEDES X` heading; a

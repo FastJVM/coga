@@ -905,7 +905,7 @@ class _LaunchInvocation:
             self.cfg = authorize_direct_recurring(self.cfg)
 
         # An ordinary ticket launch runs from a clean, current control checkout
-        # (`dev/checkouts`). Resolution and the recorded-checkout test below only
+        # (`coga/checkouts`). Resolution and the recorded-checkout test below only
         # classify; every authoritative read happens after `enter`.
         self.boundary = _CheckoutBoundary()
         may_normalize = not self.prompt_report and not self.recurring_authorized
@@ -2196,7 +2196,7 @@ class _LaunchInvocation:
         return LaunchResult('script' if self.return_timeout and ended_by_script else None)
 
     def _manages_branch_checkout(self) -> bool:
-        """Whether this step's checkout is prepared here (`dev/checkouts`).
+        """Whether this step's checkout is prepared here (`coga/checkouts`).
 
         Only an ordinary task launch whose boundary entered and armed on
         control. Recurring, delegated and caller-guarded launches keep their
@@ -2277,7 +2277,7 @@ class _LaunchInvocation:
             )
             _bail(
                 f"Cannot launch {self.ref.id_slug}: {exc}\n{where} See "
-                "dev/checkouts/launch-boundary for recovery.",
+                "coga/checkouts/launch-boundary for recovery.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
         _report(f"Launch: checkout {plan.action} — {notice.summary}")
@@ -2301,7 +2301,7 @@ class _LaunchInvocation:
                     f"{self.kept_checkout_reason}."
                 ),
                 return_owner=(
-                    "Launch does not return this checkout; follow dev/checkouts "
+                    "Launch does not return this checkout; follow coga/checkouts "
                     "for the end of the step."
                 ),
             )
@@ -2907,7 +2907,7 @@ def settle_delegated_period(cfg: Config, ref: TaskRef) -> bool:
 
 
 class _CheckoutBoundary:
-    """One ordinary launch's checkout normalization (`dev/checkouts`).
+    """One ordinary launch's checkout normalization (`coga/checkouts`).
 
     `enter` publishes routine pending Coga state, then brings the invoking
     checkout to a clean, fetched control branch before any authoritative
@@ -3079,7 +3079,7 @@ def _checkout_refusal_message(
         f"the ticket on current {cfg.git_remote}/{cfg.git_control_branch} and "
         "the PR's merge status. Inspect uncommitted changes separately; a "
         "merged PR does not prove those edits are finished. Do not automatically "
-        "stash or discard them. Follow dev/checkouts/launch-boundary's "
+        "stash or discard them. Follow coga/checkouts/launch-boundary's "
         "checkout recovery procedure."
     )
     return "\n".join(lines)

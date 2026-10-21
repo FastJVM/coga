@@ -7,7 +7,7 @@ description: Module seams and code-level hazards to respect when editing Coga's 
 
 Each item names a real seam a new caller must keep. Environment and test
 pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
-[dev/checkouts](../../../dev/checkouts/SKILL.md).
+[coga/checkouts](../../../coga/checkouts/SKILL.md).
 
 ## Seams
 
