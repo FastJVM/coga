@@ -176,7 +176,7 @@ limitations: Historical log bytes are unchanged; malformed historical events nee
   Older Coga readers do not understand v1 headers. Git failure recovery and usage deduplication remain
   separate tickets.
 files:
-  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Own the v1 line grammar, central escaping, raw legacy
+  docs/contexts/coga/internals/spool-merge/SKILL.md: Own the v1 line grammar, central escaping, raw legacy
     messages, and continuation/retraction policy.
   docs/contexts/coga/telemetry/SKILL.md: Link the shared audit decoding contract and document multiline
     FYI suffixes.
@@ -197,8 +197,8 @@ files:
   tests/test_recurring.py: Cover versioned ledger messages and both watchdog envelope formats.
   tests/test_telemetry.py: Exercise movement grammar in both formats and versioned multiline FYIs.
   tests/test_usage.py: Regress legacy paths with literal backslashes and encoded quoted/newline outcomes.
-  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Byte-identical
-    packaged twin of coga-dev/internals/spool-merge.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/spool-merge/SKILL.md: Byte-identical
+    packaged twin of coga/internals/spool-merge.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/telemetry/SKILL.md: Byte-identical packaged
     twin of coga/telemetry.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Byte-identical packaged twin

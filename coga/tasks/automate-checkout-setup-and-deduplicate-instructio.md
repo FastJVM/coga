@@ -818,11 +818,11 @@ files:
   coga/skills/code/implement/SKILL.md: Confirm the prepared checkout, sandbox first-refusal pointer, keep judgment steps; drop branch/publish/restore recipes.
   coga/skills/code/open-pr/SKILL.md: Control-entry wording from the notice; recovery pointers to the manual leaf.
   coga/skills/code/self-qa/SKILL.md: Start on the reused branch per the notice; drop start-check/switch/restore recipe.
-  docs/contexts/coga-dev/codebase/SKILL.md: Source map entries for checkout_policy.py and checkouts.py.
+  docs/contexts/coga/codebase/SKILL.md: Source map entries for checkout_policy.py and checkouts.py.
   docs/contexts/coga/extension-model/SKILL.md: Register prepare-checkout and its placement reason.
-  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Projected control blob as a provenance source.
-  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Strict linkage publication and strict baseline recording.
-  docs/contexts/coga/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
+  docs/contexts/coga/internals/git-regressions/SKILL.md: Projected control blob as a provenance source.
+  docs/contexts/coga/internals/state-publication/publish/SKILL.md: Strict linkage publication and strict baseline recording.
+  docs/contexts/coga/internals/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
   docs/contexts/coga/launch/SKILL.md: Per-step branch preparation order and exclusions.
   docs/contexts/coga/prompt-composition/SKILL.md: Checkout notice layer.
   docs/contexts/coga/workflows/SKILL.md: Gates are exit-only; entry table lives in dev/checkouts.
@@ -840,11 +840,11 @@ files:
   src/coga/git.py: Strict record_projected_baseline sharing the published-ref writer.
   src/coga/launch.py: Chat receipt in the guard, per-step managed preparation, unmanaged notices.
   src/coga/resources/prompt.md: Base prompt defers to the runtime notice and dev/checkouts.
-  docs/contexts/coga-dev/codebase/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin.
-  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Packaged twin.
-  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/sweep/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-regressions/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/publish/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/sweep/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin.
