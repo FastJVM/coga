@@ -7,9 +7,28 @@ workflow: null
 
 ## Description
 
-placeholder
+`gh` is not installed on a fresh Mac and `coga init`'s offer to install it
+cannot fire there. `_package_manager` at `src/coga/commands/init.py:471`
+returns brew as the only macOS candidate, a fresh Mac has no brew, and
+`_offer_install` at `:485` returns False as soon as the manager is None.
+Decide how a new user gets `gh` and make the install path say so.
+
+Done when: a new user on a fresh Mac has a working or documented route to
+`gh`.
 
 ## Context
+
+### Why
+
+- Finding 8 on `test-and-fix-install-on-macos-and-windows`, recorded there as
+  open and needing an owner decision.
+- The auto-install offer exists because of an owner reversal on 2026-09-30:
+  users read a missing `gh` as a broken, unprofessional install and churn.
+- The user it was built for is exactly the one who cannot receive it.
+- `coga init` enforces only `git` and continues without `gh`, so this is a
+  first-impression problem rather than a hard failure.
+- Zach's note from the walk on 2026-10-15: `gh` is listed as optional, and for
+  him it was not optional.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

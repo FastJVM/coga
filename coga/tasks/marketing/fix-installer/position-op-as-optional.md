@@ -7,9 +7,25 @@ workflow: null
 
 ## Description
 
-placeholder
+The install path presents `op` as a tool to set up, and people who use a
+different secrets manager should not be steered into 1Password. Position it as
+optional and say what it is for, so a user with their own manager skips it
+without wondering what they broke.
+
+Done when: the install path presents `op` as optional and names what needs
+it.
 
 ## Context
+
+### Why
+
+- `src/coga/dependencies.py:89` already declares `op` as offered with a default
+  of no, because most repos never declare an `op://` secret.
+- coga resolves `op://vault/item/field` secrets by running `op read` at launch,
+  so `op` matters only to tickets that use one.
+- The gap is how the install path positions it, not the dependency declaration.
+- Zach hit it on the walk on 2026-10-15: init lists `gh` and `op` together as
+  optional tools without saying who actually needs either.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

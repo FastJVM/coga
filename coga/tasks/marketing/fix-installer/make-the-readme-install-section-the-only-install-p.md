@@ -7,9 +7,30 @@ workflow: null
 
 ## Description
 
-placeholder
+Remove the install page link from the README so the README install section is
+the only thing that leads a user through an install. Before removing it, carry
+over the facts on that page that have no other home.
+
+Done when: the link is gone, the facts worth keeping have landed somewhere, and
+the README install section stands on its own.
 
 ## Context
+
+### Why
+
+- The owner decided on 2026-10-17 to delete `coga/install` in favour of install
+  instructions in the README.
+- `README.md:117` still links `docs/contexts/coga/install/SKILL.md`, so that
+  link breaks when the deletion lands.
+- The orphan facts are already listed on
+  `test-and-fix-install-on-macos-and-windows` under the 2026-10-17 owner
+  decision, as candidates for a surviving context rather than commitments.
+- From the walk on 2026-10-15: the install page explains prerequisites instead
+  of supplying them, which is not what a page called Install should do.
+- Also from the walk: the README reads as written for humans and the page it
+  links reads as written for agents.
+- The canonical page has a byte-identical packaged twin at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

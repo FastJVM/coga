@@ -7,9 +7,28 @@ workflow: null
 
 ## Description
 
-placeholder
+The README install block installs uv, runs `git init`, installs an agent CLI
+and installs coga in one copy-paste sequence. Someone who already has uv, git
+and Claude Code runs it and damages a working setup. Split it into a short
+sequence that installs coga and nothing else, and a separate section for the
+dependencies.
+
+Done when: the README install section installs coga only, and dependency setup
+lives in its own section.
 
 ## Context
+
+### Why
+
+- Nico raised this in the install documentation review on 2026-10-19.
+- His objection is that anyone who wants coga is already a heavy agent-CLI user
+  and will usually have the dependencies already.
+- A user who copy-pastes the block blind overwrites their own install and does
+  not come back.
+- The block that prompted it is the five-line sequence on branch
+  `install-walk-findings`, PR #1043, closed unmerged on 2026-10-19.
+- This ticket decides what the install section contains;
+  `make-the-readme-install-section-the-only-install-p` decides where it lives.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

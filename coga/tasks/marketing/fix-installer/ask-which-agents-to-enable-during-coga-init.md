@@ -7,9 +7,29 @@ workflow: null
 
 ## Description
 
-placeholder
+The packaged `coga.toml` ships `[agents.claude]` and `[agents.codex]` blocks
+unconditionally, and most people have one agent CLI, not both. `coga init` asks
+which agent CLI to install only when none is on PATH, and returns early when
+more than one is. Make init ask which agents to enable and where they are, and
+write only those into `coga.toml`.
+
+Done when: `coga init` asks, and the resulting `coga.toml` declares only the
+agents the user chose.
 
 ## Context
+
+### Why
+
+- Nico raised this in the review on 2026-10-19 and called the both-installed
+  assumption a mess for anyone who has one.
+- He confirmed Codex needs no special flag: `coga.toml` declares where each
+  agent lives and how to launch it, so any agent is added the same way.
+- There is no Gemini support today; `AGENT_CLIS` at
+  `src/coga/dependencies.py:162` is `("claude", "codex")`.
+- Partial behaviour already exists at `src/coga/commands/init.py:562-580`, so
+  this extends it rather than building it from nothing.
+- `agent_cli_setup.py` is absent from the released v0.4.0, so a user who ran
+  `uv tool install coga` gets none of it.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

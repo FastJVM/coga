@@ -7,9 +7,25 @@ workflow: null
 
 ## Description
 
-placeholder
+`coga build` is not named in the install flow, so a user who finishes the
+install is not told the next command. Put it where it belongs in the flow.
+
+Done when: the install flow names `coga build` and says when to run it.
 
 ## Context
+
+### Why
+
+- Nico flagged the omission in the review on 2026-10-19.
+- `coga init`'s terminal next steps already name `coga build`, including
+  `--agent codex`, so the gap is in the written install path.
+- `README.md:127` covers `coga build` under First steps and correctly
+  conditions it on the repo being empty.
+- Self-QA on `test-and-fix-install-on-macos-and-windows` removed `coga build`
+  from the five-line block on 2026-10-18 because it duplicated First steps
+  unconditionally and exceeded the five-line cap.
+- So this is a question of where `coga build` belongs in the flow, not of
+  adding it back to the install block.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

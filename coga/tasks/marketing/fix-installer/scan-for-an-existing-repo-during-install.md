@@ -7,9 +7,31 @@ workflow: null
 
 ## Description
 
-placeholder
+The install path assumes the user already has a git repository, and the first
+steps differ for someone who does not. Work out which case the user is in and
+give each case its own path.
+
+Done when: both cases have a path and neither asks the user to work out which
+one applies to them.
 
 ## Context
+
+### Why
+
+- Finding 4 on `test-and-fix-install-on-macos-and-windows`: the README install
+  block assumes a repo exists.
+- This was the first dead end on the walk on 2026-10-15, with nothing to `cd`
+  into and no instruction to create a folder and run `git init`.
+- `coga init` fails without a repo, but its terminal message tells the user to
+  run `git init` and rerun, which worked.
+- The current README block hardcodes `mkdir myproject && cd myproject &&
+  git init`, so a user who already has a project and follows it literally
+  creates a throwaway directory.
+- Nico's position on 2026-10-19 is that having a repo is a prerequisite rather
+  than a step, and that someone who does not know that will not get far with
+  coga.
+- He separately floated scanning an existing repo to build documentation from
+  what is in it; that is a different idea and not this ticket.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
