@@ -1123,3 +1123,246 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
     assert _launch(ref.id_slug).exit_code == 0
     assert relaunch.seen[0]["step"] == "1 (implement)"
     assert (clone / "staged.py").read_text() == "staged\n"
+
+
+# --- review regressions (PR #1068) ----------------------------------------------
+
+
+def test_chat_rerun_reuses_its_own_branch_after_committing_and_returning(
+    git_repo,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        first = _run_recipe(git_repo, "--session", session.session)
+        assert first.exit_code == 0, first.output
+        (git_repo.root / "chat.py").write_text("work\n")
+        git_repo.git("add", "chat.py")
+        git_repo.git("commit", "-qm", "chat work")
+        tip = git_repo.git("rev-parse", "HEAD").strip()
+        git_repo.git("switch", "-q", "main")
+
+        again = _run_recipe(git_repo, "--session", session.session)
+
+        assert again.exit_code == 0, again.output
+        assert f"reused: branch {session.branch}" in again.output
+        assert _head(git_repo) == session.branch
+        assert git_repo.git("rev-parse", "HEAD").strip() == tip
+
+
+def test_chat_rerun_refuses_its_branch_moved_off_the_creation_commit(
+    git_repo,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        first = _run_recipe(git_repo, "--session", session.session)
+        assert first.exit_code == 0, first.output
+        git_repo.git("switch", "-q", "main")
+        tree = git_repo.git("rev-parse", "HEAD^{tree}").strip()
+        foreign = git_repo.git("commit-tree", tree, "-m", "unrelated root").strip()
+        git_repo.git("update-ref", f"refs/heads/{session.branch}", foreign)
+
+        again = _run_recipe(git_repo, "--session", session.session)
+
+        assert again.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, again.output
+        assert "nothing was adopted" in again.output
+        assert _head(git_repo) == "main"
+        assert git_repo.git("rev-parse", session.branch).strip() == foreign
+
+
+def test_unpushed_recorded_branch_is_reused_without_parsing_fetch_stderr(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    git_repo.git("branch", "feature/local-only")
+    _write_dev_branch(git_repo, ref, "feature/local-only")
+    coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="link")
+    real_git = coga_git.run_git
+
+    def localized(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        # A non-English git reports a missing remote ref in its own words.
+        if args[:1] == ("fetch",) and any("feature/local-only" in a for a in args):
+            raise coga_git.GitError("Konnte Remote-Referenz nicht finden")
+        return real_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(coga_git, "run_git", localized)
+    agent = _Agent(git_repo, [lambda seen: None])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == 0, result.output
+    assert agent.seen[0]["head"] == "feature/local-only"
+
+
+def test_completed_reservation_receipts_never_resurrect_a_removed_branch(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+    rel = _rel(git_repo, ref)
+    root = coga_git.toplevel(git_repo.root)
+    receipt = checkouts._receipt_path(root, rel)
+    real_sync = coga_git.sync_task_state
+    calls = {"n": 0}
+
+    def flaky(cfg, path, *, message, **kwargs):  # type: ignore[no-untyped-def]
+        if "— branch " in message and calls["n"] == 0:
+            calls["n"] += 1
+            raise coga_git.GitError("offline")
+        return real_sync(cfg, path, message=message, **kwargs)
+
+    monkeypatch.setattr("coga.git.sync_task_state", flaky)
+    agent = _Agent(git_repo, [lambda seen: None, lambda seen: None])
+    launch_env(agent)
+
+    assert _launch(ref.id_slug).exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert json.loads(receipt.read_text())["stage"] == "linked"
+    assert _launch(ref.id_slug).exit_code == 0
+    # The linked reservation landed and was reused: nothing is retained.
+    assert not receipt.exists()
+
+    # An older completed receipt left behind (e.g. by a control-only step)
+    # must not bring back its name or base once `## Dev` loses the line.
+    stale_base = git_repo.git("rev-parse", "main").strip()
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text(json.dumps({
+        "task": rel, "root": str(root), "branch": "coga/stale-old",
+        "oid": stale_base, "stage": "admitted",
+    }))
+    other = _task(git_repo, "code/with-self-review", title="Fresh reservation")
+    other_receipt = checkouts._receipt_path(root, _rel(git_repo, other))
+    other_receipt.write_text(json.dumps({
+        "task": _rel(git_repo, other), "root": str(root),
+        "branch": "coga/stale-old", "oid": stale_base, "stage": "published",
+    }))
+
+    result = _launch(other.id_slug)
+
+    assert result.exit_code == 0, result.output
+    assert agent.seen[-1]["head"].startswith("coga/fresh")
+    assert git_repo.git("branch", "--list", "coga/stale-old").strip() == ""
+
+
+@pytest.mark.parametrize("failure", ["baseline-oserror", "receipt", "head"])
+def test_failures_after_the_switch_report_that_launch_switched(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code/with-self-review")
+
+    def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        if failure == "baseline-oserror":
+            raise OSError("read-only metadata")
+        if failure == "receipt":
+            raise checkouts.CheckoutPreparationError("reservation", "receipt vanished")
+        raise coga_git.GitError("rev-parse failed")
+
+    if failure == "baseline-oserror":
+        monkeypatch.setattr("coga.git.record_projected_baseline", boom)
+    elif failure == "receipt":
+        monkeypatch.setattr(checkouts, "_discard_receipt", boom)
+    else:
+        real_symbolic = coga_git.symbolic_head
+
+        def flaky_symbolic(root):  # type: ignore[no-untyped-def]
+            head = real_symbolic(root)
+            if head and head.startswith("coga/"):
+                boom()
+            return head
+
+        monkeypatch.setattr(checkouts.git, "symbolic_head", flaky_symbolic)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "left where preparation stopped" in result.output
+    assert agent.seen == []
+    assert _head(git_repo).startswith("coga/")
+
+
+def _make_stranded(git_repo, ref: TaskRef) -> None:  # type: ignore[no-untyped-def]
+    git_repo.git("switch", "-q", "-c", "feature/stranded")
+    ref.ticket_path.write_text(ref.ticket_path.read_text() + "\nbranch-only intent\n")
+    git_repo.git("commit", "-qam", "strand the ticket")
+    git_repo.git("switch", "-q", "main")
+    _write_dev_branch(git_repo, ref, "feature/stranded")
+
+
+@pytest.mark.parametrize("refusal", ["missing", "stranded", "held"])
+def test_refused_preparation_records_no_launch(
+    git_repo, launch_env, refusal: str
+) -> None:  # type: ignore[no-untyped-def]
+    from coga.logfile import log_path
+
+    ref = _task(git_repo, "code/with-self-review")
+    if refusal == "missing":
+        _write_dev_branch(git_repo, ref, "feature/gone")
+    elif refusal == "stranded":
+        _make_stranded(git_repo, ref)
+    else:
+        git_repo.git("branch", "feature/held")
+        git_repo.git("worktree", "add", "-q", str(git_repo.root.parent / "held"), "feature/held")
+        _write_dev_branch(git_repo, ref, "feature/held")
+    cfg = load_config(git_repo.coga_os)
+    coga_git.sync_task_state(cfg, ref.path, message="link")
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+
+    result = _launch(ref.id_slug)
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert agent.seen == [] and _head(git_repo) == "main"
+    assert "launched (operator=" not in _control(git_repo, "coga/log.md")
+    assert "launched (operator=" not in log_path(cfg).read_text()
+
+
+def test_ref_helpers_use_the_shared_git_runner(git_repo, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    monkeypatch.setenv("PATH", str(git_repo.root / "no-git-here"))
+    with pytest.raises(coga_git.GitError, match="not found"):
+        checkouts._ref_oid(git_repo.root, "HEAD")
+    with pytest.raises(coga_git.GitError, match="not found"):
+        checkouts._require_valid_branch(cfg, git_repo.root, "feature/x", "linkage")
+
+
+def _plan(policy, **kwargs):  # type: ignore[no-untyped-def]
+    from coga.checkout_policy import CheckoutPolicy
+
+    base = dict(
+        policy=CheckoutPolicy(*policy), root=Path("/repo"), rel="coga/tasks/t.md",
+        control_oid="0" * 40, ticket_bytes=b"", action="stay",
+    )
+    base.update(kwargs)
+    return checkouts.TicketCheckoutPlan(**base)
+
+
+def test_notice_names_the_step_from_the_policy_field(git_repo) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    shipped = select_checkout_policy(cfg, _frozen("code/with-review", "open-pr"))
+    assert shipped.step == "open-pr"
+    plan = _plan(("control", "no quoted step name here", "design"))
+    assert "for step `design`" in checkouts.ticket_notice(cfg, plan).summary
+
+
+def test_notice_asks_to_push_only_when_there_is_a_branch(git_repo) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    stays = [
+        _plan(("control", "r", "open-pr")),
+        _plan(("reuse-required", "r", "self-qa"), notes=("Already satisfied",)),
+        _plan(("manual", "custom", "build")),
+    ]
+    for plan in stays:
+        returns = checkouts.ticket_notice(cfg, plan).return_owner
+        assert "Push your branch" not in returns
+        assert "Run `coga bump` last." in returns
+    switched = _plan(
+        ("create-or-reuse", "r", "implement"), action="switch",
+        branch="coga/t-1", branch_oid="1" * 40, outcome="created",
+    )
+    assert "Push your branch and run `coga bump` last." in (
+        checkouts.ticket_notice(cfg, switched).return_owner
+    )

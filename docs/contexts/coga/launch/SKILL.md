@@ -89,10 +89,12 @@ teardown refresh below.
 
 Inside an ordinary task launch whose entry prepared control, each agent
 step's checkout is then prepared from its frozen step: after activation and
-the start publication, launch publishes its audit line on control, selects
-the step's entry policy, creates or reuses and publishes the recorded branch
-where the policy names one, composes the prompt from that final control
-state, switches, projects the ticket, and spawns with that exact prompt
+the start publication, launch selects the step's entry policy, creates or
+reuses and publishes the recorded branch where the policy names one, and
+composes the prompt from control state; only then does it publish its
+`launched` audit line on control (a refused preparation records no launch),
+re-prove control (recomposing if the ticket gained notes), switch, project
+the ticket, and spawn with that exact prompt
 (`spawn_agent_session(composed_prompt=...)`). The policy table, refusals, and
 recovery are owned by [dev/checkouts](../../dev/checkouts/SKILL.md);
 `ticket.py` phases run first and are never moved to a feature branch, and

@@ -2222,21 +2222,24 @@ class _LaunchInvocation:
     def _prepare_step_checkout(
         self, ticket: Ticket, *, actor: str, log_message: str
     ) -> tuple[Ticket, str]:
-        """Audit, plan and link on control, compose, then switch and project.
+        """Plan and link on control, compose, audit, then switch and project.
 
-        Returns the authoritative ticket and the prompt composed from control
-        state; the spawn must use both unchanged. A refusal reports where the
-        checkout stands and stops the launch without a sweep or a return over
-        state it did not start.
+        The `launched` audit line is appended and published only after
+        planning and composition on control succeeded, so a refused
+        preparation leaves no launch record; the switch-time checks were
+        already run once while planning. Returns the authoritative ticket and
+        the prompt composed from control state; the spawn must use both
+        unchanged. A refusal reports where the checkout stands and stops the
+        launch without a sweep or a return over state it did not start.
         """
         assert isinstance(self.ref, TaskRef)
         policy = select_checkout_policy(self.cfg, ticket)
         _report(f"Launch: checkout policy {policy.kind} — {policy.reason}")
-        try:
-            if self.record_launch:
-                append_log(self.cfg, self.ref.id_slug, actor, log_message)
-                git.sync_log(self.cfg, message=f"Log: {self.ref.id_slug}")
-            plan = checkouts.plan_ticket_checkout(self.cfg, self.ref, ticket, policy)
+
+        def compose(
+            plan: checkouts.TicketCheckoutPlan,
+        ) -> tuple[Ticket, CheckoutNotice, str]:
+            assert isinstance(self.ref, TaskRef)
             current = self._read(self.ref)
             notice = checkouts.ticket_notice(self.cfg, plan)
             try:
@@ -2246,6 +2249,21 @@ class _LaunchInvocation:
                 )
             except ComposeError as exc:
                 _bail(str(exc))
+            return current, notice, prompt
+
+        try:
+            plan = checkouts.plan_ticket_checkout(self.cfg, self.ref, ticket, policy)
+            current, notice, prompt = compose(plan)
+            if self.record_launch:
+                append_log(self.cfg, self.ref.id_slug, actor, log_message)
+                git.sync_log(self.cfg, message=f"Log: {self.ref.id_slug}")
+                confirmed = checkouts.confirm_ticket_checkout(
+                    self.cfg, self.ref, ticket, plan
+                )
+                if confirmed.ticket_bytes != plan.ticket_bytes:
+                    # Control's ticket gained notes meanwhile: compose from it.
+                    current, notice, prompt = compose(confirmed)
+                plan = confirmed
             checkouts.enter_ticket_checkout(self.cfg, self.ref, plan)
         except (checkouts.CheckoutPreparationError, git.GitError, OSError) as exc:
             switched = getattr(exc, "switched", False)

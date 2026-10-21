@@ -94,8 +94,9 @@ An ordinary `coga launch` of an agent-held step (or an explicit assist on an
 owner-held step) runs this for every step it chains, from a fresh control
 read: publish routine state and prepare control (the [launch
 boundary](launch-boundary/SKILL.md)), routing and refusing preflights,
-activation, the launch audit on control, then branch preparation, final
-composition from control, the switch, and spawn. It sets
+activation, branch preparation and composition from control, the launch
+audit on control (only once preparation there succeeded, so a refusal
+records no launch), the switch, and spawn. It sets
 `COGA_LAUNCH_RETURNS_CHECKOUT=1` only when it will return the checkout. The
 prompt's **Checkout (runtime)** notice states what it observed and did.
 
@@ -110,7 +111,10 @@ prompt's **Checkout (runtime)** notice states what it observed and did.
    `## Already satisfied` evidence exists: the agent then verifies from
    control), a branch committing ticket intent control lacks ([stranded
    ticket writes](#stranded-ticket-writes)), one held by another worktree,
-   or ignored files the switch would overwrite. After switching it projects
+   or ignored files the switch would overwrite; these switch checks run
+   before the audit and again, under the state lock, at the switch. A
+   failure after the switch reports that the checkout was switched. After
+   switching it projects
    only this ticket from that control revision, unstaged, and records its
    blob as this worktree's publication provenance
    ([git-regressions](../../coga/internals/git-regressions/SKILL.md#the-provenance-check)).
@@ -143,7 +147,9 @@ branch by name from there. A step that must exceptionally change code from
 control — a docs publication fix — follows the [manual procedure](manual/SKILL.md). A
 preparation failure exits 75 naming the stage and where the checkout stands;
 it withholds the sweep, never rolls back, and keeps the reservation so the
-next launch retries the same branch name. A recorded `worktree:` (a sandbox
+next launch retries the same branch name. Once control's ticket records the
+branch, the reservation is dropped, so removing that line later never brings
+back its name or base. A recorded `worktree:` (a sandbox
 clone) keeps this primary on control and names the clone, which must exist on
 the recorded branch; see [sandbox-clone](sandbox-clone/SKILL.md), which also
 owns the first sandbox refusal after launch switched.

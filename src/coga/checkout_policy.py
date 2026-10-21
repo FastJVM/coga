@@ -30,10 +30,11 @@ CheckoutPolicyKind = Literal["control", "create-or-reuse", "reuse-required", "ma
 
 @dataclass(frozen=True)
 class CheckoutPolicy:
-    """The selected entry behavior and why."""
+    """The selected entry behavior, why, and the frozen step it was read from."""
 
     kind: CheckoutPolicyKind
     reason: str
+    step: str | None = None
 
 
 _CODE = ("code/design-then-implement", "code/with-review", "code/with-self-review")
@@ -74,24 +75,27 @@ def select_checkout_policy(cfg: Config, ticket: Ticket) -> CheckoutPolicy:
         return CheckoutPolicy("manual", "the ticket has no current workflow step")
     wf_name = workflow.get("name")
     step_name = step.get("name")
+    named = step_name if isinstance(step_name, str) else None
     row = _ROWS.get((wf_name, step_name)) if isinstance(wf_name, str) else None
     label = f"step {step_name!r} of workflow {wf_name!r}"
     if row is None:
         return CheckoutPolicy(
-            "manual", f"{label} is not a shipped step with a known checkout"
+            "manual", f"{label} is not a shipped step with a known checkout", named
         )
     shapes, kind = row
     skills = tuple(step.get("skills") or ())
     if skills not in shapes:
         return CheckoutPolicy(
-            "manual", f"{label} declares step skills {list(skills)!r}, not the shipped ones"
+            "manual",
+            f"{label} declares step skills {list(skills)!r}, not the shipped ones",
+            named,
         )
     changed = (
         _changed_skill(cfg, skills) if skills else _changed_section(cfg, wf_name, step_name)
     )
     if changed is not None:
-        return CheckoutPolicy("manual", f"{label}: {changed}")
-    return CheckoutPolicy(kind, f"{label} uses the shipped instructions")
+        return CheckoutPolicy("manual", f"{label}: {changed}", named)
+    return CheckoutPolicy(kind, f"{label} uses the shipped instructions", named)
 
 
 def _changed_skill(cfg: Config, refs: tuple[str, ...]) -> str | None:

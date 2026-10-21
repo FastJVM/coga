@@ -31,7 +31,6 @@ import json
 import os
 import re
 import secrets
-import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -58,6 +57,8 @@ from coga.open_pr import same_git_checkout
 
 PREPARE_RECIPE = "prepare-checkout"
 _RECEIPT_DIR = "coga/checkout-receipts"
+# Receipt stages written only after `branch:` reached control.
+_LANDED_STAGES = frozenset({"published", "switching", "admitted"})
 _BRANCH_SLUG_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -168,16 +169,51 @@ def plan_ticket_checkout(
                 "retry the launch",
             )
         _update_receipt(cfg, root, rel, stage="published")
+        _check_switch_target(cfg, root, branch, control_oid)
         return replace(
             base, control_oid=control_oid, ticket_bytes=current, action="switch",
             branch=branch, branch_oid=oid, outcome="created",
         )
     oid, notes = _reuse_recorded_branch(cfg, root, branch)
-    _discard_superseded_receipt(cfg, root, rel, branch)
+    _discard_receipt(cfg, root, rel)
+    # Refuse what the switch would refuse while still before the launch audit;
+    # `enter_ticket_checkout` re-observes both under the state lock.
+    _check_switch_target(cfg, root, branch, control_oid)
+    _guard_stranded_ticket(cfg, root, branch, control_oid, rel)
     return replace(
         base, action="switch", branch=branch, branch_oid=oid, outcome="reused",
         notes=notes,
     )
+
+
+def confirm_ticket_checkout(
+    cfg: Config, ref: TaskRef, ticket: Ticket, plan: TicketCheckoutPlan
+) -> TicketCheckoutPlan:
+    """Re-prove control after launch published its audit line; keep the plan.
+
+    Launch records its `launched` line only once planning succeeded, and
+    publishing it advances control. A switch plan is re-anchored to that
+    final control revision, with the ticket's contract, policy and recorded
+    branch re-checked, so the projection still comes from control as the
+    agent will see it. A plan that stays on control needs no anchor.
+    """
+    if plan.action != "switch":
+        return plan
+    stage = "launch audit"
+    root, control_oid = _prove_control(cfg, stage)
+    if control_oid == plan.control_oid:
+        return plan
+    current = _authoritative_ticket(
+        cfg, root, ref, plan.rel, control_oid, ticket, plan.policy, stage
+    )
+    _, blackboard = _split(current, ref)
+    if (parse_branch_names(blackboard) or [None])[0] != plan.branch:
+        raise CheckoutPreparationError(
+            stage,
+            f"control's ticket no longer records branch: {plan.branch} first; "
+            "retry the launch",
+        )
+    return replace(plan, root=root, control_oid=control_oid, ticket_bytes=current)
 
 
 def enter_ticket_checkout(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -> None:
@@ -214,51 +250,76 @@ def enter_ticket_checkout(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -
         _update_receipt(cfg, root, rel, stage="switching", missing_ok=True)
         _switch(root, plan.branch, "switch")
         try:
-            ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text(ref.ticket_path, plan.ticket_bytes.decode("utf-8"))
-        except OSError as exc:
+            _project_after_switch(cfg, ref, plan)
+        except CheckoutPreparationError as exc:
+            exc.switched = True
+            raise
+        except (git.GitError, OSError) as exc:
+            # Whatever failed after the switch, HEAD already left control:
+            # say so, so launch neither returns nor sweeps over it blindly.
             raise CheckoutPreparationError(
-                "projection",
-                f"switched to {plan.branch!r} but could not write control's {rel}: "
-                f"{exc}. The branch and control's ticket are intact; retry the "
-                "launch, which returns this checkout first",
+                "verification",
+                f"switched to {plan.branch!r}, then could not finish preparing "
+                f"it: {exc}. No agent was started; the branch and control's "
+                f"{rel} are intact",
                 switched=True,
             ) from exc
-        oid = git._blob_oid(root, plan.control_oid, rel)
-        if oid is None:
-            raise CheckoutPreparationError(
-                "provenance", f"{rel} is not on control at {plan.control_oid}", switched=True
-            )
-        try:
-            git.record_projected_baseline(cfg, root, rel, oid)
-        except git.GitError as exc:
-            raise CheckoutPreparationError(
-                "provenance",
-                f"switched to {plan.branch!r} and projected {rel}, but could not "
-                f"record its publication baseline: {exc}. No agent was started; "
-                "the projected ticket equals control's copy, so returning this "
-                "checkout loses nothing",
-                switched=True,
-            ) from exc
-        _update_receipt(cfg, root, rel, stage="admitted", missing_ok=True)
-        if git.symbolic_head(root) != plan.branch or _head(root) != plan.branch_oid:
-            raise CheckoutPreparationError(
-                "verification", f"HEAD is not {plan.branch!r} at {plan.branch_oid}",
-                switched=True,
-            )
-        if ref.ticket_path.read_bytes() != plan.ticket_bytes:
-            raise CheckoutPreparationError(
-                "verification", f"{rel} does not hold control's bytes", switched=True
-            )
+
+
+def _project_after_switch(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -> None:
+    """Project, record provenance and verify; runs only after the switch."""
+    assert plan.branch is not None
+    root, rel = plan.root, plan.rel
+    try:
+        ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(ref.ticket_path, plan.ticket_bytes.decode("utf-8"))
+    except OSError as exc:
+        raise CheckoutPreparationError(
+            "projection",
+            f"switched to {plan.branch!r} but could not write control's {rel}: "
+            f"{exc}. The branch and control's ticket are intact; retry the "
+            "launch, which returns this checkout first",
+        ) from exc
+    oid = git._blob_oid(root, plan.control_oid, rel)
+    if oid is None:
+        raise CheckoutPreparationError(
+            "provenance", f"{rel} is not on control at {plan.control_oid}"
+        )
+    try:
+        git.record_projected_baseline(cfg, root, rel, oid)
+    except (git.GitError, OSError) as exc:
+        raise CheckoutPreparationError(
+            "provenance",
+            f"switched to {plan.branch!r} and projected {rel}, but could not "
+            f"record its publication baseline: {exc}. No agent was started; "
+            "the projected ticket equals control's copy, so returning this "
+            "checkout loses nothing",
+        ) from exc
+    # Control records the branch: the reservation has done its job.
+    _discard_receipt(cfg, root, rel)
+    if git.symbolic_head(root) != plan.branch or _head(root) != plan.branch_oid:
+        raise CheckoutPreparationError(
+            "verification", f"HEAD is not {plan.branch!r} at {plan.branch_oid}"
+        )
+    if ref.ticket_path.read_bytes() != plan.ticket_bytes:
+        raise CheckoutPreparationError(
+            "verification", f"{rel} does not hold control's bytes"
+        )
 
 
 def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
     """The runtime notice for a planned launch, verified by `enter_ticket_checkout`."""
     control = cfg.git_control_branch
+    # Only a step with a branch has anything to push; a control step, a
+    # manual one, or an `## Already satisfied` stay hands off with the bump.
+    last = (
+        "Push your branch and run `coga bump` last."
+        if plan.branch is not None
+        else "Run `coga bump` last."
+    )
     returns = (
         f"After the session `coga launch` publishes Coga state and returns this "
-        f"checkout to a clean {control!r}; do not switch back yourself. Push "
-        "your branch and run `coga bump` last."
+        f"checkout to a clean {control!r}; do not switch back yourself. {last}"
     )
     notes = list(plan.notes)
     if plan.action == "switch":
@@ -297,8 +358,8 @@ def ticket_notice(cfg: Config, plan: TicketCheckoutPlan) -> CheckoutNotice:
 
 
 def _step_label(plan: TicketCheckoutPlan) -> str:
-    match = re.search(r"step '([^']+)'", plan.policy.reason)
-    return f"`{match.group(1)}`" if match else "this step"
+    step = plan.policy.step
+    return f"`{step}`" if step else "this step"
 
 
 def _prove_control(cfg: Config, stage: str) -> tuple[Path, str]:
@@ -407,10 +468,7 @@ def _require_valid_branch(cfg: Config, root: Path, branch: str, stage: str) -> N
         raise CheckoutPreparationError(
             stage, f"`## Dev` records the control branch {branch!r} as its branch"
         )
-    result = subprocess.run(
-        ["git", "-C", str(root), "check-ref-format", "--branch", branch],
-        capture_output=True, check=False,
-    )
+    result = git._run(["git", "-C", str(root), "check-ref-format", "--branch", branch])
     if result.returncode != 0:
         raise CheckoutPreparationError(stage, f"{branch!r} is not a valid branch name")
 
@@ -419,6 +477,12 @@ def _reserve_and_create(
     cfg: Config, root: Path, ref: TaskRef, rel: str, control_oid: str
 ) -> tuple[str, str]:
     receipt = _read_receipt(cfg, root, rel)
+    if receipt is not None and receipt.get("stage") in _LANDED_STAGES:
+        # Its linkage already reached control, which no longer records it:
+        # a later authority removed that branch, so never resurrect its name
+        # or its old base. The branch itself is left alone.
+        _discard_receipt(cfg, root, rel)
+        receipt = None
     if receipt is None:
         name = _fresh_branch_name(cfg, root, f"coga/{_slug(ref.id_slug)}")
         receipt = {
@@ -428,29 +492,48 @@ def _reserve_and_create(
         _write_receipt(cfg, root, rel, receipt)
     name, oid = receipt["branch"], receipt["oid"]
     _require_valid_branch(cfg, root, name, "reservation")
+    _create_reserved_branch(
+        cfg, root, name, oid,
+        evidence=f"the receipt {_receipt_path(root, rel)}",
+    )
+    _update_receipt(cfg, root, rel, stage="created")
+    return name, oid
+
+
+def _create_reserved_branch(
+    cfg: Config, root: Path, name: str, oid: str, *, evidence: str
+) -> None:
+    """Create `name` at its reserved `oid`, or verify it already stands there.
+
+    The one create-and-verify core both consumers share. A ref absent locally
+    but present on the remote, or present at any other commit, was not made
+    by this reservation: refuse, adopting nothing. `evidence` names the
+    retained reservation the operator inspects.
+    """
     existing = _ref_oid(root, f"refs/heads/{name}")
     if existing is None:
         if git._ref_present(root, f"refs/remotes/{cfg.git_remote}/{name}"):
             raise CheckoutPreparationError(
                 "reservation",
                 f"reserved branch {name!r} already exists on {cfg.git_remote}; "
-                f"inspect it and the receipt {_receipt_path(root, rel)} before retrying",
+                f"inspect it and {evidence} before retrying",
             )
         try:
             git.run_git(root, "branch", "--no-track", name, oid)
         except git.GitError as exc:
             raise CheckoutPreparationError(
-                "branch creation", f"could not create {name!r} at {oid}: {exc}"
+                "branch creation",
+                f"could not create {name!r} at {oid}: {exc}; {evidence} is "
+                "retained, so retry the same command",
             ) from exc
-    elif existing != oid:
+        existing = _ref_oid(root, f"refs/heads/{name}")
+    if existing != oid:
         raise CheckoutPreparationError(
             "reservation",
             f"reserved branch {name!r} is at {existing}, not its reserved {oid}; "
-            "it was not created by this reservation. Inspect it and the receipt "
-            f"{_receipt_path(root, rel)}; nothing was adopted",
+            f"it was not created by this reservation. Inspect it and {evidence}; "
+            "nothing was adopted",
         )
-    _update_receipt(cfg, root, rel, stage="created")
-    return name, oid
 
 
 def _publish_linkage(
@@ -517,14 +600,18 @@ def _reuse_recorded_branch(
     remote = cfg.git_remote
     remote_ref = f"refs/remotes/{remote}/{branch}"
     try:
-        git.run_git(root, "fetch", "--quiet", remote, f"+refs/heads/{branch}:{remote_ref}")
-        remote_oid = _ref_oid(root, remote_ref)
+        # Ask the remote whether the branch exists (exit status and ref
+        # listing, not localized fetch stderr), then fetch only one that does.
+        remote_oid = git.remote_branch_oid(root, remote, branch)
+        if remote_oid is not None:
+            git.run_git(
+                root, "fetch", "--quiet", remote, f"+refs/heads/{branch}:{remote_ref}"
+            )
+            remote_oid = _ref_oid(root, remote_ref)
     except git.GitError as exc:
-        if "couldn't find remote ref" not in str(exc).lower():
-            raise CheckoutPreparationError(
-                "branch reuse", f"could not fetch {remote}/{branch}: {exc}"
-            ) from exc
-        remote_oid = None
+        raise CheckoutPreparationError(
+            "branch reuse", f"could not fetch {remote}/{branch}: {exc}"
+        ) from exc
     local = _ref_oid(root, f"refs/heads/{branch}")
     if local is None and remote_oid is None:
         raise CheckoutPreparationError(
@@ -602,9 +689,8 @@ def _head(root: Path) -> str:
 
 
 def _ref_oid(root: Path, ref: str) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "-q", "--verify", f"{ref}^{{commit}}"],
-        capture_output=True, check=False,
+    result = git._run(
+        ["git", "-C", str(root), "rev-parse", "-q", "--verify", f"{ref}^{{commit}}"]
     )
     return result.stdout.decode().strip() or None if result.returncode == 0 else None
 
@@ -689,16 +775,22 @@ def _update_receipt(
     _write_receipt(cfg, root, rel, data)
 
 
-def _discard_superseded_receipt(cfg: Config, root: Path, rel: str, branch: str) -> None:
-    """A completed reservation never overrides a later authoritative branch."""
+def _discard_receipt(cfg: Config, root: Path, rel: str) -> None:
+    """Control's recorded branch supersedes any reservation for this task.
+
+    Called once control's ticket records a branch (reuse, or a completed
+    entry): whatever stage the receipt reached (a `linked` one whose
+    publication later landed, or an abandoned reservation of another name),
+    it must not resurrect its name or base if that line is later removed.
+    Unlinking never deletes a branch; an unreadable receipt is kept for
+    diagnosis.
+    """
     path = _receipt_path(root, rel)
     try:
         data = _read_receipt(cfg, root, rel)
     except CheckoutPreparationError:
         return
-    if data is not None and data["branch"] == branch and data.get("stage") in {
-        "published", "switching", "admitted",
-    }:
+    if data is not None:
         try:
             path.unlink()
         except OSError:
@@ -849,7 +941,12 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
     The session must match the current root and the still-held orientation
     guard; a stale receipt or a bare identifier proves nothing. On the
     session's own branch the call is a verified no-op, even over that
-    session's dirty work, and publishes nothing.
+    session's dirty work, and publishes nothing. From a clean control it
+    switches back to the branch this chat created when the branch still
+    descends from its creation commit (keeping the chat's commits). The
+    create-and-verify core is `_create_reserved_branch`, shared with ticket
+    preparation; the receipt stays separate because it is bound to the live
+    occupancy guard, not to a task.
     """
     if not cfg.git_enabled:
         raise CheckoutPreparationError("session", "Git is disabled; there is no chat guard")
@@ -903,38 +1000,39 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
         data = _load_json(receipt)
         if not isinstance(data, dict) or data.get("session") != session_id:
             raise CheckoutPreparationError("session", "the chat ended during preparation")
-        existing = _ref_oid(root, f"refs/heads/{session.branch}")
         reserved = data.get("reserved_oid")
         created = data.get("created_oid")
-        if existing is None:
-            if created:
+        if created:
+            # Rerun after the chat committed on its branch and went back to
+            # control: reuse it when it still descends from where this chat
+            # created it; a moved-away or foreign tip is never adopted.
+            existing = _ref_oid(root, f"refs/heads/{session.branch}")
+            if existing is None:
                 raise CheckoutPreparationError(
                     "branch creation",
                     f"{session.branch!r} was created by this chat but no longer exists",
                 )
-            if git._ref_present(root, f"refs/remotes/{cfg.git_remote}/{session.branch}"):
+            if not git._is_ancestor(root, created, existing):
                 raise CheckoutPreparationError(
-                    "reservation", f"{session.branch!r} already exists on {cfg.git_remote}"
+                    "reservation",
+                    f"{session.branch!r} is at {existing}, which does not descend "
+                    f"from {created} where this chat created it; nothing was adopted",
                 )
+        else:
             if reserved is None:
+                if _ref_oid(root, f"refs/heads/{session.branch}") is not None:
+                    raise CheckoutPreparationError(
+                        "reservation",
+                        f"{session.branch!r} already exists, but this chat never "
+                        "reserved it; nothing was adopted",
+                    )
                 reserved = control_oid
                 _write_chat_receipt(session, reserved=reserved, created=None)
-            try:
-                git.run_git(root, "branch", "--no-track", session.branch, reserved)
-            except git.GitError as exc:
-                raise CheckoutPreparationError(
-                    "branch creation",
-                    f"could not confirm {session.branch!r} at {reserved}: {exc}. "
-                    f"The reservation in {receipt} is retained; retry the same command",
-                ) from exc
-            existing = _ref_oid(root, f"refs/heads/{session.branch}")
-        if existing != (created or reserved):
-            raise CheckoutPreparationError(
-                "reservation",
-                f"{session.branch!r} exists at {existing}, which this chat did not "
-                "create there; nothing was adopted",
+            _create_reserved_branch(
+                cfg, root, session.branch, reserved,
+                evidence=f"the reservation in {receipt}",
             )
-        if not created:
+            existing = reserved
             # A branch command may have succeeded before its caller failed or
             # the receipt write was interrupted. Only its reserved tip qualifies.
             try:
@@ -952,7 +1050,7 @@ def prepare_chat_checkout(cfg: Config, session_id: str) -> ChatPreparation:
         _switch(root, session.branch, "switch")
         if git.symbolic_head(root) != session.branch:
             raise CheckoutPreparationError("verification", "HEAD is not the chat branch", switched=True)
-    return ChatPreparation("prepared", root, session.branch)
+    return ChatPreparation("reused" if created else "prepared", root, session.branch)
 
 
 def run_prepare_checkout_recipe(cfg: Config, argv: list[str]) -> int:
@@ -985,6 +1083,7 @@ __all__ = [
     "chat_notice",
     "chat_prepare_command",
     "clear_chat_session",
+    "confirm_ticket_checkout",
     "enter_ticket_checkout",
     "insert_branch_line",
     "install_chat_session",

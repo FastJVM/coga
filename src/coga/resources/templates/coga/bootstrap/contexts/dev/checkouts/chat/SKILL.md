@@ -43,6 +43,9 @@ occupancy guard (above), then
 creates and switches to that chat's one reserved branch (`coga/chat-<id>`)
 through the same mechanics. Repeating it on that branch is a no-op, even with
 the chat's dirty work, and publishes nothing (the CLI exit sweep skips it).
+Repeating it from a clean `main` after the chat committed on its branch and
+switched back reuses that branch, commits kept, when it still descends from
+the commit this chat created it at; a tip that does not refuses.
 It exits 0 for prepared, reused, or an explicitly reported remote-less
 exemption; 2 for bad usage; 75, changing nothing, for a stale or mismatched
 session, a different branch, a conflicting reservation, or a dirty or
@@ -60,7 +63,10 @@ attempting to create the ref. Creation is recorded separately, only after the
 ref is verified at that commit. A failed creation or interrupted receipt write
 keeps the reservation: retrying the same command creates the missing ref or
 verifies the matching ref at the original commit, even if control advanced.
-A conflicting ref or deletion of an already-confirmed branch still refuses.
+A conflicting ref, a confirmed branch moved to a non-descendant, or deletion
+of an already-confirmed branch still refuses. The create-and-verify step is
+the one ticket preparation uses; only the receipt differs, because it is
+bound to the live guard rather than a task.
 It is installed and removed under the state lock with the guard, so a new
 chat never exposes an earlier session's receipt. The preparation recipe is a
 fixed `coga run` entry ([coga/extension-model](../../../coga/extension-model/SKILL.md));
