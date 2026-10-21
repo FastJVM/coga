@@ -60,3 +60,12 @@ Related history: `recover-when-local-main-carries-hand-commits-of-co` (done) int
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix/prep-pin-under-state-lock
+
+## Plan (agreed with human 2026-10-20)
+
+- `prepare_control_checkout`: fetch + pin + plan inside one `state_lock` hold; re-read the remote-tracking ref after the plan and after the re-observation, re-pin and re-plan (bounded attempts) when it moved. Covers sibling worktrees, whose pushes update the shared tracking ref.
+- `fast_forward_control`: when local control already contains `new` and is contained in the current tracking ref, it is level — return True instead of a false realign refusal (covers `publish` and lock-free `refresh`).
