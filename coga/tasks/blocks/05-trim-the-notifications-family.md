@@ -2,6 +2,9 @@
 title: 05 Trim the notifications family
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to coga/notifications, notifications/producers and important; split notifications/failures into a user summary and a coga-dev internals page. See blocks/README.md.
+Apply the audit verdicts to coga/notifications, notifications/producers and important; split notifications/failures into a user summary and a coga-dev internals page. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,29 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the notifications rows in the README table are applied, `notifications/failures` is split and deleted, and Slack configuration is documented once (the shipped `coga.toml`); both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- `notifications/producers` stays a user topic: `workflows/blocker-reminders/run.md`
+  and `bootstrap/skills/coga/blockers/remind/SKILL.md` cite it.
+- New coga-dev page: `internals/notifications` (failures internals, caller
+  columns, message format, accounting rule, "Adding a notifying command").
+- Repoint links to `notifications/failures` from `sync`, `important`,
+  `notifications`, `producers`.
+
 
 <!-- coga:blackboard -->
 

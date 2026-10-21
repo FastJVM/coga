@@ -2,6 +2,9 @@
 title: 09 Trim setup and extension topics
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to configuration, context-layout, edge-code, extension-model, first-task, init, install, knowledge, skill-management, sandboxes, usage and cli. See blocks/README.md.
+Apply the audit verdicts to configuration, context-layout, edge-code, extension-model, first-task, init, install, knowledge, skill-management, sandboxes, usage and cli. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,30 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the rows in the README table for configuration, context-layout, edge-code, extension-model, first-task, init, install, knowledge, skill-management, sandboxes, usage, cli and uninstall are applied, `install` is under 160 lines, and the recipe/alias lists have one owner (`coga/cli`); both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- These are mostly HUMAN reference topics; keep the operator-facing content
+  and move only developer material and repo-specific text (ticket 02 handles
+  the repo-specific lines named there).
+- Destinations: `coga-dev/codebase`, `packaging`, `microkernel`,
+  `current-direction`, `archive-access`, `activity-capture`.
+- `init` gains "Instruction files and skill discovery" in ticket 01; do not
+  duplicate it.
+
 
 <!-- coga:blackboard -->
 

@@ -2,6 +2,9 @@
 title: 01 Self-document coga.toml and split the agents topic
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Delete the coga/agents topic: move its user facts into comments in the shipped coga.toml (plus the uncommented keys the audit found), its developer material into coga-dev, and repoint every link. See blocks/README.md.
+Delete the coga/agents topic: move its user facts into comments in the shipped coga.toml (plus the uncommented keys the audit found), its developer material into coga-dev, and repoint every link. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,40 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: `coga/agents` is deleted; the shipped `coga.toml` explains every `[agents.*]` key (including `peer`, `file`, key-level local overlay, and that `default_agent` does not move `coga chat`/`coga ticket`), and also `[recurring] idle_days`, `[launch] idle_timeout`/`max_session`, and `[autofix] agent`; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- Comments go in `src/coga/resources/templates/coga/coga.toml`; this repo's
+  own `coga/coga.toml` is not edited by agents (base prompt boundary) and is
+  an intentionally divergent twin, so leave a note for the owner if it
+  should match.
+- `src/coga/repl_supervisor.py:126` warning: state the fix
+  (`launch_args = "--no-daemon"` under `[agents.codex]`) instead of pointing
+  at `coga/agents`; update any test asserting that text.
+- Advisory-warning observation limits → `coga-dev/internals/agent-spawn`.
+  `_parse_agents` merge, default validation and freezing, `peer` rationale,
+  deferred per-ticket reviewer → new `coga-dev/internals/agent-config`.
+- "Instruction files and skill discovery" → `coga/init`; "Who Coga acts as"
+  → `coga/architecture`.
+- Links to repoint: `configuration` (2, incl. `#the-default-agent`), `init`
+  (2), `tickets`, `sandboxes` (`#launch-environment-inheritance`),
+  `first-task`, `workflows`, `architecture` topic map, `coga.toml` comment.
+- Drop `coga/agents` from `REQUIRED_BOOTSTRAP_CONTEXT_REFS` in
+  `tests/test_packaging.py` (it is listed).
+
 
 <!-- coga:blackboard -->
 

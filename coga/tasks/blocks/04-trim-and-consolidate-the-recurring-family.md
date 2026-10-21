@@ -2,6 +2,9 @@
 title: 04 Trim and consolidate the recurring family
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to coga/recurring, period-task and their leaves, merging scheduling/ledger and scheduling/failures into scheduling. See blocks/README.md.
+Apply the audit verdicts to coga/recurring, period-task and their leaves, merging scheduling/ledger and scheduling/failures into scheduling. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,32 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the recurring rows in the README table are applied, `scheduling/ledger` and `scheduling/failures` are merged into `scheduling`, and the serviced-period ledger is stated once (in `scheduling`) with the other topics linking; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- `period-task` is auto-attached to every period prompt by `recurring.py`;
+  every line removed there is saved on every recurring run.
+- Commands: one owner for the recurring command list (`scheduling`
+  Variants or `recurring`), the other links; flag detail is `--help`'s.
+- New coga-dev pages: `internals/recurring-autofix`,
+  `internals/recurring-clone`. Existing: `recurring-admission`.
+- The old-install skew paragraph in `scheduling` moves to `coga/install`
+  troubleshooting (ticket 09 also edits `install`; reconcile).
+- Ticket 01 adds the `idle_days` comment to `coga.toml`; link to it.
+
 
 <!-- coga:blackboard -->
 

@@ -2,6 +2,9 @@
 title: 06 Collapse state publication into one user topic
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Make coga/state-publication the single user owner (absorbing sweep's strict recipe and recovery), move sweep and authoring internals to coga-dev, and shorten coga/sync to a map. See blocks/README.md.
+Make coga/state-publication the single user owner (absorbing sweep's strict recipe and recovery), move sweep and authoring internals to coga-dev, and shorten coga/sync to a map. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,33 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: `coga/state-publication` is the single user topic for Coga-state publication (roots, eligibility, the pre-review hazard, the strict `coga run publish-state` recipe, recovery), `state-publication/authoring` and `state-publication/sweep` are deleted, and `coga/sync` is a short map; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- `authoring`'s three user facts (one guarded publish; a Git-destination
+  change refuses; edits are kept on failure) go into
+  `bootstrap/skills/coga/ticket/finalize/SKILL.md` (live + packaged) or
+  `state-publication`.
+- Internals → existing `coga-dev/internals/state-publication`.
+- Repoint links from `sandboxes`, `checkouts`, `checkouts/manual`,
+  `extension-model`, `sync`, `architecture`, and the comments in
+  `src/coga/cli.py` and `src/coga/publish_state.py`.
+- `sync`'s "Design rule for new features" and the 2026-10-01 decision →
+  `coga-dev/patterns`.
+
 
 <!-- coga:blackboard -->
 

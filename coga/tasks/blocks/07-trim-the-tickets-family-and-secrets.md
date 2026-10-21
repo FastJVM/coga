@@ -2,6 +2,9 @@
 title: 07 Trim the tickets family and secrets
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to coga/tickets, its leaves (merging ownership into tickets), secrets and blackboard, removing what the self-documenting ticket template already states. See blocks/README.md.
+Apply the audit verdicts to coga/tickets, its leaves (merging ownership into tickets), secrets and blackboard, removing what the self-documenting ticket template already states. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,30 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the tickets, tickets/authoring, tickets/discovery, secrets and blackboard rows in the README table are applied, `tickets/ownership` is merged into `tickets`, and nothing the ticket template's guide comment states is restated in a topic; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- The ticket template (`src/coga/resources/ticket.md`) owns field shapes;
+  topics keep rules the template only points to (body regions, validation,
+  writer rules). Do not shrink the template's guide in this ticket.
+- New coga-dev page: `internals/blackboard-io`. Ownership transaction →
+  `coga-dev/microkernel`.
+- `blackboard` keeps one line naming `update_blackboard_under_barrier` for
+  `ticket.py` writers.
+
 
 <!-- coga:blackboard -->
 

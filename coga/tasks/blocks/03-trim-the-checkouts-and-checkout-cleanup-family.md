@@ -2,6 +2,9 @@
 title: 03 Trim the checkouts and checkout-cleanup family
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to coga/checkouts and its leaves and to coga/checkout-cleanup and its leaves, including merging checkout-cleanup/proofs into its parent. See blocks/README.md.
+Apply the audit verdicts to coga/checkouts and its leaves and to coga/checkout-cleanup and its leaves, including merging checkout-cleanup/proofs into its parent. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,34 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the checkouts and checkout-cleanup rows in the README table are applied, `checkout-cleanup/proofs` is merged into `checkout-cleanup`, and each checkout fact (direct chat, the launch boundary) has one owner; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- `coga/checkouts` is the most-cited topic (base prompt, ~10 skills and
+  workflows). Keep every procedure an agent follows; move only history and
+  mechanics. Target well under 200 lines (now 245).
+- Single owners: direct chat → `checkouts/chat`; checkout boundary →
+  `checkouts/launch-boundary` (`launch` and `checkouts` summarize + link; the
+  `launch` side is ticket 08's, coordinate via main).
+- `proofs` merge: repoint `bootstrap/retire/ticket.md`,
+  `recurring/autoclose-merged/ticket.md`, `recurring/branch-sweep/ticket.md`,
+  `bootstrap/skills/coga/autoclose/sweep/SKILL.md` (live and packaged copies).
+- New coga-dev page: `internals/branch-sweep`. Existing: `git-refresh`,
+  `launch-claims`.
+
 
 <!-- coga:blackboard -->
 

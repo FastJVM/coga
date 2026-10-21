@@ -2,6 +2,9 @@
 title: 02 Delete the code topic and remove Coga-repo-only text from shipped topics
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Delete the coga/code topic, fix links and statements that are only true inside the Coga repo, and turn 'Known gap' bug notes in shipped topics into tickets. See blocks/README.md.
+Delete the coga/code topic, fix links and statements that are only true inside the Coga repo, and turn 'Known gap' bug notes in shipped topics into tickets. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,47 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: `coga/code` is deleted, no shipped topic states something true only inside the Coga repo, and no shipped topic carries a "Known gap" bug note; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- `coga/code`: repoint `architecture:76` (drop the map entry) and
+  `lifecycle:165` (→ `../blackboard/SKILL.md#superseded-designs`); move the
+  "record is explicit, not inferred from the slug" rationale into
+  `coga/checkouts` if it is not already there.
+- Coga-repo-only text to remove or generalize: `checkout-cleanup:81` link to
+  `../../../archive/evidence/...` (broken in the packaged copy);
+  `recurring/scheduling:76` "This repo's `upstream-coga`"; `context-layout`
+  "This repo overrides `coga/bootstrap/resolve-conflicts`"; `important`
+  lines 10–15 (usage-report routing); `knowledge` `docs/archive/*` rows;
+  `skill-management` google-agents-cli/anthropic pack examples;
+  `tickets/discovery` `relay-os/tasks` pathspecs; `usage` "team runs on a
+  subscription" and `docs/archive/evidence` links. Search for more
+  (`grep -rn 'archive/\|This repo\|relay-os' docs/contexts/coga`).
+- Known gaps: `checkout-cleanup` (foreign linked branch),
+  `checkout-cleanup/branch-sweep` (`_local_branches` return code),
+  `recurring/scheduling/failures` (`_record_unlaunched_creates`,
+  `run_recurring_named` sync sink), and any other
+  `grep -rn 'Known gap' docs/contexts/coga`. Create one draft ticket per gap
+  at the top level (not in `blocks/`), then delete the paragraph.
+- Also fix `sandboxes:41` ("When `git worktree add` cannot write…" is stale:
+  sandbox-clone now triggers on branch creation failing) and add
+  `prepare-checkout` to the recipe list in `coga/cli`.
+- Leave tickets 03–09's structural trims to them; this ticket only removes
+  the text named here, so later tickets start clean.
+
 
 <!-- coga:blackboard -->
 

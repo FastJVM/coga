@@ -2,6 +2,9 @@
 title: 08 Trim launch, prompt and workflow topics
 status: draft
 owner: nicktoper
+contexts:
+  - coga/knowledge
+  - coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Apply the audit verdicts to launch, prompt-composition (absorbing session-conduct), lifecycle, megalaunch, human-assist, pr-publication (absorbing existing-pr), script-tickets and workflows. See blocks/README.md.
+Apply the audit verdicts to launch, prompt-composition (absorbing session-conduct), lifecycle, megalaunch, human-assist, pr-publication (absorbing existing-pr), script-tickets and workflows. See `coga/tasks/blocks/README.md`.
 
 ## Context
 
@@ -114,6 +117,32 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Scope and acceptance
+
+Read `coga/tasks/blocks/README.md` first: it holds the test, the rules every
+ticket in this group follows, and the audit rows for these topics. The audit
+verdicts are recommendations; re-check each against current main and record
+any disagreement on the blackboard for the owner before departing from it.
+
+Done when: the rows in the README table for launch, prompt-composition, session-conduct, lifecycle, megalaunch, human-assist, pr-publication, pr-publication/existing-pr, script-tickets and workflows are applied, `session-conduct` is merged into `prompt-composition`, `existing-pr` into `pr-publication`, and `launch` and `workflows` are under 160 lines; both copies of every touched topic are byte-identical;
+no link in `docs/`, `src/`, `tests/`, `coga/` (outside old tickets and the
+log), `README.md` or `AGENTS.md` points at a removed topic or anchor; any new
+coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
+`.venv/bin/python -m pytest` and `coga validate --json` pass.
+
+### Specifics
+
+- New coga-dev page: `internals/compose` (prompt-composition internals).
+  Existing: `agent-spawn`, `activity-capture`, `launch-claims`,
+  `assist-publication`, `git-refresh`.
+- Repoint `bootstrap/skills/code/open-pr/SKILL.md` (existing-pr link) and
+  every link to `session-conduct`; drop it from
+  `REQUIRED_BOOTSTRAP_CONTEXT_REFS` in `tests/test_packaging.py`; and the `commands/owner.py` comment citing lifecycle.
+- One owner for the assist attribution exception (`human-assist`).
+- `launch`'s checkout boundary becomes a summary + link to
+  `checkouts/launch-boundary` (ticket 03 owns that topic).
+
 
 <!-- coga:blackboard -->
 
