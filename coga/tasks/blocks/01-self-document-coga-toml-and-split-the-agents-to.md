@@ -154,5 +154,9 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/blocks-01-self-document-coga-toml-and-split-the--38a971
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
