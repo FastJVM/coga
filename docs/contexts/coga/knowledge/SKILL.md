@@ -17,9 +17,7 @@ is right. Choose the owner by what the knowledge is:
 | Per-ticket field guide: a summary carried by new tickets that links the owning topics | inline ticket template (`src/coga/resources/ticket.md`) |
 | One task's temporary working state | that ticket's blackboard ([coga/blackboard](../blackboard/SKILL.md)) |
 | Execution history | `coga/log.md`, written only by CLI commands |
-| Dated evidence and completed investigations | `docs/archive/evidence/` pages |
-| Archived, unimplemented proposals | `docs/archive/design/` pages |
-| Other retired history | `docs/archive/` pages |
+| Dated evidence, completed investigations, archived proposals, and other retired history | the repo's dated archive, outside the contexts root |
 
 Humans and agents read the same owning file. Do not keep a short agent
 rendition beside a longer human one: that is two owners of one fact, and the

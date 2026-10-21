@@ -162,3 +162,6 @@ context before the first `turn_context` is injected, not human activity.
 
 `elapsed_seconds` is whole-session wall time; together with the turn counts it
 describes the interaction honestly. It is never labeled active human time.
+Dated analyses built on these records (archive; read only on request):
+`docs/archive/evidence/velocity.md` and the one-machine Claude cache-TTL mix
+survey `docs/archive/evidence/claude-cache-ttl-survey.md`.

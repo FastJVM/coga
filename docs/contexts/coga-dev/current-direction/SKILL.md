@@ -92,6 +92,11 @@ is `coga status` and the ticket bodies; stage posture is
   recovery when a step went wrong but the premise holds. When the premise is
   wrong, cancel the ticket with its reason, fix the owning context and start
   a new one. Contract: [`coga/lifecycle`](../../coga/lifecycle/SKILL.md).
+- **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
+  the seven packs as the live target of the GitHub-backed update path; no
+  ticket does ADK work. `anthropic/skill-creator/` is the verbatim
+  hand-vendored example. Contract:
+  [`coga/skill-management`](../../coga/skill-management/SKILL.md).
 
 ## Open intent, not live direction
 

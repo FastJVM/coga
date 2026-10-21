@@ -62,7 +62,10 @@ detail. Resolution and repo overrides are owned by
 Discovery skips `.coga/`, `.venv/`, `.agent-skills/`, `.claude/`, `.codex/`,
 bytecode caches, and `coga.local.toml`. A deliberate difference goes in
 `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the suite fails once the
-entry stops describing a real divergence. Packaged batteries with no live
+entry stops describing a real divergence. This repo overrides
+`coga/bootstrap/resolve-conflicts/ticket.md` and
+`coga/bootstrap/address-pr-comments/ticket.md`; those are twins like any other.
+Packaged batteries with no live
 counterpart (`bootstrap/orient/`, `bootstrap/workflows/` fallbacks,
 `tasks/coga-build.md`) are not pairs; `EXPECTED_BOOTSTRAP_RESOURCES` keeps them
 shipping. The Coga repo root keeps only `AGENTS.md`, which Claude Code reads

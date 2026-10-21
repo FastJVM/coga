@@ -60,16 +60,13 @@ or the local `<control_branch>` in a repo with no remote:
 
 ```bash
 git log <control> --diff-filter=D --name-only -- \
-  ':(glob)coga/tasks/**/<slug>.md' ':(glob)coga/tasks/**/<slug>/**' \
-  ':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'
+  ':(glob)coga/tasks/**/<slug>.md' ':(glob)coga/tasks/**/<slug>/**'
 git show <commit>^:<path>
 ```
 
 The pathspecs name the slug exactly, in both the `<slug>.md` and `<slug>/`
 forms at any group depth, so a task whose slug merely starts with `<slug>` is
-not matched. Search both trees: the tree was `relay-os/tasks/` before the
-relay → coga rename (`d0645a197`, #454), so a `coga/tasks/`-only search misses
-earlier deletions. The newest hit that deletes `<slug>.md` or
+not matched. The newest hit that deletes `<slug>.md` or
 `<slug>/ticket.md` is the retirement; older hits are a `.md` ↔ `<slug>/`
 format conversion or an attachment removed earlier. Older directory-form
 tasks kept the blackboard in a sibling `blackboard.md`; read it the same way.

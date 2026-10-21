@@ -88,5 +88,5 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 - [coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../../coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.
-- [coga/code](../../coga/code/SKILL.md): conventions for code tickets,
-  checkouts, and PR linkage.
+- [coga/checkouts](../../coga/checkouts/SKILL.md): code-ticket checkouts and
+  the `## Dev` linkage.

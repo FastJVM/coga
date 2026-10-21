@@ -104,3 +104,8 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   version-sensitive stdlib changes on a real 3.11 too.
 - **A recorded "rebases clean" expires.** Re-measure drift at implement time;
   never let an inherited note stand in for running the rebase.
+- **Retired-ticket searches span two trees.** Tasks lived under
+  `relay-os/tasks/` before the relay → coga rename (`d0645a197`, #454); add
+  `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`
+  to the [discovery](../../../coga/tickets/discovery/SKILL.md) pathspecs, or a
+  `coga/tasks/`-only search misses earlier deletions.

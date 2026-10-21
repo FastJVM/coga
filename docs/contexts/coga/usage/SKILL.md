@@ -15,8 +15,8 @@ token records are excluded from the weekly aggregate telemetry snapshot;
 
 Consumers (agent autorouting, report views) are separate work. This primitive
 ships the records and the reader and deliberately defines no budget cap, no
-"remaining", and no dollar cost (the team runs on a subscription, so tokens
-per task is the question; a price table is a deferred follow-up).
+"remaining", and no dollar cost (tokens per task is the question; a price
+table is a deferred follow-up).
 
 How a record is captured, matched to a provider transcript, and bounded is
 [`coga-dev/internals/activity-capture`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md).
@@ -78,8 +78,7 @@ which estimates the prompt side before a run.
   and gaps between transcript events are not typing measurements.
 - `human_turns` / `agent_turns` count explicit messages only.
 - Sessions observed in the same window are workstreams, not proof of
-  simultaneous processes or a productivity multiplier. The dated analysis
-  built on these records is `docs/archive/evidence/velocity.md`.
+  simultaneous processes or a productivity multiplier.
 
 ## Facts a future price table needs
 
@@ -92,8 +91,7 @@ rather than rediscover them.
   but `_parse_claude_session` keeps only the combined
   `cache_creation_input_tokens`, so a record cannot tell which write rate
   applied. Both TTLs occur in practice and the two rates differ, so no single
-  rate is both exact and a guaranteed lower bound. A dated one-machine survey
-  of the mix is `docs/archive/evidence/claude-cache-ttl-survey.md`.
+  rate is both exact and a guaranteed lower bound.
 - **A Codex `cache_creation_input_tokens: null` means "no split exposed", not
   "no charge".** OpenAI charges cache writes on GPT-5.6-and-later models, and
   `_parse_codex_rollout` subtracts only cached-read tokens from input, so any

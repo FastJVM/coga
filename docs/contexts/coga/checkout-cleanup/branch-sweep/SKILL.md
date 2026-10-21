@@ -31,15 +31,6 @@ from `refs/pull/<number>/head` without writing a ref before comparison.
 does so even between update runs with no live ticket or open PR. This is an
 exact-name exemption, not an exemption for every `coga/` branch.
 
-Known gap (unresolved, no owning ticket): `branchsweep._local_branches` runs
-`git for-each-ref --format=%(refname:strip=2) refs/heads/` and parses stdout
-without checking the return code, so a failed local enumeration reads as "no
-local branches". The sweep then proceeds on an empty local inventory, which can
-let an otherwise authorized remote-only delete run without a known local state,
-contrary to the rule that an incomplete scan preserves refs. Found during the
-2026-10-05 terminal-owner cleanup (PR #963); never exercised. The fix is to
-treat a non-zero exit as a sweep failure, like the worktree probe.
-
 After the existing landing and claim gates, the sweep must publish
 `retired/<branch>` to the configured Git remote before removing any associated
 worktree or deleting either branch ref. Worktree claim and cleanliness proofs
