@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -191,143 +191,101 @@ branch: context-audiences-split
 
 ## Implement handoff
 
-Implemented the owner-approved classification without changing its decisions.
-All 78 original rows and both user topics added by main are accounted for:
-61 user topics ship, 24 Coga-dev topics stay local. The decision table records
-the two additions from PR #1068 under its existing shipped-consumer rule. Mixed topics are cut as specified; local-only topics have
-no package copies. Namespace, wheel, local-first resolution, twin, shipped
-dependency, and Markdown target/anchor checks enforce the boundary.
+Implemented the approved audience decisions: all 80 classification rows
+(78 original plus PR #1068's two checkout topics) yield 61 shipped user topics
+and 24 local Coga-dev topics. Mixed topics are split as specified. Namespace,
+wheel, resolver, twin, shipped-dependency and Markdown target/anchor checks
+enforce the boundary. Updated consumers, ticket refs, skills/workflows,
+fixtures, README/AGENTS, guidance and release notes. The empty manifesto
+directory is gone. Two pre-existing broken navigation links were also repaired.
 
-The owner requested checking and fixing broken refs. Updated source citations,
-skills, workflows, recurring instructions, ticket attachments and contexts,
-fixtures, README/AGENTS, and the docs index. Also repaired the blocker-reminder
-contract link and the parked-ticket index's retired-task anchor. The release
-note lists all renamed/de-packaged refs. The empty manifesto directory is gone.
-All 11 structured historical PR records match control exactly: their diff
-paths and receipts describe recorded commits, not live context dependencies.
-Protected ticket frontmatter is unchanged except contexts; the rebase preserved
-the concurrent pin-control ticket's new status and agent assignment.
-Reconciliation also preserved PR #1068's checkout preparation, chat/manual
-topics, source-map additions, and publication provenance instructions. This
-session began under the earlier launch protocol without a Checkout (runtime)
-notice; it created and published its branch record before switching.
-
-### Coordinated conversion and next step
-
-This branch includes mechanical stored-ticket reference migration under
-`coga-dev/internals/git-regressions`, “Shipping a stored-ticket schema
-conversion”: merge the topics and their consumers together. The current
-ticket's own state is published separately and is not implementation diff.
-Refresh the conversion from current main before merge, preserve newer task
-state, and follow that procedure's writer/installation coordination.
-
-Do not run a sweeping Coga command with the converted routine-state working
-copies: it would publish the refs before the topics land. For this handoff,
-after committing, testing and pushing, all changed `coga/tasks/` and
-`coga/recurring/` working copies were restored from fresh `origin/main` and
-verified byte-identical to it; the converted versions remain in commit
-`15fa204c9a78aab65ce10eb6ca39f15719572e8a`. The current ticket was then loaded from control and this handoff
-written. The launcher can discard the already-published routine-state dirt
-and return to main. Repeat that protection if a later step checks out the
-conversion branch and needs a lifecycle command; never drop the committed
-conversion or publish it early to silence a gate.
-
-The full suite passed 3,945 tests with 7 Windows-only skips at
-`217f0028488f5c7d3fa3e232c7d57b6cdbd77b9d`. The final rebase only
-updated routine state; later edits corrected two local development link
-labels and preserved historical PR records. Runtime/resources and test
-trees remain byte-identical. Fresh focused tests, validation, and the reference audit cover the final
-head. A pristine-clone wheel check verified the identical package/resource
-tree before the last routine-ticket-only rebase. The receipts
-below retain their actual tested OIDs; the full-suite receipt is historical.
-
-Independent code review has not run and no PR is open. The next workflow
-step owns peer review. No unresolved implementation blocker was found.
+Reconciliation preserved main's checkout/chat/manual guidance and newer task
+lifecycle state. Historical PR records retain their recorded paths and receipts;
+they are evidence about past commits, not live context dependencies. Runtime
+Python changes are limited to six source comments/docstrings.
 
 ## Peer review
 
-Direct review **completed** on `f0b1c386dbb57ac802335df21d920d0bc3c00857` against
-`a76401513cb3341bf6609c98566de57fc73ccd8a` (`origin/main`), after an unconditional fetch/rebase.
-Reviewer: Codex in a fresh session. Implementation was also Codex; this is
-recorded as self-review, not independent review. No nested CLI reviewer or
-subagent ran. The rebased branch is pushed. No PR is open.
+Direct review **completed** on `aa422de4da092149ae0925f69ee96c21b26ec43a` against
+`94fad92944fe829f4c233fa3cb0f56d883748097` (`origin/main`). Reviewer: Codex.
+The implementer was also Codex, so this is recorded as self-review; no independent
+reviewer, nested CLI reviewer or subagent ran. The final rebase preserved newer pin-control lifecycle state, checked criteria
+and complete PR receipts; only context references and the approved audience
+wording changed relative to its control copy. Runtime/resources and tests
+remain identical to the previous full-suite revision.
+The final publication-freshness probe passed against control
+`94fad92944fe829f4c233fa3cb0f56d883748097`: HEAD contains latest origin/main.
 
-Three must-fix documentation finding groups remain:
+The owner approved all three finding groups on 2026-10-21. Fixed and re-reviewed:
 
-1. **P2 — Complete split-topic ownership citations.** The microkernel rule
-   and Open command placements moved to `coga-dev/microkernel`, but
-   `docs/contexts/coga-dev/codebase/gotchas/SKILL.md` still names
-   `coga/extension-model` as their owner, and
-   `docs/contexts/coga-dev/current-direction/SKILL.md` points its v1 table
-   requirement there. Current task/design instructions also retain such
-   citations (for example the recurring-recipes refactor and Windows port).
-   Point placement rules at the development owner; keep recipe/alias facts
-   at the user owner.
-2. **P2 — Correct the release runbook path.**
-   `coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md` now names
-   nonexistent `docs/contexts/coga-dev/packaging/edge-code-upgrades.md`.
-   The runbook is `docs/contexts/coga/edge-code/edge-code-upgrades.md`.
-3. **P2 — Remove development-twin requirements from live work.** The two
-   `launch-locks/*/design.md` attachments still direct implementation to
-   create packaged `coga/internals/checkout-lock` / `ticket-locks` topics.
-   Other active acceptance criteria still require packaged copies of topics
-   this branch de-packages (for example `pin-control-inside-the-state-lock-during-checkout`,
-   `run-recurring-agent-templates-off-the-control-bran`,
-   `prevent-duplicate-session-usage-records-from-infla`, and the Windows
-   tickets). The recurring-control ticket even calls its canonical path its
-   packaged twin. Keep implementation contracts local under `coga-dev/`,
-   keep operator facts in user topics, and require twins only for the user
-   set. Preserve design behavior, lifecycle fields, and historical receipts.
+1. Microkernel rule/placement citations now name `coga-dev/microkernel`;
+   recipe/alias facts keep their user owner, and development links are explicit.
+2. The release checklist now uses the existing `coga/edge-code/edge-code-upgrades.md` runbook.
+3. Live tasks/designs keep development contracts local and require twins only
+   for user topics. New lock implementation topics use `coga-dev/internals/`;
+   operator facts stay in shipped launch/checkouts/tickets/megalaunch topics.
 
-The attended owner was asked to approve these targeted reference/audience
-corrections; no answer has arrived. No fixes were applied and no bump was
-run. Do not advance while these findings remain. No ticket was blocked.
+No unresolved must-fix finding remains. No terminal/pager/TTY/Slack rendering
+behavior changed, so the interactive-surface exercise is inapplicable.
 
-Verification: all 80 classification rows match the resulting 61 user and
-24 development topics; all topic names match paths. The six changed runtime
-Python modules have identical executable ASTs after removing docstrings.
-The 88 changed ticket/template protected headers are unchanged except
-contexts; nine structured PR records in changed files are byte-identical to
-main. Full suite: 3945 passed, 7 native-Windows skips. Pristine-clone wheel:
-1 passed. Root and seeded-fixture validation have zero errors; exact receipts
-are under PR. No terminal/pager/TTY/Slack rendering behavior changed, so the
-workflow's interactive-surface exercise is inapplicable.
+Final-head checks: 3945 passed, 7 skipped in 351.77s (0:05:51); pristine-clone wheel 1 passed;
+root and seeded-fixture validation 0 errors. Audit: 61 user/24 development
+topics, 89 protected ticket headers unchanged except contexts, 9 historical PR
+records unchanged, and 6 unchanged executable runtime ASTs. Exact receipts
+and platform omissions are below. Advisory PR recommendation remains `deep`
+for the broad migration, coordinated state conversion and self-review.
+The PR presentation rendered with all 295 diff paths covered, current receipts
+and no publication evidence gaps.
 
-Before publishing this note, all 94 converted routine-state working copies
-under `coga/tasks/` and `coga/recurring/` were restored from fresh
-`origin/main` and verified byte-identical, while their conversion remains in
-the committed/pushed head above. This prevents the note's publication from
-shipping new refs before the contexts land. The launcher returns the checkout.
-On resumption, restore the committed conversion only after accounting for
-current control changes; preserve newer state and repeat this protection
-before any sweeping lifecycle command. Writer/installation coordination at
-merge remains required by the stored-ticket conversion procedure.
+## Coordinated conversion and next step
+
+The branch is committed and pushed; no PR is open. The current ticket is
+published separately and is excluded from the implementation diff.
+
+Before the lifecycle handoff, all 95 changed `coga/tasks/` and
+`coga/recurring/` working copies were restored from fresh `origin/main` and
+verified byte-identical to control. Their conversion remains in committed/pushed
+head `aa422de4da092149ae0925f69ee96c21b26ec43a`. This prevents a sweep from
+publishing new refs before their topics land. The launcher returns the checkout.
+Repeat this protection if a later step checks out the conversion branch and
+needs a lifecycle command; preserve the committed conversion.
+
+Before merge, follow `coga-dev/internals/git-regressions`, “Shipping a
+stored-ticket schema conversion”: open the writer quiet window, rebuild the
+conversion on the exact control tip while preserving newer state, merge topics
+and consumers together, and verify updated installations before resuming writers.
+The next workflow step is the mechanical PR publication step.
 
 ## PR
 
 ```yaml
 title: Separate shipped user contexts from Coga development guidance
 author: codex
-author_evidence: This attended implementation session used Codex (GPT-6), overriding the ticket’s configured
-  Claude agent.
-head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-base: a76401513cb3341bf6609c98566de57fc73ccd8a
+author_evidence: The implementation handoff records Codex (GPT-6) as the actual implementer, overriding
+  the configured Claude agent. The approved peer-review fixes were also applied by Codex.
+head: aa422de4da092149ae0925f69ee96c21b26ec43a
+base: 94fad92944fe829f4c233fa3cb0f56d883748097
 depth: deep
-rationale: Broad audience/package migration with coordinated stored-ticket changes. Direct Codex review
-  completed with three unresolved documentation finding groups; owner confirmation to apply fixes is pending.
-implementation: 'Implements all 78 original approved rows plus the two user topics added by current main:
+rationale: Broad clean-break context/package migration with coordinated stored-ticket changes. Direct
+  self-review completed with all three finding groups resolved; independent review and native Windows/Python
+  3.11 verification have not run.
+implementation: 'Implements all 78 original approved rows plus two user topics added by current main:
   61 shipped user topics and 24 local Coga-dev topics. Splits mixed contracts, migrates consumers and
-  ticket contexts, audits links and anchors, enforces namespace and wheel boundaries, and documents the
-  clean break.'
+  ticket contexts, enforces namespace, wheel, twin and link boundaries, and documents the clean break.
+  Review fixes correct split-topic ownership citations, the release upgrade-runbook path, and live task/design
+  requirements for local-only topics.'
 deviations: 'No audience decisions changed; PR #1068 added dev/checkouts/chat and dev/checkouts/manual,
-  both user topics by the approved shipped-consumer criterion. Stored-ticket ref conversion travels with
-  the topics under the existing coordinated-conversion procedure; lifecycle fields and titles are preserved.
-  Two already-broken context links were repaired during the requested audit.'
-limitations: 'Three review finding groups remain: stale microkernel ownership citations, a broken edge-upgrade
-  runbook path, and live tickets/designs requiring packaged copies of local-only topics. Tests ran on
-  Python 3.12.12; native Windows and Python 3.11 were not verified. Old spellings in migration history,
-  historical PR receipts, audit history, and the legacy gitignore-cleanup literal are intentional. Archives
-  were not read or edited.'
+  both user topics under the approved shipped-consumer criterion. Stored-ticket ref conversion travels
+  with the topics under the coordinated-conversion procedure; lifecycle fields and titles are preserved.
+  Two already-broken links were repaired during the requested audit. The owner approved all three review
+  finding groups and targeted corrections on 2026-10-21.'
+limitations: Python 3.12.12 verified; Python 3.11 and native Windows were not verified. No terminal, pager,
+  TTY-prompt or Slack-rendering behavior changed, so an interactive-surface exercise is inapplicable.
+  Old spellings remain as mapping/history in the approved decision and release note, historical task descriptions
+  and PR receipts, immutable audit history, one human-owned parked-ticket title, and the legacy gitignore-cleanup
+  literal; these are not live dependencies. Archives were not read or edited. Before merge, refresh the
+  conversion on the exact control tip and coordinate the writer quiet window and installation update required
+  by coga-dev/internals/git-regressions.
 files:
   AGENTS.md: Update audience guidance and links to the correct topic owners.
   CONTRIBUTING.md: Update audience guidance and links to the correct topic owners.
@@ -357,8 +315,8 @@ files:
     PR receipts.
   coga/tasks/_v2/dream-recurring-persist-done-stop-inline-delete.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/_v2/fail-validation-when-local-user-is-required-for-ex.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/_v2/fail-validation-when-local-user-is-required-for-ex.md: Correct split-topic ownership
+    and audience/twin requirements while preserving lifecycle and historical receipts.
   coga/tasks/_v2/implement-accepted-ticket-interview-improvements.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/_v2/install-smoke-ci-matrix.md: Migrate live context refs; preserve lifecycle and historical
@@ -387,8 +345,8 @@ files:
     PR receipts.
   coga/tasks/add-an-applying-a-batch-of-verdicts-section-to-the.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/adjudicate-the-eight-premise-dead-v2-drafts.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
+  coga/tasks/adjudicate-the-eight-premise-dead-v2-drafts.md: Correct split-topic ownership and audience/twin
+    requirements while preserving lifecycle and historical receipts.
   coga/tasks/autofix-dedupe-ignores-closed-autofix-tickets.md: Migrate live context refs; preserve lifecycle
     and historical PR receipts.
   coga/tasks/autofix-write-ups-lose-their-body-to-h2-headings.md: Migrate live context refs; preserve
@@ -411,8 +369,8 @@ files:
     lifecycle and historical PR receipts.
   coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/dream-s-own-blackboard-trips-large-blackboard-ever.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/dream-s-own-blackboard-trips-large-blackboard-ever.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
   coga/tasks/exclude-superseded-designs-from-launch-prompts.md: Migrate live context refs; preserve lifecycle
     and historical PR receipts.
   coga/tasks/file-post-merge-obligations-before-open-pr-because.md: Migrate live context refs; preserve
@@ -423,43 +381,46 @@ files:
     receipts.
   coga/tasks/fix-parser-bugs-documented-in-pr-1055.md: Migrate live context refs; preserve lifecycle and
     historical PR receipts.
-  coga/tasks/gigantic-refactor-move-recurring-recipes-out-of-co.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/gigantic-refactor-move-recurring-recipes-out-of-co.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
   coga/tasks/implement-the-include-allowlist-that-url-skill-upd.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/interview-the-owner-on-the-17-title-only-v2-stubs.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/keep-multiline-audit-messages-on-one-log-line.md: Migrate live context refs; preserve lifecycle
     and historical PR receipts.
-  coga/tasks/launch-locks/checkout-exclusivity-lock/design.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
-  coga/tasks/launch-locks/checkout-exclusivity-lock/ticket.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
-  coga/tasks/launch-locks/ticket-ownership-lock/design.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
-  coga/tasks/launch-locks/ticket-ownership-lock/ticket.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
+  coga/tasks/launch-locks/checkout-exclusivity-lock/design.md: Keep new lock implementation contracts
+    local under coga-dev; put operator facts in shipped topics.
+  coga/tasks/launch-locks/checkout-exclusivity-lock/ticket.md: Keep new lock implementation contracts
+    local under coga-dev; put operator facts in shipped topics.
+  coga/tasks/launch-locks/ticket-ownership-lock/design.md: Keep new lock implementation contracts local
+    under coga-dev; put operator facts in shipped topics.
+  coga/tasks/launch-locks/ticket-ownership-lock/ticket.md: Keep new lock implementation contracts local
+    under coga-dev; put operator facts in shipped topics.
   coga/tasks/launch-moves-the-checkout-to-main-before-and-after.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/let-the-autofix-generator-attach-repo-default-contexts.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/lifecycle-writes-read-control-s-ticket-before-modi.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/lifecycle-writes-read-control-s-ticket-before-modi.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
+  coga/tasks/make-coga-status-an-interactive-control-center.md: Correct split-topic ownership and audience/twin
+    requirements while preserving lifecycle and historical receipts.
   coga/tasks/marketing/demo-hackability-ask-claude-to-add-a-command-live.md: Migrate live context refs;
     preserve lifecycle and historical PR receipts.
   coga/tasks/marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min.md: Migrate live
     context refs; preserve lifecycle and historical PR receipts.
   coga/tasks/marketing/fix-installer/test-install-on-windows.md: Migrate live context refs; preserve lifecycle
     and historical PR receipts.
-  coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md: Migrate live context refs; preserve lifecycle
-    and historical PR receipts.
+  coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md: Correct the edge-code upgrade-runbook
+    path and migrated context refs.
   coga/tasks/marketing/readme-top.md: Migrate live context refs; preserve lifecycle and historical PR
     receipts.
   coga/tasks/marketing/state-the-hatchling-prerequisite-in-the-clean-whee.md: Migrate live context refs;
     preserve lifecycle and historical PR receipts.
   coga/tasks/match-concurrent-codex-sessions-to-their-launch-so.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/microkernel/README.md: Migrate live context refs; preserve lifecycle and historical PR receipts.
+  coga/tasks/microkernel/README.md: Correct split-topic ownership and audience/twin requirements while
+    preserving lifecycle and historical receipts.
   coga/tasks/microkernel/launch-decomposition.md: Migrate live context refs; preserve lifecycle and historical
     PR receipts.
   coga/tasks/microkernel/lifecycle-verbs-to-ticket-operations.md: Migrate live context refs; preserve
@@ -468,8 +429,8 @@ files:
     and historical PR receipts.
   coga/tasks/microkernel/read-report-commands-as-ticket-workflows.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/microkernel/residual-command-surfaces.md: Migrate live context refs; preserve lifecycle and
-    historical PR receipts.
+  coga/tasks/microkernel/residual-command-surfaces.md: Correct split-topic ownership and audience/twin
+    requirements while preserving lifecycle and historical receipts.
   coga/tasks/microkernel/support-commands-boundary.md: Migrate live context refs; preserve lifecycle and
     historical PR receipts.
   coga/tasks/microkernel/work-orchestration-commands-to-tickets.md: Migrate live context refs; preserve
@@ -482,14 +443,14 @@ files:
     lifecycle and historical PR receipts.
   coga/tasks/parse-agents-rejects-cogalocaltoml.md: Migrate live context refs; preserve lifecycle and
     historical PR receipts.
-  coga/tasks/pin-control-inside-the-state-lock-during-checkout.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/pin-control-inside-the-state-lock-during-checkout.md: Correct split-topic ownership and audience/twin
+    requirements while preserving lifecycle and historical receipts.
   coga/tasks/premise-check-2026-w39-25-parked-drafts-need-a-ver.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/premise-check-2026-w40-8-parked-drafts-need-a-verd.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
-  coga/tasks/prevent-duplicate-session-usage-records-from-infla.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/premise-check-2026-w40-8-parked-drafts-need-a-verd.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
+  coga/tasks/prevent-duplicate-session-usage-records-from-infla.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
   coga/tasks/publish-coga-0-4-1-to-pypi-which-main-already-decl.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/recheck-codex-usage-completeness-after-the-session.md: Migrate live context refs; preserve
@@ -500,8 +461,8 @@ files:
     lifecycle and historical PR receipts.
   coga/tasks/reuse-the-existing-control-worktree-for-recurring.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
-  coga/tasks/run-recurring-agent-templates-off-the-control-bran.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/run-recurring-agent-templates-off-the-control-bran.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
   coga/tasks/scrub-the-service-account-token-from-the-launch-ch.md: Migrate live context refs; preserve
     lifecycle and historical PR receipts.
   coga/tasks/slim-the-40-9-kib-blackboard-of-the-macos-and-wind.md: Migrate live context refs; preserve
@@ -516,19 +477,19 @@ files:
     lifecycle and historical PR receipts.
   coga/tasks/verify-dream-under-codex-on-the-real-repo-w40.md: Migrate live context refs; preserve lifecycle
     and historical PR receipts.
-  coga/tasks/windows-native/core-port-cli-and-test-suite-pass-on-native-window.md: Migrate live context
-    refs; preserve lifecycle and historical PR receipts.
-  coga/tasks/windows-native/interactive-coga-launch-on-native-windows.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
-  coga/tasks/windows-native/pr-ci-with-linux-and-windows-test-jobs.md: Migrate live context refs; preserve
-    lifecycle and historical PR receipts.
+  coga/tasks/windows-native/core-port-cli-and-test-suite-pass-on-native-window.md: Correct split-topic
+    ownership and audience/twin requirements while preserving lifecycle and historical receipts.
+  coga/tasks/windows-native/interactive-coga-launch-on-native-windows.md: Correct split-topic ownership
+    and audience/twin requirements while preserving lifecycle and historical receipts.
+  coga/tasks/windows-native/pr-ci-with-linux-and-windows-test-jobs.md: Correct split-topic ownership and
+    audience/twin requirements while preserving lifecycle and historical receipts.
   docs/README.md: Update audience guidance and links to the correct topic owners.
   docs/contexts/coga-dev/archive-access/SKILL.md: Keep Coga development knowledge in the local-only audience.
   docs/contexts/coga-dev/codebase/SKILL.md: Keep Coga development knowledge in the local-only audience.
-  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Keep Coga development knowledge in the local-only
-    audience.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Keep Coga development knowledge in the local-only
-    audience.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Correct split-topic ownership and audience/twin requirements
+    while preserving lifecycle and historical receipts.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Correct split-topic ownership and audience/twin requirements
+    while preserving lifecycle and historical receipts.
   docs/contexts/coga-dev/internals/SKILL.md: Keep Coga development knowledge in the local-only audience.
   docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Keep Coga development knowledge in the local-only
     audience.
@@ -630,7 +591,8 @@ files:
     ref.
   docs/contexts/coga/recurring/scheduling/ledger/SKILL.md: Keep user facts and navigation at the approved
     ref.
-  docs/contexts/coga/recurring/templates/SKILL.md: Keep user facts and navigation at the approved ref.
+  docs/contexts/coga/recurring/templates/SKILL.md: Use the correct optional development packaging link;
+    preserve canonical/package byte identity.
   docs/contexts/coga/sandboxes/SKILL.md: Keep user facts and navigation at the approved ref.
   docs/contexts/coga/script-tickets/SKILL.md: Keep user facts and navigation at the approved ref.
   docs/contexts/coga/skill-management/SKILL.md: Keep user facts and navigation at the approved ref.
@@ -756,8 +718,8 @@ files:
     the canonical user topic byte-for-byte.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/ledger/SKILL.md: Ship
     the canonical user topic byte-for-byte.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Ship the canonical
-    user topic byte-for-byte.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Use the correct
+    optional development packaging link; preserve canonical/package byte identity.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Ship the canonical user
     topic byte-for-byte.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Ship the canonical
@@ -831,46 +793,62 @@ files:
 review:
   reviewer: codex
   kind: self
-  status: failed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
-  detail: Direct review completed in a fresh Codex session; implementation was also Codex, so this is
-    recorded as self-review rather than inferring independence from the configured peer. Three must-fix
-    documentation finding groups remain under Peer review. No nested reviewer or subagents ran.
+  status: passed
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: Direct review completed on the final rebased and fixed revision. All three documentation finding
+    groups were corrected with the attending owner's approval; no unresolved must-fix findings remain.
+    Implementation and reviewer identities are both Codex, so this is self-review. No independent reviewer,
+    nested CLI reviewer, or subagent ran. Final rebase preserved newer pin-control lifecycle state and
+    PR receipts; runtime/resources and tests remain identical to the previous full-suite revision.
 checks:
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest > /tmp/coga-context-audiences-peer-pytest.log
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest > /tmp/coga-context-audiences-peer-reconciled-pytest.log
     2>&1
   status: passed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
-  detail: 3945 passed, 7 skipped in 328.30s on Python 3.12.12 after the unconditional rebase. The skips
-    require native Windows (2 job-object and 5 PowerShell checks).
-- command: PYTHONPATH=/tmp/coga-context-peer-pristine-5_gchdjw/repo/src /home/n/Code/codex/coga/.venv/bin/python
-    -m pytest tests/test_packaging.py::test_wheel_includes_bootstrap_batteries -q --tb=short
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: 3945 passed, 7 skipped in 351.77s (0:05:51) on Python 3.12.12 after the final rebase. Seven
+    skips require native Windows (2 job-object and 5 PowerShell checks).
+- command: PYTHONPATH=/tmp/coga-context-peer-reconciled-9i5tskhj/repo/src /home/n/Code/codex/coga/.venv/bin/python
+    -m pytest tests/test_packaging.py::test_wheel_includes_bootstrap_batteries -q --tb=short > /tmp/coga-context-peer-reconciled-wheel.log
   status: passed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
-  detail: 1 passed in 1.38s from a pristine independent clone of the reviewed head; validates wheel packaging
-    without ignored development views.
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.validate --json > /tmp/coga-context-audiences-peer-validate.json
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: 1 passed in 19.07s from a pristine independent clone of the final head at /tmp/coga-context-peer-reconciled-9i5tskhj/repo.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.validate --json > /tmp/coga-context-audiences-peer-reconciled-validate.json
   status: passed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
   detail: 'Repository: 123 OK, 46 warnings (20 stuck in progress, 18 unfrozen workflows, 7 empty descriptions,
-    1 large blackboard), 0 errors. Read-only module invocation while converted tickets were present.'
+    1 large blackboard), 0 errors. Read-only validation module avoids publishing converted routine state
+    before merge.'
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
-    -m coga.validate --json
+    -m coga.validate --json > /tmp/coga-context-audiences-peer-reconciled-fixture-validate.json
   status: passed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
   detail: 'Seeded fixture: 4 OK, no issues. Ran from tests/fixtures/seeded-repo/coga.'
-- command: git diff --check main...HEAD
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python /tmp/coga-context-audiences-peer-audit.py
   status: passed
-  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
-  base: a76401513cb3341bf6609c98566de57fc73ccd8a
-  detail: Passed on the reviewed committed diff.
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: 80 classification rows yield 61 shipped user and 24 local development topics. All topic names,
+    user twins and changed-ticket context attachments resolve; 89 protected headers differ only in contexts,
+    9 historical PR records remain identical to control, and 6 runtime modules have unchanged executable
+    ASTs. All 295 diff paths are accounted for.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: Passed on the final committed diff.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python /tmp/coga-context-peer-freshness.py
+  status: passed
+  head: aa422de4da092149ae0925f69ee96c21b26ec43a
+  base: 94fad92944fe829f4c233fa3cb0f56d883748097
+  detail: 'Publication freshness probe passed against control 94fad92944fe829f4c233fa3cb0f56d883748097:
+    HEAD contains latest origin/main'
 - command: python3.11 -m pytest
   status: not-run
   detail: The implementation handoff reports that the available Python 3.11 interpreter lacks the test
-    dependencies. This review used Python 3.12.12; no 3.11 verification is claimed.
+    dependencies. Executed checks used Python 3.12.12; no Python 3.11 verification is claimed.
 ```
