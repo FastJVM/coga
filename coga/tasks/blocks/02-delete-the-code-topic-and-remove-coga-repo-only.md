@@ -1,6 +1,6 @@
 ---
 title: 02 Delete the code topic and remove Coga-repo-only text from shipped topics
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
