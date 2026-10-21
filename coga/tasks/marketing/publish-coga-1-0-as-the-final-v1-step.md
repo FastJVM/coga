@@ -112,7 +112,7 @@ Hashes (0.4.0-versioned dry build, for reference only): wheel
 1. **Suite failure — locale-dependent test/runbook (fix needed).**
    `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
    runs the documented `<!-- migration:inventory -->` command
-   (`rg … | sort` in `docs/contexts/coga-dev/packaging/edge-code-upgrades.md` +
+   (`rg … | sort` in `docs/contexts/coga/edge-code/edge-code-upgrades.md` +
    packaged twin) and compares to Python `sorted()`. Under `en_US.UTF-8`,
    `sort` puts `autoclose-merged/` before `_custom-phone-home/`; passes with
    `LC_ALL=C`. Suggested fix: `LC_ALL=C sort` in both runbook copies (keeps

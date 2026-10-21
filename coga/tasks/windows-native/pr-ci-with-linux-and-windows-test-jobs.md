@@ -51,8 +51,8 @@ that run in the PR.
 - Interactive launch is checked on EC2 (the interactive-launch ticket), not
   in CI.
 - `coga-dev/testing` (`docs/contexts/coga-dev/testing/SKILL.md`) owns test
-  expectations. Add one line there saying PR CI exists and what it runs,
-  in both the canonical and packaged copies (`coga-dev/packaging`).
+  expectations. Add one line there saying PR CI exists and what it runs.
+  This development topic is local-only (`coga-dev/packaging`).
 
 <!-- coga:blackboard -->
 

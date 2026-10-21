@@ -96,7 +96,7 @@ scope unless it is listed under *Out of scope*.
       test shows a second process blocks until the first releases the lock.
 - [ ] The full Linux suite still passes, with no POSIX test newly skipped
       or weakened.
-- [ ] `coga-dev/codebase` (canonical and packaged copies) lists the new module.
+- [ ] The local-only `coga-dev/codebase` lists the new module.
       `coga/testing/clean-install/windows-aws` documents the branch-wheel
       walk. The instance is torn down, and `status` confirms nothing is
       left billing.
@@ -233,7 +233,7 @@ Work in this order. Step 1 alone should get `coga --help` running.
    walk can install the branch wheel. Update
    `coga/testing/clean-install/windows-aws` (canonical, plus a packaged
    copy if one exists) and `tests/test_clean_install_harness.py` to match.
-9. **Docs.** Add `oscompat.py` to `coga-dev/codebase` (both copies). Note the
+9. **Docs.** Add `oscompat.py` to the local-only `coga-dev/codebase`. Note the
    lock behavior on Windows in `coga/sync` only if that topic describes
    `flock`. Do not edit `coga/install`: the interactive ticket owns that.
 
@@ -332,15 +332,15 @@ Work in this order. Step 1 alone should get `coga --help` running.
   one interface over `sys.platform` checks scattered through the code.
 - Platform-marked dependencies (`; sys_platform == "win32"`) are allowed,
   but none are expected.
-- **Microkernel boundary** (`coga/extension-model`): a new core helper needs
+- **Microkernel boundary** (`coga-dev/microkernel`): a new core helper needs
   two or more real consumers. `oscompat.py` qualifies through three
   concerns, each with two consumers: the lock directory and the lock
   (`git.state_lock`, `launch._orientation_checkout_guard`), and the process
   tree (`recurring_clone`, `recurring_runner`).
 - **Shells and scripts.** Coga must run without bash on the PATH. The repo
   `.gitattributes` already forces `*.sh` and `*.ps1` to `eol=lf`.
-- Update `coga-dev/codebase` for any new module, editing both the canonical and
-  packaged copies (`coga-dev/packaging`). `coga/install` is updated by the
+- Update the local-only `coga-dev/codebase` for any new module
+  (`coga-dev/packaging`). `coga/install` is updated by the
   interactive ticket, once Windows is fully supported.
 
 ### AWS
@@ -465,9 +465,10 @@ approval is implied by completing this evaluation.
    `coga/launch`, `dev/checkouts/launch-boundary`, `coga/tickets/authoring`,
    `coga/script-tickets` and `coga/recurring/scheduling/failures`; the
    process-recovery change belongs in `coga-dev/internals/recurring-temp-worktrees`.
-   Add the affected owners and their packaged twins to the deliverables,
-   with one owner per fact and links from related topics. All those twins,
-   including `coga/testing/clean-install/windows-aws`, exist. This follows
+   Add the affected owners to the deliverables, with one owner per fact and
+   links from related topics. Keep packaged twins for the user topics and
+   the `coga/testing/clean-install/windows-aws` skill; development topics
+   have no twins. This follows
    the repo's same-PR knowledge rule without pulling `coga/install` into scope.
 
 ### Optional recommendations

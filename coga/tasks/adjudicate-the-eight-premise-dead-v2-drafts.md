@@ -277,7 +277,7 @@ numbers, including the suggestion to cancel a ticket that is already done.
   its manual discovery is not the proposed query/rank command. The draft's
   inlined rubric makes the retired import-ticket citation provenance only.
   `coga-dev/current-direction`'s missing-skill decision rejects a static gap lint,
-  not search. `coga/extension-model`'s microkernel rule governs implementation home,
+  not search. `coga-dev/microkernel`'s microkernel rule governs implementation home,
   not whether this capability request still exists.
 - **Lifecycle and composition:** `commands.mark.canceled` delegates to
   `mark.mark_canceled`, preserving body/blackboard while clearing the step and

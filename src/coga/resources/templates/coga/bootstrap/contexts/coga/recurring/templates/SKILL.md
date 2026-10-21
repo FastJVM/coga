@@ -145,7 +145,7 @@ The `COGA_TASK_*` variables a script and recipe receive are specified in
 Shipped templates have a packaged twin under
 `src/coga/resources/templates/coga/recurring/<name>/`; edit both, since the body
 is the run prompt `coga init` installs (`tests/test_packaging.py` enforces it;
-see [coga/edge-code](../../edge-code/SKILL.md)). Downstream and promoted
+see [Coga development packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/packaging/SKILL.md)). Downstream and promoted
 templates need no twin. A job that force-pushes a reused branch must resolve the
 remote tip at push time (`git ls-remote`) rather than lease against a possibly
 stale tracking ref, as `src/coga/skill_manager.py` does.

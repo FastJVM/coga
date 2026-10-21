@@ -1,12 +1,13 @@
-<!-- Moved from the blackboard of launch-locks/ticket-ownership-lock on 2026-10-06 (large-blackboard remedy, coga/blackboard). Verbatim. -->
+<!-- Moved from the blackboard of launch-locks/ticket-ownership-lock on 2026-10-06 (large-blackboard remedy, coga/blackboard). Context locations and distribution updated for the audience split. -->
 
 ## Design (step 1, 2026-10-01)
 
-Owning contract topic: **new `coga/internals/ticket-locks`**
-(`docs/contexts/coga/internals/ticket-locks/SKILL.md`, plus its packaged twin
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/ticket-locks/SKILL.md`
-and an entry in `tests/test_packaging.py` `REQUIRED_BOOTSTRAP_CONTEXT_REFS`, the
-way every other `coga/internals/*` topic is listed). Code home: new
+Implementation contract topic: **new `coga-dev/internals/ticket-locks`**
+(`docs/contexts/coga-dev/internals/ticket-locks/SKILL.md`), local-only with no
+packaged twin or `REQUIRED_BOOTSTRAP_CONTEXT_REFS` entry. Operator behavior,
+refusals, and recovery belong in shipped user topics such as `coga/launch`,
+`coga/tickets`, and `coga/megalaunch`, with their packaged twins; they must not
+require the development topic. Code home: new
 `src/coga/ticket_lock.py` (shared infra: launch, megalaunch, the publish guard,
 delete, validate/status, and `coga unlock` all consume it).
 
@@ -210,8 +211,8 @@ ignored `.coga/` runtime dir and is never published.
 - [ ] **Exit codes.** Held by another session (live/uncertain) or nested → 2.
       Unreachable or uncertain acquisition → 75 (retry, no sweep). Either
       refusal after checkout entry still runs `return_checkout()` first.
-- [ ] Contracts and twins updated in the same PR: new
-      `coga/internals/ticket-locks`; `coga/launch` "Status is the signal"
+- [ ] Contracts updated in the same PR: new local-only
+      `coga-dev/internals/ticket-locks`; `coga/launch` "Status is the signal"
       rewritten (one lock per ticket; status still says *what* step),
       plus Agent preflight order and Options/exits; `coga-dev/internals/launch-claims`
       (megalaunch holds the ticket lock around its claims; state_lock still not
@@ -219,7 +220,7 @@ ignored `.coga/` runtime dir and is never published.
       reconciliation; dead-claim adoption); `coga/state-publication`
       and `coga-dev/internals/git-regressions` (`content=`, lock candidates,
       holder refusal); `coga/tickets` (lock path is not a task);
-      `coga/megalaunch` (skip reason); packaged twins of each.
+      `coga/megalaunch` (skip reason); packaged twins of the user topics only.
 
 ### Proposed shape (order of work)
 

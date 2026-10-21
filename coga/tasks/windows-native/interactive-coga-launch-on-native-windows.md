@@ -766,8 +766,9 @@ this implementation.
   replacement-test inventory.
 - Extend the documentation checklist to
   `coga-dev/internals/launch-claims` ("Held child and admission", currently
-  pipe-specific) and `coga/testing/clean-install/windows-aws` ("RDP",
-  currently directing attended launch there), with packaged twins.
+  pipe-specific, local-only) and `coga/testing/clean-install/windows-aws`
+  ("RDP", currently directing attended launch there), with the skill's
+  packaged twin.
   Give Zach the exact PR-wheel install command: the cited
   `guide-for-zach.md` currently instructs a PyPI install and describes the
   old Windows fcntl stop. Correct the baseline cross-reference from §7 to §9.

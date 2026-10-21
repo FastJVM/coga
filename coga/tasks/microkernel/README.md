@@ -32,9 +32,10 @@ co-versioning proof.
   entrypoints thin; move single-consumer substance to the edge.
 - Moving logic out of the kernel moves it unchanged (extension-model
   "No inversion"): deterministic Python stays Python.
-- When a placement changes, update in the same PR `coga-dev/microkernel`
-  (and its packaged twin), `docs/archive/cli-extension-audit.md`, the
-  `coga/cli` index, and the topic that owns the moved command.
+- When a placement changes, update in the same PR the local-only
+  `coga-dev/microkernel`, `docs/archive/cli-extension-audit.md`, the
+  `coga/cli` index, and the topic that owns the moved command. Update
+  packaged twins only for user topics.
 - Split implementation by command shape after design review; one PR per
   move.
 

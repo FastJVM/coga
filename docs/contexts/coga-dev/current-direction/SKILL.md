@@ -17,12 +17,12 @@ is `coga status` and the ticket bodies; stage posture is
 
 - **The microkernel cleanup is v1 scope (2026-10-16).** The six
   `microkernel/*` tickets came back from `_v2/`; v1 ships with
-  extension-model's "Open command placements" table empty. The target is the
+  `coga-dev/microkernel`'s "Open command placements" table empty. The target is the
   current kernel line (launch closure including `mark`/`bump`,
   `block`/`unblock`, `create`, fresh `init`, fixed recipes), not the July
   "only `create` is core" direction. A recorded demo of adding a command at
   the edge follows it (`marketing/demo-hackability-ask-claude-to-add-a-command-live`).
-  Contract: [`coga/extension-model`](../../coga/extension-model/SKILL.md).
+  Contract: [`coga-dev/microkernel`](../microkernel/SKILL.md).
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the

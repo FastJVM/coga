@@ -273,8 +273,9 @@ per-command durability attempt while moving job ownership out of core.
 
 #### Rewrite the rule and its callers
 
-`docs/contexts/coga/extension-model/SKILL.md` owns the revised rule and closed
-registry inventory: shared infrastructure needs independent production uses;
+`docs/contexts/coga-dev/microkernel/SKILL.md` owns the revised placement rule;
+`docs/contexts/coga/extension-model/SKILL.md` owns the closed registry inventory.
+Shared infrastructure needs independent production uses;
 otherwise a reviewed command exception must name its invariant/transaction.
 Registry membership is the result of that review, never the proof. Record
 the individually retained commands from this audit rather than a class-wide
@@ -416,9 +417,11 @@ separately from verification. Recheck the graph after the prerequisite lands.
 The following topics are cited rather than attached; they are the owners to
 read and update at the named sections, not specifications to duplicate here:
 
-- `coga/extension-model` (`docs/contexts/coga/extension-model/SKILL.md`):
-  “The microkernel rule”, “Open command placements”, and “coga run”.
+- `coga-dev/microkernel` (`docs/contexts/coga-dev/microkernel/SKILL.md`):
+  “The microkernel rule” and “Open command placements”.
   Current blanket registry permission is what this ticket changes.
+- `coga/extension-model` (`docs/contexts/coga/extension-model/SKILL.md`):
+  “coga run” owns the registry's user-facing command contract.
 - `coga/recurring/templates`
   (`docs/contexts/coga/recurring/templates/SKILL.md`): “The template-to-period
   transform” and “ticket.py completion and reporting”. Period reports are

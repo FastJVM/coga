@@ -41,7 +41,7 @@ Close the two residual rows of the "Open command placements" table:
       or is moved to the edge with unchanged behavior and tests.
 - [ ] `skill *` has an explicit classification and reason in
       `coga-dev/microkernel`.
-- [ ] Both rows leave the table (both copies);
+- [ ] Both rows leave the local-only `coga-dev/microkernel` table;
       `docs/archive/cli-extension-audit.md`, `coga/tickets/authoring`,
       `coga/skill-management` and the `coga/cli` index match.
 - [ ] Any migration found here becomes its own follow-up ticket.

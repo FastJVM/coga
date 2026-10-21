@@ -59,7 +59,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
   a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
   `from coga_edge.phone_home import main`) and has no `RECIPES` entry; do not
-  turn it into a registry entry ([coga-dev/packaging](../../../coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+  turn it into a registry entry ([coga/edge-code](../../../coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
 - **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
   scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
   report, and posts alerts through `coga slack` by default (a `ticket.py` gets
@@ -90,7 +90,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `tests/test_compose.py` and grep the other resources before calling a
   sentence redundant. They compose into every repo's launches, not only
   this one's, so a rule about Coga's own source tree (`src/coga/`, the
-  microkernel boundary) belongs in the `coga/extension-model` topic, which
+  microkernel boundary) belongs in the `coga-dev/microkernel` topic, which
   owns it; this repo's root `AGENTS.md` carries only a summary and pointer
   (`coga/context.md` is now a generated copy of `coga-dev/principles`);
   `test_packaged_prompt_layers_carry_no_coga_source_rules` pins that.

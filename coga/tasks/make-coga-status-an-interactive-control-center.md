@@ -70,7 +70,7 @@ one must get its own real session.
 2. **Agent-led or a plain command line?** Should the command bar take literal
    `coga …` commands, or be an agent session that turns plain requests into
    commands? All the operator's examples are literal commands.
-3. **Where it lives in the code.** Under `coga/extension-model`, a UI that
+3. **Where it lives in the code.** Under `coga-dev/microkernel`, a UI that
    consumes only stable CLI/filesystem interfaces (`coga status --json`, task
    files, `.coga/` run records) is normally an edge feature, not core. Decide
    whether it stays at the edge (e.g. `src/coga_edge/`) or earns a core home,

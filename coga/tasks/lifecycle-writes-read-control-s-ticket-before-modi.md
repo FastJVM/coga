@@ -368,8 +368,8 @@ contract; `coga-dev/internals/agent-spawn`
 (`docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`), "Order inside one call";
 and `coga-dev/internals/launch-claims`
 (`docs/contexts/coga-dev/internals/launch-claims/SKILL.md`), its exact-byte and
-pending-seal rules. Update affected summaries in `coga/launch` and
-`coga-dev/internals/assist-publication` with their twins; link to the owner rather
+pending-seal rules. Update affected summaries in `coga/launch` and its packaged
+twin, and in the local-only `coga-dev/internals/assist-publication`; link to the owner rather
 than duplicating the new merge specification. In particular, git-refresh's
 blanket statement that state sync never copies a control ticket into a feature
 checkout must distinguish whole-checkout refresh from this new preparation.

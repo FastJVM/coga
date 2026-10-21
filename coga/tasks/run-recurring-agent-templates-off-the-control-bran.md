@@ -74,12 +74,12 @@ declined decision is published in `coga-dev/internals/recurring-control`.
       the shared closing sentence after `absence`; restructure the message
       so the remedy order reads correctly in each branch.
 - [ ] The function's docstring stops describing a `git worktree add` remedy.
-- [ ] `docs/contexts/coga-dev/internals/recurring-control/SKILL.md` and its
-      packaged twin
-      (`docs/contexts/coga-dev/internals/recurring-control/SKILL.md`)
-      describe the new refusal text and stay byte-identical
-      (`tests/test_packaging.py`).
-- [ ] The same topic gains a short **declined** note, per `coga/knowledge`
+- [ ] `docs/contexts/coga/recurring/scheduling/SKILL.md` and its packaged
+      twin describe the operator-visible refusal and remedy and stay
+      byte-identical (`tests/test_packaging.py`). Update the local-only
+      `docs/contexts/coga-dev/internals/recurring-control/SKILL.md` for
+      implementation detail; it has no packaged twin.
+- [ ] The local-only implementation topic gains a short **declined** note, per `coga/knowledge`
       ("Where knowledge lives": an owner decision not to act lives in the
       owning topic and says what was declined, why, and what would reopen
       it). Substance: Coga will not create a throwaway or persistent control
@@ -300,8 +300,10 @@ ticket to the follow-up instead of canceling, its shape is: in
 `recurring_runner._refuse_non_control_branch`, change both `absence` messages
 (no holder; unusable holder) so `git switch <control>` is the primary remedy
 and creating a control worktree is either dropped or carries a warning that it
-blocks ticket launches. Mirror that in `coga-dev/internals/recurring-control` and
-its packaged twin, and update the tests that assert the refusal text.
+blocks ticket launches. Update `coga/recurring/scheduling` and its packaged
+twin for the operator remedy, and the local-only
+`coga-dev/internals/recurring-control` for implementation detail. Update the
+tests that assert the refusal text.
 
 ##### Out of scope
 
