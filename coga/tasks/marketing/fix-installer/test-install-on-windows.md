@@ -11,7 +11,7 @@ A human install walk on a fresh Windows environment, the Windows counterpart to 
 
 Deferred from the macOS ticket on 2026-10-18 (owner): a Windows walk today tests a path that cannot work, because coga cannot start on native Windows at all. Worth running once the port lands, so there is something to install into.
 
-Known going in: coga.git imports fcntl at module top and cli.py imports coga.git eagerly, so even coga --help fails. The port is windows-native/core-port-cli-and-test-suite-pass-on-native-window and the rented-machine harness is windows-native/windows-ec2-test-harness; this ticket is the human counterpart to neither and duplicates neither.
+Known going in: coga.git imports fcntl at module top and cli.py imports coga.git eagerly, so even coga --help fails. The port is windows-native/core-port-cli-and-test-suite-pass-on-native-window and the rented-machine harness is the coga/testing/clean-install/windows-aws skill (coga/skills/coga/testing/clean-install/windows-aws/SKILL.md); this ticket is the human counterpart to neither and duplicates neither.
 
 Done when: the walk is done, findings are recorded per step, and those that belong to the port are handed to the port ticket. Expected to stop at coga --version or coga --help; done means the findings up to that point are recorded, not that coga runs there.
 
