@@ -34,38 +34,32 @@ ticket does not edit the install instructions.
 
 ### What the repo already asserts
 
-- `scripts/clean-install/macos-walk.sh`, in its `reset` case (near line 43 as
-  of this writing), records that `/usr/bin/git` is the shim a new user hits.
-- The same script's `walk` case (near line 60) records that macOS ships
-  `/usr/bin/python3` 3.9, below coga's floor, and provisions 3.11 instead.
+- `scripts/clean-install/macos-walk.sh` records both baseline facts: that
+  `/usr/bin/git` is the shim a new user hits (`reset` case, near line 43 as of
+  this writing), and that macOS ships `/usr/bin/python3` 3.9, below coga's
+  floor, so the harness provisions 3.11 instead (`walk` case, near line 60).
 - Those landed with `pin-python-3-11-in-the-macos-clean-install-harness` and
   `document-the-macos-command-line-tools-prerequisite`, both done.
 - So the open question is narrower than the title: it is pip. Whether anything
   usable exists before the Command Line Tools, and whether they put `pip3` on
   PATH or leave only `python3 -m pip`.
 
-### Why the two readings disagree
+### Machine state is the variable
 
-- `macos-walk.sh`, in the same `reset` case (near line 30), records that EC2 Mac
-  AMIs ship Command Line Tools for their Homebrew, and deletes them so git
-  behaves as it does on a new Mac.
+- The same `reset` case (near line 30) records that EC2 Mac AMIs ship Command
+  Line Tools for their Homebrew, and deletes them so git behaves as it does on
+  a new Mac.
 - A machine that already has the tools has a real `python3` and a working
-  `python3 -m pip`, so pip looks native on it.
-- The VM walk found no pip. The two observations are most likely about machines
-  in different states rather than one of them being a mistake. Confirm or kill
-  that explanation; it is the reason the ticket exists.
-
-### Whether a VM is a fair test
-
+  `python3 -m pip`, so pip looks native on it; the VM walk found none. Confirm
+  or kill that as the explanation of the disagreement.
 - `affordable-macos-testing-on-owned-macs-and-per-min` designates disposable
-  Apple Silicon VMs as the vessel for genuinely fresh-install tests, and the
-  Tart image it chose has no Command Line Tools.
-- The same ticket records that a fresh user account does not isolate
-  machine-wide dependencies, so a new account on a working Mac is the weaker
-  test, not the VM.
+  Apple Silicon VMs as the vessel for fresh-install tests and its Tart image
+  has no Command Line Tools. It also records that a fresh user account does not
+  isolate machine-wide dependencies, so a new account on a working Mac is the
+  weaker test, not the VM.
 - A VM cannot speak for a Mac set up by Migration Assistant, which carries the
   tools and Homebrew across. Most real new Macs look like that, so say which
-  kind of Mac each recorded answer describes.
+  kind of Mac each answer describes.
 - Intel has no fresh-install route today: the owned-Mac design can only attach
   to an Intel host and never resets it.
 
@@ -73,9 +67,9 @@ ticket does not edit the install instructions.
 
 - The Command Line Tools trap and the tools-ship-3.9 fact are already listed on
   `test-and-fix-install-on-macos-and-windows` as orphan facts needing a
-  surviving context.
-- `make-the-readme-install-section-the-only-install-p` owns giving those facts a
-  home. Add the pip answer there rather than opening a second home for it.
+  surviving context, and
+  `make-the-readme-install-section-the-only-install-p` owns giving them a home.
+  Add the pip answer there rather than opening a second home for it.
 - `separate-installing-coga-from-installing-its-depen` owns what the install
   section contains and is the consumer of this answer.
 
