@@ -244,6 +244,65 @@ below retain their actual tested OIDs; the full-suite receipt is historical.
 Independent code review has not run and no PR is open. The next workflow
 step owns peer review. No unresolved implementation blocker was found.
 
+## Peer review
+
+Direct review **completed** on `f0b1c386dbb57ac802335df21d920d0bc3c00857` against
+`a76401513cb3341bf6609c98566de57fc73ccd8a` (`origin/main`), after an unconditional fetch/rebase.
+Reviewer: Codex in a fresh session. Implementation was also Codex; this is
+recorded as self-review, not independent review. No nested CLI reviewer or
+subagent ran. The rebased branch is pushed. No PR is open.
+
+Three must-fix documentation finding groups remain:
+
+1. **P2 — Complete split-topic ownership citations.** The microkernel rule
+   and Open command placements moved to `coga-dev/microkernel`, but
+   `docs/contexts/coga-dev/codebase/gotchas/SKILL.md` still names
+   `coga/extension-model` as their owner, and
+   `docs/contexts/coga-dev/current-direction/SKILL.md` points its v1 table
+   requirement there. Current task/design instructions also retain such
+   citations (for example the recurring-recipes refactor and Windows port).
+   Point placement rules at the development owner; keep recipe/alias facts
+   at the user owner.
+2. **P2 — Correct the release runbook path.**
+   `coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md` now names
+   nonexistent `docs/contexts/coga-dev/packaging/edge-code-upgrades.md`.
+   The runbook is `docs/contexts/coga/edge-code/edge-code-upgrades.md`.
+3. **P2 — Remove development-twin requirements from live work.** The two
+   `launch-locks/*/design.md` attachments still direct implementation to
+   create packaged `coga/internals/checkout-lock` / `ticket-locks` topics.
+   Other active acceptance criteria still require packaged copies of topics
+   this branch de-packages (for example `pin-control-inside-the-state-lock-during-checkout`,
+   `run-recurring-agent-templates-off-the-control-bran`,
+   `prevent-duplicate-session-usage-records-from-infla`, and the Windows
+   tickets). The recurring-control ticket even calls its canonical path its
+   packaged twin. Keep implementation contracts local under `coga-dev/`,
+   keep operator facts in user topics, and require twins only for the user
+   set. Preserve design behavior, lifecycle fields, and historical receipts.
+
+The attended owner was asked to approve these targeted reference/audience
+corrections; no answer has arrived. No fixes were applied and no bump was
+run. Do not advance while these findings remain. No ticket was blocked.
+
+Verification: all 80 classification rows match the resulting 61 user and
+24 development topics; all topic names match paths. The six changed runtime
+Python modules have identical executable ASTs after removing docstrings.
+The 88 changed ticket/template protected headers are unchanged except
+contexts; nine structured PR records in changed files are byte-identical to
+main. Full suite: 3945 passed, 7 native-Windows skips. Pristine-clone wheel:
+1 passed. Root and seeded-fixture validation have zero errors; exact receipts
+are under PR. No terminal/pager/TTY/Slack rendering behavior changed, so the
+workflow's interactive-surface exercise is inapplicable.
+
+Before publishing this note, all 94 converted routine-state working copies
+under `coga/tasks/` and `coga/recurring/` were restored from fresh
+`origin/main` and verified byte-identical, while their conversion remains in
+the committed/pushed head above. This prevents the note's publication from
+shipping new refs before the contexts land. The launcher returns the checkout.
+On resumption, restore the committed conversion only after accounting for
+current control changes; preserve newer state and repeat this protection
+before any sweeping lifecycle command. Writer/installation coordination at
+merge remains required by the stored-ticket conversion procedure.
+
 ## PR
 
 ```yaml
@@ -251,11 +310,11 @@ title: Separate shipped user contexts from Coga development guidance
 author: codex
 author_evidence: This attended implementation session used Codex (GPT-6), overriding the ticket’s configured
   Claude agent.
-head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
+head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+base: a76401513cb3341bf6609c98566de57fc73ccd8a
 depth: deep
-rationale: Broad context/package migration with coordinated stored-ticket ref changes; independent peer
-  review is the next step.
+rationale: Broad audience/package migration with coordinated stored-ticket changes. Direct Codex review
+  completed with three unresolved documentation finding groups; owner confirmation to apply fixes is pending.
 implementation: 'Implements all 78 original approved rows plus the two user topics added by current main:
   61 shipped user topics and 24 local Coga-dev topics. Splits mixed contracts, migrates consumers and
   ticket contexts, audits links and anchors, enforces namespace and wheel boundaries, and documents the
@@ -264,11 +323,11 @@ deviations: 'No audience decisions changed; PR #1068 added dev/checkouts/chat an
   both user topics by the approved shipped-consumer criterion. Stored-ticket ref conversion travels with
   the topics under the existing coordinated-conversion procedure; lifecycle fields and titles are preserved.
   Two already-broken context links were repaired during the requested audit.'
-limitations: Tests use Python 3.12.12; the available Python 3.11 interpreter lacks the test dependencies
-  and was not verified. Old spellings remain as migration history in the approved decision and release
-  note, in historical PR receipts, in immutable audit history, in one human-owned parked-ticket title,
-  and in the legacy gitignore-cleanup path literal (not a context dependency). Archives were not read
-  or edited.
+limitations: 'Three review finding groups remain: stale microkernel ownership citations, a broken edge-upgrade
+  runbook path, and live tickets/designs requiring packaged copies of local-only topics. Tests ran on
+  Python 3.12.12; native Windows and Python 3.11 were not verified. Old spellings in migration history,
+  historical PR receipts, audit history, and the legacy gitignore-cleanup literal are intentional. Archives
+  were not read or edited.'
 files:
   AGENTS.md: Update audience guidance and links to the correct topic owners.
   CONTRIBUTING.md: Update audience guidance and links to the correct topic owners.
@@ -770,67 +829,48 @@ files:
   tests/test_edge_distribution.py: Verify audience isolation, relocated refs, or representative fixtures.
   tests/test_packaging.py: Verify audience isolation, relocated refs, or representative fixtures.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implementation step only; independent peer-review follows this handoff. No subagents or nested
-    reviewer were run.
+  reviewer: codex
+  kind: self
+  status: failed
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: Direct review completed in a fresh Codex session; implementation was also Codex, so this is
+    recorded as self-review rather than inferring independence from the configured peer. Three must-fix
+    documentation finding groups remain under Peer review. No nested reviewer or subagents ran.
 checks:
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest > /tmp/coga-context-audiences-peer-pytest.log
+    2>&1
   status: passed
-  head: 217f0028488f5c7d3fa3e232c7d57b6cdbd77b9d
-  base: 90c7ee837ece99d77cfe255f0e4a6e9b36096d2f
-  detail: 3945 passed, 7 skipped in 354.42s on Python 3.12.12. Seven skips require native Windows (2 job-object
-    and 5 PowerShell checks). Historical revision before routine-state reconciliation and two local link-label
-    fixes; runtime/resources and test trees are identical to the final head.
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_packaging.py tests/test_compose.py
-    tests/test_dream_worker_templates.py tests/test_edge_distribution.py -q --tb=short
-  status: passed
-  head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-  base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
-  detail: 158 passed in 19.89s after the final state-only rebase. Covers namespace isolation, resolver
-    fallbacks, wheel contents, twins, navigation targets/anchors, composition, fixture contracts, and
-    edge distribution.
-- command: PYTHONPATH=/tmp/coga-audiences-handoff-pristine-1779cqsq/repo/src /home/n/Code/codex/coga/.venv/bin/python
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: 3945 passed, 7 skipped in 328.30s on Python 3.12.12 after the unconditional rebase. The skips
+    require native Windows (2 job-object and 5 PowerShell checks).
+- command: PYTHONPATH=/tmp/coga-context-peer-pristine-5_gchdjw/repo/src /home/n/Code/codex/coga/.venv/bin/python
     -m pytest tests/test_packaging.py::test_wheel_includes_bootstrap_batteries -q --tb=short
   status: passed
-  head: 140cbeafc72c0e19f08e0bd1c3a78cdbfc73de7e
-  base: 00b22b5e148a186ab98a66956f5b85302644260a
-  detail: 1 passed in 1.35s from a pristine independent clone at /tmp/coga-audiences-handoff-pristine-1779cqsq/repo.
-    This precedes only the last routine-ticket update; source/resources and tests are byte-identical.
-- command: PYTHONPATH=/home/n/Code/codex/coga/src coga validate --json
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: 1 passed in 1.38s from a pristine independent clone of the reviewed head; validates wheel packaging
+    without ignored development views.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.validate --json > /tmp/coga-context-audiences-peer-validate.json
   status: passed
-  head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-  base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
-  detail: 'Repository: 123 OK, 45 warnings (20 stuck in progress, 18 unfrozen workflows, 7 empty descriptions),
-    0 errors.'
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: 'Repository: 123 OK, 46 warnings (20 stuck in progress, 18 unfrozen workflows, 7 empty descriptions,
+    1 large blackboard), 0 errors. Read-only module invocation while converted tickets were present.'
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
-    -m coga.cli validate --json
+    -m coga.validate --json
   status: passed
-  head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-  base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
-  detail: 'Seeded fixture: 4 OK, no issues. Ran from tests/fixtures/seeded-repo/coga; optional Slack webhook
-    removed for deterministic fixture validation.'
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python /tmp/coga_audiences_audit.py
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: 'Seeded fixture: 4 OK, no issues. Ran from tests/fixtures/seeded-repo/coga.'
+- command: git diff --check main...HEAD
   status: passed
-  head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-  base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
-  detail: No old live refs; 80 classification rows produce 61 user and 24 dev topics; protected fields
-    unchanged in 88 tickets/templates; 11 structured historical PR records match control exactly; 27 additional
-    context links resolve; runtime/resources and test tree OIDs match the full-suite revision.
-- command: git diff --check
-  status: passed
-  head: 15fa204c9a78aab65ce10eb6ca39f15719572e8a
-  base: bfacdea86d72007aaf5bf24f9cff54101a54adc8
-  detail: Passed on the clean implementation tree before handoff publication.
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest
-  status: not-run
-  detail: 'Not repeated on the final OID: subsequent changes are routine ticket/audit state and two local
-    development-topic link labels. Runtime/resources and test tree OIDs match the recorded 3945-pass run.
-    Fresh focused checks, root/fixture validation and the reference audit cover the reconciliation; the
-    original full-suite receipt retains its actual OID.'
+  head: f0b1c386dbb57ac802335df21d920d0bc3c00857
+  base: a76401513cb3341bf6609c98566de57fc73ccd8a
+  detail: Passed on the reviewed committed diff.
 - command: python3.11 -m pytest
   status: not-run
-  detail: The available Python 3.11 interpreter lacks the test dependencies. Executed checks used Python
-    3.12.12; no 3.11 verification is claimed.
+  detail: The implementation handoff reports that the available Python 3.11 interpreter lacks the test
+    dependencies. This review used Python 3.12.12; no 3.11 verification is claimed.
 ```
