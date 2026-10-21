@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -197,25 +197,77 @@ For the owner:
 - The session prompt said to confirm the plan with the human before coding. The
   agent posted the plan and proceeded without waiting for confirmation.
 
+## Peer review
+
+Direct Codex review completed, including the final correction, on head
+`b4a503632c87eb832f1dbe8e1dc17485e9cda212`, base
+`48b8486c4d78a141afb82839bf9f88374ad29e3d`. Claude implemented the original
+change (implement handoff and commit trailer); this Codex session reviewed it
+independently and did not invoke a nested reviewer.
+
+- Found and fixed one documentation error: the new `default_agent` comment
+  said `[authoring] agent` selects `coga chat` as well as `coga ticket`.
+  A read-only resolver reproduction with both defaults set to codex selected
+  claude for chat and codex for ticket. The attending human approved the
+  two-line correction; commit `b4a503632` now distinguishes the commands.
+  Codex re-read that correction; it is self-reviewed, not independently reviewed.
+- Config meanings checked against parser, activation/peer routing, authoring,
+  launch argv and recurring limit resolution. TOML values are unchanged;
+  init's default-agent rewrite and uncommenting the new example tables parse.
+  All seven changed topic pairs match byte-for-byte; the deleted pair is
+  absent. The only live removed-topic reference is the owner-managed
+  `coga/coga.toml` comment explicitly exempted by the ticket.
+- Exercised the yellow warning with its actual `typer.secho` presentation in
+  real PTYs at 40x24, 80x24 and 120x30 on `b9f76a82d` (warning unchanged
+  by the final comment-only correction). Each printed the complete remedy and
+  reset color; no cursor, clipping or input interaction is involved.
+- Whole-repo validation on the rebased implementation failed with the same
+  `unsynthesized-draft-blackboard` error as an isolated clone at current main
+  `48b8486c4`. The unrelated macOS investigation draft is unchanged. The
+  attending human explicitly instructed "bump" after this failure was
+  disclosed, accepting the validation exception for this handoff.
+- Final-head verification completed: 3955 tests passed, 7 skipped in
+  355.98s on Python 3.12.12. Pristine wheel build and contents inspection
+  passed. Scoped validation passed with no issues. `## PR` contains final
+  head/base receipts, the failed whole-repo check and the deep recommendation.
+  The reviewed branch is pushed; the human approved advancing this step.
+
 ## PR
 
 ```yaml
-title: Delete coga/agents; self-document agent keys in coga.toml
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5), launched with agent claude.
-head: a9af1c8c4a2d0ffe556a9233270ec4bd785a924b
-base: 4c59a11bdb02ab3ad8ab3ef29ecd9b6afcc6e571
-depth: standard
-rationale: Mostly docs moves plus one warning string; reviewers should check the coga.toml comments for accuracy against config.py and that no user fact was lost.
-implementation: Splits coga/agents into shipped coga.toml comments, coga/init, coga/architecture, and coga-dev internals pages; repoints links; makes the advisory warning state the codex fix.
-deviations: Links that targeted the agents anchors point at coga/configuration plus a prose reference to coga.toml comments, because topics cannot link the template byte-identically.
-limitations: This repo's own coga/coga.toml still references coga/agents (agents may not edit it). coga/architecture exceeds the overview token target.
+title: Self-document agent configuration and retire coga/agents
+author: claude/codex
+author_evidence: Claude Code implemented the change (implement handoff and Claude Opus 5.5 commit trailer).
+  Codex independently reviewed it in this fresh session and authored only the human-approved two-line
+  comment correction in b4a503632.
+head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+depth: deep
+rationale: The final diff is reviewed and its only finding is corrected, but whole-repo validation fails
+  on an unchanged draft in current main. That failed acceptance check remains disclosed for the owner;
+  the final correction was self-reviewed by Codex.
+implementation: Moves the deleted coga/agents topic into shipped coga.toml comments, user init/architecture
+  topics and local development internals; documents unattended-run settings, repoints live references,
+  and makes the supervisor warning state the Codex remedy. Review corrected the comment so [authoring]
+  agent applies to coga ticket only; --agent works for both ticket and chat. Parsed config and routing
+  behavior are unchanged.
+deviations: No departure from the split/deletion audit. Agent configuration references name the shipped
+  coga.toml comments in prose so canonical and packaged topics stay byte-identical. The ticket explicitly
+  leaves the repository-owned coga/coga.toml to the human. The attending human explicitly approved
+  advancing with the reproduced pre-existing whole-repo validation error disclosed.
+limitations: Whole-repo validation has one pre-existing unsynthesized-draft-blackboard error on marketing/fix-installer/find-out-what-macos-actually-ships,
+  reproduced on an isolated current-main checkout; this ticket passes scoped validation. The owner-managed
+  coga/coga.toml still names the deleted topic, as already reported. The architecture overview exceeds
+  its size target. Codex independently reviewed Claude's implementation and self-reviewed its own two-line
+  comment correction; the final head therefore is conservatively classified as self-review.
 files:
   docs/README.md: Drop the agents index entry.
   docs/contexts/coga-dev/current-direction/SKILL.md: Repoint to internals/agent-config.
   docs/contexts/coga-dev/internals/SKILL.md: List the new agent-config page.
-  docs/contexts/coga-dev/internals/agent-config/SKILL.md: New home for merge, default-agent, and peer internals.
-  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Absorb the advisory limits and codex daemon detail; drop agents links.
+  docs/contexts/coga-dev/internals/agent-config/SKILL.md: New home for merge, default-agent, and peer
+    internals.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Absorb the advisory limits and codex daemon detail;
+    drop agents links.
   docs/contexts/coga-dev/packaging/SKILL.md: Point the instruction-file note at coga/init.
   docs/contexts/coga/agents/SKILL.md: Deleted topic.
   docs/contexts/coga/architecture/SKILL.md: Gain "Who Coga acts as"; drop agents from the topic map.
@@ -227,33 +279,67 @@ files:
   docs/contexts/coga/workflows/SKILL.md: Repoint agent configuration.
   src/coga/repl_supervisor.py: Warning states the fix instead of naming the topic.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/agents/SKILL.md: Deleted packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Twin of the architecture edit.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Twin of the configuration edit.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Twin of the first-task edit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Twin of the architecture
+    edit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Twin of the configuration
+    edit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Twin of the first-task
+    edit.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Twin of the init edit.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Twin of the sandboxes edit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Twin of the sandboxes
+    edit.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Twin of the tickets edit.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Twin of the workflows edit.
-  src/coga/resources/templates/coga/coga.toml: Self-document agent keys and the unattended-run tables.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Twin of the workflows
+    edit.
+  src/coga/resources/templates/coga/coga.toml: Self-document agent and unattended-run settings; correct
+    the authoring override guidance to distinguish ticket from chat.
   tests/test_compose.py: Docstring names coga/init instead of coga/agents.
   tests/test_launch.py: Assert the new warning text; rename section comment.
   tests/test_megalaunch.py: Assert the new warning text.
   tests/test_packaging.py: Drop coga/agents from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
   tests/test_repl_supervisor.py: Assert the new warning text.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No code review yet; the peer-review step follows.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: Direct review completed on the final head/base. Original Claude implementation independently
+    reviewed; one actionable documentation finding fixed with human confirmation, then the two-line Codex
+    correction self-reviewed. No unresolved branch findings. Checked owning contracts, parser/default/peer/authoring/launch
+    behavior, deletion references, topic twins and packaged contents. No nested review tool or agent was
+    invoked.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: a9af1c8c4a2d0ffe556a9233270ec4bd785a924b
-    base: 4c59a11bdb02ab3ad8ab3ef29ecd9b6afcc6e571
-    detail: 3955 passed, 7 skipped in 369s, run on the committed rebased head.
-  - command: .venv/bin/coga validate --json
-    status: failed
-    head: a9af1c8c4a2d0ffe556a9233270ec4bd785a924b
-    base: 4c59a11bdb02ab3ad8ab3ef29ecd9b6afcc6e571
-    detail: Exit 1 on one pre-existing error (unsynthesized-draft-blackboard on marketing/fix-installer/find-out-what-macos-actually-ships), unrelated and also present on the base tree; 47 warnings.
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest
+  status: passed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: 3955 passed, 7 skipped in 355.98s on Python 3.12.12, run entirely after the final comment correction
+    was committed.
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/coga validate --json
+  status: failed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: 'Exit 1: 145 tickets checked, 1 error and 47 warnings. The error is unsynthesized-draft-blackboard
+    on marketing/fix-installer/find-out-what-macos-actually-ships. Isolated main at 48b8486c4 reproduces
+    the identical error; no unrelated ticket edits made.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/coga validate --task blocks/01-self-document-coga-toml-and-split-the-agents-to
+    --json
+  status: passed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: 'Exit 0: 1 ticket checked, no issues.'
+- command: /home/n/Code/claude/coga/.venv/bin/python -m pip wheel --quiet --no-build-isolation --no-deps
+    . -w /tmp/coga-blocks-01-peer-review-wheel
+  status: passed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: Built coga-0.4.1-py3-none-any.whl from pristine detached checkout /tmp/coga-blocks-01-peer-review-clean-b4a5036.
+    ZIP inspection confirmed deleted coga/agents and local-only coga-dev topics are absent, all seven
+    changed user topics equal their canonical copies, and shipped TOML equals the final source.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: b4a503632c87eb832f1dbe8e1dc17485e9cda212
+  base: 48b8486c4d78a141afb82839bf9f88374ad29e3d
+  detail: No whitespace errors in the final branch diff.
 ```
