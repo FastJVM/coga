@@ -150,4 +150,8 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/blocks-03-trim-the-checkouts-and-checkout-cleanup-fcd4a4
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
