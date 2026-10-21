@@ -111,3 +111,26 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief (2026-10-21, brief-and-hand-off)
+
+Ticket premise is stale: 0.4.1 is already published.
+- Tag `v0.4.1` on origin -> 370ee83d9 (merge of PR #1075, 2026-10-20), an ancestor of main.
+- GitHub Release `v0.4.1` published 2026-10-21T04:28Z; Release workflow run 39544218627 succeeded.
+- PyPI JSON lists 0.4.1 as latest. TestPyPI JSON returned no release listing (dry run probably skipped; moot now).
+- No receipt found for the pre-tag gate on 370ee83d9; it can no longer gate the upload.
+
+Still owed (owner, from coga/releasing "Real release" step 5 + "Clean first-install gate"):
+1. Fresh-venv PyPI check: `python3.11 -m venv <dir>`; `<dir>/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple coga==0.4.1`; `<dir>/bin/coga --version` -> 0.4.1.
+2. Clean-install release continuation: `COGA_CLEAN_INSTALL_VERSION=0.4.1 ./scripts/clean-install/run.sh pypi release-041 installer`, authenticate agent in container, then `docker exec -it release-041 coga-clean-install release claude`. Done when `release-passed.txt` exists; keep receipts.
+3. Attended `coga build` vision-file check against the installed 0.4.1 (source ticket's Done criterion).
+4. Optional: in that run, confirm the new context files the release was for are present in the installed package.
+
+Irreversible action: none left (the PyPI upload already happened). If a check fails, the remedy is a yank and a 0.4.2, not a re-upload.
+Agent-run checks (2026-10-21, at owner's request; scratchpad only):
+- PyPI wheel coga-0.4.1-py3-none-any.whl: `coga/` and `coga_edge/` byte-identical to `git archive v0.4.1 src` (257 files, 77 packaged context SKILL.md). New context files shipped.
+- Fresh python3.11 venv, `pip install --no-cache-dir --index-url https://pypi.org/simple coga==0.4.1`: `coga --version` -> 0.4.1; `coga init --user tester` exit 0; `coga validate --json` exit 0, 0 issues. Items 1 and 4 done.
+- Finding: a bare `SLACK_WEBHOOK_URL` in the operator shell makes 0.4.1 refuse (intended fail-loud change); rerun with it unset.
+- Items 2 and 3 not run: both launch an interactive, authenticated agent (`coga build` = `coga launch coga-build`), which an agent launch must not nest.
+
+Done check (verify-read-only): fresh-install output shows 0.4.1; release-passed.txt and receipts exist; vision-file check outcome recorded here.
