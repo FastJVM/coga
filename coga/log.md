@@ -8954,3 +8954,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 16:16 v1 [blocks/02-delete-the-code-topic-and-remove-coga-repo-only] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-21 16:24 v1 [guard-foreign-linked-worktree-branch-cleanup] [human:nicktoper] created (status=draft)
 2026-10-21 16:24 v1 [fail-the-branch-sweep-when-local-branch-enumeratio] [human:nicktoper] created (status=draft)
+2026-10-21 16:25 v1 [name-unlaunched-created-periods-when-the-recurring] [human:nicktoper] created (status=draft)
