@@ -29,7 +29,10 @@ final sweep, preserving the session's edits. Each time it:
    script did not publish, plus eligible committed state such as a hand
    commit on local `main` whose control copy has not moved since. Only what
    publication cannot land stays dirty or unpublished.
-2. **Pins control.** `git fetch origin main` and pin that commit. Local
+2. **Pins control.** Under the checkout's state lock, `git fetch origin main`
+   and pin that commit; when `origin/main` moves past the pin before the plan
+   applies (a sibling worktree's publish), re-pin and re-plan, a few times
+   at most, rather than refuse on a stale pin. Local
    `main` must exist and be equal to or behind it, or carry only commits of
    Coga state whose content is already on the pinned commit (proved commit
    by commit and path by path; [coga/internals/git-refresh](../../../coga/internals/git-refresh/SKILL.md)),

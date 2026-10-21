@@ -80,6 +80,8 @@ from coga.ticket import (
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention.
 MAX_PUBLISH_ATTEMPTS = 5
+# Re-pins `prepare_control_checkout` allows when control moves under it.
+PREPARATION_ATTEMPTS = 3
 
 # Process exit code meaning "the command deliberately retained retryable local
 # state; do not run the catch-all end-of-command state sweep". The recurring
@@ -981,7 +983,10 @@ def fast_forward_control(
     whose content `new` already carries; the invoking checkout must have no
     Git operation in progress, a control branch held by another worktree is
     left alone, and the dropped commits are named on stderr (they stay in the
-    reflog). Anything else is left alone with one stderr line naming the fix.
+    reflog). Local control that already contains `new` and is itself
+    contained in the remote-tracking ref moved forward under the caller (a
+    concurrent publish): it is level, and is left alone. Anything else is
+    left alone with one stderr line naming the fix.
     When this checkout holds the branch, `staged` — path → (bytes read,
     bytes landed) — lets a file this process just published be brought to its
     landed bytes and staged, so the move is not refused by the very edit it
@@ -995,6 +1000,10 @@ def fast_forward_control(
     if local == new:
         return True
     if not _is_ancestor(root, local, new):
+        if _is_ancestor(root, new, local) and _published_control(cfg, root, local):
+            # A peer (another process, or a sibling worktree sharing the ref)
+            # published past `new` between our read of control and this one.
+            return True
         return _realign_control(cfg, root, local, new, staged)
     try:
         holder = worktree_holding_branch(root, control)
@@ -1018,6 +1027,14 @@ def fast_forward_control(
         )
         return False
     return True
+
+
+def _published_control(cfg: Config, root: Path, commit: str) -> bool:
+    """Whether `commit` is on the remote-tracking control ref as last observed."""
+    remote_ref = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}"
+    if not _ref_present(root, remote_ref):
+        return False
+    return _is_ancestor(root, commit, run_git(root, "rev-parse", remote_ref).strip())
 
 
 def _stage_landed(
@@ -1204,7 +1221,10 @@ def prepare_control_checkout(
 
     Confined to this one checkout: a sibling worktree is never switched,
     fast-forwarded, or cleaned. The fetched `<remote>/<control>` commit is
-    pinned once. Local control must exist and be equal to or behind it, or
+    pinned under the same `state_lock` hold as the plan; when the tracking ref
+    moves past the pin before the plan is applied (a sibling worktree's
+    publish), it is re-pinned and re-planned, a bounded number of times.
+    Local control must exist and be equal to or behind it, or
     carry only commits `_local_control_subsumed` proves are Coga state already
     on the pinned tip (it is then realigned, not merged); a detached HEAD, an
     in-progress Git operation, or control checked out in another worktree
@@ -1239,33 +1259,60 @@ def prepare_control_checkout(
                     "refused", f"remote {remote!r} is no longer configured"
                 )
             return CheckoutPreparation("exempt", f"no {remote!r} remote configured")
-        _fetch_control(root, remote, control)
-        remote_ref = f"refs/remotes/{remote}/{control}"
-        if not _ref_present(root, remote_ref):
-            if require_remote_control:
-                return CheckoutPreparation(
-                    "refused", f"{remote}/{control} no longer exists"
-                )
-            return CheckoutPreparation("exempt", f"{remote}/{control} does not exist")
-        pinned = run_git(root, "rev-parse", remote_ref).strip()
+        # Pin and plan under one lock hold, so a publish from this checkout
+        # cannot move local control past a stale pin in between.
         with state_lock(cfg):
-            plan = _plan_preparation(cfg, root, pinned, previous_contexts_root)
-            if isinstance(plan, CheckoutPreparation):
-                return plan
-            # Re-observe immediately before mutating: a concurrent edit,
-            # stage, or branch move between the checks and the first write
-            # refuses instead of being discarded on stale evidence.
-            again = _plan_preparation(cfg, root, pinned, previous_contexts_root)
-            if isinstance(again, CheckoutPreparation):
-                return again
-            if again.evidence != plan.evidence:
-                return CheckoutPreparation(
-                    "refused",
-                    "the checkout changed while it was being examined; retry",
-                )
-            return _apply_preparation(cfg, root, pinned, plan, previous_contexts_root)
+            _fetch_control(root, remote, control)
+            remote_ref = f"refs/remotes/{remote}/{control}"
+            if not _ref_present(root, remote_ref):
+                if require_remote_control:
+                    return CheckoutPreparation(
+                        "refused", f"{remote}/{control} no longer exists"
+                    )
+                return CheckoutPreparation("exempt", f"{remote}/{control} does not exist")
+            pinned = run_git(root, "rev-parse", remote_ref).strip()
+            # A sibling worktree publishes under its own lock but moves the
+            # shared control refs: a tracking ref that moved past the pin
+            # re-pins and re-plans instead of refusing or applying stale.
+            for _attempt in range(PREPARATION_ATTEMPTS):
+                plan = _plan_preparation(cfg, root, pinned, previous_contexts_root)
+                moved = _moved_pin(root, remote_ref, pinned)
+                if moved is not None:
+                    pinned = moved
+                    continue
+                if isinstance(plan, CheckoutPreparation):
+                    return plan
+                # Re-observe immediately before mutating: a concurrent edit,
+                # stage, or branch move between the checks and the first write
+                # refuses instead of being discarded on stale evidence.
+                again = _plan_preparation(cfg, root, pinned, previous_contexts_root)
+                moved = _moved_pin(root, remote_ref, pinned)
+                if moved is not None:
+                    pinned = moved
+                    continue
+                if isinstance(again, CheckoutPreparation):
+                    return again
+                if again.evidence != plan.evidence:
+                    return CheckoutPreparation(
+                        "refused",
+                        "the checkout changed while it was being examined; retry",
+                    )
+                return _apply_preparation(cfg, root, pinned, plan, previous_contexts_root)
+            return CheckoutPreparation(
+                "refused",
+                f"{remote}/{control} kept moving while the checkout was being "
+                "examined; retry",
+            )
     except GitError as exc:
         return CheckoutPreparation("refused", f"could not inspect the checkout: {exc}")
+
+
+def _moved_pin(root: Path, remote_ref: str, pinned: str) -> str | None:
+    """The remote-tracking control commit when it is no longer `pinned`."""
+    if not _ref_present(root, remote_ref):
+        return None
+    current = run_git(root, "rev-parse", remote_ref).strip()
+    return None if current == pinned else current
 
 
 def _plan_preparation(
