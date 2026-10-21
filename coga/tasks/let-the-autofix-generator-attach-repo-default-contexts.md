@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -180,82 +180,139 @@ branch: coga/let-the-autofix-generator-attach-repo-default-co-140a79
   `b978d81a850a231a388d4feda30f45de3cd201e6`; the full Python 3.12 rerun
   executed after the final commit. The projected ticket was never committed.
 
+## Peer review
+
+- Codex directly reviewed the eight-path diff after rebasing onto
+  `3144c9f65aecf8977c72aa2f9d3507fb440e8a62`. The first review covered head
+  `7be8d46945ab50318f4927ec029c41913e783b64` and found one contract gap:
+  a relocated root's whole-tree artifact check could reject an invalid autofix
+  default before the error gained its required `[autofix].contexts` prefix.
+  The attending human approved fixing the diagnostic precedence.
+- Added regressions for symlink, directory, and ignored overrides under both
+  roots, plus valid defaults with an unrelated invalid local context. Before
+  the fix, the focused Python 3.11 run failed all three relocated cases
+  (3 failed, 5 passed, 221 deselected). Per-ref validation now runs before the
+  full tree scan; the same resolver and all rejection rules remain in use.
+  The autofix owner and packaged twin document the diagnostic contract.
+  Red-run command (head `7be8d46945ab50318f4927ec029c41913e783b64` plus the
+  uncommitted test expansion):
+
+  ```sh
+  PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-autofix-py311/bin/python -m pytest tests/test_config.py -k 'autofix_contexts_reject_invalid_local_override or layout_contexts_ignored_context_rejected' -q
+  ```
+
+- Direct review **completed** on the final committed head
+  `ba8527cfe63809d4eacdafe30505fcc7706970a0`, against base
+  `3144c9f65aecf8977c72aa2f9d3507fb440e8a62`. Re-read the full eight-path diff,
+  checked config/paths/create/compose interactions and the owning contracts,
+  and verified both topic twins. The diagnostic finding is fixed; no
+  unresolved findings or deviations remain.
+- The pre-fix full-suite run was deliberately interrupted before source edits;
+  it is not a passing receipt. The final committed head passed 335 Python 3.11
+  config/autofix/packaging tests in 4.69s, seeded-repo validation (4 OK), and
+  this task's validation (1 OK). The full Python 3.12 suite passed with
+  3988 passed and 7 native-Windows skips in 362.88s. Exact final-head commands
+  and receipts are under `## PR`; the red regression run and interrupted suite
+  above are historical only.
+- This is self-review: both implementation and this fresh review session ran
+  in Codex. No independent reviewer or nested review CLI was used.
+- No raw-terminal, pager, TTY prompt, or rendered Slack surface changed;
+  interactive rendering verification is inapplicable. Tests exercise actual
+  ticket frontmatter and composed context bodies through the shared APIs.
+- Final freshness fetch found origin/main unchanged at the reviewed base.
+  Pushed `ba8527cfe63809d4eacdafe30505fcc7706970a0` with an explicit lease on
+  the previous remote head. The branch has two commits ahead of main.
+  The projected ticket remains unstaged; launch owns publication and checkout
+  return after the peer-review bump. No PR has been opened in this step.
+
 ## PR
 
 ```yaml
 title: Attach repo-default contexts to generated autofix tickets
 author: codex
-author_evidence: This attended implementation session ran in Codex; the launch environment records COGA_EXPECTED_AGENT=codex,
-  overriding the ticket-configured claude identity. No model override was exposed in the session evidence.
-head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
-depth: deep
-rationale: Bounded config/generator change with passing checks, but code review is pending the next peer-review
-  step. Review the deliberate effect of invalid defaults on every config-loading command.
-implementation: Adds optional shared [autofix].contexts, stores refs in declaration order, validates shape
-  and local-first/bundled resolution during config load, and attaches the defaults to newly generated
-  autofix tickets. Existing agent selection, workflow, run log, and analyst protocol are preserved.
-deviations: None. Reconciliation with main required using the still-shipped coga/context-layout topic
-  in the test fixture after coga/principles moved to the local-only development library.
-limitations: Existing tickets are not backfilled. Configured missing or invalid contexts stop config-loading
-  commands by design. Full-suite coverage is on Python 3.12; Python 3.11 coverage includes config, autofix,
-  and packaging. Seven native Windows checks were skipped on Linux.
+author_evidence: The implement handoff records Codex via an explicit launch override of the ticket-configured
+  Claude. This fresh peer-review session also ran in Codex (COGA_EXPECTED_AGENT=codex) and authored the
+  diagnostic fix.
+head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
+depth: skim
+rationale: 'Bounded config and generator change with completed Codex self-review, a passing full Python
+  3.12 suite, and real Python 3.11 config/autofix/packaging coverage. Read the deliberate tradeoff: invalid
+  defaults stop every config-loading command, and configured autofix refs now take diagnostic precedence
+  over the rest of a relocated context tree. No independent review was performed.'
+implementation: Adds optional shared [autofix].contexts, validates ordered refs through the existing local-first/bundled
+  resolver at config load, and attaches them to newly generated autofix tickets. The review fix makes
+  invalid relocated overrides identify the setting and ref before the full-tree scan, which still rejects
+  unrelated invalid artifacts. Existing analyst protocol, agent selection, workflow, and run log are preserved.
+deviations: None. The human approved the review fix for the requested relocated-root diagnostic contract.
+  Reconciliation retained main's context-audience reorganization and the still-shipped coga/context-layout
+  fixture ref.
+limitations: Existing tickets are not backfilled. Missing or invalid configured refs deliberately stop
+  config-loading commands. Review is self-review. The full suite ran on Python 3.12; real Python 3.11
+  covered config, autofix, packaging, and resource loading. Seven native Windows checks were skipped on
+  Linux.
 files:
-  src/coga/config.py: Parse ordered shared autofix context defaults and validate them through the existing
-    resolver at config load.
+  src/coga/config.py: Parse ordered shared autofix defaults and validate them through the existing resolver;
+    check configured refs before the full relocated-tree scan so invalid overrides retain setting/ref
+    attribution.
   src/coga/recurring_autofix.py: Pass configured context defaults to every newly generated autofix ticket.
-  tests/test_config.py: Cover default/empty/contexts-only settings, order, relocated roots, bundled fallback,
-    malformed values, missing refs, invalid local overrides, and shared-only policy.
+  tests/test_config.py: Cover defaults, shape, order, local/bundled resolution, relocated roots, shared-only
+    policy, invalid overrides under both roots, and continued rejection of unrelated invalid artifacts.
   tests/test_recurring_autofix.py: Extend the related repo fixture and prove frontmatter, composed local/bundled
     bodies, agent/workflow/run-log preservation, and no backfill; dispatch the fake analyst by argv.
   docs/contexts/coga/configuration/SKILL.md: Add contexts to the shared autofix allowlist and link its
     owning operator guidance.
-  docs/contexts/coga/recurring/autofix/SKILL.md: Document defaults, eager validation, lookup semantics,
-    and the boundary between repo policy and the text-only analyst.
+  docs/contexts/coga/recurring/autofix/SKILL.md: Own the operator setting, eager validation and diagnostics,
+    lookup semantics, and repo-policy boundary with the text-only analyst.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Keep the packaged
     configuration topic byte-identical to its canonical owner.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: Keep the packaged
     autofix topic byte-identical to its canonical owner.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: The implement step stops before code review; the next frozen workflow step is peer-review. Human
-    approach confirmation was not code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
+  detail: 'Direct review completed after the rebase and diagnostic-fix commit. Read the complete final
+    eight-path diff and affected config/paths/create/compose contracts. Fixed one finding: relocated invalid
+    autofix overrides lost the required setting/ref attribution. No unresolved findings remain. Both implementer
+    and reviewer were Codex; fresh session and peer selection do not establish independence. No nested
+    review tool was invoked.'
 checks:
 - command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -ra
   status: passed
-  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
-  detail: 'Python 3.12.12: 3984 passed, 7 skipped in 373.59s. Skips: 2 Windows job-object integration
-    tests and 5 native Windows PowerShell 5.1 tests. Run directly on this committed head.'
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
+  detail: 'Python 3.12.12: 3988 passed, 7 skipped in 362.88s. Skips: 2 Windows job-object integration
+    tests and 5 native Windows PowerShell 5.1 tests. Ran on the final committed head.'
 - command: PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-autofix-py311/bin/python -m pytest tests/test_config.py
     tests/test_recurring_autofix.py tests/test_packaging.py -q
   status: passed
-  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
-  detail: 'Python 3.11.15: 331 passed in 4.82s. Ran before the final amend; staged tree b978d81a850a231a388d4feda30f45de3cd201e6
-    matched the committed tree, and only this projected ticket remained dirty.'
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
+  detail: 'Python 3.11.15: 335 passed in 4.69s. Ran on the final committed head, including the relocated-override
+    regressions and preserved whole-tree validation.'
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
     -m coga.cli validate --json
   status: passed
-  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
   detail: 'Working directory: /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga. 4 checks OK, 0
     issues, 0 fixes.'
 - command: PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli
     validate --task let-the-autofix-generator-attach-repo-default-contexts --json
   status: passed
-  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
   detail: 1 task OK, 0 issues, 0 fixes.
-- command: git diff --check
+- command: git diff --check origin/main...HEAD
   status: passed
-  head: ed1ff078763a795cb33a5b02e258d492edeb46dc
-  base: 04f4597dc682f1d10efbed4ab2bb5a78e1be453f
-  detail: Passed with no whitespace errors.
+  head: ba8527cfe63809d4eacdafe30505fcc7706970a0
+  base: 3144c9f65aecf8977c72aa2f9d3507fb440e8a62
+  detail: Passed with no whitespace errors in the final committed diff.
 - command: PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-autofix-py311/bin/python -m pytest
   status: not-run
-  detail: The full suite ran on Python 3.12. Real Python 3.11 verified all affected config/autofix tests
+  detail: The full suite ran on Python 3.12. Real Python 3.11 verified affected config/autofix behavior
     plus packaging and resource loading; a second full-suite interpreter matrix was not required.
 ```
