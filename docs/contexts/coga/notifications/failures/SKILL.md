@@ -64,7 +64,8 @@ unresolved webhook can still refuse a `fatal=False` producer. Callers:
 - `commands/bump.py` `bump` — a terminal bump, or a step advance with
   `--message`, i.e. whenever this invocation will post;
 - `commands/mark.py` `done` and `canceled`;
-- `launch.py` `_launch` — the script-assist setup path;
+- `launch.py` `_LaunchInvocation._run_initial_script` — the script-assist
+  setup path, inside the initial-script phase `_launch` coordinates;
 - `launch_script.py` `run_script_phase` — strict assist, before `ticket.py`
   publishes a started lifecycle, wrapped in `ScriptPublicationError`;
 - `autoclose.py` `_preflight_recipe_notifications` — the `before_close`
