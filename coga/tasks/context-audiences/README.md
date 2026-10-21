@@ -186,7 +186,7 @@ Shipped consumers 02 must re-point:
 | `bs:code/self-qa`, `bw:code/with-review`, `rec:dream` | `coga/testing` "Restricted sandboxes" | → `coga/sandboxes` |
 | `bs:bootstrap/dream/scan/scan-protocol` | `coga/testing` (interpreter lookup) | Drop the citation; the skill already carries its own block |
 | `bs:bootstrap/ticket` | `coga/current-direction`, `coga/project-stage` | Remove from the example list (never resolvable in adopting repos) |
-| `bs:code/{implement,open-pr,self-qa}`, `bw:*`, `ticket-tpl` | `coga/internals/pr-publication/**` | → `coga/pr-publication/**` (if renames confirmed) |
+| `bs:code/{implement,open-pr,self-qa}`, `bw:*`, `ticket-tpl` | `coga/internals/pr-publication/**` | → `coga/pr-publication/**` |
 | `bs:code/self-qa`, `bs:retro/done-ticket`, `bs:coga/ticket/finalize` | `coga/internals/state-publication{,/authoring}` | → `coga/state-publication{,/authoring}` |
 
 User topics that today link to a coga-dev topic (02 rewrites each so the user
@@ -227,7 +227,7 @@ namespace **`coga-dev/`** in this repo's contexts root.
 
 | Option | For | Against |
 |---|---|---|
-| **Namespace `coga-dev/*`** (chosen) | The ref itself tells a ticket author the audience; packaging test can declare the whole namespace local-only in one line; a stale ref in an adopting repo fails loud at compose/validate with no extra code | 23 moves + 6 user renames + 6 splits; relative links rewritten |
+| **Namespace `coga-dev/*`** (chosen) | The ref itself tells a ticket author the audience; packaging test can declare the whole namespace local-only in one line; a stale ref in an adopting repo fails loud at compose/validate with no extra code | 19 moves + 6 user renames + 5 splits; relative links rewritten |
 | Frontmatter `audience:` field | No renames; no link churn | Invisible at the point of attaching (`contexts:` lists refs); adds a third frontmatter key against `coga/knowledge`'s "only name and description"; still needs a test list to stop shipping |
 | Test lists only | Least work | Nobody reading a ref can tell; this is the status quo with one more list |
 

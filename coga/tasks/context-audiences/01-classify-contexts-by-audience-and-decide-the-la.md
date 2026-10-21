@@ -187,25 +187,41 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
 ## agent-produces (done)
 
-Draft decision record written to `coga/tasks/context-audiences/README.md`
-(all five points; 85 table rows, checked against `find docs/contexts -name SKILL.md`).
+Drafted all five parts of the decision record in
+`coga/tasks/context-audiences/README.md`, originally covering 85 topics.
 
-Key calls (reasons in the README):
-- Code comments/docstrings in `src/` don't count as shipped consumers, so
-  `coga/codebase/gotchas` needs no split (only a `retire_worklist.py` docstring cites it).
-- Namespace `coga-dev/` for the 23 coga-dev topics; 6 splits (`testing`,
-  `packaging`, `extension-model`, `knowledge`, `internals/state-publication`,
-  `telemetry/operations`); new user topics `coga/sandboxes`, `coga/edge-code`.
-- Clean break confirmed.
-- Found bug: `bootstrap/ticket` skill names local-only `coga/current-direction`
-  and `coga/project-stage`; 02 removes them.
+## report-to-coga (2026-10-20)
 
-For the owner: confirm the **[owner]** items in the README (namespace name,
-renaming the 6 user topics out of `coga/internals/`, `principles` and
-`patterns` as coga-dev) and the "Weak spots" list. Then approve.
-Evidence script: grep matrix of ref, backticked, relative-link and URL forms
-(scratch only, not committed).
+Final artifact: [approved decision record](README.md#decision-record) at
+`coga/tasks/context-audiences/README.md`. The owner (nicktoper) approved it
+on 2026-10-20 and advanced this ticket to the reporting step; all former
+owner recommendations and weak-spot calls are confirmed as drafted.
+
+Approved outcome: use `coga-dev/` for Coga development topics, keep user
+topics under `coga/` and `dev/`, rename the six user topics out of
+`coga/internals/`, and split the mixed topics as specified in the README.
+`principles` and `patterns` are Coga-dev. Compatibility is a clean break
+with release-note mappings, without aliases, redirects, or stub topics.
+
+The owner's separate ownership relocation (commit `5c2caadca`) moved seven
+former topics to their owning tickets or skills. The final inventory is
+therefore 78 topics: 54 user, 19 Coga-dev, and 5 mixed. The README records
+the destinations; 02 must not recreate those contexts. Maintainer skills
+still ship; the ownership relocation did not decide to remove them.
+
+Report-step edits corrected the README's stale comparison counts and
+removed a resolved rename-approval qualifier. No product decision changed.
+No files under `docs/contexts/` or `src/` changed in this step.
+
+Verification: compared the classification rows with
+`rg --files docs/contexts -g SKILL.md` using a Python set/count check:
+78 topics, 78 rows, no missing, stale, or duplicate refs; all five decision
+sections and the owner approval are present.
+`coga validate --task context-audiences/01-classify-contexts-by-audience-and-decide-the-la --json`
+passed (1 OK, no issues).
+
+Handoff: ticket 02 implements the approved README, including the five cuts,
+consumer/link updates, packaging checks, release notes, and empty manifesto
+directory cleanup. The pending owner decisions from the draft are resolved.
