@@ -35,7 +35,7 @@ load ([coga/agents](../agents/SKILL.md#the-default-agent)).
 
 | Table | Keys | Where |
 |---|---|---|
-| `[agents.<name>]` | `cli`, `file` (both required), `mode`, `name_flag`, `session_id_flag`, `discussion`, `analyze`, `peer` | both; local overlays shared ([coga/agents](../agents/SKILL.md)) |
+| `[agents.<name>]` | `cli`, `file` (both required), `mode`, `name_flag`, `session_id_flag`, `launch_args`, `discussion`, `analyze`, `peer` | both; local overlays shared ([coga/agents](../agents/SKILL.md)) |
 | `[notification]` | `channels`, `slack` | both |
 | `[notification.slack]` | `webhook`, `important_webhook`, `enabled`, `gifs`, `users` | both; local wins ([coga/notifications](../notifications/SKILL.md)) |
 | `[git]` | `enabled`, `remote`, `control_branch`, `worktrees_ticket_owned` | shared |
