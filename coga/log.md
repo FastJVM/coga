@@ -8929,3 +8929,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 12:36 v1 [marketing/fix-installer/find-out-what-macos-actually-ships] [human:zach] created (status=draft)
 2026-10-21 12:36 v1 [marketing/fix-installer/ask-which-agents-to-enable-during-coga-init] [human:zach] created (status=draft)
 2026-10-21 12:36 v1 [marketing/fix-installer/position-op-as-optional] [human:zach] created (status=draft)
+2026-10-21 12:36 v1 [marketing/fix-installer/make-the-readme-install-section-the-only-install-p] [human:zach] created (status=draft)
