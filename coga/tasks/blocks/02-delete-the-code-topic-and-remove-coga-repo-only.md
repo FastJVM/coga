@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -205,66 +205,157 @@ packaged twins or the `test_packaging.py` line: on `origin/main` (a0982d68c)
 only the twins + test (18 files). Lesson: commit before any mutating `coga`
 command when contexts-root files are dirty.
 
-Pre-existing, unrelated: `coga validate --json` exits 1 on
+At implement time, `coga validate --json` exited 1 on
 `marketing/fix-installer/find-out-what-macos-actually-ships`
-(`unsynthesized-draft-blackboard`); same 48 issues on main.
+(`unsynthesized-draft-blackboard`); same 48 issues on main. Fixed during
+peer-review below.
 
 ## Peer review
 
-Direct Codex review is in progress after the required rebase onto
-`b888023bb`. The implementing commit records Claude Opus 5.5; this is a fresh
-Codex reviewer session, not self-review. No nested reviewer was launched.
+**Completed — direct, independent Codex review**, covering head
+`bd3fbc017b6a093145ce0e3670cda667fda5c3af` against base
+`cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c`. Claude Opus 5.5 implemented the
+branch (handoff plus commit co-author evidence); this fresh Codex session
+reviewed it directly. No nested reviewer ran.
 
-Must-fix finding (fixed): deleting the package fallback leaves two stored tickets
-with unresolved `contexts: coga/code` attachments, which source-backed
-validation reports even though both tickets are done. Repointed
-`fix-parser-bugs-documented-in-pr-1055` to `coga/checkouts` and remove the
-duplicate obsolete attachment from
-`match-concurrent-codex-sessions-to-their-launch-so`, which already attaches
-`coga/checkouts`. Historical prose mentions remain untouched. Both fixes
-published to control in `717ffdd37`.
+Findings and resolution:
 
-Initial source-backed validation at `2ce7a2aec` reports 50 issues: the two
-new `broken-context` errors above, the existing
-`marketing/fix-installer/find-out-what-macos-actually-ships`
-`unsynthesized-draft-blackboard` error, and 47 warnings. After the attachment
-fix, only the existing draft error remained. The attending human then
-requested fixing it too: synthesized the evaluator's substantive findings
-into that draft's body (machine-state questions, primary sources, pip-to-uv
-bootstrap, PATH/externally-managed checks, explicit findings attachment),
-kept its frontmatter unchanged, and preserved the old body and evaluator
-evidence under `## Superseded designs`. Scoped validation now exits 0; its
-unfrozen draft workflow is a warning, not an activation request.
+- Fixed two unresolved `contexts: coga/code` attachments in completed tickets:
+  `fix-parser-bugs-documented-in-pr-1055` now attaches `coga/checkouts`, and
+  `match-concurrent-codex-sessions-to-their-launch-so` drops the obsolete
+  attachment while retaining its existing `coga/checkouts`. Published on
+  control as `717ffdd37`. Historical prose mentions remain historical.
+- At the attending human's request to fix the remaining validation problem,
+  synthesized `marketing/fix-installer/find-out-what-macos-actually-ships`'s
+  evaluator findings into its Description/Context. Its body now asks the
+  machine-state, pip-to-uv, PATH and externally-managed questions, names the
+  primary sources and findings attachment, and distinguishes the blocked
+  test proposal from evidence. Preserved its frontmatter, guide, original
+  body and complete evaluator review; the latter two live under Superseded
+  designs. Published as `cf58f4aea`; no validation exception remains.
+- Replaced the incompatible inherited PR preparation (mapping-valued author,
+  old field names, globbed file coverage and missing review receipts) with
+  the supported preparation format below.
 
-The first source-backed full suite completed at `2ce7a2aec` against
-`b888023bb`: `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q`
-— 3955 passed, 7 skipped in 367.69s, Python 3.12.12. A final freshness pass,
-full-suite rerun, and pristine-checkout packaging check follow state publication.
+The review includes the canonical edits swept to main as `001aad66f`, all
+18 current diff paths, the four new draft bug tickets, and current source
+for the corrected sandbox trigger and recipe index. All 15 changed topic
+pairs are byte-identical; `coga/code` is absent from both trees, and live
+navigation resolves to surviving topics/anchors. The remaining Coga-specific
+structural/history trims belong to blocks 03–09 as directed by this ticket.
+No new development page was added. No unresolved must-fix findings remain.
+
+Rebased at entry and again after publishing the state repairs. The final
+range-diff proves the implementation patch unchanged, the touched twins were
+rechecked, and the final fetch found no commits ahead of the reviewed base.
+The branch was pushed with an explicit force-with-lease and has one
+implementation commit ahead of main. The current ticket stays unstaged.
+
+Final verification: full suite **3955 passed, 7 skipped**; pristine-clone
+packaging **30 passed**; repository validation **exit 0, zero errors**
+(47 existing warnings). Exact commands and head/base receipts are below.
+The read-only PR formatter accepted the prepared `skim` title, all 18 paths,
+and every current receipt with no publication evidence gaps. Scoped ticket
+validation also passes with no issues.
+Interactive terminal/notification checks are inapplicable to this prose and
+package-inventory diff. All tests used Python 3.12.12; no Python 3.11 run is
+claimed. The next step is the mechanical open-pr handoff.
 
 ## PR
 
 ```yaml
-title: Delete coga/code and strip Coga-repo-only text from shipped topics
-author:
-  agent: claude
-  model: claude-opus-5-5
-head: d487710bb3d18bf1b9351b356bae6afd71325284
-base: a0982d68cd1f9c3648db491c99b50d84a0460b9d
-review_depth: standard
-review_depth_rationale: Docs-only twin sync plus one test-list line; the canonical half already landed on main via an accidental state sweep, so this PR restores twin byte-identity.
-implementation: Packaged twins of the edited coga/* topics, deletion of the packaged coga/code topic, and removal of coga/code from REQUIRED_BOOTSTRAP_CONTEXT_REFS. The canonical docs/contexts edits are already on main (001aad66f).
-deviations: Canonical half landed on main outside the PR (see blackboard incident).
-limitations: None known.
+title: Delete coga/code and sync shipped topics with canonical cleanup
+author: claude
+author_evidence: The implementation handoff and implementation commit identify Claude Opus 5.5. Codex
+  performed the independent direct review and the separate control-state repairs recorded below.
+head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+depth: skim
+rationale: 'Bounded documentation and package-inventory cleanup, independently reviewed with full-suite
+  and pristine-wheel checks passing. Read the publication deviation: the canonical half already reached
+  main through a state sweep, and this branch restores the packaged twins.'
+implementation: Removes the obsolete packaged coga/code overview and required-bootstrap entry, synchronizes
+  15 packaged user topics with their canonical edits, and fixes the docs index. The topics preserve explicit
+  Dev linkage, repoint superseded-design guidance, remove repository-specific examples and four draft-tracked
+  bug notes, correct the sandbox fallback trigger, and list prepare-checkout.
+deviations: Canonical context edits and their development destinations reached main in 001aad66f through
+  the implement-session state sweep. Peer review repaired two remaining stored coga/code attachments on
+  control in 717ffdd37. At the attending human's request, it also synthesized the unrelated macOS draft
+  evaluator notes into its body, preserving its frontmatter and original evidence, in cf58f4aea. These
+  state repairs are already in the reviewed base and are not PR diff paths.
+limitations: Adopting repositories with explicit coga/code attachments must remove or repoint them because
+  that fallback is intentionally deleted. The four pre-existing runtime defects are tracked in draft tickets.
+  Repository validation exits 0 with 47 existing warnings about other tickets; checks ran on Python 3.12.12.
 files:
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/**: packaged twins of the canonical edits; code/ deleted
-  docs/README.md: drop the coga/code overview link
-  tests/test_packaging.py: drop coga/code from required bootstrap refs
-review: not run; code review is a later workflow step
+  docs/README.md: Remove navigation to the deleted coga/code overview.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Remove the deleted
+    overview link and keep direct navigation to the code-ticket topics.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Remove the repo
+    archive link and draft-tracked foreign-worktree bug note while retaining the current operator-visible
+    behavior.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Remove
+    the local-branch enumeration bug note now recorded in its own draft ticket.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Preserve the explicit
+    Dev-record linkage rationale from the deleted overview.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Include prepare-checkout in
+    the fixed recipe index.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/code/SKILL.md: Delete the redundant packaged
+    code-topic overview.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Remove Coga-specific
+    bootstrap override examples now owned by development packaging.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md: Generalize the private
+    usage-report routing example for adopting repositories.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Describe archive ownership
+    without imposing Coga-specific archive paths.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Link superseded-design
+    guidance directly to the blackboard owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Remove the
+    source repository-only upstream-coga example.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/failures/SKILL.md: Remove
+    the two failure-accounting bug notes now tracked in separate drafts.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Correct the independent-clone
+    trigger to feature-branch creation failing on read-only Git metadata.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Remove source-repository
+    skill-pack examples and installation-state claims.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md: Remove relay-os
+    history-specific pathspecs from the user instructions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Remove the local subscription
+    rationale and private archive references.
+  tests/test_packaging.py: Stop requiring the intentionally removed coga/code fallback.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+  base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+  detail: Direct Codex review completed on the final head/base, including the canonical changes already
+    on main. Found and fixed the two unresolved stored context attachments; repaired the PR preparation
+    schema and per-path evidence. No unresolved must-fix findings. Verified all 15 changed twins, the
+    topic deletion, replacement links, four draft issue records, and the unchanged implementation patch
+    after final rebase. No interactive terminal or rendered notification behavior is touched.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    result: 3955 passed, 7 skipped (pre-rebase tree; content identical after rebase)
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py
-    result: 30 passed at d487710bb
-  - command: coga validate --json
-    result: exit 1, 48 issues, the single error pre-existing and unrelated; identical count on main
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
+  status: passed
+  head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+  base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+  detail: 3955 passed, 7 skipped in 357.98s on Python 3.12.12; final run after both state repairs and
+    final rebase.
+- command: PYTHONPATH=/tmp/coga-blocks-02-peer-1weah2qn/pristine/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest -q tests/test_packaging.py
+  status: passed
+  head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+  base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+  detail: 30 passed in 3.83s from /tmp/coga-blocks-02-peer-1weah2qn/pristine, a pristine git clone detached
+    at the reviewed head. Includes wheel-content and installed-wheel checks.
+- command: PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json
+  status: passed
+  head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+  base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+  detail: 'Exit 0; 151 OK, zero errors, 47 warnings: 20 stuck-in-progress, 19 unfrozen-workflow, 7 empty-description,
+    1 large-blackboard. All three errors found during this review are fixed; no validation exception remains.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: bd3fbc017b6a093145ce0e3670cda667fda5c3af
+  base: cf58f4aea2ea31f7e0a2cf1d3592a39ed7096a6c
+  detail: Passed; no whitespace errors in the publication diff.
 ```
