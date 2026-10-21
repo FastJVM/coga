@@ -161,5 +161,9 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/blocks-02-delete-the-code-topic-and-remove-coga--23a0ec
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
