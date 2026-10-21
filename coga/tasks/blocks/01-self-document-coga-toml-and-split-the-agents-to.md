@@ -1,6 +1,6 @@
 ---
 title: 01 Self-document coga.toml and split the agents topic
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
