@@ -8922,3 +8922,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 12:22 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] created (status=draft)
 2026-10-21 12:22 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] created (status=draft)
 2026-10-21 12:22 v1 [blocks/09-trim-setup-and-extension-topics] [human:nicktoper] created (status=draft)
+2026-10-21 12:22 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [human:nicktoper] created (status=draft)
