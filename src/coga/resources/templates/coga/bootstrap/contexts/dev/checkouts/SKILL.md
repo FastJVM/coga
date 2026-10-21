@@ -15,7 +15,7 @@ earlier layout are still disposed of by `coga retire` and autoclose
 ([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)); nothing creates new ones
 for ticket work. Two owner-accepted exceptions create linked worktrees: the
 recurring runner's temporary linked control worktree for a parked checkout
-([coga/internals/recurring-temp-worktrees](../../coga/internals/recurring-temp-worktrees/SKILL.md)),
+([coga-dev/internals/recurring-temp-worktrees](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)),
 and Retro's dedicated isolated checkout, which the `retro/done-ticket` skill
 and `coga retire`'s task prompt create and remove for one Retro pass, so
 Retro runs while the operator keeps working in the main tree (owner decision,
@@ -28,7 +28,7 @@ The one alternative checkout for ticket work is the [sandbox clone fallback](san
 for the configured workspace's task, recurring, and log paths. **The Coga
 roots** are the Coga root plus the configured contexts root
 (`git.coga_root_paths`); every eligible (unignored) file there is Coga state
-that publication carries ([coga/internals/state-publication](../../coga/internals/state-publication/SKILL.md)).
+that publication carries ([coga/state-publication](../../coga/state-publication/SKILL.md)).
 
 ## Leaves
 
@@ -117,7 +117,7 @@ prompt's **Checkout (runtime)** notice states what it observed and did.
    switching it projects
    only this ticket from that control revision, unstaged, and records its
    blob as this worktree's publication provenance
-   ([git-regressions](../../coga/internals/git-regressions/SKILL.md#the-provenance-check)).
+   ([git-regressions](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md#the-provenance-check)).
    That projected ticket is the session's only entry dirt.
 2. **Work.** Commit only code: stage paths by name, never `git add -A` or
    `commit -a`. Never stage, commit, or restore the projected ticket. A
@@ -136,7 +136,7 @@ prompt's **Checkout (runtime)** notice states what it observed and did.
    The bump itself was recorded, so never bump again to publish it: after a
    `sync failed`, once Git access is restored, run the `coga run
    publish-state` recovery the report prints
-   ([sweep](../../coga/internals/state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
+   ([sweep](../../coga/state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
    After a `sync refused` (control's ticket changed meanwhile), preserve the
    handoff and reconcile it onto control's copy
    ([reconciliation](reconciliation/SKILL.md)). An unused prepared branch
@@ -163,7 +163,7 @@ publishes its pre-branch ticket edits explicitly:
 
 The recorded human assist keeps its own rules: it runs on its recorded PR
 branch in that checkout under
-[coga/internals/human-assist](../../coga/internals/human-assist/SKILL.md).
+[coga/human-assist](../../coga/human-assist/SKILL.md).
 
 ### Direct chat
 

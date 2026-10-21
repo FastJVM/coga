@@ -138,7 +138,7 @@ the ticket names) and check:
 
 Record the outcome under `## Peer review` on the blackboard, and refresh the
 `## PR` preparation record there
-([coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
+([coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md),
 “Preparation record”) so the `open-pr` step has evidence to format.
 
 Apply must-fix findings (skip nits) on the branch, commit (e.g.
@@ -165,7 +165,7 @@ declares `requires: pr`, so `coga bump` holds it until `pr:` is recorded.
    by name, opens the PR (or readies a draft, or refreshes an open one),
    formats the blackboard `## PR` preparation record into the body, and
    writes `pr: <url>` under `## Dev` on the blackboard
-   ([coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md)).
+   ([coga/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/SKILL.md)).
    Do not add a `## PR` section to the ticket body, and never hand-open the
    PR with `gh pr create` to route around a refusal without explicit human
    approval.

@@ -72,7 +72,7 @@ rejected for reasons that still hold:
   on freshly fetched control, and completion also publishes the parent
   template's state with `done`, so an old child can never mutate a later period
   or strand a cursor update locally. Details:
-  [recurring-admission](../../internals/recurring-admission/SKILL.md).
+  [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md).
 
 Implementation: `recurring_runner._run_delegated_task`,
 `recurring.delegated_workflow_violation`, `recurring.frozen_task_delegate`.

@@ -4,15 +4,15 @@ status: draft
 owner: nicktoper
 agent: codex
 contexts:
-  - coga/principles
+  - coga-dev/principles
   - coga/secrets
   - coga/uninstall
   - coga/install
-  - coga/codebase
-  - coga/testing
-  - coga/current-direction
-  - coga/extension-model
-  - coga/project-stage
+  - coga-dev/codebase
+  - coga-dev/testing
+  - coga-dev/current-direction
+  - coga-dev/microkernel
+  - coga-dev/project-stage
   - coga/cli
   - dev/checkouts
 workflow: code/design-then-implement
@@ -32,7 +32,7 @@ kernel hook and stays.
 ### Acceptance criteria
 
 - [ ] `secret get` and `uninstall` are each classified with a written reason
-      in `coga/extension-model` (both copies), not an implicit "already
+      in the local-only `coga-dev/microkernel` topic, not an implicit "already
       exists" reason.
 - [ ] `uninstall`'s classification answers whether it is `init`'s symmetric
       bootstrap substrate (it must survive a broken alias config; see the

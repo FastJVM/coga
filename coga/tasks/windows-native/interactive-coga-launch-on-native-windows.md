@@ -147,14 +147,14 @@ session with `teardown` plus `status`.
       green):
       - `coga/install` lists native Windows as supported and adds a
         Windows baseline (see *Proposed shape* §9).
-      - `coga/internals/agent-spawn` describes the Windows supervisor.
-      - `coga/internals/launch-claims` describes both pipe and named-event
+      - `coga-dev/internals/agent-spawn` describes the Windows supervisor.
+      - `coga-dev/internals/launch-claims` describes both pipe and named-event
         admission without changing the transaction.
-      - `coga/internals/activity-capture` accounts for Windows DWORD exit
+      - `coga-dev/internals/activity-capture` accounts for Windows DWORD exit
         codes and the batch pointer's existing exact-line marker matching.
       - `coga/launch` notes the Windows idle-timeout refusal under
         *Options and exits*.
-      - `coga/codebase` lists the new module.
+      - `coga-dev/codebase` lists the new module.
       - `coga/testing/clean-install/windows-aws` describes the attended
         `ssh -tt` check, retaining RDP as a fallback.
       - The README sentence "Coga runs on Linux, Windows or macOS…"
@@ -448,13 +448,13 @@ session with `teardown` plus `status`.
    - agent CLIs: Claude Code's native installer is the tested agent;
      Codex is untested on native Windows;
    - the `--idle-timeout` limitation.
-   Also update `coga/internals/agent-spawn` (*The supervisor* and
+   Also update `coga-dev/internals/agent-spawn` (*The supervisor* and
    *Large prompts*: serialized budgets and batch transport),
    `coga/launch` (*Options and exits*: the Windows idle-timeout and
    unrepresentable-command refusals),
-   `coga/internals/launch-claims` (*Held child and admission*: pipe versus
-   named event), `coga/internals/activity-capture` (Windows exit-code
-   representation and batch-pointer marker matching), `coga/codebase`
+   `coga-dev/internals/launch-claims` (*Held child and admission*: pipe versus
+   named event), `coga-dev/internals/activity-capture` (Windows exit-code
+   representation and batch-pointer marker matching), `coga-dev/codebase`
    (the new module), and
    `coga/testing/clean-install/windows-aws` (SSH attended check with RDP
    fallback). Check each one's packaged twin. Update
@@ -519,7 +519,7 @@ session with `teardown` plus `status`.
   are the Job Object code that the core ticket moves into
   `oscompat.ProcessTree`.
 - Contract topics the Windows path must honor: `coga/launch` (*The step
-  chain*, *Options and exits*) and `coga/internals/agent-spawn` (*The
+  chain*, *Options and exits*) and `coga-dev/internals/agent-spawn` (*The
   supervisor*: sentinel content match, 0.25 s poll, 2 s grace, `ReplOutcome`
   kinds, `done_signalled`, terminal reset).
 - Harness: `scripts/clean-install/aws-windows.sh` (`provision`, `checkout`,
@@ -765,7 +765,7 @@ this implementation.
   parent's PATH. These are useful named entries in the required Windows
   replacement-test inventory.
 - Extend the documentation checklist to
-  `coga/internals/launch-claims` ("Held child and admission", currently
+  `coga-dev/internals/launch-claims` ("Held child and admission", currently
   pipe-specific) and `coga/testing/clean-install/windows-aws` ("RDP",
   currently directing attended launch there), with packaged twins.
   Give Zach the exact PR-wheel install command: the cited

@@ -26,7 +26,7 @@ surface named below against `main` before pulling forward (see
    root.
 3. **Learning capture.** `ce-compound` writes `<root>/solutions/` directly with
    no approval gate; `ce-compound-refresh` recommends branch+PR on the default
-   branch but offers "commit directly". Both cut across `coga/principles` §4.
+   branch but offers "commit directly". Both cut across `coga-dev/principles` §4.
    The candidate rule: learnings go to the ticket blackboard; Dream / retro
    proposes the PR. Confirm that no absorbed leaf skill invokes `ce-compound`
    internally.

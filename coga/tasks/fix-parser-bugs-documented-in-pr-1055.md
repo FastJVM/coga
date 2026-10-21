@@ -66,7 +66,7 @@ The following topics are cited rather than attached. Read their named sections b
 - `coga/blackboard`, `docs/contexts/coga/blackboard/SKILL.md`, "Section regimes" and "Superseded designs": `blackboard._without_superseded_designs` owns the exact archive projection; `parse_blockers_text` and `open_blockers` currently read the unfiltered stored region.
 - `coga/tickets`, `docs/contexts/coga/tickets/SKILL.md`, "Body regions": `taskfile.body_sections` and `uncomposed_sections` define the existing section and warning boundaries; `compose._extract_section` reads the same section parser. Preamble diagnostics must preserve that composition contract.
 - `coga/workflows`, `docs/contexts/coga/workflows/SKILL.md`, "Definition format" and "Frozen snapshot, live content": `Workflow.load` reads `_parse_inline_sections`; a skill-less step's live inline content reaches the prompt, while a skill-backed step uses its skills.
-- Read `coga/codebase`, `docs/contexts/coga/codebase/SKILL.md`, before editing source; follow `coga/testing`, `docs/contexts/coga/testing/SKILL.md`, for the checkout-specific test environment and verification receipts, and `coga/packaging`, `docs/contexts/coga/packaging/SKILL.md`, for canonical/package twin mapping.
+- Read `coga-dev/codebase`, `docs/contexts/coga-dev/codebase/SKILL.md`, before editing source; follow `coga-dev/testing`, `docs/contexts/coga-dev/testing/SKILL.md`, for the checkout-specific test environment and verification receipts, and `coga-dev/packaging`, `docs/contexts/coga-dev/packaging/SKILL.md`, for canonical/package twin mapping.
 
 PR #1055 preserves findings from the completed `exclude-superseded-designs-from-launch-prompts` and `autofix-write-ups-lose-their-body-to-h2-headings` tickets. The reproduction details above remain usable after those source tickets are deleted. Recheck current main and that PR before implementation and publication.
 
@@ -142,7 +142,7 @@ the workflow branch.
 
 Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
 author, head/base OIDs, review depth, files, review, checks). Record only actual
-implementation and evidence, never placeholders; coga/internals/pr-publication/
+implementation and evidence, never placeholders; coga/pr-publication/
 preparation owns the fields and the publishing workflow the review rules.
 
 Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve

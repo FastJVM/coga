@@ -139,7 +139,7 @@ Check `python3 --version` before using either `python3` command above.
 
 Contributors working on Coga itself install the checkout editable with the
 test extra: `python -m pip install -e ".[test]"`
-([coga/codebase](../codebase/SKILL.md) covers the source-checkout loop).
+([coga-dev/codebase](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md) covers the source-checkout loop).
 
 ### Python is older than 3.11
 

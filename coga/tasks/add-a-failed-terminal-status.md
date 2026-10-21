@@ -211,8 +211,8 @@ notification, counts). Both are "terminal, did not land, never reactivated".
      work: `coga mark canceled` (nothing to learn) or `coga mark failed`
      (tried and did not work; retire runs Retro)". `coga/first-task`: same
      distinction beside its canceled line.
-   - `coga/launch`, `coga/session-conduct`, `coga/internals/agent-spawn`,
-     `coga/internals/git-refresh` (rank), `coga/internals/recurring-admission`,
+   - `coga/launch`, `coga/session-conduct`, `coga-dev/internals/agent-spawn`,
+     `coga-dev/internals/git-refresh` (rank), `coga-dev/internals/recurring-admission`,
      `coga/megalaunch` (summary counts), `coga/recurring/scheduling` (failed
      period: terminal, refused by `--force`, delete to rerun),
      `coga/recurring/templates`, `coga/recurring/phone-home/ticket.md` (`tickets_failed`),

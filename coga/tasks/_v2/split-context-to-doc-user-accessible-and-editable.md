@@ -6,9 +6,9 @@ agent: claude
 contexts:
 - coga/prompt-composition
 - coga/context-layout
-- coga/principles
-- coga/packaging
-- coga/project-stage
+- coga-dev/principles
+- coga-dev/packaging
+- coga-dev/project-stage
 workflow:
   name: code/design-then-implement
   steps:
@@ -82,13 +82,13 @@ the subject is still unbuilt and every surface below resolves on `main`.
   Exact filename is for the design step to recommend.
 - **Open design questions for the proposal:** the exact filename; whether
   `coga launch` reads the new path directly or via a configurable pointer.
-  `coga/project-stage` says "No backwards-compat hacks" — prefer a clean
+  `coga-dev/project-stage` says "No backwards-compat hacks" — prefer a clean
   direct move over a compat shim unless the design surfaces a real reason.
-  Markdown-first, git-backed, human-legible posture must hold (`coga/principles`).
+  Markdown-first, git-backed, human-legible posture must hold (`coga-dev/principles`).
 - **Template + seeding:** the packaged template must move/rename in lockstep,
   and the design should confirm what reads it (the `coga init` seeding path
   and the `example/` fixture) before relocating — not just move the file.
-- **Tension to resolve, not assume:** `coga/context-layout` and `coga/codebase`
+- **Tension to resolve, not assume:** `coga/context-layout` and `coga-dev/codebase`
   frame `coga/` as the single tree Coga operates on, with `context.md` as a
   composed layer inside it. Moving it to `docs/` splits that boundary; the
   design must justify why the human-doc framing outweighs keeping all
@@ -103,7 +103,7 @@ the subject is still unbuilt and every surface below resolves on `main`.
 
 - 2026-05-28 bootstrap: framed as a design ticket (`code/design-then-implement`)
   because the human-doc / agent-context boundary is unsettled; scope locked
-  to the repo-level `context.md`; `coga/project-stage` attached after the
+  to the repo-level `context.md`; `coga-dev/project-stage` attached after the
   evaluator review so the shim question is answered by the stage posture.
   The evaluator's findings (resolver is `paths.py`, not `config.py`; attach
   project-stage; template/seeding caveat; boundary tension) were all folded

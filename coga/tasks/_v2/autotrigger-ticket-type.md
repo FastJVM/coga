@@ -141,7 +141,7 @@ trigger design.
 
 This is a parked concept from the Relay-era design, not a claim about current
 Coga behavior. Before pulling it forward, revalidate the lifecycle and
-orchestration assumptions against `coga/principles` and `coga/architecture`.
+orchestration assumptions against `coga-dev/principles` and `coga/architecture`.
 The historical source paths and ticket names above are provenance; this draft
 carries its proposed model in full and does not depend on those tickets being
 available.

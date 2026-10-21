@@ -22,7 +22,7 @@ A scheduled agent run must reach `done` in one launch. When an agent launch
 returns unfinished — including a human/unassigned handoff or a `coga block` —
 the sweep pauses it before continuing. The blocker-reminder job keeps open
 asks on paused periods visible under its
-[eligibility and deduplication contract](../../../notifications/producers/SKILL.md#blocker-reminders-one-attempt-per-blocker);
+[eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md);
 it does not resume them. Keep human gates and expected blockers out of scheduled
 workflows. A **watchdog** pause (latest pause audit actor `system:watchdog`, not
 superseded by a later human pause or creation) stays an unresolved failure:

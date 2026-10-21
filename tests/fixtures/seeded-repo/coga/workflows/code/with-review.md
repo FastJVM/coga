@@ -23,7 +23,7 @@ From a clean `main`, create the feature branch, record it under `## Dev` as a
 present in the ticket copy of the checkout you bump from.
 
 ## pr
-Prepare `## PR` using the `coga/internals/pr-publication/preparation` topic's rubric and
+Prepare `## PR` using the `coga/pr-publication/preparation` topic's rubric and
 schema: actual authorship, review identity or absence, current head/base,
 implementation, per-file reasons, and checks with outcomes or omission reasons.
 Run `coga open-pr <slug>` to publish the presentation and verbatim ticket

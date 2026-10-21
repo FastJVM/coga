@@ -85,7 +85,7 @@ worktree: /home/n/Code/claude/coga-init-bare-slack-env
   line per path, the env var still exported afterwards, and that a plain
   `load_config(target / "coga")` still raises the guard. Failed before the fix
   on `empty-repo` only, matching the audit row.
-- `coga/contexts/coga/sync/SKILL.md` + packaged twin under
+- `docs/contexts/coga/sync/SKILL.md` + packaged twin under
   `templates/coga/bootstrap/`: one paragraph in "Notifications optional on
   first run" naming init's tolerance and pointing at the helper. Byte-identical.
 

@@ -48,7 +48,7 @@ transition.
   branch's PR. Owner decision (2026-10-07): files inside the roots need no
   separate knowledge PR; guided authoring publishes its knowledge edits with
   its tickets, and source outside the roots keeps normal PR review. See the
-  [publication contract](../internals/state-publication/SKILL.md).
+  [publication contract](../state-publication/SKILL.md).
 
 ## Where the detail lives
 
@@ -58,11 +58,11 @@ transition.
 | Which producers post on which surface | [`coga/notifications/producers`](../notifications/producers/SKILL.md) |
 | What happens when a post fails; preflight; redaction | [`coga/notifications/failures`](../notifications/failures/SKILL.md) |
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
-| `publish`, the sweep, strict versus best-effort paths | [`coga/internals/state-publication`](../internals/state-publication/SKILL.md) and its [`publish`](../internals/state-publication/publish/SKILL.md), [`sweep`](../internals/state-publication/sweep/SKILL.md) and [`authoring`](../internals/state-publication/authoring/SKILL.md) leaves |
-| Why a publish is refused; stale generations; schema conversions | [`coga/internals/git-regressions`](../internals/git-regressions/SKILL.md) |
-| `refresh`, fast-forward and realignment, staleness and stranded writes | [`coga/internals/git-refresh`](../internals/git-refresh/SKILL.md) |
-| Append-only files, `merge=union`, and concurrent writers | [`coga/internals/spool-merge`](../internals/spool-merge/SKILL.md) |
-| Composing new cross-run state without hidden queues | [`coga/patterns`](../patterns/SKILL.md) |
+| `publish`, the sweep, strict versus best-effort paths | [`coga/state-publication`](../state-publication/SKILL.md) and its [`publish`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md), [`sweep`](../state-publication/sweep/SKILL.md) and [`authoring`](../state-publication/authoring/SKILL.md) leaves |
+| Why a publish is refused; stale generations; schema conversions | [`coga-dev/internals/git-regressions`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md) |
+| `refresh`, fast-forward and realignment, staleness and stranded writes | [`coga-dev/internals/git-refresh`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-refresh/SKILL.md) |
+| Append-only files, `merge=union`, and concurrent writers | [`coga-dev/internals/spool-merge`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md) |
+| Composing new cross-run state without hidden queues | [`coga-dev/patterns`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md) |
 | Session usage records carried by the log | [`coga/usage`](../usage/SKILL.md) |
 
 There is no daily digest (removed, #786); every notification posts live or
@@ -76,7 +76,7 @@ A command that changes state others need to know about reaches both layers:
    policy — described in `coga/notifications`.
 2. Publish its task through `git.sync_task_state` at the logic boundary where
    the write, validation, log append, and notification post have all
-   finalized (`coga/internals/state-publication/publish`). The end-of-command sweep
+   finalized ([publication implementation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md)). The end-of-command sweep
    is a backstop with a generic message, not a substitute for the readable,
    individually attributed publish.
 3. Echo the local outcome to stdout before posting, so it stays visible

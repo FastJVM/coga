@@ -618,7 +618,7 @@ def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
     assert "the preflight fails before Phase 1" in section
     assert "do not start Phase 1 or any later phase" in section
     assert "Name the missing capability" in section
-    assert "`coga/testing` topic, under `## Restricted sandboxes`" in section
+    assert "`coga/sandboxes` topic, under `## Restricted sandboxes`" in section
     assert "escalate per this prompt's Session conduct layer" in section
     assert "attended, ask the human and wait" in section
     assert "unattended, run `coga block --task <this-dream-task>" in section
@@ -671,9 +671,9 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
     assert "Dream uses `<run-dir>/checkout` inside its `mktemp -d` run directory" in retro
 
 
-def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
+def test_sandboxes_topic_owns_the_codex_sandbox_grant() -> None:
     testing = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "testing" / "SKILL.md")
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "sandboxes" / "SKILL.md")
         .read_text()
         .split()
     )
@@ -690,7 +690,7 @@ def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
     assert "covers every codex session launched in that checkout" in testing
     assert "agent capability preflight" in dream_contract
     assert "fresh context" in dream_contract
-    assert "agent sandbox grant recipe in the `coga/testing` topic" in dream_contract
+    assert "agent sandbox grant recipe in the `coga/sandboxes` topic" in dream_contract
     assert "`## Restricted sandboxes`" in dream_contract
 
 

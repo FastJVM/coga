@@ -63,7 +63,7 @@ git status --porcelain --untracked-files=all
 
 Exit 0 means every named file is confirmed on control; any non-zero exit
 (contract in [strict publication on
-demand](../../../coga/internals/state-publication/sweep/SKILL.md#strict-publication-on-demand))
+demand](../../../coga/state-publication/sweep/SKILL.md#strict-publication-on-demand))
 is the stop signal. Use the status check only for dirty files you did not name,
 and require it to be empty before switching. Do not fall back to calling the
 sweep through a `python -c` one-liner: the sweep reports publication failures

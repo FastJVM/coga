@@ -4,7 +4,7 @@ status: canceled
 owner: nicktoper
 agent: claude
 contexts:
-- coga/codebase
+- coga-dev/codebase
 - coga/architecture
 - coga/sync
 - dev/code

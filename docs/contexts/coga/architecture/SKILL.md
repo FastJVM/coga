@@ -46,7 +46,7 @@ operating rules without a merge.
 
 - **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
   [first-task](../first-task/SKILL.md), [uninstall](../uninstall/SKILL.md),
-  [cli](../cli/SKILL.md); design principles: `coga/principles`.
+  [cli](../cli/SKILL.md).
 - **Understand**: [knowledge](../knowledge/SKILL.md) and the model topics
   linked above.
 - **Configure**: [configuration](../configuration/SKILL.md),
@@ -55,7 +55,7 @@ operating rules without a merge.
 - **Run work**: [launch](../launch/SKILL.md),
   [script-tickets](../script-tickets/SKILL.md),
   [megalaunch](../megalaunch/SKILL.md),
-  [launch-internals](../launch-internals/SKILL.md).
+  [human assist](../human-assist/SKILL.md).
 - **Recurring and maintenance**: [recurring](../recurring/SKILL.md)
   ([templates](../recurring/templates/SKILL.md),
   [scheduling](../recurring/scheduling/SKILL.md) and its leaves,
@@ -65,17 +65,24 @@ operating rules without a merge.
 - **State and notifications**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
-  [patterns](../patterns/SKILL.md), [usage](../usage/SKILL.md),
+  [state publication](../state-publication/SKILL.md)
+  ([authoring](../state-publication/authoring/SKILL.md),
+  [sweep and recovery](../state-publication/sweep/SKILL.md)),
+  [usage](../usage/SKILL.md),
   [telemetry](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
-- **Develop Coga**: [extension-model](../extension-model/SKILL.md),
+- **Extend a repo**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
-  [codebase](../codebase/SKILL.md), [testing](../testing/SKILL.md),
-  [packaging](../packaging/SKILL.md), [releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md);
+  [edge code](../edge-code/SKILL.md), [sandboxes](../sandboxes/SKILL.md);
   code-task conventions [dev/code](../../dev/code/SKILL.md)
   ([checkouts](../../dev/checkouts/SKILL.md),
   [design history](../blackboard/SKILL.md#superseded-designs),
-  [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves.
-- **Guarantees** (attach only to change them): `coga/internals/*`, indexed
-  by launch-internals, sync, recurring; activity-capture by usage.
-- **Posture** (local): `coga/current-direction`,
-  `coga/project-stage`.
+  [checkout-cleanup](../../dev/checkout-cleanup/SKILL.md)), each with its leaves;
+  [PR publication](../pr-publication/SKILL.md)
+  ([preparation](../pr-publication/preparation/SKILL.md),
+  [existing PRs](../pr-publication/existing-pr/SKILL.md)).
+
+The separate Coga-dev library is for changing Coga itself. Its
+[source map](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md)
+and [internals index](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/SKILL.md)
+are optional navigation; the [audience criterion](../context-layout/SKILL.md#context-audiences)
+explains which knowledge ships.

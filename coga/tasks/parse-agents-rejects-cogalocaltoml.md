@@ -83,7 +83,7 @@ local-only agent must supply both and a partial override need not.
 
 This is the same layering `[notification.slack].webhook` /
 `.important_webhook` already use — local wins, no warning
-(`coga/contexts/coga/sync/SKILL.md:344-348`). Decided: **no** provenance
+(`docs/contexts/coga/sync/SKILL.md:344-348`). Decided: **no** provenance
 affordance. Do not add a `coga validate` report or a launch-time notice about
 locally-defined agents; keep this a parser change.
 
@@ -131,7 +131,7 @@ above); unknown key in a local agent table rejected *and naming the file*
 Per `CLAUDE.md`: a behavior change updates its matching context in the same PR,
 and shipped contexts exist in two places that must stay in sync.
 
-1. `coga/contexts/coga/architecture/SKILL.md` — **add**, do not rewrite. The
+1. `docs/contexts/coga/architecture/SKILL.md` — **add**, do not rewrite. The
    local-table rejection was never documented, so there is nothing to correct.
    The "Config loading fails loud on unknown keys" section (line 352 onward)
    stays accurate as-is: its `[agents.<name>]` mention is about *unknown keys*,
@@ -156,7 +156,7 @@ and shipped contexts exist in two places that must stay in sync.
    the shape `src/coga/bump.py:44` fails on. Leave a comment on the fixture line
    pointing at the sibling ticket so the tripwire is labeled.
 
-Optional, nice-to-have: `coga/contexts/coga/codebase/SKILL.md:109` describes
+Optional, nice-to-have: `docs/contexts/coga-dev/codebase/SKILL.md:109` describes
 `coga.local.toml` as "machine-local (NEVER committed; secrets here)" and could
 gain "agent types".
 

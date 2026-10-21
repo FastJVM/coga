@@ -219,7 +219,7 @@ kept with a note that future runs annotate ownership themselves.
 - Pre-existing upstream test failure on clean `main` (reproduced at
   `76785989b` with my change stashed):
   `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical` —
-  `coga/contexts/coga/extension-model/SKILL.md` has drifted from its packaged
+  `docs/contexts/coga/extension-model/SKILL.md` has drifted from its packaged
   twin. Unrelated to this change; deselected for the full run.
 - The worklist discharge rule judges `branch:` against the ticket repo only,
   so a cross-repo entry drops as soon as its worktree dir is gone while the

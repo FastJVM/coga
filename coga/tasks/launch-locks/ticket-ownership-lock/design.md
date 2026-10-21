@@ -213,11 +213,11 @@ ignored `.coga/` runtime dir and is never published.
 - [ ] Contracts and twins updated in the same PR: new
       `coga/internals/ticket-locks`; `coga/launch` "Status is the signal"
       rewritten (one lock per ticket; status still says *what* step),
-      plus Agent preflight order and Options/exits; `coga/internals/launch-claims`
+      plus Agent preflight order and Options/exits; `coga-dev/internals/launch-claims`
       (megalaunch holds the ticket lock around its claims; state_lock still not
-      ownership); `coga/internals/claim-recovery` (acquire before
-      reconciliation; dead-claim adoption); `coga/internals/state-publication`
-      and `coga/internals/git-regressions` (`content=`, lock candidates,
+      ownership); `coga-dev/internals/claim-recovery` (acquire before
+      reconciliation; dead-claim adoption); `coga/state-publication`
+      and `coga-dev/internals/git-regressions` (`content=`, lock candidates,
       holder refusal); `coga/tickets` (lock path is not a task);
       `coga/megalaunch` (skip reason); packaged twins of each.
 

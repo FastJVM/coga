@@ -28,7 +28,7 @@ implement step already got a codex Dream run clean in the scratch repo
 
 Use the first Dream period after the merge, not a fixed week. The
 scheduled sweep may already run an earlier period under claude. The owner:
-1. applies the `.codex/config.toml` grant recipe from `coga/codebase`
+1. applies the `.codex/config.toml` grant recipe from `coga-dev/codebase`
    (`## Sandbox and cross-machine dev loop`) to their primary checkout and
    trusts it in codex;
 2. runs `coga dream --agent codex` attended, before the sweep takes that
@@ -86,11 +86,11 @@ run Dream before running that week's sweep.
 
 **State already in place (checked read-only):**
 - `/home/n/Code/coga/.codex/config.toml` matches the recipe in
-  `coga/testing` § "Codex sandbox grant". It has
+  `coga-dev/testing` § "Codex sandbox grant". It has
   `writable_roots = ["/home/n/Code/coga/.git"]`, which is the
   `--git-common-dir` output. It is gitignored. Note: the ticket points at
-  `coga/codebase` `## Sandbox and cross-machine dev loop`; that section has
-  moved to `coga/testing`.
+  `coga-dev/codebase` `## Sandbox and cross-machine dev loop`; that section has
+  moved to `coga-dev/testing`.
 - `~/.codex/config.toml` already marks `/home/n/Code/coga` as trusted.
 - codex-cli is 0.160.1; the scratch runs used 0.155.1.
 
@@ -99,7 +99,7 @@ run Dream before running that week's sweep.
    `cd /home/n/Code/coga`, be on `main` (clean, pulled), and confirm
    `cat .codex/config.toml` still shows the grant. Run from this checkout
    on `main`. On another branch, the named launch relays into a different
-   worktree on `main` (`coga/internals/recurring-control`), and that worktree
+   worktree on `main` (`coga-dev/internals/recurring-control`), and that worktree
    may not have the gitignored grant. W40 ran from `~/Code/claude/coga`; if
    you use that checkout instead, apply the grant there with its own
    common-dir path and trust it.

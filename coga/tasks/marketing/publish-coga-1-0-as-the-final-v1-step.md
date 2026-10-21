@@ -50,9 +50,9 @@ Release: https://github.com/FastJVM/coga/releases/tag/v0.4.0 .
   release commit's README, including Markdown rendering and documentation
   links. The 0.4.0 description was verified byte-identical to the current
   `main` README on 2026-10-02; recheck after the V1 README changes land.
-- Read `coga/testing` (`docs/contexts/coga/testing/SKILL.md`) for the local
-  suite and validation gate, and `coga/packaging`
-  (`docs/contexts/coga/packaging/SKILL.md`) for pristine-checkout build checks.
+- Read `coga-dev/testing` (`docs/contexts/coga-dev/testing/SKILL.md`) for the local
+  suite and validation gate, and `coga-dev/packaging`
+  (`docs/contexts/coga-dev/packaging/SKILL.md`) for pristine-checkout build checks.
   These are cited rather than attached. Record exact commands and results;
   do not carry forward the 0.4.0 validation exception without a new decision.
 - Follow the attached release runbook. The owner approves the final candidate
@@ -112,7 +112,7 @@ Hashes (0.4.0-versioned dry build, for reference only): wheel
 1. **Suite failure — locale-dependent test/runbook (fix needed).**
    `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
    runs the documented `<!-- migration:inventory -->` command
-   (`rg … | sort` in `docs/contexts/coga/packaging/edge-code-upgrades.md` +
+   (`rg … | sort` in `docs/contexts/coga-dev/packaging/edge-code-upgrades.md` +
    packaged twin) and compares to Python `sorted()`. Under `en_US.UTF-8`,
    `sort` puts `autoclose-merged/` before `_custom-phone-home/`; passes with
    `LC_ALL=C`. Suggested fix: `LC_ALL=C sort` in both runbook copies (keeps

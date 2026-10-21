@@ -145,7 +145,7 @@ worktree: /tmp/coga-local-config
   `bootstrap_skill_dir` without its required config argument. Corrected live
   and packaged `dev/code` to use configuration-independent
   `packaged_template_path`; executed the lookup and verified the helper exists.
-- Manual review found stale `coga/codebase` guidance describing the old policy
+- Manual review found stale `coga-dev/codebase` guidance describing the old policy
   and this ticket as a draft. Replaced it with a pointer to the owning
   `dev/code` contract in both live and packaged contexts.
 - Review initially could not initialize under the filesystem sandbox; rerun

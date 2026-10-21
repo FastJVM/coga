@@ -121,7 +121,7 @@ strict publication/assist path, rather than unconditional for every call.
   `webhook_for` docstrings: the refusal is absolute, the *abort* is `post`'s
   call.
 - `src/coga/recurring_runner.py` — `_broadcast_scan` passes `fatal=False`.
-- `coga/contexts/coga/sync/SKILL.md` and its packaged copy under
+- `docs/contexts/coga/sync/SKILL.md` and its packaged copy under
   `src/coga/resources/templates/` (kept byte-identical): the carve-out
   paragraph, the `important_webhook` key description, the `post` implementation
   pointer, and the `notify` producer list.
@@ -195,7 +195,7 @@ Both fail on `main` at 4271813a, untouched by this change:
   mismatch. All changed regression tests and packaging tests pass.
 - `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`
   reports one valid task and no issues. `git diff --check main...HEAD` and
-  `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
+  `cmp docs/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
   pass in the feature worktree.
 - `coga open-pr a-slack-repo-without-important-webhook-can-abort-t` succeeded
   on retry and recorded https://github.com/FastJVM/coga/pull/761 under `## Dev`.
@@ -214,7 +214,7 @@ are never redirected to the ordinary webhook.
 Update the live and packaged sync contexts together, with regression coverage
 for missing ordinary/important webhooks and the recurring scan fallback.
 
-Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2323 passed, 1 pre-existing failure (`test_recurring_create_is_silent`, reproduced on base); `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`, `git diff --check main...HEAD`, and `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md` pass.
+Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2323 passed, 1 pre-existing failure (`test_recurring_create_is_silent`, reproduced on base); `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`, `git diff --check main...HEAD`, and `cmp docs/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md` pass.
 
 ## Next
 

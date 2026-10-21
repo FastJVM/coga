@@ -50,9 +50,9 @@ that run in the PR.
   cleanly. If one doesn't, fix the skip; don't add it to CI.
 - Interactive launch is checked on EC2 (the interactive-launch ticket), not
   in CI.
-- `coga/testing` (`docs/contexts/coga/testing/SKILL.md`) owns test
+- `coga-dev/testing` (`docs/contexts/coga-dev/testing/SKILL.md`) owns test
   expectations. Add one line there saying PR CI exists and what it runs,
-  in both the canonical and packaged copies (`coga/packaging`).
+  in both the canonical and packaged copies (`coga-dev/packaging`).
 
 <!-- coga:blackboard -->
 

@@ -4,8 +4,8 @@ status: done
 owner: nicktoper
 agent: codex
 contexts:
-- coga/testing
-- coga/packaging
+- coga-dev/testing
+- coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -327,8 +327,8 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: "Packaged twin."
   docs/contexts/coga/prompt-composition/SKILL.md: "Composition reads the fence-aware parser and warns instead of dropping silently."
   src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: "Packaged twin."
-  docs/contexts/coga/codebase/gotchas/SKILL.md: "create_task now guards description for every caller."
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/gotchas/SKILL.md: "Packaged twin."
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: "create_task now guards description for every caller."
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: "Packaged twin."
   docs/contexts/coga/recurring/autofix/SKILL.md: "Documents analyst heading demotion."
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: "Packaged twin."
   coga/skills/code/design/SKILL.md: "Names the validate warning for sibling spec sections."

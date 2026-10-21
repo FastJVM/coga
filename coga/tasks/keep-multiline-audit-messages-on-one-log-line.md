@@ -33,7 +33,7 @@ Decided encoding: `append_log` encodes centrally (callers do not sanitize). It e
 
 Decided legacy policy: do not rewrite the append-only log. Existing malformed lines stay; log readers treat an untagged line that does not start with a timestamp as a continuation of the preceding event (or otherwise tolerate it without misparsing or crashing). The retraction guarantee applies only to events written after this change — already-malformed historical events need not retract cleanly.
 
-Done when regression cases cover multiline sync errors (LF, CRLF, bare CR, and literal backslash sequences), the task-log readers and the other log parsers listed under Context reading both new-encoded and legacy malformed lines, and retract_log_lines removing the whole new event without orphan continuations or deleting another task's event. The one-line-per-event rule and the legacy-line policy are documented in `coga/internals/spool-merge` in the same PR. This ticket fixes event encoding, not the underlying Git failures.
+Done when regression cases cover multiline sync errors (LF, CRLF, bare CR, and literal backslash sequences), the task-log readers and the other log parsers listed under Context reading both new-encoded and legacy malformed lines, and retract_log_lines removing the whole new event without orphan continuations or deleting another task's event. The one-line-per-event rule and the legacy-line policy are documented in `coga-dev/internals/spool-merge` in the same PR. This ticket fixes event encoding, not the underlying Git failures.
 
 ## Context
 
@@ -53,11 +53,11 @@ Besides logfile.py's own readers (`task_log_lines`, the activity maps, and both 
 
 ### Documentation owner
 
-No topic currently owns the log line grammar; it is only spelled out in the logfile.py docstring and in `coga/usage` (`docs/contexts/coga/usage/SKILL.md`, which has a packaged twin — keep the twins byte-identical if you touch it). Put the one-line-per-event rule and the legacy policy in `coga/internals/spool-merge` (`docs/contexts/coga/internals/spool-merge/SKILL.md`), which owns the append-only invariants, and check whether it has a packaged twin.
+No topic currently owns the log line grammar; it is only spelled out in the logfile.py docstring and in `coga/usage` (`docs/contexts/coga/usage/SKILL.md`, which has a packaged twin — keep the twins byte-identical if you touch it). Put the one-line-per-event rule and the legacy policy in `coga-dev/internals/spool-merge` (`docs/contexts/coga-dev/internals/spool-merge/SKILL.md`), which owns the append-only invariants, and check whether it has a packaged twin.
 
 ### Cited topics
 
-Read coga/internals/spool-merge (`docs/contexts/coga/internals/spool-merge/SKILL.md`) for union/append-only merging, and the strict-rollback paragraph of coga/internals/state-publication (`docs/contexts/coga/internals/state-publication/SKILL.md`). Both are cited, not attached. Inspect them before changing the encoding. Start with logfile.py and its tests.
+Read coga-dev/internals/spool-merge (`docs/contexts/coga-dev/internals/spool-merge/SKILL.md`) for union/append-only merging, and the strict-rollback paragraph of coga/state-publication (`docs/contexts/coga/state-publication/SKILL.md`). Both are cited, not attached. Inspect them before changing the encoding. Start with logfile.py and its tests.
 
 ### Coordination
 
@@ -103,7 +103,7 @@ Commit `32b0184` on `one-line-audit-events` (pushed; no PR yet).
 - `github_preflight.py` only compares path names (`is_coga_state_path`) and
   never parses log content, so it needed no change.
 - Docs: added "One event per log line" (rule + legacy policy) to
-  `coga/internals/spool-merge`, plus a decode note in `coga/usage`. Both
+  `coga-dev/internals/spool-merge`, plus a decode note in `coga/usage`. Both
   packaged bootstrap twins were updated to stay byte-identical.
 - Left unchanged: `recurring._watchdog_pauses` reads with universal newlines
   and an anchored `paused|created` regex, so it already tolerates both forms.
@@ -176,7 +176,7 @@ limitations: Historical log bytes are unchanged; malformed historical events nee
   Older Coga readers do not understand v1 headers. Git failure recovery and usage deduplication remain
   separate tickets.
 files:
-  docs/contexts/coga/internals/spool-merge/SKILL.md: Own the v1 line grammar, central escaping, raw legacy
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Own the v1 line grammar, central escaping, raw legacy
     messages, and continuation/retraction policy.
   docs/contexts/coga/telemetry/SKILL.md: Link the shared audit decoding contract and document multiline
     FYI suffixes.
@@ -197,8 +197,8 @@ files:
   tests/test_recurring.py: Cover versioned ledger messages and both watchdog envelope formats.
   tests/test_telemetry.py: Exercise movement grammar in both formats and versioned multiline FYIs.
   tests/test_usage.py: Regress legacy paths with literal backslashes and encoded quoted/newline outcomes.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/spool-merge/SKILL.md: Byte-identical
-    packaged twin of coga/internals/spool-merge.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Byte-identical
+    packaged twin of coga-dev/internals/spool-merge.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/telemetry/SKILL.md: Byte-identical packaged
     twin of coga/telemetry.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Byte-identical packaged twin

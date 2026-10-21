@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/recurring
-- coga/codebase
+- coga-dev/codebase
 workflow:
   name: code/with-review
   steps:

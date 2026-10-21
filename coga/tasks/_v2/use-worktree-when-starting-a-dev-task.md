@@ -4,8 +4,9 @@ status: draft
 owner: nicktoper
 agent: claude
 contexts:
-- coga/codebase
-- coga/internals/state-publication
+- coga-dev/codebase
+- coga/state-publication
+- coga-dev/internals/state-publication
 - dev/checkouts
 - dev/checkout-cleanup
 workflow:
@@ -52,7 +53,7 @@ which deterministic placement + automatic cleanup fixes.
 ## Context
 
 **This is a change to relay's own behavior**, not a one-off. Read
-`coga/codebase` for source layout and `coga/internals/state-publication` for how control-plane git
+`coga-dev/codebase` for source layout and `coga/state-publication` for how control-plane git
 sync works — worktree lifecycle intersects with it (`git.py:sync_task_state`
 already has a feature-branch path that lands task-state on the control branch
 via working-tree-free plumbing, so worktrees and the control plane already

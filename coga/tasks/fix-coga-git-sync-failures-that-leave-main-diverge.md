@@ -4,8 +4,9 @@ status: draft
 owner: nicktoper
 contexts:
   - coga/sync
-  - coga/internals/state-publication
-  - coga/internals/git-refresh
+  - coga/state-publication
+  - coga-dev/internals/state-publication
+  - coga-dev/internals/git-refresh
 workflow: code/design-then-implement
 ---
 
@@ -83,8 +84,8 @@ Findings from the ticket's cold review, to verify rather than trust:
   matches origin → fast-forward".
 - Relevant code: `git.sync_task_state`, `git.publish` and its `hash-object`
   call, and the `[git] sync failed` sites in `git.py`, `mark.py`,
-  `recurring_runner.py`, `authoring.py`. `coga/internals/git-regressions` and
-  `coga/internals/spool-merge` (under `docs/contexts/`) are cited, not
+  `recurring_runner.py`, `authoring.py`. `coga-dev/internals/git-regressions` and
+  `coga-dev/internals/spool-merge` (under `docs/contexts/`) are cited, not
   attached. Read them only if the fix touches the provenance check or the
   union merge of `log.md`.
 

@@ -353,11 +353,11 @@ def test_coga_repo_principles_reach_launches_without_ticket_attachment(
     """Both launch entry paths receive the checked copy of the canonical principles."""
     repo_root = Path(__file__).resolve().parents[1]
     source = repo_root / "coga/context.md"
-    principles = repo_root / "docs/contexts/coga/principles/SKILL.md"
+    principles = repo_root / "docs/contexts/coga-dev/principles/SKILL.md"
     assert not source.is_symlink()
     comment, separator, mirrored = source.read_text().partition("\n\n")
     assert comment == (
-        "<!-- Generated from docs/contexts/coga/principles/SKILL.md; "
+        "<!-- Generated from docs/contexts/coga-dev/principles/SKILL.md; "
         "edit that owner and refresh this copy. -->"
     )
     assert separator
@@ -382,7 +382,7 @@ def test_coga_repo_principles_reach_launches_without_ticket_attachment(
         slug = _write_workflow_less_task(repo, title="Principles inclusion")
         ref = resolve_task(cfg, slug)
     ticket = read_ticket(ref)
-    assert "coga/principles" not in ticket.contexts
+    assert "coga-dev/principles" not in ticket.contexts
     report = compose_prompt_report(cfg, ref, ticket)
     layers = [layer for layer in report.layers if layer.layer == "repo_context"]
     assert len(layers) == 1

@@ -28,6 +28,25 @@ directory path. Owners of the other pieces: tickets and attachments in
 [coga/skill-management](../skill-management/SKILL.md), and workflows in
 [coga/workflows](../workflows/SKILL.md).
 
+## Context audiences
+
+A **user** topic is knowledge an agent or human in a repo adopting Coga needs
+to configure, launch, author, recover, or understand a shipped command's
+refusal. Anything a shipped command, prompt, skill, workflow, or recurring
+template requires the reader to read is a user topic. User topics live under
+`coga/` and `dev/` and ship as bootstrap fallbacks.
+
+The **Coga-dev** set explains how Coga itself is built, tested, released, or
+steered. It lives under the `coga-dev/` namespace in Coga's own context
+library and is never packaged. An adopting repo cannot attach it from the
+package. Maintainer skills have their own distribution; this boundary
+classifies contexts, not skills.
+
+A user topic states the user-visible facts itself and never depends on a
+Coga-dev topic. Optional navigation to development detail uses an absolute
+GitHub URL, not a relative link or a required context ref. Source comments
+and docstrings serve developers and do not make a topic a user dependency.
+
 ## Local first, then bundled
 
 Resolution is per ref. `src/coga/paths.py` `resolve_context_path` checks
@@ -48,6 +67,39 @@ composes the same bytes. An uncommitted, unignored file is fine. Invalid
 artifacts raise actionable errors, surface as `broken-context` in
 `coga validate`, and stop composition before their bytes reach a prompt.
 This policy covers context refs only, not skills or ordinary attachments.
+
+## Three distribution states for a context
+
+- **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
+  (`coga/*` bootstrap topics, `dev/*`). `coga init` skips
+  `bootstrap/`; `resolve_context_path` reads the package copy when the repo has
+  no local `<ref>/SKILL.md`. A repo overrides by creating the local file.
+- **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds
+  `.gitignore` and `_template/SKILL.md`. `commands/update.py`
+  `copy_fresh_templates` copies them once; the repo then owns them and nothing
+  reads the packaged original at runtime.
+- **Local-only**: a topic with no packaged copy, resolved first and unknown to
+  other repos (for example a repo's `product/` topics or Coga's Coga-dev set).
+
+Resolution is local, then `bootstrap/contexts/`, then `None`, which `compose`
+turns into a `ComposeError`; `validate` and `create` reject the ref
+statically. Skills and workflows have the same split: fallback only from
+`bootstrap/{skills,workflows}/`, while seeded `templates/coga/{skills,workflows}/`
+files are one-time copies.
+
+**Bundled launchers may only name fallback contexts.** A bundled
+`bootstrap/<verb>/ticket.md`, or a bundled skill that tells the agent to apply
+a context, must name contexts that resolve from `bootstrap/contexts/`, because
+an init-seeded copy may be pruned or predate the repo.
+`tests/test_packaging.py::test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts`
+enforces this.
+
+**Do not repair a missing bundled resource by copying it into
+`coga/bootstrap/`.** Fix package data or the resolver; a mirror hides the bug
+and drifts. Deliberate authoring there is fine: a repo mints its own command
+ticket or intentionally overrides a shipped one. This repo overrides
+`coga/bootstrap/resolve-conflicts/ticket.md` and
+`coga/bootstrap/address-pr-comments/ticket.md`; those are twins like any other.
 
 ## Relocating: `[layout] contexts`
 
@@ -94,7 +146,7 @@ The contexts root is a Coga root: context edits under it — relocated or
 not, by hand or during guided ticket authoring — publish automatically to
 the control branch with no separate knowledge PR. The publication contract is
 owned by
-[coga/internals/state-publication](../internals/state-publication/SKILL.md).
+[coga/state-publication](../state-publication/SKILL.md).
 Move an existing tree and set the key together. Guided authoring and launch
 checkout return carry the old-path deletions, destination files, and config
 through the same guarded publication, as defined by that contract.

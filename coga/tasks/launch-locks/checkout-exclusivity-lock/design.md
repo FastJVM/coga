@@ -265,15 +265,15 @@ anything.
         the in-session and manual sections note that `coga` launch-class
         commands from inside a session are nested; § What a fresh checkout
         lacks lists `.coga/launch.lock`.
-      - `coga/internals/state-publication`: the sweep is followed by
+      - `coga/state-publication`: the sweep is followed by
         release; `checkout-lock` is non-sweeping.
-      - `coga/internals/agent-spawn`: child recording and the witness.
+      - `coga-dev/internals/agent-spawn`: child recording and the witness.
       - `coga/megalaunch`: the queue holds one checkout lock throughout.
       - `coga/recurring/delegation`: delegated sessions run in-process
         under the period's lock.
       - `coga/cli`: the new command.
       - `coga/extension-model`: the command-placement note.
-      - `coga/packaging`: the `.coga/` runtime-file list.
+      - `coga-dev/packaging`: the `.coga/` runtime-file list.
       - The new `coga/internals/checkout-lock`.
 
 ### Proposed shape (order of work)

@@ -25,5 +25,5 @@ trailing note. The first `branch:` is the workflow checkout.
 - `requires: branch` / `requires: pr`, branch-gate scope, and the review step:
   [coga/workflows](../../coga/workflows/SKILL.md).
 - `coga open-pr` and record parsing:
-  [coga/internals/pr-publication](../../coga/internals/pr-publication/SKILL.md).
+  [coga/pr-publication](../../coga/pr-publication/SKILL.md).
 - Terminal branch ownership: [dev/checkout-cleanup](../checkout-cleanup/terminal-owners/SKILL.md).

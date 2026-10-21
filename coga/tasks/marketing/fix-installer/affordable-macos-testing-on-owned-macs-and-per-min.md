@@ -112,7 +112,7 @@ What changed:
   the `walk` hunk that open PR #968 (Python 3.11 pin) edits — expect a clean
   merge either order; owned path inherits the pin.
 - Docs: new topic `coga/testing/clean-install/macos-owned` (+ packaged twin,
-  added to REQUIRED_BOOTSTRAP_CONTEXT_REFS); links from coga/testing,
+  added to REQUIRED_BOOTSTRAP_CONTEXT_REFS); links from coga-dev/testing,
   clean-install, macos-aws (+ twins); dated
   `docs/evidence/macos-install-test-costs.md` (indexed in docs/README.md).
 

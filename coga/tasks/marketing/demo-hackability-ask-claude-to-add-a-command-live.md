@@ -67,7 +67,7 @@ repo recipe, a rehearsal log proving the take works, and a fallback plan.
 ## Context
 
 Use [README.md](../../../README.md) for current public positioning and
-[`coga/principles`](../../../docs/contexts/coga/principles/SKILL.md) for the
+[`coga-dev/principles`](../../../docs/contexts/coga-dev/principles/SKILL.md) for the
 design principles. Read the live
 [idea-piece claim limits](idea-piece.md#claim-and-wording-limits) before
 drafting the script and the [launch plan](build-the-launch-plan.md) before
@@ -98,7 +98,7 @@ Open questions to settle in the script, not to block on:
   the README, or both is the owner's call under the
   [live launch plan](build-the-launch-plan.md).
 
-Related: README.md, `coga/principles`, `coga/extension-model`,
+Related: README.md, `coga-dev/principles`, `coga/extension-model`,
 `coga/launch`, `coga/script-tickets`, `coga/configuration` (aliases).
 
 <!-- coga:blackboard -->

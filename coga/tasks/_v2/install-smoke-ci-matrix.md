@@ -39,7 +39,7 @@ example at `coga launch <slug> --prompt-report`).
 Deferred from the V1 `marketing/fix-installer/` set, which uses Docker and AWS
 machines instead. Reuse that set's install/walk script. The existing
 `.github/workflows/release.yml` only builds and publishes. Cited topics:
-`coga/install`, `coga/testing`, `coga/releasing`.
+`coga/install`, `coga-dev/testing`, `coga/releasing`.
 
 <!-- coga:blackboard -->
 

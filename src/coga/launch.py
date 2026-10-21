@@ -2683,7 +2683,7 @@ def _commit_auto_activate(
     concurrently with a launch of the same ticket; the blocked-resume gate in
     `_launch` makes the same assumption across the same preflights. The strict
     assist path is the exception and guards its publication explicitly — see
-    `coga/launch-internals`.
+    `coga-dev/internals`.
     """
     try:
         mark_active(

@@ -14,7 +14,7 @@ call them through `runner.run_recipe`.
 
 A repo script can be a thin import of a wheel-owned edge implementation or a
 full local fork; distribution and adoption are in
-[coga/packaging](../packaging/SKILL.md). Classification below is unchanged.
+[coga/edge-code](../edge-code/SKILL.md). Classification below is unchanged.
 
 ## Classifier
 
@@ -113,7 +113,7 @@ matches the target they act on; a marker naming another target has no effect.
 The marker grants no owner-gate, assist, launch, or rewind authority and
 bypasses no completion gate, validation, or publication. A script inside a
 verified recorded assist still credits `system`, using the assist's
-publication checks ([human assist](../internals/human-assist/SKILL.md)).
+publication checks ([human assist](../human-assist/SKILL.md)).
 An assist agent keeps its verified identity; a supervised agent completion
 uses the derived agent only when `COGA_EXPECTED_TASK` matches. Otherwise the
 local human is credited. Ticket metadata and configured agents never prove an

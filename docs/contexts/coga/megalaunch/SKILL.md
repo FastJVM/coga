@@ -101,4 +101,4 @@ The summary counts launched, drained, completed, canceled, blocked,
 skipped-human-gate, skipped-unresolved-blocker, skipped-unlaunchable, and
 failed, one row per task; one notification line follows. Any `failed` row
 exits 1; usage errors exit 2. Claims and recovery:
-[launch claims](../internals/launch-claims/SKILL.md).
+[launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md).

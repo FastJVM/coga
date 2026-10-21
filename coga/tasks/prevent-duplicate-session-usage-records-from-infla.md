@@ -65,7 +65,7 @@ Why this is safe:
 - [ ] The usage-report recurring job, which calls `load_records` → `rollup`, reports deduplicated totals over a fixture with duplicate lines. Add this test to `tests/test_usage_report.py`.
 - [ ] `scripts/human_minutes.py` `parse_log` uses the same pinned identity (exact JSON message text) for usage records, replacing its `session_id` collapse. Whole-line dedupe stays for audit events. New tests in `tests/test_human_minutes_script.py` show that (a) two distinct records sharing a `session_id` both reach `usage_records`, and (b) one identical record JSON appended under two different prefixes (e.g. `12:00` and `12:01`, since `logfile.append_log` stamps a fresh minute prefix per append) reaches `usage_records` once. The existing `test_union_log_duplicates_and_free_form_text_do_not_change_ledger` still passes. Owner accepted (2026-10-09) that re-running a published human-minutes ledger covering 2026-08-18 may shift slightly, because of the one real shared-`session_id` pair there.
 - [ ] No existing `coga/log.md` is rewritten. `coga show` and the raw log still display every line.
-- [ ] The docs record the identity and the union-duplication fact. `docs/contexts/coga/usage/SKILL.md` (and its packaged twin) gets the identity, and `docs/contexts/coga/internals/spool-merge/SKILL.md` (and its twin) gets the union-duplication fact. `python -m pytest` passes, including `tests/test_packaging.py`.
+- [ ] The docs record the identity and the union-duplication fact. `docs/contexts/coga/usage/SKILL.md` (and its packaged twin) gets the identity, and `docs/contexts/coga-dev/internals/spool-merge/SKILL.md` (and its twin) gets the union-duplication fact. `python -m pytest` passes, including `tests/test_packaging.py`.
 - [ ] Verification: run `coga usage --json --by task` in this repo before and after the change and put both numbers in the PR. At the 2026-10-08 evaluation: before 1,108 sessions, 115 unknown, 6,488,526,008 total tokens; after 1,091 sessions, 114 unknown, 6,428,167,938 total tokens (a drop of 17 sessions, 1 unknown, 60,358,070 tokens). Lines appended since will move these numbers, so recompute rather than assert them.
 
 ### Proposed shape
@@ -75,9 +75,9 @@ Why this is safe:
 3. **Tests** as listed in the acceptance criteria. Build the union fixture with `coga.git._merge_union_bytes` and plain byte strings; no git repo is needed.
 4. **Docs**:
    - `coga/usage`, section "The read API": `load_records` returns each logical record once; the identity is the exact JSON message text; say why `session_id` is not the identity; duplicate lines stay in the log (append-only) and are only collapsed at read time.
-   - `coga/internals/spool-merge`, section "`merge=union` files": correct the claim that union "never loses or revives anything meaningful" for `log.md`. Union can *duplicate* an appended line when `publish` merges against a merge base that predates a line already on control. Any reader that counts log lines must collapse byte-identical copies, as `usage.load_records` does.
+   - `coga-dev/internals/spool-merge`, section "`merge=union` files": correct the claim that union "never loses or revives anything meaningful" for `log.md`. Union can *duplicate* an appended line when `publish` merges against a merge base that predates a line already on control. Any reader that counts log lines must collapse byte-identical copies, as `usage.load_records` does.
    - Edit the canonical `docs/contexts/...` files and the packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/coga/{usage,internals/spool-merge}/SKILL.md` identically.
-   - `coga/internals/activity-capture` keeps "exactly one record" per launch, which stays true. Change it only if a sentence there contradicts the new read rule.
+   - `coga-dev/internals/activity-capture` keeps "exactly one record" per launch, which stays true. Change it only if a sentence there contradicts the new read rule.
 
 ### Out of scope
 
@@ -101,7 +101,7 @@ This differs from the done dedupe-claude-transcript-usage-by-message-id ticket: 
 
 The reported inflation of coga usage needs a fixture and corrected before/after totals. Telemetry inflation is unverified: coga/usage explicitly says session activity/token records are excluded from aggregate telemetry. Inspect actual consumers rather than copying that claim as fact. One concrete consumer to check is the phone-home recurring job (`coga/recurring/phone-home/ticket.md` and its `ticket.py`, packaged under `src/coga/resources/templates/coga/recurring/phone-home/`), which mentions usage.
 
-Read coga/usage (`docs/contexts/coga/usage/SKILL.md`), coga/internals/activity-capture (`docs/contexts/coga/internals/activity-capture/SKILL.md`), and coga/internals/spool-merge (`docs/contexts/coga/internals/spool-merge/SKILL.md`), cited rather than attached as investigation and possible editing targets. Update the owning topic and twins for any changed identity or accounting contract.
+Read coga/usage (`docs/contexts/coga/usage/SKILL.md`), coga-dev/internals/activity-capture (`docs/contexts/coga-dev/internals/activity-capture/SKILL.md`), and coga-dev/internals/spool-merge (`docs/contexts/coga-dev/internals/spool-merge/SKILL.md`), cited rather than attached as investigation and possible editing targets. Update the owning topic and twins for any changed identity or accounting contract.
 
 ### Investigation map (2026-10-08 design step)
 
@@ -116,7 +116,7 @@ Read coga/usage (`docs/contexts/coga/usage/SKILL.md`), coga/internals/activity-c
 
 ### Owning topics
 
-`coga/usage` (`docs/contexts/coga/usage/SKILL.md`) owns the read contract and record identity. `coga/internals/spool-merge` (`docs/contexts/coga/internals/spool-merge/SKILL.md`) owns `merge=union` semantics. `coga/internals/activity-capture` (`docs/contexts/coga/internals/activity-capture/SKILL.md`) owns capture and the schema. All three have packaged bootstrap twins.
+`coga/usage` (`docs/contexts/coga/usage/SKILL.md`) owns the read contract and record identity. `coga-dev/internals/spool-merge` (`docs/contexts/coga-dev/internals/spool-merge/SKILL.md`) owns `merge=union` semantics. `coga-dev/internals/activity-capture` (`docs/contexts/coga-dev/internals/activity-capture/SKILL.md`) owns capture and the schema. All three have packaged bootstrap twins.
 
 <!-- coga:blackboard -->
 
@@ -153,7 +153,7 @@ The mechanism is `git._build_tree`'s union merge with `ancestor = merge-base HEA
 
 - Identity is the exact record JSON message text. Dedupe happens in the reader, in `load_records`. No writer change. Reasons are in the Description.
 - Consumers: `coga usage` and usage-report are covered through `load_records`. `scripts/human_minutes.py` has its own reader and the fix is trivial (drop the `session_id` collapse), so it is in scope. phone-home and the velocity evidence script are unaffected.
-- **Follow-up ticket (filed 2026-10-09 as draft `stop-publish-union-merges-from-re-adding-log-lines`):** "Stop `publish` union merges from re-adding log lines already on control". Scope: `git._build_tree` / `_merge_union_bytes` base selection for `merge=union` paths when HEAD lags control. It also affects duplicated audit lines (e.g., `launched`). Owner: `coga/internals/spool-merge` and `coga/internals/state-publication`. The related ticket `tell-agents-never-to-git-commit-coga-task-and-log` covers the squash-PR variant (#732).
+- **Follow-up ticket (filed 2026-10-09 as draft `stop-publish-union-merges-from-re-adding-log-lines`):** "Stop `publish` union merges from re-adding log lines already on control". Scope: `git._build_tree` / `_merge_union_bytes` base selection for `merge=union` paths when HEAD lags control. It also affects duplicated audit lines (e.g., `launched`). Owner: `coga-dev/internals/spool-merge` and `coga/state-publication`. The related ticket `tell-agents-never-to-git-commit-coga-task-and-log` covers the squash-PR variant (#732).
 
 ## Owner decisions (review-design, 2026-10-09)
 

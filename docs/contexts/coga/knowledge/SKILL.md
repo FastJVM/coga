@@ -1,6 +1,6 @@
 ---
 name: coga/knowledge
-description: The permanent authoring rule for Coga knowledge — which surface owns a fact, one owner per fact, links never load content, archive access by human request, when to attach versus cite a topic, and the topic size review policy.
+description: The permanent authoring rule for Coga knowledge — which surface owns a fact, one owner per fact, links never load content, when to attach versus cite a topic, and the topic size review policy.
 ---
 
 # Where knowledge lives
@@ -76,27 +76,20 @@ rules needed outside `coga launch`, never an owning statement.
 Composition includes attached refs only
 ([coga/prompt-composition](../prompt-composition/SKILL.md)). A markdown link
 in a topic, skill, or ticket is navigation: the agent reads the target only if
-it chooses to open the file, subject to the archive access rule below. So an
+it chooses to open the file, subject to that repo’s access rules. So an
 overview does not bring in its children. Knowledge a step requires must be
 attached explicitly by ref or named as a required read in the task or skill;
 a navigation link alone does neither.
 
-## Archive access
-
-Agents must exclude `docs/archive/**`, including evidence and design pages,
-from searches and reading unless the human explicitly requests archive use
-for the current task. A link, citation, reusable instruction, or general
-research request is not permission to open archived material. If the task
-needs it, ask before reading.
-
-Scope searches to live directories, or exclude the archive explicitly when
-searching from the repository root: `rg --glob '!docs/archive/**' ...` and
-`rg --files --glob '!docs/archive/**'`. This applies to other search and
-file-reading tools too. Authorized archive material remains historical
-evidence, not current instructions. This is an agent instruction, not a
-filesystem access restriction.
-
 ## Attach or cite
+
+Choose from the two audiences defined in
+[context layout](../context-layout/SKILL.md#context-audiences): user topics
+under `coga/` and `dev/` support operating Coga in adopting repos; the local
+Coga-dev set supports developing Coga itself. Select by the task's need,
+then apply the attach-or-cite test below. A shipped instruction must resolve
+its required knowledge from the user set; a development link is optional
+navigation, never a dependency.
 
 For a job-owned contract or supporting file, name its persistent path and the
 sections to read in the task's `## Context`. Invoke a reusable skill by ref.

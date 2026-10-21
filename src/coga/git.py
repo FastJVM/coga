@@ -838,7 +838,7 @@ def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
     """`git merge-file --union` of the three copies, minus re-added lines.
 
     A union-merged publication never increases the occurrence count of a
-    line already on control (`current`); see `coga/internals/spool-merge`.
+    line already on control (`current`); see `coga-dev/internals/spool-merge`.
     Pass `other` through `_clean_bytes` first so all three copies compare in
     the blob form control stores.
     """

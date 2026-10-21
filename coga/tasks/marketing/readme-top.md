@@ -39,7 +39,7 @@ corrected, or removed from the README.
 
 Completed deliverable: the README is the current public presentation. The
 former marketing contexts were archived on 2026-10-15. For follow-up edits,
-read `coga/principles`, `README.md`, `docs/README.md`, and `coga/install` / `coga/first-task`
+read `coga-dev/principles`, `README.md`, `docs/README.md`, and `coga/install` / `coga/first-task`
 (`docs/contexts/coga/{install,first-task}/SKILL.md`, which replace the deleted
 `docs/getting-started.md`) before editing. Keep this scoped to the README
 opening and the links needed for its reader path, not a documentation rewrite.

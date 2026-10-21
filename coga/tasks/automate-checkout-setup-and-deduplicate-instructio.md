@@ -136,11 +136,11 @@ happened: checkout root, control revision, branch, ticket projection when
 present, return responsibility, and any manual/exempt reason.
 
 The two actual consumers are ordinary launch and the callable chat recipe
-below. Shared mechanics therefore belong in core under `coga/extension-model`.
+below. Shared mechanics therefore belong in core under `coga-dev/microkernel`.
 The recipe is a proposed reviewed addition to `src/coga/runner.py`'s fixed
 `RECIPES` table: it needs a repository-independent argv/output/exit contract
 and must agree with launch's private live-session witness and preparation
-receipt. Document that placement in `coga/extension-model`. Do not add a Typer
+receipt. Document that placement in `coga-dev/microkernel`. Do not add a Typer
 command head, alias, ticket plugin, or general preflight/phase registry.
 
 #### 3. Ticket branch transaction and recovery
@@ -214,8 +214,8 @@ The durable, per-worktree entry lets a later `bump` process use ordinary
 It records the verified snapshot, never a later fetched ticket over edited
 working bytes. Subsequent competing changes still fail the existing
 compare-and-swap, including a refetch after a rejected push. The provenance
-set and its new source belong in `coga/internals/git-regressions`; the strict
-recording behavior belongs in `coga/internals/state-publication/publish`.
+set and its new source belong in `coga-dev/internals/git-regressions`; the strict
+recording behavior belongs in `coga-dev/internals/state-publication/publish`.
 
 The receipt must make interruption boundaries testable: reserved but not
 created; created but not linked; linkage written but not published; published
@@ -410,8 +410,8 @@ Keep the complete start/work/handoff/end explanation in `dev/checkouts`, with
 its existing recovery, reconciliation and sandbox leaves owning their focused
 rules. Update `coga/launch`, `coga/workflows`, `coga/prompt-composition` and
 `coga/extension-model` for their portions of the contract,
-`coga/internals/state-publication/sweep` for the recipe's exit-sweep exclusion,
-`coga/internals/git-regressions` and `coga/internals/state-publication/publish`
+`coga/state-publication/sweep` for the recipe's exit-sweep exclusion,
+`coga-dev/internals/git-regressions` and `coga-dev/internals/state-publication/publish`
 for verified projection provenance, and `dev/checkouts/sandbox-clone` for the
 first-refusal host recovery and its different primary-HEAD guarantee.
 Neighbouring overviews
@@ -486,7 +486,7 @@ Run targeted Git, launch/script, compose, workflow/validation, runner, environme
 isolation and packaging/resource tests; then the full suite required by
 `code/implement`, `coga validate --json`, and relevant seeded-fixture validation.
 Use an absolute checkout `PYTHONPATH` and an interpreter with the test extras;
-record exact commands, counts and any Python-floor gap per `coga/testing`.
+record exact commands, counts and any Python-floor gap per `coga-dev/testing`.
 
 ### Out of scope
 
@@ -533,9 +533,9 @@ their behavior, and update their owners and packaged twins with implementation.
   `compose_prompt_report` measures a prompt without a launch; `_step_layers`
   selects either step skills or the live inline step body. A skill-backed
   step does not receive its workflow's inline prose. Links do not load topics.
-- `coga/testing` and `coga/packaging`
-  (`docs/contexts/coga/testing/SKILL.md` and
-  `docs/contexts/coga/packaging/SKILL.md`): read the verification and twin
+- `coga-dev/testing` and `coga-dev/packaging`
+  (`docs/contexts/coga-dev/testing/SKILL.md` and
+  `docs/contexts/coga-dev/packaging/SKILL.md`): read the verification and twin
   requirements before implementation. `src/coga/paths.py` plus
   `resolve_context_path` and `resolve_skill_path` select local or packaged
   resources, rather than composing both copies.
@@ -576,10 +576,10 @@ existing real-Git test approach rather than mocking away checkout behavior.
   `prepare_control_checkout` only prepares control and performs no publication.
   `stale_coga_task_rels` is a fail-open lifecycle warning, not a sufficient
   proof that overwriting a ticket would preserve all prose.
-- `coga/internals/git-regressions`
-  (`docs/contexts/coga/internals/git-regressions/SKILL.md`) and
-  `coga/internals/state-publication/publish`
-  (`docs/contexts/coga/internals/state-publication/publish/SKILL.md`) are cited
+- `coga-dev/internals/git-regressions`
+  (`docs/contexts/coga-dev/internals/git-regressions/SKILL.md`) and
+  `coga-dev/internals/state-publication/publish`
+  (`docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md`) are cited
   rather than attached: read "The provenance check", "`publish` and its
   wrappers", and "Best-effort versus strict". `src/coga/git.py` plus
   `_provenance` reads HEAD, merge base and `PUBLISHED_REF`; `_record_published`
@@ -620,8 +620,8 @@ existing real-Git test approach rather than mocking away checkout behavior.
   dispatch; extend that narrow exclusion for the new recipe. Its
   `_sweep_coga_state` also honors `git.state_sweep_withheld`, used by failed
   launch boundaries. These keep a guarded result from an unrelated publication.
-- `coga/internals/state-publication/sweep`
-  (`docs/contexts/coga/internals/state-publication/sweep/SKILL.md`) is cited
+- `coga/state-publication/sweep`
+  (`docs/contexts/coga/state-publication/sweep/SKILL.md`) is cited
   rather than attached: read "The end-of-command sweep" and "Strict publication
   on demand" for the exclusion and failure-recovery contract. Its code owners
   are `src/coga/cli.py`'s `_should_sweep_coga_state` and
@@ -708,7 +708,7 @@ the workflow branch.
 
 Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
 author, head/base OIDs, review depth, files, review, checks). Record only actual
-implementation and evidence, never placeholders; coga/internals/pr-publication/
+implementation and evidence, never placeholders; coga/pr-publication/
 preparation owns the fields and the publishing workflow the review rules.
 
 Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve
@@ -818,11 +818,11 @@ files:
   coga/skills/code/implement/SKILL.md: Confirm the prepared checkout, sandbox first-refusal pointer, keep judgment steps; drop branch/publish/restore recipes.
   coga/skills/code/open-pr/SKILL.md: Control-entry wording from the notice; recovery pointers to the manual leaf.
   coga/skills/code/self-qa/SKILL.md: Start on the reused branch per the notice; drop start-check/switch/restore recipe.
-  docs/contexts/coga/codebase/SKILL.md: Source map entries for checkout_policy.py and checkouts.py.
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map entries for checkout_policy.py and checkouts.py.
   docs/contexts/coga/extension-model/SKILL.md: Register prepare-checkout and its placement reason.
-  docs/contexts/coga/internals/git-regressions/SKILL.md: Projected control blob as a provenance source.
-  docs/contexts/coga/internals/state-publication/publish/SKILL.md: Strict linkage publication and strict baseline recording.
-  docs/contexts/coga/internals/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Projected control blob as a provenance source.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Strict linkage publication and strict baseline recording.
+  docs/contexts/coga/state-publication/sweep/SKILL.md: Exit-sweep exclusion for run prepare-checkout; preparation refusals withhold.
   docs/contexts/coga/launch/SKILL.md: Per-step branch preparation order and exclusions.
   docs/contexts/coga/prompt-composition/SKILL.md: Checkout notice layer.
   docs/contexts/coga/workflows/SKILL.md: Gates are exit-only; entry table lives in dev/checkouts.
@@ -840,11 +840,11 @@ files:
   src/coga/git.py: Strict record_projected_baseline sharing the published-ref writer.
   src/coga/launch.py: Chat receipt in the guard, per-step managed preparation, unmanaged notices.
   src/coga/resources/prompt.md: Base prompt defers to the runtime notice and dev/checkouts.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md: Packaged twin.
+  docs/contexts/coga-dev/codebase/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-regressions/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/publish/SKILL.md: Packaged twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/sweep/SKILL.md: Packaged twin.
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Packaged twin.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/sweep/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin.

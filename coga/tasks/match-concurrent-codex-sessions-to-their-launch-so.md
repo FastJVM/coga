@@ -6,10 +6,10 @@ contexts:
 - dev/code
 - dev/checkouts
 - coga/usage
-- coga/internals/activity-capture
+- coga-dev/internals/activity-capture
 - coga/prompt-composition
-- coga/packaging
-- coga/testing
+- coga-dev/packaging
+- coga-dev/testing
 workflow:
   name: code/with-review
   steps:
@@ -58,14 +58,14 @@ smaller scale. Diagnosis and numbers are under `## Evidence`.
    filters; when more than one candidate survives, keep those whose first user
    message contains the marker, and accept exactly one. Apply the same
    tie-break to the Claude resume fallback. Exact match only; no heuristic
-   (never guess, `coga/principles` #6).
+   (never guess, `coga-dev/principles` #6).
 3. **`usage_reason`.** New nullable record field carrying the parser's reason
    for `unknown` (it is already printed to stderr). Old records stay readable.
 4. **Provably empty sessions are zero, not unknown.** Only when the pinned
    Claude transcript exists but has no assistant usage: record `ok` with zero
    tokens. A missing Codex rollout stays `unknown` (absence is not proof).
 
-Update the owning contracts in the same PR: `coga/internals/activity-capture`
+Update the owning contracts in the same PR: `coga-dev/internals/activity-capture`
 (matching, `usage_reason`, empty-session rule), `coga/prompt-composition`
 (marker line), `coga/usage` if the unknown/floor wording changes, plus the
 packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`.

@@ -282,12 +282,12 @@ allowance for recurring work. Preserve the existing parked-command review
 status; this ticket does not settle every command head.
 
 Summarize and link that owner from `AGENTS.md`, `CLAUDE.md`,
-`src/coga/resources/prompt.md`, and `coga/codebase`. Update
+`src/coga/resources/prompt.md`, and `coga-dev/codebase`. Update
 `coga/recurring/templates` for the reporting helper and delivery mechanism;
 `coga/script-tickets`, `coga/recurring/dream/ticket.md`, `coga/recurring/scheduling`,
 `coga/notifications/producers`, and `coga/notifications/failures` for moved
-symbols and invocation changes; `coga/internals/state-publication` for the
-shared CLI/edge exit boundary; and `coga/packaging` only where the shipped
+symbols and invocation changes; `coga/state-publication` for the
+shared CLI/edge exit boundary; and `coga-dev/packaging` only where the shipped
 resource facts changed. Update the three recurring bodies and skills plus
 Dream's body and its two bootstrap skills. Check the dated
 `docs/design/cli-extension-audit.md`: retain its historical framing and link
@@ -427,21 +427,21 @@ read and update at the named sections, not specifications to duplicate here:
   “Classifier”, “One deterministic phase”, and “COGA_TASK_* contract”. Only
   the exact `ticket.py` filename participates in launch dispatch.
 - `coga/recurring/dream/ticket.md`: the ordered phases;
-  `coga/internals/pr-publication`
-  (`docs/contexts/coga/internals/pr-publication/SKILL.md`): “Checks, in order”
+  `coga/pr-publication`
+  (`docs/contexts/coga/pr-publication/SKILL.md`): “Checks, in order”
   and “Where the record lands”; `coga/recurring/autofix`
   (`docs/contexts/coga/recurring/autofix/SKILL.md`): “The loop” and
   “Operating it”. These constrain the survivors and explicit phase calls.
-- `coga/packaging` (`docs/contexts/coga/packaging/SKILL.md`): distribution,
-  twin mapping and wheel checks; `coga/testing`
-  (`docs/contexts/coga/testing/SKILL.md`): packaged script tests, absolute
+- `coga-dev/packaging` (`docs/contexts/coga-dev/packaging/SKILL.md`): distribution,
+  twin mapping and wheel checks; `coga-dev/testing`
+  (`docs/contexts/coga-dev/testing/SKILL.md`): packaged script tests, absolute
   `PYTHONPATH`, and the known validation baseline.
 - `coga/knowledge` (`docs/contexts/coga/knowledge/SKILL.md`): one owner per
-  fact and same-PR updates to references; `coga/project-stage`
-  (`docs/contexts/coga/project-stage/SKILL.md`): bounded migration only,
+  fact and same-PR updates to references; `coga-dev/project-stage`
+  (`docs/contexts/coga-dev/project-stage/SKILL.md`): bounded migration only,
   with no indefinite compatibility surfaces.
-- `coga/internals/state-publication`
-  (`docs/contexts/coga/internals/state-publication/SKILL.md`): “Invariants”,
+- `coga/state-publication`
+  (`docs/contexts/coga/state-publication/SKILL.md`): “Invariants”,
   “Best-effort versus strict” and “The end-of-command sweep”.
   `src/coga/cli.py`, `_sweep_coga_state`/`main`, currently supplies the exit
   publication missing from direct `runner.run_reported` calls; share that
@@ -530,7 +530,7 @@ remain future work.
    failed attachment. A later Dream bump is not the existing per-command
    boundary, and a standalone invocation may have no later command at all.
 
-   Evidence: `docs/contexts/coga/internals/state-publication/SKILL.md`,
+   Evidence: `docs/contexts/coga/state-publication/SKILL.md`,
    “Invariants” and “The end-of-command sweep”, defines control as the durable
    home and specifies the exit sweep; `tests/test_git.py`,
    `test_ordinary_run_still_sweeps_off_control`, explicitly tests

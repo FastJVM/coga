@@ -7,7 +7,7 @@ contexts:
   - coga/tickets
   - coga/lifecycle
   - coga/launch
-  - coga/principles
+  - coga-dev/principles
 workflow:
   name: code/design-then-implement
   steps:
@@ -70,7 +70,7 @@ it's clear when a hand-edit is and isn't checked.
 ## Context
 
 The validate enforcement contract and the "explicit-only surface / no implicit
-triggers" stance are in `coga/lifecycle` / `coga/tickets` and `coga/principles` (principle
+triggers" stance are in `coga/lifecycle` / `coga/tickets` and `coga-dev/principles` (principle
 6, fail-loud — `status`/`show`/`validate` are forbidden mutators, and implicit
 git hooks were deliberately removed). Respect that direction when choosing the
 mechanism. Validation logic lives in `src/relay/commands/validate.py`; the

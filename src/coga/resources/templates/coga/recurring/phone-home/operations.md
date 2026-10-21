@@ -47,7 +47,7 @@ Rotation follows [Multiply's key procedure](https://github.com/FastJVM/multiply/
 update the vault source and the edge module constant and release. Adopted shims
 receive it on the next process after wheel upgrade; legacy copies and local
 forks need reviewed reconciliation. Source inspection and adoption commands
-are in [coga/packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/packaging/SKILL.md). Resetting the shared key
+are in [coga/edge-code](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/edge-code/SKILL.md). Resetting the shared key
 breaks already-shipped Multiply builds too. Moving Coga to a dedicated project
 requires a new constant and Coga release, not a config option. Follow-up in the
 Multiply repo: its expected event catalog should mention `coga_weekly_snapshot`.

@@ -33,8 +33,8 @@ passes.
   `src/coga/resources/templates/coga/recurring/phone-home/operations.md`.
   `tests/test_packaging.py` requires byte-identity.
 - Why hatchling is not a runtime dependency: `pyproject.toml`
-  `[project.optional-dependencies] test` comment, and `coga/testing`
-  (`docs/contexts/coga/testing/SKILL.md`), which already notes the
+  `[project.optional-dependencies] test` comment, and `coga-dev/testing`
+  (`docs/contexts/coga-dev/testing/SKILL.md`), which already notes the
   `--no-build-isolation` / `[test]` relationship for the packaging test. Link
   or mirror that phrasing rather than restating it differently.
 - Docs-only. No telemetry code, no change to `pyproject.toml`.

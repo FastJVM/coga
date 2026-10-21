@@ -6,8 +6,8 @@ agent: claude
 contexts:
 - coga/workflows
 - coga/tickets
-- coga/codebase
-- coga/packaging
+- coga-dev/codebase
+- coga-dev/packaging
 workflow:
   name: code/design-then-implement
   steps:
@@ -74,8 +74,8 @@ This touches a *reserved frontmatter key*, so it is not a simple find/replace:
   copy under `src/relay/resources/templates/relay-os/workflows/` — keep both
   in sync.
 - **Shipped contexts/docs**: `coga/workflows`, `coga/tickets`,
-  `coga/architecture`, `coga/principles`, `coga/current-direction`,
-  `coga/codebase`, `product/vision`, `marketing/strategy`, `README.md`.
+  `coga/architecture`, `coga-dev/principles`, `coga-dev/current-direction`,
+  `coga-dev/codebase`, `product/vision`, `marketing/strategy`, `README.md`.
 - **Migration of existing tickets**: every live ticket carries a frozen
   `workflow:` block in frontmatter. Decide on backward compatibility — accept
   the old key as a deprecated alias for one release, or write a one-shot

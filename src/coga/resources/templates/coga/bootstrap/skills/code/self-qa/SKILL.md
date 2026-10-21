@@ -29,7 +29,7 @@ this step just makes sure the diff they see is already clean.
 2. **Review the diff.** As Codex, review the branch directly in this session:
    inspect the diff, affected code and contracts, and look for regressions.
    Do not start another Codex CLI through your shell tools; see
-   `coga/testing`, "Restricted sandboxes". Record this as direct review,
+   `coga/sandboxes`, "Restricted sandboxes". Record this as direct review,
    with the actual reviewer identity and whether it is self-review.
 
    As Claude, invoke the `/code-review` slash command at
@@ -46,7 +46,7 @@ this step just makes sure the diff they see is already clean.
    actual substance. Record in the `## Self-QA` note which form you used, so
    the human reviewer knows what they are inheriting. A direct review must
    still examine the change; neither a tool startup failure nor a green suite
-   is a completed review. `coga/testing` owns the verification environment and
+   is a completed review. `coga/sandboxes` owns the verification environment and
    the host-shell handoff if the human explicitly requires the CLI reviewer.
 
    A green suite is not this step. Two recent tickets shipped a full-green
@@ -94,7 +94,7 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
-   After all fixes and any rebase, read [coga/internals/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/preparation/SKILL.md),
+   After all fixes and any rebase, read [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md),
    “Presentation and review-depth rubric” and “Preparation record”, and refresh
    `## PR` in the live blackboard with the handoff. Preserve actual authorship;
    record the actual reviewing agent/tool, whether review was independent or
@@ -154,5 +154,5 @@ this step just makes sure the diff they see is already clean.
   and note the disagreement on the blackboard.
 - Commit edits to recurring templates and `ticket.py` under
   `coga/recurring/` *before* running a `coga` command on the feature branch.
-  See [coga/internals/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/state-publication/SKILL.md),
+  See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md),
   "Pre-review state publication hazard".

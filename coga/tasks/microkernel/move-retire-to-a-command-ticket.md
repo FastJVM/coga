@@ -31,17 +31,17 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 contexts:
-- coga/principles
-- coga/extension-model
+- coga-dev/principles
+- coga-dev/microkernel
 - coga/script-tickets
 - coga/launch
 - dev/checkout-cleanup
 - dev/checkout-cleanup/proofs
 - coga/recurring/scheduling
 - coga/cli
-- coga/codebase
-- coga/testing
-- coga/packaging
+- coga-dev/codebase
+- coga-dev/testing
+- coga-dev/packaging
 agent: claude
 ---
 
@@ -49,7 +49,7 @@ agent: claude
 
 `coga retire` is a single-consumer Typer head in `src/coga/commands/retire.py`
 with no `runner.RECIPES` entry and no co-versioning proof, so it sits in the
-"Open command placements" table of `coga/extension-model`. Move it to the
+"Open command placements" table of `coga-dev/microkernel`. Move it to the
 edge as a stateless script command ticket, `bootstrap/retire`, reached by a
 default alias, without changing what it does. Then let each of the three
 cleanup tickets (`bootstrap/retire`, `recurring/autoclose-merged`,
@@ -137,7 +137,7 @@ Part 2 — retire as a command ticket
       `Retire: checkout cleanup skipped ...` there.
 - [ ] A packaged `bootstrap/retire/ticket.md` exists with no `status:` or
       `workflow:` (a stateless command ticket), plus the body in Part 3. No
-      live `coga/bootstrap/retire/` copy is created (`coga/packaging`: don't
+      live `coga/bootstrap/retire/` copy is created (`coga-dev/packaging`: don't
       mirror); this repo resolves the packaged one.
 - [ ] The wheel ships it: add `bootstrap/retire/ticket.md` and `ticket.py`
       to `tests/test_packaging.py::EXPECTED_BOOTSTRAP_RESOURCES`.
@@ -147,7 +147,7 @@ Part 2 — retire as a command ticket
       launch test patches `subprocess.run` in that module instead of
       `launch`. Add end-to-end cases through the real alias
       (`sys.executable -m coga.cli retire <slug> --no-launch` with an
-      absolute `PYTHONPATH`, per `coga/testing`): a done ticket is
+      absolute `PYTHONPATH`, per `coga-dev/testing`): a done ticket is
       deleted, `--no-launch` creates `retire-<slug>`, and an unknown slug
       exits 2 with its message.
 - [ ] Shared core stays and keeps serving retire, autoclose and branch-sweep:
@@ -197,11 +197,11 @@ Part 3 — descriptions own their job
       row: `delete` stays → `dev/checkout-cleanup`, and
       `retire` → `launch bootstrap/retire --` points at
       `bootstrap/retire/ticket.md`, in the alias-row style;
-      `coga/extension-model` drops `retire` from the Open command placements
+      `coga-dev/microkernel` drops `retire` from the Open command placements
       row (it becomes `megalaunch`, `slack`), counts ten default aliases and
       names `retire` in the list, and cites `bootstrap/retire` as a shipped
       script command-ticket example beside `resolve-conflicts` /
-      `address-pr-comments`; `coga/codebase` source map if it names
+      `address-pr-comments`; `coga-dev/codebase` source map if it names
       `commands/retire.py`; `docs/archive/cli-extension-audit.md` row for
       `retire` is updated to "moved to `bootstrap/retire` (alias)";
       `microkernel/work-orchestration-commands-to-tickets` ticks retire's
@@ -535,7 +535,7 @@ What changed, by owner disposition above:
 Adjacent, not fixed here:
 - `tests/test_compose.py::test_coga_repo_instructions_carry_the_minimal_core_boundary[CLAUDE.md]`
   fails on main too: the repo has no root `CLAUDE.md` (by design per
-  `coga/packaging`), so the parametrization is stale. No follow-up ticket
+  `coga-dev/packaging`), so the parametrization is stale. No follow-up ticket
   found.
 - `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
   fails under a fresh 3.11 venv with `No module named 'yaml'`: the harness

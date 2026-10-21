@@ -3,9 +3,10 @@ title: Pin control inside the state lock during checkout preparation
 status: in_progress
 owner: nicktoper
 contexts:
-- coga/internals/git-refresh
+- coga-dev/internals/git-refresh
 - dev/checkouts/launch-boundary
-- coga/internals/state-publication
+- coga/state-publication
+- coga-dev/internals/state-publication
 workflow:
   name: code/with-review
   steps:
@@ -41,7 +42,7 @@ agent: claude
 - [x] Genuine refusals are unchanged: a local hand commit of Coga state not on control still refuses `unpublished`, and a foreign commit still refuses `foreign`.
 - [x] Regression test in `tests/test_git.py` (real Git, `git_repo` fixture): pin control, then publish a log line from the same checkout (or update-ref local control to a new remote commit) before `_plan_preparation` runs, and assert that preparation succeeds and lands on the new commit. A hook or monkeypatch on `_fetch_control`/`state_lock` entry may inject the interleaving deterministically.
 - [x] Audit the other pin-then-lock readers of local control (`fast_forward_control` callers in `publish` and `refresh`, `git.py:467-560`) for the same window, and fix or explicitly rule out each one on the blackboard.
-- [x] If behavior or wording changes, update `docs/contexts/dev/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and/or `docs/contexts/coga/internals/git-refresh/SKILL.md`, plus their packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`; `tests/test_packaging.py` passes.
+- [x] If behavior or wording changes, update `docs/contexts/dev/checkouts/launch-boundary/SKILL.md` step 2 ("Pins control") and/or `docs/contexts/coga-dev/internals/git-refresh/SKILL.md`, plus their packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/`; `tests/test_packaging.py` passes.
 
 ## Context
 

@@ -42,6 +42,6 @@ record directly.
 - **Changing the stored ticket format**: a branch that rewrites committed
   `coga/tasks/**` with the code that reads them follows the stored-ticket
   schema conversion rules in
-  [coga/internals/git-regressions](../../coga/internals/git-regressions/SKILL.md#shipping-a-stored-ticket-schema-conversion).
+  [coga-dev/internals/git-regressions](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md#shipping-a-stored-ticket-schema-conversion).
 - **Working on Coga's own source**: see
-  [coga/codebase](../../coga/codebase/SKILL.md).
+  [coga-dev/codebase](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md).

@@ -18,9 +18,9 @@ API token is created, stored, or pasted anywhere.
   `pypa/gh-action-pypi-publish` in environment `testpypi` or `pypi`, with
   only `contents: read` and `id-token: write`.
 - It is the only workflow and runs no tests. The local suite is the release
-  gate; see [coga/testing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/testing/SKILL.md). Because it builds from a
+  gate; see [test receipts](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md). Because it builds from a
   pristine checkout it can catch the wheel collision described in
-  [coga/packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/packaging/SKILL.md), but only at release time.
+  [wheel packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/packaging/SKILL.md), but only at release time.
 
 ## One-time setup per index
 
@@ -69,7 +69,7 @@ no-cost way to catch a packaging problem.
    no tests, so this is the only behavioral check before an immutable upload:
    - the full suite against that checkout,
      `PYTHONPATH=<checkout>/src python -m pytest`, with its count recorded
-     ([coga/testing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/testing/SKILL.md));
+     ([test receipts](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md));
    - build both distributions and `twine check dist/*`;
    - install the built wheel into a fresh Python 3.11 venv (the
      `requires-python` floor), then run `coga --version`,

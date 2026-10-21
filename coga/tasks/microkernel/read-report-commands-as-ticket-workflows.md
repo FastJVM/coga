@@ -4,16 +4,16 @@ status: draft
 owner: nicktoper
 agent: codex
 contexts:
-  - coga/principles
+  - coga-dev/principles
   - coga/tickets
   - coga/lifecycle
   - coga/usage
   - coga/recurring
-  - coga/codebase
-  - coga/testing
-  - coga/current-direction
-  - coga/extension-model
-  - coga/project-stage
+  - coga-dev/codebase
+  - coga-dev/testing
+  - coga-dev/current-direction
+  - coga-dev/microkernel
+  - coga-dev/project-stage
   - coga/cli
   - dev/checkouts
 workflow: code/design-then-implement
@@ -33,7 +33,7 @@ Preserve quick read ergonomics and machine-readable output (`--json`).
 
 - [ ] Each head is classified as edge command, read-view wrapper with a
       written co-versioning proof, or alias sugar, and recorded in
-      `coga/extension-model` (both copies).
+      the local-only `coga-dev/microkernel` topic.
 - [ ] Reusable render/check/report logic moves out of command files only
       where an existing edge shape supports it without hidden transient
       parameters.

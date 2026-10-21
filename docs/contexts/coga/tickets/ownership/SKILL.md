@@ -21,8 +21,13 @@ supervised session. This preserves the gate so its new owner can still bump
 it. Coga has no cross-checkout live-session registry; the flag is an explicit
 human attestation, not an automatic liveness check. A supervised session cannot
 reassign its own ticket, and an outstanding `launch_generation` is refused;
-stop the session and follow [claim recovery](../../internals/claim-recovery/SKILL.md)
-first. Reassignment never clears or invalidates a launch claim.
+stop the session first. A plain or `released:` claim recovers through ordinary
+`coga launch <slug>`; finish or pause that recovered session before retrying
+reassignment. A `pending:` claim has no automatic recovery command: the human
+must reconcile local and control evidence before changing it. Never clear a
+claim merely to force reassignment. Optional
+[claim implementation details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/claim-recovery/SKILL.md)
+describe that retained evidence.
 
 The package-private transaction is why this command lives in core: it holds
 `git.state_lock` across the read, prospective validation, local byte comparison,
@@ -32,7 +37,7 @@ only the command's own ticket bytes and retracts its audit; an uncertain push
 keeps the write for reconciliation. Both failures exit 75 to suppress the generic
 sweep. Refresh/reconcile control before retrying. With Git disabled or unavailable
 through a documented soft-skip, the local write remains the result
-([state publication](../../internals/state-publication/publish/SKILL.md)).
+([state publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md)).
 
 Ticket-to-ticket relationships use the dependency and supersession conventions
 in [coga/lifecycle](../../lifecycle/SKILL.md), rather than new `dependencies:` or

@@ -17,7 +17,7 @@ command's behavior. Attach that topic when a task depends on it.
 | `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
 | `secret get` | [coga/secrets](../secrets/SKILL.md) |
-| `validate` | [coga/testing](../testing/SKILL.md), [coga/first-task](../first-task/SKILL.md) |
+| `validate` | [coga/first-task](../first-task/SKILL.md) |
 | `--version` | [coga/install](../install/SKILL.md) |
 
 ## Tickets and state
@@ -29,7 +29,7 @@ command's behavior. Attach that topic when a task depends on it.
 | `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md) |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
-| `open-pr` → `run open-pr` | [coga/internals/pr-publication](../internals/pr-publication/SKILL.md) |
+| `open-pr` → `run open-pr` | [coga/pr-publication](../pr-publication/SKILL.md) |
 | `resolve-conflicts`, `address-pr-comments` → `launch bootstrap/...` | [dev/checkouts](../../dev/checkouts/SKILL.md) |
 
 ## Running work

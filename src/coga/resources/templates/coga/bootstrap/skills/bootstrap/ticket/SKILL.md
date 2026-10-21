@@ -150,11 +150,17 @@ token and precision cost.
 
 Rules:
 
+- Select the audience before choosing refs. The user set (`coga/`, `dev/`)
+  supports configuring, launching, authoring, recovering, and understanding
+  refusals in any adopting repo. The Coga-dev set is local to Coga's own
+  repository and explains building, testing, releasing, or steering Coga;
+  it is not a bundled fallback. Anything required by a shipped surface must
+  be in the user set. The criterion and distribution are owned by
+  `coga/context-layout` ("Context audiences").
 - Attach only context refs whose full body the future launched agent needs to
   do this task correctly.
 - Do not attach broad orientation contexts by default. Use contexts like
-  `coga/architecture`, `coga/current-direction`, or
-  `coga/project-stage` only when the task directly depends on that knowledge.
+  `coga/architecture` only when the task directly depends on that knowledge.
 - If the task needs one fact from a broad context, copy that specific fact into
   the ticket's `## Context` body instead of attaching the whole context.
 - If the same narrow fact recurs across tickets, create or propose a smaller

@@ -66,11 +66,11 @@ launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
   attaches to every period task: parent-blackboard state versus per-run scratch.
 - [Dream template](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md) — the built-in janitor template and its fixed
   phases; REM for repo-specific maintenance.
-- Internals: [recurring-control](../internals/recurring-control/SKILL.md)
+- Internals: [recurring-control](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-control/SKILL.md)
   (control-branch requirement, relay, owner authorization),
-  [recurring-temp-worktrees](../internals/recurring-temp-worktrees/SKILL.md)
+  [recurring-temp-worktrees](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)
   (`--all` off-branch service), and
-  [recurring-admission](../internals/recurring-admission/SKILL.md) (period
+  [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md) (period
   generations, leases, ledger freshness).
 
 Attaching `coga/recurring` composes only this overview; attach the child you need.

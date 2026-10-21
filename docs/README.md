@@ -1,17 +1,28 @@
 # Coga documentation
 
 One library for people and agents. Every reusable topic is a file under
-[`contexts/`](contexts/): you read it here, and a ticket attaches the same
+[`contexts/`](contexts): you read it here, and a ticket attaches the same
 file by ref (`contexts: [coga/launch]`) to put it in an agent's prompt. A
 link never loads anything — ticket contexts include exactly the refs listed.
 How a fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
+The library has two audiences. **User topics** under `coga/` and `dev/`
+are needed to configure, launch, author, recover, or understand refusals in
+any repo using Coga; they ship as bootstrap fallbacks. **Coga-dev topics**
+under `coga-dev/` explain building, testing, releasing, or steering Coga
+itself and stay local. Anything a shipped surface requires must be user
+knowledge. [Context layout](contexts/coga/context-layout/SKILL.md#context-audiences)
+owns the criterion; choose the set for the task before attaching topics.
+
+The [next-release migration note](release-notes/context-audiences.md) lists
+renamed refs and topics removed from the package.
+
 Pages outside `contexts/` are for reading, never composed into prompts:
 [`archive/`](#proposals-and-history) holds history, including dated
-measurements and comparisons in [`archive/evidence/`](archive/evidence/)
-and unimplemented proposals in [`archive/design/`](archive/design/).
+measurements and comparisons in [`archive/evidence/`](archive/evidence)
+and unimplemented proposals in [`archive/design/`](archive/design).
 Agent access to archives requires an explicit human request; see
-[the archive access rule](contexts/coga/knowledge/SKILL.md#archive-access).
+[the archive access rule](contexts/coga-dev/archive-access/SKILL.md#archive-access).
 
 ## Start
 
@@ -32,7 +43,6 @@ New tickets include a field guide from the
   (a durable fact with one owning file), and a
   [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
   work).
-- [Design principles](contexts/coga/principles/SKILL.md) — philosophy and design principles.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
 - The work unit: [tickets](contexts/coga/tickets/SKILL.md)
@@ -73,44 +83,38 @@ New tickets include a field guide from the
   [failures](contexts/coga/notifications/failures/SKILL.md)),
   [coga-important](contexts/coga/important/SKILL.md),
   [usage records](contexts/coga/usage/SKILL.md),
-  [reusable patterns](contexts/coga/patterns/SKILL.md).
+  [state publication](contexts/coga/state-publication/SKILL.md).
 
-Internals — exact guarantees, for changing or debugging Coga:
-[launch internals index](contexts/coga/launch-internals/SKILL.md)
-([agent spawn](contexts/coga/internals/agent-spawn/SKILL.md),
-[human assist](contexts/coga/internals/human-assist/SKILL.md),
-[assist publication](contexts/coga/internals/assist-publication/SKILL.md),
-[launch claims](contexts/coga/internals/launch-claims/SKILL.md),
-[claim recovery](contexts/coga/internals/claim-recovery/SKILL.md),
-[PR publication](contexts/coga/internals/pr-publication/SKILL.md):
-[preparation](contexts/coga/internals/pr-publication/preparation/SKILL.md),
-[existing PR](contexts/coga/internals/pr-publication/existing-pr/SKILL.md));
-recurring ([admission](contexts/coga/internals/recurring-admission/SKILL.md),
-[control](contexts/coga/internals/recurring-control/SKILL.md),
-[temporary worktrees](contexts/coga/internals/recurring-temp-worktrees/SKILL.md));
-Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
-[publish](contexts/coga/internals/state-publication/publish/SKILL.md),
-[sweep](contexts/coga/internals/state-publication/sweep/SKILL.md),
-[authoring](contexts/coga/internals/state-publication/authoring/SKILL.md);
-[regressions](contexts/coga/internals/git-regressions/SKILL.md),
-[refresh](contexts/coga/internals/git-refresh/SKILL.md),
-[union merges](contexts/coga/internals/spool-merge/SKILL.md));
-[activity capture](contexts/coga/internals/activity-capture/SKILL.md).
+- Publication: [PRs](contexts/coga/pr-publication/SKILL.md)
+  ([preparation](contexts/coga/pr-publication/preparation/SKILL.md),
+  [existing PRs](contexts/coga/pr-publication/existing-pr/SKILL.md));
+  [human assists](contexts/coga/human-assist/SKILL.md);
+  [state authoring](contexts/coga/state-publication/authoring/SKILL.md) and
+  [sweep recovery](contexts/coga/state-publication/sweep/SKILL.md).
+- Extending and recovering a repo: [extension choices](contexts/coga/extension-model/SKILL.md),
+  [edge code and forks](contexts/coga/edge-code/SKILL.md),
+  [agent sandboxes](contexts/coga/sandboxes/SKILL.md).
 
-## Develop
+## Develop Coga
 
-- [Codebase](contexts/coga/codebase/SKILL.md) source map and
-  [gotchas](contexts/coga/codebase/gotchas/SKILL.md).
-- [Extension model](contexts/coga/extension-model/SKILL.md) — core versus
-  edge, aliases, recipes. [Skill management](contexts/coga/skill-management/SKILL.md).
+This is the local-only Coga-dev set.
+
+- [Design principles](contexts/coga-dev/principles/SKILL.md),
+  [patterns](contexts/coga-dev/patterns/SKILL.md), and the
+  [microkernel boundary](contexts/coga-dev/microkernel/SKILL.md).
+- [Internals index](contexts/coga-dev/internals/SKILL.md) for concurrency,
+  publication transactions, recurring admission, and activity capture.
+
+- [Codebase](contexts/coga-dev/codebase/SKILL.md) source map and
+  [gotchas](contexts/coga-dev/codebase/gotchas/SKILL.md).
 - [Weekly telemetry](../coga/recurring/phone-home/ticket.md) (opt-out) and its
   [operator runbook](../coga/recurring/phone-home/operations.md) for release
   verification, read-back and deletion.
-- [Testing](contexts/coga/testing/SKILL.md) and the clean-install skills
+- [Testing](contexts/coga-dev/testing/SKILL.md) and the clean-install skills
   ([Linux](../coga/skills/coga/testing/clean-install/SKILL.md),
   [macOS on AWS](../coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
   [Windows on AWS](../coga/skills/coga/testing/clean-install/windows-aws/SKILL.md)),
-  [packaging](contexts/coga/packaging/SKILL.md),
+  [packaging](contexts/coga-dev/packaging/SKILL.md),
   [release skill](../coga/skills/coga/releasing/SKILL.md).
 - Code-task conventions: [overview](contexts/dev/code/SKILL.md),
   [checkouts](contexts/dev/checkouts/SKILL.md)
@@ -122,12 +126,12 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md):
   [terminal owners](contexts/dev/checkout-cleanup/terminal-owners/SKILL.md),
   [branch sweep](contexts/dev/checkout-cleanup/branch-sweep/SKILL.md)).
 - This repo's posture (dated, local to this repo):
-  [current direction](contexts/coga/current-direction/SKILL.md),
-  [project stage](contexts/coga/project-stage/SKILL.md).
+  [current direction](contexts/coga-dev/current-direction/SKILL.md),
+  [project stage](contexts/coga-dev/project-stage/SKILL.md).
 
 ## Product and positioning
 
-- [Design principles](contexts/coga/principles/SKILL.md) — philosophy and design principles.
+- [Design principles](contexts/coga-dev/principles/SKILL.md) — philosophy and design principles.
 - [README](../README.md) — current public presentation.
 
 ## Proposals and history

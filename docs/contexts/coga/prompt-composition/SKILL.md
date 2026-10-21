@@ -60,7 +60,7 @@ not a layer: `--prompt-report` and `compose_prompt` never show it. It sits at
 the end so everything before it stays a byte-stable prompt-cache prefix across
 launches; a unique line near the top would break that. Usage capture uses it
 to tell a launch's transcript from a concurrent one in the same cwd
-([activity capture](../internals/activity-capture/SKILL.md)). The
+([activity capture](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md)). The
 oversized-prompt pointer (Delivery, below) repeats the line so it still
 reaches the transcript.
 
@@ -81,7 +81,7 @@ reaches the transcript.
   Override is **replace-only**: there is no append or patch mode, so an
   overridden file stops receiving upstream edits until someone merges them by
   hand. `templates/` is not part of this rule; it has its own local-override
-  paths ([coga/packaging](../packaging/SKILL.md)). An override that exists but
+  paths ([coga/context-layout](../context-layout/SKILL.md)). An override that exists but
   cannot be read, or a `retire.md` or `ticket.md` override that is not a valid
   template,
   raises `RepoResourceUnreadable` naming the repo file, never a silent
@@ -163,7 +163,7 @@ launch passes a short pointer telling the agent to read the prompt file,
 which stays on disk for the session; content is unchanged. Such a size usually
 means context bloat. The session's done signal is a side-channel sentinel
 file, so nothing in the prompt text can end a session and the prompt is
-passed verbatim ([coga/internals/agent-spawn](../internals/agent-spawn/SKILL.md)).
+passed verbatim ([coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md)).
 
 The `ticket.md` resource is the ordinary creation body template, not a prompt
 layer. Its field guide is stored under each new ticket’s `## Context` and

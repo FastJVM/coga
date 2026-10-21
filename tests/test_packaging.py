@@ -17,8 +17,10 @@ if TYPE_CHECKING:
 
 import coga.resources
 from coga.paths import (
+    bootstrap_context_path,
     bootstrap_workflow_path,
     packaged_template_path,
+    resolve_context_path,
     resolve_workflow_path,
 )
 from coga.ticket import Ticket
@@ -68,7 +70,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
     "coga/resources/templates/coga/recurring/address-pr-comments/ticket.md",
@@ -362,55 +364,37 @@ def test_intentional_divergences_stay_real_and_explained() -> None:
 #   init-seeded — `templates/coga/contexts/<path>`, which `coga init` copies
 #     into the repo's contexts directory once (`copy_fresh_templates`).
 #
-# Every other canonical topic is local to this repo and must be named, with its
-# reason, in `LOCAL_ONLY_CONTEXT_REFS`, so that set cannot become a catch-all
-# for a topic someone forgot to ship.
+# The whole Coga-dev audience is local-only. Namespace membership expresses
+# that policy without repeating the same reason for every development topic.
 REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
     {
         "coga/agents",
         "coga/architecture",
         "coga/blackboard",
         "coga/cli",
-        "coga/codebase",
-        "coga/codebase/gotchas",
         "coga/configuration",
         "coga/context-layout",
+        "coga/edge-code",
         "coga/extension-model",
         "coga/first-task",
         "coga/important",
         "coga/init",
         "coga/install",
-        "coga/internals/activity-capture",
-        "coga/internals/agent-spawn",
-        "coga/internals/assist-publication",
-        "coga/internals/claim-recovery",
-        "coga/internals/git-refresh",
-        "coga/internals/git-regressions",
-        "coga/internals/human-assist",
-        "coga/internals/launch-claims",
-        "coga/internals/pr-publication",
-        "coga/internals/pr-publication/existing-pr",
-        "coga/internals/pr-publication/preparation",
-        "coga/internals/recurring-admission",
-        "coga/internals/recurring-control",
-        "coga/internals/recurring-temp-worktrees",
-        "coga/internals/spool-merge",
-        "coga/internals/state-publication",
-        "coga/internals/state-publication/authoring",
-        "coga/internals/state-publication/publish",
-        "coga/internals/state-publication/sweep",
+        "coga/human-assist",
+        "coga/pr-publication",
+        "coga/pr-publication/existing-pr",
+        "coga/pr-publication/preparation",
+        "coga/state-publication",
+        "coga/state-publication/authoring",
+        "coga/state-publication/sweep",
         "coga/knowledge",
         "coga/launch",
-        "coga/launch-internals",
         "coga/lifecycle",
         "coga/megalaunch",
         "coga/notifications",
         "coga/notifications/failures",
         "coga/notifications/producers",
-        "coga/packaging",
-        "coga/patterns",
         "coga/period-task",
-        "coga/principles",
         "coga/prompt-composition",
         "coga/recurring",
         "coga/recurring/autofix",
@@ -420,12 +404,12 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/recurring/scheduling/inactivity",
         "coga/recurring/scheduling/ledger",
         "coga/recurring/templates",
+        "coga/sandboxes",
         "coga/script-tickets",
         "coga/secrets",
         "coga/session-conduct",
         "coga/skill-management",
         "coga/sync",
-        "coga/testing",
         "coga/tickets",
         "coga/tickets/authoring",
         "coga/tickets/discovery",
@@ -452,13 +436,16 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
 # that keep it out of the context catalogue. No topic is init-seeded.
 REQUIRED_INIT_CONTEXT_FILES = frozenset({".gitignore", "_template/SKILL.md"})
 
-LOCAL_ONLY_CONTEXT_REFS = {
-    "coga/current-direction": "Dated posture of this repo's own development.",
-    "coga/project-stage": "Dated stage of this repo's own development.",
+LOCAL_ONLY_CONTEXT_NAMESPACES = {
+    "coga-dev/": "Developing Coga itself; never a dependency of shipped instructions.",
 }
 
 BOOTSTRAP_CONTEXTS = Path("bootstrap/contexts")
 SEEDED_CONTEXTS = Path("contexts")
+
+
+def _local_only_context(ref: str) -> bool:
+    return any(ref.startswith(namespace) for namespace in LOCAL_ONLY_CONTEXT_NAMESPACES)
 
 
 def _canonical_context_refs() -> frozenset[str]:
@@ -485,6 +472,8 @@ def _context_distribution_problems() -> list[str]:
     problems = []
     for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
         for relative in _packaged_template_files(subdir):
+            if _local_only_context(relative.relative_to(subdir).as_posix()):
+                problems.append(f"local-only context file {relative.as_posix()!r} is packaged")
             for canonical in _live_counterparts(relative):
                 if not (REPO_ROOT / canonical).is_file():
                     problems.append(
@@ -495,6 +484,9 @@ def _context_distribution_problems() -> list[str]:
     canonical_refs = _canonical_context_refs()
     bootstrap_refs = _packaged_context_refs(BOOTSTRAP_CONTEXTS)
     seeded_refs = _packaged_context_refs(SEEDED_CONTEXTS)
+    for ref in sorted(REQUIRED_BOOTSTRAP_CONTEXT_REFS):
+        if _local_only_context(ref):
+            problems.append(f"local-only context {ref!r} is required as bootstrap")
     for ref in sorted(REQUIRED_BOOTSTRAP_CONTEXT_REFS - bootstrap_refs):
         problems.append(f"required bootstrap context {ref!r} is not packaged")
     for ref in sorted(REQUIRED_BOOTSTRAP_CONTEXT_REFS - canonical_refs):
@@ -502,17 +494,12 @@ def _context_distribution_problems() -> list[str]:
     for name in sorted(REQUIRED_INIT_CONTEXT_FILES):
         if not (REPO_ROOT / PACKAGED_ROOT / SEEDED_CONTEXTS / name).is_file():
             problems.append(f"required init-seeded context file {name!r} is missing")
-    for ref in sorted(set(LOCAL_ONLY_CONTEXT_REFS) - canonical_refs):
-        problems.append(f"local-only context {ref!r} no longer exists")
-    for ref in sorted(set(LOCAL_ONLY_CONTEXT_REFS) & (bootstrap_refs | seeded_refs)):
-        problems.append(f"local-only context {ref!r} is also packaged")
-    unclassified = canonical_refs - bootstrap_refs - seeded_refs - set(
-        LOCAL_ONLY_CONTEXT_REFS
-    )
+    local_only_refs = {ref for ref in canonical_refs if _local_only_context(ref)}
+    unclassified = canonical_refs - bootstrap_refs - seeded_refs - local_only_refs
     for ref in sorted(unclassified):
         problems.append(
-            f"canonical context {ref!r} is neither packaged nor listed in "
-            "LOCAL_ONLY_CONTEXT_REFS"
+            f"canonical context {ref!r} is neither packaged nor under "
+            "LOCAL_ONLY_CONTEXT_NAMESPACES"
         )
     for ref in sorted(bootstrap_refs - REQUIRED_BOOTSTRAP_CONTEXT_REFS):
         problems.append(
@@ -524,6 +511,24 @@ def _context_distribution_problems() -> list[str]:
 
 def test_context_distribution_is_complete() -> None:
     assert _context_distribution_problems() == []
+
+
+def test_adopting_repo_resolves_only_user_fallbacks_and_can_author_local_topics(
+    tmp_path: Path,
+) -> None:
+    contexts = tmp_path / "contexts"
+    contexts.mkdir()
+    cfg = SimpleNamespace(repo_root=tmp_path, contexts_root=contexts)
+    for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
+        assert resolve_context_path(cfg, ref) == bootstrap_context_path(cfg, ref)
+    for ref in _canonical_context_refs():
+        if _local_only_context(ref):
+            assert resolve_context_path(cfg, ref) is None
+
+    local = contexts / "coga-dev/testing/SKILL.md"
+    local.parent.mkdir(parents=True)
+    local.write_text("repo-owned development guidance\n")
+    assert resolve_context_path(cfg, "coga-dev/testing") == local
 
 
 def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
@@ -548,10 +553,10 @@ def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
             path = base / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"{name}\n")
-    for ref in LOCAL_ONLY_CONTEXT_REFS:
-        path = canonical / ref / "SKILL.md"
+    for namespace in LOCAL_ONLY_CONTEXT_NAMESPACES:
+        path = canonical / namespace / "example/SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"{ref}\n")
+        path.write_text("local-only example\n")
     return canonical
 
 
@@ -611,9 +616,171 @@ def test_context_distribution_reports_an_unclassified_local_topic(
     stray.write_text("new\n")
 
     assert _context_distribution_problems() == [
-        "canonical context 'team/new-topic' is neither packaged nor listed in "
-        "LOCAL_ONLY_CONTEXT_REFS"
+        "canonical context 'team/new-topic' is neither packaged nor under "
+        "LOCAL_ONLY_CONTEXT_NAMESPACES"
     ]
+
+
+def test_context_distribution_accepts_new_development_topics_without_exceptions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
+    topic = canonical / "coga-dev/internals/new-topic/SKILL.md"
+    topic.parent.mkdir(parents=True)
+    topic.write_text("development details\n")
+
+    assert _context_distribution_problems() == []
+
+
+def test_context_distribution_rejects_packaged_development_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
+    for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
+        for name in ("SKILL.md", "notes.md"):
+            relative = Path("coga-dev/example") / name
+            (canonical / relative).write_text("local only\n")
+            packaged = tmp_path / PACKAGED_ROOT / subdir / relative
+            packaged.parent.mkdir(parents=True, exist_ok=True)
+            packaged.write_text("local only\n")
+
+    problems = _context_distribution_problems()
+    assert len([problem for problem in problems if "local-only context file" in problem]) == 4
+
+
+def test_context_distribution_rejects_requiring_a_development_topic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    _seed_distribution_fixture(tmp_path, "docs/contexts")
+    monkeypatch.setattr(
+        sys.modules[__name__], "REQUIRED_BOOTSTRAP_CONTEXT_REFS",
+        REQUIRED_BOOTSTRAP_CONTEXT_REFS | {"coga-dev/example"},
+    )
+
+    assert "local-only context 'coga-dev/example' is required as bootstrap" in (
+        _context_distribution_problems()
+    )
+
+
+def test_local_only_context_namespaces_have_explicit_reasons() -> None:
+    assert LOCAL_ONLY_CONTEXT_NAMESPACES
+    for namespace, reason in LOCAL_ONLY_CONTEXT_NAMESPACES.items():
+        assert namespace.endswith("/")
+        assert reason.strip()
+
+
+MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+REPO_BLOB_URL = "https://github.com/FastJVM/coga/blob/main/"
+
+
+def _context_navigation_sources() -> tuple[Path, ...]:
+    """Live guidance and shipped prose, without archives or generated views."""
+    contexts = REPO_ROOT / _canonical_contexts_root()
+    sources = set(contexts.rglob("*.md"))
+    sources.update(
+        REPO_ROOT / PACKAGED_ROOT / relative
+        for relative in _packaged_template_files()
+        if relative.suffix == ".md"
+    )
+    sources.update((REPO_ROOT / "src/coga/resources").glob("*.md"))
+    sources.update(
+        REPO_ROOT / name
+        for name in ("AGENTS.md", "README.md", "CONTRIBUTING.md", "docs/README.md")
+        if (REPO_ROOT / name).is_file()
+    )
+    return tuple(sorted(sources))
+
+
+def _markdown_anchors(raw: str) -> set[str]:
+    anchors = set()
+    for title in re.findall(r"^#{1,6}\s+(.+)$", raw, flags=re.MULTILINE):
+        title = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", title)
+        slug = re.sub(r"[^\w -]", "", title.lower()).replace(" ", "-")
+        anchor = slug
+        suffix = 0
+        while anchor in anchors:
+            suffix += 1
+            anchor = f"{slug}-{suffix}"
+        anchors.add(anchor)
+    return anchors
+
+
+def _context_link_problems(source: Path) -> list[str]:
+    problems = []
+    # Context twins preserve relative navigation inside the package. Resolve
+    # their links against the canonical path for the same repository check.
+    location = source
+    if source.is_relative_to(REPO_ROOT / PACKAGED_ROOT):
+        relative = source.relative_to(REPO_ROOT / PACKAGED_ROOT)
+        if relative.parts[:2] == ("bootstrap", "contexts"):
+            location = REPO_ROOT / _live_counterparts(relative)[0]
+    for href in MARKDOWN_LINK.findall(source.read_text(encoding="utf-8")):
+        target, _, anchor = href.partition("#")
+        if target.startswith(REPO_BLOB_URL):
+            destination = REPO_ROOT / target.removeprefix(REPO_BLOB_URL)
+        elif re.match(r"\w+:|//", target):
+            continue
+        else:
+            destination = (location.parent / target).resolve() if target else location
+        if destination.is_relative_to(REPO_ROOT / "docs/archive"):
+            continue  # Dated history is outside this audit; never read it.
+        if not destination.exists():
+            problems.append(f"{source.relative_to(REPO_ROOT)}: missing link {href}")
+        elif anchor and destination.suffix == ".md":
+            if anchor not in _markdown_anchors(destination.read_text(encoding="utf-8")):
+                problems.append(f"{source.relative_to(REPO_ROOT)}: missing anchor {href}")
+    return problems
+
+
+def test_context_navigation_has_no_broken_links() -> None:
+    problems = [
+        problem
+        for source in _context_navigation_sources()
+        for problem in _context_link_problems(source)
+    ]
+    assert problems == []
+
+
+def _unbundled_development_refs(raw: str) -> list[str]:
+    # Optional absolute GitHub links are navigation, not an attachment or a
+    # relative dependency. Their labels may spell the destination ref.
+    raw = re.sub(
+        r"\[[^\]]*\]\(https://github\.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/[^)]+\)",
+        "", raw,
+    )
+    raw = re.sub(
+        r"https://github\.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/[^\s)`]+",
+        "", raw,
+    )
+    return re.findall(r"\bcoga-dev/[\w][\w/-]*", raw)
+
+
+def test_shipped_guidance_never_requires_local_development_refs() -> None:
+    sources = [
+        REPO_ROOT / PACKAGED_ROOT / relative
+        for relative in _packaged_template_files()
+        if relative.suffix in {".md", ".toml"}
+    ]
+    sources.extend((REPO_ROOT / "src/coga/resources").glob("*.md"))
+    problems = {
+        source.relative_to(REPO_ROOT).as_posix(): refs
+        for source in sources
+        if (refs := _unbundled_development_refs(source.read_text(encoding="utf-8")))
+    }
+    assert problems == {}
+
+
+def test_development_ref_check_only_allows_absolute_repository_navigation() -> None:
+    assert _unbundled_development_refs("contexts:\n  - coga-dev/testing\n") == [
+        "coga-dev/testing"
+    ]
+    assert _unbundled_development_refs("[testing](../../coga-dev/testing/SKILL.md)")
+    assert _unbundled_development_refs(
+        f"[coga-dev/testing]({REPO_BLOB_URL}docs/contexts/coga-dev/testing/SKILL.md)"
+    ) == []
 
 
 def test_executable_context_instructions_honor_layout_override() -> None:
@@ -704,7 +871,7 @@ def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
     lives only there is repo-owned and deletable — a shipped
     launcher that once attached a context from that tree could not launch in a
     repo that had pruned it. The authoring rule
-    is stated in `coga/codebase`; this is its enforcement.
+    is stated in `coga/context-layout`; this is its enforcement.
     """
     bootstrap_root = REPO_ROOT / PACKAGED_ROOT / "bootstrap"
     launchers = sorted(bootstrap_root.glob("*/ticket.md"))
@@ -903,6 +1070,12 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
         assert (
             f"coga/resources/templates/coga/bootstrap/contexts/{ref}/SKILL.md" in names
+        )
+    for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
+        prefix = f"coga/resources/templates/coga/{subdir.as_posix()}/"
+        assert not any(
+            name.startswith(prefix) and _local_only_context(name.removeprefix(prefix))
+            for name in names
         )
 
 

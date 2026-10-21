@@ -4,7 +4,7 @@ status: draft
 owner: nicktoper
 agent: codex
 contexts:
-- coga/principles
+- coga-dev/principles
 - coga/usage
 - coga/prompt-composition
 - dev/checkouts

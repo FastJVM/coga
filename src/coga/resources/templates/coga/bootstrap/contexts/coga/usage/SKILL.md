@@ -1,6 +1,6 @@
 ---
 name: coga/usage
-description: Where Coga's agent-session usage records live (tagged JSON lines in the repo-global `coga/log.md`, git-synced like the rest of the log) and how `coga usage` and `src/coga/usage.py` read them back as token rollups; capture and the record schema are `coga/internals/activity-capture`.
+description: Where Coga's agent-session usage records live and how coga usage reads them back as token rollups, with optional implementation links for capture and the record schema.
 ---
 
 # Agent session usage
@@ -19,7 +19,7 @@ ships the records and the reader and deliberately defines no budget cap, no
 per task is the question; a price table is a deferred follow-up).
 
 How a record is captured, matched to a provider transcript, and bounded is
-[`coga/internals/activity-capture`](../internals/activity-capture/SKILL.md).
+[`coga-dev/internals/activity-capture`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md).
 
 ## The store — tagged lines in `coga/log.md`
 
@@ -32,7 +32,8 @@ YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 ```
 
 - The log is append-only and `merge=union`, so concurrent sessions never
-  conflict (`coga/internals/spool-merge`).
+  conflict; [merge details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md)
+  explain the implementation.
 - The log is never a prompt-composition layer, so usage records never bloat a
   ticket's later prompts.
 - The log outlives the task: `coga delete` and `coga retire` remove the task
@@ -45,7 +46,7 @@ YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 transcripts. `load_records` reads `coga/log.md` and keeps only lines whose
 message parses as a schema 1 or 2 record; every other line is skipped, not an
 error. `append_log` doubles the JSON's backslashes like any message
-(`coga/internals/spool-merge`), so v1-marked messages are decoded before JSON
+([encoding details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md)), so v1-marked messages are decoded before JSON
 parsing. Unmarked legacy messages are parsed raw.
 
 - `--by task|model|agent|step` groups rows (default `task`); a record with no
@@ -101,6 +102,6 @@ rather than rediscover them.
   requests at higher tiers, and records do not say which tier applied.
 - **A session's tokens go to its last model.** `_parse_claude_session` sums
   usage once per message but records only the last real model seen (see
-  [activity capture](../internals/activity-capture/SKILL.md)), so
+  [activity capture](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md)), so
   a session that switches models attributes all of its tokens to the final
   one.

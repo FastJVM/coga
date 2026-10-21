@@ -115,13 +115,13 @@ pick right after a launch teardown in a checkout whose remote moved meanwhile.
   `simplify-git-sync`.
 - Contexts cited, not attached (the work depends on one sentence and one
   test command, not on rules spread across either file): `coga/sync`
-  (`coga/contexts/coga/sync/SKILL.md`, `### The launch-end pull-back —
+  (`docs/contexts/coga/sync/SKILL.md`, `### The launch-end pull-back —
   refresh_coga_state_from_control` inside `## Git — durable task-state sync`,
   the "on the control branch that is a plain `merge --ff-only`" sentence —
   update it in the same PR, plus the packaged twin under
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`,
   which `tests/test_packaging.py` requires to stay byte-identical);
-  `coga/codebase` (`coga/contexts/coga/codebase/SKILL.md`, test expectations:
+  `coga-dev/codebase` (`docs/contexts/coga-dev/codebase/SKILL.md`, test expectations:
   `python -m pytest tests/test_git.py`).
 - Strict publish entry point, for the megalaunch symptom:
   `git._sync_paths_on_control_branch_strict` (`src/coga/git.py`, the

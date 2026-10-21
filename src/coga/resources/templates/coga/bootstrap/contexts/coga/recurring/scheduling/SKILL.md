@@ -123,11 +123,22 @@ table before launching.
   other checkout of the same remote workspace gets a `--clone-only` child
   (`coga run recurring-scan --clone-only`), which runs only clone-scoped
   templates. Owner
-  mismatches are skipped and named. Entry gates and off-branch service are in
-  [recurring-control](../../internals/recurring-control/SKILL.md) and
-  [recurring-temp-worktrees](../../internals/recurring-temp-worktrees/SKILL.md).
+  mismatches are skipped and named. Each child refreshes control before
+  reading templates or periods; stale or diverged control refuses service.
+  Off-branch children use a temporary control worktree without switching or
+  stashing the operator's checkout.
 
 Every launching entry point runs from the control branch and honors the
 committed `owner = "<name>"` gate: a policy gate against two operators racing,
 not a lock, with no override flag. `coga recurring list` and `promote` are
 ungated.
+
+A single-repo sweep or named launch started off control relays to an existing
+control worktree of the same repo. If none exists, it refuses and names the
+required control checkout. Direct `coga launch recurring/<name>` does not
+relay. `--force` never bypasses the control-branch gate. Repos with Git sync
+disabled or confirmed to be outside Git have no managed control checkout and
+are exempt; a Git inspection failure is a refusal. Optional
+[control implementation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-control/SKILL.md)
+and [temporary-worktree details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)
+explain the machinery.
