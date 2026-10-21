@@ -175,6 +175,14 @@ changes the local port). With the tunnel open, connect an RDP client to
 Remmina, as Administrator or as a walk user with its `password.txt`. Use RDP
 for the attended `coga launch` check, which needs a real console.
 
+Known gap (unverified, no follow-up ticket): the harness's acceptance required
+the owner to confirm that an RDP desktop session opens, and that check was
+never run. The review instance was torn down first, so confirming it needs a
+fresh provision. The `rdp` password retrieval and its SSH tunnel were checked
+(the tunnel answered with an RDP Connection Confirm), but no desktop login was.
+Until someone logs in to a desktop through that tunnel, treat the RDP desktop
+path, and so the attended `coga launch` check above, as unverified.
+
 ## Teardown
 
 ```sh

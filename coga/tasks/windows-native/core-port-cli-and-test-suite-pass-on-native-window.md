@@ -49,9 +49,11 @@ script work. Agent sessions (interactive `coga launch`, `coga chat`,
 `windows-native/interactive-coga-launch-on-native-windows`. Until that
 lands, every surface that would start an agent session must refuse on
 Windows with a clear "not supported yet" message, before it changes any
-state, and never with a traceback. `windows-native/windows-ec2-test-harness`
-is merged (`status: done`). Its `scripts/clean-install/aws-windows.sh`
-provides the box, and its `checkout` and `ssh` commands drive the fix loop.
+state, and never with a traceback. The Windows AWS clean-install harness is
+merged; its runbook is the `coga/testing/clean-install/windows-aws` skill
+(`coga/skills/coga/testing/clean-install/windows-aws/SKILL.md`). Its
+`scripts/clean-install/aws-windows.sh` provides the box, and its `checkout`
+and `ssh` commands drive the fix loop.
 
 ### Fix loop (agent, repeated)
 
