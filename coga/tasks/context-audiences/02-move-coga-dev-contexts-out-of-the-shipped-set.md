@@ -1,6 +1,6 @@
 ---
 title: 02 Move Coga-dev contexts out of the shipped set
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
