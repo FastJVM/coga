@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/launch-claims
-description: How megalaunch claims a ticket before spawning — exact-byte preflight binding, strict compare-and-set publication of activation and start, the `pending:`/admitted/`released:` launch generation, the held-child proof and admission order, and the local state lock's narrow role.
+description: How megalaunch claims a ticket before spawning — exact-byte preflight binding, strict compare-and-set publication of activation and start, the `pending:`/admitted/`released:` launch generation, the held-child proof and admission order, the local state lock's narrow role, and direct chat's occupancy guard and receipt.
 ---
 
 # Megalaunch launch claims
@@ -93,3 +93,25 @@ cleanup. It serializes this checkout's Coga ticket writers, blocker and
 blackboard writers, and `publish`, and it spans megalaunch's append, final
 proof, release, and admission. It never decides ownership or launchability.
 Cross-checkout safety comes only from the publish compare-and-set.
+
+## Direct chat occupancy guard and receipt
+
+The user contract is [coga/checkouts/chat](../../../coga/checkouts/chat/SKILL.md);
+this is how `checkouts.prepare_chat_checkout` keeps it. The guard is a
+nonblocking `flock` keyed by the resolved Git toplevel, with its file in the
+per-user system temp directory, outside the working tree. The OS releases it
+on supervisor exit, so the file is not a durable ownership record. It is
+separate from the short `git.state_lock`, so agent subprocesses can still
+publish while a chat holds its checkout.
+
+A companion receipt beside the lock file (`_write_chat_receipt`) records the
+live session, its supervisor, and the reserved branch name; reserving creates
+no branch. The first preparation pins the creation commit in that
+reservation before attempting to create the ref, and records creation
+separately, only after the ref is verified at that commit. A failed creation
+or interrupted receipt write keeps the reservation, so a retry creates the
+missing ref or verifies the matching ref at the original commit even if
+control advanced. The create-and-verify step is the one ticket preparation
+uses; only the receipt differs, because it is bound to the live guard rather
+than a task. The receipt is installed and removed under the state lock with
+the guard, so a new chat never sees an earlier session's receipt.

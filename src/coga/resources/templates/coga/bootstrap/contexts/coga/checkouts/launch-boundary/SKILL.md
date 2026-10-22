@@ -14,32 +14,23 @@ prepare the invoking checkout before reading the ticket to compose, run
 `ticket.py`, or activate, and return it after every
 agent session or `ticket.py` phase and at teardown. Where the boundary sits in
 dispatch and chaining is owned by [coga/launch](../../launch/SKILL.md).
-On return, reload and validate the on-disk configuration before publishing or
-preparing the checkout, so a session's new contexts root is included. Keep the
-previous contexts root in that return's publication and cleanup membership
-too, so a relocation publishes both sides together. The boundary captures that
-root at admission and each successful return; a script's own config reload
-before its return callback cannot replace it. Invalid
-configuration or a changed Git destination stops the return and withholds the
-final sweep, preserving the session's edits. Each time it:
+On return, the on-disk configuration is reloaded and validated first, so a
+session that moved the contexts root publishes both the old and new roots.
+Invalid configuration or a changed Git destination stops the return and
+withholds the final sweep, preserving the session's edits. Each time it:
 
-1. **Publishes Coga state.** The ordinary state sweep (`sync_coga_state`)
+1. **Publishes Coga state.** The ordinary state sweep
    lands any dirty file under the Coga roots — tickets, log, recurring
    templates, contexts, skills, workflows, config — that the session or
    script did not publish, plus eligible committed state such as a hand
    commit on local `main` whose control copy has not moved since. Only what
    publication cannot land stays dirty or unpublished.
 2. **Pins control.** Under the checkout's state lock, `git fetch origin main`
-   and pin that commit; when `origin/main` moves past the pin during planning
-   or re-observation (a sibling worktree's publish), re-pin and re-plan, a few
-   times at most, rather than refuse on a stale pin. The same bound covers a
-   later forward move of local `main` to a commit contained in that pin:
-   re-plan if only local control, and HEAD when on control, changed between
-   observations; file, index, branch, and realignment evidence must match. Local
-   `main` must exist and be equal to or behind it, or carry only commits of
-   Coga state whose content is already on the pinned commit (proved commit
-   by commit and path by path; [coga-dev/internals/git-refresh](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-refresh/SKILL.md)),
-   in which case it is realigned rather than fast-forwarded. A detached HEAD,
+   and pin that commit, re-pinning a bounded number of times when a sibling
+   checkout's publish moves it. Local `main` must exist and be equal to or
+   behind the pin, or carry only commits of Coga state whose content is
+   already on the pinned commit, in which case it is realigned rather than
+   fast-forwarded. A detached HEAD,
    a merge, rebase, cherry-pick, revert, or bisect in progress, `main` checked
    out in another worktree, or any other ahead or diverged `main` refuses.
    Remedies: for local commits of Coga state not yet on control, run
@@ -58,12 +49,10 @@ final sweep, preserving the session's edits. Each time it:
    changes refuse even with equal bytes. Ignored files are never candidates;
    one the move would overwrite refuses.
 4. **Mutates only after full proof.** The whole plan is re-observed just
-   before the first write; apart from the published control progress in step 2,
-   changed evidence refuses. Then proven tracked
+   before the first write; changed evidence refuses. Then proven tracked
    paths are restored to HEAD, proven untracked files removed, HEAD switched
-   to `main`, and `main` fast-forwarded to the pinned commit — or realigned
-   to it (`read-tree -m -u` and an old-value-guarded `update-ref`), with the
-   dropped commits named on stderr and kept in the reflog. The result is
+   to `main`, and `main` fast-forwarded or realigned to the pinned commit,
+   with any dropped commits named on stderr and kept in the reflog. The result is
    verified clean at that commit. It never stashes, rebases, resets hard,
    force-switches, commits, deletes a branch, or pushes code. The feature
    branch stays.
@@ -124,7 +113,5 @@ state, and a merged PR does not establish that uncommitted edits are finished.
 
 The base prompt links this procedure for agent-led investigation; launch's
 refusal prints the key checks before exiting 75 without spawning an agent.
-Direct orientation uses the same preparation and return guarantees as ordinary
-tickets, not an automatic stash or a recovery-session bypass. The occupancy
-guard ([coga/checkouts/chat](../chat/SKILL.md)) rejects competing direct
-chats in the same Git checkout.
+Direct chat gets the same guarantees, with no automatic stash or recovery
+bypass; its occupancy guard is in [coga/checkouts/chat](../chat/SKILL.md).

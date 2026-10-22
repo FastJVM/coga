@@ -99,8 +99,7 @@ New tickets include a field guide from the
   [sandbox clone](contexts/coga/checkouts/sandbox-clone/SKILL.md)),
   [design history](contexts/coga/blackboard/SKILL.md#superseded-designs),
   [checkout cleanup](contexts/coga/checkout-cleanup/SKILL.md)
-  ([proofs](contexts/coga/checkout-cleanup/proofs/SKILL.md),
-  [terminal owners](contexts/coga/checkout-cleanup/terminal-owners/SKILL.md),
+  ([terminal owners](contexts/coga/checkout-cleanup/terminal-owners/SKILL.md),
   [branch sweep](contexts/coga/checkout-cleanup/branch-sweep/SKILL.md)).
 
 ## Develop Coga

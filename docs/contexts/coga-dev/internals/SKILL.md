@@ -31,7 +31,8 @@ and the local state lock serializes only one checkout's writers.
   attributes.
 - [Launch claims](launch-claims/SKILL.md): megalaunch's
   exact-byte preflight, strict compare-and-set claim, the `pending:` seal,
-  the held-child proof, and admission ordering under the state lock.
+  the held-child proof, admission ordering under the state lock, and direct
+  chat's occupancy guard and receipt.
 - [Claim recovery](claim-recovery/SKILL.md): pending, admitted,
   and `released:` forms; ordinary-launch reconciliation of a released
   witness; retained evidence.
@@ -47,8 +48,11 @@ and the local state lock serializes only one checkout's writers.
   how an unattended `--all` child services a parked checkout from a temporary
   linked worktree, and recovery of its survivors.
 - [Git refresh](git-refresh/SKILL.md): `git.refresh`,
-  `fast_forward_control`, the staleness probe, and stranded-ticket-write
-  detection.
+  `fast_forward_control`, the staleness probe, stranded-ticket-write
+  detection, and launch preparation details.
+- [Branch sweep](branch-sweep/SKILL.md): checkout disposal and branch-sweep
+  mechanics behind `coga/checkout-cleanup` — classification, forced local
+  deletion, the merged-PR verdict, and retirement-tag collisions.
 - [Git regressions](git-regressions/SKILL.md): why `git.publish`
   refuses a state file, and shipping a stored-ticket schema conversion.
 - [Spool merge](spool-merge/SKILL.md): `merge=union` append-only

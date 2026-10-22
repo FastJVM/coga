@@ -7,13 +7,13 @@ description: When a branch whose PR closed without merging may be deleted — te
 
 Part of [coga/checkout-cleanup](../SKILL.md).
 
-Owner decision, 2026-10-05: a branch whose PR was closed without merging may
-be deleted, but only when its ticket finished. Every branch-sweep pass applies
+A branch whose PR was closed without merging may be deleted, but only when
+its ticket finished. Every branch-sweep pass applies
 the rule: the daily autoclose pass, the weekly retry, and the restricted pass
 retire and autoclose run for a disposed ticket.
 
 **Ownership.** A ticket owns a branch only through a `## Dev` `branch:` line
-(`autoclose.parse_branch_names`; a ticket may record several). An open `retires.md` entry also
+(a ticket may record several). An open `retires.md` entry also
 counts, because autoclose records it for a ticket it closed and that ticket
 may since be gone. An entry whose recorded `owner` is another clone does not
 count. A surviving ticket cannot bypass this with its own branch lines:
@@ -25,18 +25,14 @@ worktree, it carries that exact path's proof into its restricted branch pass.
 That successful removal does not revoke the surviving ticket's ownership;
 an already-missing path or a path recreated as a foreign checkout gets no such
 exception. All other deletion gates are still checked.
-The owner must be `done` or `canceled`
-(`branchsweep._terminal_owners`). These never count as ownership: a closed PR
+The owner must be `done` or `canceled`. These never count as ownership: a closed PR
 on its own, a prose or attachment mention, a fenced or indented code example,
 and a ticket or worklist that
 cannot be read.
 
 **Durable branch debt.** Worklist entries retain additional owned branches
 in an optional `branches` list beside the primary `branch`. Autoclose records
-that list even when checkout disposal was skipped. Before discharge,
-reconciliation backfills a legacy entry from its surviving ticket's exact
-slug; an unreadable ticket refuses reconciliation. A union-merged older line
-cannot erase an existing additional branch list. The entry stays open until
+that list even when checkout disposal was skipped. The entry stays open until
 every recorded local branch is gone in its owning repository and the existing
 worktree gate clears. This keeps secondary branch ownership and retries alive
 after the first branch or the ticket disappears. Remote leftovers retain the
@@ -44,11 +40,11 @@ existing best-effort sweep policy. Field syntax is documented in the
 `coga/autoclose/sweep` invocation skill.
 
 **Authorization.** A closed, unmerged PR for a terminal-owned branch vouches
-for it the way a merged PR does (`merged_pr_verdict`'s `closed` PRs). The
+for it the way a merged PR does. The
 existing gates still apply:
 
 - No live ticket in this workspace mentions the branch, and no live ticket in
-  any workspace of the Git checkout records it (`live_checkout_claim`). One
+  any workspace of the Git checkout records it. One
   terminal owner and one live claimant means the branch stays. Every recorded
   branch counts, including secondary branches on recurring period tickets.
 - No PR for the head is open.

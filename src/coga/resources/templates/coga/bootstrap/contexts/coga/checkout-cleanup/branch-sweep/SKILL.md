@@ -9,77 +9,42 @@ Part of [coga/checkout-cleanup](../SKILL.md).
 
 ## Branch-sweep protection and archive
 
-For a local ref with a merged PR and no open PR for the same branch name,
-`branchsweep.merged_pr_verdict` inspects commits beyond the merged head and
-the locally available control refs. Non-merge commits with matching
-`git patch-id --verbatim` IDs on the merged head are excluded; remaining
-commits must touch only generated task/log state. Each merged patch matches
-at most one local commit, so a later reapplication needs its own match.
-Patch comparison preserves
-whitespace (including indentation and line endings), disables external diff
-and text conversion, fixes submodule diffs to the short gitlink format, and
-compares against the merged head's history without
-excluding control. Thus both squash and normal merges can release a local
-pre-rebase copy. Different patch context can conservatively keep a ref;
-comparison failures keep it too. Merge commits always face the existing
-`git diff-tree --cc` state-only check. Remote refs still require an exact
-merged head, never patch equivalence. A missing merged-head object is fetched
-from `refs/pull/<number>/head` without writing a ref before comparison.
+A local ref whose PR merged, with no open PR for the same branch name, is
+released when its extra commits are patch-equivalent copies of the merged
+commits or touch only generated task/log state, so a local pre-rebase copy of
+a squash- or normally-merged branch can go. Any doubt keeps the ref. Remote
+refs still require the exact merged head.
 
-`branchsweep.sweep_branches` preserves the shared `coga/skill-update` branch
-(`skill_manager.SKILL_UPDATE_BRANCH`) before any PR lookup or deletion. It
-does so even between update runs with no live ticket or open PR. This is an
-exact-name exemption, not an exemption for every `coga/` branch.
+The shared `coga/skill-update` branch is always preserved, even between
+update runs with no live ticket or open PR. This is an exact-name exemption,
+not an exemption for every `coga/` branch.
 
-After the existing landing and claim gates, the sweep must publish
-`retired/<branch>` to the configured Git remote before removing any associated
-worktree or deleting either branch ref. Worktree claim and cleanliness proofs
-run before publication and again before removal, and the second pass also
-requires the worktree's HEAD to still be the archived local tip; an initial
-refusal leaves the archive untouched. `_publish_retirement_tag` archives the
-actual authorized tip, fetching missing remote objects first. If both local
-and remote refs will be deleted, one of those tips must contain the other;
-the tag points to that descendant. When they diverge, a tip that is a merged
-PR's head is already preserved by GitHub at `refs/pull/<number>/head`, so the
-tag covers the remaining tips and the run record names the PR ref. This is
-the rebased-copy shape: the remote ref sits at the merged head while the
-local ref keeps its pre-rebase commits. Divergent tips that no PR ref covers
-preserve both refs and need human reconciliation. This keeps later Coga
-bookkeeping and lagging local refs recoverable without inventing a merge.
+After the landing and claim gates, the sweep publishes a `retired/<branch>`
+tag to the configured Git remote before removing any associated worktree or
+deleting either branch ref; worktree claim and cleanliness proofs run again
+before removal. The tag archives the authorized tip. When the local and
+remote tips diverge, a tip that is a merged PR's head is already preserved by
+GitHub at `refs/pull/<number>/head`, so the tag covers the remaining tip and
+the run record names the PR ref; divergent tips that no PR ref covers
+preserve both refs for human reconciliation.
 
-The remote tag is the archive; the sweep reads it with `git ls-remote`
-before publishing. A remote `retired/<branch>` whose commit equals or contains
-the selected commit already preserves it — another clone may have archived a
-later tip of the same branch, or a partial cleanup left an older remote ref
-behind — so the sweep publishes nothing and proceeds to deletion. A remote tag
-holding unrelated history or a non-commit object (blob or tree, including
-through an annotated tag) is never moved or forced:
-the sweep publishes the selected commit under the deterministic
-`retired/<branch>@<sha12>` instead, which a retry then finds already archived.
-(`retired/<branch>/<sha>` is not possible: a ref cannot nest under an existing
-tag ref.) A local tag of either name that points at an unpublished, different
-commit or a non-commit object makes that name unusable, so it is skipped
-rather than published over. Object availability is checked separately from
-commit ancestry: an unreadable remote object still refuses retirement.
-The local tag is created only after the remote holds the archive, and
-advanced only when the archive contains its commit, so a failed pass never
-leaves a local tag that replays a conflict. The push names one explicit tag
-refspec without force and disables `push.followTags`. When both names are
-taken by other objects, or a remote read, object fetch, or tag push fails,
-the sweep preserves the branch and worktree, records the reason in
-`## Branch Sweep`, and makes the recipe exit 2 after checking other branches.
-Restore archived work with `git fetch <remote> tag <tag>` and
-`git switch -c <new-branch> <tag>`, where `<tag>` is `retired/<branch>` or
-the `@<sha12>` name the run record reports.
+An existing remote `retired/<branch>` that already contains the tip counts as
+the archive. One holding unrelated history is never moved or forced; the
+sweep publishes `retired/<branch>@<sha12>` instead. When neither name is
+usable, or a remote read, fetch, or tag push fails, the sweep preserves the
+branch and worktree, records the reason in `## Branch Sweep`, and makes the
+recipe exit 2 after checking other branches. Restore archived work with
+`git fetch <remote> tag <tag>` and `git switch -c <new-branch> <tag>`, where
+`<tag>` is `retired/<branch>` or the `@<sha12>` name the run record reports.
 
-Every branch-sweep pass shares this gate.
-It does not change ticket-scoped retire/autoclose disposal into an archival
-operation, except for the owned branches the disposal passes to the
-restricted sweep, which archive like any sweep deletion.
+Every branch-sweep pass shares this gate. It does not change ticket-scoped
+retire/autoclose disposal into an archival operation, except for the owned
+branches the disposal passes to the restricted sweep, which archive like any
+sweep deletion.
 
 ## Unrecorded worktrees: `[git] worktrees_ticket_owned`
 
-The [checkout proofs](../proofs/SKILL.md) only touch worktrees a ticket or worklist recorded. An ad-hoc
+The [checkout proofs](../SKILL.md#the-checkout-proofs) only touch worktrees a ticket or worklist recorded. An ad-hoc
 worktree pins its branch forever, and `coga run branch-sweep` reports it
 `skipped-worktree-pinned`. A repo may assert, with
 `worktrees_ticket_owned = true` under `[git]` in shared `coga.toml` (default

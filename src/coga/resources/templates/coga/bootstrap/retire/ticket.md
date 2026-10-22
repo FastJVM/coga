@@ -33,7 +33,7 @@ deleting it.
 2. **Dispose of the checkout.** Read `branch:`, `worktree:` and `pr:` from
    the ticket's `## Dev` section while the ticket still exists, and dispose of
    the recorded worktree and every owned branch under the
-   [checkout proofs](context:coga/checkout-cleanup/proofs), including the
+   [checkout proofs](context:coga/checkout-cleanup), including the
    [terminal-owner rule](context:coga/checkout-cleanup/terminal-owners).
    Primary checkouts and other clones are never disposed of
    ([coga/checkout-cleanup](context:coga/checkout-cleanup)). This runs only from

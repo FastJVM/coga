@@ -61,7 +61,7 @@ carries its reason into every surface below:
    (which ignored entries are deleted with it — the regenerable caches and a
    byte-identical copy of the operator's `coga.local.toml` — and which
    preserve it is owned by
-   [coga/checkout-cleanup/proofs](context:coga/checkout-cleanup/proofs), *Ignored state*). No PR is open for the branch, and the branch has
+   [coga/checkout-cleanup](context:coga/checkout-cleanup), *Ignored state*). No PR is open for the branch, and the branch has
    landed on the control branch or its local and remote tips equal the merged
    PR's exact head. Then `git worktree remove`, unforced.
 3. *The local branch.* Plain `git branch -d` when the tip is reachable from
