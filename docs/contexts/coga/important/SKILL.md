@@ -7,11 +7,7 @@ description: The coga-important destination — the action-needed bar that earns
 
 `coga-important` is the channel behind `[notification.slack].important_webhook`
 for notifications that need a human to act. Nothing else Coga ships posts
-there. A repo may deliberately route its own low-volume periodic report to
-important as an explicit exception; such a report identifies its repository
-and addresses its period ticket's owner through the ordinary
-[owner mapping](../notifications/SKILL.md#pinging-the-owner).
-Everything else Coga posts — explicit FYIs, urgent exceptions, ticket
+there. Everything else Coga posts — explicit FYIs, urgent exceptions, ticket
 outcomes — stays on the flow webhook, and routine lifecycle churn is not
 posted at all ([`coga/notifications`](../notifications/SKILL.md)). Being
 sent by Coga does not make a post important.
@@ -41,7 +37,7 @@ every one posts live. The producer inventory is
 
 An important post with no resolved `important_webhook` is refused, never
 rerouted to flow; whether that refusal aborts the caller is covered in
-[`coga/notifications/failures`](../notifications/failures/SKILL.md).
+[`coga/notifications`](../notifications/SKILL.md#when-a-post-fails).
 
 ## Triage
 
@@ -76,4 +72,4 @@ ticket, which is the whole reason it needs a channel.
 - What a given script should treat as action-needed — that judgment belongs to
   the script and its own context.
 - Webhook configuration and the `coga validate` warning for an unresolved
-  `important_webhook` — `coga/notifications`.
+  `important_webhook` — the shipped `coga.toml`.

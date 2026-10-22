@@ -57,6 +57,9 @@ and the local state lock serializes only one checkout's writers.
   secret-redacted usage record captured after each agent session.
 - [Usage pricing](usage-pricing/SKILL.md): record facts a future
   dollar-cost price table must handle.
+- [Notifications](notifications/SKILL.md): `fatal` versus best-effort posts,
+  the `preflight_post` gate, redaction, the module behind each producer, and
+  message format.
 
 ## Not covered here
 

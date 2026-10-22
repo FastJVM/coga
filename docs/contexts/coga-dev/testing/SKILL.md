@@ -24,7 +24,7 @@ command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
 **Validate `tests/fixtures/seeded-repo/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
 when your shell exports that variable. The fixture has notifications off, and
 the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
-`webhook` key ([coga/notifications](../../coga/notifications/SKILL.md)). Unset the
+`webhook` key (the shipped `coga.toml` notification comments). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
 **A repo-wide `coga validate` refuses a shebang script that is not

@@ -391,7 +391,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/lifecycle",
         "coga/megalaunch",
         "coga/notifications",
-        "coga/notifications/failures",
         "coga/notifications/producers",
         "coga/period-task",
         "coga/prompt-composition",

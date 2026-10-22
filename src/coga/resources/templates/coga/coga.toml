@@ -127,8 +127,11 @@ launch_args = "--no-daemon"
 # Slack is the first channel: urgent/manual events and ticket outcomes (done,
 # canceled, recurring errors) post live through the Slack webhook as they
 # happen. Relaunching an already-in-progress ticket does not post. Once Slack
-# is selected it is fail-loud — a missing/revoked/unreachable
-# webhook crashes the command rather than dropping the message silently.
+# is selected it is fail-loud — a missing/revoked/unreachable webhook is
+# reported, never dropped silently (`coga/notifications`, "When a post fails").
+# With `channels = []` each post is one stderr line instead. An unknown channel
+# name fails config load; with no `channels` key at all, Slack is selected only
+# when a `[notification.slack]` table exists.
 #
 # To opt in, select the channel and point it at a webhook. Use `env:`
 # indirection so the URL (a bearer token) stays out of this committed file —
@@ -140,16 +143,20 @@ launch_args = "--no-daemon"
 #   [notification.slack]
 #   webhook = "env:SLACK_WEBHOOK_URL"
 #
-# A machine-specific webhook can override this in coga.local.toml (local wins),
-# e.g. a literal URL there for a personal channel. Never commit a real URL.
-# `coga validate --check-slack` probes the webhook so dead URLs surface
-# at config time, not at first bump. A bare SLACK_WEBHOOK_URL export fails config
-# load; the explicit `webhook` key above is required.
+# `webhook`, `important_webhook`, and `enabled` may each be overridden in
+# coga.local.toml (local wins), e.g. a literal URL there for a personal
+# channel. Never commit a real URL. `coga validate --check-slack` probes the
+# webhook (with an empty payload Slack rejects without posting) so dead URLs
+# surface at config time, not at first bump. A bare SLACK_WEBHOOK_URL export
+# fails config load; the explicit `webhook` key above is required.
 #
 # Already opted in but want Slack temporarily silent (solo runs, dev/test, CI
 # without notifications)? Keep the channel selected and set in coga.local.toml:
 #   [notification.slack]
 #   enabled = false
+# Each suppressed post is then one stderr line, never a crash, and both the
+# validate warning and `--check-slack` are skipped. The cost is leaving the
+# team's sync loop.
 [notification]
 channels = []
 
@@ -166,9 +173,10 @@ channels = []
 #   [notification.slack]
 #   important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
 #
-# Attach a GIF to milestone events. One URL is picked at random
-# per post. Skip a kind (or leave its list empty) to keep that event
-# text-only. Example:
+# Attach a GIF to milestone events: the kinds are `done`, `canceled`, and
+# `block` (a block post falls back to a `panic` list when `block` is unset).
+# One URL is picked at random per post. Skip a kind (or leave its list empty)
+# to keep that event text-only. Example:
 #   [notification.slack.gifs]
 #   done  = ["https://media.giphy.com/media/<id>/giphy.gif"]
 #   block = [
@@ -180,7 +188,8 @@ channels = []
 # Slack member ID. With a mapping, that person gets a real `<@…>` ping on posts
 # about their ticket. Without one they're still named, just in plain text (no
 # ping). An incoming webhook can't look an ID up itself, so it has to be
-# listed here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
+# listed here. Member IDs are not secret. Grab an ID from Slack: profile → ⋮
+# (More) → Copy member ID.
 #   [notification.slack.users]
 #   marc = "U01ABC234"
 #   ada  = "U05XYZ789"
