@@ -115,3 +115,10 @@ control advanced. The create-and-verify step is the one ticket preparation
 uses; only the receipt differs, because it is bound to the live guard rather
 than a task. The receipt is installed and removed under the state lock with
 the guard, so a new chat never sees an earlier session's receipt.
+
+## Source notes
+
+The engine is `src/coga/megalaunch.py`. Run order is
+`service_order.service_order`, shared with `coga status --order-by created`;
+the post-sweep dependency drain is `_drain_satisfied_blockers`. The picker's
+selection file is `.coga/megalaunch-selection.json`.

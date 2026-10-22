@@ -1,28 +1,22 @@
 ---
 name: coga/pr-publication
-description: "What `coga open-pr` (the `open-pr` recipe behind the `requires: pr` gate) must prove and in what order — the checkout gate, the by-name branch and sandbox-clone checks, the non-empty guard, freshness and stranded-ticket checks, the leased push, and where the `pr:` record is published; presentation, the preparation record and existing-PR updates live in its leaves."
+description: "What `coga open-pr` (the `open-pr` recipe behind the `requires: pr` gate) must prove and in what order — the checkout gate, the by-name branch and sandbox-clone checks, the non-empty guard, freshness and stranded-ticket checks, the leased push, refreshing an existing PR's generated region, and where the `pr:` record is published; presentation and the preparation record live in its leaf."
 ---
 
 # PR publication (`coga open-pr`)
 
 The `requires: pr` gate itself is a data check run by `coga bump`
-(`coga/lifecycle`): it passes once `## Dev` records `pr:`. This leaf is what
+(`coga/lifecycle`): it passes once `## Dev` records `pr:`. This topic is what
 produces that record. `coga open-pr <slug>` is the default alias for the
-registered recipe `coga run open-pr <slug>` (`src/coga/open_pr.py`). Stdout
-carries only the bare PR URL, so `$(coga open-pr <slug>)` captures it; every
-refusal goes to stderr and exits 2, so the gate stays unmet. Exactly one task
-argument is accepted.
+registered recipe `coga run open-pr <slug>`. Stdout carries only the bare PR
+URL, so `$(coga open-pr <slug>)` captures it; every refusal goes to stderr
+and exits 2, so the gate stays unmet. Exactly one task argument is accepted.
 
-Leaves:
+[coga/pr-publication/preparation](preparation/SKILL.md) owns the
+review-depth rubric, the blackboard `## PR` preparation record, and how the
+PR body is formatted from it.
 
-- [coga/pr-publication/preparation](preparation/SKILL.md) — the
-  review-depth rubric, the blackboard `## PR` preparation record, and how
-  the PR body is formatted from it.
-- [coga/pr-publication/existing-pr](existing-pr/SKILL.md) —
-  generated-region markers, adopting and refreshing an existing PR, and its
-  refusals.
-
-## Checkout gate (`_checkout_mode`)
+## Checkout gate
 
 open-pr runs from the launch checkout on the control branch, where the live
 ticket is, and refuses any other branch. The launch checkout boundary puts a
@@ -34,33 +28,53 @@ updated.
 ## Checks, in order
 
 1. The ticket is not terminal; `## Dev` has a usable `branch:` (not
-   `(`-prefixed). Without `worktree:` (or with one naming this checkout, left
-   by the retired single-checkout layout) the branch is checked by name as
-   `refs/heads/<branch>`, which must exist locally. With a recorded sandbox
-   clone the checks run inside it: the directory must exist, be on that
-   branch, and be clean; dirt on the live ticket's own file gets a
-   restore-don't-commit remediation, since committing it strands a duplicate.
+   `(`-prefixed). Without a sandbox-clone `worktree:` the branch is checked
+   by name as `refs/heads/<branch>`, which must exist locally. With a
+   recorded sandbox clone the checks run inside it: the directory must
+   exist, be on that branch, and be clean; dirt on the live ticket's own file
+   gets a restore-don't-commit remediation, since committing it strands a
+   duplicate.
 2. At least one commit ahead of the base (local ref, else `<remote>/<base>`).
-3. Freshness: `github_preflight.check_branch_contains_control(head=...)`
-   fetches control into its remote-tracking ref and reads that ref, not
-   `FETCH_HEAD`. Only non-overlapping generated Coga state is accepted as
-   drift, reported on stderr.
+3. Freshness: the branch must contain the freshly fetched control branch.
+   Only non-overlapping generated Coga state is accepted as drift, reported
+   on stderr.
 4. An unsafe overlap on the live ticket's own file is reported as a stranded
-   ticket write, not ordinary staleness: `stranded_task_state_paths` (run
-   against `FETCH_HEAD`) says whether control ever absorbed the branch's
-   blob, and the remediation restores the merge base's copy on the branch and
-   merges control, never a rebase.
+   ticket write, not ordinary staleness, and the remediation restores the
+   merge base's copy on the branch and merges control, never a rebase
+   ([coga/checkouts](../checkouts/SKILL.md#stranded-ticket-writes)).
 5. `gh` auth for the remote host, before anything is pushed.
-6. Prepare presentation from the pinned head and merge base; check any existing
-   PR for presentation conflicts and the expected base
-   ([existing-pr](existing-pr/SKILL.md)). Push with `--force-with-lease` pinned to the remote OID observed just
+6. Prepare presentation from the pinned head and merge base, and check any
+   existing PR for presentation conflicts and the expected base (below).
+   Push with `--force-with-lease` pinned to the remote OID observed just
    before, so a rebased retry publishes but a concurrent remote update is
    refused.
-7. Refresh an open PR for the branch (running `gh pr ready` on a draft), or
-   `gh pr create --base <control> --head <branch>`.
-8. Write `pr:` under `## Dev` with `update_blackboard_under_barrier`, a
-   byte splice under the state lock. A replaced stale link is noted on
-   stderr.
+7. Refresh an open PR for the branch (readying a draft), or create one
+   against the control branch.
+8. Write `pr:` under `## Dev`. A replaced stale link is noted on stderr.
+
+## Updating an existing PR
+
+Generated content sits between `coga:pr:v1` HTML comment markers carrying
+digests of the generated title and content. They are change detectors, not
+authentication; LF and CRLF compare equally. Human notes outside the marked
+region keep their exact bytes. On reuse, unchanged generated content is
+refreshed, including the ticket snapshot and evidence, before a draft is
+readied or `pr:` is recorded; an unchanged rerun does not edit. An existing
+PR targeting another base refuses, because the prepared comparison would not
+describe its diff.
+
+An unmarked PR from before the markers is adopted when its title is still
+the plain ticket title: the generated region goes first and the whole old
+body is kept below it as human notes. An unmarked PR whose title a human
+changed, a modified generated title, or a modified or malformed generated
+region refuses instead of keeping stale text or overwriting human edits.
+Reconcile with the owner: keep wanted human prose outside the markers, move
+intended generated changes into `## PR`, and restore the last generated title
+and region (for an unmarked PR, the ticket title) before rerunning. There is
+no force-overwrite flag. A failed or ambiguous open-PR lookup (API or auth
+error, malformed result, cross-repository head) refuses before push. GitHub
+has no atomic compare-and-set for title and body edits, so avoid co-editing
+the presentation while publication runs.
 
 ## Where the record lands
 
@@ -71,20 +85,13 @@ record also land on control only; nothing publishes to the feature branch.
 ## Bump's stranded-write advisory
 
 Before a forward transition, `coga bump` runs the same stranded comparison
-between `refs/heads/<control>` and `refs/heads/<branch>`, and prints a
+between the local control branch and the recorded branch, and prints a
 `[bump]` note on stderr. It never blocks, writes, or changes the exit code,
-and stays silent when this checkout is on the recorded branch, when
-`worktree:` resolves to this checkout (both left by the retired
-single-checkout layout), or when any probe fails.
+and stays silent when this checkout is on the recorded branch or when any
+probe fails.
 
-## Record parsing
-
-The readers in `autoclose` parse linkage from the blackboard's `## Dev`.
-Bare branch and checkout values run to end of line; bare PR values stop at
-whitespace and must contain `/pull/<number>`. Backtick-delimited values may
-have trailing annotations. All three readers ignore fenced and indented
-examples, including example section headings. An empty field cannot borrow
-the next line's prose. The first branch record
-is the workflow checkout; multiple tickets may link to the same branch and PR.
-Cleanup's ownership rules are in
-[terminal owners](../checkout-cleanup/terminal-owners/SKILL.md).
+The first `branch:` record is the workflow checkout; multiple tickets may
+link to the same branch and PR. Cleanup's ownership rules are in
+[terminal owners](../checkout-cleanup/terminal-owners/SKILL.md). Function
+names, record parsing, and retired-layout tolerances are in
+[coga-dev/internals/git-refresh](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-refresh/SKILL.md#coga-open-pr-source-notes).

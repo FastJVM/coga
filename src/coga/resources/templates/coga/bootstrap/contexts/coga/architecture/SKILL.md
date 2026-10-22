@@ -31,8 +31,8 @@ Links never load content; only attached refs compose
 ## Transient runtime
 
 `coga launch` runs a ticket's `ticket.py` phase, if any, then composes one
-prompt ([prompt-composition](../prompt-composition/SKILL.md),
-[session-conduct](../session-conduct/SKILL.md)) and supervises one agent
+prompt ([prompt-composition](../prompt-composition/SKILL.md), including
+its session conduct) and supervises one agent
 session per step. Status is the signal of who is working; there is no lock.
 What a session learns survives only in files.
 
@@ -90,8 +90,7 @@ operating rules without a merge.
   [design history](../blackboard/SKILL.md#superseded-designs),
   [checkout-cleanup](../checkout-cleanup/SKILL.md), each with its leaves;
   [PR publication](../pr-publication/SKILL.md)
-  ([preparation](../pr-publication/preparation/SKILL.md),
-  [existing PRs](../pr-publication/existing-pr/SKILL.md)).
+  ([preparation](../pr-publication/preparation/SKILL.md)).
 
 The separate Coga-dev library is for changing Coga itself. Its
 [source map](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md)

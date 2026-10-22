@@ -18,8 +18,7 @@ full local fork; distribution and adoption are in
 
 ## Classifier
 
-`launch_script.script_entry_point` returns `<task_dir>/ticket.py` when it is
-a regular file. File-form tasks have no task directory and never qualify.
+Launch runs `<task_dir>/ticket.py` when it is a regular file. File-form tasks have no task directory and never qualify.
 Directory tasks and bootstrap tickets use the same name. Executable bits and
 other filenames never participate: a `run.py`, test, or other executable
 attachment is untouched by the classifier and runs only when agent
@@ -29,39 +28,12 @@ the ticket, but Coga neither discovers nor runs them. A recurring template's
 launch repeats it after every moving sync, and a vanished file becomes an
 agent-only handoff instead of a failed run of a stale path.
 
-### Why this shape
-
-Owner-accepted design (2026-08-18, PR #700); do not re-argue it without
-engaging these reasons:
-
-- **Agent work is deduced from completion, not declared.** Whether the agent
-  half runs depends only on whether the script completed its own step, never
-  on a static signal such as "the step declares skills". A forgotten
-  completion fails toward running the agent (visible, costs tokens, skips
-  nothing), never toward silently skipping it. For the same reason launch
-  never advances a step on the script's behalf.
-- **`ticket.py`, not `run.py`.** A task directory also holds attachments, and
-  a `run.py` repro script is a likely accidental trigger; nobody attaches a
-  `ticket.py` by accident. The executable bit is ignored because `ls`, GitHub
-  and zips do not show or keep it.
-- **A stat, not a plugin host.** PR #670's objection ("no plugin host, no
-  recursive discovery") does not apply: this is one `stat()` at one fixed path
-  inside the target's own directory, affecting only that target, with no scan
-  or registry, and core subprocesses the file rather than importing it.
-- **Trust caveat, recorded rather than hidden.** A `ticket.py` is a
-  git-tracked file reviewed in the PR that adds it, but it runs arbitrary code
-  at launch. In a repo where `coga/tasks/**` is granted or reviewed more
-  loosely than `src/coga/**`, adding it widens who can cause code to execute
-  during launch. Coga's own trust model treats both as "anyone who can write
-  this repo", so its threat model does not move; a team that splits those
-  permissions should know it.
-
 ## One deterministic phase
 
-`run_script_phase` runs before any agent setup: no prompt composition, CLI
+The script phase runs before any agent setup: no prompt composition, CLI
 lookup, skill refresh, or push probe.
 
-1. Declared secrets resolve (`build_launch_env`) before any lifecycle write.
+1. Declared secrets resolve before any lifecycle write.
 2. An `active` ticket becomes `in_progress` (actor `system`, `▶️ script
    started`); draft/paused/blocked were activated just before. A
    `launched as a script (ticket.py)` log line is published before user code.
@@ -87,13 +59,13 @@ lookup, skill refresh, or push probe.
    post) and launch exits with that code. On success config, target, and
    ticket are re-derived again. A bootstrap script keeps framing on stderr so
    `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
-   (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) declares it retained local state:
+   declares it retained local state:
    launch skips its teardown refresh, withholds the end-of-command sweep, and
    exits 75.
 
 ## Chaining
 
-`run_script_chain` runs at most once per step per launch:
+The script phase runs at most once per step per launch:
 
 - Step unchanged and still `in_progress`: the agent continues the same open
   step. That needs a TTY, a derivable agent operator (or the override), and
@@ -108,8 +80,8 @@ agent-only in-process delegation seam rejects one.
 
 ## Completion attribution
 
-`coga bump` and `coga mark done` credit `system` when `task_env.is_script_task`
-matches the target they act on; a marker naming another target has no effect.
+`coga bump` and `coga mark done` credit `system` when `COGA_SCRIPT_TASK`
+names the target they act on; a marker naming another target has no effect.
 The marker grants no owner-gate, assist, launch, or rewind authority and
 bypasses no completion gate, validation, or publication. A script inside a
 verified recorded assist still credits `system`, using the assist's
@@ -121,15 +93,17 @@ agent ran. A later agent spawn clears the marker.
 
 ## `COGA_TASK_*` contract
 
-`task_env.TASK_ENV_KEYS` is the whole namespace: `COGA_TASK_SLUG`,
+The namespace is exactly `COGA_TASK_SLUG`,
 `COGA_TASK_DIR`, `COGA_TASK_TICKET`, `COGA_TASK_BLACKBOARD`,
 `COGA_TASK_STEP`, `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_SCRIPT_TASK`,
 `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, and `COGA_ASSIST_PR`. There is no
-`COGA_TASK_LOG`. `apply_task_env` clears every key, then `build_task_env`
-sets the slug, task directory, ticket path, Coga root, and host repo root,
+`COGA_TASK_LOG`. Each launch clears every key, then sets the slug, task directory, ticket path, Coga root, and host repo root,
 plus, for tasks under `tasks/` only, `COGA_TASK_BLACKBOARD` and, when a step
 exists, `COGA_TASK_STEP` (`<index> (<name>)`). The script marker and assist
 values are re-minted only at their launch boundaries. Nothing survives by
 inheritance, so a stateless bootstrap target never exposes a packaged
 `ticket.md` as a blackboard. `blackboard_from_env` refuses an inherited
 blackboard outside the discovered root's `tasks/` tree and reports to stdout.
+
+The design rationale for this shape and its source map are in
+[coga-dev/microkernel](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/microkernel/SKILL.md#the-ticketpy-script-phase).

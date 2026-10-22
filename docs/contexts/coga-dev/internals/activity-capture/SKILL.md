@@ -76,7 +76,7 @@ and megalaunch children each emit exactly one record.
 
 **Launch marker.** `spawn_agent_session` mints a fresh `uuid4` per spawn and
 ends the prompt with the line `coga-launch: <uuid>`
-([prompt composition](../../../coga/prompt-composition/SKILL.md#launch-marker)),
+([compose](../compose/SKILL.md#launch-marker)),
 passing the same value to capture as `launch_marker`. It is only a
 tie-breaker: when more than one candidate survives a provider's ordinary
 filters, capture keeps the candidates whose own message text carries that

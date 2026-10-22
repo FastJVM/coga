@@ -71,6 +71,41 @@ to suppress the generic sweep. With Git disabled or unavailable through a
 documented soft-skip, the local write remains the result
 ([publish primitive](../internals/state-publication/publish/SKILL.md)).
 
+## The `ticket.py` script phase
+
+The user contract is [coga/script-tickets](../../coga/script-tickets/SKILL.md).
+Owner-accepted design (2026-08-18, PR #700); do not re-argue it without
+engaging these reasons:
+
+- **Agent work is deduced from completion, not declared.** Whether the agent
+  half runs depends only on whether the script completed its own step, never
+  on a static signal such as "the step declares skills". A forgotten
+  completion fails toward running the agent (visible, costs tokens, skips
+  nothing), never toward silently skipping it. For the same reason launch
+  never advances a step on the script's behalf.
+- **`ticket.py`, not `run.py`.** A task directory also holds attachments, and
+  a `run.py` repro script is a likely accidental trigger; nobody attaches a
+  `ticket.py` by accident. The executable bit is ignored because `ls`, GitHub
+  and zips do not show or keep it.
+- **A stat, not a plugin host.** PR #670's objection ("no plugin host, no
+  recursive discovery") does not apply: this is one `stat()` at one fixed path
+  inside the target's own directory, affecting only that target, with no scan
+  or registry, and core subprocesses the file rather than importing it.
+- **Trust caveat, recorded rather than hidden.** A `ticket.py` is a
+  git-tracked file reviewed in the PR that adds it, but it runs arbitrary code
+  at launch. In a repo where `coga/tasks/**` is granted or reviewed more
+  loosely than `src/coga/**`, adding it widens who can cause code to execute
+  during launch. Coga's own trust model treats both as "anyone who can write
+  this repo", so its threat model does not move; a team that splits those
+  permissions should know it.
+
+Source map: `launch_script.script_entry_point` is the classifier;
+`run_script_phase` runs one phase (secrets via `build_launch_env`) and
+`run_script_chain` chains phases with agent steps. Exit 75 is
+`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`. Attribution reads
+`task_env.is_script_task`; `task_env.TASK_ENV_KEYS` is the namespace,
+cleared by `apply_task_env` and set by `build_task_env`.
+
 ## Migrating a built-in to the edge
 
 A stateless verb outside the launch closure and recipe table, with no

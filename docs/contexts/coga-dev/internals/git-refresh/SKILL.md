@@ -221,3 +221,33 @@ The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
   shipped `scope: clone` templates to main before the runner understood
   `scope:`; the fix made the `ticket.py` shims bump `COGA_TASK_SLUG` when
   set, so old code ran them as one-step periods.
+
+## `coga open-pr` source notes
+
+The user contract is [coga/pr-publication](../../../coga/pr-publication/SKILL.md);
+the recipe is `src/coga/open_pr.py`.
+
+- The checkout gate is `_checkout_mode`. A `worktree:` naming this checkout,
+  left by the retired single-checkout layout, is treated like no
+  `worktree:`; bump's advisory likewise stays silent when `worktree:`
+  resolves to this checkout.
+- Freshness is `github_preflight.check_branch_contains_control(head=...)`:
+  it fetches control into its remote-tracking ref and reads that ref, not
+  `FETCH_HEAD`. The stranded comparison (`stranded_task_state_paths`, above)
+  runs against `FETCH_HEAD`. Bump compares `refs/heads/<control>` with
+  `refs/heads/<branch>`.
+- PR creation is `gh pr create --base <control> --head <branch>`; a draft is
+  readied with `gh pr ready`. `pr:` is written with
+  `update_blackboard_under_barrier`, a byte splice under the state lock.
+- The `coga:pr:v1` markers carry SHA-256 digests. Existing-PR lookup uses
+  `gh pr view <branch>`, whose bare-branch finder excludes same-named fork
+  heads; only its explicit branch-not-found response or a valid closed or
+  merged PR proves no open PR exists. The PR is re-read after the push to
+  catch intervening edits before updating; a simultaneous edit after that
+  last read can still race. `gh` edit errors refuse without advancing.
+- `## Dev` record parsing (the readers in `autoclose`): bare branch and
+  checkout values run to end of line; bare PR values stop at whitespace and
+  must contain `/pull/<number>`. Backtick-delimited values may have trailing
+  annotations. All three readers ignore fenced and indented examples,
+  including example section headings, and an empty field cannot borrow the
+  next line's prose.

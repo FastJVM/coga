@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-21.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -116,6 +116,30 @@ is `coga status` and the ticket bodies; stage posture is
   ticket does ADK work. `anthropic/skill-creator/` is the verbatim
   hand-vendored example. Contract:
   [`coga/skill-management`](../../coga/skill-management/SKILL.md).
+- **No branch freshness guard at bump (2026-10-06).** The proposed
+  branch/worktree freshness check predates ordinary tickets' move to the
+  launch checkout; branch existence cannot tell a wrong old branch from a
+  legitimate resumed one, and `open-pr` already checks existence and commits
+  ahead of the base. Revisit on a concrete wrong-branch handoff under the
+  current ordinary-ticket workflow; recurring worktrees are outside it.
+  Contract: [`coga/workflows`](../../coga/workflows/SKILL.md).
+- **The code review step stays a human gate (2026-09-13).** Rather than
+  auto-launching `code/address-pr-comments` or blocking merges on unresolved
+  threads, `autoclose-merged` reports unanswered threads after the merge.
+  Contract: [`coga/workflows`](../../coga/workflows/SKILL.md) ("Code review
+  gate", "Obligations the merge does not discharge"). Evidence for the
+  obligations rule (Dream 2026-W43): three tickets closed with recorded,
+  unowned obligations — `marketing/fix-installer/release-0-4-1-so-new-context-files-publish`
+  auto-closed on the merge of PR #998 with its PyPI publication and
+  clean-install checks owed, `marketing/readme-top` marked done with a "Still
+  open" list, and
+  `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
+  leaving the macOS walk without a build passthrough; Retro W43 kept them
+  only as known gaps in PRs #1058, #1059, and #1046. When measuring this
+  queue, a ticket still on `review` with a merged PR is not backlog
+  (autoclose closes it next run); count only open PRs as the live queue, and
+  gate a measurement over retired tickets and merged PRs on a closed time
+  window, never on an empty live queue.
 
 ## Open intent, not live direction
 

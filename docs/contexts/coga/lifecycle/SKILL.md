@@ -1,6 +1,6 @@
 ---
 name: coga/lifecycle
-description: The two per-ticket state machines — status (whether work happens) and step (where in the frozen workflow) — with the single writer for each transition, blocking and blocked resume, bump and human rewind, cancellation rules, writer validation timing, and the read-only `coga status` triage views.
+description: The two per-ticket state machines — status (whether work happens) and step (where in the frozen workflow) — with the single writer for each transition, blocking and blocked resume, bump and human rewind, cancellation rules, and the read-only `coga status` triage views.
 ---
 
 # Ticket lifecycle
@@ -25,7 +25,7 @@ terminal outcomes `done` and `canceled`.
 | `blocked` | `coga block --task <ref> --reason ...` (keeps `step:`) | `active`, `in_progress`, `blocked` |
 | `blocked → active` | `coga unblock` (keeps `step:`) | `blocked` |
 
-The shared finalizers live in `src/coga/mark.py`. Launching is itself the
+Launching is itself the
 readiness signal: `coga launch` performs `mark active` inline on a `draft` or
 `paused` ticket before flipping it to `in_progress`. Activation refuses a
 ticket with no workflow, empty required extension fields, or unsynthesized
@@ -92,7 +92,7 @@ refuse a blocked ticket until `coga unblock` records an answer.
 
 ## Step: where in the workflow
 
-`step:` is `N (step-name)`, owned entirely by `coga bump` (`src/coga/bump.py`).
+`step:` is `N (step-name)`, owned entirely by `coga bump`.
 
 - Bare `coga bump <ref>` requires `in_progress`, checks the leaving step's
   `requires:` gate, and advances one step, or on the final step delegates to
@@ -105,10 +105,10 @@ refuse a blocked ticket until `coga unblock` records an answer.
   launch are refused (`COGA_SUPERVISED`). It is recovery when a step went
   wrong but the ticket's premise still holds: because status and blackboard
   are untouched, everything learned stays. When the premise itself turns out
-  wrong, the usual move (owner practice, 2026-10-13) is not a rewind:
+  wrong, the usual move is not a rewind:
   cancel the ticket with its reason, update the context that owns the fact,
   and open a new ticket. It repositions only: accepts
-  `active`, `in_progress`, `paused` (`REWINDABLE_STATUSES`), never changes
+  `active`, `in_progress`, `paused`, never changes
   status, and derives the target operator without persisting it. From
   `active`/`paused` it must target an agent step (an owner step could not be
   resumed or bumped); `in_progress` may target either. It refuses `blocked`
@@ -117,18 +117,6 @@ refuse a blocked ticket until `coga unblock` records an answer.
   with control before another mutating command, push, or merge.
 
 Pausing preserves the step; cancellation clears it.
-
-## Writer validation timing
-
-`src/coga/validate.py` `assert_task_valid` leaves a bad written ticket on disk
-for the operator to fix, which is safe only for checks keyed off ticket
-content. A check that can fail on configuration (such as
-`unresolvable-step-assignee`) must run against a **prospective** copy before
-writing: copy the `Ticket`, apply the change, pass
-`ticket_override=...`, then write, log and sync. `mark_done`,
-`mark_canceled`, bump's step advance the assist freeze, and `coga owner` do this;
-`mark_active`, `mark_in_progress`, `mark_blocked`, and `mark_paused` still
-validate after writing.
 
 ## Triage: `coga status`
 

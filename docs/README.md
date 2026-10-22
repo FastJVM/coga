@@ -51,8 +51,7 @@ New tickets include a field guide from the
   [lifecycle](contexts/coga/lifecycle/SKILL.md),
   [workflows](contexts/coga/workflows/SKILL.md),
   [blackboard](contexts/coga/blackboard/SKILL.md).
-- What the agent sees: [prompt composition](contexts/coga/prompt-composition/SKILL.md),
-  [session conduct](contexts/coga/session-conduct/SKILL.md),
+- What the agent sees: [prompt composition and session conduct](contexts/coga/prompt-composition/SKILL.md),
   [knowledge placement](contexts/coga/knowledge/SKILL.md).
 
 ## Operate
@@ -81,8 +80,7 @@ New tickets include a field guide from the
   [state publication](contexts/coga/state-publication/SKILL.md).
 
 - Publication: [PRs](contexts/coga/pr-publication/SKILL.md)
-  ([preparation](contexts/coga/pr-publication/preparation/SKILL.md),
-  [existing PRs](contexts/coga/pr-publication/existing-pr/SKILL.md));
+  ([preparation](contexts/coga/pr-publication/preparation/SKILL.md));
   [human assists](contexts/coga/human-assist/SKILL.md);
   [state publication and recovery](contexts/coga/state-publication/SKILL.md).
 - Extending and recovering a repo: [extension choices](contexts/coga/extension-model/SKILL.md),
