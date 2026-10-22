@@ -7,8 +7,7 @@ description: The post-sweep autofix loop — the built run record, the one-shot 
 
 Under cron nobody reads the sweep's console, so every `coga recurring` sweep —
 and every `coga recurring launch <name>` (hence `coga dream`, `coga autoclose`,
-`coga skill-update`) — ends with one analysis of what happened
-(`src/coga/recurring_autofix.py`). It runs after a sweep with nothing due and
+`coga skill-update`) — ends with one analysis of what happened. It runs after a sweep with nothing due and
 after one that died partway. A gate that refused to launch (closed or parked
 template, period already handled on control) is not a run and is not analyzed.
 Neither is a sweep on an inactive repo that launched nothing; the
@@ -24,11 +23,9 @@ The console output is unchanged.
    **blackboard**, plus templates that failed to load, failures observed
    outside the launch loop (on a `coga recurring` sweep: failed create syncs,
    periods created but never launched, watchdog pauses) under
-   `## Unresolved recurring failures`, and sweep notes. A named launch does
-   not yet record a failed create sync; see
-   [scheduling](../scheduling/failures/SKILL.md#failures-and-exit-code). Tee-ing
-   fd 1 would make `isatty` false and break every agent launch, so the
-   blackboard — the only durable per-run channel — is what carries detail.
+   `## Unresolved recurring failures`, and sweep notes. Console output is not
+   captured, so the blackboard — the only durable per-run channel — is what
+   carries detail.
    A launch that refuses before `ticket.py` runs leaves that blackboard
    blank, so the record carries the refusal's message as the outcome's note.
    Successful runs contribute a report only if they write one; failures follow
@@ -43,9 +40,8 @@ The console output is unchanged.
    `code/with-self-review` workflow, with the run record committed beside it as
    `run-log.md` and the repo's configured default contexts attached (see
    Operating it below). Coga supplies this metadata; the analyst supplies the
-   finding. The analyst's body becomes the ticket's `## Description`;
-   `parse_analysis` demotes its headings so the shallowest is `###`
-   (`demote_headings`, fenced code untouched), because a `##` would end that
+   finding. The analyst's body becomes the ticket's `## Description`, with
+   headings demoted so the shallowest is `###`, because a `##` would end that
    section and drop the rest of the write-up from every launch prompt
    ([coga/tickets](../../tickets/SKILL.md), Body regions). The next
    `coga megalaunch` picks it up; the human gate is the
@@ -106,11 +102,8 @@ the last run's output into the next run's instructions.
   analyst does not choose contexts or mutate tickets.
 - The one-shot argv is built in for `claude` and `codex`; another CLI needs
   `[agents.<name>].analyze` (e.g. `"-p {prompt}"`) or the loop skips loudly.
-- The analyst's stdin is `/dev/null` (`codex exec` would append piped stdin).
-  A non-zero exit is reported with both `stdout:` and `stderr:` tails.
-- If an ambient `ANTHROPIC_API_KEY` call fails for authentication or billing,
-  and `claude auth status` (with the key removed) confirms a first-party Pro,
-  Max, Team or Enterprise login permitted by local policy, the analyst makes one
-  announced subscription retry. Not for a custom `analyze` argv,
-  `ANTHROPIC_BASE_URL` or `ANTHROPIC_CUSTOM_HEADERS`, other CLIs, or unrelated
-  failures.
+- A non-zero analyst exit is reported with both `stdout:` and `stderr:` tails.
+- A `claude` analyst whose ambient `ANTHROPIC_API_KEY` fails for
+  authentication or billing makes one announced retry on a confirmed
+  subscription login. Spawn and retry details are in
+  [recurring-autofix](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md).

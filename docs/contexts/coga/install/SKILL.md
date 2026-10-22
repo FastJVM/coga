@@ -118,6 +118,18 @@ hash-checking mode on globally (common on managed laptops). Either install
 with `uv tool install coga` (uv ignores pip's config) or disable it for one
 command: `PIP_REQUIRE_HASHES=0 pip install coga`.
 
+### CLI older than the templates it sweeps
+
+An install that predates clone scope ignores the `scope` key and services a
+`scope: clone` template as an ordinary shared period task, with a log line and
+no clone ledger ([scheduling](../recurring/scheduling/SKILL.md#repo-scope-and-clone-scope)).
+This happens when the CLI lags the templates it sweeps, for example an editable
+install whose source checkout sits behind `main`. The shipped clone scripts
+tolerate it: with `COGA_TASK_SLUG` set they bump that task, so the period
+closes instead of stalling. When a sweep creates a shared task for a template
+already declaring clone scope, check `coga --version` and the editable source
+checkout, then upgrade (below).
+
 ## Verify
 
 ```sh

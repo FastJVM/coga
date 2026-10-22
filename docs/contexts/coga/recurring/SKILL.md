@@ -10,7 +10,7 @@ A recurring **template** is a ticket-format directory at `coga/recurring/<name>/
 materializes one **period task** at the stable ref `recurring/<name>`
 (`coga/tasks/recurring/<name>/`) and launches it through the ordinary task
 lifecycle. The period is not in the slug; the serviced period is recorded in the
-repo-global `coga/log.md`.
+repo-global `coga/log.md` ([ledger](scheduling/SKILL.md#periods-and-the-serviced-period-ledger)).
 
 That is the default `scope: repo`. A `scope: clone` template instead runs its
 `ticket.py` once per period in every clone, with no period task, for work on
@@ -32,20 +32,10 @@ operation is covered here and in [coga/secrets](../secrets/SKILL.md)
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `coga recurring` | Sweep: create/launch every due template for the current period. |
-| `coga recurring --force` | Ignore schedule and status filters; real runs, real side effects. |
-| `coga recurring --all <path>` | Sweep every Coga repo below `<path>`, one fresh process each. |
-| `coga recurring --interactive` | Attended, human-stepped debug sweep with no liveness limits. |
-| `coga recurring launch <name>` | Create/launch one template now, ignoring its schedule. |
-| `coga recurring promote <task> --schedule "<cron>"` | Turn an existing task into a template. |
-| `coga recurring list` | Read-only: templates, firings, period state, picked tasks. |
-
-The bare, forced and `--all` spellings translate their flags into argv for the
-fixed `recurring-scan` recipe run through `coga run`. Default aliases wrap named
-launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
-`recurring launch <name>`.
+`coga recurring` sweeps due templates; `coga recurring launch <name>` (and
+default aliases such as `coga dream`) fires one now; `list` and `promote`
+inspect and create templates. What each spelling does is in
+[scheduling](scheduling/SKILL.md#variants); flags are `coga recurring --help`'s.
 
 ## Where each part is specified
 
@@ -53,11 +43,10 @@ launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
   the template-to-period transform, promotion, cross-run state surfaces, the
   `ticket.py` authoring and reporting contract.
 - [coga/recurring/scheduling](scheduling/SKILL.md) — period keys and the
-  serviced-period ledger, sweep order (Dream last), status handling, `--force`,
-  named launches, `--all`, the `owner` gate, TTY admission, unfinished runs and
-  exit codes; its leaves are [ledger](scheduling/ledger/SKILL.md),
-  [inactivity](scheduling/inactivity/SKILL.md) and
-  [failures](scheduling/failures/SKILL.md).
+  serviced-period ledger, repo and clone scope, sweep order (Dream last),
+  status handling, the command variants and gates, TTY admission, unfinished
+  runs and exit codes; its leaf [inactivity](scheduling/inactivity/SKILL.md)
+  owns the repo-inactivity gate.
 - [coga/recurring/delegation](delegation/SKILL.md) — `delegate:` periods
   serviced by one bootstrap agent launch; never a nested `coga launch`.
 - [coga/recurring/autofix](autofix/SKILL.md) — the post-sweep run record,
@@ -71,14 +60,13 @@ launches: `coga dream`, `coga autoclose`, `coga skill-update` each expand to
   [recurring-temp-worktrees](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-temp-worktrees/SKILL.md)
   (`--all` off-branch service), and
   [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md) (period
-  generations, leases, ledger freshness).
+  generations, leases, ledger reads and freshness),
+  [recurring-clone](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-clone/SKILL.md)
+  (clone-scoped runs) and
+  [recurring-autofix](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md)
+  (analyst spawning and parsing).
 
 Attaching `coga/recurring` composes only this overview; attach the child you need.
 
 Procedures live in skills, e.g. `coga/recurring/verify` (fire a template in a
 disposable clone before it merges).
-
-Implementation: `src/coga/recurring.py` (templates, creation, ledger),
-`src/coga/recurring_runner.py` (sweeps, admission, delegation, temp worktrees),
-`src/coga/recurring_autofix.py` (post-sweep analysis),
-`src/coga/recurring_clone.py` (clone-scoped ledger and runs).

@@ -39,18 +39,13 @@ The ownership rule is [coga/knowledge](../../knowledge/SKILL.md).
   ordinary task can resolve is allowed; there is no recurring-capable registry.
 - `title` (else the humanized name), `owner`, `agent`, `contexts`, `secrets` —
   passed to each period task. `agent` omitted means the repo default agent.
-  A template shipped in the wheel (packaged twin under
-  `src/coga/resources/templates/coga/recurring/`) must leave `owner:` and
-  `agent:` empty so each installing repo's defaults apply: an explicit
-  `agent: claude` blocked period creation in a Codex-only repo even with a
-  launch override (PR #857 review).
-  `tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing`
-  pins the inherited routing.
+  A template meant for other repos leaves `owner:` and `agent:` empty so each
+  repo's defaults apply; an explicit `agent:` naming a type the repo lacks
+  blocks period creation even with a launch override.
 - `run_when_inactive` — optional boolean, default false; exempts the template
   from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). The shipped
-  `autoclose-merged` and `branch-sweep` opt in. Non-booleans fail `Template.load` with
-  `RecurringError` and are reported by the sweep (inactive or not) and
-  `coga validate`. On an inactive sweep, a template without the exemption is
+  `autoclose-merged` and `branch-sweep` opt in. Non-booleans are template
+  errors, reported by the sweep (inactive or not) and `coga validate`. On an inactive sweep, a template without the exemption is
   skipped without strict validation, so its other errors wait until the repo
   wakes or `coga validate` runs. The field stays on the template and is never
   copied to a period task.
@@ -62,8 +57,7 @@ The ownership rule is [coga/knowledge](../../knowledge/SKILL.md).
 
 ## The template-to-period transform
 
-`recurring._create_at_slug` routes each firing through the ordinary task
-creator. It:
+Each firing goes through the ordinary task creator. It:
 
 - creates directory-form at `recurring/<name>` straight to `status: active`,
   freezing the workflow and selecting the main agent as activation would;
@@ -84,8 +78,7 @@ exists.
 
 ## Promotion
 
-`coga recurring promote <task> --schedule "<cron>" [--name <name>]`
-(`recurring.promote_task`) moves a task to `coga/recurring/<name>/ticket.md` —
+`coga recurring promote <task> --schedule "<cron>" [--name <name>]` moves a task to `coga/recurring/<name>/ticket.md` —
 also the "recurring from creation" path (`coga create`, write the body,
 promote). The body above the fence travels verbatim; the blackboard resets to
 cross-run state. `status`, `step`, `period_generation` drop; a frozen workflow
@@ -114,7 +107,8 @@ to one of: the template blackboard (cursors, `state_keys`); a machine-written
 template sibling in a fixed shape (`autoclose-merged/retires.md`, owned by
 `src/coga/retire_worklist.py`, `merge=union`, CAS-written; rules in the
 `coga/autoclose/sweep` skill); or one-line facts in `coga/log.md`. The schedule
-high-water mark lives only in the log (see [scheduling](../scheduling/ledger/SKILL.md)).
+high-water mark lives only in the log
+([ledger](../scheduling/SKILL.md#periods-and-the-serviced-period-ledger)).
 The [autoclose template's upgrade guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md) owns worklist setup for older repos.
 
 ## `ticket.py` completion and reporting
@@ -140,20 +134,11 @@ Do not duplicate that write; add structured detail on top. Never write secrets.
 The `COGA_TASK_*` variables a script and recipe receive are specified in
 [coga/script-tickets](../../script-tickets/SKILL.md).
 
-## Shipped templates in the Coga source repo
-
-Shipped templates have a packaged twin under
-`src/coga/resources/templates/coga/recurring/<name>/`; edit both, since the body
-is the run prompt `coga init` installs (`tests/test_packaging.py` enforces it;
-see [Coga development packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/packaging/SKILL.md)). Downstream and promoted
-templates need no twin. A job that force-pushes a reused branch must resolve the
-remote tip at push time (`git ls-remote`) rather than lease against a possibly
-stale tracking ref, as `src/coga/skill_manager.py` does.
-
-## Weekly usage battery
-
-`phone-home` is ticket-owned code, not a registered recipe: its reserved
-`ticket.py` is a shim to the wheel-owned implementation, with a one-step
-`phone-home/run` workflow. Distribution, local forks and adopting the shim in
-existing copies are owned by [coga/edge-code](../../edge-code/SKILL.md). Its changing parent marker, bounded delivery, production suppression
-and opt-out contract belong to [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
+A script writes either blackboard through the fence-aware API only:
+`coga.taskfile.read_blackboard` / `replace_blackboard`, or
+`coga.blackboard.append_blackboard_report` / `append_to_section` — never
+`open(path, "a")` or a whole-file rewrite. Pass the captured `expected_bytes`
+to detect concurrent change, preserve the region's leading newline, and if the
+file ends at the fence with no newline, start your text with one (those helpers
+do not add it). Own only your keys ([coga/period-task](../../period-task/SKILL.md));
+test both orderings and repeated alternating writes against the other writers.

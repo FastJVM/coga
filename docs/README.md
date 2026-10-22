@@ -69,9 +69,7 @@ New tickets include a field guide from the
 - Recurring jobs: [overview](contexts/coga/recurring/SKILL.md),
   [templates](contexts/coga/recurring/templates/SKILL.md),
   [scheduling](contexts/coga/recurring/scheduling/SKILL.md)
-  ([ledger](contexts/coga/recurring/scheduling/ledger/SKILL.md),
-  [inactivity](contexts/coga/recurring/scheduling/inactivity/SKILL.md),
-  [failures](contexts/coga/recurring/scheduling/failures/SKILL.md)),
+  ([inactivity](contexts/coga/recurring/scheduling/inactivity/SKILL.md)),
   [delegation](contexts/coga/recurring/delegation/SKILL.md),
   [autofix](contexts/coga/recurring/autofix/SKILL.md),
   [period tasks](contexts/coga/period-task/SKILL.md),

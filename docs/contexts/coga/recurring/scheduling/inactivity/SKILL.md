@@ -8,8 +8,10 @@ description: The repo-inactivity gate on scheduled sweeps — the `idle_days` wi
 Part of [coga/recurring/scheduling](../SKILL.md).
 
 Scheduled sweeps check human activity after control-branch catch-up, owner
-admission and agent-override validation, before `scan_due`. The shared
-[`[recurring].idle_days`](../../../configuration/SKILL.md) window defaults to 14.
+admission and agent-override validation, before the due scan. The shared
+`[recurring] idle_days` window (documented in the
+[shipped coga.toml](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/coga.toml);
+see [configuration](../../../configuration/SKILL.md)) defaults to 14.
 Let `last` be the local calendar date of the newest human committer timestamp:
 the repo is inactive when `(today - last).days >= idle_days`. Thirteen days is
 active at the default; fourteen is inactive. A new human commit wakes the
@@ -23,7 +25,7 @@ or a Git failure treats the repo as active and prints one yellow note.
 Git-disabled repos are silently active. Resolved history with no human commit
 is inactive and displays `never` as its last activity.
 
-`recurring_activity.is_machine_commit` classifies subjects as machine when:
+A commit subject is machine-written when:
 
 - they start with `Log:`, `Sync coga state`, `Dream`, `Ticket: recurring/`,
   `Autofix:`, `Ticket: autofix/`, or `Update Coga-managed skills` (including
@@ -43,14 +45,11 @@ of subject-based classification; an ordinary commit or explicit override
 recovers from false inactivity.
 
 On an inactive, non-forced sweep each template's frontmatter is read
-leniently for `run_when_inactive` and its schedule
-(`recurring._read_inactivity_fields`); a template not setting
-`run_when_inactive: true` is skipped before strict `Template.load`, period or
+leniently for `run_when_inactive` and its schedule; a template not setting
+`run_when_inactive: true` is skipped before strict validation, period or
 ledger handling. A stale or rejected key on a non-exempt template therefore
 raises no template error and no alert while the repo is dormant; it surfaces
-when the repo wakes, under `--force`, or in `coga validate`. The ledger
-pre-pass applies the same gate, excluding non-exempt templates before strict
-loading or ledger reads. Malformed YAML, frontmatter that is not a mapping,
+when the repo wakes, under `--force`, or in `coga validate`. Malformed YAML, frontmatter that is not a mapping,
 a missing `ticket.md`, or a non-boolean `run_when_inactive` leaves the
 exemption undecidable and is still a template error; the scan reports it and
 continues with the other templates. An

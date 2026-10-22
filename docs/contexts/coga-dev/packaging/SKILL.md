@@ -97,6 +97,17 @@ shipping. The Coga repo root keeps only `AGENTS.md`, which Claude Code reads
 when no `CLAUDE.md` or `CLAUDE.local.md` exists (see `coga/init`); do not
 add a root `CLAUDE.md` copy.
 
+Shipped recurring templates have a packaged twin under
+`templates/coga/recurring/<name>/`; edit both, since the body is the run prompt
+`coga init` installs. Downstream and promoted templates need no twin. A
+packaged template leaves `owner:` and `agent:` empty so each installing repo's
+defaults apply: an explicit `agent: claude` blocked period creation in a
+Codex-only repo even with a launch override (PR #857 review);
+`tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing`
+pins the inherited routing. A job that force-pushes a reused branch must
+resolve the remote tip at push time (`git ls-remote`) rather than lease against
+a possibly stale tracking ref, as `src/coga/skill_manager.py` does.
+
 Hazards:
 
 - **A rebase carries a fix through a rename, never into a twin created fresh

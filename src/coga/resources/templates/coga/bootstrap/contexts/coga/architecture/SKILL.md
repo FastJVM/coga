@@ -73,7 +73,7 @@ operating rules without a merge.
   [human assist](../human-assist/SKILL.md).
 - **Recurring and maintenance**: [recurring](../recurring/SKILL.md)
   ([templates](../recurring/templates/SKILL.md),
-  [scheduling](../recurring/scheduling/SKILL.md) and its leaves,
+  [scheduling](../recurring/scheduling/SKILL.md) and its inactivity leaf,
   [delegation](../recurring/delegation/SKILL.md),
   [autofix](../recurring/autofix/SKILL.md)),
   [period-task](../period-task/SKILL.md), [dream](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md).
