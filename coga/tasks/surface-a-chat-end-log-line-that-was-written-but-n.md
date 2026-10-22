@@ -119,4 +119,27 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: codex/chat-end-log-publication
+
+## Investigation and plan
+
+- Started on clean `main`, fetched and fast-forward checked against `origin/main`.
+- Confirmed multiply repair commit `daccdc5b7c6507ba7b93f920dd239dc67ea48b9c`
+  via GitHub: it re-appends the session's 2026-10-08 18:40:41Z usage record.
+  The record was captured after the agent's final claim that its work was pushed.
+- Both current `src/coga/launch.py` `spawn_agent_session` and its October 8
+  predecessor in `src/coga/commands/launch.py` call `git.sync_log` after capture.
+  The predecessor was checked at `93b1df8cfb5abab190952ef04ab3f1012643602c`.
+  This was not a missing teardown call. The original supervisor stderr and
+  installed version are unavailable; the exact historical Git failure is unknown.
+- `src/coga/git.py` `sync_log` collapses unchanged, skipped, and failed publication
+  to `False`, which the session caller ignores. It also does not require the log
+  to be included, so an excluded log can silently look like a successful no-op.
+  Add a required-log check and an explicit session-end publication receipt, with
+  regression coverage for successful, rejected, skipped, and excluded publication.
+- Evaluate stranded-tail recovery through the existing strict `publish-state`
+  recipe. Avoid automatic broad publication at recurring admission: a log-shaped
+  line alone does not prove CLI ownership, and the recipe sweeps other Coga edits.
+  Document the recovery and verify concurrent remote/local log lines survive.
