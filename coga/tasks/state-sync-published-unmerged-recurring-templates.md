@@ -35,7 +35,6 @@ contexts:
   - coga/sync
   - coga/state-publication
   - coga-dev/internals/state-publication
-  - coga/state-publication/sweep
   - coga-dev/internals/git-refresh
   - coga-dev/packaging
   - coga-dev/testing
