@@ -50,12 +50,11 @@ the next sweep. The owner, control-branch and inactivity gates apply as for
 repo scope. `--force` and `coga recurring launch <name>` ignore the clone
 ledger. `coga recurring list` shows only this clone's state.
 
-A clone script has a 15-minute wall-clock deadline. A timeout exits 124 with a
-diagnostic, terminates the script's process tree and leaves the ledger
-unchanged, so later templates still run and the next sweep retries. The
-console and local log keep at most the first 1,000,000 characters of output,
-with an explicit truncation marker and the last 4,000 characters, which the
-run record receives. A legitimately long job needs a higher runner limit.
+Clone scripts have bounded runtime and output. A timeout reports the failure,
+terminates the script's process tree and leaves the period retryable, so later
+templates still run. Truncated console output points to the local log for the
+final output; the run record also receives that tail. Implementation limits
+are in [recurring-clone](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-clone/SKILL.md).
 
 Clone-scoped runs leave no runner-owned git-visible record. Their evidence is
 the clone-local ledger and log, the console, and the autofix run record. The

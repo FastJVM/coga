@@ -120,10 +120,9 @@ command: `PIP_REQUIRE_HASHES=0 pip install coga`.
 
 ### CLI older than the templates it sweeps
 
-An install older than a template feature ignores keys it does not know rather
-than failing. An install that predates clone scope services a `scope: clone`
-template as an ordinary shared period task, with a log line and no clone
-ledger ([scheduling](../recurring/scheduling/SKILL.md#repo-scope-and-clone-scope)).
+An install that predates clone scope ignores the `scope` key and services a
+`scope: clone` template as an ordinary shared period task, with a log line and
+no clone ledger ([scheduling](../recurring/scheduling/SKILL.md#repo-scope-and-clone-scope)).
 This happens when the CLI lags the templates it sweeps, for example an editable
 install whose source checkout sits behind `main`. The shipped clone scripts
 tolerate it: with `COGA_TASK_SLUG` set they bump that task, so the period

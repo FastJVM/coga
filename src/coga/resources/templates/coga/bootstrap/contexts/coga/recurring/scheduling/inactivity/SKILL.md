@@ -9,8 +9,9 @@ Part of [coga/recurring/scheduling](../SKILL.md).
 
 Scheduled sweeps check human activity after control-branch catch-up, owner
 admission and agent-override validation, before the due scan. The shared
-`[recurring] idle_days` window (commented in the shipped `coga.toml`; see
-[configuration](../../../configuration/SKILL.md)) defaults to 14.
+`[recurring] idle_days` window (documented in the
+[shipped coga.toml](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/coga.toml);
+see [configuration](../../../configuration/SKILL.md)) defaults to 14.
 Let `last` be the local calendar date of the newest human committer timestamp:
 the repo is inactive when `(today - last).days >= idle_days`. Thirteen days is
 active at the default; fourteen is inactive. A new human commit wakes the
