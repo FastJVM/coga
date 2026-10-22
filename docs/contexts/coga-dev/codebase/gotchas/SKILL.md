@@ -1,6 +1,6 @@
 ---
 name: coga-dev/codebase/gotchas
-description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, create guards, Typer calls, branch probes, resource packages, prompt resources).
+description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, prospective validation, create guards, Typer calls, branch probes, resource packages, prompt resources).
 ---
 
 # Editing gotchas in Coga's source
@@ -50,6 +50,16 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   analyst's body must be fitted first (`recurring_autofix.demote_headings`).
   The verbatim `body` argument has no such guard: an extra `##` there only
   earns validate's `uncomposed-section` warning.
+- **Validate a prospective ticket before a config-dependent write.**
+  `validate.assert_task_valid` leaves a bad written ticket on disk for the
+  operator to fix, which is safe only for checks keyed off ticket content. A
+  check that can fail on configuration (such as `unresolvable-step-assignee`)
+  must run against a prospective copy before writing: copy the `Ticket`,
+  apply the change, pass `ticket_override=...`, then write, log and sync.
+  `mark_done`, `mark_canceled`, bump's step advance, the assist freeze, and
+  `coga owner` do this; `mark_active`, `mark_in_progress`, `mark_blocked`,
+  and `mark_paused` still validate after writing. The shared finalizers live
+  in `src/coga/mark.py`; `bump.REWINDABLE_STATUSES` holds the rewind set.
 - **Recipes report to the repo under test.** Pass the discovered root to
   `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard
   outside that root's `tasks/` tree and fails closed to stdout.

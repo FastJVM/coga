@@ -94,7 +94,7 @@ def owner(
 
         # Validate the prospective ticket before writing, so a refused
         # reassignment leaves nothing on disk to reconcile (the idiom
-        # `coga/lifecycle` prescribes for every lifecycle writer).
+        # `coga-dev/codebase/gotchas` prescribes for config-dependent writers).
         prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
         prospective.frontmatter["owner"] = name
         try:

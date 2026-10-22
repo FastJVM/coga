@@ -5,9 +5,8 @@ description: How `coga megalaunch` selects, orders, gates, and runs queued work 
 
 # Coga megalaunch
 
-`coga megalaunch [DIR] [--pick | --relaunch] [--max-tasks N] [--agent <type>]`
-runs launchable work one task at a time through the shared engine in
-`src/coga/megalaunch.py`. It is on-demand only: no recurring template ships
+`coga megalaunch` runs launchable work one task at a time (flags and syntax:
+`coga megalaunch --help`). It is on-demand only: no recurring template ships
 for it. `pick` is the default alias for `megalaunch --pick`. For one task,
 `coga launch <slug>` ([launch](../launch/SKILL.md)) is the attended path.
 
@@ -42,12 +41,10 @@ the scan is skipped without a row.
 ## Explicit selection
 
 `--pick` offers every non-terminal task of any owner with no launchability
-filter, displayed like default `coga status` (last updated first). Nothing
-starts checked; arrows or `j`/`k` move, Space toggles, `a`/`n` all/none,
-Enter confirms, `q`/Esc quits. The confirmed set is saved to
-`.coga/megalaunch-selection.json` (machine-local). `--relaunch` replays it,
-warning about and skipping vanished tasks; it cannot combine with `--pick`
-or `DIR`. A selection runs in three stages:
+filter, displayed like default `coga status` (last updated first), with
+nothing checked. The confirmed set is saved machine-locally under `.coga/`;
+`--relaunch` replays it, skipping vanished tasks with a warning. A selection
+runs in three stages:
 
 1. **Prepare** — if the pick has drafts, one `[Y/n]` prompt offers the guided
    `coga ticket` interview for each; an authoring failure leaves the draft.
@@ -72,12 +69,11 @@ agree). A sub-directory with at least one `<n>-` task runs as one block
 anchored at its oldest task, numbered tasks by number (`02-` == `2-`, `10-`
 after `9-`), then unnumbered siblings by age. Top-level tasks never form a
 block; `2fa-login` is not numbered. `coga status --order-by created` shows the
-same order (`service_order.service_order`); a selection filters it, so pick
-order never sets run order. `coga validate` warns `duplicate-task-number`.
+same order; a selection filters it, so pick order never sets run order. `coga validate` warns `duplicate-task-number`.
 
 ## Dependency drain
 
-After a bare sweep, `_drain_satisfied_blockers` re-lists the operator's
+After a bare sweep, megalaunch re-lists the operator's
 blocked tickets in the same scope. An open blocker whose text contains a
 complete path-qualified task ref is satisfied when that task is `done` or was
 seen earlier in the run and has since disappeared. The ticket is recaptured

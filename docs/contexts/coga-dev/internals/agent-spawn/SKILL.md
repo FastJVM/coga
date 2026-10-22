@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/agent-spawn
-description: The single shared agent-spawn path (`spawn_agent_session`) — its compose/prompt-file/argv/audit/spawn/teardown order, per-caller parameters, large-prompt file delivery, the PTY supervisor's done sentinel and exit classification, the unsignalled-advance advisory, and the missing-file versus missing-CLI split.
+description: The `coga.launch` Python API and its internal phases, and the single shared agent-spawn path (`spawn_agent_session`) — its compose/prompt-file/argv/audit/spawn/teardown order, per-caller parameters, large-prompt file delivery, the PTY supervisor's done sentinel and exit classification, the unsignalled-advance advisory, and the missing-file versus missing-CLI split.
 ---
 
 # Shared agent spawn
@@ -11,6 +11,38 @@ Callers are `coga launch`'s step supervisor, megalaunch, recurring
 delegation, and `coga ticket` authoring. Do not hand-roll compose→spawn in a
 new command; add the difference as a parameter. A forked copy once lost the
 PTY watcher and REPLs stopped releasing on the sentinel.
+
+## Launch API and phases
+
+The CLI adapter (`src/coga/commands/launch.py`) owns Typer arguments,
+presentation and process exits. Python callers use `coga.launch`: ordinary
+parameter defaults, `LaunchResult(kind, exit_code)` for a completed launch,
+and `LaunchBail(code, reason)` for a refusal or propagated failure.
+`LaunchBail` is an ordinary exception, never `SystemExit`. Progress goes
+through the scoped `launch_reporting` callback (plain stdout/stderr by
+default); callers can render it independently of the result. The recurring
+entry point also returns its child-generation lease, and delegation retains
+the actual session exit code. Signals unwind library handlers before that
+public boundary translates them into `LaunchBail`; recoverable exception
+handlers must not swallow termination. Internal callers must not invoke the
+Typer command function.
+
+`_launch` coordinates one `_LaunchInvocation` through five fixed phases:
+target preparation, assist alignment and ticket classification, initial
+script execution, agent preflight, and step supervision. Each phase can
+return a completed result before the next begins. Mutable config, target,
+routing and blocker state belong to that invocation; checkout return and
+blocker cleanup read its latest state after synchronization. This is internal
+organization, not a phase registry or extension surface; the ordering
+guarantees in [coga/launch](../../../coga/launch/SKILL.md) apply across those
+boundaries. Entry preparation is `git.prepare_control_checkout`
+([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
+prompt composed before the switch
+(`spawn_agent_session(composed_prompt=...)`). Agent preflight looks up the
+CLI with `shutil.which` and resolves secrets with `build_launch_env`; an
+open blocker left after a resumed session is restored by
+`_reblock_unresolved_resume`; the `--agent` continuation rule is
+`consecutive_agent_override`.
 
 ## Order inside one call
 
@@ -71,7 +103,7 @@ Secrets are minted per step from the freshly read config and ticket.
 - `kickoff`: an extra first user turn (`coga ticket`'s greet-first token).
 - `include_blocker_preamble=False` and `stateless_identity` for authoring.
 - `launch_context` selects the one session-conduct layer
-  (`coga/session-conduct`); `commit_log` publishes the audit immediately
+  (`coga/prompt-composition`); `commit_log` publishes the audit immediately
   (bootstrap targets).
 
 Otherwise argv is
@@ -89,10 +121,8 @@ the one-shot `codex exec` analyze argv already inherits the environment.
 
 ## Large prompts
 
-Linux caps one execve argument near 128 KiB. When the prompt exceeds
-`_MAX_PROMPT_ARG_BYTES` (120,000 UTF-8 bytes), argv carries a pointer telling
-the agent to read the prompt file in full first; the file outlives the
-session.
+Oversized prompts use file-pointer delivery; the threshold and prompt-file
+lifetime are owned by [compose](../compose/SKILL.md#delivery).
 
 ## The supervisor
 

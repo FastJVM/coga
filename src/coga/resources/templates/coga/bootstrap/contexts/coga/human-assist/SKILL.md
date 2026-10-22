@@ -1,6 +1,6 @@
 ---
 name: coga/human-assist
-description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, the recorded-checkout alignment and PR-head proof it runs before composition, the scripts it may run, and the assist identity its child inherits.
+description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, the recorded-checkout path's PR-head proof, the scripts it may run, and whom its lifecycle lines credit.
 ---
 
 # Human-step assist
@@ -19,60 +19,53 @@ or PR validation.
 
 ## Recorded checkout
 
-`_recorded_single_checkout_assist_branch` qualifies only when Git sync is
-enabled, `## Dev` records `branch:`, `worktree:`, and `pr:`, launch runs from
-exactly that checkout (primary, linked worktree, or independent fallback
-clone), and it is on the recorded branch. Otherwise the assist gets ordinary
-launch handling with no alignment and no assist identity.
-
-## Alignment before composition
-
-Launch's checkout boundary never moves this checkout: a launch from the
-ticket's recorded `worktree:` on its recorded `branch:` is exempt
+Launch uses the recorded-checkout assist path when Git sync is enabled,
+`## Dev` records `branch:`, `worktree:`, and `pr:`, launch runs from exactly
+that checkout (primary, linked worktree, or independent fallback clone), and
+it is on the recorded branch. Other assists follow ordinary
+[checkout handling](../checkouts/SKILL.md), without this alignment or assist
+identity. Launch's checkout boundary leaves a qualifying recorded checkout
+in place
 ([coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md)).
 
-Before any skill refresh, config, ticket, secret, expected-step, or prompt
-derivation, for draft, active, in_progress, paused, and blocked tickets:
+## PR-head proof before composition
+
+For that recorded-checkout path, before anything is composed, launch proves
+the checkout holds the PR's head for draft, active, in_progress, paused, and
+blocked tickets alike:
 
 1. The recorded branch must not share the control branch's name.
-2. `pr_assist.verify_recorded_assist_pr_head`: the PR is `OPEN`, its head
-   branch is the recorded branch, and its head repository (host, owner, name)
-   equals the configured remote's push URL, so a same-named base-repository
+2. The PR is open, its head branch is the recorded branch, and its head
+   repository is the configured remote's, so a same-named base-repository
    branch cannot stand in for a fork head.
-3. `_align_recorded_assist_checkout` fetches the branch into its
-   remote-tracking ref; that OID must equal the PR head. A behind checkout is
-   fast-forwarded (`merge --ff-only`); an ahead or diverged tip refuses, as
-   does dirt outside the Coga roots (`git.coga_root_paths`).
-4. After a move, config and target reload (the slug resolved from the user's
-   prefix must still resolve to the same task) and the loop repeats; three
-   consecutive moves refuse ("retry once the PR branch is stable").
+3. The fetched branch tip must equal the PR head. A behind checkout is
+   fast-forwarded; an ahead or diverged tip refuses, as does dirt outside the
+   Coga roots. A PR branch that keeps moving refuses with "retry once the PR
+   branch is stable".
 
-After classification the recorded branch, PR URL, and PR head are checked
-again; any change since alignment refuses.
+Any change to the recorded branch, PR URL, or PR head after that proof
+refuses.
 
 ## Scripts under an assist
 
-When the target carries `ticket.py`
-([script tickets](../script-tickets/SKILL.md)), the assist validates the
-agent name, resolves secrets, preflights live notification config
-(`preflight_post`) and push auth, activates and starts the ticket, and only
-then runs the script. Agent CLI lookup, skill refresh, and composition stay
-deferred until the script leaves agent work open. The script child receives
-`COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`, and the three `COGA_ASSIST_*`
-values; its result is published to control right after it exits. Its
-completion still credits `system`. Once a script advances to an agent step,
-that step's derived agent owns routing and the assist identity for later
-chained scripts; the override stops participating in routing.
+When a recorded assist's target carries `ticket.py`
+([script tickets](../script-tickets/SKILL.md)), it validates the
+agent name, resolves secrets, preflights notification config and push auth,
+activates and starts the ticket, and only then runs the script. Agent CLI
+lookup and composition stay deferred until the script leaves agent work
+open. The script's result is published to control right after it exits. Once
+a script advances to an agent step, that step's derived agent owns routing;
+the override stops participating.
 
-## Identity, not a publication path
+## Attribution
 
-The agent child inherits `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, and
-`COGA_ASSIST_PR`. In-session `bump`, `mark`, and `block` read them through
-`pr_assist.assist_session_from_env`, which applies only when
-`COGA_EXPECTED_TASK` names the same task, and requires the PR and a
-configured agent. They attribute audit lines to the assisting agent instead
-of the owner, including after a script hands the chain to an agent step.
-Nested non-assist spawns clear all three.
+The recorded assist identity is the exception to launch's attribution rule:
+in-session `bump`, `mark`, and `block` lines credit the assisting agent
+instead of the owner, including after a script hands the chain to an agent
+step. A script's own completion inside an assist still credits `system`.
+The identity only attributes; it grants no publication authority, and nested
+non-assist spawns drop it.
 
-What an assist publishes, and where, is in
+Everything an assist publishes lands on control, never on the PR branch. The
+environment contract, alignment loop, and publication table are in
 [assist publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/assist-publication/SKILL.md).

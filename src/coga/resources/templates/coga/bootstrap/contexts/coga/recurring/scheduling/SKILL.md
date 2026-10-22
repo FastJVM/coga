@@ -104,7 +104,7 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
 - `--interactive` needs an attended TTY, uses attended conduct and leaves the
   liveness limits unarmed. Every other automatic launch composes the recurring
   queue conduct (`prompt-queue.md`; see
-  [session-conduct](../../session-conduct/SKILL.md)) and arms the idle timeout:
+  [prompt composition](../../prompt-composition/SKILL.md#session-conduct)) and arms the idle timeout:
   `COGA_REPL_IDLE_TIMEOUT` > `[launch].idle_timeout` > 900 s (`0` or non-finite
   disarms); `COGA_REPL_MAX_SESSION` / `[launch].max_session` caps wall clock.
 - `--agent <type>` is an ephemeral override for every agent-backed period in the

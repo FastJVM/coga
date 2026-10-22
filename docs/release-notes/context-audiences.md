@@ -23,7 +23,6 @@ not usable references.
 | --- | --- |
 | `coga/internals/human-assist` | `coga/human-assist` |
 | `coga/internals/pr-publication` | `coga/pr-publication` |
-| `coga/internals/pr-publication/existing-pr` | `coga/pr-publication/existing-pr` |
 | `coga/internals/pr-publication/preparation` | `coga/pr-publication/preparation` |
 | `coga/internals/state-publication/authoring`, `coga/state-publication/authoring` | `coga/state-publication` |
 | `coga/internals/state-publication/sweep`, `coga/state-publication/sweep` | `coga/state-publication` |
@@ -60,8 +59,10 @@ Attach the shipped ref instead.
 
 | Previous ref | Shipped ref |
 | --- | --- |
+| `coga/internals/pr-publication/existing-pr`, `coga/pr-publication/existing-pr` | `coga/pr-publication` |
 | `coga/recurring/scheduling/failures` | `coga/recurring/scheduling` |
 | `coga/recurring/scheduling/ledger` | `coga/recurring/scheduling` |
+| `coga/session-conduct` | `coga/prompt-composition` |
 | `coga/tickets/ownership` | `coga/tickets` |
 
 ## Development topics removed from the package

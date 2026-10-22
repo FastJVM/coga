@@ -6,7 +6,7 @@ description: Index of the concurrency and publication guarantees behind coga lau
 # Coga implementation internals
 
 These pages hold what a change to `src/coga/launch.py`,
-`src/coga/launch_script.py`, `src/coga/megalaunch.py`,
+`src/coga/launch_script.py`, `src/coga/compose.py`, `src/coga/megalaunch.py`,
 `src/coga/repl_supervisor.py`, `src/coga/pr_assist.py`,
 `src/coga/open_pr.py`, `src/coga/step_gate.py`, or the recurring runner must
 not break. They are not attached by default: operating Coga needs
@@ -23,9 +23,13 @@ and the local state lock serializes only one checkout's writers.
 
 - [Agent config](agent-config/SKILL.md): the key-level `[agents.*]`
   merge, `default_agent` validation and freezing, and `peer` resolution.
-- [Agent spawn](agent-spawn/SKILL.md): every agent goes through
-  `spawn_agent_session`; prompt-file delivery above 120,000 bytes; sentinel
-  scoping and exit classification; missing file versus missing CLI.
+- [Agent spawn](agent-spawn/SKILL.md): the `coga.launch` Python API and its
+  phases; every agent goes through `spawn_agent_session`; prompt delivery;
+  sentinel scoping and exit classification;
+  missing file versus missing CLI.
+- [Compose](compose/SKILL.md): prompt files, `PromptLayer`, the launch
+  marker, resource-override errors, section extraction, and conduct
+  selection behind `coga/prompt-composition`.
 - [Assist publication](assist-publication/SKILL.md): every
   assist write lands on control, never the PR branch; the identity only
   attributes.

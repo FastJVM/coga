@@ -77,7 +77,7 @@ gate, not your say-so.
    the PR exists.
 
    Read [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md), “Preparation record”, and
-   [coga/pr-publication/existing-pr](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/existing-pr/SKILL.md), “Updating an existing PR”. The command formats the preceding judgment
+   [coga/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/SKILL.md), “Updating an existing PR”. The command formats the preceding judgment
    step's `## PR` evidence, includes the literal ticket snapshot, and refreshes
    intact generated title/body on reruns. Missing/stale evidence stays visible
    as a conservative fallback, never as a passed test/review. This does not

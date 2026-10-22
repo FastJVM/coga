@@ -6,38 +6,31 @@ description: Workflow definitions and the frozen snapshot — step format, resol
 # Workflows
 
 A workflow is an ordered list of steps in a markdown file:
-`coga/workflows/<ref>.md` locally, else the package
-`bootstrap/workflows/<ref>.md` (`src/coga/paths.py`
-`resolve_workflow_path`; local wins). The package's fallback workflows live
-under `src/coga/resources/templates/coga/bootstrap/workflows/`; the workflows
-`coga init` seeds into the repo (including `direct/body`, which runs the
-ticket body's ordered phases) live under
-`src/coga/resources/templates/coga/workflows/`.
+`coga/workflows/<ref>.md` locally, else the package's bundled
+`bootstrap/workflows/<ref>.md`; local wins. `coga init` seeds some workflows
+into the repo, including `direct/body`, which runs the ticket body's ordered
+phases.
 
 An existing local entry always wins, including an unreadable file, directory,
-or broken symlink: it must be repaired, never bypassed with bundled text.
-`Workflow.load` distinguishes genuine absence (`WorkflowNotFoundError`, also a
-`WorkflowError`) from malformed definitions and read failures (`WorkflowError`
-with the source path and cause). Resolution also reports inspection failures
-(such as an unsearchable directory or a non-directory parent) as `WorkflowError`,
-without trying the bundled fallback. Inline prompt composition preserves only the
-documented missing-definition placeholder; other load failures refuse launch.
+or broken symlink: it must be repaired, never bypassed with bundled text. A
+genuinely absent definition is distinguished from a malformed or unreadable
+one, which names its path and cause and refuses launch; only absence composes
+the missing-definition placeholder.
 
 ## Definition format
 
-YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list
-(`src/coga/workflow.py` `Workflow.load`). Each step has a `name` and may
-declare `skills:` (a list; singular `skill:` is rejected), `assignee:` (a role
-token), and `requires:` (a gate token). The markdown body may carry a
+YAML frontmatter holds `name`, `description`, and a non-empty `steps:` list.
+Each step has a `name` and may declare `skills:` (a list; singular `skill:`
+is rejected), `assignee:` (a role token), and `requires:` (a gate token). The markdown body may carry a
 `## <step-name>` section of inline instructions per step.
 
-`_parse_inline_sections` uses the shared `taskfile.body_sections` parser:
-closed backtick and tilde examples retain their `##` lines and subsequent
-prose inside the current section. Fenced headings cannot supply instructions
-for another step. A real H2 ends the current section even when its name is
-not a step; only headings matching a step name supply instructions. Headings
-may be indented up to three spaces and have a closing `#` run. Unmatched
-fence openers are ordinary text, so they cannot hide later real step headings.
+Inline sections are fence-aware: closed backtick and tilde examples retain
+their `##` lines and subsequent prose inside the current section, so fenced
+headings cannot supply instructions for another step. A real H2 ends the
+current section even when its name is not a step; only headings matching a
+step name supply instructions. Headings may be indented up to three spaces
+and have a closing `#` run. Unmatched fence openers are ordinary text, so
+they cannot hide later real step headings.
 
 - A step **with** `skills:` composes those skill files; its inline section is
   never read by the agent (human framing only).
@@ -49,11 +42,9 @@ fence openers are ordinary text, so they cannot hide later real step headings.
 
 The step list is frozen into the ticket's `workflow:` (name plus each step's
 `skills`, `assignee`, `requires`) at `coga create --workflow`, or at
-activation when a draft carries a bare-string `workflow:` ref
-(`src/coga/mark.py` `_freeze_workflow_ref`, which also seeds `step: 1` and is
-a no-op once `workflow:` is a dict). Nothing re-freezes an existing ticket.
-So a `steps:` edit reaches only tickets created afterwards and bare-ref drafts
-activated afterwards; a draft created with `--workflow` stays on the old
+activation when a draft carries a bare-string `workflow:` ref (which also
+seeds `step: 1`). Nothing re-freezes an existing ticket. So a `steps:` edit
+reaches only tickets created afterwards and bare-ref drafts activated after; a draft created with `--workflow` stays on the old
 steps however late it is activated.
 
 The freeze covers metadata, not content. Step skills resolve live at every
@@ -78,16 +69,15 @@ exists.
 
 ## Roles are the routing
 
-`assignee:` is `owner`, `agent`, or `other-agent`. `src/coga/bump.py`
-`resolve_operator` is the one pure resolver every consumer uses (launch,
-transitions, script handoffs, status/show, notifications, sweeps), and
-nothing is written back:
+`assignee:` is `owner`, `agent`, or `other-agent`. One pure resolver derives
+the operator for every consumer (launch, transitions, script handoffs,
+status/show, notifications, sweeps), and nothing is written back:
 
 - `owner` → the ticket's `owner:`, a human handoff.
 - `agent` → the ticket's `agent:` main-agent choice.
 - `other-agent` → that agent's `[agents.<type>].peer` when set, else the only
-  other configured type (`resolve_other_agent`). Peers are one-directional
-  and live configuration, not frozen.
+  other configured type. Peers are one-directional live configuration, not
+  frozen.
 - An omitted `assignee:` inherits the nearest preceding declared role in the
   frozen steps; before any declaration it is `owner`.
 
@@ -98,19 +88,15 @@ launch and megalaunch derive routing from the prepared activation before
 preflight or any durable write. Validation checks every frozen
 `other-agent` step against current config (`unresolvable-step-assignee`),
 using the prospective default agent for drafts. Agent types and `peer` are
-explained in the shipped `coga.toml` comments
-([coga/configuration](../configuration/SKILL.md)); how launch chains across role changes is
-[coga/launch](../launch/SKILL.md).
+explained in the shipped `coga.toml` comments ([coga/configuration](../configuration/SKILL.md));
+how launch chains across role changes is [coga/launch](../launch/SKILL.md).
 
 ## Required at activation, not at draft
 
-**validate-drift: unfrozen-workflow.** Bare workflow references are accepted
-on drafts intentionally awaiting first activation and on canceled tickets.
-This preserves parked intent and terminal history without activating work
-merely to clear a warning. Revisit this decision if an affected ticket enters
-a nonterminal status other than draft; activation must freeze its workflow.
-
-A workflow-less draft is valid. `coga mark active` (and launch-time
+A bare workflow reference is accepted on a draft awaiting first activation
+and on a canceled ticket, preserving parked intent and terminal history
+(revisit if one enters another nonterminal status; activation must freeze
+it). A workflow-less draft is valid. `coga mark active` (and launch-time
 auto-activation) refuses a ticket without one, pointing at `--workflow` or
 `coga ticket`. `coga validate` reports a workflow-less `active`,
 `in_progress`, `blocked` or `paused` ticket as `active-no-workflow` (error);
@@ -121,9 +107,8 @@ declares no workflow: there is no sanctioned workflow-less live task.
 ## Step completion gates (`requires:`)
 
 Before `coga bump` advances **off** a step with `requires: <token>`, it runs
-that token's predicate on the blackboard (`src/coga/step_gate.py`
-`STEP_GATES`); a miss fails loud with the remediation, regardless of which
-agent owns the step. Unknown tokens fail. Human rewinds are never gated.
+that token's predicate on the blackboard; a miss fails loud with the
+remediation, regardless of which agent owns the step. Unknown tokens fail. Human rewinds are never gated.
 
 - `branch`: a usable `branch:` under `## Dev` (`(`-prefixed placeholders
   count as absent); `worktree:` is recorded only for the sandbox-clone
@@ -145,36 +130,23 @@ gives every other step manual guidance; that table belongs to
 [coga/checkouts](../checkouts/SKILL.md#which-checkout-a-step-starts-in).
 Workflow definitions and frozen snapshots carry no checkout field.
 
-## Branch gate scope
-
-Decision (2026-10-06, owner): do not add the proposed branch/worktree freshness
-guard at bump. Its cross-checkout premise predates ordinary tickets' move to
-the launch checkout. Branch existence cannot distinguish a wrong old branch
-from a legitimate resumed branch; `open-pr` already checks existence and
-commits ahead of the base. Revisit on a concrete wrong-branch handoff under
-the current ordinary-ticket workflow. Recurring worktrees are outside this
-decision.
-
 ## Code review gate
 
 `code/with-review` and its siblings freeze `code/address-pr-comments` on an
 owner-assigned `review` step: the owner merges and resolves threads, and the
 skill is an on-demand assist that never resolves or bumps. Coga does not own
-GitHub merge policy, so an unresolved bot thread does not block a merge.
-Decision (2026-09-13, owner): keep the human gate; rather than auto-launching
-the assist or blocking merges, add post-merge detection. When
-`autoclose-merged` closes a ticket it fetches that PR's `reviewThreads` once
-and names every unresolved, non-outdated, reply-less thread in the closure's
-`coga/log.md` line, its sweep report, and one Slack line, report-only
+GitHub merge policy, so an unresolved bot thread does not block a merge;
+when `autoclose-merged` closes a ticket it names every unresolved,
+non-outdated, reply-less review thread in the closure's `coga/log.md` line,
+its sweep report, and one Slack line, report-only
 (`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
 
-### Obligations the merge does not discharge
+## Obligations the merge does not discharge
 
 Merge-triggered closure is unconditional: `autoclose-merged` marks a ticket
 `done` when it sits on its final step, is `active` or `in_progress`, and its
-recorded PR has merged (`coga.autoclose._candidate` plus the merged-state
-check). It never reads Done criteria, acceptance checklists, or a "still open"
-list on the blackboard. So, before `coga open-pr` runs, every obligation the
+recorded PR has merged. It never reads Done criteria, acceptance checklists,
+or a "still open" list on the blackboard. So, before `coga open-pr` runs, every obligation the
 merge will not discharge — a release publication, an attended or
 post-release check, a proof on another platform — is filed as its own draft
 (`coga create`) and linked from the handoff, or the work is kept off a
@@ -185,17 +157,3 @@ that runs `coga mark done` directly (`code/implement` and `code/self-qa` on
 the already-satisfied path, `direct/body`) runs the same check before it
 closes; `code/address-pr-comments` flags an obligation that surfaces during
 review before the owner merges.
-
-Worked case (Dream 2026-W43): three tickets closed with recorded, unowned
-obligations. `marketing/fix-installer/release-0-4-1-so-new-context-files-publish`
-was auto-closed on the merge of PR #998 while its PyPI publication and
-post-PyPI clean-install checks were still owed; `marketing/readme-top` was
-marked done with a "Still open" list; and
-`marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
-left the macOS walk without a build passthrough. Retro W43 kept them only as
-known gaps in PRs #1058, #1059, and #1046.
-
-Reading rules: a ticket still on `review` with a merged PR is not backlog
-(autoclose closes it on its next run); count only open PRs as the live queue.
-A measurement over retired tickets and merged PRs should gate on a closed time
-window, never on an empty live queue, which normal throughput never produces.
