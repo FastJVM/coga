@@ -273,3 +273,9 @@ branch: coga/blocks-08-trim-launch-prompt-workflow
 ## Blockers
 
 - [ ] [2026-10-21 19:17] [agent:claude] id=20261021T191736 Depends on blocks/02-delete-the-code-topic-and-remove-coga-repo-only: implement is pushed (coga/blocks-08-trim-launch-prompt-workflow) but pytest has 3 packaging failures inherited from main, where commit 001aad66f published 02's docs/contexts edits without their packaged twins. Land 02 (then a relaunch rebases, reruns tests and bumps), or answer 'bump anyway' to send this to review with the inherited red suite.
+
+---
+
+## Blocker reminders
+
+- 9b9d09c67721 last_reminded: 2026-10-22 09:03
