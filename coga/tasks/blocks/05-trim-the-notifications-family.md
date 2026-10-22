@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 3c32e20e-feab-4868-bd2f-4e7c1cf4af49
 ---
 
 ## Description
@@ -148,5 +147,59 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 ## Dev
 
 branch: coga/blocks-05-trim-the-notifications-family
+
+## Handoff (implement)
+
+Done on the branch (commit `db0ef105b`, pushed). Every README row for this family is applied:
+
+- `coga/notifications`: the Configuration section is gone. Slack keys are now documented once, in the shipped `coga.toml`, which gained the facts only the topic had: Slack inferred when `channels` is absent, unknown channel fails load, `channels = []` gives one stderr line, three keys overridable locally, the `--check-slack` empty payload, opt-out behaviour and its cost, GIF kinds with the `panic` fallback, member IDs not secret. The fail-loud sentence was also corrected, because `fatal=False` posts report rather than crash. Message format, the snapshot test, #56 history, `OUTCOME_EVENT_KINDS`/`ValueError`, "outbound only" and "Adding a notifying command" moved to coga-dev. The new user section "When a post fails" holds the failures summary: best-effort vs refuse-before-write, never rerouted, rotate a leaked webhook. Kept the `#pinging-the-owner` anchor, which `coga/recurring/usage-report/ticket.md` and `coga/skills/coga/usage-report/post` link.
+- `notifications/producers`: dropped the Caller column, the "grep for the real call" note and the Accounting rule. Kept the phone-home "miss stays off log" fact as user-visible.
+- `notifications/failures`: deleted (both copies, and its entry in `test_packaging.py`). Links repointed in `sync` (row merged; design-rule step 1 now links coga-dev internals), `important` (→ `notifications#when-a-post-fails`), `producers`, `notifications`, `docs/README.md`, and the coga-dev `testing` page.
+- `important`: removed the repo-specific usage-report carve-out sentence. This follows the audit: the decision is this repo's, and it is now recorded on the coga-dev page. "Not covered here" now points webhook config at `coga.toml`.
+- New coga-dev page `internals/notifications` (157 lines, listed in the `internals` index), holding failure internals, preflight callers, log gaps, redaction, the caller list, the accounting rule, the usage-report exception, message format, and "Adding a notifying command".
+
+Decisions / disagreement for owner: none against the audit. One judgment call: the generic "a repo may route a low-volume report to important" sentence was dropped rather than kept generic. If this conflicts with PR #1081 (ticket 02), which rewrites the same packaged `important` lines, take this version.
+
+Verification:
+- `.venv/bin/python -m pytest -q`: 3952 passed, 7 skipped, 3 failed. All 3 are `tests/test_packaging.py` failures already present on main (`identical`, `distribution_is_complete`, `navigation_has_no_broken_links`). They come from ticket 02's canonical half reaching main via sweep commit `001aad66f` (`coga/code` deletion plus 14 drifted twins), and PR #1081 carries the fix. No problem involves a file this branch touches, and the touched twins are verified by `cmp`.
+- `coga validate --json`: 0 errors, 47 pre-existing warnings.
+- After the rebase onto `aa64b7b7f` (only this ticket changed), `tests/test_packaging.py` and `tests/test_validate.py` were re-run with the same 3 failures.
+
+Review has not run yet; peer-review is the next step.
+
+## PR
+
+```yaml
+title: Trim the notifications family and split notifications/failures
+author: claude (Claude Code, claude-opus-5-5)
+head: db0ef105b61a501676a73158799cdf5bc4f87444
+base: aa64b7b7fa61a8a7f8eab9eb1fdbd0df361f7972
+review_depth: skim
+review_depth_rationale: docs-only reorganization plus coga.toml comments and one test-list entry; no runtime code changes
+files:
+  docs/contexts/coga/notifications/SKILL.md: user contract trimmed; failure summary added; config pointed at coga.toml
+  docs/contexts/coga/notifications/producers/SKILL.md: caller column and accounting rule removed
+  docs/contexts/coga/notifications/failures/SKILL.md: deleted (split)
+  docs/contexts/coga/important/SKILL.md: repo-specific exception removed; failures link repointed
+  docs/contexts/coga/sync/SKILL.md: failures row merged; design rule links coga-dev internals
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/{notifications,notifications/producers,important,sync}/SKILL.md: byte-identical twins
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md: deleted twin
+  src/coga/resources/templates/coga/coga.toml: notification comments absorb topic-only config facts
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: new internals page
+  docs/contexts/coga-dev/internals/SKILL.md: index entry
+  docs/contexts/coga-dev/testing/SKILL.md: link repointed to coga.toml comments
+  docs/README.md: failures link removed
+  tests/test_packaging.py: drop coga/notifications/failures from the bootstrap context set
+checks:
+  - command: .venv/bin/python -m pytest -q
+    head: de36a7b89 (same tree as db0ef105b minus rebase of ticket-only main commit)
+    result: 3 failed, 3952 passed, 7 skipped; failures pre-exist on main (ticket 02 sweep)
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_validate.py
+    head: db0ef105b
+    result: 3 failed (same pre-existing), 180 passed
+  - command: coga validate --json
+    result: rc 0, 47 warnings, no errors
+review: not run (peer-review step follows)
+```
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

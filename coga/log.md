@@ -8986,3 +8986,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 17:38 v1 [blocks/05-trim-the-notifications-family] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-21 17:38 v1 [blocks/05-trim-the-notifications-family] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-21 17:39 v1 [blocks/05-trim-the-notifications-family] [megalaunch] launched via coga megalaunch
+2026-10-21 17:49 v1 [blocks/05-trim-the-notifications-family] [agent:claude] advanced to step 2 (peer-review) → codex
