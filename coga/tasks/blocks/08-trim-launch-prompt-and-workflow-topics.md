@@ -1,6 +1,6 @@
 ---
 title: 08 Trim launch, prompt and workflow topics
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:43d82caf-0cb9-4122-b2bc-a4caade1ace1
 ---
 
 ## Description
