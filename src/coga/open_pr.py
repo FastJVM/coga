@@ -20,7 +20,9 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -57,6 +59,8 @@ def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProc
     # Decode as UTF-8 explicitly rather than through the ambient locale: this
     # reads ticket bodies, and a launch subprocess chain running under `LC_ALL=C`
     # would otherwise raise `UnicodeDecodeError` on the first em dash.
+    if os.name == "nt":
+        args = [shutil.which(args[0]) or args[0], *args[1:]]
     return subprocess.run(
         args,
         cwd=cwd,

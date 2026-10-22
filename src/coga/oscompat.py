@@ -257,20 +257,12 @@ class _WindowsJob:
 
     def wait_started(self, process: subprocess.Popen) -> None:
         """Do not expose a tree whose wrapper can still enter after a stop."""
-        import ctypes
-
-        self._kernel.IsProcessInJob.argtypes = [
-            ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int),
-        ]
-        self._kernel.IsProcessInJob.restype = ctypes.c_int
         deadline = time.monotonic() + 10
         while process.poll() is None:
-            joined = ctypes.c_int()
-            if not self._kernel.IsProcessInJob(
-                int(process._handle), self._handle, ctypes.byref(joined),
-            ):
-                raise ctypes.WinError(ctypes.get_last_error())
-            if joined.value:
+            # A venv's python.exe can be a launcher waiting for the actual
+            # interpreter. Its Popen handle need not itself join the job;
+            # the wrapper's assignment is proven by the job's membership.
+            if _job_has_processes(self._kernel, self._handle):
                 return
             if time.monotonic() >= deadline:
                 raise TimeoutError("Windows child did not join its process job")

@@ -73,6 +73,34 @@ def test_root_help_runs_without_user(
     assert "Organize agent work" in capsys.readouterr().out
 
 
+def test_windows_cli_uses_utf8_when_output_is_redirected(clone, monkeypatch):
+    import io
+    import sys
+    from types import SimpleNamespace
+    from coga import cli
+
+    def command():
+        print("Café → 語")
+        print("Café → 語", file=sys.stderr)
+        raise SystemExit(0)
+
+    output, errors = io.BytesIO(), io.BytesIO()
+    stdout = io.TextIOWrapper(output, encoding="cp1252")
+    stderr = io.TextIOWrapper(errors, encoding="cp1252")
+    monkeypatch.setattr(cli, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(cli, "app", command)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+    monkeypatch.setattr(sys, "argv", ["coga", "--help"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    stdout.flush()
+    stderr.flush()
+    assert output.getvalue().decode("utf-8").strip() == "Café → 語"
+    assert errors.getvalue().decode("utf-8").strip() == "Café → 語"
+
+
 def test_command_help_runs_without_user(
     clone: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

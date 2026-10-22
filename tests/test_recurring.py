@@ -8812,10 +8812,12 @@ def test_forced_dream_rerun_keeps_the_frozen_agent_after_the_default_changes(
     assert seen == ["claude", "claude"]
 
 
+@pytest.mark.parametrize("native_windows", [False, True])
 def test_bare_recurring_skips_interactive_without_tty_and_continues(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, native_windows: bool
 ) -> None:
     """Unattended recurring skips agent work and runs a later script."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: not native_windows)
     _write_recurring(
         repo,
         "z-script-check",
@@ -8863,7 +8865,11 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert launched == ["recurring/z-script-check"]
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "an agent run requires a TTY" in combined
+    if native_windows:
+        assert "agent sessions are not supported on native Windows yet" in combined
+        assert "windows-native/03-interactive-coga-launch-on-native-windows" in combined
+    else:
+        assert "an agent run requires a TTY" in combined
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs

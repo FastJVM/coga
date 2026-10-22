@@ -2549,7 +2549,8 @@ def test_prepare_realigns_over_a_hand_committed_context_already_on_control(git_r
     assert tip[:12] in capsys.readouterr().err
 
 
-def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):
+@pytest.mark.parametrize("autocrlf", ["input", "true"])
+def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo, autocrlf):
     """Under `core.autocrlf`, publish must hash through the clean filters.
 
     Raw bytes landed a CRLF blob on control while `git add` staged LF, so
@@ -2557,11 +2558,11 @@ def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):
     """
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
-    git_repo.git("config", "core.autocrlf", "input")
+    git_repo.git("config", "core.autocrlf", autocrlf)
     git_repo.checkout_branch("feature/x")
     task = git_repo.coga_os / "tasks" / "recurring" / "sweep"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_bytes(_ticket_text().replace("\n", "\r\n").encode())
+    (task / "ticket.md").write_bytes(_ticket_text(blackboard="Café — 語\n").replace("\n", "\r\n").encode())
     (task / "ticket.py").write_bytes(b"print('hi')\r\nraise SystemExit(0)\r\n")
     git_repo.git("add", "--", "coga/tasks/recurring/sweep")
     assert git.publish(cfg, [task], "Recurring: create sweep") is True
@@ -3437,7 +3438,10 @@ def test_subsumed_guard_compares_executable_modes(git_repo):
     assert verdict.kind == "unpublished"
     assert verdict.blocking == ("coga/tasks/demo.md (file mode differs from control)",)
 
-    _peer_commit(git_repo, lambda clone: git.run_git(clone, "update-index", "--chmod=+x", "coga/tasks/demo.md"))
+    _peer_commit(git_repo, lambda clone: (
+        (clone / "coga/tasks/demo.md").chmod(0o755) if os.name == "posix"
+        else git.run_git(clone, "update-index", "--chmod=+x", "coga/tasks/demo.md")
+    ))
     git_repo.git("fetch", "--quiet", "origin")
     assert _subsumed(git_repo, cfg).kind == "ok"
 

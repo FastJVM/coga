@@ -76,7 +76,7 @@ def _install_fake_gh(
                 body = Path(args[args.index("--body-file") + 1]).read_bytes().decode("utf-8")
             elif "--body" in args:
                 body = args[args.index("--body") + 1]
-            with Path({str(log)!r}).open("a") as out:
+            with Path({str(log)!r}).open("a", encoding="utf-8", newline="\\n") as out:
                 out.write(" ".join(args) + "\\n" + body + "\\n")
             if args[:2] == ["pr", "view"]:
                 if not view.exists():

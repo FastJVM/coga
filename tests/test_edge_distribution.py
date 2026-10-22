@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import windows_skip
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -185,8 +187,13 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
             )
     # No TTY and no executable agent. The actual CLI must finish or return
     # the script's failure, never fall through to an agent success.
-    (installed / "bin/git").symlink_to(shutil.which("git"))
-    env["PATH"] = str(installed / "bin")
+    if os.name == "nt":
+        # The native Git installation has no agent CLIs; the Unix symlink
+        # fixture would lose Git for Windows' adjacent runtime files.
+        env["PATH"] = str(Path(shutil.which("git")).parent)
+    else:
+        (installed / "bin/git").symlink_to(shutil.which("git"))
+        env["PATH"] = str(installed / "bin")
     result = subprocess.run([
         sys.executable, "-m", "coga.cli", "launch", "recurring/phone-home",
     ], cwd=root / "coga", env=env, capture_output=True, text=True, timeout=30)
@@ -226,6 +233,7 @@ def _operator_command(name, root, env, *, success=True):
 
 
 @pytest.mark.parametrize("layout", ["user", "tool-link"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
 def test_documented_interpreter_uses_console_script_shebang(tmp_path, layout):
     scripts = tmp_path / "bin"
     scripts.mkdir()
@@ -245,6 +253,7 @@ def test_documented_interpreter_uses_console_script_shebang(tmp_path, layout):
 
 
 @pytest.mark.parametrize("shebang", ["#!/bin/sh", "#!/usr/bin/env python3", "#!/missing/python3"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
 def test_documented_interpreter_refuses_unknown_launcher(tmp_path, shebang):
     launcher = tmp_path / "coga"
     launcher.write_text(f"{shebang}\nexit 0\n", encoding="utf-8", newline="\n")
@@ -253,6 +262,7 @@ def test_documented_interpreter_refuses_unknown_launcher(tmp_path, shebang):
     _operator_command("interpreter", tmp_path, env, success=False)
 
 
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
 def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_path, edge_wheels):
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
     env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]

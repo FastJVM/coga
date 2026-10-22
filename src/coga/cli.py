@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import shlex
 import signal
 import sys
@@ -356,6 +357,12 @@ def _restore_default_sigpipe() -> None:
 
 def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
+    if os.name == "nt":
+        # Windows console I/O already supports Unicode, but pipes otherwise
+        # inherit the ANSI code page (often cp1252), even for `coga --help`.
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8")
     _restore_default_sigpipe()
     invoked_command = sys.argv[1] if len(sys.argv) > 1 else None
     recurring_all_invoked = (

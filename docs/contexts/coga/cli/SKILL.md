@@ -9,6 +9,9 @@ The installed CLI is the syntax authority: run `coga --help` and
 `coga <command> --help`. This page only says which file owns each
 command's behavior. Attach that topic when a task depends on it.
 
+On native Windows, CLI stdout and stderr use UTF-8, including redirected
+output. State files follow the [UTF-8 and LF contract](../state-publication/SKILL.md).
+
 ## Setup
 
 | Command | Owner |
