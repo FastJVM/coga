@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -153,7 +153,8 @@ branch: coga/blocks-04-recurring-trim
 
 ## Implementation
 
-Claude's original implementation was `5a314ff19`, rebased as `e0dbc7de4`.
+Claude's original implementation was `5a314ff19`, previously `e0dbc7de4`,
+now rebased as `2aa3dc9de`.
 Scheduling now owns the serviced-period ledger and recurring command variants;
 the ledger/failures leaves were removed and their user contracts merged.
 Period-task retains the state-lifetime and completion rules, linking to
@@ -169,100 +170,103 @@ the removed leaves; retain this exception for the owner to review.
 
 ## Peer review
 
-Completed direct Codex review of final head `7abf37635690f7b6f53a9468b6180459d4ebf4ed` against
-base `bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd`. The implement handoff identifies Claude
-(claude-opus-5-5) as the original implementer. This was independent review of
-that implementation; Codex authored and self-reviewed commit `7abf37635`.
-No nested review CLI or subagent ran.
+Completed direct Codex review of final head `73c4649d4c2dadda2c359c25deb2da0195d54a54`
+against base `67774a1b97515df64a5b04623fbd577f82899bc1`. No unresolved findings.
+The implement handoff identifies Claude (claude-opus-5-5) as the original
+implementer. Codex independently reviewed that implementation and self-reviewed
+its corrections, rebase resolutions and template syncs. The combined review
+is recorded as self-review; no nested review CLI or subagent ran.
 
-Fixed findings:
-- The condensed clone-output paragraph incorrectly promised the final tail on
-  the console. `recurring_clone._run_clone_script` retains it in the local log
-  and run record. Corrected that distinction and kept exact output/deadline
-  limits only in `coga-dev/internals/recurring-clone`.
-- Install troubleshooting generalized one old clone-scope incompatibility to
-  every unknown future template key. Narrowed the claim to the established
-  clone-scope case.
-- Added the requested direct link to the shipped configuration for `idle_days`.
-  Its comments are in prerequisite PR #1080, still open. Rebuilt the PR record
-  with valid compact identities, structured receipts and all 30 exact paths;
-  the implement record's free-form author/review and wildcard file path would
-  not satisfy publication preparation.
+The owner cleared the prerequisite blocker after PRs #1080 and #1081 merged;
+`coga unblock` recorded the resolution. Rebased onto current main, preserving
+its autofix default-context contract and ticket 09's install cleanup alongside
+this ticket's consolidation. The projected ticket was backed up and restored
+byte-for-byte; the unblock log entry was already published before rebase.
 
-Reviewed the audit rows, ledger and command ownership, period-state retention,
-headless/delegation gates, clone completion/output, inactivity admission,
-autofix parsing/auth retry, and moved authoring/package contracts against the
-relevant source. All nine surviving topic pairs are byte-identical; both
-deleted leaves are absent in both trees. No live link points to those removed
-topics or their removed anchors, excluding old tickets, log and archive.
-Both new developer topics are indexed. No terminal or rendered Slack exercise
-applies because this diff changes neither UI code nor message formats.
+Fixed findings and reconciliation:
+- Preserved the earlier corrections distinguishing console output from the
+  final log/run-record tail, limiting the old-install claim to clone scope,
+  and linking the now-landed `idle_days` configuration comments.
+- The first post-rebase suite found two pre-existing failures (3985 passed,
+  7 skipped, 360.78s): `test_autoclose_live_and_packaged_copies_stay_in_sync`
+  and `test_live_and_packaged_copies_stay_identical`. Main's `ee50b4ba4`
+  published live cleanup-template links without their packaged twins.
+  The owner approved including those two syncs here; commit `73c4649d4`
+  repairs them and matches the packaged link changes in PR #1083.
+- Removed the stray separator after the historical PR YAML that made the
+  preparation parser reject it. Refreshed actual authorship, all 32 file
+  explanations and final-head receipts; the read-only PR formatter accepts
+  the preparation without evidence gaps.
 
-Verification on the head/base above:
+Reviewed audit verdicts, ledger and command ownership, period state and
+completion, headless/delegation gates, clone output/limits, inactivity,
+autofix parsing/auth retry and moved developer contracts against source.
+All nine surviving topic pairs and both corrected recurring-template pairs
+match; both deleted topics are absent in both trees. No live link points to
+removed recurring topics or anchors (old tickets, log and archive excluded).
+Both new developer topics are indexed. The extra generic navigation scan's
+`0.2` candidate is Go code (`genai.Ptr[float32](0.2)`), not a Markdown link.
+No terminal or Slack-format exercise applies: no executable UI or message
+format changes.
+
+Verification on the final head/base above (Python 3.12.12):
 - `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q`:
-  **3 failed, 3952 passed, 7 skipped in 348.08s (0:05:48)**, Python 3.12.12. These are the existing
-  packaging twin, distribution and navigation failures. An earlier exploratory
-  run was interrupted before the final committed run; only the completed final
-  run supplies this receipt.
+  **3987 passed, 7 skipped in 369.12s (0:06:09)**.
 - `PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json`:
-  **151 OK, 0 errors, 0 fixes, 47 warnings**, exit 0.
+  **156 OK, 0 errors, 0 fixes, 48 warnings**, exit 0.
 - `git diff --check origin/main...HEAD`: passed.
-- The change-specific twin/reference audit passed. A pristine main clone at
-  `bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd` separately reproduced the three packaging
-  failures (**3 failed, 27 passed**, `tests/test_packaging.py`).
+- `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python /tmp/coga-blocks04-peer-audit.py`:
+  passed the change-specific twin/reference audit; no enforced twin drift or
+  context distribution errors remain.
 
-Readiness is withheld for prerequisites, not an unfinished review:
-- **blocks/02-delete-the-code-topic-and-remove-coga-repo-only**, PR #1081,
-  repairs the twelve remaining unrelated twin mismatches and the leftover
-  `coga/code` package/registration/links. The required green suite cannot be
-  claimed before this lands.
-- **blocks/01-self-document-coga-toml-and-split-the-agents-to**, PR #1080,
-  supplies the linked `idle_days` comments. Its source was inspected at
-  `b4a503632c87eb832f1dbe8e1dc17485e9cda212`; current main lacks them.
+The final fetch still had main at the reviewed base. The branch is committed
+and pushed with `--force-with-lease` at `73c4649d4`, three commits ahead
+of main; only this projected ticket remains unstaged. No PR has been
+opened in this step.
 
-After both land, rebase this branch, retain the merged scheduling topic and
-deleted leaves through PR #1081's overlap, rerun the suite and validation,
-re-review the resulting head and refresh these receipts before bumping.
-Ticket 09 also edits install; reconcile that overlap if it lands meanwhile.
-The final fetch still had main at the reviewed base. The branch was pushed
-with `--force-with-lease` and has two commits ahead of main. This manual
-checkout was returned to clean, current `main` before writing this handoff.
-No PR has been opened for this branch.
+Recommendation: **skim** for the retained scheduling-size exception, the
+operator auth-retry summary and the approved two-template scope addition.
+No Python 3.11 run was performed. The open-pr step remains mechanical;
+launch owns returning this checkout after the step transition.
 
 ## PR
 
 ```yaml
 title: Trim the recurring topics and merge the scheduling leaves
-author: claude
-head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-implementation: Merge scheduling/ledger and scheduling/failures into scheduling, which owns the serviced-period
-  ledger and command variants. Trim recurring, period-task, templates, delegation, autofix and inactivity per the
-  audit; relocate internals to indexed local developer topics, template packaging rules to packaging, the digest-writer
-  incident to gotchas, and old-install troubleshooting to install. Correct clone output retention, narrow the old-install
-  compatibility claim, and link the shipped configuration. Runtime behavior is unchanged.
-deviations: Retain one operator-facing auth-retry summary in autofix. Keep scheduling above the topic-size review
-  threshold to preserve the ticket-mandated merge; splitting it back would recreate the removed leaves. Exact clone
-  runtime/output limits now live only in recurring-clone.
-limitations: 'PR #1081 (blocks/02-delete-the-code-topic-and-remove-coga-repo-only) must repair existing main packaging
-  drift before the mandatory suite can pass. PR #1080 (blocks/01-self-document-coga-toml-and-split-the-agents-to)
-  supplies the referenced idle_days comments. Both were still open at review. No terminal or rendered Slack exercise
-  applies: no UI code or message format changes. Verification used Python 3.12.12, not a new Python 3.11 compatibility
-  run.'
+author: claude/codex
+head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+base: 67774a1b97515df64a5b04623fbd577f82899bc1
+implementation: Merge scheduling/ledger and scheduling/failures into scheduling, the owner of the serviced-period
+  ledger and command variants. Trim the recurring family and period-task; relocate implementation details to
+  indexed local developer topics, packaging rules to packaging, the digest-writer incident to gotchas, and
+  old-install troubleshooting to install. Preserve main's new autofix default-context contract and ticket 09's
+  install cleanup. Correct clone output retention and old-install wording, link the shipped idle_days comments,
+  and synchronize the packaged autoclose and branch-sweep checkout-cleanup links with their live copies. Runtime
+  behavior is unchanged.
+deviations: 'Retain one operator-facing auth-retry summary in autofix. Keep scheduling above the topic-size
+  review threshold to preserve the mandated merge; splitting it back would recreate the removed leaves. Exact
+  clone limits live only in recurring-clone. The owner approved adding two packaged-template link syncs to
+  repair main''s independently published live-template drift; these are also present in PR #1083.'
+limitations: 'Tests ran on Python 3.12.12; no new Python 3.11 compatibility run. No terminal or rendered Slack
+  exercise applies because executable UI and message formats are unchanged. Codex independently reviewed the
+  original Claude implementation and self-reviewed its corrections and rebase resolutions; no separate reviewer
+  covered those corrections. Prerequisite PRs #1080 and #1081 are merged and included.'
 files:
   docs/README.md: index without removed leaves
   docs/contexts/coga-dev/codebase/gotchas/SKILL.md: digest-writer anecdote
   docs/contexts/coga-dev/internals/SKILL.md: lists the new pages
-  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: ledger read, inactivity ordering, delegation rationale
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: ledger read, inactivity ordering, delegation
+    rationale
   docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md: new; analyst internals
   docs/contexts/coga-dev/internals/recurring-clone/SKILL.md: new; clone run internals
   docs/contexts/coga-dev/packaging/SKILL.md: shipped recurring template rules
   docs/contexts/coga/architecture/SKILL.md: topic map wording
-  docs/contexts/coga/install/SKILL.md: gains CLI-older-than-templates troubleshooting; peer review limits the compatibility
-    claim to the known clone-scope case
+  docs/contexts/coga/install/SKILL.md: gains CLI-older-than-templates troubleshooting; peer review limits the
+    compatibility claim to the known clone-scope case
   docs/contexts/coga/period-task/SKILL.md: auto-attached; anecdote, API, ledger restatement, private name out
   docs/contexts/coga/recurring/SKILL.md: command table and source-file list out; leaf map updated
-  docs/contexts/coga/recurring/autofix/SKILL.md: spawn/parse internals out; known-gap sentence dropped
+  docs/contexts/coga/recurring/autofix/SKILL.md: Move analyst implementation details to coga-dev and remove
+    the known-gap restatement while preserving main's newly added default-context contract.
   docs/contexts/coga/recurring/delegation/SKILL.md: rejected alternatives and implementation names out
   docs/contexts/coga/recurring/scheduling/SKILL.md: absorbs ledger and failures; owns ledger and command variants;
     clone internals and skew paragraph out; peer review corrects console-versus-log output retention and removes
@@ -271,86 +275,82 @@ files:
   docs/contexts/coga/recurring/scheduling/inactivity/SKILL.md: private names out; idle_days pointer; peer review
     adds the requested link to the shipped configuration
   docs/contexts/coga/recurring/scheduling/ledger/SKILL.md: deleted (merged)
-  docs/contexts/coga/recurring/templates/SKILL.md: PR/test history, Coga-repo section, phone-home section out; gains
-    blackboard API
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: 'Packaged twin: topic map wording'
+  docs/contexts/coga/recurring/templates/SKILL.md: PR/test history, Coga-repo section, phone-home section out;
+    gains blackboard API
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: 'Packaged twin: topic map
+    wording'
   src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: 'Packaged twin: gains CLI-older-than-templates
     troubleshooting; peer review limits the compatibility claim to the known clone-scope case'
   src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md: 'Packaged twin: auto-attached;
     anecdote, API, ledger restatement, private name out'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: 'Packaged twin: command table and
-    source-file list out; leaf map updated'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: 'Packaged twin: spawn/parse
-    internals out; known-gap sentence dropped'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md: 'Packaged twin: rejected
-    alternatives and implementation names out'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: 'Packaged twin: absorbs
-    ledger and failures; owns ledger and command variants; clone internals and skew paragraph out; peer review corrects
-    console-versus-log output retention and removes duplicated implementation limits'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/failures/SKILL.md: 'Packaged twin:
-    deleted (merged; known gaps already ticketed)'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: 'Packaged twin: command table
+    and source-file list out; leaf map updated'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: Packaged twin of the
+    trimmed autofix topic, including the preserved default-context contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md: 'Packaged twin:
+    rejected alternatives and implementation names out'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: 'Packaged twin:
+    absorbs ledger and failures; owns ledger and command variants; clone internals and skew paragraph out;
+    peer review corrects console-versus-log output retention and removes duplicated implementation limits'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/failures/SKILL.md: 'Packaged
+    twin: deleted (merged; known gaps already ticketed)'
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md: 'Packaged
     twin: private names out; idle_days pointer; peer review adds the requested link to the shipped configuration'
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/ledger/SKILL.md: 'Packaged twin:
-    deleted (merged)'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/ledger/SKILL.md: 'Packaged
+    twin: deleted (merged)'
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: 'Packaged twin: PR/test
     history, Coga-repo section, phone-home section out; gains blackboard API'
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Owner-approved synchronization of
+    checkout-cleanup links with the live template already on main; repairs the required twin checks.
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: Owner-approved synchronization of checkout-cleanup
+    links with the live template already on main; repairs the required twin checks.
   tests/test_packaging.py: drop the two merged refs from REQUIRED_BOOTSTRAP_CONTEXT_REFS
 review:
   reviewer: codex
-  kind: independent
-  status: failed
-  head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  detail: Direct review completed on the final diff. Independent review of the Claude implementation; Codex applied
-    and self-reviewed the follow-up corrections. The merge, retained user contracts, relocated implementation details,
-    both twins, deleted references and indexes were inspected. Readiness remains withheld for the two unmerged prerequisites
-    and failed mandatory suite; no other unresolved change-specific finding. No nested review CLI or subagent was
-    used.
+  kind: self
+  status: passed
+  head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+  base: 67774a1b97515df64a5b04623fbd577f82899bc1
+  detail: Direct review completed on this final head/base with no unresolved findings. Independent inspection
+    of the Claude implementation, plus self-review of Codex corrections, conflict resolutions and the two template
+    link syncs. Reviewed the audit verdicts, surviving user contracts against source, ledger and command ownership,
+    moved internals, main's autofix contexts, install overlap, every changed twin, removed references and indexes.
+    No nested review CLI or subagent ran.
 checks:
 - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
-  status: failed
-  head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  detail: 'Python 3.12.12: 3 failed, 3952 passed, 7 skipped in 348.08s (0:05:48). Failures: test_live_and_packaged_copies_stay_identical,
-    test_context_distribution_is_complete, test_context_navigation_has_no_broken_links. All are existing main drift;
-    twelve remaining mismatched pairs and the leftover coga/code package/registration/links are covered by PR #1081.
-    This completed run began after the final correction commit.'
+  status: passed
+  head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+  base: 67774a1b97515df64a5b04623fbd577f82899bc1
+  detail: 'Python 3.12.12: 3987 passed, 7 skipped in 369.12s (0:06:09). Completed after the final fix commit.'
 - command: PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json
   status: passed
-  head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  detail: 'Exit 0: 151 OK, 0 errors, 0 fixes, 47 warnings for existing ticket state.'
+  head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+  base: 67774a1b97515df64a5b04623fbd577f82899bc1
+  detail: 'Exit 0: 156 OK, 0 errors, 0 fixes, 48 warnings for existing ticket state.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
+  head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+  base: 67774a1b97515df64a5b04623fbd577f82899bc1
   detail: No whitespace errors.
 - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python /tmp/coga-blocks04-peer-audit.py
   status: passed
-  head: 7abf37635690f7b6f53a9468b6180459d4ebf4ed
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  detail: 'Change-specific audit: all nine surviving canonical/package topic pairs are byte-identical; both removed
-    topics are absent in both trees. Searches and resolved navigation found no live references to the removed recurring
-    topics or removed anchors outside excluded old tickets/log/archive. Both new developer topics are indexed. Existing
-    unrelated navigation and distribution errors remain disclosed by the failed suite.'
-- command: PYTHONPATH=/tmp/coga-blocks04-peer-main-bb322aa42/src /home/n/Code/claude/coga/.venv/bin/python -m pytest
-    -q tests/test_packaging.py --tb=short
-  status: failed
-  head: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  base: bb322aa4225b22d0e4a12bf877b07ca7cb3f0bfd
-  detail: 'Baseline-only evidence from a pristine clone of main, not verification of the feature head: 3 failed,
-    27 passed in 11.45s. Reproduced the same three packaging test names before the final feature test run.'
-author_evidence: The implement handoff records Claude (claude-opus-5-5) as the implementer of original commit 5a314ff19,
-  now rebased as e0dbc7de4. Codex independently reviewed that implementation in this session and authored the documentation
-  corrections in 7abf37635; those corrections were self-reviewed.
-depth: deep
-rationale: 'The documentation restructuring is bounded, but acceptance remains blocked: the required full suite
-  has three pre-existing packaging failures covered by open PR #1081, and the linked idle_days comments belong to
-  still-open prerequisite PR #1080. Complete those dependencies and refresh review/check receipts before advancing.'
+  head: 73c4649d4c2dadda2c359c25deb2da0195d54a54
+  base: 67774a1b97515df64a5b04623fbd577f82899bc1
+  detail: All nine surviving topic pairs and both corrected template pairs are byte-identical; the two removed
+    topics are absent in both trees. No enforced twin drift or context distribution errors. No removed recurring
+    topic/anchor links on live surfaces (old tickets, log and archives excluded); both new developer topics
+    are indexed. The generic scanner's unrelated 0.2 candidate is Go generic-call syntax in a code block, not
+    a Markdown link.
+author_evidence: The implement handoff identifies Claude (claude-opus-5-5) as the author of original commit
+  5a314ff19, now 2aa3dc9de. Codex authored the earlier documentation corrections (7abf37635, now bbbdc1ba6),
+  resolved this rebase, and authored the owner-approved template link sync in 73c4649d4.
+depth: skim
+rationale: 'Bounded documentation consolidation with no executable behavior change. The required full suite,
+  validation and twin/reference checks passed on this head, and direct review completed. Read the size exception
+  and scope addition: scheduling stays consolidated, and two packaged recurring templates are synchronized
+  with existing main edits. The final combined diff includes Codex-authored corrections and is therefore disclosed
+  as self-review.'
 ```
-
----
 
 ## Blockers
 
