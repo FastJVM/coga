@@ -1,6 +1,6 @@
 ---
 title: 03 Trim the checkouts and checkout-cleanup family
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga/knowledge
