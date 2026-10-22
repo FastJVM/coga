@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 77107e37-2afe-4142-92bf-2783d64b26c2
 ---
 
 ## Description
@@ -151,3 +150,103 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: blocks/07-trim-tickets-secrets
+
+## Implement handoff (2026-10-21)
+
+One commit `13dad0516` on the branch; all twins byte-identical.
+
+- `coga/tickets`: frontmatter key/required lists, extension declaration shape
+  and removed-key names dropped (the ticket template owns them); kept the
+  validation rules (agent, falsy values, removed keys fail, extension checks),
+  writer rule, body regions. Removed function names, `body_sections` parser
+  detail and allowlist rationale. Repointed `agents#the-default-agent` → "the
+  configured default agent" (no link; ticket 01 deletes `agents`).
+- `tickets/ownership` merged into `tickets` as "## Owner and relationships"
+  (gates only); both copies deleted, `REQUIRED_BOOTSTRAP_CONTEXT_REFS` entry
+  dropped, `cli` owner row → `tickets#owner-and-relationships`, `docs/README.md`
+  fixed. Transaction rationale → `coga-dev/microkernel` (after the open
+  placements table).
+- `tickets/authoring`: flags trimmed to behavior (`--help` owns syntax),
+  function names dropped; "Creation template" → `internals/blackboard-io`.
+- `tickets/discovery`: #889/#899 history → `coga-dev/current-direction`
+  "Deliberately deferred"; one undated sentence kept (decision stays with its
+  standing owner per `coga/knowledge`). `relay-os` pathspecs were already gone
+  (ticket 02). Function/error names dropped.
+- `secrets`: syntax list → template; function names → `coga-dev/codebase`
+  source map; vault policy and env-scrub semantics kept.
+- `blackboard`: fence regex, `split_body`/`upsert`, archive projection,
+  `_is_stock_blackboard`, writer race → new `coga-dev/internals/blackboard-io`
+  (listed in the internals index). Keeps one line naming
+  `blackboard.update_blackboard_under_barrier` for `ticket.py` writers.
+- Audit disagreement: none.
+
+### Verification
+
+- `.venv/bin/python -m pytest`: 3952 passed, 7 skipped, 3 failed, all in
+  `tests/test_packaging.py` (`coga/code` twin without a canonical copy,
+  `architecture` drift, `docs/README.md` link to `coga/code`). These are
+  main's known red state from `001aad66f` (ticket 02's sweep incident; fixed
+  by PR #1081), not this change. With ticket 02's branch merged into this one
+  in a scratch worktree, `tests/test_packaging.py` passed 30/30.
+- `coga validate --json`: exit 0.
+- Next step: after PR #1081 merges, rebase and re-run the full suite.
+  Conflicts are expected only in `cli`, `tickets/discovery` twin and
+  `test_packaging.py` (auto-merged cleanly in the trial).
+
+## PR
+
+```yaml
+title: Trim the tickets family, secrets and blackboard topics
+author: claude
+author_evidence: Implement session ran on Claude Opus 5.5 (claude-opus-5-5) under megalaunch.
+head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
+base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
+depth: skim
+rationale: Docs-only restructure of shipped topics plus one new coga-dev page; no code behavior changes.
+implementation: Applies the blocks/07 audit verdicts; merges tickets/ownership into tickets; moves internals to coga-dev.
+deviations: Kept one undated sentence of the split decision in tickets/discovery so the declined decision stays with its standing owner.
+limitations: Full suite cannot be green on this base until PR #1081 (ticket 02) lands.
+files:
+  docs/README.md: Drop the removed ownership leaf from the index.
+  docs/contexts/coga-dev/codebase/SKILL.md: Name the secret-ref functions in the source map.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Record the ticket-split decision history.
+  docs/contexts/coga-dev/internals/SKILL.md: List the new blackboard-io page.
+  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: New page for ticket body and blackboard IO internals.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Hold the owner command's transaction rationale.
+  docs/contexts/coga/blackboard/SKILL.md: Trim internals; keep the writer contract.
+  docs/contexts/coga/cli/SKILL.md: Repoint the owner row to tickets.
+  docs/contexts/coga/secrets/SKILL.md: Drop syntax and function names.
+  docs/contexts/coga/tickets/SKILL.md: Validation rules only; absorb ownership gates.
+  docs/contexts/coga/tickets/authoring/SKILL.md: Drop flag syntax and the creation template section.
+  docs/contexts/coga/tickets/discovery/SKILL.md: Drop dated history and internal names.
+  docs/contexts/coga/tickets/ownership/SKILL.md: Merged into tickets.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/ownership/SKILL.md: Twin of the merged leaf.
+  tests/test_packaging.py: Drop coga/tickets/ownership from required bootstrap refs.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Peer review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest
+    status: failed
+    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
+    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
+    detail: 3952 passed, 7 skipped, 3 failed in tests/test_packaging.py; all three are main's pre-existing coga/code and architecture drift (ticket 02, PR #1081).
+  - command: .venv/bin/python -m pytest tests/test_packaging.py (with ticket 02 branch merged, scratch worktree)
+    status: passed
+    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
+    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
+    detail: 30 passed.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
+    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
+    detail: Exit 0.
+```
