@@ -7,6 +7,8 @@ import sys
 
 import pytest
 
+from conftest import windows_skip, write_executable
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / 'src/coga/resources/templates/coga/bootstrap/skills/code/implement/seed_local_config.py'
 SECRET = 'sentinel-credential-do-not-print'
@@ -24,13 +26,13 @@ def checkouts(tmp_path: Path) -> tuple[Path, Path]:
     git(source, 'config', 'user.email', 'test@example.com')
     git(source, 'config', 'user.name', 'Test')
     (source / 'coga').mkdir()
-    (source / '.gitignore').write_text('coga.local.toml\n')
-    (source / 'coga/coga.toml').write_text('version = 1\n')
+    (source / '.gitignore').write_text('coga.local.toml\n', encoding="utf-8", newline="\n")
+    (source / 'coga/coga.toml').write_text('version = 1\n', encoding="utf-8", newline="\n")
     git(source, 'add', '.')
     git(source, 'commit', '-m', 'fixture')
     destination = tmp_path / 'feature'
     git(source, 'worktree', 'add', '-b', 'feature', str(destination))
-    (source / 'coga/coga.local.toml').write_text(f'user = "test"\n[notification.slack]\nwebhook = "{SECRET}"\n')
+    (source / 'coga/coga.local.toml').write_text(f'user = "test"\n[notification.slack]\nwebhook = "{SECRET}"\n', encoding="utf-8", newline="\n")
     return source, destination
 
 
@@ -53,13 +55,16 @@ def test_seed_fresh_checkout(checkouts: tuple[Path, Path], clone: bool) -> None:
     assert run_seed(source, destination).returncode == 0
     copied = destination / 'coga/coga.local.toml'
     assert copied.read_bytes() == (source / 'coga/coga.local.toml').read_bytes()
-    assert copied.stat().st_mode & 0o777 == 0o600
+    if os.name == 'posix':
+        assert copied.stat().st_mode & 0o777 == 0o600
+    else:
+        assert os.access(copied, os.W_OK)
     assert not copied.is_symlink()
     git(destination, 'add', '.')
     assert git(destination, 'diff', '--cached', '--name-only') == ''
     assert 'coga.local.toml' not in git(destination, 'ls-files')
     assert SECRET not in git(destination, 'show', 'HEAD')
-    (destination / 'coga/coga.toml').write_text('version = 1\n# snapshot change\n')
+    (destination / 'coga/coga.toml').write_text('version = 1\n# snapshot change\n', encoding="utf-8", newline="\n")
     snapshot = git(destination, 'stash', 'create').strip()
     assert snapshot
     assert 'coga.local.toml' not in git(destination, 'ls-tree', '-r', '--name-only', snapshot)
@@ -71,11 +76,14 @@ def test_seed_resume_preserves_contents(checkouts: tuple[Path, Path], mode: int)
     source, destination = checkouts
     local = destination / 'coga/coga.local.toml'
     contents = f'user = "test"\n# destination {SECRET}\n'
-    local.write_text(contents)
+    local.write_text(contents, encoding="utf-8", newline="\n")
     local.chmod(mode)
     assert run_seed(source, destination).returncode == 0
-    assert local.read_text() == contents
-    assert local.stat().st_mode & 0o777 == 0o600
+    assert local.read_text(encoding="utf-8") == contents
+    if os.name == 'posix':
+        assert local.stat().st_mode & 0o777 == 0o600
+    else:
+        assert os.access(local, os.W_OK)
 
 
 @pytest.mark.parametrize('contents', [None, 'user = [', 'user = ""', 'user = 4', f'user = "test"\n[notification]\nchannels = ["{SECRET}"]'])
@@ -85,7 +93,7 @@ def test_seed_rejects_invalid_source(checkouts: tuple[Path, Path], contents: str
     if contents is None:
         local.unlink()
     else:
-        local.write_text(contents)
+        local.write_text(contents, encoding="utf-8", newline="\n")
     assert run_seed(source, destination).returncode == 2
     assert not (destination / 'coga/coga.local.toml').exists()
 
@@ -94,10 +102,10 @@ def test_seed_rejects_invalid_source(checkouts: tuple[Path, Path], contents: str
 def test_seed_rejects_destination_without_overwriting(checkouts: tuple[Path, Path], contents: str) -> None:
     source, destination = checkouts
     local = destination / 'coga/coga.local.toml'
-    local.write_text(contents)
+    local.write_text(contents, encoding="utf-8", newline="\n")
     original = (source / 'coga/coga.local.toml').read_bytes()
     assert run_seed(source, destination).returncode == 2
-    assert local.read_text() == contents
+    assert local.read_text(encoding="utf-8") == contents
     assert (source / 'coga/coga.local.toml').read_bytes() == original
 
 
@@ -108,12 +116,13 @@ def test_seed_rejects_symlink(checkouts: tuple[Path, Path]) -> None:
 
 
 
+@windows_skip("POSIX local-config permission restriction")
 def test_seed_permission_failure_is_fatal(checkouts: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch) -> None:
     import runpy
 
     source, destination = checkouts
     local = destination / 'coga/coga.local.toml'
-    local.write_text('user = "test"\n')
+    local.write_text('user = "test"\n', encoding="utf-8", newline="\n")
     local.chmod(0o644)
     helper = runpy.run_path(str(SCRIPT))
 
@@ -123,7 +132,7 @@ def test_seed_permission_failure_is_fatal(checkouts: tuple[Path, Path], monkeypa
     monkeypatch.setattr(Path, 'chmod', refuse_chmod)
     monkeypatch.setattr(sys, 'argv', [str(SCRIPT), str(source / 'coga'), str(destination)])
     assert helper['main']() == 2
-    assert local.read_text() == 'user = "test"\n'
+    assert local.read_text(encoding="utf-8") == 'user = "test"\n'
     assert local.stat().st_mode & 0o777 == 0o644
 
 
@@ -132,17 +141,17 @@ def test_seed_refuses_unignored_or_tracked_config(checkouts: tuple[Path, Path], 
     source, destination = checkouts
     if tracked:
         local = destination / 'coga/coga.local.toml'
-        local.write_text('user = "test"\n')
+        local.write_text('user = "test"\n', encoding="utf-8", newline="\n")
         git(destination, 'add', '-f', 'coga/coga.local.toml')
     else:
-        (destination / '.gitignore').write_text('')
+        (destination / '.gitignore').write_text('', encoding="utf-8", newline="\n")
     assert run_seed(source, destination).returncode == 2
 
 
 def test_checkout_guidance_invokes_helper_for_creation_and_resume() -> None:
     bootstrap = REPO_ROOT / 'src/coga/resources/templates/coga/bootstrap'
     for relative in ['skills/code/implement/SKILL.md', 'workflows/docs/with-review.md']:
-        text = (bootstrap / relative).read_text()
+        text = (bootstrap / relative).read_text(encoding="utf-8")
         assert 'seed_local_config.py /primary/repo/coga /feature/repo' in text
         assert 'sandbox clone fallback' in text
         assert 'resume' in text
@@ -159,14 +168,22 @@ def _isolated_env(tmp_path: Path, *, with_console: bool) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
     env['PATH'] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     if with_console:
-        interpreter = bin_dir / 'coga-python'
-        interpreter.write_text(
-            f'#!/bin/sh\nPYTHONPATH={REPO_ROOT / "src"} exec {sys.executable} "$@"\n'
-        )
-        interpreter.chmod(0o755)
-        console = bin_dir / 'coga'
-        console.write_text(f'#!{interpreter}\nraise SystemExit("not the real cli")\n')
-        console.chmod(0o755)
+        if os.name == 'nt':
+            # The helper reads the wheel launcher's embedded shebang, without
+            # executing the console entrypoint itself.
+            (bin_dir / 'coga.exe').write_bytes(
+                b'MZ launcher stub\x00' + f'#!"{sys.executable}"\n'.encode('utf-8')
+                + b'PK\x03\x04zip payload stub'
+            )
+        else:
+            interpreter = write_executable(bin_dir / 'coga-python', f'''
+                import os, sys
+                os.environ['PYTHONPATH'] = {str(REPO_ROOT / 'src')!r}
+                os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
+            ''')
+            console = bin_dir / 'coga'
+            console.write_text(f'#!{interpreter}\nraise SystemExit("not the real cli")\n', encoding="utf-8", newline="\n")
+            console.chmod(0o755)
     return env
 
 
@@ -185,7 +202,10 @@ def test_seed_reexecs_under_the_coga_console_interpreter(
     assert result.returncode == 0, result.stderr
     copied = destination / 'coga/coga.local.toml'
     assert copied.read_bytes() == (source / 'coga/coga.local.toml').read_bytes()
-    assert copied.stat().st_mode & 0o777 == 0o600
+    if os.name == 'posix':
+        assert copied.stat().st_mode & 0o777 == 0o600
+    else:
+        assert os.access(copied, os.W_OK)
 
 
 def test_seed_fails_loud_without_coga_or_its_console_script(

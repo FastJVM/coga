@@ -17,7 +17,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ def _make_task(
 
 
 def _read_log(repo: Path) -> str:
-    return (repo / "log.md").read_text()
+    return (repo / "log.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("status", ["draft", "active", "paused", "blocked"])
@@ -280,7 +280,7 @@ def test_owner_preserves_edit_during_validation(repo: Path, monkeypatch) -> None
     monkeypatch.setattr(command, "assert_task_valid", concurrent_validation)
     result = CliRunner().invoke(app, ["owner", slug, "marc"])
     assert result.exit_code == 75, result.output
-    assert path.read_text() == newer.render()
+    assert path.read_text(encoding="utf-8") == newer.render()
     assert "owner 'zach'" not in _read_log(repo)
 
 
@@ -348,4 +348,4 @@ def test_owner_rollback_preserves_newer_local_edit(repo: Path, monkeypatch) -> N
     monkeypatch.setattr(git, "sync_task_state", fail)
     result = CliRunner().invoke(app, ["owner", slug, "marc"])
     assert result.exit_code == 75
-    assert path.read_text() == newer.render()
+    assert path.read_text(encoding="utf-8") == newer.render()

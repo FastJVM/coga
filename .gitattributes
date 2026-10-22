@@ -2,3 +2,5 @@
 # checkout breaks the shebang (env: 'bash\r').
 *.sh text eol=lf
 *.ps1 text eol=lf
+# Git for Windows must not interpret CR-only blank ignore patterns as matches.
+.gitignore text eol=lf

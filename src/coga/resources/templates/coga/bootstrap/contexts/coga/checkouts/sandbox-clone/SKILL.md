@@ -94,10 +94,13 @@ A fresh sandbox clone has nothing Git ignores:
   print(packaged_template_path("bootstrap", "skills", "code", "implement"))'`
   under an interpreter that imports `coga`). Start the helper with Python
   3.11+; it imports `tomllib` before reaching the re-exec fallback. If `coga`
-  cannot be imported, it re-execs under the `coga` script's interpreter. The
+  cannot be imported, it re-execs under the `coga` console launcher's interpreter
+  (the shebang on POSIX, the embedded interpreter in a Windows wheel launcher). The
   source config must parse with a nonempty `user`; an absent destination is copied
-  byte-for-byte with mode `0600`; an existing one must have the same actor and
-  is tightened to `0600`. It verifies the file is ignored and untracked; never
+  byte-for-byte; an existing one must have the same actor. On POSIX the helper
+  restricts both to mode `0600`. On Windows it preserves the user directory's
+  inherited access controls, without applying POSIX modes. It verifies the file
+  is ignored and untracked; never
   symlink, print, stage, or commit it. Remove it on teardown only for
   disposable checkouts whose owning flow removes the checkout.
 - **Agent discovery links do not self-heal.** Launch rebuilds

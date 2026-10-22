@@ -22,7 +22,7 @@ PACKAGED_SKILL = (
 )
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def test_autoclose_recipe_calls_shared_sweep_loudly(
@@ -114,7 +114,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
     ]
 
     for live, packaged, tolerant in pairs:
-        live_text, packaged_text = live.read_text(), packaged.read_text()
+        live_text, packaged_text = live.read_text(encoding="utf-8"), packaged.read_text(encoding="utf-8")
         if tolerant:
             live_text = _strip_runtime_state(live_text)
             packaged_text = _strip_runtime_state(packaged_text)
@@ -159,7 +159,7 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     # (Single-file format: the high-water mark lives in ticket.md, not a
     # separate blackboard.md.)
     copied_ticket = coga_os / "recurring" / "autoclose-merged" / "ticket.md"
-    copied_ticket.write_text(_strip_runtime_state(copied_ticket.read_text()) + "\n")
+    copied_ticket.write_text(_strip_runtime_state(copied_ticket.read_text(encoding="utf-8")) + "\n", encoding="utf-8", newline="\n")
     shutil.copytree(
         LIVE_COGA_OS / "workflows" / "autoclose-merged",
         coga_os / "workflows" / "autoclose-merged",
@@ -192,9 +192,9 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert entry == coga_os / "recurring" / "autoclose-merged" / "ticket.py"
     # The template's deterministic half is copied into the period task, which
     # is what makes `coga launch` classify that task as a script run.
-    assert (refs[0].path / "ticket.py").read_text() == entry.read_text()
-    assert "\nscript:" not in (refs[0].path / "ticket.md").read_text()
-    assert "\nrecipe:" not in (refs[0].path / "ticket.md").read_text()
+    assert (refs[0].path / "ticket.py").read_text(encoding="utf-8") == entry.read_text(encoding="utf-8")
+    assert "\nscript:" not in (refs[0].path / "ticket.md").read_text(encoding="utf-8")
+    assert "\nrecipe:" not in (refs[0].path / "ticket.md").read_text(encoding="utf-8")
     assert ticket.agent == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"
     assert ticket.workflow["steps"][0]["skills"] == ["coga/autoclose/sweep"]

@@ -119,7 +119,7 @@ def test_policy_accepts_identical_local_twins_and_refuses_changed_ones(git_repo)
     )
     local.write_bytes(shipped.read_bytes())
     assert select_checkout_policy(cfg, ticket).kind == "create-or-reuse"
-    local.write_text(shipped.read_text() + "\nLocal tweak.\n")
+    local.write_text(shipped.read_text(encoding="utf-8") + "\nLocal tweak.\n", encoding="utf-8", newline="\n")
     policy = select_checkout_policy(cfg, ticket)
     assert policy.kind == "manual"
     assert "differs from the shipped copy" in policy.reason
@@ -127,13 +127,13 @@ def test_policy_accepts_identical_local_twins_and_refuses_changed_ones(git_repo)
 
 def test_policy_reads_only_the_consumed_inline_section(git_repo) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
-    shipped = bootstrap_workflow_path(cfg, "code/with-review").read_text()
+    shipped = bootstrap_workflow_path(cfg, "code/with-review").read_text(encoding="utf-8")
     local = git_repo.coga_os / "workflows" / "code" / "with-review.md"
     local.parent.mkdir(parents=True)
-    local.write_text(shipped.replace("## open-pr\n", "## open-pr\n\nLocal framing.\n"))
+    local.write_text(shipped.replace("## open-pr\n", "## open-pr\n\nLocal framing.\n"), encoding="utf-8", newline="\n")
     peer = _frozen("code/with-review", "peer-review")
     assert select_checkout_policy(cfg, peer).kind == "reuse-required"
-    local.write_text(shipped.replace("## peer-review\n", "## peer-review\n\nChanged.\n"))
+    local.write_text(shipped.replace("## peer-review\n", "## peer-review\n\nChanged.\n"), encoding="utf-8", newline="\n")
     policy = select_checkout_policy(cfg, peer)
     assert policy.kind == "manual"
     assert "`## peer-review` section differs" in policy.reason
@@ -283,10 +283,10 @@ def test_implementation_starts_on_a_published_branch_and_chains_through_review(
         # Linkage reached control before the agent started.
         assert f"branch: {seen['head']}" in _control(git_repo, rel)
         assert seen["dirty"] == [rel]
-        assert ref.ticket_path.read_text() == _control(git_repo, rel)
+        assert ref.ticket_path.read_text(encoding="utf-8") == _control(git_repo, rel)
         assert f"switched to branch `{seen['head']}`" in seen["prompt"]
         assert "## Checkout (runtime)" in seen["prompt"]
-        (git_repo.root / "feature.py").write_text("print('work')\n")
+        (git_repo.root / "feature.py").write_text("print('work')\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "feature.py")
         git_repo.git("commit", "-m", "Implement feature")
         _handoff(git_repo, ref, "implemented")
@@ -294,7 +294,7 @@ def test_implementation_starts_on_a_published_branch_and_chains_through_review(
 
     def self_qa(seen: dict) -> None:
         assert seen["head"] == branch[0]
-        assert "implemented" in ref.ticket_path.read_text()
+        assert "implemented" in ref.ticket_path.read_text(encoding="utf-8")
         assert "reused and switched" in seen["prompt"]
         _handoff(git_repo, ref, "qa done")
         _bump(git_repo, ref.id_slug)
@@ -336,13 +336,13 @@ def test_resume_projects_newer_control_ticket_and_a_separate_bump_publishes(
     # Another checkout edits the ticket after the branch point.
     other = _clone_checkout(git_repo, "other")
     other_ticket = other / rel
-    other_ticket.write_text(other_ticket.read_text() + "\nnote from elsewhere\n")
+    other_ticket.write_text(other_ticket.read_text(encoding="utf-8") + "\nnote from elsewhere\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(other), "commit", "-qam", "edit"], check=True)
     subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
 
     def resumed(seen: dict) -> None:
         assert seen["head"] == "feature/old"
-        text = ref.ticket_path.read_text()
+        text = ref.ticket_path.read_text(encoding="utf-8")
         assert "note from elsewhere" in text
         published = coga_git.PUBLISHED_REF
         assert git_repo.git("rev-parse", f"{published}:{rel}").strip() == (
@@ -376,7 +376,7 @@ def test_competing_ticket_change_after_preparation_still_refuses(
             ["git", "-C", str(other), "reset", "-q", "--hard", "origin/main"], check=True
         )
         theirs = other / rel
-        theirs.write_text(theirs.read_text() + "\ncompeting edit\n")
+        theirs.write_text(theirs.read_text(encoding="utf-8") + "\ncompeting edit\n", encoding="utf-8", newline="\n")
         subprocess.run(["git", "-C", str(other), "commit", "-qam", "compete"], check=True)
         subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
         _handoff(git_repo, ref, "local handoff")
@@ -394,7 +394,7 @@ def test_competing_ticket_change_after_preparation_still_refuses(
 
     control = _control(git_repo, rel)
     assert "competing edit" in control and "local handoff" not in control
-    assert "local handoff" in ref.ticket_path.read_text()
+    assert "local handoff" in ref.ticket_path.read_text(encoding="utf-8")
     assert _head(git_repo) == agent.seen[0]["head"]
 
 
@@ -417,7 +417,7 @@ def test_missing_recorded_branch_refuses_on_control(git_repo, launch_env) -> Non
 def test_remote_only_branch_is_recreated_at_its_fetched_tip(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]
     ref = _task(git_repo, "code/with-self-review")
     git_repo.git("branch", "feature/remote")
-    (git_repo.root / "remote.py").write_text("x\n")
+    (git_repo.root / "remote.py").write_text("x\n", encoding="utf-8", newline="\n")
     git_repo.git("switch", "-q", "feature/remote")
     git_repo.git("add", "remote.py")
     git_repo.git("commit", "-qm", "remote work")
@@ -442,7 +442,7 @@ def test_local_ahead_branch_keeps_its_commits_and_says_so(git_repo, launch_env) 
     git_repo.git("branch", "feature/ahead")
     git_repo.git("push", "-q", "origin", "feature/ahead")
     git_repo.git("switch", "-q", "feature/ahead")
-    (git_repo.root / "ahead.py").write_text("x\n")
+    (git_repo.root / "ahead.py").write_text("x\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "ahead.py")
     git_repo.git("commit", "-qm", "unpushed")
     tip = git_repo.git("rev-parse", "HEAD").strip()
@@ -464,7 +464,7 @@ def test_branch_with_stranded_ticket_intent_refuses(git_repo, launch_env) -> Non
     ref = _task(git_repo, "code/with-self-review")
     rel = _rel(git_repo, ref)
     git_repo.git("switch", "-q", "-c", "feature/stranded")
-    ref.ticket_path.write_text(ref.ticket_path.read_text() + "\nbranch-only intent\n")
+    ref.ticket_path.write_text(ref.ticket_path.read_text(encoding="utf-8") + "\nbranch-only intent\n", encoding="utf-8", newline="\n")
     git_repo.git("commit", "-qam", "strand the ticket")
     git_repo.git("switch", "-q", "main")
     _write_dev_branch(git_repo, ref, "feature/stranded")
@@ -550,10 +550,10 @@ def test_launch_refuses_a_refreshed_step_contract(
                 current.current_step()["assignee"] = "owner"
             if change == "skill-body":
                 path = "coga/skills/code/implement/SKILL.md"
-                text = bootstrap_skill_path(cfg, "code/implement").read_text() + "\nChanged.\n"
+                text = bootstrap_skill_path(cfg, "code/implement").read_text(encoding="utf-8") + "\nChanged.\n"
             elif change == "inline-body":
                 path = "coga/workflows/docs/with-review.md"
-                text = bootstrap_workflow_path(cfg, workflow).read_text().replace(
+                text = bootstrap_workflow_path(cfg, workflow).read_text(encoding="utf-8").replace(
                     "## implement\n", "## implement\n\nChanged.\n"
                 )
             else:
@@ -735,13 +735,13 @@ def test_chat_discusses_on_control_then_prepares_and_reuses_one_branch(
         assert f"prepared: branch {session.branch}" in first.output
         assert _head(git_repo) == session.branch
 
-        (git_repo.root / "edit.py").write_text("dirty\n")
+        (git_repo.root / "edit.py").write_text("dirty\n", encoding="utf-8", newline="\n")
         context = git_repo.coga_os / "notes.md"
-        context.write_text("unfinished\n")
+        context.write_text("unfinished\n", encoding="utf-8", newline="\n")
         again = _run_recipe(git_repo, "--session", session.session)
         assert again.exit_code == 0, again.output
         assert "reused" in again.output
-        assert (git_repo.root / "edit.py").read_text() == "dirty\n"
+        assert (git_repo.root / "edit.py").read_text(encoding="utf-8") == "dirty\n"
 
         stale = _run_recipe(git_repo, "--session", "not-this-chat")
         assert stale.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -760,7 +760,7 @@ def test_chat_recipe_refuses_a_dirty_control_checkout(git_repo) -> None:  # type
     cfg = load_config(git_repo.coga_os)
     with launch_module._orientation_checkout_guard(cfg):
         session = launch_module._CHAT_SESSION.get()
-        (git_repo.root / "wip.py").write_text("unsaved\n")
+        (git_repo.root / "wip.py").write_text("unsaved\n", encoding="utf-8", newline="\n")
         result = _run_recipe(git_repo, "--session", session.session)
         assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
         assert "wip.py" in result.output
@@ -807,7 +807,7 @@ def test_chat_retries_interrupted_creation_at_the_reserved_commit(
 
         assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
         assert failed and _head(git_repo) == "main" and _dirty(git_repo) == []
-        receipt = json.loads(session.receipt.read_text())
+        receipt = json.loads(session.receipt.read_text(encoding="utf-8"))
         assert bool(git_repo.git("branch", "--list", session.branch).strip()) == (
             failure != "before-ref"
         )
@@ -822,7 +822,7 @@ def test_chat_retries_interrupted_creation_at_the_reserved_commit(
         assert git_repo.git("branch", "--list", "coga/*").split() == ["*", session.branch]
         assert receipt["reserved_oid"] == pinned
         assert receipt["created_oid"] is None
-        assert json.loads(session.receipt.read_text())["created_oid"] == pinned
+        assert json.loads(session.receipt.read_text(encoding="utf-8"))["created_oid"] == pinned
         assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote
 
 
@@ -875,7 +875,7 @@ def test_chat_does_not_recreate_a_confirmed_branch_after_deletion(
         monkeypatch.setattr(checkouts, "_switch", refuse_switch)
         first = _run_recipe(git_repo, "--session", session.session)
         assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
-        assert json.loads(session.receipt.read_text())["created_oid"]
+        assert json.loads(session.receipt.read_text(encoding="utf-8"))["created_oid"]
         git_repo.git("branch", "-D", session.branch)
 
         retry = _run_recipe(git_repo, "--session", session.session)
@@ -952,7 +952,7 @@ def test_script_phase_runs_on_control_before_branch_preparation(
         "head = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],"
         " capture_output=True, text=True).stdout\n"
         f"pathlib.Path({str(witness)!r}).write_text(head)\n"
-    )
+    , encoding="utf-8", newline="\n")
     coga_git.sync_task_state(cfg, task_dir, message="Seed scripted task")
     agent = _Agent(git_repo, [lambda seen: None])
     launch_env(agent)
@@ -960,7 +960,7 @@ def test_script_phase_runs_on_control_before_branch_preparation(
     result = _launch(created["slug"])
 
     assert result.exit_code == 0, result.output
-    assert witness.read_text().strip() == "main"
+    assert witness.read_text(encoding="utf-8").strip() == "main"
     assert agent.seen[0]["head"].startswith("coga/")
     assert agent.seen[0]["dirty"] == [str((task_dir / "ticket.md").relative_to(git_repo.root))]
 
@@ -1004,13 +1004,13 @@ def test_documented_rebase_keeps_projection_and_notes_out_of_commits(
     other = _clone_checkout(git_repo, "other")
 
     def implement_and_rebase(seen: dict) -> None:
-        (git_repo.root / "feature.py").write_text("work\n")
+        (git_repo.root / "feature.py").write_text("work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "feature.py")
         git_repo.git("commit", "-qm", "Implement")
         _handoff(git_repo, ref, "notes before rebase")
         # Control moves under the session.
         subprocess.run(["git", "-C", str(other), "pull", "-q", "--ff-only"], check=True)
-        (other / "upstream.py").write_text("upstream\n")
+        (other / "upstream.py").write_text("upstream\n", encoding="utf-8", newline="\n")
         subprocess.run(["git", "-C", str(other), "add", "upstream.py"], check=True)
         subprocess.run(["git", "-C", str(other), "commit", "-qm", "upstream"], check=True)
         subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
@@ -1040,7 +1040,7 @@ def test_documented_rebase_keeps_projection_and_notes_out_of_commits(
 def test_git_disabled_launch_claims_no_preparation(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]
     ref = _task(git_repo, "code/with-self-review")
     toml = git_repo.coga_os / "coga.toml"
-    toml.write_text(toml.read_text() + "\n[git]\nenabled = false\n")
+    toml.write_text(toml.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n", encoding="utf-8", newline="\n")
 
     def check(seen: dict) -> None:
         assert seen["head"] == "main"
@@ -1059,7 +1059,7 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
 ) -> None:  # type: ignore[no-untyped-def]
     ref = _task(git_repo, "code/with-self-review")
     rel = _rel(git_repo, ref)
-    (git_repo.root / "old.py").write_text("old\n")
+    (git_repo.root / "old.py").write_text("old\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "old.py")
     git_repo.git("commit", "-qm", "seed old.py")
     git_repo.git("push", "-q", "origin", "main")
@@ -1067,10 +1067,10 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
     def refused_commit(seen: dict) -> None:
         # The agent edits, then its first commit is refused by the sandbox:
         # it stops with every change in place and does not bump.
-        (git_repo.root / "staged.py").write_text("staged\n")
+        (git_repo.root / "staged.py").write_text("staged\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "staged.py")
         (git_repo.root / "old.py").unlink()
-        (git_repo.root / "untracked.py").write_text("untracked\n")
+        (git_repo.root / "untracked.py").write_text("untracked\n", encoding="utf-8", newline="\n")
         _handoff(git_repo, ref, "sandbox refused the commit")
 
     agent = _Agent(git_repo, [refused_commit])
@@ -1080,8 +1080,8 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
 
     branch = agent.seen[0]["head"]
     assert _head(git_repo) == branch  # the return refused over source dirt
-    assert (git_repo.root / "staged.py").read_text() == "staged\n"
-    assert (git_repo.root / "untracked.py").read_text() == "untracked\n"
+    assert (git_repo.root / "staged.py").read_text(encoding="utf-8") == "staged\n"
+    assert (git_repo.root / "untracked.py").read_text(encoding="utf-8") == "untracked\n"
     assert not (git_repo.root / "old.py").exists()
     # The ticket handoff was routine state: the refused return published it.
     assert "sandbox refused the commit" in _control(git_repo, rel)
@@ -1122,7 +1122,7 @@ def test_first_sandbox_refusal_preserves_work_until_host_recovery_and_relaunch(
     launch_env(relaunch)
     assert _launch(ref.id_slug).exit_code == 0
     assert relaunch.seen[0]["step"] == "1 (implement)"
-    assert (clone / "staged.py").read_text() == "staged\n"
+    assert (clone / "staged.py").read_text(encoding="utf-8") == "staged\n"
 
 
 # --- review regressions (PR #1068) ----------------------------------------------
@@ -1137,7 +1137,7 @@ def test_chat_rerun_reuses_its_own_branch_after_committing_and_returning(
         assert session is not None
         first = _run_recipe(git_repo, "--session", session.session)
         assert first.exit_code == 0, first.output
-        (git_repo.root / "chat.py").write_text("work\n")
+        (git_repo.root / "chat.py").write_text("work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "chat.py")
         git_repo.git("commit", "-qm", "chat work")
         tip = git_repo.git("rev-parse", "HEAD").strip()
@@ -1219,7 +1219,7 @@ def test_completed_reservation_receipts_never_resurrect_a_removed_branch(
     launch_env(agent)
 
     assert _launch(ref.id_slug).exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-    assert json.loads(receipt.read_text())["stage"] == "linked"
+    assert json.loads(receipt.read_text(encoding="utf-8"))["stage"] == "linked"
     assert _launch(ref.id_slug).exit_code == 0
     # The linked reservation landed and was reused: nothing is retained.
     assert not receipt.exists()
@@ -1231,13 +1231,13 @@ def test_completed_reservation_receipts_never_resurrect_a_removed_branch(
     receipt.write_text(json.dumps({
         "task": rel, "root": str(root), "branch": "coga/stale-old",
         "oid": stale_base, "stage": "admitted",
-    }))
+    }), encoding="utf-8", newline="\n")
     other = _task(git_repo, "code/with-self-review", title="Fresh reservation")
     other_receipt = checkouts._receipt_path(root, _rel(git_repo, other))
     other_receipt.write_text(json.dumps({
         "task": _rel(git_repo, other), "root": str(root),
         "branch": "coga/stale-old", "oid": stale_base, "stage": "published",
-    }))
+    }), encoding="utf-8", newline="\n")
 
     result = _launch(other.id_slug)
 
@@ -1286,7 +1286,7 @@ def test_failures_after_the_switch_report_that_launch_switched(
 
 def _make_stranded(git_repo, ref: TaskRef) -> None:  # type: ignore[no-untyped-def]
     git_repo.git("switch", "-q", "-c", "feature/stranded")
-    ref.ticket_path.write_text(ref.ticket_path.read_text() + "\nbranch-only intent\n")
+    ref.ticket_path.write_text(ref.ticket_path.read_text(encoding="utf-8") + "\nbranch-only intent\n", encoding="utf-8", newline="\n")
     git_repo.git("commit", "-qam", "strand the ticket")
     git_repo.git("switch", "-q", "main")
     _write_dev_branch(git_repo, ref, "feature/stranded")
@@ -1317,7 +1317,7 @@ def test_refused_preparation_records_no_launch(
     assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
     assert agent.seen == [] and _head(git_repo) == "main"
     assert "launched (operator=" not in _control(git_repo, "coga/log.md")
-    assert "launched (operator=" not in log_path(cfg).read_text()
+    assert "launched (operator=" not in log_path(cfg).read_text(encoding="utf-8")
 
 
 def test_ref_helpers_use_the_shared_git_runner(git_repo, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]

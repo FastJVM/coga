@@ -74,7 +74,7 @@ def _write_ack(ticket: Path, value: str) -> None:
             break
     else:
         lines.append(f"Acked: {value}")
-    ticket.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    ticket.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 # ==========================================================================
@@ -363,7 +363,7 @@ def _reconcile_tasks_dir(tmp_path, ack: str | None = None, *, fence: bool = True
         body += "<!-- coga:blackboard -->\n"
     if ack is not None:
         body += f"\nAcked: {ack}\n"
-    ticket.write_text(body, encoding="utf-8")
+    ticket.write_text(body, encoding="utf-8", newline="\n")
     return tasks
 
 
@@ -416,6 +416,7 @@ def test_xero_ack_ignores_body_examples_and_a_fenceless_ticket_fires(tmp_path):
     ticket.write_text(
         text.replace("record the ack.", "record the ack, e.g. `Acked: 2026-07`."),
         encoding="utf-8",
+        newline="\n",
     )
     assert xero_reconcile.read_ack(ticket) is None
     assert _fires(tasks, "2026-08-15")
@@ -537,7 +538,7 @@ def _brex_ticket_dir(base: Path, slug: str, ack: str | None = None) -> Path:
     body = f"---\nslug: {slug}\n---\n\n## Description\nx\n\n<!-- coga:blackboard -->\n"
     if ack is not None:
         body += f"\nAcked: {ack}\n"
-    ticket.write_text(body, encoding="utf-8")
+    ticket.write_text(body, encoding="utf-8", newline="\n")
     return tasks
 
 

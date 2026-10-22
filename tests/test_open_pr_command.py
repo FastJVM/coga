@@ -26,7 +26,7 @@ import pytest
 from typer.testing import CliRunner
 
 import coga
-from conftest import init_git_repo
+from conftest import init_git_repo, write_executable
 from coga.autoclose import parse_pr_url
 from coga.cli import app, main
 from coga.open_pr import run_open_pr_recipe
@@ -47,22 +47,18 @@ def _install_fake_gh(
     """Put a fake `gh` on PATH; `pr view` says no PR, `pr create` prints the URL."""
     log = bin_dir / "gh-calls.log"
     gh = bin_dir / "gh"
-    gh.write_text(
-        dedent(
-            f"""
-            #!/usr/bin/env bash
-            echo "$@" >> {str(log)!r}
-            case "$1 $2" in
-              "pr view") echo 'no pull requests found for branch "missing"' >&2; exit 1 ;;
-              "pr create") echo {create_url!r}; exit 0 ;;
-              "pr ready") exit 0 ;;
-              *) exit 0 ;;
-            esac
-            """
-        ).lstrip()
-    )
-    gh.chmod(gh.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    write_executable(gh, f"""
+        import sys
+        from pathlib import Path
+        with Path({str(log)!r}).open("a", encoding="utf-8", newline="\\n") as out:
+            out.write(" ".join(sys.argv[1:]) + "\\n")
+        if sys.argv[1:3] == ["pr", "view"]:
+            print('no pull requests found for branch "missing"', file=sys.stderr)
+            raise SystemExit(1)
+        if sys.argv[1:3] == ["pr", "create"]:
+            print({create_url!r})
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     return log
 
 
@@ -76,8 +72,8 @@ def _seed_coga_gitignore(repo) -> None:
     because they are the ones publishing the checkout they run in.
     """
     (repo.coga_os / ".gitignore").write_text(
-        packaged_template_path(".gitignore").read_text()
-    )
+        packaged_template_path(".gitignore").read_text(encoding="utf-8")
+    , encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/.gitignore")
     repo.git("commit", "-m", "chore: seed coga-managed ignore rules")
 
@@ -86,7 +82,7 @@ def _feature_worktree(repo, tmp_path: Path, branch: str, *, commit: bool) -> Pat
     wt = tmp_path / f"wt-{branch}"
     repo.git("worktree", "add", str(wt), "-b", branch, "main")
     if commit:
-        (wt / "coga" / "change.txt").write_text("a real change\n")
+        (wt / "coga" / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
         repo.git("add", "-A", cwd=wt)
         repo.git("commit", "-m", "feature: a real change", cwd=wt)
     return wt
@@ -121,7 +117,7 @@ def _write_ticket(coga_os: Path, slug: str, *, branch: str, worktree: Path | Non
         f"{chr(10).join(dev_lines)}\n"
     )
     ticket = task_dir / "ticket.md"
-    ticket.write_text(frontmatter + body)
+    ticket.write_text(frontmatter + body, encoding="utf-8", newline="\n")
     return ticket
 
 
@@ -141,7 +137,7 @@ def test_open_pr_opens_and_records(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["run", "open-pr", "ship-it"])
 
     assert result.exit_code == 0, result.output
-    assert "pr create" in log.read_text()
+    assert "pr create" in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) == "https://github.com/acme/repo/pull/7"
 
 
@@ -181,10 +177,10 @@ def test_open_pr_stdout_is_only_the_url(tmp_path, monkeypatch):
     # A stale `pr:` line makes the recipe emit its replacement note, which must
     # not land on the value channel beside the URL.
     ticket.write_text(
-        ticket.read_text().replace(
+        ticket.read_text(encoding="utf-8").replace(
             "## Dev\n", "## Dev\npr: https://github.com/acme/repo/pull/1\n"
         )
-    )
+    , encoding="utf-8", newline="\n")
 
     monkeypatch.chdir(repo.coga_os)
     result = CliRunner().invoke(app, ["run", "open-pr", "quiet-out"])
@@ -210,7 +206,7 @@ def test_open_pr_fails_loud_on_no_commits(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["run", "open-pr", "nothing-built"])
 
     assert result.exit_code == 2, result.output
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -232,7 +228,7 @@ def test_open_pr_refuses_feature_checkout(tmp_path, monkeypatch):
     repo = init_git_repo(tmp_path)
     wt = _feature_worktree(repo, tmp_path, "feature-x", commit=True)
     _write_ticket(repo.coga_os, "ship-it", branch="feature-x", worktree=wt)
-    (wt / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+    (wt / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
 
     monkeypatch.chdir(wt / "coga")
     result = CliRunner().invoke(app, ["run", "open-pr", "ship-it"])
@@ -294,7 +290,7 @@ def test_open_pr_refuses_primary_checkout_on_feature_branch(tmp_path, monkeypatc
     repo.git("commit", "-m", "ticket: add on-branch")
     repo.git("push", "origin", "main")
     repo.checkout_branch("on-branch-feature")
-    (repo.coga_os / "change.txt").write_text("a real change\n")
+    (repo.coga_os / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/change.txt")
     repo.git("commit", "-m", "feature: a real change")
 
@@ -303,7 +299,7 @@ def test_open_pr_refuses_primary_checkout_on_feature_branch(tmp_path, monkeypatc
 
     assert result.exit_code == 2, result.output
     assert "must run from the launch checkout on 'main'" in result.stderr
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -315,9 +311,9 @@ def _sandbox_clone(repo, tmp_path: Path, branch: str) -> Path:
     repo.git("config", "user.name", "Clone", cwd=clone)
     repo.git("config", "commit.gpgsign", "false", cwd=clone)
     repo.git("remote", "set-url", "origin", str(repo.origin), cwd=clone)
-    (clone / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+    (clone / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     repo.git("checkout", "-b", branch, cwd=clone)
-    (clone / "coga" / "change.txt").write_text("a real change\n")
+    (clone / "coga" / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/change.txt", cwd=clone)
     repo.git("commit", "-m", "feature: a real change", cwd=clone)
     return clone
@@ -367,7 +363,7 @@ def test_open_pr_refuses_independent_feature_clone(tmp_path, monkeypatch):
 
     assert result.exit_code == 2, result.output
     assert "must run from the launch checkout on 'main'" in result.stderr
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert (
         parse_pr_url(
             read_blackboard(clone / "coga" / "tasks" / "clone-task" / "ticket.md")

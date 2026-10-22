@@ -184,8 +184,8 @@ def coga_os(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root.mkdir()
     (root / "coga.toml").write_text(
         'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
-    )
-    (root / "coga.local.toml").write_text('user = "marc"\n')
+    , encoding="utf-8", newline="\n")
+    (root / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     cfg = load_config(root)
     append_record(cfg, _record("2026-09-01T10:00:00Z"))
     append_record(cfg, _record("2026-09-08T10:00:00Z"))
@@ -248,7 +248,7 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
     the Typer command in-process would pass `OptionInfo` sentinels.
     """
     script = TEMPLATE / SCRIPT_ENTRY_POINT
-    tree = ast.parse(script.read_text(), filename=str(script))
+    tree = ast.parse(script.read_text(encoding="utf-8"), filename=str(script))
 
     imported: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -265,7 +265,7 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
         "datetime": "datetime",
         "timezone": "datetime",
     }
-    assert "COGA_COGA_OS_ROOT" in script.read_text()
+    assert "COGA_COGA_OS_ROOT" in script.read_text(encoding="utf-8")
 
     posts = [
         node
@@ -335,7 +335,7 @@ def test_period_task_posts_with_project_and_owner_before_bumping(
     capturing transport and the CLI bump. A delivery miss must still bump once.
     """
     local = seeded / "coga.local.toml"
-    local.write_text(local.read_text() + dedent("""
+    local.write_text(local.read_text(encoding="utf-8") + dedent("""
         [notification]
         channels = ["slack"]
         [notification.slack]
@@ -344,7 +344,7 @@ def test_period_task_posts_with_project_and_owner_before_bumping(
         [notification.slack.users]
         marc = "U01MARC"
         ada = "U02ADA"
-    """))
+    """), encoding="utf-8", newline="\n")
     monkeypatch.setenv("USAGE_REPORT_FLOW_WEBHOOK", "https://example.test/slack/flow")
     important_webhook = "https://example.test/slack/important"
     monkeypatch.setenv("USAGE_REPORT_IMPORTANT_WEBHOOK", important_webhook)

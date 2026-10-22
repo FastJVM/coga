@@ -21,7 +21,7 @@ from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 TICKET = """
@@ -317,7 +317,7 @@ def test_windows_agent_refusal_keeps_checkout_and_control(
     git_repo.git("commit", "-m", "seed Windows agent ticket")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/keep-this-checkout")
-    ticket.write_text(ticket.read_text() + "\nUnpublished Café notes.\n", encoding="utf-8", newline="\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + "\nUnpublished Café notes.\n", encoding="utf-8", newline="\n")
     (git_repo.coga_os / "log.md").write_text("Unpublished log.\n", encoding="utf-8", newline="\n")
     monkeypatch.chdir(git_repo.coga_os)
     monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False, raising=False)

@@ -19,7 +19,7 @@ RETRO_SKILL = (
 
 
 def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
-    text = RETRO_SKILL.read_text()
+    text = RETRO_SKILL.read_text(encoding="utf-8")
     norm = " ".join(text.split())
 
     assert "name: retro/done-ticket" in text
@@ -70,7 +70,7 @@ def test_retro_requires_backend_neutral_isolated_checkout() -> None:
     Both callers own the boundary, live-state snapshot, and explicit cleanup.
     Codex can fall back to a clone when its sandbox cannot lock primary `.git`.
     """
-    text = RETRO_SKILL.read_text()
+    text = RETRO_SKILL.read_text(encoding="utf-8")
     norm = " ".join(text.split())
 
     assert "Native `isolation: worktree`, a caller-created `git worktree add`" in norm
@@ -108,7 +108,7 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     ticket with no durable knowledge has no PR to bundle the deletion into, so
     it is direct-deleted via `coga delete` — no PR, no marker, no `## Pruned`
     bookkeeping. A processed done ticket never survives the run on disk."""
-    text = RETRO_SKILL.read_text()
+    text = RETRO_SKILL.read_text(encoding="utf-8")
 
     # Knowledge-bearing tickets stay bundled: extracted + deleted in one PR.
     assert "theme's knowledge PR" in text

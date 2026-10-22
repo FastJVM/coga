@@ -19,7 +19,7 @@ BOOTSTRAP_TICKET_SKILL = (
 
 
 def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
 
     assert "Treat `contexts:` as prompt payload, not labels." in text
     assert "Attach only context refs whose full body" in text
@@ -38,7 +38,7 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     concept-capture draft, which stays a draft until a workflow is added.
     Workflow choice also carries the human-gate judgment that the removed
     autonomy-triage question used to ask separately."""
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
     normalized = " ".join(text.split())
 
     assert "A ticket carries a workflow" in text
@@ -58,7 +58,7 @@ def test_bootstrap_ticket_interview_drops_autonomy_triage() -> None:
     """The tier test and its tier→workflow mapping are gone. Scoped to the
     removed refs — bare `autonomy` is still the live execution axis
     (`autonomy: auto`), so banning the word outright would be wrong."""
-    lower = BOOTSTRAP_TICKET_SKILL.read_text().lower()
+    lower = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8").lower()
 
     assert "**workflow**" in lower
     assert "autonomy triage" not in lower
@@ -70,7 +70,7 @@ def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
     """Regression: the create-vs-edit greeting keys off the CLI-set kickoff
     token, not body-emptiness — so a `coga create`d empty draft opened for
     editing greets as an edit, never as a freshly-created ticket."""
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
 
     # The greeting keys off the kickoff token the CLI sets, per launch shape.
     assert "kickoff token" in text
@@ -85,7 +85,7 @@ def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
 
 
 def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
 
     assert "If the ticket is still `status: draft`, preserve its `## Superseded designs`" in text
     assert "reset the rest of the blackboard" in text
@@ -95,7 +95,7 @@ def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
 
 
 def test_bootstrap_ticket_repairs_invalid_status_lifecycle_shape() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
     normalized = " ".join(text.split())
 
     assert "whole validator-correlated lifecycle shape" in text
@@ -109,7 +109,7 @@ def test_bootstrap_ticket_repairs_invalid_status_lifecycle_shape() -> None:
 
 
 def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
 
     assert "**Script execution (conditional)**" not in text
     assert "script:" not in text
@@ -122,7 +122,7 @@ def test_bootstrap_ticket_context_cites_symbols_not_line_numbers() -> None:
     """Code facts copied into `## Context` must cite module plus symbol, never
     a bare line number — lines drift within days, and the relationship that
     makes a fact load-bearing is what survives a refactor."""
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
     normalized = " ".join(text.split())
 
     assert "## Citing code in `## Context`" in text
@@ -140,7 +140,7 @@ def test_bootstrap_ticket_interview_asks_what_done_means() -> None:
     adding a seventh question, and lands it as prose inside `## Description`.
     A separate `##` section would never compose into the implement prompt;
     `code/design` is the only author of the acceptance-criteria checklist."""
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    text = BOOTSTRAP_TICKET_SKILL.read_text(encoding="utf-8")
     normalized = " ".join(text.split())
 
     # The greeting and the empty-body pivot both ask for done up front.

@@ -24,7 +24,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _prompt_arg(cmd: list[str]) -> str:
@@ -787,7 +787,7 @@ def _authoring_setup(
     local = 'user = "marc"\n'
     if local_agent is not None:
         local += f'\n[authoring]\nagent = "{local_agent}"\n'
-    (repo / "coga.local.toml").write_text(local)
+    (repo / "coga.local.toml").write_text(local, encoding="utf-8", newline="\n")
     path = repo / "bootstrap" / "ticket" / "ticket.md"
     bootstrap = Ticket.read(path)
     if bootstrap_agent is None:

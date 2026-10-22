@@ -14,7 +14,7 @@ from coga.config import load_config
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def _seed_template(repo: Path, name: str = "autoclose-merged") -> Path:
     """A recurring template directory, the durable home a worklist sits beside."""
     template = repo / "recurring" / name
     template.mkdir(parents=True, exist_ok=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     return template
 
 
@@ -534,7 +534,7 @@ def test_reconcile_creates_the_worklist_with_the_documented_header(repo: Path) -
     )
 
     assert change.written and change.added == [_entry("stranded")]
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert text.startswith("# Feature checkouts autoclose could not dispose of")
     assert rw.parse_worklist(text) == (rw.RETIRE_WORKLIST_HEADER, [_entry("stranded")])
 
@@ -562,7 +562,7 @@ def test_reconcile_is_idempotent_by_slug_and_keeps_the_first_date(repo: Path) ->
     assert not change.written
     assert not (change.added or change.refreshed or change.dropped)
     assert path.read_bytes() == first
-    assert path.read_text().count("`s`") == 1
+    assert path.read_text(encoding="utf-8").count("`s`") == 1
 
 
 def test_reconcile_refreshes_a_moved_checkout_and_preserves_unrelated_entries(
@@ -579,7 +579,7 @@ def test_reconcile_refreshes_a_moved_checkout_and_preserves_unrelated_entries(
     )
 
     assert change.refreshed == [_entry("s", branch="new")]
-    _, entries = rw.parse_worklist(path.read_text())
+    _, entries = rw.parse_worklist(path.read_text(encoding="utf-8"))
     assert entries == [_entry("other"), _entry("s", branch="new")]
 
 
@@ -595,13 +595,13 @@ def test_reconcile_records_the_owner_while_the_worktree_still_exists(
     recorded = _entry("cross", branch="feature", worktree=str(worktree))
     # A line written before the field existed is backfilled on the next run.
     rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
-    path.write_text(path.read_text().replace(f", owner `{owner.resolve()}`", ""))
+    path.write_text(path.read_text(encoding="utf-8").replace(f", owner `{owner.resolve()}`", ""), encoding="utf-8", newline="\n")
 
     change = rw.reconcile_worklist(cfg, path, root=root)
 
     owned = replace(recorded, owner=str(owner.resolve()))
     assert change.refreshed == [owned] and change.written
-    assert rw.parse_worklist(path.read_text())[1] == [owned]
+    assert rw.parse_worklist(path.read_text(encoding="utf-8"))[1] == [owned]
 
     _git(owner, "worktree", "remove", str(worktree))
     change = rw.reconcile_worklist(cfg, path, root=root)
@@ -620,7 +620,7 @@ def test_reconcile_counts_a_backfilled_and_moved_entry_as_one_refresh(
     root, owner, worktree = _cross_clone(tmp_path)
     recorded = _entry("cross", branch="feature", worktree=str(worktree))
     rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
-    path.write_text(path.read_text().replace(f", owner `{owner.resolve()}`", ""))
+    path.write_text(path.read_text(encoding="utf-8").replace(f", owner `{owner.resolve()}`", ""), encoding="utf-8", newline="\n")
 
     # The same run backfills the owner and takes a new branch for the slug.
     moved = replace(recorded, branch="feature-2")
@@ -654,7 +654,7 @@ def test_reconcile_drops_discharged_entries_and_keeps_live_debt(
 
     assert [e.slug for e in change.dropped] == ["done"]
     assert [e.slug for e in change.open] == ["branch-lives", "dir-lives"]
-    assert "`done`" not in path.read_text()
+    assert "`done`" not in path.read_text(encoding="utf-8")
 
 
 def test_reconcile_judges_only_the_entries_only_admits(
@@ -669,7 +669,7 @@ def test_reconcile_judges_only_the_entries_only_admits(
         [_entry("mine", branch="gone", worktree=absent),
          _entry("theirs", branch="gone", worktree=absent)],
     )
-    path.write_text(raw)
+    path.write_text(raw, encoding="utf-8", newline="\n")
 
     change = rw.reconcile_worklist(
         cfg, path, root=repo, branches=frozenset(),
@@ -680,7 +680,7 @@ def test_reconcile_judges_only_the_entries_only_admits(
     assert [e.slug for e in change.dropped] == ["mine"]
     assert [e.slug for e in change.open] == ["theirs"]
     assert change.original == raw.encode()
-    assert change.written and "`theirs`" in path.read_text()
+    assert change.written and "`theirs`" in path.read_text(encoding="utf-8")
 
 
 def test_reconcile_refuses_when_the_file_moved_underneath_it(
@@ -735,7 +735,7 @@ def test_a_period_task_blackboard_names_its_template_worklist(repo: Path) -> Non
     _seed_template(repo, "autoclose-merged")
     period = repo / "tasks" / "recurring" / "autoclose-merged" / "ticket.md"
     period.parent.mkdir(parents=True)
-    period.write_text("period\n")
+    period.write_text("period\n", encoding="utf-8", newline="\n")
 
     assert rw.worklist_for_period_task(load_config(repo), period) == (
         repo / "recurring" / "autoclose-merged" / rw.RETIRE_WORKLIST_FILENAME
@@ -746,7 +746,7 @@ def test_the_template_is_resolved_from_the_period_task_not_hardcoded(repo: Path)
     _seed_template(repo, "nightly-close")
     period = repo / "tasks" / "recurring" / "nightly-close" / "ticket.md"
     period.parent.mkdir(parents=True)
-    period.write_text("period\n")
+    period.write_text("period\n", encoding="utf-8", newline="\n")
 
     assert rw.worklist_for_period_task(load_config(repo), period) == (
         repo / "recurring" / "nightly-close" / rw.RETIRE_WORKLIST_FILENAME
@@ -765,7 +765,7 @@ def test_a_non_period_task_has_no_durable_worklist(repo: Path, relative: str) ->
     _seed_template(repo, "autoclose-merged")
     blackboard = repo / relative
     blackboard.parent.mkdir(parents=True, exist_ok=True)
-    blackboard.write_text("x\n")
+    blackboard.write_text("x\n", encoding="utf-8", newline="\n")
 
     assert rw.worklist_for_period_task(load_config(repo), blackboard) is None
 
@@ -777,7 +777,7 @@ def test_no_blackboard_means_no_worklist(repo: Path) -> None:
 def test_a_period_task_whose_template_is_gone_has_no_worklist(repo: Path) -> None:
     period = repo / "tasks" / "recurring" / "removed" / "ticket.md"
     period.parent.mkdir(parents=True)
-    period.write_text("period\n")
+    period.write_text("period\n", encoding="utf-8", newline="\n")
 
     assert rw.worklist_for_period_task(load_config(repo), period) is None
 
@@ -788,7 +788,7 @@ def test_all_worklists_skips_parked_templates(repo: Path) -> None:
         _seed_template(repo, name)
         (repo / "recurring" / name / rw.RETIRE_WORKLIST_FILENAME).write_text(
             rw.RETIRE_WORKLIST_HEADER
-        )
+        , encoding="utf-8", newline="\n")
 
     assert [p.parent.name for p in rw.all_worklists(cfg)] == ["autoclose-merged", "other"]
 
@@ -813,13 +813,13 @@ def test_discharge_slug_drops_only_a_discharged_entry(repo: Path, tmp_path: Path
     )
 
     assert rw.discharge_slug(cfg, "retired", root=repo) == [path]
-    _, entries = rw.parse_worklist(path.read_text())
+    _, entries = rw.parse_worklist(path.read_text(encoding="utf-8"))
     assert [e.slug for e in entries] == ["preserved"]
 
     # A preserved checkout keeps its line, and the return value names only
     # the worklists the *requested* slug left.
     assert rw.discharge_slug(cfg, "preserved", root=repo) == []
-    _, entries = rw.parse_worklist(path.read_text())
+    _, entries = rw.parse_worklist(path.read_text(encoding="utf-8"))
     assert [e.slug for e in entries] == ["preserved"]
 
 
@@ -829,7 +829,7 @@ def test_discharge_slug_leaves_a_worklist_that_never_named_the_slug_alone(
     cfg = load_config(repo)
     _seed_template(repo)
     path = rw.template_worklist_path(cfg, "autoclose-merged")
-    path.write_text(rw.RETIRE_WORKLIST_HEADER + "\n" + _entry("other").render() + "\n")
+    path.write_text(rw.RETIRE_WORKLIST_HEADER + "\n" + _entry("other").render() + "\n", encoding="utf-8", newline="\n")
     before = path.read_bytes()
 
     assert rw.discharge_slug(cfg, "unknown", root=repo) == []

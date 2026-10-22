@@ -19,7 +19,7 @@ from coga.cli import app
 
 
 def _write(path: Path, text: str) -> None:
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture

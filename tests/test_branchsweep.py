@@ -23,7 +23,7 @@ def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
 
 
 def _commit(root: Path, name: str, content: str, message: str) -> None:
-    (root / name).write_text(content)
+    (root / name).write_text(content, encoding="utf-8", newline="\n")
     _git(root, "add", name)
     _git(root, "commit", "-m", message)
 
@@ -56,10 +56,10 @@ def repo(tmp_path: Path) -> Path:
 
     coga_os = root / "coga"
     coga_os.mkdir()
-    (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
+    (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n', encoding="utf-8", newline="\n")
     (coga_os / "coga.local.toml").write_text(
         'user = "marc"\n[notification.slack]\nenabled = false\n'
-    )
+    , encoding="utf-8", newline="\n")
 
     _commit(root, "base.txt", "base", "base")
     _git(root, "push", "-u", "origin", "main")
@@ -165,7 +165,7 @@ def _write_ticket(repo: Path, slug: str, *, status: str, branch: str) -> None:
         _ticket_text(
             slug, status=status, body="", blackboard=f"## Dev\nbranch: {branch}"
         )
-    )
+    , encoding="utf-8", newline="\n")
 
 
 def _squash_merge(repo: Path, branch: str) -> None:
@@ -181,7 +181,7 @@ def _state_commit(repo: Path, branch: str, name: str) -> None:
     _git(repo, "checkout", branch)
     tasks = repo / "coga" / "tasks"
     tasks.mkdir(parents=True, exist_ok=True)
-    (tasks / f"{name}.md").write_text(f"state {name}\n")
+    (tasks / f"{name}.md").write_text(f"state {name}\n", encoding="utf-8", newline="\n")
     log = repo / "coga" / "log.md"
     with log.open("a") as handle:
         handle.write(f"log {name}\n")
@@ -638,7 +638,7 @@ def test_live_ticket_prose_mention_pins_branch_without_dev_section(
             body="Follow-up commits sit unpushed on `feat` in this checkout.",
             blackboard="notes",
         )
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -655,8 +655,8 @@ def test_live_ticket_attachment_mention_pins_branch(repo: Path, monkeypatch) -> 
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(
         _ticket_text("with-manifest", status="active", body="", blackboard="notes")
-    )
-    (task_dir / "handoff-manifest.md").write_text("Coga source branch: `feat`\n")
+    , encoding="utf-8", newline="\n")
+    (task_dir / "handoff-manifest.md").write_text("Coga source branch: `feat`\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -678,7 +678,7 @@ def test_live_ticket_mention_must_be_the_whole_branch_name(
             body="See the feature-flag branch, old-feat and feat/two, not this one.",
             blackboard="notes",
         )
-    )
+    , encoding="utf-8", newline="\n")
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -703,7 +703,7 @@ def test_live_ticket_prose_mention_survives_punctuation(
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "prose.md").write_text(
         _ticket_text("prose", status="active", body=prose, blackboard="notes")
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -729,7 +729,7 @@ def test_period_task_report_does_not_pin_the_branches_it_names(
             body="",
             blackboard="## Branch Sweep\n\n- skipped: feat\n",
         )
-    )
+    , encoding="utf-8", newline="\n")
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -745,7 +745,7 @@ def test_period_task_dev_branch_still_pins(repo: Path, monkeypatch) -> None:
         _ticket_text(
             "weekly", status="in_progress", body="", blackboard="## Dev\nbranch: feat"
         )
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -908,13 +908,13 @@ def test_rebasing_worktree_preserves_both_refs_with_distinct_outcome(
 def _own_worktrees(repo: Path) -> None:
     """Opt the repo into `[git].worktrees_ticket_owned`."""
     toml = repo / "coga" / "coga.toml"
-    toml.write_text(toml.read_text() + "[git]\nworktrees_ticket_owned = true\n")
+    toml.write_text(toml.read_text(encoding="utf-8") + "[git]\nworktrees_ticket_owned = true\n", encoding="utf-8", newline="\n")
 
 
 def test_pinning_worktree_is_removed_when_worktrees_are_ticket_owned(
     repo: Path, tmp_path: Path, monkeypatch
 ) -> None:
-    (repo / ".gitignore").write_text("__pycache__/\n")
+    (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8", newline="\n")
     _git(repo, "add", ".gitignore")
     _git(repo, "commit", "-m", "ignore caches")
     _push_branch(repo, "feat", land_in_main=True)
@@ -959,7 +959,7 @@ def test_dirty_pinning_worktree_is_reported_not_removed(
     _push_branch(repo, "feat", land_in_main=True)
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", str(linked), "feat")
-    (linked / "scratch.txt").write_text("unsaved")
+    (linked / "scratch.txt").write_text("unsaved", encoding="utf-8", newline="\n")
     _own_worktrees(repo)
     _fake_gh(monkeypatch)
 
@@ -1007,20 +1007,20 @@ def test_worktree_that_becomes_dirty_during_archive_is_preserved(
 
     def publish_then_dirty(*args, **kwargs):
         archived = publish(*args, **kwargs)
-        (linked / ".env").write_text("new local state")
+        (linked / ".env").write_text("new local state", encoding="utf-8", newline="\n")
         return archived
 
     # Git's unforced removal permits ignored files, so the second inspection
     # must catch newly created non-regenerable state after the network push.
     _git(repo, "config", "core.excludesFile", str(tmp_path / "gitignore"))
-    (tmp_path / "gitignore").write_text(".env\n")
+    (tmp_path / "gitignore").write_text(".env\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "_publish_retirement_tag", publish_then_dirty)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert result.worktree_pinned == ["feat"]
     assert result.local_deleted == result.remote_deleted == []
-    assert (linked / ".env").read_text() == "new local state"
+    assert (linked / ".env").read_text(encoding="utf-8") == "new local state"
 
 
 def test_worktree_that_gains_a_clean_commit_during_archive_is_preserved(
@@ -1046,7 +1046,7 @@ def test_worktree_that_gains_a_clean_commit_during_archive_is_preserved(
     assert result.worktree_pinned == ["feat"]
     assert result.worktree_removed == []
     assert result.local_deleted == result.remote_deleted == []
-    assert (linked / "late.txt").read_text() == "unlanded work"
+    assert (linked / "late.txt").read_text(encoding="utf-8") == "unlanded work"
     assert _tip(repo, "feat") != archived_tip
 
 
@@ -1067,7 +1067,7 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
             body="",
             blackboard=f"## Dev\nbranch: other\nworktree: {linked}",
         )
-    )
+    , encoding="utf-8", newline="\n")
     _own_worktrees(repo)
     _fake_gh(monkeypatch)
 
@@ -1415,7 +1415,7 @@ def _merge_rebased_copy(
     _git(repo, "checkout", "-b", "copy", "main")
     _git(repo, "cherry-pick", branch)
     if amend is not None:
-        (repo / f"{branch}.txt").write_text(amend)
+        (repo / f"{branch}.txt").write_text(amend, encoding="utf-8", newline="\n")
         _git(repo, "commit", "--amend", "--no-edit", "-a")
     _git(repo, "push", "--force", "origin", f"copy:{branch}")
     merged_head = _tip(repo, "copy")
@@ -1478,7 +1478,7 @@ def test_local_ref_whose_rebase_changed_whitespace_is_kept(
     )
     _push_branch(repo, "feat")
     _git(repo, "checkout", "feat")
-    (repo / "feat.txt").write_text(original)
+    (repo / "feat.txt").write_text(original, encoding="utf-8", newline="\n")
     _git(repo, "commit", "--amend", "--no-edit", "-a")
     _git(repo, "checkout", "main")
     merged_head = _merge_rebased_copy(repo, "feat", amend=changed, squash=squash)
@@ -1609,7 +1609,7 @@ def test_evil_merge_of_control_state_keeps_branch(repo: Path, monkeypatch) -> No
     _commit(repo, "base.txt", "main moved", "main change")
     _git(repo, "checkout", "feat")
     _git(repo, "merge", "--no-ff", "--no-edit", "-m", "Merge main state into feat", "main")
-    (repo / "base.txt").write_text("resolved differently")
+    (repo / "base.txt").write_text("resolved differently", encoding="utf-8", newline="\n")
     _git(repo, "commit", "-a", "--amend", "--no-edit")
     _git(repo, "checkout", "main")
     _fake_gh(monkeypatch, {"feat": merged_head})
@@ -1707,7 +1707,7 @@ def _host_task(repo: Path) -> Path:
     host = task_dir / "ticket.md"
     host.write_text(
         _ticket_text("branch-sweep", status="draft", body="", blackboard="")
-    )
+    , encoding="utf-8", newline="\n")
     return host
 
 
@@ -1724,7 +1724,7 @@ def test_recipe_writes_report_to_task_blackboard(
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
 
-    text = host.read_text()
+    text = host.read_text(encoding="utf-8")
     report = text.split("<!-- coga:blackboard -->", 1)[1]
     assert bs.SWEEP_REPORT_HEADING in report
     assert "Task: `recurring/branch-sweep`" in report
@@ -1772,8 +1772,8 @@ def test_recipe_records_a_failed_sweep_on_the_blackboard(
     monkeypatch.setattr(bs, "sweep_branches", _sweep)
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
-    assert f"Result: {result_text} — probe unavailable" in host.read_text()
-    assert "Counts: 0 local and 0 remote branch(es) deleted" in host.read_text()
+    assert f"Result: {result_text} — probe unavailable" in host.read_text(encoding="utf-8")
+    assert "Counts: 0 local and 0 remote branch(es) deleted" in host.read_text(encoding="utf-8")
 
 
 def test_recipe_reports_local_cleanup_when_remote_listing_fails(
@@ -1799,7 +1799,7 @@ def test_recipe_reports_local_cleanup_when_remote_listing_fails(
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
 
-    report = host.read_text()
+    report = host.read_text(encoding="utf-8")
     assert "Result: partial sweep — simulated remote listing failure" in report
     assert "Counts: 1 local and 0 remote branch(es) deleted" in report
     assert "- deleted local: feat" in report
@@ -1824,7 +1824,7 @@ def test_gc_preserves_checkout_with_new_local_work(
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert worktree.is_dir()
-    assert (worktree / "new.txt").read_text() == "not merged"
+    assert (worktree / "new.txt").read_text(encoding="utf-8") == "not merged"
     assert _branch_exists_local(repo, "reuse")
     assert _git(repo, "ls-remote", "--heads", "origin", "reuse").stdout.strip()
     assert not result.worktree_removed
@@ -1868,7 +1868,7 @@ def _write_owner(repo: Path, slug: str, *, status: str, branches: list[str]) -> 
     lines = "\n".join(f"branch: {branch}" for branch in branches)
     (task_dir / f"{slug}.md").write_text(
         _ticket_text(slug, status=status, body="", blackboard=f"## Dev\n{lines}")
-    )
+    , encoding="utf-8", newline="\n")
 
 
 @pytest.mark.parametrize("status", ["done", "canceled"])
@@ -1915,7 +1915,7 @@ def test_incidental_mention_on_a_terminal_ticket_is_not_ownership(
             body="See the abandoned feat branch for an earlier attempt.",
             blackboard="## Notes\nfeat was closed unmerged.",
         )
-    )
+    , encoding="utf-8", newline="\n")
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -2117,7 +2117,7 @@ def _write_worklist(repo: Path, *entries) -> None:
 
     path = repo / "coga" / "recurring" / "autoclose-merged" / "retires.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_worklist(RETIRE_WORKLIST_HEADER, entries))
+    path.write_text(render_worklist(RETIRE_WORKLIST_HEADER, entries), encoding="utf-8", newline="\n")
 
 
 def test_worklist_entry_owns_branch_after_its_ticket_is_deleted(
@@ -2234,7 +2234,7 @@ def test_fenced_example_never_authorizes_closed_pr_deletion(repo: Path, monkeypa
     _push_branch(repo, "feat")
     _write_owner(repo, "done", status="done", branches=["actual"])
     ticket = repo / "coga/tasks/done.md"
-    ticket.write_text(ticket.read_text() + "\n```yaml\nbranch: feat\n```\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + "\n```yaml\nbranch: feat\n```\n", encoding="utf-8", newline="\n")
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
@@ -2257,13 +2257,13 @@ def test_live_secondary_branch_claim_preserves_closed_pr(
         current.mkdir()
         (repo / "coga").rename(current / "coga")
         (workspace / "coga").mkdir(parents=True)
-        (workspace / "coga/coga.toml").write_text('version = 1\n')
+        (workspace / "coga/coga.toml").write_text('version = 1\n', encoding="utf-8", newline="\n")
     ticket = workspace / "coga/tasks/recurring/live/ticket.md"
     ticket.parent.mkdir(parents=True)
     ticket.write_text(_ticket_text(
         "live", status="in_progress", body="",
         blackboard="## Dev\nbranch: primary\nbranch: feat\n",
-    ))
+    ), encoding="utf-8", newline="\n")
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(current), repo, echo=lambda _: None)
@@ -2287,10 +2287,10 @@ def test_disposal_proves_secondary_merged_branch_unclaimed_across_workspaces(
     (repo / "coga").rename(current / "coga")
     workspace = repo / "service"
     (workspace / "coga").mkdir(parents=True)
-    (workspace / "coga/coga.toml").write_text('version = 1\n')
+    (workspace / "coga/coga.toml").write_text('version = 1\n', encoding="utf-8", newline="\n")
     _write_owner(workspace, "live", status="active", branches=["second"])
     if unreadable:
-        (workspace / "coga/tasks/live.md").write_text("---\nbroken: [\n---\n")
+        (workspace / "coga/tasks/live.md").write_text("---\nbroken: [\n---\n", encoding="utf-8", newline="\n")
     _fake_gh(monkeypatch, merged={b: _tip(repo, b) for b in ("first", "second")})
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
 
@@ -2351,10 +2351,10 @@ def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
     _write_owner(repo, "done", status="done", branches=["first", "second"])
     template = repo / "coga/recurring/autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     period = repo / "coga/tasks/recurring/autoclose-merged/ticket.md"
     period.parent.mkdir(parents=True)
-    period.write_text(_ticket_text("period", status="in_progress", body="", blackboard=""))
+    period.write_text(_ticket_text("period", status="in_progress", body="", blackboard=""), encoding="utf-8", newline="\n")
     monkeypatch.setattr(am, "blackboard_from_env", lambda _: period)
     _closed_at_tip(monkeypatch, repo, "first")
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
@@ -2369,7 +2369,7 @@ def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
 
     assert am._report_retire_followups(cfg, result)
     path = template / "retires.md"
-    [entry] = rw.parse_worklist(path.read_text())[1]
+    [entry] = rw.parse_worklist(path.read_text(encoding="utf-8"))[1]
     assert entry.branch_names == ("first", "second")
     (repo / "coga/tasks/done.md").unlink()
     assert len(rw.reconcile_worklist(cfg, path, root=repo).open) == 1
@@ -2397,7 +2397,7 @@ def test_terminal_ticket_cannot_reintroduce_foreign_branch_authority(
     elif checkout == "missing":
         recorded = repo.parent / "unavailable"
     ticket = repo / "coga/tasks/done.md"
-    ticket.write_text(ticket.read_text() + f"\nworktree: {recorded}\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + f"\nworktree: {recorded}\n", encoding="utf-8", newline="\n")
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
@@ -2418,7 +2418,7 @@ def test_list_contained_fenced_example_is_not_branch_ownership(
     _push_branch(repo, "feat")
     _write_owner(repo, "done", status="done", branches=["actual"])
     ticket = repo / "coga/tasks/done.md"
-    ticket.write_text(ticket.read_text() + f"\n{container}```yaml\n  branch: feat\n  ```\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + f"\n{container}```yaml\n  branch: feat\n  ```\n", encoding="utf-8", newline="\n")
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
@@ -2439,7 +2439,7 @@ def test_disposal_retains_proven_owner_after_removing_recorded_worktree(
     _git(repo, "worktree", "add", str(linked), "first")
     _write_owner(repo, "done", status="done", branches=["first", "second"])
     ticket = repo / "coga/tasks/done.md"
-    ticket.write_text(ticket.read_text() + f"\nworktree: {linked}\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + f"\nworktree: {linked}\n", encoding="utf-8", newline="\n")
     _fake_gh(monkeypatch, merged={"first": _tip(repo, "first")}, closed={"second": _tip(repo, "second")})
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
 
@@ -2463,9 +2463,9 @@ def _owned_worklist(repo: Path, *entries) -> Path:
 
     template = repo / "coga/recurring/autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     worklist = template / rw.RETIRE_WORKLIST_FILENAME
-    worklist.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries))
+    worklist.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries), encoding="utf-8", newline="\n")
     _git(repo, "add", "coga/recurring")
     _git(repo, "commit", "-m", "record retire follow-ups")
     _git(repo, "push", "origin", "main")
@@ -2499,11 +2499,11 @@ def test_recipe_discharges_the_retire_follow_ups_this_clone_owns(
     assert not _branch_exists_local(repo, "feat")
     assert result.followups_disposed == ["mine"]
     assert result.followups_discharged == ["mine"]
-    assert rw.parse_worklist(worklist.read_text())[1] == [theirs]
+    assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == [theirs]
     published = _git(
         repo, "show", "origin/main:coga/recurring/autoclose-merged/retires.md"
     ).stdout
-    assert published == worklist.read_text()
+    assert published == worklist.read_text(encoding="utf-8")
     subject = _git(repo, "log", "-1", "--format=%s", "origin/main").stdout.strip()
     assert subject == "Recurring: branch-sweep discharged 1 retire follow-up(s)"
     assert _git(repo, "status", "--porcelain", "--", "coga/recurring").stdout == ""
@@ -2527,7 +2527,7 @@ def test_recipe_leaves_retire_follow_ups_alone_without_publishable_control(
             "mine", "feat", str(linked), "2026-10-01", owner=str(repo.resolve())
         ),
     )
-    before = worklist.read_text()
+    before = worklist.read_text(encoding="utf-8")
     cfg = _cfg(repo)
     if git_disabled:
         cfg = replace(cfg, git_enabled=False)
@@ -2544,7 +2544,7 @@ def test_recipe_leaves_retire_follow_ups_alone_without_publishable_control(
     assert linked.is_dir()
     assert result.followups_skipped is not None
     assert result.followups_disposed == result.followups_discharged == []
-    assert worklist.read_text() == before
+    assert worklist.read_text(encoding="utf-8") == before
     assert f"Retire follow-ups: skipped — {reason}" in capsys.readouterr().out
 
 
@@ -2583,7 +2583,7 @@ def test_recipe_retries_retire_discharge_after_publication_did_not_land(
     assert second.followups_discharged == ["mine"]
     published = _git(repo, "show", "origin/main:coga/recurring/autoclose-merged/retires.md").stdout
     assert rw.parse_worklist(published)[1] == []
-    assert published == worklist.read_text()
+    assert published == worklist.read_text(encoding="utf-8")
 
 
 def test_recipe_keeps_concurrent_local_work_when_discharge_publish_fails(
@@ -2599,7 +2599,7 @@ def test_recipe_keeps_concurrent_local_work_when_discharge_publish_fails(
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
 
     def fail_after_edit(*args, **kwargs):
-        worklist.write_text(newer)
+        worklist.write_text(newer, encoding="utf-8", newline="\n")
         raise git.GitError("transient push failure")
 
     monkeypatch.setattr(git, "publish", fail_after_edit)
@@ -2608,7 +2608,7 @@ def test_recipe_keeps_concurrent_local_work_when_discharge_publish_fails(
 
     assert result.followups_discharged == []
     assert "current contents preserved" in result.followups_failure
-    assert worklist.read_text() == newer
+    assert worklist.read_text(encoding="utf-8") == newer
 
 
 def test_recipe_rejudges_after_another_clone_updates_the_worklist(
@@ -2645,4 +2645,4 @@ def test_recipe_rejudges_after_another_clone_updates_the_worklist(
     assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=second) == 0
     assert second.followups_discharged == ["mine"]
     assert rw.parse_worklist(_git(repo, "show", f"origin/main:{rel}").stdout)[1] == [theirs]
-    assert rw.parse_worklist(worklist.read_text())[1] == [theirs]
+    assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == [theirs]

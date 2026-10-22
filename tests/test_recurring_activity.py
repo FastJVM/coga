@@ -133,7 +133,7 @@ def test_classifier_tracks_machine_subject_writers() -> None:
     """Read writer expressions so changes to emitted subjects break this pin."""
     import ast
     root = Path(__file__).resolve().parents[1] / "src/coga"
-    git_tree = ast.parse((root / "git.py").read_text())
+    git_tree = ast.parse((root / "git.py").read_text(encoding="utf-8"))
     writer = next(n for n in git_tree.body if isinstance(n, ast.FunctionDef) and n.name == "sync_coga_state")
     default = writer.args.kw_defaults[0]
     assert isinstance(default, ast.Constant)
@@ -147,7 +147,7 @@ def test_classifier_tracks_machine_subject_writers() -> None:
         ("blocker_reminders.py", " — blocker reminder", "human"),
     ]
     for filename, fragment, slug in cases:
-        tree = ast.parse((root / filename).read_text())
+        tree = ast.parse((root / filename).read_text(encoding="utf-8"))
         subjects = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.keyword) or node.arg != "message":
@@ -168,7 +168,7 @@ def test_classifier_tracks_machine_subject_writers() -> None:
         assert subjects, (filename, fragment)
         assert all(is_machine_commit(subject) for subject in subjects), subjects
     for filename in ("skill_manager.py", "commands/skill.py"):
-        constants = [n.value for n in ast.walk(ast.parse((root / filename).read_text()))
+        constants = [n.value for n in ast.walk(ast.parse((root / filename).read_text(encoding="utf-8")))
                      if isinstance(n, ast.Constant)]
         assert "Update Coga-managed skills" in constants
         assert is_machine_commit("Update Coga-managed skills")

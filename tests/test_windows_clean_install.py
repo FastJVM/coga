@@ -24,7 +24,7 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
     shutil.copyfile(ROOT / "scripts/clean-install/aws-windows.sh", script)
     evidence = git_repo.root / ".coga/clean-install/win1"
     evidence.mkdir(parents=True)
-    (evidence / "resources.env").write_text("REGION=us-east-1\nPUBLIC_IP=192.0.2.1\n")
+    (evidence / "resources.env").write_text("REGION=us-east-1\nPUBLIC_IP=192.0.2.1\n", encoding="utf-8", newline="\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     capture = tmp_path / "ssh.json"
@@ -33,7 +33,7 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
         f"#!{sys.executable}\nimport json, sys\n"
         f"open({str(capture)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
         "sys.exit(23)\n"
-    )
+    , encoding="utf-8", newline="\n")
     ssh.chmod(0o755)
     monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     monkeypatch.setenv("AWS_PROFILE", "test")
@@ -41,7 +41,7 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
              'a"b', "it's literal", "space ", "trailing\\", "line\nend\n", "café"]
     result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True)
     assert result.returncode == 23, result.stdout + result.stderr
-    remote = json.loads(capture.read_text())[-1]
+    remote = json.loads(capture.read_text(encoding="utf-8"))[-1]
     prefix = "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "
     assert remote.startswith(prefix)
     encoded = remote.removeprefix(prefix)
@@ -54,7 +54,7 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
     # An encoder failure must not start an empty/default remote command.
     capture.unlink()
     iconv = bin_dir / "iconv"
-    iconv.write_text("#!/bin/sh\nexit 29\n")
+    iconv.write_text("#!/bin/sh\nexit 29\n", encoding="utf-8", newline="\n")
     iconv.chmod(0o755)
     result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True)
     assert result.returncode == 29

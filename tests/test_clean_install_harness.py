@@ -19,8 +19,52 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/clean-install/container.sh"
 
 
+@pytest.mark.parametrize("artifact", ["main", "feature/windows-port"])
+def test_windows_walk_builds_the_fetched_ref(git_repo, tmp_path, monkeypatch, artifact):
+    script = git_repo.root / "scripts/clean-install/aws-windows.sh"
+    script.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / "scripts/clean-install/aws-windows.sh", script)
+    if artifact != "main":
+        git_repo.checkout_branch(artifact)
+    payload = git_repo.root / "artifact.txt"
+    payload.write_text(artifact, encoding="utf-8", newline="\n")
+    git_repo.git("add", "artifact.txt")
+    git_repo.git("commit", "-m", "artifact for the wheel walk")
+    git_repo.git("push", "origin", artifact)
+    expected = git_repo.git("rev-parse", "HEAD").strip()
+    payload.write_text("uncommitted host content", encoding="utf-8", newline="\n")
+    evidence = git_repo.root / ".coga/clean-install/win1"
+    evidence.mkdir(parents=True)
+    (evidence / "resources.env").write_text(
+        "REGION=us-east-1\nPUBLIC_IP=192.0.2.1\n", encoding="utf-8", newline="\n",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    built = tmp_path / "built.txt"
+    _executable(bin_dir / "uv", f"""
+        #!{sys.executable}
+        from pathlib import Path
+        import sys
+        Path({str(built)!r}).write_bytes((Path(sys.argv[-1]) / 'artifact.txt').read_bytes())
+        out = Path(sys.argv[sys.argv.index('--out-dir') + 1])
+        out.mkdir(parents=True)
+        (out / 'coga-1.0-py3-none-any.whl').write_bytes(b'wheel')
+    """)
+    for name in ("ssh", "scp"):
+        _executable(bin_dir / name, "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("AWS_PROFILE", "test")
+    result = subprocess.run(
+        ["bash", str(script), "walk", "win1", artifact, "walkbranch"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert built.read_text(encoding="utf-8") == artifact
+    assert (evidence / "walks/walkbranch/source.txt").read_text(encoding="utf-8") == f"origin/{artifact}={expected}\n"
+
+
 def _executable(path: Path, text: str) -> None:
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
     path.chmod(0o755)
 
 
@@ -123,18 +167,18 @@ def test_clean_install_reaches_init_from_selected_artifact(
     result = _run(install_env, *args)
     assert result.returncode == 0, result.stdout + result.stderr
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
-    steps = (evidence / "steps.txt").read_text()
+    steps = (evidence / "steps.txt").read_text(encoding="utf-8")
     assert "PASS\tcoga init --user first-user" in steps
     assert "PASS\tcoga --version" in steps
     assert steps.splitlines()[-1] == "PASS\tcoga validate --json "
     assert f"PASS\tcheck_python {install_env['COGA_TEST_BIN']}/python3.11" in steps
     assert "uv tool install --python 3.11 " in steps
     assert ("uv tool install --python 3.11 coga " in steps) == (mode == "pypi")
-    assert "Python 3.11.9 at " in (evidence / "transcript.txt").read_text()
+    assert "Python 3.11.9 at " in (evidence / "transcript.txt").read_text(encoding="utf-8")
     if mode == "wheel":
         assert "coga-1.0-py3-none-any.whl" in steps
         assert "checksum" in steps
-    assert "attended coga ticket and coga build have not run" in (evidence / "init-passed.txt").read_text()
+    assert "attended coga ticket and coga build have not run" in (evidence / "init-passed.txt").read_text(encoding="utf-8")
     assert not (evidence / "ticket.txt").exists()
     assert not (evidence / "build.txt").exists()
 
@@ -147,7 +191,7 @@ def test_clean_install_preserves_failure_and_stops(
     result = _run(install_env, "pypi", "first-user")
     assert result.returncode == 17
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
-    steps = (evidence / "steps.txt").read_text()
+    steps = (evidence / "steps.txt").read_text(encoding="utf-8")
     assert "FAIL (exit 17)" in steps
     assert failed_command in steps.splitlines()[-1]
     assert not (evidence / "init-passed.txt").exists()
@@ -173,9 +217,9 @@ def test_clean_install_refuses_other_python_before_install(
     result = _run(install_env, "pypi", "first-user")
     assert result.returncode == 2
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
-    transcript = (evidence / "transcript.txt").read_text()
+    transcript = (evidence / "transcript.txt").read_text(encoding="utf-8")
     assert "Python 3.9.6 is not the required 3.11" in transcript
-    steps = (evidence / "steps.txt").read_text()
+    steps = (evidence / "steps.txt").read_text(encoding="utf-8")
     assert steps.splitlines()[-1].startswith("FAIL (exit 2)\tcheck_python ")
     assert "uv tool install" not in steps
 
@@ -204,14 +248,14 @@ def test_clean_install_ticket_keeps_terminal_stdio(install_env: dict[str, str]) 
     assert _run(install_env, "pypi", "first-user").returncode == 0
     assert _run_attended(install_env, "ticket", "First task", "--agent", "claude") == 0
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
-    assert "ticket_exit_code=0" in (evidence / "ticket.txt").read_text()
+    assert "ticket_exit_code=0" in (evidence / "ticket.txt").read_text(encoding="utf-8")
 
 
 def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, str]) -> None:
     assert _run(install_env, "pypi", "first-user").returncode == 0
     assert _run_attended(install_env, "build", "--agent", "claude") == 0
     evidence = Path(install_env["HOME"]) / "clean-install/evidence"
-    assert (evidence / "build.txt").read_text().splitlines() == [
+    assert (evidence / "build.txt").read_text(encoding="utf-8").splitlines() == [
         "+ coga build --agent claude",
         "before_status=active",
         "before_step=1 (gather-and-spec)",
@@ -222,7 +266,7 @@ def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, s
         "2026-10-13 10:06 v1 [coga-build] [system] started via coga launch",
         "build_exit_code=0",
     ]
-    assert "idea" not in (evidence / "build.txt").read_text()
+    assert "idea" not in (evidence / "build.txt").read_text(encoding="utf-8")
 
 
 def test_clean_install_build_records_failure_and_removed_ticket(
@@ -232,7 +276,7 @@ def test_clean_install_build_records_failure_and_removed_ticket(
     (Path(install_env["HOME"]) / "clean-install/repo/coga/tasks/coga-build.md").unlink()
     install_env["COGA_TEST_FAIL"] = "build"
     assert _run_attended(install_env, "build") == 17
-    record = (Path(install_env["HOME"]) / "clean-install/evidence/build.txt").read_text()
+    record = (Path(install_env["HOME"]) / "clean-install/evidence/build.txt").read_text(encoding="utf-8")
     assert record.startswith("+ coga build\nbefore_ticket=absent\n")
     assert "before_ticket=absent\nafter_ticket=absent\n" in record
     assert record.endswith("build_exit_code=17\n")
@@ -251,13 +295,13 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     script.parent.mkdir(parents=True)
     shutil.copyfile(ROOT / "scripts/clean-install/run.sh", script)
     source = git_repo.root / "package.txt"
-    source.write_text("committed main\n")
+    source.write_text("committed main\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "package.txt")
     git_repo.git("commit", "-m", "Package on main")
     git_repo.git("push", "origin", "main")
     main_sha = git_repo.git("rev-parse", "HEAD").strip()
     git_repo.checkout_branch("feature")
-    source.write_text("uncommitted feature\n")
+    source.write_text("uncommitted feature\n", encoding="utf-8", newline="\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _checksum_stub(bin_dir)
@@ -281,13 +325,13 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     evidence = git_repo.root / ".coga/clean-install/clean-main"
-    assert (evidence / "source.txt").read_text() == f"origin/main={main_sha}\n"
+    assert (evidence / "source.txt").read_text(encoding="utf-8") == f"origin/main={main_sha}\n"
     wheel = evidence / "wheels/coga-1.0-py3-none-any.whl"
-    assert wheel.read_text() == "committed main\n"
-    assert source.read_text() == "uncommitted feature\n"
+    assert wheel.read_text(encoding="utf-8") == "committed main\n"
+    assert source.read_text(encoding="utf-8") == "uncommitted feature\n"
     assert "docker build --pull --network host -t coga-clean-install:py311" in result.stdout
     assert "docker create --network host --name clean-main" in result.stdout
-    assert "network=host" in (evidence / "result.txt").read_text()
+    assert "network=host" in (evidence / "result.txt").read_text(encoding="utf-8")
     assert git_repo.git("branch", "--show-current").strip() == "feature"
 
 
@@ -360,33 +404,33 @@ def test_aws_mac_records_every_resource_and_tears_down(aws_mac) -> None:
         COGA_CLEAN_INSTALL_ALLOCATE="yes",
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    resources = (evidence / "resources.env").read_text()
+    resources = (evidence / "resources.env").read_text(encoding="utf-8")
     for line in ("KEY_NAME=coga-clean-install-mac1", "SG_ID=sg-1", "HOST_ID=h-1",
                  "INSTANCE_ID=i-1", "PUBLIC_IP=203.0.113.5", "SSH_FROM=198.51.100.7/32"):
         assert line in resources
     assert (evidence / "key.pem").stat().st_mode & 0o777 == 0o600
-    aws_calls = [c for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    aws_calls = [c for c in calls.read_text(encoding="utf-8").splitlines() if c.startswith("aws ")]
     assert all("--profile dev-sso --region us-east-1" in c for c in aws_calls)
-    assert "--placement Tenancy=host,HostId=h-1" in calls.read_text()
-    assert "--port 22 --cidr 198.51.100.7/32" in calls.read_text()
-    assert "macos-walk.sh reset" in calls.read_text()
+    assert "--placement Tenancy=host,HostId=h-1" in calls.read_text(encoding="utf-8")
+    assert "--port 22 --cidr 198.51.100.7/32" in calls.read_text(encoding="utf-8")
+    assert "macos-walk.sh reset" in calls.read_text(encoding="utf-8")
 
     # Inside 24 hours AWS refuses the release; everything else is still removed.
     result = run("teardown", "mac1", COGA_TEST_RELEASE="Too early to release")
     assert result.returncode == 1
     assert "h-1 NOT released: Too early to release" in result.stdout
-    resources = (evidence / "resources.env").read_text()
+    resources = (evidence / "resources.env").read_text(encoding="utf-8")
     assert "INSTANCE_TERMINATED=" in resources and "SG_DELETED=" in resources
     assert "KEY_DELETED=" in resources and "HOST_RELEASED=" not in resources
-    ops = [c.split()[6] for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    ops = [c.split()[6] for c in calls.read_text(encoding="utf-8").splitlines() if c.startswith("aws ")]
     teardown = ops[ops.index("terminate-instances"):]
     assert teardown == ["terminate-instances", "wait", "delete-security-group",
                         "delete-key-pair", "release-hosts"]
 
     assert run("release", "mac1").returncode == 0
-    assert "HOST_RELEASED=" in (evidence / "resources.env").read_text()
+    assert "HOST_RELEASED=" in (evidence / "resources.env").read_text(encoding="utf-8")
     assert run("teardown", "mac1").returncode == 0
-    assert calls.read_text().count("terminate-instances") == 1
+    assert calls.read_text(encoding="utf-8").count("terminate-instances") == 1
 
 
 @pytest.mark.parametrize(
@@ -407,8 +451,8 @@ def test_aws_mac_stops_on_failed_resource_capture(
         COGA_CLEAN_INSTALL_ALLOCATE="yes", COGA_TEST_AWS_FAIL=operation,
     )
     assert result.returncode == 23, result.stdout + result.stderr
-    assert f"{missing_key}=" not in (evidence / "resources.env").read_text()
-    ops = [c.split()[6] for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    assert f"{missing_key}=" not in (evidence / "resources.env").read_text(encoding="utf-8")
+    ops = [c.split()[6] for c in calls.read_text(encoding="utf-8").splitlines() if c.startswith("aws ")]
     assert forbidden_operation not in ops
     # Every successfully recorded resource remains available to teardown.
     assert run("teardown", "mac1").returncode == 0
@@ -426,10 +470,10 @@ def test_aws_mac_passwords_stay_out_of_logs(aws_mac) -> None:
     ):
         result = run(*args)
         assert result.returncode == 0, result.stdout + result.stderr
-        password = password_path.read_text().strip()
-        assert password and password in calls.read_text()  # delivered to SSH
+        password = password_path.read_text(encoding="utf-8").strip()
+        assert password and password in calls.read_text(encoding="utf-8")  # delivered to SSH
         assert password not in result.stdout + result.stderr
-        assert password not in (evidence / "host.txt").read_text()
+        assert password not in (evidence / "host.txt").read_text(encoding="utf-8")
         assert password_path.stat().st_mode & 0o777 == 0o600
     assert (evidence / "host.txt").stat().st_mode & 0o777 == 0o600
 
@@ -450,8 +494,8 @@ def test_aws_mac_walk_quotes_remote_argv(aws_mac, tmp_path: Path) -> None:
     operator = "Alice Smith; touch pwned"
     result = run("walk", "mac1", "pypi", "walk1", operator)
     assert result.returncode == 0, result.stdout + result.stderr
-    password = (evidence / "walks/walk1/password.txt").read_text().strip()
-    walk = next(line for line in remote.read_text().splitlines() if "macos-walk.sh" in line)
+    password = (evidence / "walks/walk1/password.txt").read_text(encoding="utf-8").strip()
+    walk = next(line for line in remote.read_text(encoding="utf-8").splitlines() if "macos-walk.sh" in line)
     assert shlex.split(walk) == [
         "bash", "/tmp/coga-clean-install/macos-walk.sh", "walk",
         "pypi", operator, "walk1", password,
@@ -487,8 +531,8 @@ def test_aws_mac_main_walk_without_gnu_checksum(
     result = run("walk", "mac1", "main", "walk1")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "portable-checksum" in result.stdout
-    assert "macos-walk.sh walk wheel" in calls.read_text()
-    assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
+    assert "macos-walk.sh walk wheel" in calls.read_text(encoding="utf-8")
+    assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text(encoding="utf-8")
 
 
 def test_macos_walk_provisions_and_pins_python_311(tmp_path: Path, monkeypatch) -> None:
@@ -533,7 +577,7 @@ def test_macos_walk_provisions_and_pins_python_311(tmp_path: Path, monkeypatch) 
         capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert calls.read_text().splitlines() == [
+    assert calls.read_text(encoding="utf-8").splitlines() == [
         "uv python install 3.11 UV_PYTHON=",
         "container.sh pypi installer UV_PYTHON=3.11 UV_PYTHON_DOWNLOADS=never",
     ]
@@ -543,7 +587,7 @@ def test_clean_install_can_pin_a_pypi_release(install_env: dict[str, str]) -> No
     install_env["COGA_CLEAN_INSTALL_VERSION"] = "0.4.0"
     result = _run(install_env, "pypi", "installer")
     assert result.returncode == 0, result.stdout + result.stderr
-    steps = (Path(install_env["HOME"]) / "clean-install/evidence/steps.txt").read_text()
+    steps = (Path(install_env["HOME"]) / "clean-install/evidence/steps.txt").read_text(encoding="utf-8")
     assert "uv tool install --python 3.11 coga==0.4.0" in steps
 
 
@@ -558,7 +602,7 @@ def release_env(install_env: dict[str, str], tmp_path: Path) -> dict[str, str]:
     metadata_root = tmp_path / "metadata"
     metadata = metadata_root / "coga-0.4.0.dist-info/METADATA"
     metadata.parent.mkdir(parents=True)
-    metadata.write_text("Metadata-Version: 2.1\nName: coga\nVersion: 0.4.0\n")
+    metadata.write_text("Metadata-Version: 2.1\nName: coga\nVersion: 0.4.0\n", encoding="utf-8", newline="\n")
     install_env["PYTHONPATH"] = os.pathsep.join((str(metadata_root), str(ROOT / "src")))
     _executable(Path(install_env["COGA_TEST_BIN"]) / "claude", "#!/bin/sh\nexit 0\n")
     _executable(Path(install_env["COGA_TEST_STUB"]), f'''
@@ -615,13 +659,13 @@ def test_release_check_requires_completed_logged_clean_task(release_env) -> None
     assert _release(release_env) == 0
     evidence = Path(release_env["HOME"]) / "clean-install/evidence"
     assert (evidence / "release-passed.txt").is_file()
-    assert "status: done" in (evidence / "release-task.md").read_text()
-    audit = (evidence / "release-log.md").read_text()
+    assert "status: done" in (evidence / "release-task.md").read_text(encoding="utf-8")
+    audit = (evidence / "release-log.md").read_text(encoding="utf-8")
     assert "[verify-first-launch]" in audit
     assert "[coga-build]" not in audit
     assert "secret idea" not in audit
-    assert "installed=" in (evidence / "release-environment.txt").read_text()
-    assert "Complete first task" in (evidence / "release-git-log.txt").read_text()
+    assert "installed=" in (evidence / "release-environment.txt").read_text(encoding="utf-8")
+    assert "Complete first task" in (evidence / "release-git-log.txt").read_text(encoding="utf-8")
     assert _release(release_env) != 0  # Existing success cannot pass as a new run.
 
 

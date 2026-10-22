@@ -67,12 +67,12 @@ IMPORTANT_WEBHOOK = "https://slack.example.test/important"
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _read_log(repo: Path) -> str:
     """The repo-global audit log (`coga/log.md`)."""
-    return (repo / "log.md").read_text()
+    return (repo / "log.md").read_text(encoding="utf-8")
 
 
 def _capture_slack(sink: list[str], json_payload):
@@ -431,7 +431,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
             "Begin",
         ]
     ]
-    assert "launched" in (tmp_path / "log.md").read_text()
+    assert "launched" in (tmp_path / "log.md").read_text(encoding="utf-8")
 
 
 def test_spawn_agent_session_appends_kickoff_for_codex(
@@ -545,7 +545,7 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
         assert not log_file.exists()
         events.append("spawn")
         after_spawn()
-        assert "launched after spawn" in log_file.read_text()
+        assert "launched after spawn" in log_file.read_text(encoding="utf-8")
         events.append("audit")
         return ReplOutcome(0, "natural")
 
@@ -558,7 +558,7 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
             assert not log_file.exists()
             events.append("validate-before-audit")
         else:
-            assert "launched after spawn" in log_file.read_text()
+            assert "launched after spawn" in log_file.read_text(encoding="utf-8")
             events.append("validate-after-audit")
 
     monkeypatch.setattr(
@@ -685,7 +685,7 @@ def test_spawn_agent_session_retracts_audit_when_child_release_fails(
         assert on_spawn_admission_failure is not None
         with spawn_release_guard():
             after_spawn()
-            assert "launched before failed release" in log_file.read_text()
+            assert "launched before failed release" in log_file.read_text(encoding="utf-8")
             on_spawn_admission_failure()
             assert not log_file.exists()
         raise OSError("held-child release failed")
@@ -743,7 +743,7 @@ def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
         assert spawn_release_guard is not None
         with spawn_release_guard():
             after_spawn()
-            assert "launched before interrupt" in log_file.read_text()
+            assert "launched before interrupt" in log_file.read_text(encoding="utf-8")
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
@@ -774,7 +774,7 @@ def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
             record_launch_on_spawn=True,
         )
 
-    assert "launched before interrupt" in log_file.read_text()
+    assert "launched before interrupt" in log_file.read_text(encoding="utf-8")
     assert len(usage_calls) == 1
     assert usage_calls[0]["outcome_status"] == "interrupted"
 
@@ -1071,7 +1071,7 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     task = git_repo.coga_os / "tasks" / "demo"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n")
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed demo task")
     git_repo.git("push", "origin", "main")
@@ -1079,11 +1079,11 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
 
     # A tracked code file outside coga/, dirtied — must survive the teardown.
     outside = git_repo.root / "outside.txt"
-    outside.write_text("original\n")
+    outside.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "outside.txt")
     git_repo.git("commit", "-m", "seed outside")
     git_repo.git("push", "origin", "main")
-    outside.write_text("locally modified\n")
+    outside.write_text("locally modified\n", encoding="utf-8", newline="\n")
 
     monkeypatch.setattr(
         "coga.launch.compose_prompt",
@@ -1102,8 +1102,8 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         # log, *past* the agent's last sync.
         log = git_repo.coga_os / "log.md"
         log.write_text(
-            log.read_text() + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n'
-        )
+            log.read_text(encoding="utf-8") + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n'
+        , encoding="utf-8", newline="\n")
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session", fake_capture
@@ -1113,7 +1113,7 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     # it commits at the next CLI dispatch boundary instead.
     (task / "ticket.md").write_text(
         "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n"
-    )
+    , encoding="utf-8", newline="\n")
 
     spawn_agent_session(
         cfg, ref, _ticket(),
@@ -1226,12 +1226,12 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
             pr: https://github.com/acme/repo/pull/1
             """
         ).lstrip()
-    )
+    , encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "coga/tasks/ship-it/ticket.md")
     git_repo.git("commit", "-m", "ticket: seed ship-it")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("ship-it")
-    (git_repo.root / "implementation.txt").write_text("done\n")
+    (git_repo.root / "implementation.txt").write_text("done\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "implementation.txt")
     git_repo.git("commit", "-m", "feature: ship it")
 
@@ -1244,10 +1244,10 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
 
     def finish_with_publishing_bump(*args, **kwargs):  # type: ignore[no-untyped-def]
         ticket_path.write_text(
-            ticket_path.read_text().replace(
+            ticket_path.read_text(encoding="utf-8").replace(
                 "step: 1 (open-pr)", "step: 2 (review)"
             )
-        )
+        , encoding="utf-8", newline="\n")
         from coga import git
 
         git.sync_task_state(cfg, task, message="Ticket: ship-it — step 2 (review)")
@@ -1260,9 +1260,9 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
     def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
         log = git_repo.coga_os / "log.md"
         log.write_text(
-            log.read_text()
+            log.read_text(encoding="utf-8")
             + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n'
-        )
+        , encoding="utf-8", newline="\n")
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session", fake_capture
@@ -1433,7 +1433,7 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
         # other crash and every non-zero natural exit stays a failure.
         (ReplOutcome(exit_code=128 + signal.SIGINT, kind="crash"), "interrupted"),
         (ReplOutcome(exit_code=128 + signal.SIGSEGV, kind="crash"), "failed"),
-        (ReplOutcome(exit_code=128 + signal.SIGKILL, kind="crash"), "failed"),
+        (ReplOutcome(exit_code=137, kind="crash"), "failed"),  # recorded POSIX SIGKILL
         (ReplOutcome(exit_code=1, kind="crash"), "failed"),
         (ReplOutcome(exit_code=130, kind="natural"), "failed"),
         (ReplOutcome(exit_code=-signal.SIGINT, kind="natural"), "failed"),
@@ -2165,7 +2165,7 @@ def test_internal_recurring_launch_stops_hybrid_before_agent_setup(
     )
 
     assert result.kind == "script"
-    assert (ref.task_dir / "deterministic.txt").read_text() == "script ran\n"
+    assert (ref.task_dir / "deterministic.txt").read_text(encoding="utf-8") == "script ran\n"
     # Shared launch leaves the honest open-step state for its recurring caller;
     # the runner then parks that exact period as paused.
     assert Ticket.read(ref.ticket_path).status == "in_progress"
@@ -2629,7 +2629,7 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
     )
     task_dir = Path(created["path"])
     ticket_path = task_dir / "ticket.md"
-    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n")
+    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n", encoding="utf-8", newline="\n")
 
     monkeypatch.chdir(active_task)
     monkeypatch.setattr(
@@ -2802,14 +2802,14 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 def test_launch_captures_usage_with_session_id(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    text = (active_task / "coga.toml").read_text()
+    text = (active_task / "coga.toml").read_text(encoding="utf-8")
     (active_task / "coga.toml").write_text(
         text.replace(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\nsession_id_flag = "--session-id"',
             1,
         )
-    )
+    , encoding="utf-8", newline="\n")
     calls: list[list[str]] = []
     captures: list[dict] = []
     _allow_interactive_tty(monkeypatch)
@@ -3139,10 +3139,10 @@ def test_launch_bails_on_missing_context(
     ref = list_tasks(cfg)[0]
     ticket_md = ref.ticket_path
     ticket_md.write_text(
-        ticket_md.read_text().replace(
+        ticket_md.read_text(encoding="utf-8").replace(
             "status: active", "status: active\ncontexts:\n- email/ghost"
         )
-    )
+    , encoding="utf-8", newline="\n")
 
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
@@ -3174,7 +3174,7 @@ def test_launch_refuses_invalid_inline_workflow_before_start(
     ticket.write(ref.ticket_path)
     path = active_task / "workflows" / "audit-inline.md"
     path.parent.mkdir(exist_ok=True)
-    path.write_text("---\nname: audit-inline\nsteps: [\n---\n")
+    path.write_text("---\nname: audit-inline\nsteps: [\n---\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(launch_module, "spawn_agent_session", lambda **kw: pytest.fail("agent started"))
 
@@ -3807,7 +3807,7 @@ def test_launch_does_not_warn_when_ticket_is_unchanged(
     ("edit", "exit_code"),
     [
         (lambda path: path.unlink(), 0),
-        (lambda path: path.write_text("not a ticket\n"), 3),
+        (lambda path: path.write_text("not a ticket\n", encoding="utf-8", newline="\n"), 3),
     ],
     ids=["removed", "unreadable"],
 )
@@ -4153,7 +4153,7 @@ def test_launch_refusal_leaves_draft_unactivated(
     t.frontmatter["status"] = prior
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls: list[list[str]] = []
 
@@ -4177,7 +4177,7 @@ def test_launch_refusal_leaves_draft_unactivated(
     assert "stripe_key" in combined and "op://vault/stripe/key" in combined
     assert calls == []  # no agent spawned
     # The whole point: nothing durable was written for a session that never ran.
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
     assert "activated (" not in _read_log(active_task)
 
 
@@ -4192,7 +4192,7 @@ def test_launch_refuses_unsynthesized_draft_blackboard(
     t.write(ticket_md)
     before_blackboard = "\n## Ticket authoring notes\n\nNeeds body synthesis.\n"
     replace_blackboard(ticket_md, before_blackboard)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
 
@@ -4206,7 +4206,7 @@ def test_launch_refuses_unsynthesized_draft_blackboard(
         in combined
     )
     assert calls == []
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
     assert "activated (draft" not in _read_log(active_task)
 
 
@@ -4225,7 +4225,7 @@ def test_launch_refuses_done_ticket(
     t.frontmatter["status"] = "done"
     t.frontmatter.pop("step", None)  # mark done clears the step
     t.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
 
@@ -4239,7 +4239,7 @@ def test_launch_refuses_done_ticket(
     after = Ticket.read(ticket_md)
     assert after.status == "done"
     assert after.step is None
-    assert ticket_md.read_text() == before  # ticket file untouched
+    assert ticket_md.read_text(encoding="utf-8") == before  # ticket file untouched
 
 
 def test_launch_refuses_canceled_ticket(
@@ -4252,7 +4252,7 @@ def test_launch_refuses_canceled_ticket(
     ticket.frontmatter["status"] = "canceled"
     ticket.frontmatter.pop("step", None)
     ticket.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
     result = CliRunner().invoke(app, ["launch", slug])
@@ -4262,7 +4262,7 @@ def test_launch_refuses_canceled_ticket(
     assert "is canceled" in combined
     assert "terminal status" in combined
     assert calls == []
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
 
 
 def test_launch_refuses_a_pending_megalaunch_admission(
@@ -4635,12 +4635,12 @@ def test_launch_prompt_report_warns_for_uncomposed_sections(
     left out rather than letting them vanish silently."""
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    text = ref.ticket_path.read_text()
+    text = ref.ticket_path.read_text(encoding="utf-8")
     ref.ticket_path.write_text(text.replace(
         "\n<!-- coga:blackboard -->",
         "\n## Acceptance Criteria\n\n- Done.\n\n<!-- coga:blackboard -->",
         1,
-    ))
+    ), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
 
@@ -5102,8 +5102,8 @@ def test_launch_recomposes_after_before_spawn_publication(
         ticket.write(ticket_path)
         config_path = bootstrap_repo / "coga.toml"
         config_path.write_text(
-            config_path.read_text().replace('cli = "claude"', 'cli = "fresh-cli"')
-        )
+            config_path.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "fresh-cli"')
+        , encoding="utf-8", newline="\n")
 
     def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
         assert events == ["publish", "revalidate"]
@@ -5224,9 +5224,9 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
         """,
     )
     (bootstrap_repo / "coga.toml").write_text(
-        (bootstrap_repo / "coga.toml").read_text()
+        (bootstrap_repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\nhello = "launch bootstrap/hello"\n'
-    )
+    , encoding="utf-8", newline="\n")
 
     calls: list[list[str]] = []
 
@@ -5705,7 +5705,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("before review\n")
+    (git_repo.root / "implementation.txt").write_text("before review\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: initial implementation")
     git_repo.git("push", "-u", "origin", "feature/review")
@@ -5721,12 +5721,12 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
     peer_ticket = peer / ticket_path.relative_to(git_repo.root)
     peer_ticket.write_text(
-        peer_ticket.read_text() + "\nRemote prompt state: address the latest review.\n"
-    )
+        peer_ticket.read_text(encoding="utf-8") + "\nRemote prompt state: address the latest review.\n"
+    , encoding="utf-8", newline="\n")
     git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
     git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
-    assert "Remote prompt state" not in ticket_path.read_text()
+    assert "Remote prompt state" not in ticket_path.read_text(encoding="utf-8")
 
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -5761,7 +5761,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
             "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
         ).strip()
-        (git_repo.root / "implementation.txt").write_text("review fixed\n")
+        (git_repo.root / "implementation.txt").write_text("review fixed\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "implementation.txt")
         git_repo.git("commit", "-m", "fix: address review")
         git_repo.git("push", "origin", "feature/review")
@@ -5785,9 +5785,9 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
         log = cfg.repo_root / "log.md"
         log.write_text(
-            log.read_text()
+            log.read_text(encoding="utf-8")
             + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n'
-        )
+        , encoding="utf-8", newline="\n")
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session",
@@ -5816,7 +5816,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     )
     # The single checkout keeps its live log dirty by design.
     assert git_repo.git("status", "--porcelain").split() == ["M", "coga/log.md"]
-    assert "Remote prompt state: address the latest review." in ticket_path.read_text()
+    assert "Remote prompt state: address the latest review." in ticket_path.read_text(encoding="utf-8")
     assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
@@ -5855,7 +5855,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     git_repo.git("commit", "-m", "ticket: seed stale handoff")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("implemented\n")
+    (git_repo.root / "implementation.txt").write_text("implemented\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: implementation")
     git_repo.git("push", "-u", "origin", "feature/review")
@@ -5936,9 +5936,9 @@ def test_human_assist_validates_override_after_remote_config_alignment(
     git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
     peer_config = peer / "coga" / "coga.toml"
     peer_config.write_text(
-        peer_config.read_text()
+        peer_config.read_text(encoding="utf-8")
         + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml", cwd=peer)
     git_repo.git("commit", "-m", "config: add reviewer agent", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
@@ -6043,7 +6043,7 @@ def _seed_single_checkout_human_review(
     git_repo.git("push", "origin", "main")
     if branch != "main":
         git_repo.checkout_branch(branch)
-    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: reviewed branch")
     git_repo.git("push", "-u", "origin", branch)
@@ -6064,7 +6064,7 @@ def test_recorded_assist_cancellation_lands_reason_on_control(
     audit = git_repo.coga_os / "log.md"
     git_repo.push_competing_commit(
         "coga/log.md",
-        audit.read_text() + "2026-01-01 00:00 rival: unrelated event\n",
+        audit.read_text(encoding="utf-8") + "2026-01-01 00:00 rival: unrelated event\n",
     )
     posts: list[str] = []
     monkeypatch.setattr(
@@ -6322,7 +6322,7 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     git_repo.git("push", "origin", "feature/review")
     git_repo.push_competing_commit(
         str(ticket_path.relative_to(git_repo.root)),
-        ticket_path.read_text(),
+        ticket_path.read_text(encoding="utf-8"),
     )
 
     _allow_interactive_tty(monkeypatch)
@@ -6482,8 +6482,8 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         str(linked),
         "main",
     )
-    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n')
-    (linked / "implementation.txt").write_text("reviewed branch\n")
+    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
+    (linked / "implementation.txt").write_text("reviewed branch\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt", cwd=linked)
     git_repo.git("commit", "-m", "feature: linked implementation", cwd=linked)
     git_repo.git(
@@ -6584,7 +6584,7 @@ def test_human_assist_without_tty_does_not_protect_rewritten_log(
         title="Reject rewritten TTY-less assist log",
         status="in_progress",
     )
-    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n")
+    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n", encoding="utf-8", newline="\n")
     _deny_interactive_tty(monkeypatch)
 
     with pytest.raises(launch_module.LaunchBail) as excinfo:
@@ -6614,7 +6614,7 @@ def test_human_assist_rejects_control_named_pr_before_writing(
     )
     log_file = git_repo.coga_os / "log.md"
     retained_line = "retained control-name assist retry\n"
-    log_file.write_text(log_file.read_text() + retained_line)
+    log_file.write_text(log_file.read_text(encoding="utf-8") + retained_line, encoding="utf-8", newline="\n")
     remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
@@ -6633,7 +6633,7 @@ def test_human_assist_rejects_control_named_pr_before_writing(
         )
 
     assert excinfo.value.code == 2
-    assert retained_line in log_file.read_text()
+    assert retained_line in log_file.read_text(encoding="utf-8")
     assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
     assert "same name as the configured control branch" in excinfo.value.reason
 
@@ -6673,7 +6673,7 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/unrelated")
-    (git_repo.root / "unrelated.txt").write_text("another PR\n")
+    (git_repo.root / "unrelated.txt").write_text("another PR\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "unrelated.txt")
     git_repo.git("commit", "-m", "feature: unrelated")
     git_repo.git("push", "-u", "origin", "feature/unrelated")
@@ -7071,7 +7071,7 @@ def test_queue_conduct_resources_require_durable_terminal_transitions() -> None:
     recurring = (
         files("coga.resources")
         .joinpath(SESSION_CONDUCT_RESOURCES["recurring"])
-        .read_text()
+        .read_text(encoding="utf-8")
     )
     assert "coga block" in recurring
     assert "coga bump" in recurring
@@ -7271,7 +7271,7 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
 
     def act(ref: TaskRef) -> None:
         git_repo.git("switch", "-c", "feature/work")
-        (git_repo.root / "feature.py").write_text("print('work')\n")
+        (git_repo.root / "feature.py").write_text("print('work')\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "feature.py")
         git_repo.git("commit", "-m", "Implement feature")
         # The ticket copy on the branch predates control; load control's copy
@@ -7283,7 +7283,7 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
             read_blackboard(ref.ticket_path) + f"\n## Handoff\n\n{handoff}\n",
         )
         if leave is not None:
-            (git_repo.root / leave).write_text("unpublished work\n")
+            (git_repo.root / leave).write_text("unpublished work\n", encoding="utf-8", newline="\n")
 
     return act
 
@@ -7321,7 +7321,7 @@ def test_launch_returns_a_feature_branch_handoff_before_the_next_step(
     assert [seen[0] for seen in session.seen] == ["main", "main", "main"]
     assert session.seen[1][2] == "2 (review)"
     _assert_clean_control(git_repo)
-    assert "implemented" in ref.ticket_path.read_text()
+    assert "implemented" in ref.ticket_path.read_text(encoding="utf-8")
     # Feature code stayed on its branch and never reached control.
     assert not (git_repo.root / "feature.py").exists()
     assert git_repo.git("branch", "--list", "feature/work").strip()
@@ -7332,7 +7332,7 @@ def test_launch_entry_refuses_unsafe_dirt_with_the_retry_exit(
 ) -> None:
     ref = _published_checkout_task(git_repo)
     git_repo.checkout_branch("feature/x")
-    (git_repo.root / "wip.py").write_text("unsaved\n")
+    (git_repo.root / "wip.py").write_text("unsaved\n", encoding="utf-8", newline="\n")
     before = _branch_and_tip(git_repo)
     session = _CheckoutSession(git_repo)
     _checkout_launch_env(monkeypatch, session)
@@ -7344,7 +7344,7 @@ def test_launch_entry_refuses_unsafe_dirt_with_the_retry_exit(
     assert "No work was started." in result.output
     assert session.seen == []
     assert _branch_and_tip(git_repo) == before
-    assert (git_repo.root / "wip.py").read_text() == "unsaved\n"
+    assert (git_repo.root / "wip.py").read_text(encoding="utf-8") == "unsaved\n"
 
 
 def test_launch_teardown_refusal_preserves_work_result_and_stops_chaining(
@@ -7365,7 +7365,7 @@ def test_launch_teardown_refusal_preserves_work_result_and_stops_chaining(
     assert "notes.txt (not Coga state)" in result.output
     assert coga_git.state_sweep_withheld.get() is True
     assert _branch_and_tip(git_repo)[0] == "feature/work"
-    assert (git_repo.root / "notes.txt").read_text() == "unpublished work\n"
+    assert (git_repo.root / "notes.txt").read_text(encoding="utf-8") == "unpublished work\n"
     # The completed step stands: bump already published it.
     control = git_repo.git(
         "show", f"main:{ref.ticket_path.relative_to(git_repo.root)}", cwd=git_repo.origin
@@ -7534,14 +7534,14 @@ def test_orientation_refusal_preserves_edits_and_explains_investigation(
 ) -> None:
     git_repo.checkout_branch("feature/unfinished")
     tracked = git_repo.root / "work.py"
-    tracked.write_text("original\n")
+    tracked.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "work.py")
     git_repo.git("commit", "-m", "Unfinished work")
-    tracked.write_text("staged\n")
+    tracked.write_text("staged\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "work.py")
-    tracked.write_text("unstaged\n")
+    tracked.write_text("unstaged\n", encoding="utf-8", newline="\n")
     untracked = git_repo.root / "notes.txt"
-    untracked.write_text("Unpublished notes\n")
+    untracked.write_text("Unpublished notes\n", encoding="utf-8", newline="\n")
     before = _branch_and_tip(git_repo)
     status = git_repo.git("status", "--porcelain")
     stash = git_repo.git("stash", "list")
@@ -7560,8 +7560,8 @@ def test_orientation_refusal_preserves_edits_and_explains_investigation(
     assert _branch_and_tip(git_repo) == before
     assert git_repo.git("status", "--porcelain") == status
     assert git_repo.git("show", ":work.py") == "staged\n"
-    assert tracked.read_text() == "unstaged\n"
-    assert untracked.read_text() == "Unpublished notes\n"
+    assert tracked.read_text(encoding="utf-8") == "unstaged\n"
+    assert untracked.read_text(encoding="utf-8") == "Unpublished notes\n"
     assert git_repo.git("stash", "list") == stash
 
 
@@ -7570,7 +7570,7 @@ def test_orientation_returns_to_control_after_session_changes_branch(
 ) -> None:
     def work(_ref: BootstrapRef) -> bool:
         git_repo.checkout_branch("feature/from-chat")
-        (git_repo.root / "work.py").write_text("committed work\n")
+        (git_repo.root / "work.py").write_text("committed work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "work.py")
         git_repo.git("commit", "-m", "Work from chat")
         return False
@@ -7612,7 +7612,7 @@ def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
 
     def work(_ref: BootstrapRef) -> bool:
         git_repo.checkout_branch("feature/active-chat")
-        (git_repo.root / "work.py").write_text("first chat's committed work\n")
+        (git_repo.root / "work.py").write_text("first chat's committed work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "work.py")
         git_repo.git("commit", "-m", "Active chat work")
         assert git_repo.git("status", "--porcelain") == ""

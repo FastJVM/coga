@@ -30,7 +30,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -116,7 +116,7 @@ def _write_workflow_less_task(
 
         <!-- coga:blackboard -->
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return slug, task_dir
 
 
@@ -145,7 +145,7 @@ def test_bump_success_signals_via_sentinel(
     assert result.exit_code == 0, result.output
     # The signal goes to the side-channel file, scoped to this task by its
     # checkout-independent `id_slug` (not the resolved path).
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_bump_success_unsupervised_is_noop(
@@ -170,7 +170,7 @@ def test_bump_final_step_marks_done_and_signals(
     result = runner.invoke(app, ["bump", slug])  # final step → done
     assert result.exit_code == 0, result.output
     assert Ticket.read(task_path).status == "done"
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_bump_error_no_workflow_does_not_signal(
@@ -200,7 +200,7 @@ def test_mark_done_success_signals_via_sentinel(
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_mark_done_success_unsupervised_is_noop(
@@ -227,7 +227,7 @@ def test_mark_canceled_success_signals_via_sentinel(
         app, ["mark", "canceled", slug, "--message", "Owner declined"]
     )
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_mark_canceled_error_does_not_signal(repo: Path, sentinel: Path) -> None:
@@ -265,7 +265,7 @@ def test_block_success_signals_via_sentinel(
         app, ["block", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_block_success_unsupervised_is_noop(
@@ -327,7 +327,7 @@ def test_bump_signals_even_when_the_slack_post_fails(
         app, ["bump", slug, "--message", "PR opened: https://example.test/pr/1"]
     )
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
     # The miss is still loud — reported, not swallowed.
     assert "post failed" in result.output
 
@@ -338,7 +338,7 @@ def test_mark_done_signals_even_when_the_slack_post_fails(
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 def test_block_signals_even_when_the_slack_post_fails(
@@ -349,7 +349,7 @@ def test_block_signals_even_when_the_slack_post_fails(
         app, ["block", "--task", slug, "--reason", "needs the owner's call on X"]
     )
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == slug
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
 
 
 # --- checkout-independence (the regression this fix closes) -------------------

@@ -17,7 +17,7 @@ def test_atomic_write_replaces_content(tmp_path) -> None:
     target = tmp_path / "state.txt"
     atomic_write_text(target, "first")
     atomic_write_text(target, "second")
-    assert target.read_text() == "second"
+    assert target.read_text(encoding="utf-8") == "second"
 
 
 def test_atomic_write_and_ticket_round_trip_are_utf8_lf(tmp_path, monkeypatch) -> None:
@@ -46,7 +46,7 @@ def test_atomic_write_and_ticket_round_trip_are_utf8_lf(tmp_path, monkeypatch) -
 @windows_skip("POSIX permission modes and umask")
 def test_atomic_write_preserves_existing_mode(tmp_path) -> None:
     target = tmp_path / "state.txt"
-    target.write_text("old")
+    target.write_text("old", encoding="utf-8", newline="\n")
     target.chmod(0o640)
 
     atomic_write_text(target, "new")
@@ -92,7 +92,7 @@ def test_interrupted_write_preserves_prior_content(
     monkeypatch.setattr(os, "replace", real_replace)
 
     # Reader sees the old, complete file — never a truncated mix.
-    assert target.read_text() == "original complete content\n"
+    assert target.read_text(encoding="utf-8") == "original complete content\n"
     # And the aborted write left no debris in the directory.
     assert [p.name for p in tmp_path.iterdir()] == ["ticket.md"]
 

@@ -150,7 +150,7 @@ def test_run_command_leaves_unexpected_exceptions_loud(monkeypatch) -> None:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -401,7 +401,7 @@ def test_cwd_recipe_failure_uses_the_target_blackboard_and_barrier(
     target = repo.parent / "target"
     _write(target / "coga.toml", 'version = 1\n')
     ticket = target / "tasks" / "period.md"
-    _write(ticket, period_blackboard.read_text())
+    _write(ticket, period_blackboard.read_text(encoding="utf-8"))
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ticket))
     before = period_blackboard.read_bytes()
     append = runner.append_blackboard_report
@@ -450,7 +450,7 @@ def test_unresolvable_blackboard_preserves_the_recipe_failure(
 def test_diagnostic_markers_cannot_corrupt_the_ticket(
     repo: Path, period_blackboard: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    before_body = period_blackboard.read_text().split(BLACKBOARD_FENCE)[0]
+    before_body = period_blackboard.read_text(encoding="utf-8").split(BLACKBOARD_FENCE)[0]
 
     def fail(cfg: Config, argv: list[str]) -> int:
         sys.stderr.write(
@@ -461,7 +461,7 @@ def test_diagnostic_markers_cannot_corrupt_the_ticket(
 
     monkeypatch.setitem(RECIPES, "autoclose", fail)
     assert run_recipe(load_config(repo), "autoclose", []) == 2
-    text = period_blackboard.read_text()
+    text = period_blackboard.read_text(encoding="utf-8")
     assert fence_count(text) == 1
     assert text.split(BLACKBOARD_FENCE)[0] == before_body
     report = read_blackboard(period_blackboard)

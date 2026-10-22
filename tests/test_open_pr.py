@@ -25,7 +25,7 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import init_git_repo
+from conftest import init_git_repo, write_executable
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult, stranded_task_state_paths
@@ -60,9 +60,9 @@ def _install_fake_gh(
     view_file = bin_dir / "view.json"
     if view_json is not None:
         view_json.setdefault("isCrossRepository", False)
-        view_file.write_text(json.dumps(view_json))
+        view_file.write_text(json.dumps(view_json), encoding="utf-8", newline="\n")
     gh = bin_dir / "gh"
-    gh.write_text(
+    write_executable(gh,
         dedent(
             f"""\
             #!{sys.executable}
@@ -99,8 +99,7 @@ def _install_fake_gh(
             """
         )
     )
-    gh.chmod(gh.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     return log
 
 
@@ -109,7 +108,7 @@ def _feature_worktree(repo, tmp_path: Path, branch: str, *, commit: bool) -> Pat
     wt = tmp_path / f"wt-{branch}"
     repo.git("worktree", "add", str(wt), "-b", branch, "main")
     if commit:
-        (wt / "coga" / "change.txt").write_text("a real change\n")
+        (wt / "coga" / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
         repo.git("add", "-A", cwd=wt)
         repo.git("commit", "-m", "feature: a real change", cwd=wt)
     return wt
@@ -164,7 +163,7 @@ def _write_ticket(
         f"{pr_block}"
     )
     ticket = task_dir / "ticket.md"
-    ticket.write_text(frontmatter + body)
+    ticket.write_text(frontmatter + body, encoding="utf-8", newline="\n")
     return ticket
 
 
@@ -186,7 +185,7 @@ def test_open_pr_opens_and_records_url(tmp_path, monkeypatch):
     assert url == "https://github.com/acme/repo/pull/7"
     # The branch actually landed on origin, and gh create was invoked.
     assert repo.git("rev-parse", "--verify", "refs/heads/feature-x", cwd=repo.origin).strip()
-    calls = log.read_text()
+    calls = log.read_text(encoding="utf-8")
     assert "pr create" in calls
     # pr: recorded back under ## Dev.
     assert parse_pr_url(read_blackboard(ticket)) == url
@@ -266,7 +265,7 @@ def test_open_pr_uses_annotated_quoted_dev_metadata(tmp_path, monkeypatch):
     assert repo.git(
         "rev-parse", "--verify", f"refs/heads/{branch}", cwd=repo.origin
     ).strip()
-    assert "pr create" in log.read_text()
+    assert "pr create" in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) == url
 
 
@@ -286,7 +285,7 @@ def test_open_pr_body_falls_back_to_description(tmp_path, monkeypatch):
     open_pr(cfg, slug="desc-body", blackboard_path=ticket)
 
     # gh create was called with a --body arg carrying the description + Closes line.
-    calls = log.read_text()
+    calls = log.read_text(encoding="utf-8")
     assert "DISTINCTIVE-DESCRIPTION-BODY" in calls
     assert "Closes ticket: `desc-body`" in calls
     assert "[deep · A:unknown R:unknown]" in calls
@@ -306,14 +305,14 @@ def test_open_pr_readies_existing_draft(tmp_path, monkeypatch):
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="ready-draft", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    data = json.loads(view_file.read_text())
+    data = json.loads(view_file.read_text(encoding="utf-8"))
     data["isDraft"] = True
-    view_file.write_text(json.dumps(data))
-    log.write_text("")
+    view_file.write_text(json.dumps(data), encoding="utf-8", newline="\n")
+    log.write_text("", encoding="utf-8", newline="\n")
     url = open_pr(cfg, slug="ready-draft", blackboard_path=ticket)
 
     assert url == "https://github.com/acme/repo/pull/3"
-    calls = log.read_text()
+    calls = log.read_text(encoding="utf-8")
     assert "pr ready https://github.com/acme/repo/pull/3" in calls
     assert "pr create" not in calls  # reused the draft, did not open a new PR
     assert parse_pr_url(read_blackboard(ticket)) == url
@@ -337,7 +336,7 @@ def test_open_pr_fails_when_no_commits_ahead(tmp_path, monkeypatch):
         open_pr(cfg, slug="nothing-built", blackboard_path=ticket)
 
     # No PR opened, nothing pushed, no pr: recorded.
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -371,7 +370,7 @@ def _feature_branch(repo, branch: str, *, commit: bool) -> None:
     """
     repo.checkout_branch(branch)
     if commit:
-        (repo.coga_os / "change.txt").write_text("a real change\n")
+        (repo.coga_os / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
         repo.git("add", "--", "coga/change.txt")
         repo.git("commit", "-m", "feature: a real change")
     repo.git("switch", "main")
@@ -391,7 +390,7 @@ def test_open_pr_pushes_branch_by_name_from_main(tmp_path, monkeypatch):
     assert repo.git("rev-parse", "refs/heads/by-ref", cwd=repo.origin) == repo.git(
         "rev-parse", "refs/heads/by-ref"
     )
-    assert "pr create --base main --head by-ref" in log.read_text()
+    assert "pr create --base main --head by-ref" in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) == url
     # Never entered the branch: the checkout is still on `main`.
     assert repo.git("branch", "--show-current") == "main\n"
@@ -423,7 +422,7 @@ def test_open_pr_by_ref_fails_when_no_commits_ahead(tmp_path, monkeypatch):
     with pytest.raises(OpenPrError, match="no commits ahead"):
         open_pr(load_config(repo.coga_os), slug="empty-ref", blackboard_path=ticket)
 
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
 
 
 def test_open_pr_by_ref_fails_on_material_stale_drift(tmp_path, monkeypatch):
@@ -432,7 +431,7 @@ def test_open_pr_by_ref_fails_on_material_stale_drift(tmp_path, monkeypatch):
     bin_dir.mkdir()
     log = _install_fake_gh(monkeypatch, bin_dir)
     _feature_branch(repo, "stale-ref", commit=True)
-    (repo.root / "README.md").write_text("control moved on\n")
+    (repo.root / "README.md").write_text("control moved on\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "README.md")
     repo.git("commit", "-m", "control: source change")
     repo.git("push", "origin", "main")
@@ -441,7 +440,7 @@ def test_open_pr_by_ref_fails_on_material_stale_drift(tmp_path, monkeypatch):
     with pytest.raises(OpenPrError, match="refs/heads/stale-ref does not contain latest"):
         open_pr(load_config(repo.coga_os), slug="stale-ref", blackboard_path=ticket)
 
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -456,7 +455,7 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch, dirty_relpath)
     wt = _feature_worktree(repo, tmp_path, "dirty-branch", commit=True)
     dirty_path = wt / dirty_relpath
     dirty_path.parent.mkdir(parents=True, exist_ok=True)
-    dirty_path.write_text("uncommitted implementation\n")
+    dirty_path.write_text("uncommitted implementation\n", encoding="utf-8", newline="\n")
     ticket = _write_ticket(repo.coga_os, "dirty", branch="dirty-branch", worktree=wt)
 
     cfg = load_config(repo.coga_os)
@@ -464,7 +463,7 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch, dirty_relpath)
         open_pr(cfg, slug="dirty", blackboard_path=ticket)
     assert "confirmed duplicate hunks" in str(exc.value)
     assert "keep intentional ticket or attachment changes" in str(exc.value)
-    assert dirty_path.read_text() == "uncommitted implementation\n"
+    assert dirty_path.read_text(encoding="utf-8") == "uncommitted implementation\n"
 
 
 def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypatch):
@@ -484,7 +483,7 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
     ticket = _write_ticket(repo.coga_os, "dirty-own", branch="dirty-own", worktree=wt)
     stranded_copy = wt / "coga" / "tasks" / "dirty-own" / "ticket.md"
     stranded_copy.parent.mkdir(parents=True)
-    stranded_copy.write_text(ticket.read_text() + "\nfeature-checkout note\n")
+    stranded_copy.write_text(ticket.read_text(encoding="utf-8") + "\nfeature-checkout note\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
         open_pr(load_config(repo.coga_os), slug="dirty-own", blackboard_path=ticket)
@@ -499,7 +498,7 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
     assert "into the live ticket in the primary checkout" in message
     assert "discard the clone's copy" in message
     assert "confirmed duplicate hunks" not in message
-    assert stranded_copy.read_text().endswith("feature-checkout note\n")
+    assert stranded_copy.read_text(encoding="utf-8").endswith("feature-checkout note\n")
 
 
 def test_open_pr_dirty_mixed_commits_source_but_not_own_ticket(tmp_path, monkeypatch):
@@ -513,8 +512,8 @@ def test_open_pr_dirty_mixed_commits_source_but_not_own_ticket(tmp_path, monkeyp
     )
     stranded_copy = wt / "coga" / "tasks" / "dirty-mixed" / "ticket.md"
     stranded_copy.parent.mkdir(parents=True)
-    stranded_copy.write_text(ticket.read_text())
-    (wt / "coga" / "uncommitted.txt").write_text("uncommitted implementation\n")
+    stranded_copy.write_text(ticket.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+    (wt / "coga" / "uncommitted.txt").write_text("uncommitted implementation\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
         open_pr(load_config(repo.coga_os), slug="dirty-mixed", blackboard_path=ticket)
@@ -578,7 +577,7 @@ def test_open_pr_fails_when_branch_has_material_stale_drift(tmp_path, monkeypatc
         open_pr(cfg, slug="stale", blackboard_path=ticket)
 
     # No PR opened, no pr: recorded.
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -639,7 +638,7 @@ def test_open_pr_accepts_non_overlapping_coga_state_drift(
         "advanced only through non-overlapping Coga task/log state"
         in capsys.readouterr().err
     )
-    assert "pr create" in log.read_text()
+    assert "pr create" in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) == url
 
 
@@ -652,7 +651,7 @@ def test_open_pr_rejects_overlapping_coga_state_drift(tmp_path, monkeypatch):
     wt = _feature_worktree(repo, tmp_path, "overlapping-state", commit=True)
     shared = wt / "coga" / "tasks" / "shared.md"
     shared.parent.mkdir(parents=True, exist_ok=True)
-    shared.write_text("feature state\n")
+    shared.write_text("feature state\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/tasks/shared.md", cwd=wt)
     repo.git("commit", "-m", "feature: touch shared state", cwd=wt)
     repo.push_competing_commit("coga/tasks/shared.md", "control state\n")
@@ -670,7 +669,7 @@ def test_open_pr_rejects_overlapping_coga_state_drift(tmp_path, monkeypatch):
     # wording, so the operator is still told to rebase or merge.
     assert "Rebase or merge" in str(exc.value)
     assert "stranded ticket write" not in str(exc.value)
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -683,7 +682,7 @@ def _seed_ticket_on_control(repo, ticket: Path, slug: str) -> None:
 
 def _commit_ticket_on_branch(repo, wt: Path, slug: str, text: str) -> None:
     copy = wt / "coga" / "tasks" / slug / "ticket.md"
-    copy.write_text(text)
+    copy.write_text(text, encoding="utf-8", newline="\n")
     repo.git("add", "--", f"coga/tasks/{slug}/ticket.md", cwd=wt)
     repo.git("commit", "-m", f"stranded: edit {slug} on the branch", cwd=wt)
 
@@ -708,11 +707,11 @@ def test_open_pr_reclassifies_own_ticket_stranded_write_and_prescribed_repair_wo
     _seed_ticket_on_control(repo, ticket, slug)
 
     wt = _feature_worktree(repo, tmp_path, "own-stranded", commit=True)
-    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
-    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text() + "\n## Dev notes\nwritten in the feature checkout\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8").replace("worktree: pending", f"worktree: {wt}"), encoding="utf-8", newline="\n")
+    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text(encoding="utf-8") + "\n## Dev notes\nwritten in the feature checkout\n")
     repo.push_competing_commit(
         f"coga/tasks/{slug}/ticket.md",
-        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (review)"),
+        ticket.read_text(encoding="utf-8").replace("step: 1 (open-pr)", "step: 2 (review)"),
     )
 
     cfg = load_config(repo.coga_os)
@@ -730,7 +729,7 @@ def test_open_pr_reclassifies_own_ticket_stranded_write_and_prescribed_repair_wo
     )
     assert "Do not rebase" in message
     assert "Rebase or merge" not in message
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
 
     # Apply the prescribed repair verbatim, in the feature checkout.
     merge_base = repo.git("merge-base", "FETCH_HEAD", "HEAD", cwd=wt).strip()
@@ -742,7 +741,7 @@ def test_open_pr_reclassifies_own_ticket_stranded_write_and_prescribed_repair_wo
     url = open_pr(cfg, slug=slug, blackboard_path=ticket)
 
     assert url == "https://github.com/acme/repo/pull/7"
-    assert "pr create" in log.read_text()
+    assert "pr create" in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) == url
 
 
@@ -755,15 +754,15 @@ def test_open_pr_stranded_message_keeps_other_overlap_reasons(tmp_path, monkeypa
     slug = "own-mixed"
     ticket = _write_ticket(repo.coga_os, slug, branch="own-mixed", worktree="pending")
     _seed_ticket_on_control(repo, ticket, slug)
-    (repo.coga_os / "change.txt").write_text("base\n")
+    (repo.coga_os / "change.txt").write_text("base\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/change.txt")
     repo.git("commit", "-m", "seed source")
     repo.git("push", "origin", "main")
 
     wt = _feature_worktree(repo, tmp_path, "own-mixed", commit=True)
-    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
-    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text() + "\nbranch note\n")
-    repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", ticket.read_text() + "\ncontrol\n")
+    ticket.write_text(ticket.read_text(encoding="utf-8").replace("worktree: pending", f"worktree: {wt}"), encoding="utf-8", newline="\n")
+    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text(encoding="utf-8") + "\nbranch note\n")
+    repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", ticket.read_text(encoding="utf-8") + "\ncontrol\n")
     repo.push_competing_commit("coga/change.txt", "control source change\n")
 
     with pytest.raises(OpenPrError, match="stranded ticket write") as exc:
@@ -790,8 +789,8 @@ def test_open_pr_names_absorbed_ticket_copy_as_safe_to_drop(tmp_path, monkeypatc
     _seed_ticket_on_control(repo, ticket, slug)
 
     wt = _feature_worktree(repo, tmp_path, "own-absorbed", commit=True)
-    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
-    absorbed = ticket.read_text() + "\nbumped from the feature checkout\n"
+    ticket.write_text(ticket.read_text(encoding="utf-8").replace("worktree: pending", f"worktree: {wt}"), encoding="utf-8", newline="\n")
+    absorbed = ticket.read_text(encoding="utf-8") + "\nbumped from the feature checkout\n"
     _commit_ticket_on_branch(repo, wt, slug, absorbed)
     repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", absorbed)
     repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", absorbed + "later control state\n")
@@ -810,7 +809,7 @@ def _stranded_fixture(tmp_path):
     """A repo with `coga/tasks/t.md` on main and a `feat` worktree forked after it."""
     repo = init_git_repo(tmp_path)
     path = repo.coga_os / "tasks" / "t.md"
-    path.write_text("base\n")
+    path.write_text("base\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/tasks/t.md")
     repo.git("commit", "-m", "seed t")
     wt = tmp_path / "wt-feat"
@@ -819,7 +818,7 @@ def _stranded_fixture(tmp_path):
 
 
 def _commit_t(repo, cwd: Path, text: str, message: str) -> None:
-    (cwd / "coga" / "tasks" / "t.md").write_text(text)
+    (cwd / "coga" / "tasks" / "t.md").write_text(text, encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/tasks/t.md", cwd=cwd)
     repo.git("commit", "-m", message, cwd=cwd)
 
@@ -843,7 +842,7 @@ def test_stranded_task_state_paths_reports_branch_write_control_lacks(
 def test_stranded_task_state_paths_ignores_branch_merely_behind_control(tmp_path):
     """Control running ahead of an untouched branch copy is the normal state."""
     repo, wt = _stranded_fixture(tmp_path)
-    (wt / "coga" / "change.txt").write_text("real change\n")
+    (wt / "coga" / "change.txt").write_text("real change\n", encoding="utf-8", newline="\n")
     repo.git("add", "-A", cwd=wt)
     repo.git("commit", "-m", "feat: real change", cwd=wt)
     _commit_t(repo, repo.root, "control edit\n", "control: advance t")
@@ -904,14 +903,14 @@ def test_open_pr_rejects_task_rename_overlapping_feature_edit(
     log = _install_fake_gh(monkeypatch, bin_dir)
 
     original = repo.coga_os / "tasks" / "original.md"
-    original.write_text("base state\n")
+    original.write_text("base state\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/tasks/original.md")
     repo.git("commit", "-m", "seed task state")
     repo.git("push", "origin", "main")
 
     wt = _feature_worktree(repo, tmp_path, "rename-overlap", commit=True)
     feature_original = wt / "coga" / "tasks" / "original.md"
-    feature_original.write_text("feature state\n")
+    feature_original.write_text("feature state\n", encoding="utf-8", newline="\n")
     repo.git("add", "--", "coga/tasks/original.md", cwd=wt)
     repo.git("commit", "-m", "feature: edit original task", cwd=wt)
 
@@ -942,7 +941,7 @@ def test_open_pr_rejects_task_rename_overlapping_feature_edit(
             blackboard_path=ticket,
         )
 
-    assert not log.exists() or "pr create" not in log.read_text()
+    assert not log.exists() or "pr create" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
@@ -986,13 +985,13 @@ _PACKAGED_SKILL = (
 
 
 def test_open_pr_live_and_packaged_copies_stay_in_sync() -> None:
-    assert (_LIVE_SKILL / "SKILL.md").read_text() == (
+    assert (_LIVE_SKILL / "SKILL.md").read_text(encoding="utf-8") == (
         _PACKAGED_SKILL / "SKILL.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
 
 def test_open_pr_skill_has_no_executable_entrypoint() -> None:
-    skill = (_LIVE_SKILL / "SKILL.md").read_text()
+    skill = (_LIVE_SKILL / "SKILL.md").read_text(encoding="utf-8")
     assert "name: code/open-pr" in skill
     assert not (_LIVE_SKILL / "run.py").exists()
     assert not (_LIVE_SKILL / "recipe.py").exists()
@@ -1037,7 +1036,7 @@ def test_open_pr_renders_prepared_depth_and_actual_identities(tmp_path, monkeypa
     wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
     ticket = _prepared_ticket(repo, wt, _preparation(repo, wt, depth=depth))
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
-    data = json.loads((bin_dir / "view.json").read_text())
+    data = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))
     assert data["title"] == f"[{depth} · A:codex R:claude] Explain the changed behavior"
     assert "3 passed." in data["body"]
     assert "<code>coga/change.txt</code> | A |" in data["body"]
@@ -1054,11 +1053,11 @@ def test_open_pr_invalidates_evidence_after_later_commit(tmp_path, monkeypatch):
     wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
     prep = _preparation(repo, wt, depth="merge")
     ticket = _prepared_ticket(repo, wt, prep)
-    (wt / "coga" / "change.txt").write_text("later untested behavior\n")
+    (wt / "coga" / "change.txt").write_text("later untested behavior\n", encoding="utf-8", newline="\n")
     repo.git("add", "coga/change.txt", cwd=wt)
     repo.git("commit", "-m", "Later edit", cwd=wt)
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
-    data = json.loads((bin_dir / "view.json").read_text())
+    data = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))
     # Explanations survive; only the receipts stop verifying the current diff.
     assert data["title"] == "[deep · A:codex R:claude] Explain the changed behavior"
     assert "Stale preparation" in data["body"]
@@ -1078,23 +1077,23 @@ def test_open_pr_refreshes_generated_content_preserving_human_notes(tmp_path, mo
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    data = json.loads(view_file.read_text())
+    data = json.loads(view_file.read_text(encoding="utf-8"))
     data["body"] = "Owner introduction.\n\n" + data["body"] + "\nOwner notes.\n"
-    view_file.write_text(json.dumps(data))
+    view_file.write_text(json.dumps(data), encoding="utf-8", newline="\n")
     prep["title"] = "A more precise change title"
     prep["rationale"] = "Updated explanation."
     _prepared_ticket(repo, wt, prep)
-    ticket.write_text(ticket.read_text().replace("The change we are shipping.", "Updated literal request."))
+    ticket.write_text(ticket.read_text(encoding="utf-8").replace("The change we are shipping.", "Updated literal request."), encoding="utf-8", newline="\n")
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    data = json.loads(view_file.read_text())
+    data = json.loads(view_file.read_text(encoding="utf-8"))
     assert data["title"].endswith("A more precise change title")
     assert "Updated explanation." in data["body"]
     assert "Updated literal request." in data["body"]
     assert data["body"].startswith("Owner introduction.")
     assert data["body"].endswith("Owner notes.\n")
-    log.write_text("")
+    log.write_text("", encoding="utf-8", newline="\n")
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    assert "pr edit" not in log.read_text()
+    assert "pr edit" not in log.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("edit", ["title", "body", "legacy", "base"])
@@ -1108,7 +1107,7 @@ def test_open_pr_refuses_human_edits_before_push(tmp_path, monkeypatch, edit):
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    data = json.loads(view_file.read_text())
+    data = json.loads(view_file.read_text(encoding="utf-8"))
     if edit == "title":
         data["title"] = "Human title"
     elif edit == "body":
@@ -1117,17 +1116,17 @@ def test_open_pr_refuses_human_edits_before_push(tmp_path, monkeypatch, edit):
         data["body"] = "Legacy human description."
     else:
         data["baseRefName"] = "release"
-    view_file.write_text(json.dumps(data))
+    view_file.write_text(json.dumps(data), encoding="utf-8", newline="\n")
     old_remote = repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin)
-    (wt / "coga/change.txt").write_text("later change\n")
+    (wt / "coga/change.txt").write_text("later change\n", encoding="utf-8", newline="\n")
     repo.git("add", "coga/change.txt", cwd=wt)
     repo.git("commit", "-m", "Later change", cwd=wt)
-    log.write_text("")
+    log.write_text("", encoding="utf-8", newline="\n")
     with pytest.raises(OpenPrError, match="presentation|base"):
         open_pr(cfg, slug="presentation", blackboard_path=ticket)
     assert repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin) == old_remote
-    assert "pr edit" not in log.read_text()
-    assert json.loads(view_file.read_text()) == data
+    assert "pr edit" not in log.read_text(encoding="utf-8")
+    assert json.loads(view_file.read_text(encoding="utf-8")) == data
 
 
 @pytest.mark.parametrize(
@@ -1255,8 +1254,8 @@ def test_open_pr_snapshot_preserves_literal_sections_and_ignores_fenced_headings
 
 def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
     repo = init_git_repo(tmp_path)
-    (repo.coga_os / "old name.txt").write_text("stable rename content\n")
-    (repo.coga_os / "delete.txt").write_text("obsolete\n")
+    (repo.coga_os / "old name.txt").write_text("stable rename content\n", encoding="utf-8", newline="\n")
+    (repo.coga_os / "delete.txt").write_text("obsolete\n", encoding="utf-8", newline="\n")
     repo.git("add", "coga/old name.txt", "coga/delete.txt")
     repo.git("commit", "-m", "Base files")
     repo.git("push", "origin", "main")
@@ -1273,7 +1272,7 @@ def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
     bin_dir.mkdir()
     _install_fake_gh(monkeypatch, bin_dir)
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
-    body = json.loads((bin_dir / "view.json").read_text())["body"]
+    body = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))["body"]
     assert "<code>coga/old name.txt</code> | R100 |\n" in body
     assert "<code>coga/new &#124; name.txt</code> | R100 |\n" in body
     assert "<code>coga/delete.txt</code> | D |\n" in body
@@ -1297,7 +1296,7 @@ def test_open_pr_rejects_malformed_preparation(tmp_path, monkeypatch, yaml_text)
                            pr_section="```yaml\n" + prefix + yaml_text + "\n```")
     with pytest.raises(OpenPrError, match="PR presentation"):
         open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
-    assert "pr create" not in log.read_text()
+    assert "pr create" not in log.read_text(encoding="utf-8")
     assert repo.git("ls-remote", "--heads", "origin", "presentation").strip() == ""
 
 
@@ -1312,17 +1311,17 @@ def test_open_pr_refuses_failed_refresh_without_readying_draft_or_recording(tmp_
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    original = json.loads(view_file.read_text())
+    original = json.loads(view_file.read_text(encoding="utf-8"))
     original["isDraft"] = True
-    view_file.write_text(json.dumps(original))
+    view_file.write_text(json.dumps(original), encoding="utf-8", newline="\n")
     prep["title"] = "Updated title"
     _prepared_ticket(repo, wt, prep)  # no pr: yet for this retry
-    log.write_text("")
+    log.write_text("", encoding="utf-8", newline="\n")
     with pytest.raises(OpenPrError, match="gh pr edit failed"):
         open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    assert "pr ready" not in log.read_text()
+    assert "pr ready" not in log.read_text(encoding="utf-8")
     assert parse_pr_url(read_blackboard(ticket)) is None
-    assert json.loads(view_file.read_text()) == original
+    assert json.loads(view_file.read_text(encoding="utf-8")) == original
 
 
 def test_open_pr_rechecks_human_edits_after_push(tmp_path, monkeypatch):
@@ -1342,16 +1341,16 @@ def test_open_pr_rechecks_human_edits_after_push(tmp_path, monkeypatch):
         result = real_git(args, cwd=cwd)
         if args[0] == "push":
             view_file = bin_dir / "view.json"
-            data = json.loads(view_file.read_text())
+            data = json.loads(view_file.read_text(encoding="utf-8"))
             data["title"] = "Concurrent human edit"
-            view_file.write_text(json.dumps(data))
+            view_file.write_text(json.dumps(data), encoding="utf-8", newline="\n")
         return result
 
     monkeypatch.setattr(module, "_git", edit_during_push)
-    log.write_text("")
+    log.write_text("", encoding="utf-8", newline="\n")
     with pytest.raises(OpenPrError, match="presentation conflict"):
         open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    assert "pr edit" not in log.read_text()
+    assert "pr edit" not in log.read_text(encoding="utf-8")
 
 
 
@@ -1404,14 +1403,14 @@ def test_open_pr_adopts_unmarked_legacy_pr_keeping_its_body(tmp_path, monkeypatc
     ticket = _prepared_ticket(repo, wt, _preparation(repo, wt))
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    data = json.loads((bin_dir / "view.json").read_text())
+    data = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))
     assert data["title"] == "[skim · A:codex R:claude] Explain the changed behavior"
     assert data["body"].startswith("<!-- coga:pr:v1 ")
     assert data["body"].endswith("Legacy summary.\r\n\r\nCloses ticket: `presentation`\r\n")
-    assert "pr ready" in log.read_text()
-    log.write_text("")
+    assert "pr ready" in log.read_text(encoding="utf-8")
+    log.write_text("", encoding="utf-8", newline="\n")
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    assert "pr edit" not in log.read_text()
+    assert "pr edit" not in log.read_text(encoding="utf-8")
 
 
 def test_open_pr_refresh_tolerates_web_editor_crlf(tmp_path, monkeypatch):
@@ -1425,13 +1424,13 @@ def test_open_pr_refresh_tolerates_web_editor_crlf(tmp_path, monkeypatch):
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    data = json.loads(view_file.read_text())
+    data = json.loads(view_file.read_text(encoding="utf-8"))
     data["body"] = (data["body"] + "\nOwner notes.\n").replace("\n", "\r\n")
-    view_file.write_text(json.dumps(data))
+    view_file.write_text(json.dumps(data), encoding="utf-8", newline="\n")
     prep["rationale"] = "Updated explanation."
     _prepared_ticket(repo, wt, prep)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
-    body = json.loads(view_file.read_text())["body"]
+    body = json.loads(view_file.read_text(encoding="utf-8"))["body"]
     assert "Updated explanation." in body
     assert body.endswith("Owner notes.\r\n")
 
@@ -1458,11 +1457,11 @@ def test_open_pr_lookup_errors_refuse_before_pushing(tmp_path, monkeypatch, resp
     cfg = load_config(repo.coga_os)
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     view_file = bin_dir / "view.json"
-    original = json.loads(view_file.read_text())
+    original = json.loads(view_file.read_text(encoding="utf-8"))
     original["title"] = "Human correction"
-    view_file.write_text(json.dumps(original))
+    view_file.write_text(json.dumps(original), encoding="utf-8", newline="\n")
     remote_before = repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin)
-    (wt / "coga/change.txt").write_text("Later change\n")
+    (wt / "coga/change.txt").write_text("Later change\n", encoding="utf-8", newline="\n")
     repo.git("add", "coga/change.txt", cwd=wt)
     repo.git("commit", "-m", "Later change", cwd=wt)
     _prepared_ticket(repo, wt, _preparation(repo, wt))
@@ -1478,14 +1477,14 @@ def test_open_pr_lookup_errors_refuse_before_pushing(tmp_path, monkeypatch, resp
         return real_run(args, cwd=cwd)
 
     monkeypatch.setattr(module, "_run", fail_first_lookup)
-    log.write_text("")
+    log.write_text("", encoding="utf-8", newline="\n")
     with pytest.raises(OpenPrError, match="PR lookup"):
         open_pr(cfg, slug="presentation", blackboard_path=ticket)
     assert lookups == 1
     assert repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin) == remote_before
-    assert json.loads(view_file.read_text()) == original
+    assert json.loads(view_file.read_text(encoding="utf-8")) == original
     assert parse_pr_url(read_blackboard(ticket)) is None
-    assert "pr edit" not in log.read_text()
+    assert "pr edit" not in log.read_text(encoding="utf-8")
 
 
 def test_open_pr_refresh_accepts_crlf_and_preserves_outside_bytes(tmp_path):
@@ -1530,9 +1529,9 @@ def test_open_pr_limits_long_titles_without_losing_ticket(tmp_path, monkeypatch,
     else:
         ticket = _write_ticket(repo.coga_os, "presentation", branch="presentation", worktree=wt)
     original_title = "Original request " + "x" * 240
-    ticket.write_text(ticket.read_text().replace("title: Ship the change", "title: " + original_title))
+    ticket.write_text(ticket.read_text(encoding="utf-8").replace("title: Ship the change", "title: " + original_title), encoding="utf-8", newline="\n")
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
-    data = json.loads((bin_dir / "view.json").read_text())
+    data = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))
     assert len(data["title"]) == 256
     assert data["title"].endswith("…")
     assert data["title"].startswith("[skim · A:codex R:claude] " if prepared else "[deep · A:unknown R:unknown] ")

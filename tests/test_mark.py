@@ -32,7 +32,7 @@ from coga.validate import run as validate_run
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
 
 def _read_log(repo: Path) -> str:
     """The repo-global audit log (`coga/log.md`)."""
-    return (repo / "log.md").read_text()
+    return (repo / "log.md").read_text(encoding="utf-8")
 
 
 # --- mark active --------------------------------------------------------------
@@ -430,13 +430,13 @@ def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
     """`mark active` refuses a draft whose `required = true` extension fields
     are empty."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
             "required = true\n"
         )
-    )
+    , encoding="utf-8", newline="\n")
     slug, task_path = _make_task(repo, status="draft")
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -449,13 +449,13 @@ def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
 
 def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
             "required = true\n"
         )
-    )
+    , encoding="utf-8", newline="\n")
     slug, task_path = _make_task(repo, status="draft")
     t = Ticket.read(task_path)
     t.frontmatter["docket"] = "55-12345"
@@ -472,9 +472,9 @@ def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
 def test_mark_active_ignores_required_when_not_required(repo: Path) -> None:
     """Empty non-required extension fields don't block activation."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[ticket.fields.docket]\ndescription = "x"\n'
-    )
+    , encoding="utf-8", newline="\n")
     slug, _ = _make_task(repo, status="draft")
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -621,10 +621,10 @@ def _unset_selected_webhook(repo: Path) -> None:
     """
     config_path = repo / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace(
+        config_path.read_text(encoding="utf-8").replace(
             "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
         )
-    )
+    , encoding="utf-8", newline="\n")
 
 
 def test_mark_done_preflights_notification_before_mutation(repo: Path) -> None:
@@ -789,7 +789,7 @@ def test_mark_canceled_validates_before_writing_terminal_state(repo: Path) -> No
 
     assert result.exit_code == 2
     assert "missing/context" in result.output
-    assert task_path.read_text() == before
+    assert task_path.read_text(encoding="utf-8") == before
     assert Ticket.read(task_path).status == "active"
     assert "No longer wanted" not in _read_log(repo)
 
@@ -1131,7 +1131,7 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
 
     # Move origin/main under the feature checkout with a concurrent union-file
     # append. The cancellation sync must retry and preserve both writers.
-    local_log = (git_repo.coga_os / "log.md").read_text()
+    local_log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     git_repo.push_competing_commit(
         "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
     )
@@ -1210,7 +1210,7 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     # Another checkout closes the ticket on the control branch under us.
     git_repo.push_competing_commit(
         rel,
-        ticket_path.read_text().replace(
+        ticket_path.read_text(encoding="utf-8").replace(
             f"status: {seed_status}", f"status: {landed_status}"
         ),
     )
@@ -1227,7 +1227,7 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     assert control.status == landed_status
 
     # And the refusal is legible, not silent: it names the ticket in the log.
-    log = (git_repo.coga_os / "log.md").read_text()
+    log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     assert "sync refused" in log
     assert f"control copy changed since this checkout last saw it (control: status={landed_status!r}" in log
     assert f"git checkout origin/main -- {rel}" in log
@@ -1244,12 +1244,12 @@ def _add_codex(repo: Path, *, first: bool = False) -> None:
     """
     toml = repo / "coga.toml"
     codex = '[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    text = toml.read_text()
+    text = toml.read_text(encoding="utf-8")
     if first:
         text = text.replace("[agents.claude]", codex + "[agents.claude]", 1)
     else:
         text = text + "\n" + codex
-    toml.write_text(text)
+    toml.write_text(text, encoding="utf-8", newline="\n")
 
 
 def test_activation_selects_and_freezes_the_default_main_agent(repo: Path) -> None:
@@ -1287,7 +1287,7 @@ def test_activation_stamps_the_default_agent_key_over_declaration_order(
     """`default_agent` in either file moves the default with no table reorder."""
     _add_codex(repo)
     config_file = repo / source
-    config_file.write_text('default_agent = "codex"\n' + config_file.read_text())
+    config_file.write_text('default_agent = "codex"\n' + config_file.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     assert list(cfg.agents) == ["claude", "codex"]
     created = create_task(
@@ -1335,9 +1335,9 @@ def test_activation_refuses_when_the_selected_agent_is_unconfigured(
     )
     before = Path(created["path"]).read_bytes()
     toml = repo / "coga.toml"
-    toml.write_text(toml.read_text().replace(
+    toml.write_text(toml.read_text(encoding="utf-8").replace(
         '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n', ""
-    ))
+    ), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["mark", "active", created["slug"]])
 
@@ -1353,7 +1353,7 @@ def test_a_failed_activation_does_not_write_a_newly_chosen_agent(
     """Selection commits only with the successful transition."""
     _write(
         repo / "coga.toml",
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[ticket.fields.tier]\ndescription = "Priority tier"\nrequired = true\n',
     )
     cfg = load_config(repo)
@@ -1430,12 +1430,12 @@ def test_a_peer_config_edit_reroutes_the_next_peer_step(repo: Path) -> None:
     # Three agents, so the peer must be declared explicitly. Point claude at
     # codex before creating the ticket, so its `other-agent` step resolves.
     toml.write_text(
-        toml.read_text().replace(
+        toml.read_text(encoding="utf-8").replace(
             '[agents.claude]\ncli = "claude"',
             '[agents.claude]\npeer = "codex"\ncli = "claude"',
         )
         + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     _write(
         repo / "workflows" / "peer.md",
         """
@@ -1470,7 +1470,7 @@ def test_a_peer_config_edit_reroutes_the_next_peer_step(repo: Path) -> None:
     assert derived_operator(repo, slug) == "codex"
 
     # Re-point the peer: the *same* frozen ticket now reviews with reviewer.
-    toml.write_text(toml.read_text().replace('peer = "codex"', 'peer = "reviewer"'))
+    toml.write_text(toml.read_text(encoding="utf-8").replace('peer = "codex"', 'peer = "reviewer"'), encoding="utf-8", newline="\n")
     assert derived_operator(repo, slug) == "reviewer"
     assert "assignee" not in Ticket.read(created["path"]).frontmatter
 

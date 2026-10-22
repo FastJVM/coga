@@ -24,7 +24,7 @@ from coga.usage import (
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _window() -> tuple[datetime, datetime]:
@@ -601,7 +601,7 @@ def test_append_and_load_records_from_log(tmp_path: Path) -> None:
         f.write("2026-06-23 12:01 [work] [human:marc] bumped to step 2\n")
 
     # The record rides one standard tagged log line, JSON as the message.
-    first = log.read_text().splitlines()[0]
+    first = log.read_text(encoding="utf-8").splitlines()[0]
     assert "[work] [system] " in first
     assert first.endswith(record.to_json())
     # Non-record log lines are skipped, not errors.
@@ -647,11 +647,11 @@ def test_load_records_reads_encoded_and_legacy_backslash_records(
     log = coga_os / "log.md"
     log.write_text(
         f"2026-06-23 11:00 [work] [system] {legacy.to_json()}\n", encoding="utf-8"
-    )
+    , newline="\n")
 
     append_record(cfg, record)
 
-    assert len(log.read_text().splitlines()) == 2
+    assert len(log.read_text(encoding="utf-8").splitlines()) == 2
     assert load_records(cfg) == [legacy, record]
 
 
@@ -1069,7 +1069,7 @@ def _write_marked_codex_rollout(
         }
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join([meta, *messages, usage]) + "\n")
+    path.write_text("\n".join([meta, *messages, usage]) + "\n", encoding="utf-8", newline="\n")
 
 
 def _prompt(marker: str) -> str:
@@ -1369,7 +1369,7 @@ def test_capture_records_usage_reason_for_unknown(
     record = load_records(load_config(coga_os))[0]
     assert record.usage_status == "unknown"
     assert record.usage_reason == "codex rollout not found for cwd: <path>"
-    assert str(tmp_path) not in (coga_os / "log.md").read_text()
+    assert str(tmp_path) not in (coga_os / "log.md").read_text(encoding="utf-8")
 
 
 def test_redact_local_paths_keeps_reason_category() -> None:

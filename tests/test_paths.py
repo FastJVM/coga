@@ -36,11 +36,11 @@ def test_resolve_context_path_falls_back_to_configured_contexts_dir(tmp_path):
     cfg = _cfg(tmp_path, contexts_root=tmp_path / "docs" / "contexts")
     local = tmp_path / "docs" / "contexts" / "coga" / "sync" / "SKILL.md"
     local.parent.mkdir(parents=True)
-    local.write_text("relocated\n")
+    local.write_text("relocated\n", encoding="utf-8", newline="\n")
     # The default location holds a decoy: resolution must not fall back to it.
     decoy = tmp_path / "contexts" / "coga" / "sync" / "SKILL.md"
     decoy.parent.mkdir(parents=True)
-    decoy.write_text("default\n")
+    decoy.write_text("default\n", encoding="utf-8", newline="\n")
 
     assert resolve_context_path(cfg, "coga/sync") == local
 
@@ -67,7 +67,7 @@ def test_resolve_skill_path_prefers_local_over_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
     local = tmp_path / "skills" / "tools" / "example" / "SKILL.md"
     local.parent.mkdir(parents=True)
-    local.write_text("local\n")
+    local.write_text("local\n", encoding="utf-8", newline="\n")
 
     assert resolve_skill_path(cfg, "tools/example") == local
 
@@ -76,7 +76,7 @@ def test_resolve_context_path_prefers_local_over_bootstrap(tmp_path):
     cfg = _cfg(tmp_path)
     local = tmp_path / "contexts" / "coga" / "sync" / "SKILL.md"
     local.parent.mkdir(parents=True)
-    local.write_text("local\n")
+    local.write_text("local\n", encoding="utf-8", newline="\n")
 
     assert resolve_context_path(cfg, "coga/sync") == local
 
@@ -101,7 +101,7 @@ def test_resolve_workflow_path_prefers_local_over_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
     local = tmp_path / "workflows" / "code" / "with-review.md"
     local.parent.mkdir(parents=True)
-    local.write_text("local\n")
+    local.write_text("local\n", encoding="utf-8", newline="\n")
 
     assert resolve_workflow_path(cfg, "code/with-review") == local
 
@@ -131,7 +131,7 @@ def test_workflow_path_with_file_as_parent_reports_workflow_error(tmp_path: Path
     cfg = _cfg(tmp_path)
     local = workflow_path(cfg, "code/with-review")
     local.parent.parent.mkdir(parents=True)
-    local.parent.write_text("not a directory\n")
+    local.parent.write_text("not a directory\n", encoding="utf-8", newline="\n")
     with pytest.raises(WorkflowError) as caught:
         resolve_workflow_path(cfg, "code/with-review")
     assert str(local) in str(caught.value)
@@ -161,7 +161,7 @@ def test_unsearchable_workflow_path_reports_workflow_error(
 def test_skill_symlink_remains_supported(tmp_path):
     cfg = _cfg(tmp_path)
     target = tmp_path / "local-skill.md"
-    target.write_text("skill body\n")
+    target.write_text("skill body\n", encoding="utf-8", newline="\n")
     local = tmp_path / "skills" / "tools" / "example" / "SKILL.md"
     local.parent.mkdir(parents=True)
     local.symlink_to(target)

@@ -8,6 +8,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_interactive_skip
+
 
 @pytest.fixture(autouse=True)
 def _supported_mock_agent_platform(monkeypatch):
@@ -31,7 +33,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -2319,7 +2321,7 @@ def test_megalaunch_services_tasks_oldest_first(
     log_path(cfg).write_text(
         "2026-06-02 10:00 [alpha] [human:marc] created\n"
         "2026-06-01 10:00 [beta] [human:marc] created\n"
-    )
+    , encoding="utf-8", newline="\n")
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -2381,7 +2383,7 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
         "2026-06-02 10:00 [v2/3-cutover] [human:marc] created\n"
         "2026-06-03 10:00 [v2/2-migrate] [human:marc] created\n"
         "2026-06-04 10:00 [v2/1-schema] [human:marc] created\n"
-    )
+    , encoding="utf-8", newline="\n")
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -2611,7 +2613,7 @@ def _log_lines_for(cfg, slug: str, needle: str) -> list[str]:
 
     return [
         line
-        for line in log_path(cfg).read_text().splitlines()
+        for line in log_path(cfg).read_text(encoding="utf-8").splitlines()
         if f"[{slug}]" in line and needle in line
     ]
 
@@ -2640,8 +2642,8 @@ def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
     cfg = load_config(repo)
     workflow_path = repo / "workflows" / "code.md"
     workflow_path.write_text(
-        workflow_path.read_text().replace("assignee: agent", f"assignee: {role}", 1)
-    )
+        workflow_path.read_text(encoding="utf-8").replace("assignee: agent", f"assignee: {role}", 1)
+    , encoding="utf-8", newline="\n")
     draft = create_task(
         cfg=cfg,
         title="Resolve draft routing",
@@ -3316,7 +3318,7 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
     git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
     (peer_root / "coga" / "coga.local.toml").write_text(
         'user = "marc"\n', encoding="utf-8"
-    )
+    , newline="\n")
     peer_cfg = load_config(peer_root / "coga")
 
     monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
@@ -3730,7 +3732,7 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
     git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
     (peer_root / "coga" / "coga.local.toml").write_text(
         'user = "marc"\n', encoding="utf-8"
-    )
+    , newline="\n")
     peer_cfg = load_config(peer_root / "coga")
     monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
@@ -3827,7 +3829,7 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
     git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
     (peer_root / "coga" / "coga.local.toml").write_text(
         'user = "marc"\n', encoding="utf-8"
-    )
+    , newline="\n")
     peer_cfg = load_config(peer_root / "coga")
     peer_ticket_path = peer_root / ticket_rel
 
@@ -4320,7 +4322,7 @@ def test_megalaunch_selection_logs_activation_before_start(
     assert run.counts["completed"] == 1
     lines = [
         line
-        for line in log_path(cfg).read_text().splitlines()
+        for line in log_path(cfg).read_text(encoding="utf-8").splitlines()
         if f"[{draft['slug']}]" in line
     ]
     activated = next(i for i, line in enumerate(lines) if "activated" in line)
@@ -4971,7 +4973,7 @@ def test_launchable_candidates_ordered_like_status_updated_first(
         "2026-06-02 10:00 [fresh] [human:marc] created\n"
         "2026-06-03 10:00 [stale] [human:marc] bumped\n"
         "2026-06-04 10:00 [fresh] [human:marc] bumped\n"
-    )
+    , encoding="utf-8", newline="\n")
 
     assert [ref.id_slug for ref, _ in launchable_candidates(cfg)] == [
         "fresh",
@@ -5144,6 +5146,7 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
                 )
 
 
+@windows_interactive_skip
 def test_read_key_resize_beats_pending_keypress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5181,6 +5184,7 @@ def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
     )
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_picker_launches_checked_tasks(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5229,6 +5233,7 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     assert load_selection(cfg) == [first["slug"]]
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5273,6 +5278,7 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
         assert Ticket.read(draft["path"]).status == "done"
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_pick_ready_work_is_not_prompted(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5305,6 +5311,7 @@ def test_megalaunch_cli_pick_ready_work_is_not_prompted(
     assert Ticket.read(ready["path"]).status == "done"
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_picker_moves_and_toggles(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5349,6 +5356,7 @@ def test_megalaunch_cli_picker_moves_and_toggles(
     assert Ticket.read(first["path"]).status == "active"
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_picker_resize_keeps_state(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5385,6 +5393,7 @@ def test_megalaunch_cli_picker_resize_keeps_state(
     assert signal.getsignal(signal.SIGWINCH) is handler_before
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_quit_launches_nothing(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5414,6 +5423,7 @@ def test_megalaunch_cli_quit_launches_nothing(
     assert Ticket.read(ref["path"]).status == "active"
 
 
+@windows_interactive_skip
 def test_megalaunch_cli_pick_scopes_to_directory(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

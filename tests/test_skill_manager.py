@@ -44,7 +44,7 @@ from coga.skill_manager import (
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _package_skill_root(
@@ -520,7 +520,7 @@ def test_update_all_checks_gh_before_any_url_skill_is_rewritten(
         now=lambda: "2026-05-13T12:00:00Z",
     )
     url_skill_md = cfg.repo_root / "skills" / "a-url-skill" / "SKILL.md"
-    before = url_skill_md.read_text()
+    before = url_skill_md.read_text(encoding="utf-8")
     _write(cfg.repo_root / "skills" / "z-pack" / "SKILL.md", _gh_backed_skill("z-pack"))
 
     def old_gh(args, cwd=None):
@@ -538,7 +538,7 @@ def test_update_all_checks_gh_before_any_url_skill_is_rewritten(
         update_skills(cfg, all_skills=True, runner=old_gh, downloader=downloader)
 
     assert fetched == []
-    assert url_skill_md.read_text() == before
+    assert url_skill_md.read_text(encoding="utf-8") == before
 
 
 def test_update_one_skill_without_a_managed_source_reports_unmanaged(
@@ -697,7 +697,7 @@ def test_install_url_refuses_dirty_overwrite_without_force(
     assert metadata is not None
     metadata["local_adaptation_notes"] = "Local edit for this repo."
     write_source_metadata(skill_dir, metadata)
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(SkillManagerError, match="--force"):
         install_url_skill(
@@ -707,7 +707,7 @@ def test_install_url_refuses_dirty_overwrite_without_force(
             runner=_gh_install_runner(commands),
         )
 
-    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+    assert "local edit" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
 
 
 def test_install_url_force_overwrites_dirty_skill_and_resets_notes(
@@ -727,7 +727,7 @@ def test_install_url_force_overwrites_dirty_skill_and_resets_notes(
     assert metadata is not None
     metadata["local_adaptation_notes"] = "Local edit for this repo."
     write_source_metadata(skill_dir, metadata)
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
 
     result = install_url_skill(
         cfg,
@@ -740,7 +740,7 @@ def test_install_url_force_overwrites_dirty_skill_and_resets_notes(
 
     refreshed = read_source_metadata(skill_dir)
     assert result.status == "installed"
-    assert "forced" in (skill_dir / "SKILL.md").read_text()
+    assert "forced" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert "--force" in commands[-1]
     assert refreshed is not None
     assert refreshed["installed_tree_digest"] == hash_skill_tree(skill_dir)
@@ -784,7 +784,7 @@ def test_url_update_skips_locally_adapted_skill_when_upstream_unchanged(
         now=lambda: "2026-05-13T12:00:00Z",
     )
     skill_dir = cfg.repo_root / "skills" / "tools" / "example"
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
     fetched: list[str] = []
 
     def same_fetch(url: str) -> bytes:
@@ -795,7 +795,7 @@ def test_url_update_skips_locally_adapted_skill_when_upstream_unchanged(
 
     assert fetched == ["https://example.test/skill.zip"]
     assert summary.results[0].status == "skipped-local-adaptation"
-    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+    assert "local edit" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
 
 
 def test_url_update_ignores_machine_local_agent_tooling_artifacts(
@@ -940,7 +940,7 @@ def test_url_update_reports_conflict_when_local_and_upstream_changed(
     skill_dir = cfg.repo_root / "skills" / "tools" / "example"
     original_metadata = read_source_metadata(skill_dir)
     assert original_metadata is not None
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
 
     summary = update_skills(
         cfg,
@@ -951,7 +951,7 @@ def test_url_update_reports_conflict_when_local_and_upstream_changed(
     result = summary.results[0]
     assert result.status == "conflict"
     assert result.changed is False
-    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+    assert "local edit" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert result.details["previous_source_tree_digest"] == original_metadata[
         "source_tree_digest"
     ]
@@ -992,7 +992,7 @@ def test_url_update_replaces_clean_skill_and_refreshes_metadata(
 
     metadata = read_source_metadata(skill_dir)
     assert summary.results[0].status == "updated"
-    assert "new" in (skill_dir / "SKILL.md").read_text()
+    assert "new" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert metadata is not None
     assert metadata["updated_at"] == "2026-05-13T12:30:00Z"
     assert metadata["installed_tree_digest"] == hash_skill_tree(skill_dir)
@@ -1075,7 +1075,7 @@ def test_status_check_reports_conflict_when_local_and_upstream_changed(
         now=lambda: "2026-05-13T12:00:00Z",
     )
     skill_dir = cfg.repo_root / "skills" / "tools" / "example"
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
 
     results = status_skills(
         cfg,
@@ -1473,7 +1473,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             body_file = Path(command[command.index("--body-file") + 1])
-            assert "`tools/example`: updated" in body_file.read_text()
+            assert "`tools/example`: updated" in body_file.read_text(encoding="utf-8")
             return _completed(command, stdout="https://github.com/FastJVM/coga/pull/143\n")
         if command == ["git", "checkout", "main"]:
             return _completed(command)
@@ -1502,7 +1502,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
 ) -> None:
     coga_os = _repo(tmp_path, monkeypatch)
     config_path = coga_os / "coga.toml"
-    config_path.write_text(config_path.read_text() + '\n[git]\nremote = "upstream"\n')
+    config_path.write_text(config_path.read_text(encoding="utf-8") + '\n[git]\nremote = "upstream"\n', encoding="utf-8", newline="\n")
     cfg = load_config(coga_os)
     summary = SkillUpdateSummary(
         results=[
@@ -2104,10 +2104,10 @@ def test_include_allowlist_prunes_and_always_keeps_skill_md(tmp_path: Path) -> N
     (tree / "scripts").mkdir(parents=True)
     (tree / "references").mkdir()
     (tree / "site").mkdir()
-    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n")
-    (tree / "scripts" / "run.sh").write_text("echo ok\n")
-    (tree / "references" / "a.md").write_text("ref\n")
-    (tree / "site" / "index.html").write_text("<html></html>")
+    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8", newline="\n")
+    (tree / "scripts" / "run.sh").write_text("echo ok\n", encoding="utf-8", newline="\n")
+    (tree / "references" / "a.md").write_text("ref\n", encoding="utf-8", newline="\n")
+    (tree / "site" / "index.html").write_text("<html></html>", encoding="utf-8", newline="\n")
 
     # SKILL.md is appended even though the caller did not list it.
     apply_include_allowlist(tree, parse_include_allowlist({"include": ["references"]}))
@@ -2163,7 +2163,7 @@ def test_url_update_reapplies_include_allowlist_instead_of_restoring_pruned_path
 
     result = summary.results[0]
     assert result.status == "updated"
-    assert "new" in (skill_dir / "SKILL.md").read_text()
+    assert "new" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     # The pruning survived the update rather than being restored.
     assert not (skill_dir / "scripts").exists()
     metadata = read_source_metadata(skill_dir)
@@ -2252,7 +2252,7 @@ def test_url_update_still_reports_conflict_for_edits_beyond_the_allowlist(
     )
     skill_dir = cfg.repo_root / "skills" / "tools" / "example"
     _prune_to_skill_only(skill_dir)
-    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n", encoding="utf-8", newline="\n")
 
     summary = update_skills(
         cfg,
@@ -2261,7 +2261,7 @@ def test_url_update_still_reports_conflict_for_edits_beyond_the_allowlist(
     )
 
     assert summary.results[0].status == "conflict"
-    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+    assert "local edit" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
 
 
 def test_include_allowlist_unlinks_excluded_symlinks(tmp_path: Path) -> None:
@@ -2272,8 +2272,8 @@ def test_include_allowlist_unlinks_excluded_symlinks(tmp_path: Path) -> None:
     """
     tree = tmp_path / "tree"
     (tree / "references").mkdir(parents=True)
-    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n")
-    (tree / "references" / "a.md").write_text("ref\n")
+    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8", newline="\n")
+    (tree / "references" / "a.md").write_text("ref\n", encoding="utf-8", newline="\n")
     (tree / "site").symlink_to(tree / "references", target_is_directory=True)
 
     apply_include_allowlist(tree, ["references"])
@@ -2311,7 +2311,7 @@ def test_forced_url_reinstall_preserves_the_recorded_allowlist(
         now=lambda: "2026-05-14T12:00:00Z",
     )
 
-    assert "new" in (skill_dir / "SKILL.md").read_text()
+    assert "new" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert not (skill_dir / "scripts").exists()
     metadata = read_source_metadata(skill_dir)
     assert metadata is not None

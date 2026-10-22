@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_phone_home_is_a_forkable_edge_module():
     import coga_edge.phone_home as phone_home
 
-    tree = ast.parse(Path(phone_home.__file__).read_text())
+    tree = ast.parse(Path(phone_home.__file__).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             assert node.level == 0
@@ -32,7 +32,7 @@ def test_kernel_does_not_load_edge_implementations():
     for source in (ROOT / 'src/coga').rglob('*.py'):
         if 'resources' in source.relative_to(ROOT / 'src/coga').parts:
             continue
-        assert 'coga_edge' not in source.read_text(), source
+        assert 'coga_edge' not in source.read_text(encoding="utf-8"), source
 
 
 # Build two actual artifacts once. The report wording changes while metadata
@@ -50,7 +50,7 @@ def edge_wheels(tmp_path_factory):
             "__pycache__", ".venv", ".coga", ".agent-skills", ".claude", ".codex",
         ))
         module = source / "src/coga_edge/phone_home.py"
-        module.write_text(module.read_text().replace("## Phone home\\n", f"## Phone home {label}\\n"))
+        module.write_text(module.read_text(encoding="utf-8").replace("## Phone home\\n", f"## Phone home {label}\\n"), encoding="utf-8", newline="\n")
         result = subprocess.run([
             sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps",
             str(source), "-w", str(source / "dist"),
@@ -90,7 +90,7 @@ def _initialized_repo(tmp_path, wheel):
         f"    Path({str(guard / 'called')!r}).touch()\n"
         "    raise AssertionError('production transport called')\n"
         "http.client.HTTPSConnection = forbidden\n"
-    )
+    , encoding="utf-8", newline="\n")
     env = {**os.environ, "PYTHONPATH": os.pathsep.join((str(installed), str(guard))), "CI": "true"}
     _run(root, env, "-c", '''
 import subprocess
@@ -121,9 +121,9 @@ def test_installed_wheel_upgrade_preserves_shims_and_full_forks(tmp_path, edge_w
     template = root / "coga/recurring/phone-home/ticket.py"
     period = root / "coga/tasks/recurring/phone-home/ticket.py"
     if fork != "none":
-        source = (installed / "coga_edge/phone_home.py").read_text()
+        source = (installed / "coga_edge/phone_home.py").read_text(encoding="utf-8")
         destination = template if fork == "template" else period
-        destination.write_text(source.replace("## Phone home A\\n", "## Phone home FORK\\n"))
+        destination.write_text(source.replace("## Phone home A\\n", "## Phone home FORK\\n"), encoding="utf-8", newline="\n")
         if fork == "template":
             # Recreate only before B, proving real recurring creation copies
             # the fork. The resulting period must survive the wheel upgrade.
@@ -157,7 +157,7 @@ assert create_named(load_config(Path("coga")), "phone-home").created
     _run(root / "coga", env, "-m", "coga.cli", "launch", "recurring/phone-home")
     from coga.ticket import Ticket
     assert Ticket.read(period.with_suffix(".md")).status == "done"
-    assert f"## Phone home {expected}" in period.with_suffix(".md").read_text()
+    assert f"## Phone home {expected}" in period.with_suffix(".md").read_text(encoding="utf-8")
     assert period.read_bytes() == before[period]
     assert not template.exists()
     assert not (guard / "called").exists()
@@ -193,7 +193,7 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
     period = root / "coga/tasks/recurring/phone-home/ticket.md"
     from coga.ticket import Ticket
     ticket = Ticket.read(period)
-    log = (root / "coga/log.md").read_text()
+    log = (root / "coga/log.md").read_text(encoding="utf-8")
     if missing:
         assert result.returncode != 0
         assert "ModuleNotFoundError" in result.stdout + result.stderr
@@ -205,7 +205,7 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
         assert ticket.status == "done"
         assert log.count("task done") == 1
         assert "[system] task done" in log
-        assert "## Phone home B" in period.read_text()
+        assert "## Phone home B" in period.read_text(encoding="utf-8")
     assert "launched as a script" in log
     assert not (guard / "called").exists()
 
@@ -216,7 +216,7 @@ RUNBOOK = ROOT / "docs/contexts/coga/edge-code/edge-code-upgrades.md"
 
 def _operator_command(name, root, env, *, success=True):
     import re
-    document = RUNBOOK.read_text()
+    document = RUNBOOK.read_text(encoding="utf-8")
     match = re.search(rf"<!-- migration:{name} -->\n```sh\n(.*?)\n```", document, re.S)
     assert match, name
     result = subprocess.run(["bash", "-c", match[1]], cwd=root, env=env,
@@ -235,7 +235,7 @@ def test_documented_interpreter_uses_console_script_shebang(tmp_path, layout):
     subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True)
     interpreter = venv / "bin/python"
     launcher = scripts / "coga" if layout == "user" else venv / "bin/coga"
-    launcher.write_text(f"#!{interpreter}\nraise AssertionError('do not run coga')\n")
+    launcher.write_text(f"#!{interpreter}\nraise AssertionError('do not run coga')\n", encoding="utf-8", newline="\n")
     launcher.chmod(0o755)
     if layout == "tool-link":
         (scripts / "coga").symlink_to(launcher)
@@ -247,7 +247,7 @@ def test_documented_interpreter_uses_console_script_shebang(tmp_path, layout):
 @pytest.mark.parametrize("shebang", ["#!/bin/sh", "#!/usr/bin/env python3", "#!/missing/python3"])
 def test_documented_interpreter_refuses_unknown_launcher(tmp_path, shebang):
     launcher = tmp_path / "coga"
-    launcher.write_text(f"{shebang}\nexit 0\n")
+    launcher.write_text(f"{shebang}\nexit 0\n", encoding="utf-8", newline="\n")
     launcher.chmod(0o755)
     env = {**os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"]}
     _operator_command("interpreter", tmp_path, env, success=False)
@@ -265,8 +265,8 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     for path in (template, period, parked, edited):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(legacy)
-    parked.with_suffix(".md").write_text(period.with_suffix(".md").read_text().replace("status: active", "status: paused"))
-    period.with_suffix(".md").write_text(period.with_suffix(".md").read_text().replace("status: active", "status: blocked"))
+    parked.with_suffix(".md").write_text(period.with_suffix(".md").read_text(encoding="utf-8").replace("status: active", "status: paused"), encoding="utf-8", newline="\n")
+    period.with_suffix(".md").write_text(period.with_suffix(".md").read_text(encoding="utf-8").replace("status: active", "status: blocked"), encoding="utf-8", newline="\n")
     edited.write_bytes(legacy + b"\n# Committed local customization\n")
     edited_before = edited.read_bytes()
     unrelated = period.parent / "notes.txt"
@@ -274,8 +274,8 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     # Nonzero parent telemetry state and cursor, plus frozen period workflow,
     # generation and blackboard, must survive the migration, not be reseeded.
     parent = template.with_suffix(".md")
-    parent.write_text(parent.read_text().replace('"run":0', '"run":41').replace(
-        '"repo_id":null', '"repo_id":"dd2433c0-7277-4a63-8640-c73089700480"'))
+    parent.write_text(parent.read_text(encoding="utf-8").replace('"run":0', '"run":41').replace(
+        '"repo_id":null', '"repo_id":"dd2433c0-7277-4a63-8640-c73089700480"'), encoding="utf-8", newline="\n")
     with period.with_suffix(".md").open("a") as stream:
         stream.write("\nExisting findings remain.\n")
     dream_paths = [root / f"coga/{path}/dream/ticket.md" for path in (

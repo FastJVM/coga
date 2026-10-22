@@ -145,7 +145,7 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
             assignee: owner
         ---
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
     wf = Workflow.load(path)
     assert wf.steps[0].assignee == "agent"
     frozen = wf.freeze()
@@ -164,7 +164,7 @@ def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
             assignee: claude
         ---
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
     with pytest.raises(WorkflowError, match="role token"):
         Workflow.load(path)
 
@@ -183,7 +183,7 @@ def test_workflow_step_requires_gate_round_trips(tmp_path: Path) -> None:
             assignee: owner
         ---
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
     wf = Workflow.load(path)
     assert wf.steps[0].requires == "pr"
     assert wf.steps[1].requires is None
@@ -206,7 +206,7 @@ def test_workflow_rejects_unknown_requires_gate(tmp_path: Path) -> None:
             requires: not-a-real-gate
         ---
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
     with pytest.raises(WorkflowError, match="completion gate"):
         Workflow.load(path)
 
@@ -220,7 +220,7 @@ def test_append_log(tmp_path: Path) -> None:
     cfg = SimpleNamespace(repo_root=tmp_path)
     append_log(cfg, "fix-retry", "agent:claude", "advanced to step 2 (pr)")
     append_log(cfg, "fix-retry", "human:marc", "approved")
-    log = (tmp_path / "log.md").read_text()
+    log = (tmp_path / "log.md").read_text(encoding="utf-8")
     assert "[fix-retry] [agent:claude] advanced to step 2 (pr)" in log
     assert "[fix-retry] [human:marc] approved" in log
     assert len(log.strip().splitlines()) == 2

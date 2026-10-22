@@ -47,7 +47,7 @@ retire_cmd = _load_retire_script()
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -101,8 +101,8 @@ def _seed_finished_task(
         Done.
         """,
     )
-    (task_dir / "blackboard.md").write_text("# Fix retry logic\n")
-    (task_dir / "log.md").write_text("")
+    (task_dir / "blackboard.md").write_text("# Fix retry logic\n", encoding="utf-8", newline="\n")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
     return task_dir
 
 
@@ -146,9 +146,9 @@ def test_retire_defaults_to_the_default_agent_key(
     toml = repo / "coga.toml"
     toml.write_text(
         'default_agent = "codex"\n'
-        + toml.read_text()
+        + toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "fix-retry-logic")
 
@@ -263,8 +263,8 @@ def test_retire_refuses_non_done_target(
         Active.
         """,
     )
-    (task_dir / "blackboard.md").write_text("")
-    (task_dir / "log.md").write_text("")
+    (task_dir / "blackboard.md").write_text("", encoding="utf-8", newline="\n")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(retire_cmd.app, ["in-flight", "--no-launch"])
 
@@ -423,7 +423,7 @@ def test_retire_alias_deletes_a_done_ticket(repo: Path) -> None:
 def test_retire_alias_retires_a_done_ticket_without_configured_agents(
     repo: Path,
 ) -> None:
-    (repo / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
+    (repo / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n', encoding="utf-8", newline="\n")
     task_dir = _seed_finished_task(repo, "fix-retry-logic", status="done")
 
     result = _run_coga(repo, "retire", "fix-retry-logic")
@@ -481,12 +481,12 @@ def test_retire_prunes_merged_branch_before_launch(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     # A feature branch whose commit lands in main (fast-forward) — merged.
     _git(repo, "checkout", "-b", "fix-retry-branch")
-    (repo / "work.txt").write_text("work")
+    (repo / "work.txt").write_text("work", encoding="utf-8", newline="\n")
     _git(repo, "add", "work.txt")
     _git(repo, "commit", "-m", "work")
     _git(repo, "checkout", "main")
@@ -515,7 +515,7 @@ def test_retire_prunes_merged_branch_before_launch(
         pr: https://github.com/owner/repo/pull/9
         """,
     )
-    (task_dir / "log.md").write_text("")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
 
     assert (
         subprocess.run(
@@ -557,18 +557,18 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     _git(repo, "checkout", "-b", "fix-retry-branch")
-    (repo / "work.txt").write_text("work")
+    (repo / "work.txt").write_text("work", encoding="utf-8", newline="\n")
     _git(repo, "add", "work.txt")
     _git(repo, "commit", "-m", "work")
     _git(repo, "checkout", "main")
     _git(repo, "merge", "--ff-only", "fix-retry-branch")
     # A second owned branch with unlanded work and no PR vouching for it.
     _git(repo, "checkout", "-b", "leftover")
-    (repo / "extra.txt").write_text("extra")
+    (repo / "extra.txt").write_text("extra", encoding="utf-8", newline="\n")
     _git(repo, "add", "extra.txt")
     _git(repo, "commit", "-m", "extra")
     _git(repo, "checkout", "main")
@@ -597,7 +597,7 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
         pr: https://github.com/owner/repo/pull/9
         """,
     )
-    (task_dir / "log.md").write_text("")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
 
     launched: list[str] = []
     monkeypatch.setattr(
@@ -614,7 +614,7 @@ def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
     retire_task = Ticket.read(retire_ref.ticket_path)
     assert retire_task.frontmatter["status"] == "blocked"
     assert "### Kept checkout" in retire_task.body
-    assert "`leftover`" in retire_ref.ticket_path.read_text()
+    assert "`leftover`" in retire_ref.ticket_path.read_text(encoding="utf-8")
     assert (task_dir / "ticket.md").is_file()
     assert (
         subprocess.run(
@@ -641,11 +641,11 @@ def test_retire_keeps_a_done_ticket_whose_owned_branch_survives_cleanup(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     _git(repo, "checkout", "-b", "leftover")
-    (repo / "extra.txt").write_text("extra")
+    (repo / "extra.txt").write_text("extra", encoding="utf-8", newline="\n")
     _git(repo, "add", "extra.txt")
     _git(repo, "commit", "-m", "extra")
     _git(repo, "checkout", "main")
@@ -704,12 +704,12 @@ def _merged_worktree_ticket(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
-    (feature / "work.txt").write_text("work")
+    (feature / "work.txt").write_text("work", encoding="utf-8", newline="\n")
     _git(feature, "add", "work.txt")
     _git(feature, "commit", "-m", "work")
     _git(repo, "merge", "--ff-only", "fix-retry-branch")
@@ -738,7 +738,7 @@ def _merged_worktree_ticket(
         pr: https://github.com/owner/repo/pull/9
         """,
     )
-    (task_dir / "log.md").write_text("")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
     return slug, feature
 
 
@@ -774,9 +774,9 @@ def _seed_retire_worklist(repo: Path, *entries: rw.RetireFollowUp) -> Path:
     """The autoclose sweep's durable worklist, naming `entries` as owed retires."""
     template = repo / "recurring" / "autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     path = template / rw.RETIRE_WORKLIST_FILENAME
-    path.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries))
+    path.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries), encoding="utf-8", newline="\n")
     return path
 
 
@@ -798,7 +798,7 @@ def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_
 
     assert result.exit_code == 0, result.output
     assert f"Retire: dropped {slug} from {worklist}." in result.output
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     # The retired slug is gone; the unrelated live entry is untouched.
     assert [e.slug for e in entries] == ["other"]
 
@@ -829,7 +829,7 @@ def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
 ) -> None:
     slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
     # Dirty local state makes retire preserve the checkout.
-    (feature / "scratch.txt").write_text("unsaved")
+    (feature / "scratch.txt").write_text("unsaved", encoding="utf-8", newline="\n")
     worklist = _seed_retire_worklist(
         repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
     )
@@ -841,7 +841,7 @@ def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
     assert _retire_status(repo, slug) == "blocked"
     assert feature.exists()
     assert "Retire: dropped" not in result.output
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [e.slug for e in entries] == [slug]
 
 
@@ -870,12 +870,12 @@ def test_retire_leaves_dirty_worktree_in_place(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
-    (feature / "uncommitted.txt").write_text("work in progress")
+    (feature / "uncommitted.txt").write_text("work in progress", encoding="utf-8", newline="\n")
 
     slug = "fix-retry-logic"
     task_dir = repo / "tasks" / slug
@@ -900,7 +900,7 @@ def test_retire_leaves_dirty_worktree_in_place(
         worktree: {feature}
         """,
     )
-    (task_dir / "log.md").write_text("")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
@@ -926,13 +926,13 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
-    (repo / ".gitignore").write_text("coga.local.toml\n__pycache__/\n")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
+    (repo / ".gitignore").write_text("coga.local.toml\n__pycache__/\n", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt", ".gitignore")
     _git(repo, "commit", "-m", "seed")
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
-    (feature / "coga.local.toml").write_text('user = "marc"\n')
+    (feature / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     pycache = feature / "__pycache__"
     pycache.mkdir()
     (pycache / "mod.cpython-312.pyc").write_bytes(b"\x00compiled")
@@ -960,7 +960,7 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
         worktree: {feature}
         """,
     )
-    (task_dir / "log.md").write_text("")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
@@ -996,7 +996,7 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
+    (repo / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
     feature = tmp_path / "feature"
@@ -1140,7 +1140,7 @@ def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
         worktree: {feature}
         """,
     )
-    (root / "seed.txt").write_text("seed")
+    (root / "seed.txt").write_text("seed", encoding="utf-8", newline="\n")
     _git(root, "add", ".")
     _git(root, "commit", "-m", "seed monorepo workspaces")
     _git(root, "worktree", "add", str(feature), "-b", "shared-branch")

@@ -14,7 +14,7 @@ from coga.slack_response import classify_slack_response, format_slack_request_er
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _create_min(tmp_path: Path) -> None:
@@ -351,8 +351,8 @@ def test_toml_env_indirection_unset_var_is_none(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    )
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    , encoding="utf-8", newline="\n")
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook is None
@@ -690,8 +690,8 @@ def test_enabled_but_no_webhook_crashes(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    )
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    , encoding="utf-8", newline="\n")
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
@@ -759,7 +759,7 @@ def test_post_failure_non_fatal_reports_and_returns(
     err = capsys.readouterr().err
     assert "post failed" in err
     assert type(failure).__name__ in err
-    assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text()
+    assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text(encoding="utf-8")
 
 
 def test_post_failure_can_skip_unleased_audit_append(
@@ -801,8 +801,8 @@ def test_post_missing_webhook_reports_and_returns_when_non_fatal(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    )
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    , encoding="utf-8", newline="\n")
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     post(cfg, "should not crash", fatal=False)
@@ -816,8 +816,8 @@ def test_post_missing_webhook_still_crashes_when_fatal(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    )
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    , encoding="utf-8", newline="\n")
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
@@ -841,7 +841,7 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
 
     # Single-file format: the failure lands in the repo-global audit log,
     # tagged with the task ref, not a per-task log.md.
-    log_text = (cfg_with_webhook.repo_root / "log.md").read_text()
+    log_text = (cfg_with_webhook.repo_root / "log.md").read_text(encoding="utf-8")
     assert "[001-x]" in log_text
     assert "[slack]" in log_text
     assert "post failed" in log_text
@@ -959,7 +959,7 @@ def test_post_request_failure_redacts_webhook_from_stderr_and_log(
     assert exc.value.exit_code == 1
 
     captured = capsys.readouterr()
-    log_text = (cfg_with_both_webhooks.repo_root / "log.md").read_text()
+    log_text = (cfg_with_both_webhooks.repo_root / "log.md").read_text(encoding="utf-8")
     for diagnostic in (captured.out, captured.err, log_text):
         assert _FAKE_SLACK_WEBHOOK_SECRET not in diagnostic
         assert "/services/" not in diagnostic
@@ -993,7 +993,7 @@ def test_post_revoked_webhook_response_logs_then_crashes(
 
     # Single-file format: the failure lands in the repo-global audit log,
     # tagged with the task ref, not a per-task log.md.
-    log_text = (cfg_with_webhook.repo_root / "log.md").read_text()
+    log_text = (cfg_with_webhook.repo_root / "log.md").read_text(encoding="utf-8")
     assert "[001-x]" in log_text
     assert "[slack]" in log_text
     assert "revoked/invalid webhook" in log_text

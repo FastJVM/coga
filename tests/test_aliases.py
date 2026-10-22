@@ -14,7 +14,7 @@ from coga.config import ConfigError
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -65,9 +65,9 @@ def test_main_rewrites_argv_for_alias(
 ) -> None:
     """`coga chat foo` should rewrite to `coga launch bootstrap/orient foo`."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\nchat = "launch bootstrap/orient"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "chat", "extra-arg"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -107,9 +107,9 @@ def test_main_collision_exits_nonzero(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\nlaunch = "status"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "launch"])
 
@@ -341,9 +341,9 @@ def test_user_alias_overrides_default(
 ) -> None:
     """User `[aliases]` wins on key conflicts with the defaults."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\nchat = "launch bootstrap/something-else"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "chat"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -429,7 +429,7 @@ def test_main_allows_cross_repo_sweep_from_broken_current_repo(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """One broken repo is a child failure, not a parent-dispatch failure."""
-    (repo / "coga.toml").write_text("unknown_top_level_key = true\n")
+    (repo / "coga.toml").write_text("unknown_top_level_key = true\n", encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
         "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
@@ -458,9 +458,9 @@ def test_main_allows_cross_repo_sweep_from_invalid_current_alias(
 ) -> None:
     """Alias errors also belong to the child checkout, not parent dispatch."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
         "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
@@ -495,8 +495,8 @@ def test_main_lets_init_run_through_broken_config(
     the recovery command. A stale CLI + migrated `coga.toml` would otherwise
     deadlock the very re-init that fixes it."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text() + '\n[assignees.marc]\n'
-    )
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n'
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "init"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -528,9 +528,9 @@ def test_main_lets_init_run_through_invalid_alias(
 ) -> None:
     """Alias validation must not deadlock the config recovery command."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
-    )
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", argv)
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -561,8 +561,8 @@ def test_main_still_exits_on_broken_config_for_non_init(
 ) -> None:
     """Every command other than `init` still fails loud on a broken config."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text() + '\n[assignees.marc]\n'
-    )
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n'
+    , encoding="utf-8", newline="\n")
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "status"])
 

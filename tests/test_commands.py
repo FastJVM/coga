@@ -43,7 +43,7 @@ def _log_text(repo: Path, ref: str) -> str:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -146,7 +146,7 @@ def _write_workflow_less_task(
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return slug, ticket_path
 
 
@@ -577,7 +577,7 @@ def test_bump_supervised_allows_unfrozen_workflow_without_step(repo: Path) -> No
 
         <!-- coga:blackboard -->
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(
         app,
@@ -648,10 +648,10 @@ def _unset_selected_webhook(repo: Path) -> None:
     """
     config_path = repo / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace(
+        config_path.read_text(encoding="utf-8").replace(
             "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
         )
-    )
+    , encoding="utf-8", newline="\n")
 
 
 def test_bump_final_step_preflights_notification_before_mutation(
@@ -954,15 +954,15 @@ def _make_git_task(git_repo, *, branch: str, worktree: Path) -> tuple[str, Path]
     assert activated.exit_code == 0, activated.output
     ticket = git_repo.coga_os / "tasks" / f"{slug}.md"
     ticket.write_text(
-        ticket.read_text().replace("status: active", "status: in_progress")
-    )
+        ticket.read_text(encoding="utf-8").replace("status: active", "status: in_progress")
+    , encoding="utf-8", newline="\n")
     _record_dev(ticket, f"branch: {branch}\nworktree: {worktree}")
     return slug, ticket
 
 
 def _commit_ticket_on_branch(git_repo, worktree: Path, slug: str, note: str) -> None:
     copy = worktree / "coga" / "tasks" / f"{slug}.md"
-    copy.write_text(copy.read_text() + f"\n{note}\n")
+    copy.write_text(copy.read_text(encoding="utf-8") + f"\n{note}\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "--", f"coga/tasks/{slug}.md", cwd=worktree)
     git_repo.git("commit", "-m", f"stranded: {note}", cwd=worktree)
 
@@ -1021,7 +1021,7 @@ def test_bump_stays_silent_when_recorded_branch_merely_behind(
     wt = tmp_path / "wt-feat"
     slug, ticket = _make_git_task(git_repo, branch="feat/x", worktree=wt)
     git_repo.git("worktree", "add", str(wt), "-b", "feat/x", "main")
-    (wt / "coga" / "change.txt").write_text("a real change\n")
+    (wt / "coga" / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A", cwd=wt)
     git_repo.git("commit", "-m", "feature: a real change", cwd=wt)
 
@@ -1047,7 +1047,7 @@ def test_bump_stays_silent_in_single_checkout_layout(git_repo) -> None:
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feat/x")
     _commit_ticket_on_branch(git_repo, git_repo.root, slug, "live ticket note")
-    (git_repo.coga_os / "change.txt").write_text("a real change\n")
+    (git_repo.coga_os / "change.txt").write_text("a real change\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "coga/change.txt")
     git_repo.git("commit", "-m", "feature: a real change")
 
@@ -1460,7 +1460,7 @@ def test_slack_accepts_and_completes_stateless_bootstrap_target(
     assert "slack: 2 rebased-pushed; 1 conflict" in _log_text(
         repo, "bootstrap/resolve-conflicts"
     )
-    assert sentinel.read_text() == "bootstrap/resolve-conflicts\n"
+    assert sentinel.read_text(encoding="utf-8") == "bootstrap/resolve-conflicts\n"
 
 
 def test_slack_important_forwards_to_notification_post(
@@ -1497,9 +1497,9 @@ def test_bootstrap_slack_completion_attributes_configured_agent(
 ) -> None:
     config_path = repo / "coga.toml"
     config_path.write_text(
-        config_path.read_text()
+        config_path.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
     _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}---\n\nDone.\n")
     before = ticket_path.read_bytes()
@@ -1521,7 +1521,7 @@ def test_bootstrap_slack_completion_attributes_configured_agent(
     assert f"[agent:{expected_agent}] slack: finished" in _log_text(
         repo, "bootstrap/completion-check"
     )
-    assert sentinel.read_text() == "bootstrap/completion-check\n"
+    assert sentinel.read_text(encoding="utf-8") == "bootstrap/completion-check\n"
     assert ticket_path.read_bytes() == before
 
 
@@ -1756,7 +1756,7 @@ def _add_codex_agent(repo: Path) -> None:
     """Append a second agent type so `other-agent` has a peer to resolve to."""
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + dedent(
             """
             [agents.codex]
@@ -1764,7 +1764,7 @@ def _add_codex_agent(repo: Path) -> None:
             file = "AGENTS.md"
             """
         )
-    )
+    , encoding="utf-8", newline="\n")
 
 
 def _write_peer_review_workflow(repo: Path) -> None:
@@ -1938,13 +1938,13 @@ def test_other_agent_unconfigured_main_agent_fails_loud(repo: Path) -> None:
 def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text().replace(
+        toml.read_text(encoding="utf-8").replace(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\npeer = "codex"',
         )
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
         + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     _write_peer_review_workflow(repo)
     ref = create_task(
@@ -1965,9 +1965,9 @@ def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
     _add_codex_agent(repo)
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     with pytest.raises(
         OperatorResolutionError,
@@ -1979,12 +1979,12 @@ def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
 def test_declared_peer_beats_two_agent_inference(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text().replace(
+        toml.read_text(encoding="utf-8").replace(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\npeer = "codex"',
         )
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     assert resolve_other_agent(cfg, "claude") == "codex"
 
@@ -1996,9 +1996,9 @@ def test_absent_agent_resolves_the_default_agent_key_and_its_peer(
     toml = repo / "coga.toml"
     toml.write_text(
         'default_agent = "codex"\n'
-        + toml.read_text()
+        + toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\npeer = "claude"\n'
-    )
+    , encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     assert resolve_main_agent(cfg, None, allow_prospective_default=True) == "codex"
     assert resolve_other_agent(cfg, None, allow_prospective_default=True) == "claude"
@@ -2031,9 +2031,9 @@ def _strand_on_a_third_agent(repo: Path) -> tuple[str, Path]:
 
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    )
+    , encoding="utf-8", newline="\n")
     return slug, task_path
 
 
@@ -2084,7 +2084,7 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
 
         <!-- coga:blackboard -->
         """
-    ).lstrip())
+    ).lstrip(), encoding="utf-8", newline="\n")
 
     runner = CliRunner()
     result = runner.invoke(app, ["bump", "legacy"])
@@ -2410,10 +2410,10 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
     # Single-file equivalent of a missing workspace file: a ticket.md whose
     # blackboard fence is gone. The safe fix re-appends the fence + region.
     ticket_path = task_path
-    text = ticket_path.read_text()
+    text = ticket_path.read_text(encoding="utf-8")
     above, _, _ = text.partition("\n<!-- coga:blackboard -->")
-    ticket_path.write_text(above + "\n")
-    assert fence_count(ticket_path.read_text()) == 0
+    ticket_path.write_text(above + "\n", encoding="utf-8", newline="\n")
+    assert fence_count(ticket_path.read_text(encoding="utf-8")) == 0
 
     runner = CliRunner()
     result = runner.invoke(app, ["validate", "--fix", "--json"])
@@ -2423,7 +2423,7 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
     payload = json.loads(result.output)
     assert payload["fixes"][0]["message"] == "added blackboard fence + region"
     assert payload["issues"] == []
-    assert fence_count(ticket_path.read_text()) == 1
+    assert fence_count(ticket_path.read_text(encoding="utf-8")) == 1
 
 
 def test_validate_warns_for_large_blackboard(repo: Path) -> None:
@@ -2697,10 +2697,10 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     path = log_path(cfg)
     kept = [
         line
-        for line in path.read_text().splitlines()
+        for line in path.read_text(encoding="utf-8").splitlines()
         if f"[{no_log['slug']}]" not in line
     ]
-    path.write_text("\n".join(kept) + ("\n" if kept else ""))
+    path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8", newline="\n")
 
     runner = CliRunner()
     # Default order (updated desc) — logged task on top, no-log task at bottom.

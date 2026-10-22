@@ -8,8 +8,8 @@ BOOTSTRAP = (
 
 
 def test_implement_skill_has_read_only_git_clone_fallback() -> None:
-    skill = (BOOTSTRAP / "skills/code/implement/SKILL.md").read_text()
-    owner = (BOOTSTRAP / "contexts/coga/checkouts/sandbox-clone/SKILL.md").read_text()
+    skill = (BOOTSTRAP / "skills/code/implement/SKILL.md").read_text(encoding="utf-8")
+    owner = (BOOTSTRAP / "contexts/coga/checkouts/sandbox-clone/SKILL.md").read_text(encoding="utf-8")
 
     assert "coga/checkouts/sandbox-clone" in skill
     assert "First refusal after launch switched" in skill

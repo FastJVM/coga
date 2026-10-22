@@ -66,7 +66,7 @@ sys.exit(EXIT_CODE)
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _clone_template(company: Path, name: str = "local-sweep", *, exit_code: int = 0) -> None:
@@ -81,7 +81,7 @@ def _runs(company: Path) -> list[dict[str, str | None]]:
     path = company / "runs.jsonl"
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 @pytest.fixture
@@ -116,7 +116,7 @@ def test_clone_scope_rejects_what_needs_a_period_task(
 def test_unknown_scope_is_a_template_error(repo: Path) -> None:
     _clone_template(repo)
     path = repo / "recurring" / "local-sweep" / "ticket.md"
-    path.write_text(path.read_text().replace("scope: clone", "scope: machine"))
+    path.write_text(path.read_text(encoding="utf-8").replace("scope: clone", "scope: machine"), encoding="utf-8", newline="\n")
     with pytest.raises(RecurringError, match="`scope` must be one of repo, clone"):
         Template.load(path.parent, now=NOW)
 
@@ -158,7 +158,7 @@ def test_clone_run_records_the_period_locally_and_runs_once(
     ]
     entry = read_clone_ledger(cfg, "local-sweep")
     assert entry is not None and entry.period == "2026-04-22"
-    log = (clone_state_dir(cfg) / "local-sweep.log").read_text()
+    log = (clone_state_dir(cfg) / "local-sweep.log").read_text(encoding="utf-8")
     assert "swept local state" in log
     [outcome] = record.outcomes
     assert (outcome.slug, outcome.result) == ("recurring/local-sweep", "completed")
@@ -200,7 +200,7 @@ def test_clone_chatty_script_has_bounded_log_and_retains_final_output(
         "import os\n"
         "for _ in range(256): os.write(1, b'x' * 65536)\n"
         "os.write(1, b'\\xffFINAL OUTPUT\\n')\n"
-    )
+    , encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     tracemalloc.start()
     try:
@@ -212,7 +212,7 @@ def test_clone_chatty_script_has_bounded_log_and_retains_final_output(
     assert result.exit_code == 0
     assert len(result.output) == 4000
     assert result.output.endswith("\ufffdFINAL OUTPUT\n")
-    log = result.log_path.read_text()
+    log = result.log_path.read_text(encoding="utf-8")
     assert "output truncated" in log
     assert log.endswith("\ufffdFINAL OUTPUT\n")
     assert len(log) < 12500
@@ -221,7 +221,7 @@ def test_clone_chatty_script_has_bounded_log_and_retains_final_output(
 
 def test_clone_timeout_keeps_diagnostics_and_does_not_advance_ledger(repo: Path) -> None:
     script = repo / "hung.py"
-    script.write_text("import time\nprint('started work', flush=True)\ntime.sleep(30)\n")
+    script.write_text("import time\nprint('started work', flush=True)\ntime.sleep(30)\n", encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     started = time.monotonic()
     result = run_clone_template(cfg, "hung", script, "today", timeout=0.3)
@@ -229,7 +229,7 @@ def test_clone_timeout_keeps_diagnostics_and_does_not_advance_ledger(repo: Path)
     assert result.exit_code == 124
     assert "started work" in result.output
     assert "timed out" in result.output
-    assert "exit 124" in result.log_path.read_text()
+    assert "exit 124" in result.log_path.read_text(encoding="utf-8")
     assert read_clone_ledger(cfg, "hung") is None
 
 
@@ -244,10 +244,10 @@ def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits:
         "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])\n"
         f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
         + ("child.wait()\n" if parent_waits else "")
-    )
+    , encoding="utf-8", newline="\n")
     result = run_clone_template(load_config(repo), "descendant", script, "today", timeout=0.5)
     assert result.exit_code == 124
-    pid = int(child_pid.read_text())
+    pid = int(child_pid.read_text(encoding="utf-8"))
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         try:
@@ -256,7 +256,7 @@ def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits:
             break
         # An orphan may await init's reap, but must no longer be executing.
         stat = Path(f"/proc/{pid}/stat")
-        if stat.exists() and stat.read_text().split()[2] == "Z":
+        if stat.exists() and stat.read_text(encoding="utf-8").split()[2] == "Z":
             break
         time.sleep(0.01)
     else:
@@ -267,7 +267,7 @@ def test_clone_sweep_continues_after_timeout_and_retries_it(
     repo: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clone_template(repo, "a-hung")
-    (repo / "recurring" / "a-hung" / "ticket.py").write_text("import time\ntime.sleep(30)\n")
+    (repo / "recurring" / "a-hung" / "ticket.py").write_text("import time\ntime.sleep(30)\n", encoding="utf-8", newline="\n")
     _clone_template(repo, "z-success")
     monkeypatch.setattr("coga.recurring.datetime", _frozen_datetime())
     def short_run(*args, **kwargs):
@@ -388,7 +388,7 @@ def test_windows_timeout_kills_descendant_after_parent_exit(
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
         f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
         + ("child.wait()\n" if parent_waits else "")
-    )
+    , encoding="utf-8", newline="\n")
     code, _, _ = recurring_clone._run_clone_script(
         [sys.executable, str(script)], cwd=tmp_path, env=dict(os.environ), timeout=2,
     )
@@ -400,7 +400,7 @@ def test_windows_timeout_kills_descendant_after_parent_exit(
     kernel.WaitForSingleObject.restype = ctypes.c_uint32
     kernel.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
     kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-    handle = kernel.OpenProcess(0x100001, False, int(child_pid.read_text()))
+    handle = kernel.OpenProcess(0x100001, False, int(child_pid.read_text(encoding="utf-8")))
     if not handle:
         assert ctypes.get_last_error() == 87  # PID no longer exists.
         return

@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import windows_skip
+
 from coga.workspace_discovery import (
     CONTROL_WORKTREE_DIR_PREFIX,
     CONTROL_WORKTREE_OWNER_FILE,
@@ -13,7 +15,7 @@ from coga.workspace_discovery import (
 
 def _workspace(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "coga.toml").write_text("version = 1\n", encoding="utf-8")
+    (path / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
     return path
 
 
@@ -58,7 +60,7 @@ def test_owned_temporary_control_worktrees_are_skipped_from_any_root(
 ) -> None:
     parent = tmp_path / f"{CONTROL_WORKTREE_DIR_PREFIX}project-token"
     hidden = _workspace(parent / "checkout" / "coga")
-    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}\n", encoding="utf-8")
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}\n", encoding="utf-8", newline="\n")
     live = _workspace(tmp_path / "live" / "coga")
 
     assert discover_coga_repos(tmp_path) == [live]
@@ -78,6 +80,7 @@ def test_control_worktree_prefix_without_ownership_marker_is_visible(
     assert discover_coga_repos(tmp_path) == [lookalike]
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_strict_mode_raises_on_an_unreadable_directory(tmp_path: Path) -> None:
     _workspace(tmp_path / "live" / "coga")
     blocked = tmp_path / "blocked"
@@ -97,7 +100,7 @@ def test_explicit_control_checkout_inspection_keeps_scheduler_exclusions(
     root = parent / "checkout"
     first = _workspace(root / "one" / "coga")
     second = _workspace(root / "two" / "coga")
-    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}")
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}", encoding="utf-8", newline="\n")
     assert discover_coga_repos(root) == []
     assert discover_coga_repos(tmp_path) == []
     assert discover_coga_repos(root, strict=True, allow_control_worktree_root=True) == [first, second]

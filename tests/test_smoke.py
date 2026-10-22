@@ -75,7 +75,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert task_path == seeded / "tasks" / "fix-retry-logic.md"
     assert task_path.is_file()
     assert not (seeded / "tasks" / "fix-retry-logic").exists()
-    assert fence_count(task_path.read_text()) == 1
+    assert fence_count(task_path.read_text(encoding="utf-8")) == 1
 
     # Discovery sees both the created top-level task and the seeded
     # fixture task nested one level inside the `tasks/auto/` directory.

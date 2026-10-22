@@ -37,7 +37,7 @@ def _load_processor() -> ModuleType:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _entry(title: str, entry_id: str, *, repo: str = "multiply") -> str:
@@ -142,7 +142,7 @@ def test_live_job_is_shaped_like_the_other_script_backed_jobs() -> None:
     """Unpackaged on purpose: twins derive from the packaged tree, so there is
     nothing to register — but the live directory must be a complete job."""
     assert (LIVE_JOB / "ticket.py").is_file()
-    text = (LIVE_JOB / "ticket.md").read_text()
+    text = (LIVE_JOB / "ticket.md").read_text(encoding="utf-8")
     assert "schedule:" in text
     # Machine-local `[upstream]` config: every clone runs it, no period task.
     assert "scope: clone" in text
@@ -207,7 +207,7 @@ def test_first_run_files_every_entry_and_second_run_files_none(
     ):
         assert line in body
     assert "The client's developer-flow context says" in body
-    log = (company / "log.md").read_text()
+    log = (company / "log.md").read_text(encoding="utf-8")
     assert "[recurring/upstream-coga] created (status=draft)" in log
     assert _template_cursors(company) == {
         "multiply": "2026-09-10-bump-flag-is-undocumented"

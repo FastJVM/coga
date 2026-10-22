@@ -8,7 +8,7 @@ def test_design_skill_requires_symbol_citations() -> None:
     skill = (
         repo_root
         / "src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
     assert "**Cite symbols, not line numbers.**" in skill
     assert "never a bare" in skill

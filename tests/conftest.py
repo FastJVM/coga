@@ -408,7 +408,7 @@ class GitRepo:
             self.git("pull", "--ff-only", "origin", "main", cwd=clone)
         target = clone / relpath
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text)
+        target.write_text(text, encoding="utf-8", newline="\n")
         self.git("add", "--", relpath, cwd=clone)
         self.git("commit", "-m", f"competing: {relpath}", cwd=clone)
         self.git("push", "origin", "main", cwd=clone)
@@ -457,14 +457,14 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             webhook = "env:SLACK_WEBHOOK_URL"
             """
         ).lstrip()
-    )
-    (coga_os / "coga.local.toml").write_text('user = "marc"\n')
+    , encoding="utf-8", newline="\n")
+    (coga_os / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     # Mirror `coga init`'s ignores: the generated agent-skill view is local.
-    (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n")
+    (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n", encoding="utf-8", newline="\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
     # resolves `log.md` as `merge=union` (the subtree sweep's union split
     # depends on it).
-    (coga_os / ".gitattributes").write_text("**/log.md merge=union\n")
+    (coga_os / ".gitattributes").write_text("**/log.md merge=union\n", encoding="utf-8", newline="\n")
     workflows = coga_os / "workflows"
     workflows.mkdir()
     (workflows / "code.md").write_text(
@@ -492,7 +492,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             Merge the code.
             """
         ).lstrip()
-    )
+    , encoding="utf-8", newline="\n")
     seed_direct_body_workflow(coga_os)
     (coga_os / "tasks").mkdir()
 

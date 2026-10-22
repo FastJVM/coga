@@ -133,7 +133,7 @@ def test_no_tty_after_spawn_callback_releases_held_child(
     )
 
     assert (outcome.exit_code, outcome.kind) == (0, "natural")
-    assert marker.read_text() == "ran"
+    assert marker.read_text(encoding="utf-8") == "ran"
 
 
 @windows_interactive_skip
@@ -191,7 +191,7 @@ def test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write(
         "after-release",
         "guard-exit",
     ]
-    assert marker.read_text() == "ran"
+    assert marker.read_text(encoding="utf-8") == "ran"
 
 
 @windows_interactive_skip
@@ -396,7 +396,7 @@ def test_pty_child_replaces_inherited_environment(
         os.close(devnull_in)
 
     assert (outcome.exit_code, outcome.kind) == (0, "natural")
-    assert observed.read_text() == "(None, 'kept')"
+    assert observed.read_text(encoding="utf-8") == "(None, 'kept')"
 
 
 @windows_interactive_skip
@@ -422,7 +422,7 @@ def test_after_spawn_callback_releases_held_pty_child(
 
     assert outcome.exit_code == 0
     assert events == ["spawned"]
-    assert marker.read_text() == "ran"
+    assert marker.read_text(encoding="utf-8") == "ran"
 
 
 @windows_interactive_skip
@@ -821,7 +821,7 @@ def test_emit_done_marker_writes_session_id_content(
     sentinel = tmp_path / "done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     emit_done_marker(session_id="/repo/tasks/mine")
-    assert sentinel.read_text().strip() == "/repo/tasks/mine"
+    assert sentinel.read_text(encoding="utf-8").strip() == "/repo/tasks/mine"
 
 
 def test_emit_done_marker_writes_sentinel(
@@ -855,7 +855,7 @@ def test_bare_touch_ignores_empty_sentinel(tmp_path) -> None:
     """Hardened legacy path: a zero-byte sentinel (a partial write) must NOT
     read as done, even without a session_id — that was the teardown footgun."""
     sentinel = tmp_path / "done"
-    sentinel.write_text("")
+    sentinel.write_text("", encoding="utf-8", newline="\n")
     assert _sentinel_signals_done(str(sentinel), None) is False
 
 
@@ -863,7 +863,7 @@ def test_bare_touch_accepts_nonempty_sentinel(tmp_path) -> None:
     """Legacy contract preserved: any non-empty content ends the session when
     no session_id scopes the channel."""
     sentinel = tmp_path / "done"
-    sentinel.write_text("done\n")
+    sentinel.write_text("done\n", encoding="utf-8", newline="\n")
     assert _sentinel_signals_done(str(sentinel), None) is True
 
 
