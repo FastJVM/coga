@@ -1,6 +1,6 @@
 ---
 title: PR CI with Linux and Windows test jobs
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: ff354710-ecc2-470f-960c-fe7efcfbd25d
 ---
 
 ## Description
@@ -58,4 +57,33 @@ that run in the PR.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implementation preflight — 2026-10-22
+
+- Codex checked a clean `main`, fetched and fast-forwarded it to
+  `e2958c82d4fa7e3b9a930e7df7e0e311afba0fea`, and fetched again before
+  handing off; the remote tip was unchanged.
+- The required predecessor,
+  `windows-native/core-port-cli-and-test-suite-pass-on-native-window`, is
+  still `in_progress` at step 3 (`review-design`, owner-held), with no
+  recorded implementation branch or PR. GitHub PR searches for `core-port`
+  and Windows titles found no merged core-port PR; merged PR #1026 is the
+  Windows EC2 harness, not the port.
+- Current main still imports `fcntl` unconditionally at module scope in
+  `src/coga/git.py`, `src/coga/launch.py`, and
+  `src/coga/repl_supervisor.py`; `src/coga/commands/megalaunch.py` still
+  imports `termios` and `tty`. The prerequisite's promised Windows import
+  fixes have not landed, so a Windows test job cannot yet pass.
+- Follow the ticket's explicit start-after-merge constraint: block on
+  `windows-native/core-port-cli-and-test-suite-pass-on-native-window` being
+  merged. No implementation branch, workflow changes, PR, or test run was
+  made in this attempt.
+- Resume after that merge: add the Python 3.11 Linux/Windows workflow,
+  replace the obsolete no-CI posture in `coga-dev/testing`, run the suite,
+  and prepare the implementation handoff. Later PR steps still owe both
+  green jobs and the linked scratch-branch Windows failure run.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
