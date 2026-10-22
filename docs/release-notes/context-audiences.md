@@ -53,6 +53,16 @@ not usable references.
 The supporting `edge-code-upgrades.md` moves from the packaging topic to
 `coga/edge-code/edge-code-upgrades.md`.
 
+## Merged user topics
+
+These refs no longer ship; their user knowledge now lives in the parent topic.
+Attach the shipped ref instead.
+
+| Previous ref | Shipped ref |
+| --- | --- |
+| `coga/recurring/scheduling/failures` | `coga/recurring/scheduling` |
+| `coga/recurring/scheduling/ledger` | `coga/recurring/scheduling` |
+
 ## Development topics removed from the package
 
 Every target below is local-only. The two posture topics were already
