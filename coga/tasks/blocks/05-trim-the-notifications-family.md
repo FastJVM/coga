@@ -1,6 +1,6 @@
 ---
 title: 05 Trim the notifications family
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:3c32e20e-feab-4868-bd2f-4e7c1cf4af49
 ---
 
 ## Description
