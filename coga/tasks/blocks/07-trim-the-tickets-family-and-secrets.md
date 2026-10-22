@@ -353,7 +353,8 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-10-21 19:03] [agent:codex] id=20261021T190358 Land PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only; it fixes three packaging failures reproduced on untouched main. Then rebase blocks/07-trim-tickets-secrets, re-review the resulting diff, and rerun the required full suite before bumping.
+- [x] [2026-10-21 19:03] [agent:codex] id=20261021T190358 Land PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only; it fixes three packaging failures reproduced on untouched main. Then rebase blocks/07-trim-tickets-secrets, re-review the resulting diff, and rerun the required full suite before bumping.
+  resolved: [2026-10-22 11:49] [human:nicktoper] The human confirmed clearing the prerequisite blocker and continuing. PR #1081 merged on 2026-10-22 at 03:57:39 UTC as a1a3f5049b5dd2457f531a4d81b79b6a6425bb9f and is present on origin/main. Rebase blocks/07-trim-tickets-secrets onto current main, complete a fresh direct review, rerun the full suite and validation, and refresh the receipts before bumping.
 
 ---
 
