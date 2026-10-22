@@ -150,6 +150,7 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1086
 branch: blocks-06-collapse-state-publication
 
 ## Handoff (implement)
@@ -351,8 +352,6 @@ checks:
     11.20s, exit 0. Includes twin identity, context distribution/navigation, wheel contents, and installed-wheel
     isolation.'
 ```
-
----
 
 ## Blockers
 
