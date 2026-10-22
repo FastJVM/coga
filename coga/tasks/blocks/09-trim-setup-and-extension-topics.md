@@ -157,3 +157,11 @@ files and repo-only lines (02's are already on main). Dev material moves to
 coga-dev codebase, packaging, microkernel, current-direction, agent-spawn,
 activity-capture.
 
+## Recipe Failure
+
+Recipe: `publish-state`
+Exit: 2
+Task: `blocks/09-trim-setup-and-extension-topics`
+Recorded: 2026-10-22T02:26:32+00:00
+
+    publish-state: /home/n/Code/claude/coga/coga/tasks/stop-the-contexts-root-sweep-from-publishing-canonical.md is not a regular file
