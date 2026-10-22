@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -155,7 +155,7 @@ branch: blocks-06-collapse-state-publication
 ## Handoff (implement)
 
 Claude Opus 5.5 implemented the consolidation in original commit `042e0d10b`;
-peer-review rebased it to `b91664896`. The user publication topic absorbs
+peer-review rebased it to final implementation commit `4a2eab359`. The user publication topic absorbs
 recipe/recovery and authoring facts; the two leaves are removed; internals and
 dated decisions move to the existing development owners; sync becomes a map.
 Audit disagreement: none. The existing state-publication internals topic is
@@ -163,90 +163,85 @@ already listed in the internals index; no new development page was introduced.
 
 ## Peer review
 
-**Completed direct Codex review** of head `a744b93a66233b5d76d9566ffc5ce589bb00dfad`
-against base `07391808b4671c959e4666f74d88d7a03907f4be` after rebasing onto current
-origin/main. All 34 changed paths, the rebase range-diff, publication code
-(`cli`, `git`, `authoring`, `publish_state`), references and anchors, and every
-touched canonical/package pair were reviewed. No unresolved change-specific
-finding. Claude's implementation received independent Codex review; Codex's
-prior fixes and this session's conflict resolutions were self-reviewed, so
-the combined receipt conservatively records `kind: self`.
+**Completed direct Codex review** of final head `2861f388d01188d735b2d24ad9560fc9d97675d7`
+against base `abe8aa7cf7fafa145137089fe876ef5321060cba`. All 36 changed paths, the
+publication implementations (`cli`, `git`, `authoring`, `publish_state`), the
+rebase range-diff, twins, and links/anchors were reviewed. No unresolved
+finding. Claude's original implementation received independent Codex review;
+Codex corrections and conflict resolutions were self-reviewed, so the combined
+receipt conservatively records `kind: self`.
 
-The owner confirmed that merged PR #1081 resolves the original blocker;
-`coga unblock` recorded the answer. Rebase preserves main's newer extension
-and sandbox guidance and this ticket's publication links. The three commits
-are now `fcb09f5e3`, `0535e0084`, and `a744b93a6`. The projected ticket was
-backed up and restored byte-for-byte, and the CLI's already-published unblock
-log row was preserved through the rebase. The final fetch found no further
-main movement. The rebased branch is pushed with an explicit force-with-lease.
+PR #1081 merged and the owner confirmed resolving the original blocker;
+`coga unblock` recorded the answer. The owner subsequently answered **"ok to
+expand"** on 2026-10-22: the two packaged recurring-template link corrections
+now match their live copies already on main. This approved expansion overlaps
+PR https://github.com/FastJVM/coga/pull/1083 and fixes both remaining baseline
+failures. No executable behavior changed. Prior review corrections for
+migration destinations, duplicate finalize ownership, publication selection
+wording, and the documentation assertion remain in the branch.
 
-All nine surviving touched twin pairs are byte-identical; both removed leaves
-are absent from both trees. Navigation has no removed-topic or anchor links;
-old spellings survive only as historical migration sources and in old tickets.
-The existing development internals page remains indexed. Audit disagreement:
+All 11 surviving touched canonical/package pairs are byte-identical; both
+removed publication leaves are absent from both trees. Every repository twin
+matches. Navigation has no link to a removed publication topic or anchor;
+old spellings remain only as historical migration sources and in old tickets.
+The existing development internals topic remains indexed. Audit disagreement:
 none. No terminal or rendered Slack surface changed, so no interactive
 exercise applies.
 
-**Remaining acceptance issue:** main already carries two live recurring-template
-link migrations from task 03, but their packaged copies remain in open
-PR https://github.com/FastJVM/coga/pull/1083. The only mismatched pairs are
-`coga/recurring/autoclose-merged/ticket.md` and
-`coga/recurring/branch-sweep/ticket.md`. Both failing tests reproduce on main
-in the independent clone. This session has not changed those templates.
+Final verification on this head/base:
 
-Full suite: **2 failed, 3985 passed, 7 skipped**. Failures:
+- `.venv/bin/python -m pytest -q`: **3987 passed, 7 skipped**, exit 0, 343.09s.
+- `.venv/bin/coga validate --json`: **156 OK, zero errors, 48 warnings**, exit 0.
+- Fresh-clone `tests/test_packaging.py`: **30 passed**, exit 0, 11.20s; wheel
+  and installed-wheel checks included.
+- `git diff --check origin/main...HEAD`: passed.
 
-- `tests/test_autoclose_sweep.py::test_autoclose_live_and_packaged_copies_stay_in_sync`
-- `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+Verification used Python 3.12.12; Python 3.11 was not tested. An earlier green
+run at `b3622968d` was followed by main's routine task/log updates. Rebase onto
+`abe8aa7cf` preserved all four patches unchanged; the full suite, validation,
+and pristine packaging checks were then rerun on the final revision above.
+The final fetch found no further main movement. The projected ticket and
+CLI-written log entry were preserved throughout checkout reconciliation;
+this ticket remains unstaged and outside the branch commits.
 
-Validation passes: 156 OK, no errors, 48 warnings. Pristine-clone packaging:
-29 passed and the same twin failure; wheel and navigation checks passed.
-Exact revision-scoped receipts follow.
-
-**Owner choice pending:** include just the two packaged-template corrections
-already represented by main's live copies, accepting overlap with #1083,
-or wait for #1083 to merge. Asked directly in this attended session; no
-`coga block` was run. Do not bump until that choice is resolved and the
-required suite passes. Then refresh/reconcile, verify the resulting head,
-update these receipts, push, and bump once.
-
-The earlier review at `a460ae2b9` / `46b146443` and its three packaging failures
-are historical; PR #1081 resolved those failures. Its migration-destination,
-finalize-ownership, committed-selection, and test-reference fixes remain in
-the rebased commits above.
+The exact verified head `2861f388d` is pushed with force-with-lease; the
+remote-tracking branch matches it. Ready to bump once to the mechanical
+`open-pr` step. Advisory review depth is **skim**; the owner decides whether to
+merge. Historical failed receipts are superseded by the executed final checks
+below, not re-stamped as current results.
 
 ## PR
 
 ```yaml
 title: Collapse state publication into one user topic
 author: claude/codex
-author_evidence: Claude Opus 5.5 performed the implement step (original 042e0d10b; now fcb09f5e3 after
-  rebase). Codex authored the prior review corrections (af460483c and a460ae2b9; now 0535e0084 and a744b93a6),
-  resolved ordinary rebase conflicts, and completed the resumed direct review. Identities come from the
-  implement and peer-review handoffs, not ticket assignments or Git publisher identity.
-head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-base: 07391808b4671c959e4666f74d88d7a03907f4be
-depth: deep
-rationale: 'The documentation consolidation has no unresolved change-specific review finding, and all
-  its touched twins match. The required passing-suite acceptance is still unmet: two pre-existing recurring-template
-  twin mismatches on main cause two failing tests. Their packaged corrections are in open PR #1083. The
-  attending owner is deciding whether to include only those corrections here or wait for that PR; do not
-  advance or publish a PR until the suite passes.'
-implementation: Make coga/state-publication the user owner for roots, eligibility, publication timing
-  and checkout behavior, the pre-review hazard, strict publish-state, and recovery. Delete the authoring
-  and sweep leaves, retain their implementation details in the existing coga-dev internals page, and reduce
-  sync to a map. Move the developer design rule and dated decisions to coga-dev. Update navigation, migration
-  targets, packaged counterparts, and resource assertions. The finalize skill now requires the user owner
-  instead of restating its contract.
-deviations: The implement-step stale context attachment repair was already published on main as 46b146443.
-  Prior peer review corrected publication selection wording, migration destinations, duplicate finalization
-  ownership, and a documentation assertion. This resumed review preserved newer main wording in three
-  rebase conflicts (the extension-model pair and packaged sandboxes). No runtime behavior changes, new
-  development topics, or unrelated template fixes have been introduced.
-limitations: 'Two recurring templates, autoclose-merged and branch-sweep, have live link migrations on
-  main whose packaged copies remain in open PR #1083; both failing tests reproduce on main. The original
-  PR #1081 dependency is resolved. No terminal or rendered Slack surface changed, so no interactive exercise
-  applies. Verification used Python 3.12.12; Python 3.11 was not tested.'
+author_evidence: Claude Opus 5.5 performed the implement step (original 042e0d10b, now 4a2eab359). Codex
+  authored the earlier review corrections (now 247c1b0b5 and 9e2f08cbc), resolved rebase conflicts, and
+  applied the owner-approved two-template correction in 2861f388d. Authorship is established by the implement
+  and peer-review handoffs; Git publisher identity and peer configuration are not the evidence.
+head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+base: abe8aa7cf7fafa145137089fe876ef5321060cba
+depth: skim
+rationale: 'Bounded documentation consolidation with no runtime change. Direct review completed on the
+  final head/base, the required full suite and validation pass, all touched twins match, and a fresh clone
+  passes all packaging and wheel checks. Skim the ownership moves and the approved two-template synchronization
+  overlapping PR #1083; Codex self-reviewed its corrections.'
+implementation: Make coga/state-publication the single user owner for roots, eligibility, publication
+  timing and checkout behavior, the pre-review hazard, strict publish-state, and recovery. Delete the
+  authoring and sweep leaves, retain their machinery in the existing coga-dev internals topic, and reduce
+  sync to a map. Move developer design rules and dated decisions to their existing owners; update navigation,
+  migration targets, packaged counterparts, and resource assertions. The finalize skill requires the user
+  owner instead of restating its contract. Align two packaged recurring-template links with their live
+  copies already on main.
+deviations: 'The owner explicitly approved expanding this diff to synchronize only the packaged autoclose-merged
+  and branch-sweep template links. Their live changes had reached main before PR #1083, causing both remaining
+  baseline test failures; the two-file correction overlaps that PR. Rebase preserves main''s newer extension-model
+  and sandbox wording. The earlier stale draft attachment repair is already on main (46b146443). No new
+  development topic or runtime behavior change.'
+limitations: Verification used Python 3.12.12; Python 3.11 was not tested. No terminal loop, pager, prompt
+  interaction, or rendered Slack message changed, so interactive surface checks are inapplicable. Codex
+  independently reviewed the original Claude implementation and self-reviewed its own corrections; the
+  combined review is conservatively classified as self. The owner retains the merge decision.
 files:
   coga/skills/coga/ticket/finalize/SKILL.md: Replace the duplicate authoring contract with required reading
     of its single user owner and optional implementation navigation.
@@ -311,52 +306,50 @@ files:
   tests/test_authoring.py: Update the documentation-only finalize skill assertion to require its user
     publication reference instead of an internal Python helper name.
   tests/test_packaging.py: Remove the two deleted context refs from the required bootstrap inventory.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: 'Align cleanup-topic links with
+    the live template already on main; owner-approved expansion overlapping PR #1083, with no execution
+    change.'
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: 'Align cleanup-topic links with
+    the live template already on main; owner-approved expansion overlapping PR #1083, with no execution
+    change.'
 review:
   reviewer: codex
   kind: self
   status: passed
-  head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
-  detail: Completed direct review of all 34 changed paths, the rebase range-diff, all touched twins, references
-    and anchors, and the relevant cli, git, authoring, and publish_state implementations. Claude implementation
-    was independently reviewed by Codex; Codex corrections and conflict resolutions were self-reviewed,
-    so this combined receipt conservatively uses self. No unresolved change-specific finding and no nested
-    reviewer CLI. Required-suite acceptance remains unmet because of the two baseline template mismatches;
-    this is not merge approval.
+  head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+  base: abe8aa7cf7fafa145137089fe876ef5321060cba
+  detail: Completed direct review of all 36 final paths, the unchanged four-patch range-diff after the
+    final rebase, publication implementations (cli, git, authoring, publish_state), all 11 surviving touched
+    twin pairs, and removed-topic links and anchors. Both deleted leaf pairs are absent, all repository
+    twins match, and the source ASTs are unchanged after excluding the module docstring. The owner-approved
+    template correction fixes both baseline failures. No unresolved findings; no nested review CLI ran.
+    Actual Claude implementation review was independent; Codex corrections and rebase resolutions were
+    self-reviewed.
 checks:
 - command: .venv/bin/python -m pytest -q
-  status: failed
-  head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
-  detail: '2 failed, 3985 passed, 7 skipped in 344.36s (0:05:44), exit 1. Only test_autoclose_sweep.py::test_autoclose_live_and_packaged_copies_stay_in_sync
-    and test_packaging.py::test_live_and_packaged_copies_stay_identical fail; both reproduce on main.
-    Log: /tmp/coga-blocks06-resume-pytest.log.'
+  status: passed
+  head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+  base: abe8aa7cf7fafa145137089fe876ef5321060cba
+  detail: 3987 passed, 7 skipped in 343.09s (0:05:43), exit 0. Full suite after the final rebase; output
+    in /tmp/coga-blocks06-refreshed-pytest.log.
 - command: .venv/bin/coga validate --json
   status: passed
-  head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
-  detail: 'Exit 0: 156 OK, no errors, 48 warnings. Full output: /tmp/coga-blocks06-resume-validation.json.'
+  head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+  base: abe8aa7cf7fafa145137089fe876ef5321060cba
+  detail: 'Exit 0: 156 OK, zero errors, 48 warnings. Output in /tmp/coga-blocks06-refreshed-validation.json.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
+  head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+  base: abe8aa7cf7fafa145137089fe876ef5321060cba
   detail: No whitespace errors.
-- command: PYTHONPATH=/tmp/coga-blocks06-resume-pristine/src /home/n/Code/claude/coga/.venv/bin/python
+- command: PYTHONPATH=/tmp/coga-blocks06-refreshed-pristine/src /home/n/Code/claude/coga/.venv/bin/python
     -m pytest -q tests/test_packaging.py
-  status: failed
-  head: a744b93a66233b5d76d9566ffc5ce589bb00dfad
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
-  detail: 'Fresh local clone at the feature head, cwd /tmp/coga-blocks06-resume-pristine: 1 failed, 29
-    passed in 18.81s. Only the recurring-template twin check fails; distribution, navigation, and wheel
-    tests pass.'
-- command: PYTHONPATH=/tmp/coga-blocks06-resume-pristine/src /home/n/Code/claude/coga/.venv/bin/python
-    -m pytest -q tests/test_autoclose_sweep.py::test_autoclose_live_and_packaged_copies_stay_in_sync tests/test_packaging.py::test_live_and_packaged_copies_stay_identical
-  status: failed
-  head: 07391808b4671c959e4666f74d88d7a03907f4be
-  base: 07391808b4671c959e4666f74d88d7a03907f4be
-  detail: 'Baseline reproduction in the independent clone checked out at main: both tests fail in 8.18s
-    with the same autoclose template link mismatch. Direct comparison identifies branch-sweep as the only
-    other mismatched pair. This receipt tests main, not the feature head.'
+  status: passed
+  head: 2861f388d01188d735b2d24ad9560fc9d97675d7
+  base: abe8aa7cf7fafa145137089fe876ef5321060cba
+  detail: 'Fresh local clone at the final head, cwd /tmp/coga-blocks06-refreshed-pristine: 30 passed in
+    11.20s, exit 0. Includes twin identity, context distribution/navigation, wheel contents, and installed-wheel
+    isolation.'
 ```
 
 ---
