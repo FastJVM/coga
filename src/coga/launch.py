@@ -210,6 +210,8 @@ def _preflight_platform_target(task: str, *, prompt_report: bool) -> None:
         return
     if script_entry_point(ref) is None:
         require_agent_sessions()
+
+
 _CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
     "checkout_guard_scope", default=None
 )

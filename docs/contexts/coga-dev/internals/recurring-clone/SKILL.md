@@ -44,4 +44,5 @@ On Windows its wrapper (`_WINDOWS_JOB_WRAPPER`) joins a supervisor-owned job
 object (`_WindowsJob`) before starting any script code, so descendants remain
 owned after their parent exits. Job termination and kill-on-close clean up the
 entire tree; setup or cleanup errors are reported, never replaced by
-best-effort PID lookup. This costs one wrapper process per run.
+best-effort PID lookup. The deadline includes live job members even when the
+parent has exited and stdout reached EOF. This costs one wrapper process per run.

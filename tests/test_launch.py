@@ -1153,7 +1153,7 @@ def test_spawn_reports_unpublished_session_log(
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     if failure == "ignored":
-        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
 
     def finish_session(*args, **kwargs):  # type: ignore[no-untyped-def]
         if failure == "offline":

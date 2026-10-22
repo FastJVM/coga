@@ -766,12 +766,12 @@ def test_fast_forward_names_files_that_local_changes_would_overwrite(
     rel = "coga/log.md"
     path = git_repo.root / rel
     if tracked:
-        path.write_text("original\n")
+        path.write_text("original\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "--", rel)
         git_repo.git("commit", "-m", "seed log")
         git_repo.git("push", "origin", "main")
     tip = git_repo.git("rev-parse", "main").strip()
-    path.write_text("local changes\n")
+    path.write_text("local changes\n", encoding="utf-8", newline="\n")
     git_repo.push_competing_commit(rel, "remote changes\n")
     git_repo.git("fetch", "origin", "main")
     new = git_repo.git("rev-parse", "origin/main").strip()
@@ -782,7 +782,7 @@ def test_fast_forward_names_files_that_local_changes_would_overwrite(
     assert "not fast-forwarded" in note
     assert "would be overwritten by merge:" in note
     assert rel in note
-    assert path.read_text() == "local changes\n"
+    assert path.read_text(encoding="utf-8") == "local changes\n"
     assert git_repo.git("rev-parse", "main").strip() == tip
 
 
@@ -1968,7 +1968,7 @@ def test_sync_log_reports_on_stderr_only(git_repo, capsys):
 def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
     """A written log excluded by Git must not look like a published no-op."""
     cfg = load_config(git_repo.coga_os)
-    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
     append_log(cfg, "bootstrap/orient", "system", "session usage")
     before = _global_log(cfg)
 
@@ -1991,7 +1991,7 @@ def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
     assert _global_log(cfg) == before
     assert not git_repo.origin_tracks("coga/log.md")
 
-    (git_repo.root / ".git" / "info" / "exclude").write_text("")
+    (git_repo.root / ".git" / "info" / "exclude").write_text("", encoding="utf-8", newline="\n")
     recovered = subprocess.run(command, capture_output=True, text=True)
     assert recovered.returncode == 0, recovered.stdout + recovered.stderr
     assert _control(git_repo, "coga/log.md") == before

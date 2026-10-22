@@ -9541,20 +9541,20 @@ def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change)
     append_log(cfg, "bootstrap/orient", "system", "original session")
     assert coga_git.sync_log(cfg, message="seed log") is True
     log = log_path(cfg)
-    original = log.read_text()
+    original = log.read_text(encoding="utf-8")
     git_repo.push_competing_commit("coga/log.md", original + "remote session\n")
     append_log(cfg, "bootstrap/orient", "system", "stranded session")
     if change == "rewrite":
-        log.write_text(log.read_text().replace("original session", "edited session"))
+        log.write_text(log.read_text(encoding="utf-8").replace("original session", "edited session"), encoding="utf-8", newline="\n")
     elif change == "other-dirt":
-        (git_repo.coga_os / "tasks" / "notes.md").write_text("unfinished work\n")
+        (git_repo.coga_os / "tasks" / "notes.md").write_text("unfinished work\n", encoding="utf-8", newline="\n")
     elif change == "staged":
         git_repo.git("add", "coga/log.md")
     elif change == "mode":
         git_repo.git("config", "core.fileMode", "true")
         log.chmod(0o755)
     elif change == "partial-line":
-        log.write_text(log.read_text().rstrip("\n"))
+        log.write_text(log.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8", newline="\n")
     before = log.read_bytes()
     head = git_repo.git("rev-parse", "HEAD")
     remote = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
