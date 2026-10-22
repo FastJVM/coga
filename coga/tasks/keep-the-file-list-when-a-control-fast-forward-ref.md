@@ -135,3 +135,14 @@ branch: coga/keep-control-fast-forward-paths
 - Update the owning state-publication topic and its packaged twin, run the
   tests with the checkout's Python 3.12 test environment, then commit, freshen,
   push, return to `main`, and hand off to peer review with `coga bump`.
+
+## Progress
+
+- Before the fix, `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m
+  pytest tests/test_git.py -k 'summarize_git_failure or fast_forward_names_files'
+  -q` reproduced the bug: 9 failed, 2 passed, 223 deselected. Both real-Git
+  refusal cases omitted `coga/log.md` from the note.
+- The summary now retains up to 10 tab-indented paths per overwrite error and
+  reports the exact omitted count, while keeping paths attached to their
+  heading and deduplicating complete messages. Normal advice and progress
+  stay filtered. The state-publication topic and packaged twin document it.
