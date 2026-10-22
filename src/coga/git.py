@@ -2129,11 +2129,12 @@ def summarize_git_failure(output: str) -> str:
     # The sentinel closes a path list even when Git's output ends with it.
     for raw in [*output.splitlines(), ""]:
         line = raw.strip().split("\r")[-1].strip()
-        if in_paths and raw.startswith("\t") and line:
+        if in_paths and raw.startswith("\t") and len(raw) > 1:
             path_count += 1
             if path_count <= path_limit:
                 separator = " " if path_count == 1 else ", "
-                keep[-1] += separator + line
+                # Remove only Git's indent; whitespace can belong to the path.
+                keep[-1] += separator + raw[1:]
             continue
         if in_paths and path_count > path_limit:
             keep[-1] += f", ... (+{path_count - path_limit} more files)"

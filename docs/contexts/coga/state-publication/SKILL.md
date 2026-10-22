@@ -71,7 +71,7 @@ When Git refuses a control fast-forward because local changes or untracked
 files would be overwritten, the stderr note includes the first 10 paths
 from each overwrite refusal, followed by a count of any omitted paths. The
 paths stay with their error heading so the operator can identify what blocks
-the move.
+the move. Filename whitespace is preserved.
 
 A **feature or detached checkout** publishes the same way but keeps its
 published ticket and log dirty by design. `coga status` warns when control is

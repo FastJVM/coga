@@ -2061,6 +2061,8 @@ def test_summarize_git_failure_dedupes_and_falls_back_to_last_line():
 def test_summarize_git_failure_keeps_overwrite_paths(heading):
     raw = (
         f"Updating abc123..def456\n{heading}\n"
+        "\t leading and trailing spaces.md \n"
+        "\t \n"
         "\tcoga/log.md\n"
         "\tdocs/a file with spaces.md\n"
         '\t"quoted\\tpath.md"\n'
@@ -2070,7 +2072,8 @@ def test_summarize_git_failure_keeps_overwrite_paths(heading):
     )
 
     assert git.summarize_git_failure(raw) == (
-        f"{heading} coga/log.md, docs/a file with spaces.md, "
+        f"{heading}  leading and trailing spaces.md ,  , "
+        "coga/log.md, docs/a file with spaces.md, "
         '"quoted\\tpath.md"'
     )
 
