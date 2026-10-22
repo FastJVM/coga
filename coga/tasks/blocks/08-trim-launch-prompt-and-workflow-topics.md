@@ -272,7 +272,8 @@ branch: coga/blocks-08-trim-launch-prompt-workflow
 
 ## Blockers
 
-- [ ] [2026-10-21 19:17] [agent:claude] id=20261021T191736 Depends on blocks/02-delete-the-code-topic-and-remove-coga-repo-only: implement is pushed (coga/blocks-08-trim-launch-prompt-workflow) but pytest has 3 packaging failures inherited from main, where commit 001aad66f published 02's docs/contexts edits without their packaged twins. Land 02 (then a relaunch rebases, reruns tests and bumps), or answer 'bump anyway' to send this to review with the inherited red suite.
+- [x] [2026-10-21 19:17] [agent:claude] id=20261021T191736 Depends on blocks/02-delete-the-code-topic-and-remove-coga-repo-only: implement is pushed (coga/blocks-08-trim-launch-prompt-workflow) but pytest has 3 packaging failures inherited from main, where commit 001aad66f published 02's docs/contexts edits without their packaged twins. Land 02 (then a relaunch rebases, reruns tests and bumps), or answer 'bump anyway' to send this to review with the inherited red suite.
+  resolved: [2026-10-22 12:15] [human:nicktoper] blocks/02 landed on main (PR #1081, a1a3f5049). Rebase onto main, rerun tests, and bump if green.
 
 ---
 

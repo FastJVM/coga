@@ -9128,3 +9128,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 12:14 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-22 12:14 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-22 12:14 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-22 12:15 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] unblocked (asks resolved, still in_progress): blocks/02 landed on main (PR #1081, a1a3f5049). Rebase onto main, rerun tests, and bump if green.
