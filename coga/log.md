@@ -9019,3 +9019,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 19:17 v1 [blocks/09-trim-setup-and-extension-topics] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-21 19:17 v1 [blocks/09-trim-setup-and-extension-topics] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-21 19:17 v1 [blocks/09-trim-setup-and-extension-topics] [megalaunch] launched via coga megalaunch
+2026-10-21 19:24 v1 [preflight-dirty-tracked-files-before-skill-update] [human:nicktoper] created (status=draft)
