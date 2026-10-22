@@ -577,6 +577,7 @@ def _fetch_control(root: Path, remote: str, control: str) -> None:
         run_git(
             root, "fetch", "--quiet", remote,
             f"+refs/heads/{control}:refs/remotes/{remote}/{control}",
+            env=_MESSAGE_LOCALE,
         )
     except GitError as exc:
         if "couldn't find remote ref" not in str(exc).lower():
@@ -1019,7 +1020,10 @@ def fast_forward_control(
         return True
     if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged):
         return False
-    result = _run(["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new])
+    result = _run(
+        ["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new],
+        env=_MESSAGE_LOCALE,
+    )
     if result.returncode != 0:
         sys.stderr.write(
             f"[git] note: local {control!r} in {holder} not fast-forwarded: "
@@ -2185,10 +2189,13 @@ def _run(
         raise GitError("`git` not found on PATH") from exc
 
 
+# Pins Git's diagnostics to English for the calls whose outcome depends on
+# matching message text; other calls keep the operator's locale for hooks.
+_MESSAGE_LOCALE = {"LC_ALL": "C"}
+
+
 def _git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    # `LC_ALL=C` keeps Git's diagnostics in English: failure summaries and
-    # refusal checks match its message text.
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
     if extra:
         env.update(extra)
@@ -2205,7 +2212,9 @@ def toplevel(start: Path) -> Path | None:
     """The git working-tree root containing `start`, or `None` outside a repo."""
     if not start.is_dir():
         start = start.parent
-    result = _run(["git", "-C", str(start), "rev-parse", "--show-toplevel"])
+    result = _run(
+        ["git", "-C", str(start), "rev-parse", "--show-toplevel"], env=_MESSAGE_LOCALE
+    )
     if result.returncode != 0:
         if b"not a git repository" in result.stderr:
             return None

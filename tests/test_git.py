@@ -754,6 +754,28 @@ def test_fast_forward_names_files_that_local_changes_would_overwrite(
     assert git_repo.git("rev-parse", "main").strip() == tip
 
 
+def test_fast_forward_parses_git_output_in_a_pinned_locale(
+    git_repo, monkeypatch
+):
+    cfg = load_config(git_repo.coga_os)
+    git_repo.push_competing_commit("coga/log.md", "remote changes\n")
+    git_repo.git("fetch", "origin", "main")
+    new = git_repo.git("rev-parse", "origin/main").strip()
+    monkeypatch.setenv("LC_ALL", "de_DE.UTF-8")
+    real_run = git._run
+    merge_envs = []
+
+    def spy(argv, *, env=None, input=None):
+        if "merge" in argv:
+            merge_envs.append(env)
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", spy)
+
+    assert git.fast_forward_control(cfg, git_repo.root, new) is True
+    assert merge_envs == [git._MESSAGE_LOCALE]
+
+
 def test_publish_from_a_worktree_fast_forwards_the_main_checkout(git_repo, tmp_path):
     ticket = _seed_ticket(git_repo)
     worktree = tmp_path / "feature-worktree"
@@ -2093,11 +2115,11 @@ def test_summarize_git_failure_bounds_overwrite_paths(path_count, trailer):
     assert git.summarize_git_failure(raw) == expected
 
 
-def test_git_env_pins_the_message_locale(monkeypatch):
+def test_git_env_keeps_the_ambient_locale_unless_pinned(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_DE.UTF-8")
-    monkeypatch.setenv("LANG", "de_DE.UTF-8")
 
-    assert git._git_env()["LC_ALL"] == "C"
+    assert git._git_env()["LC_ALL"] == "de_DE.UTF-8"
+    assert git._git_env(git._MESSAGE_LOCALE)["LC_ALL"] == "C"
 
 
 def test_summarize_git_failure_dedupes_complete_overwrite_lists():
