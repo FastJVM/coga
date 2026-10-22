@@ -56,6 +56,7 @@ RESOURCE_NAMES: frozenset[str] = frozenset({
     "prompt-blocker-resolution.md",
     "prompt-megalaunch.md",
     "prompt-queue.md",
+    "prompt-ticket.md",
     "prompt.md",
     "retire.md",
 })

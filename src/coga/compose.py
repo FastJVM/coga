@@ -251,6 +251,19 @@ def compose_prompt_report(
         path=_override_path(base_path),
     ))
 
+    # 1b. Ticket loop — blackboard, bump, block. Only a task ticket has that
+    # lifecycle; a stateless bootstrap target finishes as its own ticket says,
+    # so composing these rules there would only be contradicted by it.
+    if not isinstance(task_ref, BootstrapRef):
+        loop_text, loop_path = _resource(cfg, "prompt-ticket.md")
+        layers.append(PromptLayer(
+            "ticket_loop",
+            "Ticket loop",
+            loop_text,
+            ref="prompt-ticket.md",
+            path=_override_path(loop_path),
+        ))
+
     # 2. Session conduct, selected by launch context. Exactly one, immediately
     # after the neutral base so the agent reads how to operate before any task
     # material. A missing resource is a ComposeError like any other dropped
