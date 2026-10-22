@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 77b39fad-c436-41dc-b65e-9e375206723d
 ---
 
 ## Description
@@ -125,102 +124,140 @@ branch: coga/keep-control-fast-forward-paths
 
 ## Implement handoff
 
-- Pushed commit `af0423e0fc106d70b2f684892a0c14d21c3b942d` on the recorded
-  branch. Returned this manual checkout to clean, current `main` before
-  writing this handoff. No PR opened; peer review is next.
-- `src/coga/git.py` `summarize_git_failure` now keeps the first 10
-  tab-indented paths with each overwrite-error heading and counts omitted
-  paths. It deduplicates complete messages, preserving different path lists
-  under the same heading. Advice/progress filtering and the unknown-error
-  fallback remain intact. `fast_forward_control` uses the richer summary.
-- Regression tests cover tracked/untracked real-Git refusals, unchanged local
-  files and control tip, quoted paths/spaces, truncation at EOF or before a
-  later error, and repeated headings with different file lists. The owning
-  state-publication topic and packaged twin document the output contract.
-- Before the fix, the focused command recorded below ran against uncommitted
-  regression tests: 9 failed, 2 passed, 223 deselected. Both real-Git cases
-  reproduced the missing `coga/log.md` path. The same selection passed after
-  the fix. SHA-256 comparisons verified the committed implementation files
-  matched the tested working tree.
-- Main advanced only in another ticket and `coga/log.md`; rebased cleanly and
-  reran the full suite on the resulting commit. Both runs passed with 3996
-  passed, 7 skipped. All seven skips require Windows. No known unresolved
-  implementation issue or adjacent bug was found. Independent review remains
-  for the next workflow step.
+- Original implementation: Codex launch `cdea37f1-2c2b-4096-bbe0-dbf19effc106`,
+  pushed as `af0423e0fc106d70b2f684892a0c14d21c3b942d` before review rebases.
+  The configured Claude agent did not implement this change.
+- Before the implementation fix, the focused selection reproduced the missing
+  path with 9 failures and 2 passes; after the fix, 11 passed. Both original
+  full-suite runs passed with 3996 passed and 7 Windows-only skips. These are
+  historical results; the final revision's receipts are under `## PR` below.
+
+## Peer review
+
+- **Completed** direct Codex review in launch
+  `8c655e81-195c-4cfc-8d17-107faa799647`. Final reviewed head:
+  `fc07de3b7cd9b55b1c621087a2cabaa640075199`; diff base:
+  `64c008fc2fa80a9f978cfb2f47af9779d6596c37`. Read the entire four-file diff, the
+  shared summary's callers, and the owning state-publication contract.
+  Recorded as **self-review** because Codex also authored the implementation
+  and review fix; the configured peer is not evidence of independence.
+- Fixed one correctness finding in `fc07de3b7`: Git emits
+  filename spaces literally, but stripping path lines changed filenames and
+  let a whitespace-only name end collection, hiding all following paths.
+  The parser now removes only Git's indentation tab. Added regression cases
+  for both overwrite headings and updated the canonical/packaged contract.
+- Red/green proof before the final rebase:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py -k summarize_git_failure_keeps_overwrite_paths -q`
+  failed with 2 failed, 232 deselected before the fix;
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py -k 'summarize_git_failure or fast_forward_names_files' -q`
+  then passed with 11 passed, 223 deselected. An initial suite was interrupted
+  when this finding surfaced. The complete replacement suite passed with
+  3996 passed, 7 skipped in 383.12s before the final rebase.
+- Freshened the branch twice as main advanced only in ticket/log state;
+  both rebases were clean. Re-reviewed the final diff and reran the full suite
+  on the final committed head: **3996 passed, 7 skipped in 375.58s**. Earlier
+  results above are historical, not re-stamped as final verification.
+  The final freshness fetch found only further updates to the unrelated
+  `blocks/08-trim-launch-prompt-and-workflow-topics` ticket and the log.
+  Inspected those deltas; the publisher's freshness check passed with
+  `state-only-drift`, preserving this exact tested and reviewed head/base.
+- Drove the actual stderr emitter using real Git refusals in a PTY at
+  **80x24 and 40x12**. At each size checked tracked, untracked, mixed lists
+  of 12 tracked plus 12 untracked files, and filenames with surrounding or
+  only spaces. The notes named `coga/log.md`, kept both headings and ten paths
+  per list, reported `(+2 more files)` for each longer list, and retained paths
+  after the whitespace-only name. All eight cases preserved local file bytes
+  and the main tip. Exact final commands are below.
+- No unresolved must-fix findings. Advisory recommendation: **skim**.
+  The branch is committed and pushed; this manual checkout is back on `main`.
+  This session did not open a PR. The next workflow step owns publication.
 
 ## PR
 
 ```yaml
 title: Keep blocking file lists in Git failure summaries
 author: codex
-author_evidence: >-
-  Implemented by the Codex assistant in this session (coga-launch
-  cdea37f1-2c2b-4096-bbe0-dbf19effc106), not the ticket's configured Claude agent.
-head: af0423e0fc106d70b2f684892a0c14d21c3b942d
-base: 24f3524b5c90d1b847b6d109d12ea0449bdfdf87
-depth: deep
-rationale: >-
-  Bounded diagnostic-only change with passing regression and full-suite checks;
-  independent review has not run and belongs to the next workflow step.
-implementation: >-
-  Keep up to 10 paths per overwrite refusal with their error heading and an
-  exact omitted count. Deduplicate complete messages and preserve the existing
-  actionable-error filtering and fallback. Document the operator-visible note.
-deviations: None.
-limitations: >-
-  Verified on Linux with Python 3.12.12. Seven Windows-only checks were skipped;
-  no separate Python 3.11 run was performed for this diagnostic-only change.
+author_evidence: Original implementation by Codex in launch cdea37f1-2c2b-4096-bbe0-dbf19effc106;
+  review fix by Codex in launch 8c655e81-195c-4cfc-8d17-107faa799647. The configured Claude
+  agent was not the implementer.
+head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+depth: skim
+rationale: The change affects only diagnostics. Direct Codex self-review completed, the filename-whitespace
+  finding is fixed, and the full suite and real terminal checks passed on the final revision.
+  Skim for the disclosed self-review and platform limits.
+implementation: Keep the first 10 tab-indented paths per overwrite refusal, preserving filename
+  spaces and association with the error heading, and report the exact omitted count. Deduplicate
+  complete messages while retaining different displayed file lists. Existing actionable-error
+  filtering and the unknown-error fallback remain intact.
+deviations: None. The review fix preserves the requested path list even when a filename contains
+  only spaces.
+limitations: Verified on Linux with Python 3.12.12. Seven Windows job-object and PowerShell
+  checks were skipped; no Python 3.11 run was performed. Both implementation and review used
+  Codex, so no independent review is claimed.
 files:
-  src/coga/git.py: Preserve bounded overwrite file lists in the shared Git failure summary.
-  tests/test_git.py: Cover real-Git refusals and bounded, associated, deduplicated path lists.
-  docs/contexts/coga/state-publication/SKILL.md: Document the refusal note's file-list contract.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Keep the shipped fallback identical to its canonical topic.
+  src/coga/git.py: Preserve bounded overwrite path lists, filename spaces, and their error headings
+    in the shared summary.
+  tests/test_git.py: Cover real tracked/untracked Git refusals, unchanged local state, whitespace,
+    bounds, grouping, and deduplication.
+  docs/contexts/coga/state-publication/SKILL.md: Document the operator-visible file-list and
+    omitted-count contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Keep
+    the packaged fallback byte-identical to its canonical topic.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent code review is the next workflow step; implement does not perform self-QA.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: 'Direct review completed on the final diff after fixes and rebase, including all four
+    paths, shared callers, and owning contracts. One correctness finding fixed: stripping filename
+    whitespace could drop the rest of the list. No unresolved must-fix findings.'
 checks:
-  - command: >-
-      PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py
-      -k 'summarize_git_failure or fast_forward_names_files' -q
-    status: passed
-    head: 1f031dca47097d0c0cf921faccf78ffc5e2a3296
-    base: 1ee371c66af6ec2473c934b49b2b057a16f8d71c
-    detail: >-
-      Historical pre-rebase focused run: 11 passed, 223 deselected in 0.49s.
-      Tested working-tree files were verified byte-identical to this commit.
-  - command: >-
-      PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest
-      > /tmp/coga-control-ff-pytest.log 2>&1
-    status: passed
-    head: 1f031dca47097d0c0cf921faccf78ffc5e2a3296
-    base: 1ee371c66af6ec2473c934b49b2b057a16f8d71c
-    detail: >-
-      Historical pre-rebase full run: 3996 passed, 7 skipped in 366.94s.
-      Tested working-tree files were verified byte-identical to this commit.
-  - command: >-
-      PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest
-      > /tmp/coga-control-ff-pytest-rebased.log 2>&1
-    status: passed
-    head: af0423e0fc106d70b2f684892a0c14d21c3b942d
-    base: 24f3524b5c90d1b847b6d109d12ea0449bdfdf87
-    detail: >-
-      Fresh full run after rebase: 3996 passed, 7 skipped in 345.70s.
-      Python 3.12.12; skips are Windows job-object and PowerShell integration.
-  - command: git diff --check origin/main...HEAD
-    status: passed
-    head: af0423e0fc106d70b2f684892a0c14d21c3b942d
-    base: 24f3524b5c90d1b847b6d109d12ea0449bdfdf87
-    detail: No whitespace errors in the committed feature diff.
-  - command: >-
-      cmp docs/contexts/coga/state-publication/SKILL.md
-      src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md
-    status: passed
-    head: af0423e0fc106d70b2f684892a0c14d21c3b942d
-    base: 24f3524b5c90d1b847b6d109d12ea0449bdfdf87
-    detail: Canonical and packaged context are byte-identical.
-  - command: coga validate --json
-    status: not-run
-    detail: No configuration, validation, task-model, prompt-composition, or workflow behavior changed; the seeded fixture needed no update.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest > /tmp/coga-control-ff-peer-pytest-rebased.log
+    2>&1
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: 3996 passed, 7 skipped in 375.58s. Full suite on the final committed head after rebase;
+    Python 3.12.12. All seven skips require Windows.
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python /tmp/coga-control-ff-peer-smoke.py
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: 'Eight real-Git smoke cases in a PTY: tracked, untracked, mixed 12+12 bounded lists,
+    and whitespace filenames at 80x24 and 40x12. Inspected stderr contained the expected paths
+    and omitted counts; local bytes and main tip stayed unchanged. The disposable harness uses
+    temporary repositories.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: No whitespace errors in the committed feature diff.
+- command: cmp docs/contexts/coga/state-publication/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: Canonical and packaged contexts are byte-identical.
+- command: 'PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python - <<''PY''
+
+    from coga.github_preflight import check_branch_contains_control
+
+    check = check_branch_contains_control(''origin'', ''main'', cwd=''/home/n/Code/codex/coga'',
+    coga_root=''/home/n/Code/codex/coga/coga'', head=''refs/heads/coga/keep-control-fast-forward-paths'')
+
+    print(check)
+
+    assert check.ok
+
+    PY'
+  status: passed
+  head: fc07de3b7cd9b55b1c621087a2cabaa640075199
+  base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+  detail: The publication freshness gate passed. Main advanced only in an unrelated ticket and
+    the log, with no overlap or material drift; the reviewed head and merge base remain unchanged.
+- command: coga validate --json
+  status: not-run
+  detail: No configuration, validation, task-model, prompt-composition, or workflow behavior
+    changed; the seeded fixture needed no update.
 ```
