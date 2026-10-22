@@ -1,6 +1,6 @@
 ---
 title: 09 Trim setup and extension topics
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6a193bc5-8e98-4265-ac69-ccff88600334
 ---
 
 ## Description
