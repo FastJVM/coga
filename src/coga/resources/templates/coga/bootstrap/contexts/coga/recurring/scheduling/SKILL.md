@@ -73,8 +73,7 @@ scope resolves this mismatch ([coga/install](../../install/SKILL.md)).
 The shipped `branch-sweep` template uses clone scope for local refs and
 worktrees; its [ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/branch-sweep/ticket.md)
 owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
-because ticket closure is shared state. This repo's `upstream-coga` is
-clone-scoped because it reads machine-local checkouts.
+because ticket closure is shared state.
 
 ## What a sweep does per template
 

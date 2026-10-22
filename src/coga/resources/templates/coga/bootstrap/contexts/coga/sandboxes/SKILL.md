@@ -39,8 +39,9 @@ description: "Operating agent sessions in restricted sandboxes: nested reviewers
   destination (the Codex grant below covers the Git common directory), then
   run the `coga run publish-state` recovery the report prints
   ([sweep](../state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
-- When `git worktree add` cannot write the primary `.git`, use the
-  independent-clone fallback in [coga/checkouts/sandbox-clone](../checkouts/sandbox-clone/SKILL.md).
+- When creating the feature branch fails because the primary `.git` is
+  read-only, use the independent-clone fallback in
+  [coga/checkouts/sandbox-clone](../checkouts/sandbox-clone/SKILL.md).
 
 ### Codex sandbox grant
 
