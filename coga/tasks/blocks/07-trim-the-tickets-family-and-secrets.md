@@ -1,6 +1,6 @@
 ---
 title: 07 Trim the tickets family and secrets
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
