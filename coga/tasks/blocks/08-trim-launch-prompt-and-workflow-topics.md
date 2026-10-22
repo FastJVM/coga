@@ -1,6 +1,6 @@
 ---
 title: 08 Trim launch, prompt and workflow topics
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge

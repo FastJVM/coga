@@ -9126,3 +9126,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 12:10 v1 [keep-the-file-list-when-a-control-fast-forward-ref] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-22 12:10 v1 [keep-the-file-list-when-a-control-fast-forward-ref] [megalaunch] launched via coga megalaunch
 2026-10-22 12:14 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] activated (blocked → active) — auto on launch
+2026-10-22 12:14 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] started (active → in_progress) via coga launch
