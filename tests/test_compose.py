@@ -335,7 +335,7 @@ def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> Non
 
 
 def test_coga_repo_instructions_carry_the_minimal_core_boundary() -> None:
-    """Both agents use the shared root guide (`coga/agents` and `coga-dev/packaging`)."""
+    """Both agents use the shared root guide (`coga/init` and `coga-dev/packaging`)."""
     repo_root = Path(__file__).resolve().parents[1]
     text = (repo_root / "AGENTS.md").read_text()
 

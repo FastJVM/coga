@@ -21,6 +21,8 @@ and the local state lock serializes only one checkout's writers.
 
 ## Guarantees and their pages
 
+- [Agent config](agent-config/SKILL.md): the key-level `[agents.*]`
+  merge, `default_agent` validation and freezing, and `peer` resolution.
 - [Agent spawn](agent-spawn/SKILL.md): every agent goes through
   `spawn_agent_session`; prompt-file delivery above 120,000 bytes; sentinel
   scoping and exit classification; missing file versus missing CLI.

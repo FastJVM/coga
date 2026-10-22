@@ -62,7 +62,6 @@ New tickets include a field guide from the
   at its owning topic.
 - Configuration: [coga.toml and local config](contexts/coga/configuration/SKILL.md),
   [directory layout](contexts/coga/context-layout/SKILL.md),
-  [agents](contexts/coga/agents/SKILL.md),
   [secrets](contexts/coga/secrets/SKILL.md).
 - Running work: [launch](contexts/coga/launch/SKILL.md),
   [script tickets](contexts/coga/script-tickets/SKILL.md),

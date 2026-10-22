@@ -7,7 +7,12 @@ default_status = "draft"
 
 # Optional: the agent type new tickets get when activated (and the fallback
 # for retire, autofix, and authoring). Unset, it's the first [agents.*]
-# table below. Set it in coga.local.toml to override it on one machine only.
+# table below. Set it in coga.local.toml to override it on one machine only
+# (local wins); either value must name a configured type or config load fails.
+# Activation writes it into the ticket's `agent:`, so changing it affects only
+# tickets activated afterwards. It does not move `coga chat` or `coga ticket`:
+# their packaged tickets pin `agent: claude`. Use `--agent` for either command;
+# `[authoring] agent` in coga.local.toml also selects the `coga ticket` interviewer.
 # default_agent = "claude"
 
 # Optional: the one operator who may run recurring sweeps in this repo.
@@ -18,7 +23,27 @@ default_status = "draft"
 # owner = "marc"
 
 # --- Agents ---
-# Agent types. Each defines the CLI binary and how to invoke it.
+# Agent types. Each defines the CLI binary and how to invoke it; a ticket's
+# `agent:` names one of these tables, and an undefined name fails loud.
+#
+#   cli          (required) executable to spawn; launch fails before writing
+#                any state when it is not on PATH.
+#   file         (required) the instruction file this CLI reads at the repo
+#                root (CLAUDE.md, AGENTS.md).
+#   mode         "local", the default and only mode.
+#   launch_args  extra argv tokens (one string, shell-split) placed right
+#                after `cli` in every interactive spawn: launch, megalaunch,
+#                `coga ticket` and `coga chat`. Not used by `analyze`.
+#   peer         the reviewer type an `other-agent` workflow step selects;
+#                see the commented example under [agents.claude].
+#
+# The other keys are explained beside their values below.
+#
+# These tables may also appear in coga.local.toml. A local table overrides
+# the shared one key by key (say, a different `cli` path) and inherits the
+# rest; a local-only table adds a type installed only on that machine. An
+# explicit local `launch_args = ""` clears a shared value.
+#
 # Removed headless-agent keys (`auto`, `skip_permissions`,
 # `skip_permissions_argv`) fail config load with a migration
 # error — delete those lines if upgrading from coga 0.2.0.
@@ -43,6 +68,14 @@ discussion = "--append-system-prompt {prompt}"
 # `claude` and `codex` have working built-in defaults, so this line only needs
 # writing for another CLI; without one, the loop skips loudly.
 # analyze = "-p {prompt}"
+# `peer` picks the reviewer for `other-agent` steps when this type is the
+# ticket's main agent. It must name another configured type, and it is
+# one-directional: it says nothing about who reviews codex's tickets. Unset,
+# "other" is the one configured type that is not the main agent, which needs
+# no setting with exactly two types; with three or more, set it or the
+# handoff fails asking for it. It is read from live config at each handoff, so
+# a `peer` in coga.local.toml changes the reviewer on that machine only.
+# peer = "codex"
 
 [agents.codex]
 cli = "codex"
@@ -51,9 +84,39 @@ mode = "local"
 discussion = "-c developer_instructions={prompt}"
 # Codex's shared app-server daemon runs shell commands with its own env, so
 # the `COGA_*` launch variables never reach the agent (bumps get credited to
-# a human and the done sentinel never fires); `--no-daemon` keeps them.
-# Remove only if your Codex predates the flag. See `coga/agents`.
+# a human, the stale-step guard is skipped, and the done sentinel never fires,
+# leaving the session open after its bump); `--no-daemon` runs the app server
+# in-process and keeps them. Disabling `daemon_auto_start` is not enough while
+# a daemon already runs. When this happens, launch prints a warning after the
+# session that the ticket moved without a done signal. Repos created before
+# this line shipped should add it, here or per machine in coga.local.toml.
+# Remove it only if your Codex predates the flag.
 launch_args = "--no-daemon"
+
+# --- Unattended runs ---
+# Optional, shared only (coga.local.toml rejects these tables).
+#
+# Recurring sweeps skip scheduled jobs once no human has committed for
+# `idle_days` days (default 14); `0` disables the gate. `--force` and named
+# launches bypass it.
+#   [recurring]
+#   idle_days = 14
+#
+# Liveness limits, in seconds, for agent sessions the recurring sweep starts
+# unattended; attended `coga launch` never reads them. `idle_timeout`
+# (default 900) ends a session with no terminal activity for that long; `max_session`
+# (default unlimited) caps its wall clock. `0` disarms either.
+# COGA_REPL_IDLE_TIMEOUT / COGA_REPL_MAX_SESSION override them per run.
+#   [launch]
+#   idle_timeout = 900
+#   max_session = 7200
+#
+# The agent type that analyzes a finished sweep and files fix tickets
+# (autofix). Unset, it's `default_agent`; `--agent` overrides it per run.
+# It must name a configured type; a type some clone declares only in its
+# coga.local.toml breaks the other clones.
+#   [autofix]
+#   agent = "codex"
 
 # --- Notification channels ---
 # Coga's notification system is the team sync point. It is optional on first

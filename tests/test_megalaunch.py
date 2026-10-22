@@ -189,7 +189,7 @@ def test_megalaunch_warns_when_ticket_changes_without_done_signal(
     if warns:
         assert f"Warning: {ref['slug']} changed from in_progress @ 1 (implement)" in err
         assert "to done during this session" in err
-        assert "coga/agents" in err
+        assert 'launch_args = "--no-daemon" under [agents.codex]' in err
 
 
 def test_megalaunch_does_not_warn_when_ticket_is_unchanged(

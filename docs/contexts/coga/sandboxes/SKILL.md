@@ -23,9 +23,10 @@ description: "Operating agent sessions in restricted sandboxes: nested reviewers
 - **A launched Codex session's shell may lack `COGA_*`.** Codex's shared
   app-server daemon runs shell commands with its own environment, so bumps
   get credited to a human and the done sentinel never fires. That is distinct
-  from the nested-CLI failure above. The remedy, `launch_args = "--no-daemon"`
-  under `[agents.codex]`, and the post-session warning are owned by
-  [coga/agents](../agents/SKILL.md#launch-environment-inheritance).
+  from the nested-CLI failure above. The remedy is
+  `launch_args = "--no-daemon"` under `[agents.codex]`, which the shipped
+  `coga.toml` sets and explains; launch warns after a session whose ticket
+  moved without a done signal.
 - State-changing commands (`create`, `bump`, `mark`) write in three places a
   sandbox can treat differently: the checkout files (ticket, log), Git's
   object database (`git hash-object -w`), and the index lock

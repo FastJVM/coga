@@ -123,8 +123,8 @@ def unsignalled_advance_warning(
         "no done signal. The agent's shell may have run without the COGA_* "
         "launch environment, which could credit its lifecycle commands to a "
         "human and skip the stale-step guard; a human or another session may "
-        "also have made the change. See coga/agents (launch_args, "
-        "environment inheritance)."
+        "also have made the change. For Codex, set launch_args = "
+        '"--no-daemon" under [agents.codex] in coga.toml.'
     )
 
 

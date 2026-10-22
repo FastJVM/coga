@@ -3660,7 +3660,7 @@ def test_launch_blocked_timeout_reblocks_unresolved_ask(
     assert "- [ ]" in read_blackboard(Path(ref["path"]))
 
 
-# --- unsignalled-advance advisory (coga/agents) ---------------------------------
+# --- unsignalled-advance advisory (coga-dev/internals/agent-spawn) -----------------
 
 _UNSIGNALLED = "but the supervisor saw no done signal"
 
@@ -3727,7 +3727,7 @@ def test_launch_warns_when_ticket_advances_without_done_signal(
             result.output
         )
         assert "to in_progress @ 3 (review)" in result.output
-        assert "coga/agents" in result.output
+        assert 'launch_args = "--no-daemon" under [agents.codex]' in result.output
     assert Ticket.read(Path(ref["path"])).step == "3 (review)"
 
 

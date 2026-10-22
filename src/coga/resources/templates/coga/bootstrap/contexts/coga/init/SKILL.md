@@ -66,7 +66,7 @@ Then init:
 6. Builds `coga/.agent-skills/` and symlinks `.claude/skills/coga` and
    `.codex/skills/coga` to it; adds a coga-managed block to the host
    `.gitignore`; writes `CLAUDE.md` and `AGENTS.md` only where missing
-   ([coga/agents](../agents/SKILL.md)).
+   ([instruction files](#instruction-files-and-skill-discovery)).
 7. Commits the new `coga/` (and any generated host files) and prints the
    SHA. Pushing is up to you.
 
@@ -88,8 +88,8 @@ install (`claude`, `codex`, or skip) and offers its install and login. When
 exactly one agent CLI is then on `PATH` and it is not the packaged default
 (`claude`), init asks whether to make it the default agent. On a yes it writes
 `default_agent = "<type>"` into the new `coga.toml` and leaves the
-`[agents.*]` table order alone (see
-[coga/agents](../agents/SKILL.md#the-default-agent)). It also repoints delivered
+`[agents.*]` table order alone (the `default_agent` comment in `coga.toml`
+explains the key). It also repoints delivered
 tickets that name the old default, such as the onboarding ticket's `agent:`.
 Both happen before the commit. If the edit would not parse back to the same
 config plus that one key, init skips it and prints a warning. A
@@ -121,6 +121,22 @@ offers as a fresh init, except that it never changes the default agent: the
 committed `coga.toml` is team config. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
 `coga uninstall`.
+
+## Instruction files and skill discovery
+
+Agent CLIs look for orientation at the repo root: Codex reads `AGENTS.md`;
+Claude Code reads `CLAUDE.md`, or `AGENTS.md` when no `CLAUDE.md` or
+`CLAUDE.local.md` exists in the working directory or above it (Claude Code
+v2.1.277 or later). A clone that keeps a `CLAUDE.local.md` must start it with
+`@AGENTS.md` or it loses the repo guide. Init writes both from one template
+only where missing and never overwrites a hand-edited guide. Keep
+compatibility with both names. `coga uninstall` removes unmodified guides
+and backs up edited ones.
+
+Skills reach agents through `coga/.agent-skills/`, a generated view of local
+plus bundled skills, which init symlinks into `.claude/skills/coga` and
+`.codex/skills/coga`. Both links and the view are gitignored, so each clone
+creates them with `coga init --user`. Launch also rebuilds the view.
 
 ## The operator's name
 

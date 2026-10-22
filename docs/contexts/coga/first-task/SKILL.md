@@ -64,7 +64,7 @@ work, records findings on the blackboard using its inline
 guidance, and finishes with `coga bump`.
 For a multi-step workflow such as `code/with-review`, the supervisor then
 starts the next agent step, rotating to the peer agent for review
-([coga/agents](../agents/SKILL.md)).
+([coga/workflows](../workflows/SKILL.md)).
 
 ## 3. Review and merge
 

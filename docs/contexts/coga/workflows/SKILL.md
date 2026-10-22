@@ -97,8 +97,9 @@ structural error, never a fallback: guessing could skip a human gate. Direct
 launch and megalaunch derive routing from the prepared activation before
 preflight or any durable write. Validation checks every frozen
 `other-agent` step against current config (`unresolvable-step-assignee`),
-using the prospective default agent for drafts. Agent configuration is
-[coga/agents](../agents/SKILL.md); how launch chains across role changes is
+using the prospective default agent for drafts. Agent types and `peer` are
+explained in the shipped `coga.toml` comments
+([coga/configuration](../configuration/SKILL.md)); how launch chains across role changes is
 [coga/launch](../launch/SKILL.md).
 
 ## Required at activation, not at draft
