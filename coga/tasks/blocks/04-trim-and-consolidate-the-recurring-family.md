@@ -1,6 +1,6 @@
 ---
 title: 04 Trim and consolidate the recurring family
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:749cf2bd-d6af-4c03-836d-9a2647cbe836
 ---
 
 ## Description
