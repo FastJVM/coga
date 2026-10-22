@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 749cf2bd-d6af-4c03-836d-9a2647cbe836
 ---
 
 ## Description
@@ -152,4 +151,110 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 branch: coga/blocks-04-recurring-trim
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Handoff (implement, 2026-10-21)
+
+Commit `5a314ff19` on `coga/blocks-04-recurring-trim` (pushed). No PR yet.
+
+What changed, per audit row (both twins byte-identical for every touched shipped topic):
+- `recurring/scheduling/ledger` + `recurring/scheduling/failures` merged into
+  `recurring/scheduling` (sections "Periods and the serviced-period ledger",
+  "Admission and unfinished runs", "Failures and exit code"); both leaves
+  deleted in both trees and dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`.
+  `scheduling` now **owns the serviced-period ledger**; `recurring`,
+  `period-task`, `templates`, `install` link to its anchor.
+- **Command list owner: `scheduling` "Variants"** (behavior); `recurring`'s
+  command table replaced by one sentence + link; flags → `--help`.
+- `scheduling`: clone deadline/truncation details/Windows job object → new
+  `coga-dev/internals/recurring-clone` (user summary kept); skew paragraph →
+  `coga/install` "CLI older than the templates it sweeps"; private names dropped
+  (`_order_for_launch`, `recurring.create_template`, `scan_clone_due`,
+  `RETRY_WITHOUT_SWEEP_EXIT_CODE`, `_record_abandoned_due`). `upstream-coga`
+  line was already gone on canonical (ticket 02).
+- Ledger backward-read/union-merge/`format_serviced_log` → `recurring-admission`
+  "Reading the serviced-period ledger".
+- `inactivity`: `_read_inactivity_fields`, ledger pre-pass, `is_machine_commit`
+  → `recurring-admission` "Inactivity gate ordering"; now names the
+  `[recurring] idle_days` key as commented in the shipped `coga.toml`
+  (ticket 01, PR #1080 adds that comment; text-only reference because the
+  coga.toml path differs per repo and links are test-checked) plus link to
+  `configuration`.
+- `autofix`: fd-tee, `parse_analysis`/`demote_headings`, codex stdin, auth
+  retry detail → new `coga-dev/internals/recurring-autofix`; known-gap
+  sentence about named-launch create-sync dropped (already owned by draft
+  `report-failed-create-syncs-from-named-recurring-la`).
+- `delegation`: "Why delegate" alternatives + Implementation names →
+  `recurring-admission` "Why delegation rather than a nested launch"; generation
+  guards summarized + link.
+- `templates`: PR #857 / test pin / "Shipped templates in the Coga source repo"
+  → `coga-dev/packaging`; "Weekly usage battery" deleted (phone-home ticket and
+  `coga/edge-code` own it; no inbound anchor links); gains the fence-aware
+  Python blackboard API from `period-task`.
+- `period-task` (auto-attached): private name, ledger restatement, Python API
+  and digest-writer anecdote removed (anecdote → `coga-dev/codebase/gotchas`).
+  70 → 60 lines.
+- New coga-dev pages listed in `coga-dev/internals/SKILL.md` and in
+  `recurring`'s Internals line. `docs/README.md` and `architecture` map updated.
+
+Decisions / for the owner:
+- `scheduling` is now 188 lines / ~2,860 tokens, over the 2,500-token review
+  line. Recorded exception: the ticket requires the merge; the family shrank
+  (233 → 188 lines for the three files). A future split would re-create the
+  leaves this ticket removed, so not done.
+- Auth-retry kept as one user line in `autofix` (operators see the announced
+  retry); full conditions in coga-dev.
+
+Verification: see `## PR` checks. Pre-existing failure, not caused here:
+`test_live_and_packaged_copies_stay_identical` fails on main because tickets
+02/03's canonical edits (checkout-cleanup, checkouts, lifecycle, cli, code,
+knowledge, …) were swept to main ahead of their packaged twins (PR #1081 et
+al.). None of the drifted pairs is in this ticket's family.
+
+Reconcile notes: PR #1081 (ticket 02) edits the packaged
+`scheduling` and `scheduling/failures` twins; this branch rewrites/deletes
+them, so whichever merges second resolves by taking this branch's content
+(02's edits are already reflected). Ticket 09 also edits `install`.
+
+## PR
+
+```yaml
+title: Trim the recurring topics and merge the scheduling leaves
+author: claude (claude-opus-5-5), implement step, megalaunch queue session
+head: 5a314ff1917747d94ed464435a089e0a719e5a77
+base: 383d634618da7bb65809ea213382305f6361216d
+review_depth: skim
+review_depth_rationale: Documentation-only restructuring of shipped context topics plus one test list edit; no Python behavior change. Reviewer should check that no user-needed fact was lost from the moved paragraphs and that links/anchors resolve.
+implementation: Merge scheduling/ledger and scheduling/failures into scheduling; trim recurring, period-task, templates, delegation, autofix, inactivity per the blocks audit; move internals to coga-dev (new internals/recurring-clone, internals/recurring-autofix; recurring-admission, packaging, codebase/gotchas extended); skew paragraph to coga/install.
+deviations: Auth-retry kept as one user-facing line in autofix; scheduling exceeds the 2,500-token review line by design (ticket-mandated merge).
+limitations: Inactivity names the coga.toml idle_days comment that PR #1080 adds; text is accurate only after #1080 merges.
+files:
+  docs/contexts/coga/recurring/scheduling/SKILL.md: absorbs ledger and failures; owns ledger and command variants; clone internals and skew paragraph out
+  docs/contexts/coga/recurring/scheduling/ledger/SKILL.md: deleted (merged)
+  docs/contexts/coga/recurring/scheduling/failures/SKILL.md: deleted (merged; known gaps already ticketed)
+  docs/contexts/coga/recurring/SKILL.md: command table and source-file list out; leaf map updated
+  docs/contexts/coga/recurring/scheduling/inactivity/SKILL.md: private names out; idle_days pointer
+  docs/contexts/coga/recurring/autofix/SKILL.md: spawn/parse internals out; known-gap sentence dropped
+  docs/contexts/coga/recurring/delegation/SKILL.md: rejected alternatives and implementation names out
+  docs/contexts/coga/recurring/templates/SKILL.md: PR/test history, Coga-repo section, phone-home section out; gains blackboard API
+  docs/contexts/coga/period-task/SKILL.md: auto-attached; anecdote, API, ledger restatement, private name out
+  docs/contexts/coga/install/SKILL.md: gains CLI-older-than-templates troubleshooting
+  docs/contexts/coga/architecture/SKILL.md: topic map wording
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/**: byte-identical twins of the above
+  docs/contexts/coga-dev/internals/recurring-clone/SKILL.md: new; clone run internals
+  docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md: new; analyst internals
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: ledger read, inactivity ordering, delegation rationale
+  docs/contexts/coga-dev/internals/SKILL.md: lists the new pages
+  docs/contexts/coga-dev/packaging/SKILL.md: shipped recurring template rules
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: digest-writer anecdote
+  docs/README.md: index without removed leaves
+  tests/test_packaging.py: drop the two merged refs from REQUIRED_BOOTSTRAP_CONTEXT_REFS
+review: not run (implement step; peer-review is next)
+checks:
+  - command: .venv/bin/python -m pytest -q
+    head: 5a314ff1917747d94ed464435a089e0a719e5a77
+    result: 3 failed, 3952 passed, 7 skipped
+    note: The 3 failures (test_live_and_packaged_copies_stay_identical, test_context_distribution_is_complete, test_context_navigation_has_no_broken_links) fail identically on origin/main 383d63461 (tests/test_packaging.py, 3 failed 27 passed in a clean worktree); causes are tickets 02/03 drift (coga/code, checkout-cleanup, ...), none in this family.
+  - command: coga validate --json
+    head: 5a314ff1917747d94ed464435a089e0a719e5a77
+    result: exit 0, 47 warnings (pre-existing stale/idle tickets), no errors
+```

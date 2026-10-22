@@ -8977,3 +8977,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 17:14 v1 [blocks/04-trim-and-consolidate-the-recurring-family] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-21 17:14 v1 [blocks/04-trim-and-consolidate-the-recurring-family] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-21 17:14 v1 [blocks/04-trim-and-consolidate-the-recurring-family] [megalaunch] launched via coga megalaunch
+2026-10-21 17:27 v1 [blocks/04-trim-and-consolidate-the-recurring-family] [agent:claude] advanced to step 2 (peer-review) → codex — Recurring family trimmed; scheduling absorbs ledger+failures. 3 packaging test failures pre-exist on main (tickets 02/03).
