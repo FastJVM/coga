@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -149,8 +149,8 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 ## Handoff (implement, 2026-10-21)
 
-Done on `coga/blocks-08-trim-launch-prompt-workflow` (commit `c936fa924`,
-pushed; based on `c6ded3318`). Every README row for this ticket applied:
+Done on `coga/blocks-08-trim-launch-prompt-workflow` (commits `f245d49a7`
++ `2a5c0f6c3`, pushed; based on main `64c008fc2`). Every README row for this ticket applied:
 
 - `session-conduct` merged into `prompt-composition` ("Session conduct":
   selection table + override note; postures stay in the `prompt-*.md`
@@ -179,19 +179,16 @@ pushed; based on `c6ded3318`). Every README row for this ticket applied:
 Not changed: `docs/release-notes/context-audiences.md` names `existing-pr` in
 a dated rename table (text, not a link).
 
-### Main is red independent of this ticket
+### Rebase after blocks/02 landed (2026-10-22)
 
-Commit `001aad66f` ("Sync coga state") swept ticket 02's `docs/contexts`
-edits onto main without their packaged twins (deleted `coga/code` live only;
-architecture, checkouts, scheduling, cli, ... drift). On main and on this
-branch, 3 packaging tests fail for those paths only:
-`test_live_and_packaged_copies_stay_identical`,
-`test_context_distribution_is_complete`,
-`test_context_navigation_has_no_broken_links`. Every topic this ticket owns
-is byte-identical. They clear when
-`blocks/02-delete-the-code-topic-and-remove-coga-repo-only` lands its
-packaged side. Lesson: commit `docs/contexts` edits on the branch before any
-sweeping `coga` command.
+The blocker (main red from ticket 02's half-published twins) cleared when
+PR #1081 merged; unblocked and rebased onto `64c008fc2`. Conflicts were
+four coga-dev internals pages that main also extended (`internals/SKILL.md`
+index, `agent-spawn` description, `git-refresh`, `launch-claims`): kept both
+sides. Ticket 01's `coga/agents` -> `coga/configuration` change pushed
+`workflows` to 160 lines; commit `2a5c0f6c3` rewraps that sentence (both
+copies) back to 159. Suite now green. Lesson kept: commit `docs/contexts`
+edits on the branch before any sweeping `coga` command.
 
 ## PR
 
@@ -199,13 +196,13 @@ sweeping `coga` command.
 title: Trim launch, prompt, lifecycle, workflow and PR topics
 author: claude
 author_evidence: Implement session ran in Claude Code (claude-opus-5-5); see handoff above.
-head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
-base: c6ded33184c4c427cf0615171b86d796b378318b
+head: 2a5c0f6c3a9111a6cb0054a205f1638f2a3fdbf1
+base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
 depth: skim
 rationale: Documentation-only moves plus one code comment; read the description for which facts left the shipped topics and where they went.
 implementation: Applies the blocks/08 audit rows; merges session-conduct into prompt-composition and existing-pr into pr-publication; moves internals to coga-dev pages (new internals/compose).
 deviations: Launch's Python API went to internals/agent-spawn (no dedicated launch page exists). Workflows' dated decisions went to coga-dev current-direction.
-limitations: Full suite has 3 packaging failures inherited from main (ticket 02's half-published twins), not from this diff.
+limitations: None known.
 files:
   coga/skills/code/open-pr/SKILL.md: Repoint existing-pr link to pr-publication.
   src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Packaged twin of the open-pr skill link fix.
@@ -253,15 +250,20 @@ review:
   detail: Review is the workflow's later step; not yet run.
 checks:
   - command: .venv/bin/python -m pytest -q
-    status: failed
-    head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
-    base: c6ded33184c4c427cf0615171b86d796b378318b
-    detail: 3 failed, 3952 passed, 7 skipped; all 3 are the packaging failures already present on main from ticket 02's half-published twins.
+    status: passed
+    head: f245d49a77db41e7090ccdda94fef82fa720ebbc
+    base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+    detail: 3987 passed, 7 skipped. Head 2a5c0f6c3a9111a6cb0054a205f1638f2a3fdbf1 adds only a one-sentence rewrap in both workflows copies, covered by the packaging run below.
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py
+    status: passed
+    head: 2a5c0f6c3a9111a6cb0054a205f1638f2a3fdbf1
+    base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+    detail: 30 passed.
   - command: .venv/bin/coga validate --json
     status: passed
-    head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
-    base: c6ded33184c4c427cf0615171b86d796b378318b
-    detail: Exit 0; 151 ok, 47 issues, none errors.
+    head: f245d49a77db41e7090ccdda94fef82fa720ebbc
+    base: 64c008fc2fa80a9f978cfb2f47af9779d6596c37
+    detail: Exit 0; 158 ok, 48 issues, none errors.
 ```
 
 ## Dev
