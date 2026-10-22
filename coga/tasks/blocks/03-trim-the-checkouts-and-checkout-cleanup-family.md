@@ -332,4 +332,5 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-10-21 17:14] [agent:codex] id=20261021T171440 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only before advancing this peer review: the required suite still has three pre-existing packaging failures covered by that PR. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts. Both change-specific review findings are fixed; validation passes.
+- [x] [2026-10-21 17:14] [agent:codex] id=20261021T171440 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only before advancing this peer review: the required suite still has three pre-existing packaging failures covered by that PR. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts. Both change-specific review findings are fixed; validation passes.
+  resolved: [2026-10-21 21:17] [human:nicktoper] PR #1081 has merged (a1a3f5049b5dd2457f531a4d81b79b6a6425bb9f). The attending human confirmed clearing this blocker and continuing: rebase the pushed branch onto current main, rerun the full suite and validation, and refresh the final peer-review and PR receipts before advancing.
