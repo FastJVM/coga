@@ -149,6 +149,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1087
 branch: blocks/07-trim-tickets-secrets
 
 ## Implement handoff (2026-10-21)
