@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -150,98 +150,101 @@ branch: coga/blocks-05-trim-the-notifications-family
 
 ## Implementation
 
-Claude Code / Claude Opus 5.5 implemented the audit in `db0ef105b` (rebased
-to `78f581157`). The notifications, producers and important topics are
-trimmed; failures is split into the user summary and local internals; Slack
-configuration lives in shipped TOML comments. The new internals topic is
-indexed and the deleted topic's registration and non-ticket links are removed.
-No disagreement with the audit. The repo-specific usage-report exception and
-its rationale remain in the local developer topic.
+Claude Code / Claude Opus 5.5 implemented the audit in `db0ef105b`, now
+rebased as `7ef1c3a2d`. Notification topics are trimmed; the failures topic is
+split between the user summary and local internals; Slack configuration lives
+in shipped TOML comments. The new internals page is indexed and removed-topic
+links and registration are repaired. No audit disagreement. Codex's earlier
+review corrections are `d817f2ac3`; the packaged-template sync is `c18575a28`.
 
 ## Peer review
 
-**Direct review completed** by Codex in this fresh peer session, independently
-of Claude's implementation. The complete final diff covers head
-`b5668d59a8800e676e420761ac7a43931a1a145c` against base `13b702f1770b7b47c5bdbdd74cfb8589346bb891`.
-The branch was unconditionally rebased onto fetched main before review;
-the final freshness fetch found no further movement. Codex applied the fixes
-in `b5668d59a`, then re-read the final diff and self-checked those corrections.
-No nested reviewer CLI or subagent ran.
+**Direct review completed** by Codex on final head `c18575a282a151b8d83c41d8a36b82fd8f7d5a05`
+against base `293ea3f29abd1b9d9678a426132a7e0d47a3554b`. No unresolved findings.
+Codex independently reviewed Claude's original implementation and self-reviewed
+its own corrections, rebase resolutions and the two template syncs. The
+combined receipt is therefore self-review. No nested reviewer CLI or subagent ran.
 
-Fixed findings:
+The owner cleared the blocker after PR #1081 merged as `a1a3f5049`;
+`coga unblock` recorded the resolution. Rebased onto current main, preserving
+main's usage-pricing index entry and this family's canonical important-topic
+cleanup. The projected ticket was backed up and restored byte-for-byte; the
+unblock audit entry was already published before rebase.
 
-- The condensed failure section overstated preflight coverage and lost the
-  explicit-send failure outcome. It now distinguishes `coga slack` exit 1,
-  best-effort announcements after writes, and the named pre-write gates;
-  it notes the log exception through the producer inventory.
-- Repointing sync's numbered developer procedure made a shipped instruction
-  require an unshipped topic. The procedure now lives in
-  `coga-dev/patterns#sync-for-new-commands`; sync keeps optional navigation.
-  This pulls forward that one passage from the blocks/06 audit scope.
-- Completed the configuration-owner cleanup by removing the remaining
-  owner-map setup duplication; kept the `pinging-the-owner` anchor and the
-  repo-specific report decision's rationale.
+Earlier review corrections remain: distinguish explicit-send failure from
+best-effort post-transition announcements and name the actual pre-write gates;
+move sync's developer procedure into coga-dev/patterns so shipped guidance
+requires only user knowledge; remove duplicate owner-map setup while preserving
+its anchor and the usage-report decision's rationale.
 
-The original implementation and the fixes were checked against notification
-dispatch, Slack failure/redaction code, preflight callers, config parsing,
-and validate probing. No remaining change-specific finding. No live Slack or
-TTY exercise was applicable because this diff changes documentation/comments
-and the packaging registry, not rendered messages or interactive behavior.
+The first resumed suite at `d817f2ac3` completed with **2 failed, 3985 passed,
+7 skipped in 373.93s**. Only `test_autoclose_live_and_packaged_copies_stay_in_sync`
+and `test_live_and_packaged_copies_stay_identical` failed. Main's `ee50b4ba4`
+had published live autoclose/branch-sweep template links without their packaged
+twins. Commit `c18575a28` carries the exact two-template sync already approved
+for PR #1084. Both corrected templates now match their live copies.
 
-Verification on the final head (Python 3.12.12):
+Reviewed all 19 final diff paths and the user/developer split against dispatch,
+redaction, preflight callers, configuration parsing, validation and producers.
+Four surviving topic pairs match, both failures copies are absent, the new
+internals page is indexed, and live navigation has no removed topic/anchor
+references. Old tickets and audit prose remain under the group's exclusion.
+No Slack-rendering or terminal exercise applies: executable UI and message
+formats are unchanged.
 
-- `.venv/bin/python -m pytest -q`: **3 failed, 3952 passed, 7 skipped in 356.79s (0:05:56)**.
-  Failures are `test_live_and_packaged_copies_stay_identical`,
-  `test_context_distribution_is_complete`, and
-  `test_context_navigation_has_no_broken_links` in `tests/test_packaging.py`.
-- `coga validate --json`: exit 0, 151 checks OK, **0 errors / 47 warnings**.
-- `.venv/bin/python /tmp/coga-blocks05-doc-audit.py`: four touched twin pairs
-  identical, both failures copies deleted, no notification link errors across
-  361 non-archive/non-task Markdown sources, no new global navigation or
-  distribution errors, no prohibited shipped developer refs, and identical
-  parsed TOML settings. Old task prose/audit mentions were inspected and kept
-  under the group's old-ticket exception.
-- `git diff --check main...HEAD`: passed.
-- An unchanged detached main clone at `13b702f1770b7b47c5bdbdd74cfb8589346bb891` reproduces all three
-  packaging failures (3 failed in 8.59s; exact command in the PR receipts).
-  Remaining drift is 14 unrelated twin pairs plus the coga/code package,
-  required-context entry, and three dangling links. Open PR #1081 contains
-  those repairs. Baseline log: `/tmp/coga-blocks05-main-packaging.log`.
+Verification on the final head/base above (Python 3.12.12):
 
-The reviewed branch is committed and pushed, but the required suite is not
-green. **Do not bump yet.** Dependency:
-`blocks/02-delete-the-code-topic-and-remove-coga-repo-only` / PR #1081.
-After it merges, rebase this branch, preserve this family's important-topic
-cleanup in any overlap, recheck twins and the final diff, rerun the suite and
-validation, and refresh these receipts before advancing. The current review
-completed; any later head/base needs a new receipt.
+- `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q`:
+  **3987 passed, 7 skipped in 365.12s (0:06:05)**.
+- `PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json`:
+  **156 OK, 0 errors, 48 warnings, 0 fixes**, exit 0.
+- `.venv/bin/python /tmp/coga-blocks05-resumed-review-rbw6mdpi/doc_audit.py`:
+  passed; no enforced twin drift, navigation/distribution errors or prohibited
+  shipped developer references; parsed TOML unchanged; 360 Markdown sources checked.
+- Pristine-clone wheel build and `.venv/bin/python /tmp/coga-blocks05-resumed-review-rbw6mdpi/verify_wheel.py`:
+  passed; changed resources match and removed/local-only topics do not ship.
+- `git diff --check origin/main...HEAD`: passed.
+
+The branch is committed and pushed with `--force-with-lease` at `c18575a28`,
+three commits ahead of main. The final freshness fetch still names the reviewed
+base. Coga's read-only PR formatter accepts the 19-path preparation without
+evidence gaps. Only this projected ticket remains unstaged; no PR was opened
+in this step.
+
+Recommendation: **skim** for the pulled-forward blocks/06 sync procedure and
+the two previously approved packaged-template syncs. No Python 3.11 run was
+performed. The required review and verification are complete; open-pr is next,
+and launch owns returning the checkout after the transition.
 
 ## PR
 
 ```yaml
 title: Trim notification topics and separate user guidance from internals
-author: claude
-author_evidence: The implementation handoff and original commit db0ef105b identify Claude Code / Claude
-  Opus 5.5. That commit rebased to 78f581157. Codex independently reviewed it in this session and authored
-  the review corrections in b5668d59a.
-head: b5668d59a8800e676e420761ac7a43931a1a145c
-base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-depth: deep
-rationale: 'The documentation changes are bounded and directly reviewed, but the mandatory full suite
-  still fails three packaging checks reproduced on unchanged main. PR #1081 must land and this branch
-  must be reconciled and reverified before this step can advance.'
-implementation: Trim notifications, producers, and important; replace notifications/failures with a user
-  summary and local notification internals; centralize Slack setup in shipped TOML comments; repair links
-  and twins. Review fixes clarify explicit-send versus post-transition failure behavior and move sync
-  implementation instructions into coga-dev/patterns.
-deviations: No audit disagreement or runtime behavior change. The sync design-rule move scheduled for
-  the blocks/06 family was pulled forward because repointing its required reading to unshipped internals
-  would violate the audience boundary. Old ticket prose and audit history remain outside the link cleanup,
-  as the group instructions allow.
-limitations: 'Blocked on blocks/02-delete-the-code-topic-and-remove-coga-repo-only (PR #1081), which owns
-  main packaging drift and the leftover coga/code registration/links. No live Slack send or interactive
-  TTY check was needed: runtime messages and terminal behavior are unchanged. Tests ran on Python 3.12.12;
-  no Python 3.11 run is claimed.'
+author: claude/codex
+author_evidence: The implement handoff identifies Claude Code / Claude Opus 5.5 as author of db0ef105b,
+  now rebased as 7ef1c3a2d. Codex independently reviewed that implementation and authored the earlier
+  corrections b5668d59a, now d817f2ac3. This resumed Codex session resolved the rebase and authored the
+  two packaged-template syncs in c18575a28.
+head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+depth: skim
+rationale: 'Bounded documentation reorganization with no runtime behavior change. Direct review completed
+  and the full suite, validation, twin/link audit and pristine wheel checks passed on this head. Read
+  the pulled-forward sync procedure and the two packaged-template syncs already approved for PR #1084.
+  Codex corrections and reconciliation are disclosed as self-review.'
+implementation: Trim notifications, producers and important; replace notifications/failures with an accurate
+  user failure summary and indexed local developer internals. Centralize Slack configuration in shipped
+  TOML comments, repair navigation and keep twins identical. Clarify explicit-send versus post-transition
+  failure behavior and move the sync implementation procedure to coga-dev/patterns. Synchronize two packaged
+  recurring templates with their existing live copies.
+deviations: 'No audit disagreement or runtime behavior change. The sync design procedure planned for blocks/06
+  was pulled forward so shipped guidance does not require local-only developer reading. Two recurring-template
+  link syncs already approved for PR #1084 are included to repair main’s pre-existing twin failures; they
+  are byte-identical to that PR’s fixes. Old ticket prose and audit history remain under the group’s exclusion.'
+limitations: 'Python 3.12.12 was tested; no Python 3.11 run is claimed. No live Slack or TTY exercise
+  applies because executable UI and rendered messages are unchanged. Codex independently reviewed the
+  original Claude implementation and self-reviewed Codex corrections, rebase resolutions and template
+  syncs; no separate reviewer covered those corrections. PR #1081 is merged and included.'
 files:
   docs/README.md: Remove the deleted notifications/failures navigation entry.
   docs/contexts/coga-dev/internals/SKILL.md: Index the new notification internals owner.
@@ -274,56 +277,63 @@ files:
   src/coga/resources/templates/coga/coga.toml: Own the moved Slack configuration comments without changing
     parsed settings.
   tests/test_packaging.py: Remove the retired failures topic from required bootstrap contexts.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: 'Synchronize checkout-cleanup
+    links with the live template already on main, using the exact fix previously approved for PR #1084.'
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: 'Synchronize checkout-cleanup links
+    with the live template already on main, using the exact fix previously approved for PR #1084.'
 review:
   reviewer: codex
-  kind: independent
+  kind: self
   status: passed
-  head: b5668d59a8800e676e420761ac7a43931a1a145c
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: Direct review completed on the final diff after rebase and fixes. Codex was independent of the
-    Claude implementation; Codex applied and self-checked its review corrections. Failure-summary accuracy
-    and a shipped procedure requiring local developer reading were fixed; the remaining owner-mapping
-    setup duplicate was removed and the usage-report rationale preserved. No unresolved change-specific
-    finding. The mandatory test failure is separately recorded and blocks advancement. No nested reviewer
-    CLI or subagent was used.
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: Direct review completed on the final head/base with no unresolved findings. Independent review
+    of the Claude implementation, plus self-review of Codex corrections, rebase resolutions and the template
+    syncs. Checked the audit verdicts and moved contracts against notification dispatch, redaction, preflight
+    callers, config parsing, validation and producers; reviewed all 19 diff paths, navigation and twins.
+    No nested reviewer CLI or subagent ran.
 checks:
-- command: .venv/bin/python -m pytest -q
-  status: failed
-  head: b5668d59a8800e676e420761ac7a43931a1a145c
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: 'Python 3.12.12: 3 failed, 3952 passed, 7 skipped in 356.79s (0:05:56). Only the three packaging
-    tests listed in Peer review fail; baseline reproduction confirms they predate this branch. Log: /tmp/coga-blocks05-peer-pytest.log.'
-- command: coga validate --json
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
   status: passed
-  head: b5668d59a8800e676e420761ac7a43931a1a145c
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: Exit 0; 151 checks OK, 0 errors, 47 existing warnings (20 stuck-in-progress, 19 unfrozen-workflow,
-    7 empty-description, 1 large-blackboard).
-- command: .venv/bin/python /tmp/coga-blocks05-doc-audit.py
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: 'Python 3.12.12: 3987 passed, 7 skipped in 365.12s (0:06:05). Completed after the final sync
+    commit. Log: /tmp/coga-blocks05-resumed-review-rbw6mdpi/pytest-final.log.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json
   status: passed
-  head: b5668d59a8800e676e420761ac7a43931a1a145c
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: Four surviving touched context pairs are byte-identical; both failures copies are absent; all
-    361 scanned Markdown sources outside archives/tasks/log have no notification link errors; no new global
-    navigation or distribution errors; shipped developer-reference check passes; parsed TOML values are
-    unchanged. Task-reference scan found only existing task instructions/history and the family audit,
-    excluded by scope.
-- command: git diff --check main...HEAD
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: 'Exit 0: 156 OK, 0 errors, 48 warnings, 0 fixes; warnings concern existing ticket state.'
+- command: .venv/bin/python /tmp/coga-blocks05-resumed-review-rbw6mdpi/doc_audit.py
   status: passed
-  head: b5668d59a8800e676e420761ac7a43931a1a145c
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: No whitespace errors on the complete reviewed branch diff.
-- command: PYTHONPATH=/tmp/coga-blocks05-main-review-13b702f17/src /home/n/Code/claude/coga/.venv/bin/python
-    -m pytest -q tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_distribution_is_complete
-    tests/test_packaging.py::test_context_navigation_has_no_broken_links
-  status: failed
-  head: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
-  detail: 'Baseline-only reproduction in an unchanged detached clone of main: the same 3 packaging tests
-    fail in 8.59s. This is evidence of pre-existing failures, not verification of the feature head.'
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: Four surviving topic pairs and both recurring-template pairs are byte-identical; both failures-topic
+    copies are absent. Across 360 Markdown sources outside archives/tasks/log, no notification link errors;
+    no global context navigation or distribution errors, no enforced twin drift, and no prohibited shipped
+    developer references. Parsed TOML settings are unchanged. The new developer topic is indexed. Old
+    task references were inspected and retained under the group’s exception.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: No whitespace errors on the final branch diff.
+- command: /home/n/Code/claude/coga/.venv/bin/python -m pip wheel --no-build-isolation --no-deps . -w
+    /tmp/coga-blocks05-resumed-review-rbw6mdpi/wheels
+  status: passed
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: Built coga-0.4.1-py3-none-any.whl successfully in a pristine clone at /tmp/coga-blocks05-resumed-review-rbw6mdpi/clean
+    of this exact head. The clone was created with git clone --quiet --no-hardlinks --single-branch --branch
+    coga/blocks-05-trim-the-notifications-family /home/n/Code/claude/coga /tmp/coga-blocks05-resumed-review-rbw6mdpi/clean.
+- command: .venv/bin/python /tmp/coga-blocks05-resumed-review-rbw6mdpi/verify_wheel.py
+  status: passed
+  head: c18575a282a151b8d83c41d8a36b82fd8f7d5a05
+  base: 293ea3f29abd1b9d9678a426132a7e0d47a3554b
+  detail: Pristine clone remains clean. Wheel contains byte-identical copies of the four changed user
+    topics, the two corrected recurring templates and the shipped TOML. The retired failures topic, all
+    local-only developer contexts and build-state directories are absent.
 ```
-
----
 
 ## Blockers
 

@@ -9057,3 +9057,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 21:54 v1 [blocks/05-trim-the-notifications-family] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-21 21:54 v1 [blocks/05-trim-the-notifications-family] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-10-21 21:55 v1 [blocks/05-trim-the-notifications-family] [human:nicktoper] unblocked (asks resolved, still in_progress): The owner confirmed clearing this dependency blocker and resuming review. PR #1081 merged as a1a3f5049b5dd2457f531a4d81b79b6a6425bb9f and is present on fetched origin/main. Rebase the branch, preserve notification cleanup through overlaps, rerun the full suite and validation, and refresh final review receipts before bumping.
+2026-10-21 22:13 v1 [blocks/05-trim-the-notifications-family] [agent:codex] advanced to step 3 (open-pr) → claude
