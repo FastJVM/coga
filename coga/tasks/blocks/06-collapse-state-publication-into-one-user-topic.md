@@ -1,6 +1,6 @@
 ---
 title: 06 Collapse state publication into one user topic
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:ad587c34-ac7f-4a6f-92c9-986bccf786ad
 ---
 
 ## Description
