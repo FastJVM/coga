@@ -60,7 +60,8 @@ strict=False, command=None)` publishes one task plus the log; `sync_log(cfg, *, 
 publishes the log alone with `require_paths` naming that log (stateless launches,
 usage records). It preserves `publish`'s `True`/`False` distinction for newly
 published versus already-held state and returns `None` on a reported failure
-or soft-skip. Failures remain stderr-only; `spawn_agent_session` checks for
+or soft-skip. Failure recovery names the retained log as a required path.
+Failures remain stderr-only; `spawn_agent_session` checks for
 `None` to add the [session-end warning](../../../../coga/state-publication/SKILL.md#when-coga-publishes).
 `sync_coga_state(cfg)` is the sweep.
 

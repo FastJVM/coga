@@ -262,7 +262,7 @@ def sync_log(cfg: Config, *, message: str) -> bool | None:
     except GitError as exc:
         sys.stderr.write(sync_failure_report(
             cfg, exc, message=message, label="log sync failed",
-            retained="The local log was retained",
+            retained="The local log was retained", recovery_paths=[path],
         ))
         return None
 

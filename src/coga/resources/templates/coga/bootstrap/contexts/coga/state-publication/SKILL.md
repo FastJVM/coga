@@ -127,8 +127,10 @@ the same checkout, once Git can write where the failure said it was writing
 (including an external object directory). The failure report names the
 command, run from the Coga root it prints: `coga run publish-state <ticket
 file> <log>` after task sync (a directory-form task names its `ticket.md`),
-or the no-path form after the sweep, log-only sync, or a deletion (a deleted
-path is not a valid argument, but the recipe publishes it anyway). It adds no
+`coga run publish-state <log>` after log-only sync, or the no-path form after
+the sweep or a deletion (a deleted path is not a valid argument, but the
+recipe publishes it anyway). Requiring the retained log prevents an ignored
+file from being silently skipped again by recovery. It adds no
 transition, an immediate repeat is a no-op (`already on`), and while access
 is still denied it exits 1 with the files kept. Coga never changes
 permissions, sandbox configuration, Git environment routing, or object

@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import itertools
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
@@ -1893,6 +1895,23 @@ def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
     assert "excluded from publication" in err
     assert _global_log(cfg) == before
     assert not git_repo.origin_tracks("coga/log.md")
+
+    # Follow the actual printed remedy: it must require the excluded log,
+    # not let a no-path sweep report success while the log is still ignored.
+    recovery = shlex.split(err.split("Run `", 1)[1].split("`", 1)[0])
+    assert recovery[:3] == ["coga", "run", "publish-state"]
+    command = [sys.executable, "-m", "coga.cli", *recovery[1:]]
+    refused = subprocess.run(command, capture_output=True, text=True)
+    assert refused.returncode == 1, refused.stdout + refused.stderr
+    assert "excluded from publication" in refused.stderr
+    assert _global_log(cfg) == before
+    assert not git_repo.origin_tracks("coga/log.md")
+
+    (git_repo.root / ".git" / "info" / "exclude").write_text("")
+    recovered = subprocess.run(command, capture_output=True, text=True)
+    assert recovered.returncode == 0, recovered.stdout + recovered.stderr
+    assert _control(git_repo, "coga/log.md") == before
+    assert git_repo.git("status", "--porcelain") == ""
 
 
 def test_sync_log_distinguishes_already_published_from_failure(git_repo, capsys):
