@@ -7,7 +7,7 @@ description: "For whoever runs one firing of a recurring task — agent or the t
 
 `coga recurring` created this task from the template at
 `coga/recurring/<parent-name>/`. The creator attaches this context to every
-period task (`recurring._create_at_slug`); promotion strips it back out. Your
+period task; promotion strips it back out. Your
 ref is `recurring/<parent-name>` and your directory
 `coga/tasks/recurring/<parent-name>/` is scratch for this run only: when the
 next period comes, Dream's retro pass or the scanner deletes it.
@@ -21,10 +21,9 @@ holds only the seeded placeholder is normal, not skipped bookkeeping.
 
 ## Which period you are servicing
 
-The period is not in your slug. The newest `created|reused recurring/<parent-name>
-for <period>` line tagged `recurring/<parent-name>` in `coga/log.md` names it.
-That ledger is kept out of the parent blackboard so a run rewriting its cursors
-cannot erase it.
+The period is not in your slug. The newest `… for <period>` line tagged
+`recurring/<parent-name>` in `coga/log.md` names it; the ledger is specified in
+[scheduling](../recurring/scheduling/SKILL.md#periods-and-the-serviced-period-ledger).
 
 ## Persistent state lives in the parent's blackboard
 
@@ -40,20 +39,11 @@ this context says *where*.
    `coga mark done` for a one-step `direct/body` workflow. A `ticket.py` shells
    out to the same commands; nothing advances it on its behalf.
 
-Code writes through the fence-aware API only: `coga.taskfile.read_blackboard` /
-`replace_blackboard`, or `coga.blackboard.append_blackboard_report` /
-`append_to_section` — never `open(path, "a")` or a whole-file rewrite. Pass the
-captured `expected_bytes` to detect concurrent change, preserve the region's
-leading newline, and if the file ends at the fence with no newline, start your
-text with one (those helpers do not add it).
-
 Own only your keys. A writer replaces just the lines or section it owns,
-bounded explicitly, and keeps every other line wherever it sits. A digest
-writer once treated its `### State` heading as running to EOF and swallowed
-the scheduler's `last_serviced_period` appended after it; the two writers
-then alternated, and every sweep re-fired the same period while the scan
-table showed an ordinary `ready` / `→ launch`. Test both orderings and
-repeated alternating writes.
+bounded explicitly, and keeps every other line wherever it sits; a section
+heading does not run to the end of the file. Code uses the fence-aware
+blackboard API in [templates](../recurring/templates/SKILL.md#ticketpy-completion-and-reporting),
+never an append or a whole-file rewrite.
 
 If the template declares `state_keys:`, completion (`coga mark done` or the
 final `coga bump`, by agent or script) flags any key still equal to its value

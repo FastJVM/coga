@@ -8,35 +8,19 @@ description: The `delegate:` contract — a recurring period serviced by one in-
 `delegate: bootstrap/<name>` on a template declares *which* stateless bootstrap
 target an agent period hands its work to — something no file's presence can
 express. It does not choose deterministic versus agent execution; that stays
-deduced from `ticket.py`, and the two are mutually exclusive
-(`recurring.Template.load`).
+deduced from `ticket.py`, and the two are mutually exclusive.
 
 ## Why delegate instead of a nested launch
 
 A template whose work is "run another Coga command" must declare `delegate:`,
-never have its agent shell out to `coga launch`. The recurring supervisor owns
-TTY admission only for sessions it spawns; an agent's tool subprocess has no TTY
-on stdin or stdout, so a nested agent launch exits 2. Faking a terminal
+never have its agent shell out to `coga launch`. An agent's tool subprocess has
+no TTY on stdin or stdout, so a nested agent launch exits 2; faking a terminal
 (`script -qec …`) is not sanctioned. With `delegate:` the sweep itself launches
 the target in the operator's terminal — under the sweep's `--agent` override,
 queue session conduct and idle/max-session bounds — and keeps the period's
-lifecycle bookkeeping, with no wrapper session in between.
-
-The supervisor's TTY admission is real one level up and absent one level down:
-it guards the session `coga recurring` spawns, never a launch that session makes
-from its own tool shell. Two tempting replacements for `delegate:` were
-rejected for reasons that still hold:
-
-- **A `ticket.py` that launches the agent.** Deterministic periods are the
-  headless class, so a no-TTY sweep would create the period, run the script,
-  and only then hit launch's agent TTY refusal — a mid-run failure in place of
-  the clean pre-create skip. `recurring-scan` launching agents is no
-  precedent: it runs from the operator's shell and re-checks
-  `_interactive_stdio_has_tty()` itself.
-- **Running the bootstrap runbook inside the period's own session.** Bootstrap
-  targets are deliberately stateless (no task per run, no `coga bump` /
-  `coga mark`), which fights the period lifecycle, and would fork the runbook
-  away from the unchanged on-demand alias (for example `coga resolve-conflicts`).
+lifecycle bookkeeping, with no wrapper session in between. The rejected
+alternatives are recorded in
+[recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md#why-delegation-rather-than-a-nested-launch).
 
 ## Rules
 
@@ -67,12 +51,7 @@ rejected for reasons that still hold:
   retryable. A watchdog timeout in a multi-task sweep is paused and the sweep
   continues only once that pause is verified on control; a named launch leaves
   it `in_progress` for retry.
-- **Generation guards.** Start, final spawn, completion and timeout are checked
-  against the exact period ticket plus its creator-owned `period_generation`
-  on freshly fetched control, and completion also publishes the parent
-  template's state with `done`, so an old child can never mutate a later period
-  or strand a cursor update locally. Details:
+- **Generation guards.** A stale or replaced period child can never mutate a
+  later period or strand a cursor update locally; completion also publishes
+  the parent template's state with `done`. The checks are in
   [recurring-admission](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-admission/SKILL.md).
-
-Implementation: `recurring_runner._run_delegated_task`,
-`recurring.delegated_workflow_violation`, `recurring.frozen_task_delegate`.

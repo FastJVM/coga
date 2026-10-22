@@ -102,6 +102,13 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `test_coga_resources_is_a_regular_package` pins it. A green
   3.12 run says nothing about the declared 3.11 floor: run resource-lookup or
   version-sensitive stdlib changes on a real 3.11 too.
+- **A blackboard section heading does not run to EOF.** A recurring digest
+  writer once treated its `### State` heading as running to the end of the
+  parent blackboard and swallowed the scheduler's `last_serviced_period`
+  appended after it; the two writers then alternated, and every sweep re-fired
+  the same period while the scan table showed an ordinary `ready` / `→ launch`.
+  Bound each writer's region explicitly and test both orderings and repeated
+  alternating writes ([coga/period-task](../../../coga/period-task/SKILL.md)).
 - **A recorded "rebases clean" expires.** Re-measure drift at implement time;
   never let an inherited note stand in for running the rebase.
 - **Retired-ticket searches span two trees.** Tasks lived under

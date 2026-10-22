@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/recurring-admission
-description: The admission machinery that keeps a stale, replaced or concurrently edited recurring period from starting, completing or parking work — period generations and leases, per-child refresh, direct-launch catch-up, ledger freshness at create publication, and strict delegated publication.
+description: The admission machinery that keeps a stale, replaced or concurrently edited recurring period from starting, completing or parking work — period generations and leases, per-child refresh, direct-launch catch-up, the serviced-period ledger read, inactivity gate ordering, ledger freshness at create publication, and strict delegated publication and why delegation exists.
 ---
 
 # Recurring admission and period generations
@@ -41,6 +41,33 @@ configured it requires a verified control catch-up *before* resolving the ref or
 reading dispatch, and refuses if fetch or integration fails; without a remote,
 local `HEAD` is control. It then reloads config and resolves the refreshed
 period so remote materialization, completion or replacement wins.
+
+## Reading the serviced-period ledger
+
+The user contract is in
+[coga/recurring/scheduling](../../../coga/recurring/scheduling/SKILL.md#periods-and-the-serviced-period-ledger).
+The scan takes the last firing with `recurring._last_firing` and buckets it
+with `_period_key`. One writer and one parser own the line
+(`format_serviced_log`, `parse_serviced_period_entries`), pinned by a test.
+Records are validated for exact shape and calendar values and compared by
+calendar position. `coga/log.md` is `merge=union`
+([spool-merge](../spool-merge/SKILL.md)), so a newer record can sit above an
+older one: `read_serviced_ledger` reads the log **backwards** and stops once
+every requested ref has a valid record at or after its target period, and an
+older hit never stops the read. The first scan of a new period therefore walks
+the whole log; later scans resolve from the tail. Malformed history older than
+the stop point is allowed to heal.
+
+## Inactivity gate ordering
+
+The user contract is in
+[coga/recurring/scheduling/inactivity](../../../coga/recurring/scheduling/inactivity/SKILL.md).
+On an inactive, non-forced sweep each template's frontmatter is read leniently
+for `run_when_inactive` and its schedule (`recurring._read_inactivity_fields`),
+and a non-exempt template is skipped before strict `Template.load`, period or
+ledger handling. The ledger pre-pass applies the same gate, excluding
+non-exempt templates before strict loading or ledger reads. Subjects are
+classified by `recurring_activity.is_machine_commit`.
 
 ## Create publication and ledger freshness
 
@@ -90,3 +117,26 @@ leased bytes and retracts its audit lines; a lost push reply with unreadable
 control retains local state and refuses for reconciliation. The live completion
 notification waits for durable publication; a sweep continues after a timeout
 only once its guarded pause publishes.
+
+## Why delegation rather than a nested launch
+
+The user rule is in
+[coga/recurring/delegation](../../../coga/recurring/delegation/SKILL.md). The
+recurring supervisor owns TTY admission only for sessions it spawns: it guards
+the session `coga recurring` spawns, never a launch that session makes from its
+own tool shell. Two tempting replacements for `delegate:` were rejected for
+reasons that still hold:
+
+- **A `ticket.py` that launches the agent.** Deterministic periods are the
+  headless class, so a no-TTY sweep would create the period, run the script,
+  and only then hit launch's agent TTY refusal — a mid-run failure in place of
+  the clean pre-create skip. `recurring-scan` launching agents is no
+  precedent: it runs from the operator's shell and re-checks
+  `_interactive_stdio_has_tty()` itself.
+- **Running the bootstrap runbook inside the period's own session.** Bootstrap
+  targets are deliberately stateless (no task per run, no `coga bump` /
+  `coga mark`), which fights the period lifecycle, and would fork the runbook
+  away from the unchanged on-demand alias (for example `coga resolve-conflicts`).
+
+Implementation: `recurring_runner._run_delegated_task`,
+`recurring.delegated_workflow_violation`, `recurring.frozen_task_delegate`.

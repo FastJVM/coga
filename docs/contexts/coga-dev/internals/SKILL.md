@@ -39,7 +39,14 @@ and the local state lock serializes only one checkout's writers.
   root membership machinery; the [publish primitive](state-publication/publish/SKILL.md)
   owns the transaction.
 - [Recurring admission](recurring-admission/SKILL.md): frozen
-  period generations, the pre-spawn lease, and exact-ledger creation.
+  period generations, the pre-spawn lease, the serviced-period ledger read,
+  inactivity gate ordering, exact-ledger creation, and why delegation exists.
+- [Recurring clone](recurring-clone/SKILL.md): clone-scoped runs — the
+  clone ledger's location, the script deadline, bounded output, and
+  process-tree termination including the Windows job object.
+- [Recurring autofix](recurring-autofix/SKILL.md): why the run record is
+  built, analyst parsing and heading demotion, the analyst's stdin, and the
+  subscription auth retry.
 - [Recurring control](recurring-control/SKILL.md): where
   recurring runs may start, the off-branch relay into a control worktree, the
   `--all` entry gate, and the owner gate read from the fetched control tip.
