@@ -327,4 +327,5 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-10-21 18:01] [agent:codex] id=20261021T180105 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only to repair the three required packaging-test failures reproduced on main. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts before bumping. Direct review and documentation fixes are complete at b5668d59a; validation passes.
+- [x] [2026-10-21 18:01] [agent:codex] id=20261021T180105 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only to repair the three required packaging-test failures reproduced on main. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts before bumping. Direct review and documentation fixes are complete at b5668d59a; validation passes.
+  resolved: [2026-10-21 21:55] [human:nicktoper] The owner confirmed clearing this dependency blocker and resuming review. PR #1081 merged as a1a3f5049b5dd2457f531a4d81b79b6a6425bb9f and is present on fetched origin/main. Rebase the branch, preserve notification cleanup through overlaps, rerun the full suite and validation, and refresh final review receipts before bumping.
