@@ -1,6 +1,6 @@
 ---
 title: 06 Collapse state publication into one user topic
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga/knowledge
