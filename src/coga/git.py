@@ -2116,21 +2116,40 @@ def _main_worktree(path: Path) -> Path | None:
 
 
 def summarize_git_failure(output: str) -> str:
-    """Keep only the `error:`/`fatal:`/`CONFLICT` lines of git output, deduped.
+    """Keep actionable errors and bounded overwrite path lists, deduped.
 
     Falls back to the last non-empty line so an unrecognized failure is never
     silently emptied.
     """
     keep: list[str] = []
     last = ""
-    for raw in output.splitlines():
+    path_limit = 10
+    in_paths = False
+    path_count = 0
+    # The sentinel closes a path list even when Git's output ends with it.
+    for raw in [*output.splitlines(), ""]:
         line = raw.strip().split("\r")[-1].strip()
+        if in_paths and raw.startswith("\t") and line:
+            path_count += 1
+            if path_count <= path_limit:
+                separator = " " if path_count == 1 else ", "
+                keep[-1] += separator + line
+            continue
+        if in_paths and path_count > path_limit:
+            keep[-1] += f", ... (+{path_count - path_limit} more files)"
+        in_paths = False
         if not line:
             continue
         last = line
-        if line.startswith(("error:", "fatal:", "CONFLICT")) and line not in keep:
+        if line.startswith(("error:", "fatal:", "CONFLICT")):
             keep.append(line)
-    return "; ".join(keep) if keep else last
+            in_paths = (
+                line.startswith("error:")
+                and "would be overwritten by" in line
+                and line.endswith(":")
+            )
+            path_count = 0
+    return "; ".join(dict.fromkeys(keep)) if keep else last
 
 
 # --- plumbing -----------------------------------------------------------------
