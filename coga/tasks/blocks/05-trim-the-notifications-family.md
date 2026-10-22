@@ -1,6 +1,6 @@
 ---
 title: 05 Trim the notifications family
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
