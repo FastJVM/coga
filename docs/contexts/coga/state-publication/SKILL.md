@@ -42,7 +42,7 @@ reviewed PR.
   message as soon as the write, log line, and notification are final.
 - **The end-of-command sweep** runs after most commands that change state,
   succeed or fail, and publishes every dirty eligible file under the roots,
-  plus committed state control does not have yet. Read-only commands
+  plus eligible committed changes (see below). Read-only commands
   (`status`, `show`, `validate`, `usage`, `--help`) never sweep, and neither
   do `init` and `uninstall`. The sweep is best-effort: a failed push is
   reported on stderr, the files stay as written, and the next command retries.
@@ -81,12 +81,21 @@ on a feature branch stay with the branch unless they are routine task, log,
 or recurring state, so commit an edit you want reviewed before running a
 sweeping Coga command in that checkout.
 
+Committed state is adopted only when control still holds a version this
+checkout was based on. If control has moved on, reconcile with current
+control before retrying. A clean copy merely behind control is never
+republished.
+
 ## Strict publication on demand
 
 The sweep cannot tell its caller whether a file landed. A handoff that hands
 files to someone else's fresh clone runs `coga run publish-state [--message M]
-[PATH...]` instead. It fetches the remote control branch, then publishes every
-eligible file under the roots and requires each named file to be on control.
+[PATH...]` instead. It fetches the configured remote control branch (or uses
+local control when no remote is configured), then publishes eligible changes
+under the roots and requires each named file to be on control. It uses the
+same dirty/committed selection as the sweep: naming a committed feature-branch
+knowledge edit does not make it publishable. Merge that reviewed edit first
+if the recipe refuses it.
 
 - **Exit 0**: every named file is on control (landed now or already
   matching), listed on stdout; or `[git].enabled = false` leaves no control

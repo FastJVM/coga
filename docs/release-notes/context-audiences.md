@@ -25,8 +25,8 @@ not usable references.
 | `coga/internals/pr-publication` | `coga/pr-publication` |
 | `coga/internals/pr-publication/existing-pr` | `coga/pr-publication/existing-pr` |
 | `coga/internals/pr-publication/preparation` | `coga/pr-publication/preparation` |
-| `coga/internals/state-publication/authoring` | `coga/state-publication/authoring` |
-| `coga/internals/state-publication/sweep` | `coga/state-publication/sweep` |
+| `coga/internals/state-publication/authoring`, `coga/state-publication/authoring` | `coga/state-publication` |
+| `coga/internals/state-publication/sweep`, `coga/state-publication/sweep` | `coga/state-publication` |
 | `dev/checkout-cleanup` | `coga/checkout-cleanup` |
 | `dev/checkout-cleanup/branch-sweep` | `coga/checkout-cleanup/branch-sweep` |
 | `dev/checkout-cleanup/proofs` | `coga/checkout-cleanup/proofs` |
@@ -48,7 +48,7 @@ not usable references.
 | `coga/packaging` | `coga/edge-code` — shims, upgrades, forks; `coga/context-layout` — distribution and overrides | `coga-dev/packaging` — twins and wheel construction |
 | `coga/extension-model` | Same ref — repo extension choices, recipes, aliases | `coga-dev/microkernel` — core placement and migrations |
 | `coga/knowledge` | Same ref — fact ownership, attach versus cite | `coga-dev/archive-access` — this repo’s archive rule |
-| `coga/internals/state-publication` | `coga/state-publication` — roots, eligibility, publication hazard | `coga-dev/internals/state-publication` — invariants and machinery |
+| `coga/internals/state-publication` | `coga/state-publication` — publication and recovery | `coga-dev/internals/state-publication` — invariants, sweep and authoring machinery |
 
 The supporting `edge-code-upgrades.md` moves from the packaging topic to
 `coga/edge-code/edge-code-upgrades.md`.
