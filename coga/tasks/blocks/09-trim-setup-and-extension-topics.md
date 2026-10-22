@@ -146,4 +146,14 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/blocks-09-trim-setup-extension
+
+## Plan
+
+Apply audit rows topic by topic; 01/02 own the agents links, init instruction
+files and repo-only lines (02's are already on main). Dev material moves to
+coga-dev codebase, packaging, microkernel, current-direction, agent-spawn,
+activity-capture.
+
