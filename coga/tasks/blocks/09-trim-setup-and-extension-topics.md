@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 5ad97f0e-e3ab-486f-b337-1a925a0451c2
 ---
 
 ## Description
@@ -150,7 +149,10 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 branch: coga/blocks-09-trim-setup-extension
 
-## Handoff (implement)
+## Handoff (implement snapshot)
+
+These notes describe the implementation phase. The peer-review result below
+supersedes its packaging limitation.
 
 Applied every row for this ticket's topics. Re-checked against main first:
 01 (PR #1080, unmerged) owns the `coga/agents` links in configuration,
@@ -202,13 +204,20 @@ visible `--pr` change to operators.
 
 ## Verification
 
-- `.venv/bin/python -m pytest` on head 1b4a8c1: 3952 passed, 7 skipped,
-  3 failed. 3 failures in
-  `tests/test_packaging.py` are inherited from main (02's half-published
-  `coga/code` deletion and architecture edit; twins only in PR #1081). In a
-  scratch worktree, this branch merged with 02's branch (cli/usage twin
-  conflicts resolved to the canonical copy) passes all 30 packaging tests.
-- `coga validate --json`: exit 0, warnings only.
+Final feature head: `3d7db0a6140854224b846fad7ad8ba8bd67fd48c`.
+Reviewed/tested diff base: `b52fac95c38d51b5a33f4c7cf166b2ad9ce953df`.
+
+- `.venv/bin/python -m pytest`: **3955 passed, 7 skipped** in 348.95s
+  on Python 3.12.12, after the reconciliation commit.
+- Fresh clone `/tmp/coga-blocks09-pristine-3d7db0a61`:
+  `PYTHONPATH=/tmp/coga-blocks09-pristine-3d7db0a61/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_packaging.py`:
+  **30 passed** in 11.46s, including wheel construction.
+- `coga validate --json`: exit 0, 154 OK, no errors; warnings on unrelated
+  tickets. `git diff --check origin/main...HEAD`: exit 0.
+- All 107 enforced pairs are byte-identical; distribution and context
+  navigation checks pass. Searches across live docs/src/tests/coga and the
+  root guides found no links to the removed topic or anchors (archives,
+  old tickets, and the log excluded). `install` is 147 lines.
 
 ## Follow-ups filed
 
@@ -224,65 +233,166 @@ published it. No residue.
 
 ## Merge notes
 
-Expect conflicts with 01, 02, 04, 06, 07, 08 on shared files (packaged twins
-of cli/usage/sandboxes/skill-management/configuration/init, microkernel,
-current-direction, codebase, internals index). Resolve twins by copying the
-canonical docs file after merging docs.
+The feature branch is committed and pushed at `3d7db0a6140854224b846fad7ad8ba8bd67fd48c`.
+No PR exists yet. The final fetch/rebase check found main unchanged at
+`b52fac95c38d51b5a33f4c7cf166b2ad9ce953df`; the invoking checkout was returned cleanly to main
+before writing this handoff.
 
-Most canonical `docs/` edits reached main through sweeps (e9a88b970 and
-later), so the PR diff against main is mostly packaged twins plus AGENTS.md,
-the usage-pricing split, and the internals index.
+PR #1081 (blocks/02) remains open, but this branch now carries the remaining
+packaged reconciliation of its canonical edits already on main. No sibling
+branch was merged. Later blocks PRs still overlap shared topics; reconcile
+canonical content first and copy it to the packaged twins after merging.
+The original topic edits mostly reached main through state sweeps, so this
+PR necessarily contains more packaged paths than canonical paths.
+
+## Peer review
+
+**Completed** a direct Codex review of final head
+`3d7db0a6140854224b846fad7ad8ba8bd67fd48c` against base
+`b52fac95c38d51b5a33f4c7cf166b2ad9ce953df`. Read the complete branch diff and commits,
+the audit rows, affected operator topics and developer destinations, and the
+alias/recipe registry. No nested reviewer CLI or subagent was used.
+
+Finding fixed: the inherited partial blocks/02 publication left ten packaged
+topics divergent, an orphaned packaged `coga/code`, and stale navigation and
+required-topic entries. The first rebased suite at `e2eeaccde` reproduced
+3952 passed, 7 skipped, and the three packaging failures. Commit `3d7db0a61`
+synchronizes the ten topics with the canonical files already on main,
+removes the orphan, and repairs the index and required set. The final suite
+above passes without an unmerged dependency. Re-read the final combined diff
+and confirmed that the repair adds no runtime behavior change.
+
+No unresolved must-fix findings. The skill-management digest paragraph is
+appropriately retained for its operator-visible effect; the usage-pricing
+leaf is indexed and keeps developer material local. No interactive terminal
+or Slack check was applicable: only prose, packaged copies, and the required
+context expectation changed.
+
+Actual authorship: Claude implemented the original trim; Codex performed this
+review and the mechanical reconciliation. The original trim was independently
+reviewed, while the Codex correction was self-reviewed. The combined PR is
+conservatively marked `self` with advisory depth `skim`; no claim of a wholly
+independent final review is made. The preparation record was rendered read-only
+and has current receipts and explanations for all 30 diff paths.
 
 ## PR
 
 ```yaml
-title: Trim setup and extension topics to operator knowledge
-author: claude
-author_evidence: Implement session ran as Claude Code (Opus 5.5) under megalaunch; this handoff.
-head: 1b4a8c1bbd4830c58a6fb469c31683ac05414e61
-base: 51f430c10465cb816b1531ecb17828f8f2946655
-depth: deep
-rationale: Documentation-only, but main's packaging tests fail until blocks/02 (PR #1081) merges, and twins will conflict with sibling blocks PRs; review the twin resolution and the moved-content placement.
-implementation: Applies the blocks/09 audit rows to configuration, context-layout, edge-code, extension-model, first-task, init, install, skill-management, sandboxes, usage, cli and uninstall; developer material moves to coga-dev codebase, packaging, microkernel, current-direction, internals/agent-spawn and new internals/usage-pricing; coga/cli owns the recipe and default-alias lists; AGENTS.md points there.
-deviations: skill-management's legacy-digest paragraph was shortened in place rather than moved (operator-visible --pr effect). The Known PR checkout failure became draft ticket preflight-dirty-tracked-files-before-skill-update. Canonical docs edits mostly reached main through state sweeps, not this diff.
-limitations: Three tests/test_packaging.py failures are inherited from main (blocks/02's coga/code deletion and architecture edit published without twins); they pass in a scratch merge with the 02 branch.
+title: Trim setup and extension topics and reconcile packaged contexts
+author: claude/codex
+author_evidence: Claude Code (Opus 5.5) implemented the topic trim, as recorded in the implement handoff.
+  This Codex peer-review session applied the mechanical reconciliation of canonical cleanup already on
+  main.
+head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+depth: skim
+rationale: Documentation and packaging alignment with unchanged runtime behavior. The full suite and fresh-clone
+  packaging checks pass. Read the deliberate legacy-digest retention and the reconciliation of partially
+  published blocks/02 work. Codex independently reviewed the Claude implementation and self-reviewed its
+  own mechanical repair, so skim is recommended rather than an automatic merge recommendation.
+implementation: Keeps setup and extension topics focused on operator knowledge, moves developer details
+  to local coga-dev owners, centralizes recipe/default-alias lists in coga/cli, reduces install to 147
+  lines, and indexes the new usage-pricing leaf. Canonical edits already published to main are carried
+  into their packaged twins. The review also completes the remaining blocks/02 packaging reconciliation,
+  removing the orphaned coga/code copy and its stale navigation and required-topic expectation.
+deviations: 'The legacy-digest paragraph remains shortened in skill-management because it explains a visible
+  --pr change. Price-table facts use a new usage-pricing leaf to keep activity-capture below its size-review
+  threshold. The skill-update checkout bug became a draft ticket. Many canonical edits reached main through
+  state sweeps before this PR; the final diff includes the remaining blocks/02 twin cleanup so it does
+  not depend on PR #1081 merging first.'
+limitations: 'The final diff is not wholly independently reviewed: Codex self-reviewed its own mechanical
+  packaging correction. Tests use Python 3.12.12; no Python 3.11 or native Windows claim is made. No terminal
+  or Slack interaction was exercised because no rendered interactive surface or runtime behavior changed.
+  Validation reports warnings on unrelated tickets.'
 files:
   AGENTS.md: Replace the restated recipe list with a pointer to coga/cli.
+  docs/README.md: Replace the link to the already removed coga/code topic with its checkout owner.
   docs/contexts/coga-dev/internals/SKILL.md: List the new usage-pricing page.
-  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Remove the interim copy of the price-table facts a sweep published.
-  docs/contexts/coga-dev/internals/usage-pricing/SKILL.md: New home for the price-table facts moved out of coga/usage.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Remove the interim copy of the price-table
+    facts a sweep published.
+  docs/contexts/coga-dev/internals/usage-pricing/SKILL.md: New home for the price-table facts moved out
+    of coga/usage.
   docs/contexts/coga/usage/SKILL.md: Point the deferred price table at usage-pricing.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Packaged twin of the trimmed topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Packaged twin of the trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Match main's canonical
+    topic map, which points directly to the owners formerly summarized by coga/code.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Match main's canonical
+    removal of the known-gap history and repository archive link.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Match
+    main's canonical removal of the known-gap implementation note.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Carry main's canonical
+    ownership of the explicit ticket-to-branch/PR record into the package.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/code/SKILL.md: Remove the orphaned packaged
+    copy after its canonical topic was deleted on main; retained owners preserve its contracts.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Packaged twin of the
+    trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Packaged twin of
+    the trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin of
+    the trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Packaged twin of the
+    trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md: Match main's generic operator
+    policy without the source-repository usage-report example.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Match the canonical generic
+    archive ownership rule required by this ticket's audit row.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Point superseded designs
+    at blackboard, replacing the removed coga/code link.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Match main's
+    removal of the source-repository upstream-coga example.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/failures/SKILL.md: Match
+    main's removal of known-gap implementation notes.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Packaged twin of
+    the trimmed topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md: Match main's generic
+    retirement-history instructions without the relay-os source-repository path.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Packaged twin of the trimmed
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Packaged twin of the trimmed
+    topic.
+  tests/test_packaging.py: Remove coga/code from the required set to match its canonical deletion already
+    on main.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+  base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+  detail: Direct review completed on the final head/base, including the complete diff, audit rows, moved-content
+    owners, alias/recipe registry, and removal/link checks. No unresolved must-fix findings. Independent
+    of Claude's original trim; self-review of Codex's mechanical reconciliation, so the combined result
+    is conservatively labeled self-review. All 107 enforced twins match; install is 147 lines.
 checks:
-  - command: .venv/bin/python -m pytest
-    status: failed
-    head: 1b4a8c1bbd4830c58a6fb469c31683ac05414e61
-    base: 51f430c10465cb816b1531ecb17828f8f2946655
-    detail: 3952 passed, 7 skipped, 3 failed (test_live_and_packaged_copies_stay_identical, test_context_distribution_is_complete, test_context_navigation_has_no_broken_links), all on architecture/code from blocks/02's half-published state on main.
-  - command: git merge origin/coga/blocks-02-delete-the-code-topic-and-remove-coga--23a0ec (scratch worktree, cli/usage twins resolved to canonical) && .venv/bin/python -m pytest tests/test_packaging.py
-    status: passed
-    head: 346693ed717d1af0c102021fa9591a8b0980a9fd
-    base: 3a50057a91b426c6109a39b035d81c568595a9df
-    detail: 30 passed; run on the pre-rebase commit, before the activity-capture cleanup commit.
-  - command: coga validate --json
-    status: passed
-    head: 1b4a8c1bbd4830c58a6fb469c31683ac05414e61
-    base: 51f430c10465cb816b1531ecb17828f8f2946655
-    detail: Exit 0; warnings only (stuck-in-progress, unfrozen-workflow on unrelated tickets).
+- command: .venv/bin/python -m pytest
+  status: passed
+  head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+  base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+  detail: 3955 passed, 7 skipped in 348.95s on Python 3.12.12 after the reconciliation commit; no failures.
+- command: PYTHONPATH=/tmp/coga-blocks09-pristine-3d7db0a61/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest tests/test_packaging.py
+  status: passed
+  head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+  base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+  detail: 30 passed in 11.46s, run from /tmp/coga-blocks09-pristine-3d7db0a61, a fresh local clone of
+    this head. Includes pristine-tree wheel construction, distribution, twin identity, and navigation
+    checks.
+- command: coga validate --json
+  status: passed
+  head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+  base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+  detail: Exit 0, 154 OK, no errors; warnings on unrelated tickets.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 3d7db0a6140854224b846fad7ad8ba8bd67fd48c
+  base: b52fac95c38d51b5a33f4c7cf166b2ad9ce953df
+  detail: Exit 0; no whitespace errors.
 ```
