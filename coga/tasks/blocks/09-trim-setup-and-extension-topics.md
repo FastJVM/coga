@@ -148,6 +148,7 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1082
 branch: coga/blocks-09-trim-setup-extension
 
 ## Handoff (implement snapshot)
