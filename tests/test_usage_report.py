@@ -183,8 +183,9 @@ def coga_os(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "coga"
     root.mkdir()
     (root / "coga.toml").write_text(
-        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     (root / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     cfg = load_config(root)
     append_record(cfg, _record("2026-09-01T10:00:00Z"))

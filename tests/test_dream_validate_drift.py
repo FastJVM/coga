@@ -367,7 +367,7 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
@@ -430,7 +430,7 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
@@ -480,7 +480,7 @@ def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
@@ -567,7 +567,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )

@@ -143,8 +143,9 @@ def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     toml.write_text(
         toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     created = create_task(
         cfg=cfg,
@@ -358,7 +359,7 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
     )
     assert "Checked:" in issue.message
     assert str(repo / "skills" / "local" / "missing" / "SKILL.md") in issue.message
-    assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
+    assert str(Path("bootstrap/skills/local/missing/SKILL.md")) in issue.message
 
 
 def test_validate_reports_recurring_template_that_lost_its_blackboard_fence(
@@ -595,8 +596,9 @@ def test_validate_reports_broken_recurring_template_entry_point(
         """,
     )
     (repo / "recurring" / "script-check" / "ticket.py").write_text(
-        "def broken(\n"
-    , encoding="utf-8", newline="\n")
+        "def broken(\n",
+        encoding="utf-8", newline="\n",
+    )
 
     report = run(load_config(repo))
 
@@ -1535,8 +1537,9 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", "")
-    , encoding="utf-8", newline="\n")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
+    )
     report = run(cfg)
     assert any(
         i.kind == "blackboard-fence" and i.severity == "error"
@@ -1560,8 +1563,9 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     # fence-less; the safe fix re-appends a fence + rendered region.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", "")
-    , encoding="utf-8", newline="\n")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
+    )
 
     fixes = apply_safe_fixes(cfg)
 
@@ -1587,8 +1591,9 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     # fix pass re-adds it before the issue scan runs.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", "")
-    , encoding="utf-8", newline="\n")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
+    )
 
     report = run(cfg, fix=True)
 
@@ -1983,8 +1988,9 @@ def test_check_slack_redacts_relative_webhook_path_from_validation_output(
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
-    , encoding="utf-8", newline="\n")
+        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setenv(
         "SLACK_WEBHOOK_URL",
         f"https://hooks.slack.com/services/TFAKE/BFAKE/{fake_secret}",
@@ -2016,8 +2022,9 @@ def test_run_check_slack_emits_issue_for_revoked(
     # Add slack webhook to the repo's config.
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(
         "requests.post",
         _fake_post_factory(_FakeResponse(404, "no_service")),
@@ -2035,8 +2042,9 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "env:UNSET_SLACK_WEBHOOK"\n'
-    , encoding="utf-8", newline="\n")
+        '[notification.slack]\nwebhook = "env:UNSET_SLACK_WEBHOOK"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -2056,8 +2064,9 @@ def test_validate_warns_when_selected_slack_lacks_important_webhook(
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
-    , encoding="utf-8", newline="\n")
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
+    )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("the setup warning must not probe the network")
@@ -2077,12 +2086,14 @@ def test_validate_skips_important_warning_when_slack_disabled(repo: Path) -> Non
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
-    , encoding="utf-8", newline="\n")
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
+    )
     (repo / "coga.local.toml").write_text(
         (repo / "coga.local.toml").read_text(encoding="utf-8")
-        + "\n[notification.slack]\nenabled = false\n"
-    , encoding="utf-8", newline="\n")
+        + "\n[notification.slack]\nenabled = false\n",
+        encoding="utf-8", newline="\n",
+    )
 
     report = run(load_config(repo))
 
@@ -2098,8 +2109,9 @@ def test_task_scoped_validate_includes_important_webhook_warning(
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
-    , encoding="utf-8", newline="\n")
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     created = create_task(
         cfg=cfg,
@@ -2125,8 +2137,9 @@ def test_validate_has_no_important_warning_when_webhook_resolves(repo: Path) -> 
         + '\n[notification]\nchannels = ["slack"]\n'
         '[notification.slack]\n'
         'webhook = "https://hooks.slack.com/services/flow"\n'
-        'important_webhook = "https://hooks.slack.com/services/important"\n'
-    , encoding="utf-8", newline="\n")
+        'important_webhook = "https://hooks.slack.com/services/important"\n',
+        encoding="utf-8", newline="\n",
+    )
 
     report = run(load_config(repo))
 
@@ -2141,8 +2154,9 @@ def test_run_no_slack_check_by_default(
 ) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n',
+        encoding="utf-8", newline="\n",
+    )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("network must not be called when --check-slack is off")
@@ -2177,6 +2191,10 @@ def _fake_subprocess_factory(responses: dict[tuple[str, ...], object]):
             "config", "--local", "--bool", "--get", "core.fileMode"
         ):
             return _FakeProc(0, "true\n")
+        if tuple(args[:2]) == ("git", "-C") and tuple(args[3:]) == (
+            "ls-files", "--stage", "-z", "--", "."
+        ):
+            return _FakeProc(0, "")
         for key, resp in responses.items():
             if tuple(args[: len(key)]) == key:
                 if isinstance(resp, Exception):
@@ -2488,8 +2506,9 @@ def test_run_no_github_check_by_default(
 def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
@@ -2520,8 +2539,9 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     # extension once tickets are already on disk.
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     report = run(cfg)
     kinds = [(i.kind, i.severity) for i in report.issues]
@@ -2532,8 +2552,9 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     """A field present on disk but not declared in TOML → warn, not error."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
@@ -2548,8 +2569,9 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8").replace(
             '\n[ticket.fields.docket]\ndescription = "d"\n', ""
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     report = run(cfg)
     orphans = [i for i in report.issues if i.kind == "orphan-extension"]
@@ -2565,8 +2587,9 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
             'description = "p"\n'
             'values = ["P0", "P1", "P2"]\n'
             'default = "P2"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
@@ -2598,8 +2621,9 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
             'description = "p"\n'
             'values = ["P0", "P1"]\n'
             "required = true\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     create_task(
         cfg=cfg,

@@ -123,6 +123,34 @@ def _control(git_repo, rel: str) -> str | None:
     return git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
 
 
+@pytest.mark.parametrize("tracked_executable", [False, True])
+def test_publication_preserves_git_modes_and_can_prepare_checkout(
+    git_repo, tracked_executable: bool,
+):
+    cfg = load_config(git_repo.coga_os)
+    path = _seed_ticket(git_repo)
+    rel = "coga/tasks/demo.md"
+    if tracked_executable:
+        if os.name == "posix":
+            path.chmod(0o755)
+        git_repo.git("update-index", "--chmod=+x", rel)
+        git_repo.git("commit", "-m", "executable fixture")
+        git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "-b", "feature")
+    path.write_text(_ticket_text(blackboard="Café 東京\n"), encoding="utf-8", newline="\n")
+    new_path = git_repo.coga_os / "tasks" / "new.md"
+    new_path.write_text(_ticket_text(), encoding="utf-8", newline="\n")
+
+    assert git.publish(cfg, [path, new_path], "publish modes")
+
+    expected_mode = "100755" if tracked_executable else "100644"
+    assert git_repo.git("ls-tree", "origin/main", rel).startswith(expected_mode + " ")
+    assert git_repo.git("ls-tree", "origin/main", "coga/tasks/new.md").startswith("100644 ")
+    result = git.prepare_control_checkout(cfg)
+    assert result.kind != "refused", result
+    assert git_repo.git("status", "--porcelain") == ""
+
+
 def _dirty(git_repo, cwd: Path | None = None) -> set[str]:
     out = git_repo.git("status", "--porcelain", "--untracked-files=all", cwd=cwd)
     return {line[3:] for line in out.splitlines()}
@@ -2764,8 +2792,9 @@ def test_prepare_refuses_an_ignored_file_the_move_would_overwrite(git_repo):
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     (git_repo.root / ".gitignore").write_text(
-        "coga/coga.local.toml\ncoga/.agent-skills/\nbuild/\n"
-    , encoding="utf-8", newline="\n")
+        "coga/coga.local.toml\ncoga/.agent-skills/\nbuild/\n",
+        encoding="utf-8", newline="\n",
+    )
     git_repo.git("add", ".gitignore")
     git_repo.git("commit", "-m", "ignore build")
     git_repo.git("checkout", "main")
@@ -3116,7 +3145,7 @@ def test_prepare_names_the_rebase_for_an_unpublished_hand_commit_and_retry_recov
     command = "git pull --rebase --autostash origin main"
     assert f"run `{command}` on 'main', then retry" in outcome.reason
     pulled = subprocess.run(
-        command.split(), cwd=git_repo.root, capture_output=True, text=True, check=False
+        command.split(), cwd=git_repo.root, capture_output=True, text=True, encoding="utf-8", check=False
     )
     assert pulled.returncode == 0, pulled.stderr
 

@@ -426,8 +426,9 @@ def _with_codex_and_autofix_agent(repo: Path, agent: str) -> None:
     toml.write_text(
         toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + f'\n[autofix]\nagent = "{agent}"\n'
-    , encoding="utf-8", newline="\n")
+        + f'\n[autofix]\nagent = "{agent}"\n',
+        encoding="utf-8", newline="\n",
+    )
 
 
 def test_the_autofix_agent_key_beats_the_first_declared_default(repo: Path) -> None:
@@ -459,8 +460,9 @@ def test_without_the_autofix_key_the_analyst_follows_the_default_agent_key(
     toml.write_text(
         'default_agent = "codex"\n'
         + toml.read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.autofix_agent is None
     assert autofix._analyze_agent(cfg, None).name == "codex"
@@ -882,8 +884,9 @@ def test_the_outcome_carries_the_run_blackboard(cfg_repo) -> None:
 
     ref = _ref_with_status(cfg_repo, "done")
     ref.ticket_path.write_text(
-        ref.ticket_path.read_text(encoding="utf-8") + "\nvalidate-drift found 3 broken refs.\n"
-    , encoding="utf-8", newline="\n")
+        ref.ticket_path.read_text(encoding="utf-8") + "\nvalidate-drift found 3 broken refs.\n",
+        encoding="utf-8", newline="\n",
+    )
     outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert "validate-drift found 3 broken refs." in outcome.blackboard
 
@@ -1110,14 +1113,16 @@ def autofix_contexts_repo(repo: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             f"---\nname: {ref}\ndescription: Repo triage policy.\n---\n"
-            f"Use this repo's {ref} guidance to diagnose the failure.\n"
-        , encoding="utf-8", newline="\n")
+            f"Use this repo's {ref} guidance to diagnose the failure.\n",
+            encoding="utf-8", newline="\n",
+        )
     toml = repo / "coga.toml"
     toml.write_text(
         toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture", "coga/context-layout"]\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture", "coga/context-layout"]\n',
+        encoding="utf-8", newline="\n",
+    )
     return repo
 
 

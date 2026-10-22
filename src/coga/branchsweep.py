@@ -1440,7 +1440,7 @@ def _git(
         ["git", "-C", str(root), *args],
         input=input,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
 

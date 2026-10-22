@@ -15,7 +15,7 @@ from coga.skill_manager import SKILL_UPDATE_BRANCH
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True
+        ["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8"
     )
     if check:
         assert proc.returncode == 0, proc.stderr + proc.stdout
@@ -39,7 +39,7 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "--bare", "-b", "main", str(remote)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     root = tmp_path / "work"
@@ -47,19 +47,21 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "-b", "main", str(root)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(root, "config", "user.email", "t@example.com")
     _git(root, "config", "user.name", "Tester")
+    _git(root, "config", "core.autocrlf", "false")
     _git(root, "remote", "add", "origin", str(remote))
 
     coga_os = root / "coga"
     coga_os.mkdir()
     (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n', encoding="utf-8", newline="\n")
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
-    , encoding="utf-8", newline="\n")
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
 
     _commit(root, "base.txt", "base", "base")
     _git(root, "push", "-u", "origin", "main")
@@ -164,8 +166,9 @@ def _write_ticket(repo: Path, slug: str, *, status: str, branch: str) -> None:
     (task_dir / f"{slug}.md").write_text(
         _ticket_text(
             slug, status=status, body="", blackboard=f"## Dev\nbranch: {branch}"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
 
 def _squash_merge(repo: Path, branch: str) -> None:
@@ -637,8 +640,9 @@ def test_live_ticket_prose_mention_pins_branch_without_dev_section(
             status="draft",
             body="Follow-up commits sit unpushed on `feat` in this checkout.",
             blackboard="notes",
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -654,8 +658,9 @@ def test_live_ticket_attachment_mention_pins_branch(repo: Path, monkeypatch) -> 
     task_dir = repo / "coga" / "tasks" / "with-manifest"
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(
-        _ticket_text("with-manifest", status="active", body="", blackboard="notes")
-    , encoding="utf-8", newline="\n")
+        _ticket_text("with-manifest", status="active", body="", blackboard="notes"),
+        encoding="utf-8", newline="\n",
+    )
     (task_dir / "handoff-manifest.md").write_text("Coga source branch: `feat`\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
@@ -677,8 +682,9 @@ def test_live_ticket_mention_must_be_the_whole_branch_name(
             status="active",
             body="See the feature-flag branch, old-feat and feat/two, not this one.",
             blackboard="notes",
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -702,8 +708,9 @@ def test_live_ticket_prose_mention_survives_punctuation(
     task_dir = repo / "coga" / "tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "prose.md").write_text(
-        _ticket_text("prose", status="active", body=prose, blackboard="notes")
-    , encoding="utf-8", newline="\n")
+        _ticket_text("prose", status="active", body=prose, blackboard="notes"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -728,8 +735,9 @@ def test_period_task_report_does_not_pin_the_branches_it_names(
             status="in_progress",
             body="",
             blackboard="## Branch Sweep\n\n- skipped: feat\n",
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -744,8 +752,9 @@ def test_period_task_dev_branch_still_pins(repo: Path, monkeypatch) -> None:
     (task_dir / "ticket.md").write_text(
         _ticket_text(
             "weekly", status="in_progress", body="", blackboard="## Dev\nbranch: feat"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -890,7 +899,7 @@ def test_rebasing_worktree_preserves_both_refs_with_distinct_outcome(
     rebase = _git(linked, "rebase", "main", check=False)
     assert rebase.returncode != 0
     listing = _git(repo, "worktree", "list", "--porcelain").stdout
-    assert f"worktree {linked}\n" in listing
+    assert f"worktree {linked.as_posix()}\n" in listing
     assert "detached" in listing
     _merged_at_tip(monkeypatch, repo, "feat")
 
@@ -928,7 +937,7 @@ def test_pinning_worktree_is_removed_when_worktrees_are_ticket_owned(
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert result.worktree_removed == [str(linked)]
+    assert [Path(path) for path in result.worktree_removed] == [linked]
     assert result.worktree_pinned == []
     assert result.local_deleted == ["feat"]
     assert result.remote_deleted == []  # no merged PR vouches for the remote ref
@@ -990,7 +999,7 @@ def test_dirty_pinning_worktree_is_reported_not_removed(
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert result.failure is None
-    assert result.worktree_removed == [str(linked)]
+    assert [Path(path) for path in result.worktree_removed] == [linked]
     assert result.local_deleted == ["feat"]
     assert _tip(repo, "refs/tags/retired/feat") == final_tip
 
@@ -1066,8 +1075,9 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
             status="in_progress",
             body="",
             blackboard=f"## Dev\nbranch: other\nworktree: {linked}",
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _own_worktrees(repo)
     _fake_gh(monkeypatch)
 
@@ -1078,7 +1088,7 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
     assert linked.is_dir()
     assert _branch_exists_local(repo, "feat")
     assert any(
-        f"live ticket 'reuses-checkout' also records worktree '{linked.resolve()}'"
+        f"live ticket 'reuses-checkout' also records worktree '{linked.resolve().as_posix()}'"
         in note
         for note in result.notes
     )
@@ -1228,7 +1238,7 @@ def test_remote_only_branch_deleted_from_live_remote_listing(
     subprocess.run(
         ["git", "clone", _remote_url(repo), str(other)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(other, "config", "user.email", "t@example.com")
@@ -1627,7 +1637,7 @@ def _push_fix_from_elsewhere(repo: Path, tmp_path: Path, branch: str) -> str:
     subprocess.run(
         ["git", "clone", "-q", _remote_url(repo), str(other)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(other, "config", "user.email", "t@example.com")
@@ -1706,8 +1716,9 @@ def _host_task(repo: Path) -> Path:
     task_dir.mkdir(parents=True)
     host = task_dir / "ticket.md"
     host.write_text(
-        _ticket_text("branch-sweep", status="draft", body="", blackboard="")
-    , encoding="utf-8", newline="\n")
+        _ticket_text("branch-sweep", status="draft", body="", blackboard=""),
+        encoding="utf-8", newline="\n",
+    )
     return host
 
 
@@ -1867,8 +1878,9 @@ def _write_owner(repo: Path, slug: str, *, status: str, branches: list[str]) -> 
     task_dir.mkdir(parents=True, exist_ok=True)
     lines = "\n".join(f"branch: {branch}" for branch in branches)
     (task_dir / f"{slug}.md").write_text(
-        _ticket_text(slug, status=status, body="", blackboard=f"## Dev\n{lines}")
-    , encoding="utf-8", newline="\n")
+        _ticket_text(slug, status=status, body="", blackboard=f"## Dev\n{lines}"),
+        encoding="utf-8", newline="\n",
+    )
 
 
 @pytest.mark.parametrize("status", ["done", "canceled"])
@@ -1914,8 +1926,9 @@ def test_incidental_mention_on_a_terminal_ticket_is_not_ownership(
             status="done",
             body="See the abandoned feat branch for an earlier attempt.",
             blackboard="## Notes\nfeat was closed unmerged.",
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _closed_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)

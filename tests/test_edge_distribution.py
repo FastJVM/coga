@@ -56,7 +56,7 @@ def edge_wheels(tmp_path_factory):
         result = subprocess.run([
             sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps",
             str(source), "-w", str(source / "dist"),
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
         [wheels[label]] = (source / "dist").glob("*.whl")
     return wheels
@@ -66,13 +66,13 @@ def _install(wheel, installed):
     result = subprocess.run([
         sys.executable, "-m", "pip", "install", "--no-deps", "--upgrade",
         "--target", str(installed), str(wheel),
-    ], capture_output=True, text=True)
+    ], capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stdout + result.stderr
 
 
 def _run(root, env, *args):
     result = subprocess.run([sys.executable, *args], cwd=root, env=env,
-                            capture_output=True, text=True, timeout=30)
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     return result.stdout
 
@@ -91,8 +91,9 @@ def _initialized_repo(tmp_path, wheel):
         "def forbidden(*a, **kw):\n"
         f"    Path({str(guard / 'called')!r}).touch()\n"
         "    raise AssertionError('production transport called')\n"
-        "http.client.HTTPSConnection = forbidden\n"
-    , encoding="utf-8", newline="\n")
+        "http.client.HTTPSConnection = forbidden\n",
+        encoding="utf-8", newline="\n",
+    )
     env = {**os.environ, "PYTHONPATH": os.pathsep.join((str(installed), str(guard))), "CI": "true"}
     _run(root, env, "-c", '''
 import subprocess
@@ -196,7 +197,7 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
         env["PATH"] = str(installed / "bin")
     result = subprocess.run([
         sys.executable, "-m", "coga.cli", "launch", "recurring/phone-home",
-    ], cwd=root / "coga", env=env, capture_output=True, text=True, timeout=30)
+    ], cwd=root / "coga", env=env, capture_output=True, text=True, encoding="utf-8", timeout=30)
     period = root / "coga/tasks/recurring/phone-home/ticket.md"
     from coga.ticket import Ticket
     ticket = Ticket.read(period)
@@ -227,7 +228,7 @@ def _operator_command(name, root, env, *, success=True):
     match = re.search(rf"<!-- migration:{name} -->\n```sh\n(.*?)\n```", document, re.S)
     assert match, name
     result = subprocess.run(["bash", "-c", match[1]], cwd=root, env=env,
-                            capture_output=True, text=True, timeout=30)
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert (result.returncode == 0) == success, result.stdout + result.stderr
     return result.stdout
 

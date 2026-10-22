@@ -8,6 +8,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import remove_test_checkout
+
 from coga import retire_worklist as rw
 from coga.config import load_config
 
@@ -60,7 +62,7 @@ def _git(root: Path, *args: str) -> None:
         ["git", "-C", str(root), *args],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
 
@@ -351,7 +353,7 @@ def test_a_removed_independent_clone_takes_its_branch_with_it(
     entry = replace(entry, owner=rw.worktree_owner(root, str(clone)))
     assert not rw.is_discharged(entry, root=root, branches=frozenset())
 
-    shutil.rmtree(clone)
+    remove_test_checkout(clone)
 
     # The recorded owner was the clone itself: gone, not unreadable.
     assert rw.owner_branch_remains(root, entry) is False
@@ -787,8 +789,9 @@ def test_all_worklists_skips_parked_templates(repo: Path) -> None:
     for name in ("autoclose-merged", "_parked", "other"):
         _seed_template(repo, name)
         (repo / "recurring" / name / rw.RETIRE_WORKLIST_FILENAME).write_text(
-            rw.RETIRE_WORKLIST_HEADER
-        , encoding="utf-8", newline="\n")
+            rw.RETIRE_WORKLIST_HEADER,
+            encoding="utf-8", newline="\n",
+        )
 
     assert [p.parent.name for p in rw.all_worklists(cfg)] == ["autoclose-merged", "other"]
 

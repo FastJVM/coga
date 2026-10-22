@@ -56,7 +56,7 @@ def test_windows_walk_builds_the_fetched_ref(git_repo, tmp_path, monkeypatch, ar
     monkeypatch.setenv("AWS_PROFILE", "test")
     result = subprocess.run(
         ["bash", str(script), "walk", "win1", artifact, "walkbranch"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert built.read_text(encoding="utf-8") == artifact
@@ -150,7 +150,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
 
 def _run(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", str(SCRIPT), *args], env=env, capture_output=True, text=True,
+        ["bash", str(SCRIPT), *args], env=env, capture_output=True, text=True, encoding="utf-8",
     )
 
 
@@ -321,7 +321,7 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     monkeypatch.setenv("COGA_CLEAN_INSTALL_NETWORK", "host")
     result = subprocess.run(
         ["bash", str(script), "main", "clean-main"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
     evidence = git_repo.root / ".coga/clean-install/clean-main"
@@ -382,7 +382,7 @@ def aws_mac(git_repo, tmp_path: Path, monkeypatch):
     def run(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", str(script), *args], env={**os.environ, **env},
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
 
     return run, calls, git_repo.root / ".coga/clean-install/mac1"
@@ -574,7 +574,7 @@ def test_macos_walk_provisions_and_pins_python_311(tmp_path: Path, monkeypatch) 
     monkeypatch.delenv("UV_PYTHON_DOWNLOADS", raising=False)
     result = subprocess.run(
         ["bash", str(walk_dir / "macos-walk.sh"), "walk", "pypi", "installer", "walk1", "pw"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert calls.read_text(encoding="utf-8").splitlines() == [
@@ -701,7 +701,7 @@ def test_clean_install_host_applies_release_pin_only_to_pypi(
     monkeypatch.setenv("COGA_CLEAN_INSTALL_VERSION", "0.4.0")
     monkeypatch.setenv("COGA_CLEAN_INSTALL_IMAGE", "test-image")
     result = subprocess.run(
-        ["bash", str(script), mode, "release-040"], capture_output=True, text=True,
+        ["bash", str(script), mode, "release-040"], capture_output=True, text=True, encoding="utf-8",
     )
     if mode == "main":
         assert result.returncode == 2

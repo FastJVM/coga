@@ -66,8 +66,9 @@ def test_main_rewrites_argv_for_alias(
     """`coga chat foo` should rewrite to `coga launch bootstrap/orient foo`."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\nchat = "launch bootstrap/orient"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\nchat = "launch bootstrap/orient"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "chat", "extra-arg"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -108,8 +109,9 @@ def test_main_collision_exits_nonzero(
 ) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\nlaunch = "status"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\nlaunch = "status"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "launch"])
 
@@ -342,8 +344,9 @@ def test_user_alias_overrides_default(
     """User `[aliases]` wins on key conflicts with the defaults."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\nchat = "launch bootstrap/something-else"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\nchat = "launch bootstrap/something-else"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "chat"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -459,8 +462,9 @@ def test_main_allows_cross_repo_sweep_from_invalid_current_alias(
     """Alias errors also belong to the child checkout, not parent dispatch."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
         "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
@@ -495,8 +499,9 @@ def test_main_lets_init_run_through_broken_config(
     the recovery command. A stale CLI + migrated `coga.toml` would otherwise
     deadlock the very re-init that fixes it."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "init"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -529,8 +534,9 @@ def test_main_lets_init_run_through_invalid_alias(
     """Alias validation must not deadlock the config recovery command."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", argv)
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -561,8 +567,9 @@ def test_main_still_exits_on_broken_config_for_non_init(
 ) -> None:
     """Every command other than `init` still fails loud on a broken config."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[assignees.marc]\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "status"])
 

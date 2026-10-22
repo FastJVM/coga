@@ -82,6 +82,17 @@ def write_executable(path: Path, source: str) -> Path:
     return path
 
 
+def remove_test_checkout(path: Path) -> None:
+    """Remove a disposable Git fixture, including Windows read-only objects."""
+    def retry_readonly(function, failed_path, exception):
+        if os.name != "nt" or not isinstance(exception[1], PermissionError):
+            raise exception[1]
+        os.chmod(failed_path, 0o700)
+        function(failed_path)
+
+    shutil.rmtree(path, onerror=retry_readonly)
+
+
 def seed_direct_body_workflow(coga_os: Path) -> None:
     """Copy the shipped `direct/body` workflow + skill into a test repo.
 
@@ -369,6 +380,7 @@ class GitRepo:
             ["git", "-C", str(cwd or self.root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return out.stdout
@@ -401,6 +413,7 @@ class GitRepo:
             self.git("config", "user.email", "rival@example.com", cwd=clone)
             self.git("config", "user.name", "Rival", cwd=clone)
             self.git("config", "commit.gpgsign", "false", cwd=clone)
+            self.git("config", "core.autocrlf", "false", cwd=clone)
             # The bare origin's symbolic HEAD isn't `main`, so the fresh clone
             # lands on an unborn default branch — pin it to origin/main.
             self.git("checkout", "-B", "main", "origin/main", cwd=clone)
@@ -424,7 +437,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     origin = tmp_path / "origin.git"
     subprocess.run(
         ["git", "init", "--bare", str(origin)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
     root = tmp_path / "repo"
@@ -434,7 +447,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     def _g(*args: str) -> None:
         subprocess.run(
             ["git", "-C", str(root), *args],
-            check=True, capture_output=True, text=True,
+            check=True, capture_output=True, text=True, encoding="utf-8",
         )
 
     _g("init", "-b", "main")
@@ -456,8 +469,9 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             [notification.slack]
             webhook = "env:SLACK_WEBHOOK_URL"
             """
-        ).lstrip()
-    , encoding="utf-8", newline="\n")
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
+    )
     (coga_os / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     # Mirror `coga init`'s ignores: the generated agent-skill view is local.
     (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n", encoding="utf-8", newline="\n")
@@ -491,8 +505,9 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             ## merge
             Merge the code.
             """
-        ).lstrip()
-    , encoding="utf-8", newline="\n")
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
+    )
     seed_direct_body_workflow(coga_os)
     (coga_os / "tasks").mkdir()
 

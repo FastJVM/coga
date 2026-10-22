@@ -66,8 +66,9 @@ def test_body_preamble_and_uncomposed_sections_are_both_named(tmp_path: Path) ->
     ticket = tmp_path / "ticket.md"
     ticket.write_text(
         "---\ntitle: Work\n---\nLost prose.\n~~~markdown\n## Description\n~~~\n"
-        "## Notes\nAlso omitted.\n## Context\nKept.\n<!-- coga:blackboard -->\n"
-    , encoding="utf-8", newline="\n")
+        "## Notes\nAlso omitted.\n## Context\nKept.\n<!-- coga:blackboard -->\n",
+        encoding="utf-8", newline="\n",
+    )
 
     warning = uncomposed_sections_warning(ticket)
 

@@ -286,7 +286,7 @@ def _drain_clone_script(
     timed_out = False
     stopped = False
     try:
-        while not eof or child.poll() is None:
+        while not eof or child.poll() is None or (os.name == "nt" and tree.exists()):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True

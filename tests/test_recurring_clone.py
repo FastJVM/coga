@@ -199,8 +199,9 @@ def test_clone_chatty_script_has_bounded_log_and_retains_final_output(
     script.write_text(
         "import os\n"
         "for _ in range(256): os.write(1, b'x' * 65536)\n"
-        "os.write(1, b'\\xffFINAL OUTPUT\\n')\n"
-    , encoding="utf-8", newline="\n")
+        "os.write(1, b'\\xffFINAL OUTPUT\\n')\n",
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     tracemalloc.start()
     try:
@@ -243,8 +244,9 @@ def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits:
         "child = subprocess.Popen([sys.executable, '-c', "
         "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])\n"
         f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
-        + ("child.wait()\n" if parent_waits else "")
-    , encoding="utf-8", newline="\n")
+        + ("child.wait()\n" if parent_waits else ""),
+        encoding="utf-8", newline="\n",
+    )
     result = run_clone_template(load_config(repo), "descendant", script, "today", timeout=0.5)
     assert result.exit_code == 124
     pid = int(child_pid.read_text(encoding="utf-8"))
@@ -387,8 +389,9 @@ def test_windows_timeout_kills_descendant_after_parent_exit(
         "import subprocess, sys\nfrom pathlib import Path\n"
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
         f"Path({str(child_pid)!r}).write_text(str(child.pid))\n"
-        + ("child.wait()\n" if parent_waits else "")
-    , encoding="utf-8", newline="\n")
+        + ("child.wait()\n" if parent_waits else ""),
+        encoding="utf-8", newline="\n",
+    )
     code, _, _ = recurring_clone._run_clone_script(
         [sys.executable, str(script)], cwd=tmp_path, env=dict(os.environ), timeout=2,
     )

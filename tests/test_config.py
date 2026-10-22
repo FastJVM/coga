@@ -163,8 +163,9 @@ def test_owner_read_from_shared_config(repo: Path) -> None:
 
 def test_owner_must_be_a_string(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        "owner = 42\n" + (repo / "coga.toml").read_text(encoding="utf-8")
-    , encoding="utf-8", newline="\n")
+        "owner = 42\n" + (repo / "coga.toml").read_text(encoding="utf-8"),
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="`owner` must be a string"):
         load_config(repo)
 
@@ -194,8 +195,9 @@ def test_resolve_agent_type(repo: Path) -> None:
 def test_agent_discussion_template(repo: Path) -> None:
     text = (repo / "coga.toml").read_text(encoding="utf-8")
     (repo / "coga.toml").write_text(
-        text + 'discussion = "--append-system-prompt {prompt}"\n'
-    , encoding="utf-8", newline="\n")
+        text + 'discussion = "--append-system-prompt {prompt}"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.agent_type("claude").discussion == "--append-system-prompt {prompt}"
 
@@ -239,8 +241,9 @@ def test_agent_launch_args_local_overrides_shared(repo: Path) -> None:
     (repo / "coga.toml").write_text(text + 'launch_args = "--no-daemon"\n', encoding="utf-8", newline="\n")
     local = (repo / "coga.local.toml").read_text(encoding="utf-8")
     (repo / "coga.local.toml").write_text(
-        local + "\n[agents.claude]\nlaunch_args = \"--profile 'two words'\"\n"
-    , encoding="utf-8", newline="\n")
+        local + "\n[agents.claude]\nlaunch_args = \"--profile 'two words'\"\n",
+        encoding="utf-8", newline="\n",
+    )
     agent = load_config(repo).agent_type("claude")
     assert agent.launch_args == "--profile 'two words'"
     assert agent.cli == "claude"
@@ -251,8 +254,9 @@ def test_agent_launch_args_local_empty_string_clears_shared(repo: Path) -> None:
     (repo / "coga.toml").write_text(text + 'launch_args = "--no-daemon"\n', encoding="utf-8", newline="\n")
     local = (repo / "coga.local.toml").read_text(encoding="utf-8")
     (repo / "coga.local.toml").write_text(
-        local + '\n[agents.claude]\nlaunch_args = ""\n'
-    , encoding="utf-8", newline="\n")
+        local + '\n[agents.claude]\nlaunch_args = ""\n',
+        encoding="utf-8", newline="\n",
+    )
     assert load_config(repo).agent_type("claude").launch_args == ""
 
 
@@ -281,8 +285,9 @@ def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
 def test_agent_skip_argv_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text(encoding="utf-8")
     (repo / "coga.toml").write_text(
-        text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n'
-    , encoding="utf-8", newline="\n")
+        text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError,
         match=(
@@ -454,8 +459,9 @@ def test_agent_peer_cannot_name_itself(repo: Path) -> None:
 def test_agent_peer_can_be_supplied_by_local_override(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     _write(
         repo / "coga.local.toml",
         """
@@ -496,8 +502,9 @@ def test_launch_limits_parsed(repo: Path) -> None:
     """`[launch]` idle_timeout / max_session parse to floats (int accepted)."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + "\n[launch]\nidle_timeout = 600\nmax_session = 3600.0\n"
-    , encoding="utf-8", newline="\n")
+        + "\n[launch]\nidle_timeout = 600\nmax_session = 3600.0\n",
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.launch_idle_timeout == 600.0
     assert cfg.launch_idle_timeout_present is True
@@ -513,8 +520,9 @@ def test_launch_limits_non_positive_disarm(repo: Path) -> None:
     """
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + "\n[launch]\nidle_timeout = 0\nmax_session = -1\n"
-    , encoding="utf-8", newline="\n")
+        + "\n[launch]\nidle_timeout = 0\nmax_session = -1\n",
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.launch_idle_timeout is None
     assert cfg.launch_idle_timeout_present is True
@@ -524,8 +532,9 @@ def test_launch_limits_non_positive_disarm(repo: Path) -> None:
 def test_launch_limit_non_number_rejected(repo: Path) -> None:
     """A non-numeric limit fails config load loudly (booleans included)."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[launch]\nidle_timeout = "soon"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[launch]\nidle_timeout = "soon"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[launch\].idle_timeout must be a number"):
         load_config(repo)
 
@@ -533,8 +542,9 @@ def test_launch_limit_non_number_rejected(repo: Path) -> None:
 def test_launch_worktree_key_rejected(repo: Path) -> None:
     """The removed `[launch].worktree` isolation knob fails loud as unknown."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[launch]\nworktree = false\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[launch]\nworktree = false\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[launch\] has unknown key\(s\).*worktree"):
         load_config(repo)
 
@@ -547,24 +557,27 @@ def test_authoring_agent_parsed_from_local(repo: Path) -> None:
     """Shape only: the name is checked against `[agents]` when authoring
     resolves it, so a stale value breaks authoring, not every command."""
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text(encoding="utf-8") + '\n[authoring]\nagent = "codex"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.local.toml").read_text(encoding="utf-8") + '\n[authoring]\nagent = "codex"\n',
+        encoding="utf-8", newline="\n",
+    )
     assert load_config(repo).authoring_agent == "codex"
 
 
 @pytest.mark.parametrize("value", ["1", '""', '"  "'])
 def test_authoring_agent_non_string_or_empty_rejected(repo: Path, value: str) -> None:
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text(encoding="utf-8") + f"\n[authoring]\nagent = {value}\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.local.toml").read_text(encoding="utf-8") + f"\n[authoring]\nagent = {value}\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[authoring\].agent must be a non-empty"):
         load_config(repo)
 
 
 def test_authoring_unknown_key_rejected(repo: Path) -> None:
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text(encoding="utf-8") + '\n[authoring]\nmodel = "opus"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.local.toml").read_text(encoding="utf-8") + '\n[authoring]\nmodel = "opus"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[authoring\] has unknown key\(s\).*model"):
         load_config(repo)
 
@@ -573,8 +586,9 @@ def test_authoring_table_in_shared_toml_rejected(repo: Path) -> None:
     """Which agent a quota-limited operator authors with is machine-local, so
     the shared table gets a tailored error, not the generic unknown-key one."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[authoring]\nagent = "claude"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[authoring]\nagent = "claude"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError, match=r"\[authoring\] is machine-local and belongs in coga.local.toml"
     ):
@@ -592,8 +606,9 @@ def test_autofix_agent_parsed(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[autofix]\nagent = "codex"\ncontexts = ["coga/architecture"]\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[autofix]\nagent = "codex"\ncontexts = ["coga/architecture"]\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.autofix_agent == "codex"
     assert cfg.autofix_contexts == ("coga/architecture",)
@@ -604,20 +619,23 @@ def test_autofix_agent_may_be_declared_machine_locally(repo: Path) -> None:
     """The key is checked against the *effective* agents table, so a type
     declared only in `coga.local.toml` is a valid analyst on that machine."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nagent = "codex"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nagent = "codex"\n',
+        encoding="utf-8", newline="\n",
+    )
     (repo / "coga.local.toml").write_text(
         (repo / "coga.local.toml").read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     assert load_config(repo).autofix_agent == "codex"
 
 
 def test_autofix_agent_unknown_type_rejected(repo: Path) -> None:
     """A typo fails at load, not at the end of an unattended sweep."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nagent = "codx"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nagent = "codx"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError, match=r"\[autofix\].agent names 'codx', which is not defined"
     ):
@@ -626,8 +644,9 @@ def test_autofix_agent_unknown_type_rejected(repo: Path) -> None:
 
 def test_autofix_agent_non_string_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[autofix]\nagent = 1\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[autofix]\nagent = 1\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[autofix\].agent must be a non-empty"):
         load_config(repo)
 
@@ -659,8 +678,9 @@ def test_autofix_contexts_resolve_locally_in_declaration_order(
     toml = layout_repo / "coga.toml"
     toml.write_text(
         toml.read_text(encoding="utf-8")
-        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture"]\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture"]\n',
+        encoding="utf-8", newline="\n",
+    )
 
     cfg = load_config(layout_repo)
 
@@ -809,8 +829,9 @@ def test_default_agent_local_may_name_a_local_only_type(repo: Path) -> None:
     """Checked against the *effective* agents table, like `[autofix] agent`."""
     _prepend_default_agent(repo / "coga.local.toml", '"codex"')
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text(encoding="utf-8") + _CODEX_TABLE
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.local.toml").read_text(encoding="utf-8") + _CODEX_TABLE,
+        encoding="utf-8", newline="\n",
+    )
     assert load_config(repo).default_agent().name == "codex"
 
 
@@ -845,8 +866,9 @@ def test_default_agent_broken_shared_value_fails_even_when_local_wins(
 def test_autofix_unknown_key_rejected(repo: Path) -> None:
     """`[autofix]` is not a general agent-routing table."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nmodel = "opus"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[autofix]\nmodel = "opus"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"\[autofix\] has unknown key\(s\).*model"):
         load_config(repo)
 
@@ -856,8 +878,9 @@ def test_autofix_table_is_shared_only(repo: Path, settings: str) -> None:
     """Autofix defaults are repo policy, so the table is rejected
     from `coga.local.toml` like `[layout]` and `[launch]`."""
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text(encoding="utf-8") + f"\n[autofix]\n{settings}\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.local.toml").read_text(encoding="utf-8") + f"\n[autofix]\n{settings}\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"coga.local.toml has unknown key\(s\).*autofix"):
         load_config(repo)
 
@@ -950,8 +973,9 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
 
 def test_unknown_top_level_shared_section_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[notifcation]\nchannels = []\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[notifcation]\nchannels = []\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match=r"coga.toml has unknown key\(s\) \['notifcation'\]"):
         load_config(repo)
 
@@ -985,8 +1009,9 @@ def test_local_ignored_shared_only_key_rejected(repo: Path) -> None:
 
 def test_unknown_agent_key_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + 'clii = "claude"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + 'clii = "claude"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError,
         match=r"\[agents.claude\] in coga.toml has unknown key\(s\) \['clii'\]",
@@ -999,8 +1024,9 @@ def test_unknown_notification_subkey_rejected(repo: Path) -> None:
     that would silently shadow the real Slack config — now it fails loud."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[notification.slak]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[notification.slak]\nwebhook = "env:SLACK_WEBHOOK_URL"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError,
         match=r"\[notification\] in coga.toml has unknown key\(s\) \['slak'\]",
@@ -1034,8 +1060,9 @@ def test_unknown_notification_slack_key_rejected(tmp_path: Path) -> None:
 def test_removed_slack_table_has_migration_error_shared(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError,
         match=r"\[slack\] in coga.toml is no longer supported.*"
@@ -1063,8 +1090,9 @@ def test_removed_slack_table_has_migration_error_local(repo: Path) -> None:
 
 def test_unknown_git_key_rejected_shared(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[git]\nremot = "origin"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[git]\nremot = "origin"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError, match=r"\[git\] in coga.toml has unknown key\(s\) \['remot'\]"
     ):
@@ -1095,15 +1123,17 @@ def test_git_worktrees_ticket_owned_defaults_off(repo: Path) -> None:
 
 def test_git_worktrees_ticket_owned_opt_in(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[git]\nworktrees_ticket_owned = true\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[git]\nworktrees_ticket_owned = true\n",
+        encoding="utf-8", newline="\n",
+    )
     assert load_config(repo).git_worktrees_ticket_owned is True
 
 
 def test_git_worktrees_ticket_owned_must_be_boolean(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[git]\nworktrees_ticket_owned = "yes"\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[git]\nworktrees_ticket_owned = "yes"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError,
         match=r"\[git\].worktrees_ticket_owned must be a boolean \(got str\)",
@@ -1135,8 +1165,9 @@ def test_shared_only_git_keys_rejected_local(repo: Path, key: str, value: str) -
 
 def test_unknown_launch_key_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[launch]\nidle_timout = 600\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[launch]\nidle_timout = 600\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError, match=r"\[launch\] has unknown key\(s\) \['idle_timout'\]"
     ):
@@ -1145,8 +1176,9 @@ def test_unknown_launch_key_rejected(repo: Path) -> None:
 
 def test_unknown_ticket_key_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[ticket]\nfeilds = {}\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[ticket]\nfeilds = {}\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(
         ConfigError, match=r"\[ticket\] has unknown key\(s\) \['feilds'\]"
     ):
@@ -1163,8 +1195,9 @@ def test_free_form_maps_keep_arbitrary_keys(repo: Path) -> None:
             'anything_goes = ["https://example.test/x.gif"]\n'
             "\n[notification.slack.users]\n"
             'whoever = "U0XXXXXXX"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.slack_gifs["anything_goes"] == ["https://example.test/x.gif"]
     assert cfg.slack_users["whoever"] == "U0XXXXXXX"
@@ -1512,8 +1545,9 @@ def test_unsupported_version(tmp_path: Path) -> None:
 def test_aliases_load_and_strip(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\nchat = "  launch bootstrap/orient  "\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\nchat = "  launch bootstrap/orient  "\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.aliases == {"chat": "launch bootstrap/orient"}
 
@@ -1525,16 +1559,18 @@ def test_aliases_default_empty(repo: Path) -> None:
 
 def test_aliases_reject_non_string(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[aliases]\nchat = 42\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[aliases]\nchat = 42\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="aliases.chat must be a string"):
         load_config(repo)
 
 
 def test_aliases_reject_empty_string(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[aliases]\nchat = "   "\n'
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + '\n[aliases]\nchat = "   "\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="aliases.chat is empty"):
         load_config(repo)
 
@@ -1545,8 +1581,9 @@ def test_aliases_reject_empty_string(repo: Path) -> None:
 def test_ticket_fields_load_minimal(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "USPTO docket number"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "USPTO docket number"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert "docket" in cfg.ticket_fields
     field = cfg.ticket_fields["docket"]
@@ -1563,8 +1600,9 @@ def test_ticket_fields_preserve_declaration_order(repo: Path) -> None:
             "\n[ticket.fields.docket]\ndescription = \"d\"\n"
             "\n[ticket.fields.application_number]\ndescription = \"a\"\n"
             "\n[ticket.fields.priority]\ndescription = \"p\"\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert list(cfg.ticket_fields) == ["docket", "application_number", "priority"]
 
@@ -1583,8 +1621,9 @@ def test_ticket_fields_full_shape(repo: Path) -> None:
             'values = ["P0", "P1", "P2"]\n'
             'default = "P2"\n'
             "required = true\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     field = cfg.ticket_fields["priority"]
     assert field.values == ("P0", "P1", "P2")
@@ -1596,8 +1635,9 @@ def test_ticket_fields_full_shape(repo: Path) -> None:
 def test_ticket_fields_reject_reserved_name(repo: Path, name: str) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + f'\n[ticket.fields.{name}]\ndescription = "x"\n'
-    , encoding="utf-8", newline="\n")
+        + f'\n[ticket.fields.{name}]\ndescription = "x"\n',
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="canonical ticket frontmatter key"):
         load_config(repo)
 
@@ -1609,16 +1649,18 @@ def test_ticket_fields_reject_unsupported_key(repo: Path) -> None:
             "\n[ticket.fields.docket]\n"
             'description = "d"\n'
             'kind = "string"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="unsupported keys"):
         load_config(repo)
 
 
 def test_ticket_fields_require_description(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[ticket.fields.docket]\n"
-    , encoding="utf-8", newline="\n")
+        (repo / "coga.toml").read_text(encoding="utf-8") + "\n[ticket.fields.docket]\n",
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="description must be a non-empty string"):
         load_config(repo)
 
@@ -1630,8 +1672,9 @@ def test_ticket_fields_reject_empty_values_list(repo: Path) -> None:
             "\n[ticket.fields.priority]\n"
             'description = "p"\n'
             "values = []\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="values must not be empty"):
         load_config(repo)
 
@@ -1644,8 +1687,9 @@ def test_ticket_fields_default_must_match_values(repo: Path) -> None:
             'description = "p"\n'
             'values = ["P0", "P1"]\n'
             'default = "P9"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="not in declared values"):
         load_config(repo)
 
@@ -1657,8 +1701,9 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
             "\n[ticket.fields.docket]\n"
             'description = "d"\n'
             'required = "yes"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
 
@@ -1673,8 +1718,9 @@ def test_extensions_freeform_passthrough(repo: Path) -> None:
             "feature_flag = true\n"
             "\n[extensions.patent]\n"
             'calendar_id = "abc123@group.calendar.google.com"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert cfg.extensions["feature_flag"] is True
     assert (
@@ -1723,7 +1769,7 @@ def layout_repo(repo: Path) -> Path:
     """
     subprocess.run(
         ["git", "init", "-b", "main", str(repo)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     return repo
 
@@ -1758,7 +1804,7 @@ def test_layout_contexts_resolves_from_nested_coga_root(tmp_path: Path) -> None:
     """
     subprocess.run(
         ["git", "init", "-b", "main", str(tmp_path)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     coga_os = tmp_path / "coga"
     coga_os.mkdir()
@@ -1790,7 +1836,7 @@ def test_layout_contexts_cannot_contain_nested_coga_root(tmp_path: Path) -> None
         ["git", "init", "-b", "main", str(tmp_path)],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     coga_os = tmp_path / "project" / "coga"
     coga_os.mkdir(parents=True)

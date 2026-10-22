@@ -1147,7 +1147,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(root), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         # `status -z` hands back raw paths, which may not decode under the
         # ambient locale; surrogates keep classification working instead of
         # raising.

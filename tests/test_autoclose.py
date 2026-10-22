@@ -857,7 +857,7 @@ def test_render_retire_report_lists_disposed_and_preserved_with_reasons() -> Non
         "and branch by hand)"
     ) in report
     assert "  - Worktree cleanup: '/w/kept' contains" in report
-    assert "Recorded in the durable worklist `/repo/coga/recurring/autoclose-merged/retires.md`" in report
+    assert f"Recorded in the durable worklist `{Path('/repo/coga/recurring/autoclose-merged/retires.md')}`" in report
 
 
 def test_render_disposed_and_preserved_summaries() -> None:
@@ -901,7 +901,7 @@ def test_manual_command_for_a_path_git_cannot_read() -> None:
     unreadable.worktree_path = Path("/w/plain")
 
     assert unreadable.manual_command == (
-        "`/w/plain` is not a git worktree git can read, which no proof removes — "
+        f"`{Path('/w/plain')}` is not a git worktree git can read, which no proof removes — "
         "inspect and remove it by hand"
     )
 
@@ -1634,8 +1634,9 @@ def test_recipe_preflights_live_summary_before_closing(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/28": "MERGED"})
     config = repo / "coga.toml"
     config.write_text(
-        config.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    , encoding="utf-8", newline="\n")
+        config.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
     with pytest.raises(typer.Exit):
@@ -1843,8 +1844,9 @@ def test_a_recurring_run_drops_discharged_debt_and_keeps_live_debt(
         + rw.RetireFollowUp("retired", "", str(tmp_path / "absent"), "2026-09-01").render()
         + "\n"
         + rw.RetireFollowUp("stranded", "", str(still_here), "2026-09-01").render()
-        + "\n"
-    , encoding="utf-8", newline="\n")
+        + "\n",
+        encoding="utf-8", newline="\n",
+    )
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 

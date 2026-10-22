@@ -77,8 +77,9 @@ def test_uninstall_removes_relocated_contexts_directory(
     target = _seed_footprint(tmp_path, monkeypatch)
     (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     (target / "coga" / "coga.toml").write_text(
-        'version = 1\n[layout]\ncontexts = "docs/contexts"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
+    )
     context = target / "docs" / "contexts" / "team" / "style" / "SKILL.md"
     context.parent.mkdir(parents=True)
     context.write_text("# Style\n", encoding="utf-8", newline="\n")
@@ -317,8 +318,9 @@ def test_main_uninstall_ignores_legacy_uninstall_alias(
     target = _seed_footprint(tmp_path, monkeypatch)
     (target / "coga" / "coga.local.toml").write_text('user = "me"\n', encoding="utf-8", newline="\n")
     (target / "coga" / "coga.toml").write_text(
-        'version = 1\n[aliases]\nuninstall = "status"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n[aliases]\nuninstall = "status"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(sys, "argv", ["coga", "uninstall", "--yes"])
 
     with pytest.raises(SystemExit) as exc:

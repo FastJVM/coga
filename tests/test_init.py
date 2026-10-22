@@ -102,29 +102,34 @@ def _seed_fake_templates(templates: Path) -> None:
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
         "coga.local.toml\n.coga/\n.agent-skills/\n"
-        "**/_template/\n**/_template.md\n"
-    , encoding="utf-8", newline="\n")
+        "**/_template/\n**/_template.md\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
     (templates / "context.md").write_text("context\n", encoding="utf-8", newline="\n")
     (templates / "contexts").mkdir()
     (templates / "contexts" / ".gitignore").write_text(
-        "**/_template/\n**/_template.md\n"
-    , encoding="utf-8", newline="\n")
+        "**/_template/\n**/_template.md\n",
+        encoding="utf-8", newline="\n",
+    )
     # Packaged skills + canonical coga/* contexts live under bootstrap/ in the
     # package resource tree, not in initialized repos.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
-        "bootstrap/ticket skill\n"
-    , encoding="utf-8", newline="\n")
+        "bootstrap/ticket skill\n",
+        encoding="utf-8", newline="\n",
+    )
     for name in ("orient", "ticket"):
         (templates / "bootstrap" / name).mkdir(parents=True)
         (templates / "bootstrap" / name / "ticket.md").write_text(
-            f"{name} bootstrap ticket\n"
-        , encoding="utf-8", newline="\n")
+            f"{name} bootstrap ticket\n",
+            encoding="utf-8", newline="\n",
+        )
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "retro/done-ticket skill\n"
-    , encoding="utf-8", newline="\n")
+        "retro/done-ticket skill\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep").mkdir(
         parents=True
     )
@@ -140,16 +145,19 @@ def _seed_fake_templates(templates: Path) -> None:
     for ctx in ("architecture", "cli"):
         (templates / "bootstrap" / "contexts" / "coga" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").write_text(
-            f"coga/{ctx} context\n"
-        , encoding="utf-8", newline="\n")
+            f"coga/{ctx} context\n",
+            encoding="utf-8", newline="\n",
+        )
     (templates / "bootstrap" / "contexts" / "coga" / "sync").mkdir(parents=True)
     (templates / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
-        "coga/sync context\n"
-    , encoding="utf-8", newline="\n")
+        "coga/sync context\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "bootstrap" / "contexts" / "coga" / "code").mkdir(parents=True)
     (templates / "bootstrap" / "contexts" / "coga" / "code" / "SKILL.md").write_text(
-        "coga/code context\n"
-    , encoding="utf-8", newline="\n")
+        "coga/code context\n",
+        encoding="utf-8", newline="\n",
+    )
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
         ("skills", "_template/SKILL.md"),
@@ -163,26 +171,31 @@ def _seed_fake_templates(templates: Path) -> None:
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "autoclose-merged").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
-        "autoclose merged template\n"
-    , encoding="utf-8", newline="\n")
+        "autoclose merged template\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "dream" / "ticket.md").write_text("dream template\n", encoding="utf-8", newline="\n")
     (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
-        "skill update template\n"
-    , encoding="utf-8", newline="\n")
+        "skill update template\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
     (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
-        "direct body skill\n"
-    , encoding="utf-8", newline="\n")
+        "direct body skill\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "direct" / "body.md").write_text(
-        "direct body workflow\n"
-    , encoding="utf-8", newline="\n")
+        "direct body workflow\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
-        "skill update workflow\n"
-    , encoding="utf-8", newline="\n")
+        "skill update workflow\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "workflows" / "build").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "build" / "onboarding.md").write_text(
         "---\n"
@@ -197,8 +210,9 @@ def _seed_fake_templates(templates: Path) -> None:
         "\n"
         "## gather-and-spec\n"
         "\n"
-        "Ask what the user wants to build.\n"
-    , encoding="utf-8", newline="\n")
+        "Ask what the user wants to build.\n",
+        encoding="utf-8", newline="\n",
+    )
     (templates / "tasks" / "coga-build").mkdir(parents=True, exist_ok=True)
     (templates / "tasks" / "coga-build" / "ticket.md").write_text(
         "---\n"
@@ -225,8 +239,9 @@ def _seed_fake_templates(templates: Path) -> None:
         "\n"
         "<!-- coga:blackboard -->\n"
         "\n"
-        "notepad\n"
-    , encoding="utf-8", newline="\n")
+        "notepad\n",
+        encoding="utf-8", newline="\n",
+    )
     # Single-file format: the audit log + its union-merge attribute ship at the
     # coga root, not as per-task siblings.
     (templates / "log.md").write_text("", encoding="utf-8", newline="\n")
@@ -235,8 +250,9 @@ def _seed_fake_templates(templates: Path) -> None:
         parents=True, exist_ok=True
     )
     (templates / "workflows" / "autoclose-merged" / "sweep.md").write_text(
-        "autoclose merged workflow\n"
-    , encoding="utf-8", newline="\n")
+        "autoclose merged workflow\n",
+        encoding="utf-8", newline="\n",
+    )
 
 
 @pytest.fixture
@@ -301,8 +317,9 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         check=True,
     )
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -315,7 +332,7 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         ["git", "-C", str(checkout), "ls-files"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout.splitlines()
     assert "docs/contexts/.gitignore" in tracked
     assert "docs/contexts/_template/SKILL.md" not in tracked
@@ -325,7 +342,7 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         ["git", "-C", str(checkout), "status", "--porcelain"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout == ""
 
 
@@ -347,8 +364,9 @@ def test_init_relocates_contexts_before_empty_repo_onboarding_log(
         check=True,
     )
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
     result = CliRunner().invoke(app, ["init", str(checkout), "--user", "tester"])
@@ -378,8 +396,9 @@ def test_init_rejects_ignored_configured_contexts_before_writing(
     )
     (checkout / ".gitignore").write_text("docs/contexts/\n", encoding="utf-8", newline="\n")
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
     result = CliRunner().invoke(app, ["init", str(checkout), "--user", "tester"])
@@ -776,8 +795,9 @@ def test_init_on_clone_edits_userless_local_toml_in_place(
         'user = ""\n'
         "\n"
         "[agents.claude]\n"
-        'argv = "claude --dangerously-skip-permissions"\n'
-    , encoding="utf-8", newline="\n")
+        'argv = "claude --dangerously-skip-permissions"\n',
+        encoding="utf-8", newline="\n",
+    )
     result = CliRunner().invoke(app, ["init", str(empty_user), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert local_toml.read_text(encoding="utf-8") == (
@@ -944,7 +964,7 @@ def test_init_real_clone_preserves_head_index_and_working_tree(
     def git(*args: str) -> str:
         return subprocess.run(
             ["git", "-C", str(target), *args],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, encoding="utf-8", check=True,
         ).stdout
 
     probes = [
@@ -1295,18 +1315,21 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     tasks = coga_os / "tasks"
     (tasks / "alpha").mkdir(parents=True)
     (tasks / "alpha" / "ticket.md").write_text(
-        "---\nowner: new-user\nagent: claude\n---\n"
-    , encoding="utf-8", newline="\n")
+        "---\nowner: new-user\nagent: claude\n---\n",
+        encoding="utf-8", newline="\n",
+    )
     (tasks / "beta").mkdir(parents=True)
     (tasks / "beta" / "ticket.md").write_text(
-        "---\nowner: new-user\ntitle: Beta\n---\n"
-    , encoding="utf-8", newline="\n")
+        "---\nowner: new-user\ntitle: Beta\n---\n",
+        encoding="utf-8", newline="\n",
+    )
     # The `replace-with-human-name` token is a different placeholder, owned by
     # create_task/recurring — the stamp must leave it alone.
     (tasks / "_template").mkdir(parents=True)
     (tasks / "_template" / "ticket.md").write_text(
-        "---\nowner: replace-with-human-name\n---\n"
-    , encoding="utf-8", newline="\n")
+        "---\nowner: replace-with-human-name\n---\n",
+        encoding="utf-8", newline="\n",
+    )
 
     stamped = init_cmd._stamp_user_into_delivered_tickets(coga_os, "marc")
 
@@ -1368,22 +1391,26 @@ def _seed_local_coga_os(root: Path) -> Path:
     # preserved for the managed-skill reconciler, not pruned as obsolete.
     (coga_os / "skills" / "coga" / "calendar-reminder").mkdir(parents=True)
     (coga_os / "skills" / "coga" / "calendar-reminder" / "SKILL.md").write_text(
-        "OLD coga/calendar-reminder skill\n"
-    , encoding="utf-8", newline="\n")
+        "OLD coga/calendar-reminder skill\n",
+        encoding="utf-8", newline="\n",
+    )
     (coga_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "OLD retro/done-ticket skill\n"
-    , encoding="utf-8", newline="\n")
+        "OLD retro/done-ticket skill\n",
+        encoding="utf-8", newline="\n",
+    )
     (coga_os / ".agent-skills").mkdir()
     (coga_os / ".agent-skills" / "_template").symlink_to("../skills/_template")
     (coga_os / "contexts" / "coga" / "sync").mkdir(parents=True)
     (coga_os / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
-        "OLD coga/sync context\n"
-    , encoding="utf-8", newline="\n")
+        "OLD coga/sync context\n",
+        encoding="utf-8", newline="\n",
+    )
     (coga_os / "contexts" / "coga" / "code").mkdir(parents=True)
     (coga_os / "contexts" / "coga" / "code" / "SKILL.md").write_text(
-        "OLD coga/code context\n"
-    , encoding="utf-8", newline="\n")
+        "OLD coga/code context\n",
+        encoding="utf-8", newline="\n",
+    )
     # Stale `_*` create upstream no longer ships (rename or removal).
     (coga_os / "recurring").mkdir(exist_ok=True)
     (coga_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n", encoding="utf-8", newline="\n")
@@ -1411,14 +1438,14 @@ def test_init_commits_coga_os_when_target_is_git_repo(
 
     log = subprocess.run(
         ["git", "-C", str(target), "log", "--oneline"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     )
     assert "Create coga via `coga init`" in log.stdout
 
     # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files", "coga"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert any(p.startswith("coga/coga.toml") for p in tracked)
     assert not any(".coga/" in p for p in tracked)
@@ -1577,7 +1604,7 @@ def test_init_warns_loud_when_commit_fails(
     # coga/ survived on disk and is staged, ready to commit once fixed.
     staged = subprocess.run(
         ["git", "-C", str(target), "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout
     assert "coga/coga.toml" in staged
 
@@ -1655,7 +1682,7 @@ def test_init_into_subdir_of_git_repo(
     # Committed into the *host* repo, with paths below the git root.
     tracked = subprocess.run(
         ["git", "-C", str(host), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert "tools/ops/coga/coga.toml" in tracked
     # The coga-managed ignore block lands at the nested target — git scopes a
@@ -1758,14 +1785,14 @@ def test_init_into_subdir_leaves_unrelated_staged_files_alone(
 
     committed = subprocess.run(
         ["git", "-C", str(host), "show", "--name-only", "--format=", "HEAD"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.split()
     assert "wip.py" not in committed
     assert "tools/ops/coga/coga.toml" in committed
     # The user's staged file is untouched — still staged, not committed.
     staged = subprocess.run(
         ["git", "-C", str(host), "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.split()
     assert "wip.py" in staged
 
@@ -1962,7 +1989,7 @@ def test_init_commits_agent_guides_in_git_repo(
 
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert "CLAUDE.md" in tracked
     assert "AGENTS.md" in tracked
@@ -2226,8 +2253,9 @@ def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
         real_copy(template_root, coga_os)
         config = coga_os / "coga.toml"
         config.write_text(
-            config.read_text(encoding="utf-8") + '\n[git]\ncontrol_branch = "trunk"\n'
-        , encoding="utf-8", newline="\n")
+            config.read_text(encoding="utf-8") + '\n[git]\ncontrol_branch = "trunk"\n',
+            encoding="utf-8", newline="\n",
+        )
 
     monkeypatch.setattr(init_cmd, "copy_fresh_templates", copy_with_git_table)
 
@@ -2298,7 +2326,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     # Block was committed alongside coga/ in the init commit.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert ".gitignore" in tracked
 
@@ -2343,8 +2371,9 @@ def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
     (target / ".git").mkdir()
     # Block with begin marker but no end marker — replace from begin to EOF.
     (target / ".gitignore").write_text(
-        f"node_modules/\n{update_cmd.HOST_GITIGNORE_BEGIN}\nstale-content\n"
-    , encoding="utf-8", newline="\n")
+        f"node_modules/\n{update_cmd.HOST_GITIGNORE_BEGIN}\nstale-content\n",
+        encoding="utf-8", newline="\n",
+    )
 
     assert update_cmd.ensure_host_gitignore(target) is True
     text = (target / ".gitignore").read_text(encoding="utf-8")
@@ -2378,8 +2407,9 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
     # Existing file: stale marker block + user-area content.
     (dst_root / ".gitignore").write_text(
         f"{update_cmd.COGA_GITIGNORE_BEGIN}\nold-stale-entry/\n"
-        f"{update_cmd.COGA_GITIGNORE_END}\n\nuser-rule/\n"
-    , encoding="utf-8", newline="\n")
+        f"{update_cmd.COGA_GITIGNORE_END}\n\nuser-rule/\n",
+        encoding="utf-8", newline="\n",
+    )
 
     assert update_cmd._refresh_coga_gitignore(src_root, dst_root) is True
     text = (dst_root / ".gitignore").read_text(encoding="utf-8")

@@ -288,7 +288,7 @@ def test_suppressed_updates_marker_without_identity(repo):
 
 
 def test_real_worker_inherits_test_gate(repo):
-    result = subprocess.run([sys.executable, str(Path(t.__file__)), "--worker", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
+    result = subprocess.run([sys.executable, str(Path(t.__file__)), "--worker", "capture", str(repo)], input="{}", text=True, encoding="utf-8", capture_output=True, timeout=5)
     assert result.stdout.strip() == "suppressed"
 
 

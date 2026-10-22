@@ -74,7 +74,9 @@ def _run(
     """
     run_env = {**os.environ, **env} if env else None
     if os.name == "nt":
-        args = [shutil.which(args[0], path=(run_env or os.environ).get("PATH")) or args[0], *args[1:]]
+        executable = shutil.which(args[0], path=(run_env or os.environ).get("PATH"))
+        if executable and Path(executable).suffix.lower() in {".cmd", ".bat", ".com"}:
+            args = [executable, *args[1:]]
     try:
         proc = subprocess.run(
             args,

@@ -303,8 +303,9 @@ sys.exit(coga("bump", slug))
 def _install_fake_agent(coga_os: Path, tmp_path: Path) -> Path:
     script = tmp_path / "fake_agent.py"
     script.write_text(
-        _FAKE_AGENT.format(python=sys.executable, step_env=EXPECTED_STEP_ENV)
-    , encoding="utf-8", newline="\n")
+        _FAKE_AGENT.format(python=sys.executable, step_env=EXPECTED_STEP_ENV),
+        encoding="utf-8", newline="\n",
+    )
     script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     # Point the claude CLI at the fake agent.
     toml = coga_os / "coga.toml"

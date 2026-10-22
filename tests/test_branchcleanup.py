@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import remove_test_checkout
+
 import coga.branchcleanup
 from coga.branchcleanup import (
     BranchCleanupResult,
@@ -21,7 +23,7 @@ from coga.config import load_config
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True
+        ["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8"
     )
     if check:
         assert proc.returncode == 0, proc.stderr + proc.stdout
@@ -45,7 +47,7 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "--bare", "-b", "main", str(remote)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     root = tmp_path / "work"
@@ -53,7 +55,7 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "-b", "main", str(root)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(root, "config", "user.email", "t@example.com")
@@ -64,8 +66,9 @@ def repo(tmp_path: Path) -> Path:
     coga_os.mkdir()
     (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n', encoding="utf-8", newline="\n")
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
-    , encoding="utf-8", newline="\n")
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
 
     _commit(root, "base.txt", "base", "base")
     _git(root, "push", "-u", "origin", "main")
@@ -362,7 +365,7 @@ def test_rebasing_worktree_still_blocks_the_forced_local_delete(
 
     assert result.local_deleted is False
     assert _branch_exists_local(repo, "feat")
-    assert result.local_worktree_path == str(worktree)
+    assert Path(result.local_worktree_path) == worktree
 
 
 def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
@@ -380,7 +383,7 @@ def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
     subprocess.run(
         ["git", "clone", str(repo.parent / "origin.git"), str(other)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(other, "config", "user.email", "t@example.com")
@@ -531,7 +534,7 @@ def test_landed_local_with_lagging_upstream_held_by_worktree_is_kept(
 
     assert result.local_deleted is False
     assert _branch_exists_local(repo, "feat")
-    assert result.local_worktree_path == str(worktree)
+    assert Path(result.local_worktree_path) == worktree
 
 
 def test_unmerged_no_pr_is_skipped(repo: Path, monkeypatch) -> None:
@@ -1055,7 +1058,7 @@ def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
     subprocess.run(
         ["git", "clone", "--no-hardlinks", str(repo), str(clone)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
 
@@ -1110,7 +1113,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
 ) -> None:
     feature = tmp_path / "feature"
     _add_worktree(repo, feature, "feat")
-    subprocess.run(["rm", "-rf", str(feature)], check=True)
+    remove_test_checkout(feature)
 
     notes: list[str] = []
     result = remove_ticket_worktree(

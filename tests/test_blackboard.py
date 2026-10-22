@@ -279,8 +279,9 @@ def test_blackboard_size_warning_measures_live_prompt_content(tmp_path: Path) ->
     ticket.write_text(
         "---\ntitle: Work\n---\n\n## Description\nCurrent work.\n\n"
         "<!-- coga:blackboard -->\n\n## Superseded designs\n"
-        + "Old design. " * 4000
-    , encoding="utf-8", newline="\n")
+        + "Old design. " * 4000,
+        encoding="utf-8", newline="\n",
+    )
     before = ticket.read_bytes()
 
     assert blackboard_size_warning(ticket) is None
@@ -305,8 +306,9 @@ def test_prelaunch_blackboard_ignores_missing_optional_blackboard(
 
             Stateless bootstrap ticket.
             """
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     before = ticket.read_text(encoding="utf-8")
 
     reason = prelaunch_blackboard_synthesis_reason(
@@ -321,8 +323,9 @@ def _cfg_with_blackboard_override(tmp_path: Path, template: str | None) -> Confi
     root = tmp_path / "coga"
     root.mkdir()
     (root / "coga.toml").write_text(
-        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
-    , encoding="utf-8", newline="\n")
+        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     (root / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     if template is not None:
         (root / "resources").mkdir()

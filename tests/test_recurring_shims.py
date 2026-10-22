@@ -355,8 +355,9 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
         "    sys.stderr.write('[blockers] webhook refused the reminder\\n')\n"
         "    return 2\n"
         "runner.RECIPES['blocker-reminders'] = fail\n"
-        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n"
-    , encoding="utf-8", newline="\n")
+        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n",
+        encoding="utf-8", newline="\n",
+    )
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 

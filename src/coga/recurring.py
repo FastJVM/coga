@@ -1525,8 +1525,9 @@ def promote_task(
                     shutil.copy2(sibling, sibling_dest)
         ticket_path = dest / "ticket.md"
         ticket_path.write_text(
-            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD))
-        , encoding="utf-8", newline="\n")
+            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD)),
+            encoding="utf-8", newline="\n",
+        )
         Template.load(dest, now=now)
     except (RecurringError, OSError):
         shutil.rmtree(dest, ignore_errors=True)

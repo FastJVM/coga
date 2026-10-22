@@ -435,8 +435,9 @@ def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
             "required = true\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     slug, task_path = _make_task(repo, status="draft")
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -454,8 +455,9 @@ def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
             "required = true\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     slug, task_path = _make_task(repo, status="draft")
     t = Ticket.read(task_path)
     t.frontmatter["docket"] = "55-12345"
@@ -473,8 +475,9 @@ def test_mark_active_ignores_required_when_not_required(repo: Path) -> None:
     """Empty non-required extension fields don't block activation."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "x"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "x"\n',
+        encoding="utf-8", newline="\n",
+    )
     slug, _ = _make_task(repo, status="draft")
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -623,8 +626,9 @@ def _unset_selected_webhook(repo: Path) -> None:
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
             "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
 
 def test_mark_done_preflights_notification_before_mutation(repo: Path) -> None:
@@ -1434,8 +1438,9 @@ def test_a_peer_config_edit_reroutes_the_next_peer_step(repo: Path) -> None:
             '[agents.claude]\ncli = "claude"',
             '[agents.claude]\npeer = "codex"\ncli = "claude"',
         )
-        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     _write(
         repo / "workflows" / "peer.md",
         """

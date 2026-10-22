@@ -93,7 +93,7 @@ def test_guard_scrubs_metadata_inherited_from_a_supervised_parent(
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=_REPO_ROOT,
     )

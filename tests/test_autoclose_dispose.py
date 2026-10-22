@@ -9,6 +9,7 @@ worktree, and a bare `origin`, so the shared retire proofs
 from __future__ import annotations
 
 import shutil
+import shlex
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -22,14 +23,14 @@ from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
-from conftest import GitRepo, init_git_repo
+from conftest import GitRepo, init_git_repo, remove_test_checkout
 
 PR_URL = "https://github.com/o/r/pull/30"
 
 
 def _git(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(cwd), *args], capture_output=True, text=True
+        ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8"
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     return proc.stdout.strip()
@@ -175,8 +176,9 @@ def _period_task(repo: GitRepo, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
 
             <!-- coga:blackboard -->
             """
-        ).lstrip()
-    , encoding="utf-8", newline="\n")
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
     return period, template / rw.RETIRE_WORKLIST_FILENAME
@@ -297,8 +299,9 @@ def test_recipe_drains_a_worklist_entry_whose_ticket_is_gone(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("retired-long-ago", "orphan", str(worktree), "2026-09-01")],
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     tip = _git(git_repo.root, "rev-parse", "refs/heads/orphan")
     _stub_gh(monkeypatch, git_repo, merged_by_head={"orphan": tip})
     _capture_posts(monkeypatch)
@@ -358,8 +361,9 @@ def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("finished", "feature-x", str(worktree), "2026-09-01")],
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _stub_gh(monkeypatch, git_repo)
     _capture_posts(monkeypatch)
     result = am.AutocloseResult()
@@ -519,10 +523,10 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     assert preserved.home is not None and preserved.home.kind == "foreign-linked"
     remedy = preserved.manual_command
     assert f"the worktree belongs to `{owner}`" in remedy
-    assert f"`git -C {owner} worktree list --porcelain`" in remedy
-    assert f"`git -C {worktree.resolve()} status --short --untracked-files=all --ignored`" in remedy
+    assert f"`git -C {shlex.quote(str(owner))} worktree list --porcelain`" in remedy
+    assert f"`git -C {shlex.quote(str(worktree.resolve()))} status --short --untracked-files=all --ignored`" in remedy
     assert "worktree remove" not in remedy
-    assert "`git -C " + str(owner) + " branch -" not in remedy
+    assert "`git -C " + shlex.quote(str(owner)) + " branch -" not in remedy
     assert "exact merged-head verification" in remedy
     assert "Keep the worktree until that plan is verified" in remedy
     assert f"`coga retire {slug}` fails the same proof" in remedy
@@ -558,7 +562,7 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     [kept] = result.preserved
     assert kept.slug == slug and kept.branch_owner == owner.resolve()
     assert kept.checkout_state == "branch `upstream-fix`"
-    remedy = f"`git -C {owner.resolve()} branch -d upstream-fix`"
+    remedy = f"`git -C {shlex.quote(str(owner.resolve()))} branch -d upstream-fix`"
     assert remedy in kept.manual_command
     assert remedy in period.read_text(encoding="utf-8")
     [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
@@ -595,7 +599,7 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     assert entry.owner == str(owner.resolve())
 
     shutil.rmtree(worktree)
-    shutil.rmtree(owner)
+    remove_test_checkout(owner)
     posts.clear()
     result = am.AutocloseResult()
     assert am.run_autoclose_recipe(cfg, [], result=result) == 0
@@ -643,7 +647,7 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
     assert kept.branch_owner == clone.resolve()
     assert kept.worktree is None
     assert "remove" not in kept.manual_command
-    assert f"git -C {clone} branch -d feature-x" in kept.manual_command
+    assert f"git -C {shlex.quote(str(clone))} branch -d feature-x" in kept.manual_command
     assert _local_branch_exists(git_repo.root, "feature-x")
     _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(clone.resolve())
@@ -697,7 +701,7 @@ def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
 
     # `/tmp` is wiped: the branch went with the clone, so this is not an
     # unreadable owner to locate forever.
-    shutil.rmtree(clone)
+    remove_test_checkout(clone)
     posts.clear()
     result = am.AutocloseResult()
     assert am.run_autoclose_recipe(cfg, [], result=result) == 0
@@ -758,8 +762,9 @@ def test_worklist_entry_naming_the_primary_checkout_clears_with_its_branch(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("in-place", branch, str(git_repo.root), "2026-09-01")],
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     _stub_gh(monkeypatch, git_repo)
     posts = _capture_posts(monkeypatch)
     result = am.AutocloseResult()

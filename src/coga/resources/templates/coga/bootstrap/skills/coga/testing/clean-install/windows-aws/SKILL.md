@@ -54,7 +54,7 @@ quota, the zones offering the instance type, any harness instances not yet
 terminated, and the newest `Windows_Server-2025-English-Full-Base-*` AMI.
 
 The host needs Bash, the AWS CLI v2, OpenSSH 8.4 or newer (walk logons use
-`SSH_ASKPASS_REQUIRE`), `ssh-keygen`, `openssl`, `curl`, `iconv`, `base64`, and uv for `main`
+`SSH_ASKPASS_REQUIRE`), `ssh-keygen`, `openssl`, `curl`, `iconv`, `base64`, and uv for fetched-ref
 walks.
 
 ## Provision
@@ -136,8 +136,9 @@ Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
 and the first `FAIL (exit N)`), and `init-passed.txt` when init succeeds.
 Native commands retain their exit code; cmdlet errors fail with code 1,
 including non-terminating errors. Native stderr alone is not a failure.
-Before the native port lands, a walk stops at `coga --version` with an
-`fcntl` import error; that stop is the expected finding.
+The core port verifies this entire walk. Agent-session checks are separate:
+until `windows-native/03-interactive-coga-launch-on-native-windows` lands,
+those commands refuse before starting an agent.
 
 To continue as the walk user, the driver prints an
 `ssh <user>@<ip>` command that takes the password from `password.txt`.

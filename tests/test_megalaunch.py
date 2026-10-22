@@ -2320,8 +2320,9 @@ def test_megalaunch_services_tasks_oldest_first(
     # Rewrite the log so beta's create line is a day older than alpha's.
     log_path(cfg).write_text(
         "2026-06-02 10:00 [alpha] [human:marc] created\n"
-        "2026-06-01 10:00 [beta] [human:marc] created\n"
-    , encoding="utf-8", newline="\n")
+        "2026-06-01 10:00 [beta] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
+    )
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -2382,8 +2383,9 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
         "2026-06-01 10:00 [alpha] [human:marc] created\n"
         "2026-06-02 10:00 [v2/3-cutover] [human:marc] created\n"
         "2026-06-03 10:00 [v2/2-migrate] [human:marc] created\n"
-        "2026-06-04 10:00 [v2/1-schema] [human:marc] created\n"
-    , encoding="utf-8", newline="\n")
+        "2026-06-04 10:00 [v2/1-schema] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
+    )
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -2642,8 +2644,9 @@ def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
     cfg = load_config(repo)
     workflow_path = repo / "workflows" / "code.md"
     workflow_path.write_text(
-        workflow_path.read_text(encoding="utf-8").replace("assignee: agent", f"assignee: {role}", 1)
-    , encoding="utf-8", newline="\n")
+        workflow_path.read_text(encoding="utf-8").replace("assignee: agent", f"assignee: {role}", 1),
+        encoding="utf-8", newline="\n",
+    )
     draft = create_task(
         cfg=cfg,
         title="Resolve draft routing",
@@ -4972,8 +4975,9 @@ def test_launchable_candidates_ordered_like_status_updated_first(
         "2026-06-01 10:00 [stale] [human:marc] created\n"
         "2026-06-02 10:00 [fresh] [human:marc] created\n"
         "2026-06-03 10:00 [stale] [human:marc] bumped\n"
-        "2026-06-04 10:00 [fresh] [human:marc] bumped\n"
-    , encoding="utf-8", newline="\n")
+        "2026-06-04 10:00 [fresh] [human:marc] bumped\n",
+        encoding="utf-8", newline="\n",
+    )
 
     assert [ref.id_slug for ref, _ in launchable_candidates(cfg)] == [
         "fresh",

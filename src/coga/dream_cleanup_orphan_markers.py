@@ -176,7 +176,7 @@ def open_pr_state(repo: Path) -> OpenPrState:
         cwd=repo,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if listed.returncode != 0:
         detail = listed.stderr.strip() or listed.stdout.strip() or "no output"
@@ -199,7 +199,7 @@ def open_pr_state(repo: Path) -> OpenPrState:
             cwd=repo,
             check=False,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if diff.returncode != 0:
             detail = diff.stderr.strip() or diff.stdout.strip() or "no output"

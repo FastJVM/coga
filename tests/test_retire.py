@@ -147,8 +147,9 @@ def test_retire_defaults_to_the_default_agent_key(
     toml.write_text(
         'default_agent = "codex"\n'
         + toml.read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.chdir(repo)
     _seed_finished_task(repo, "fix-retry-logic")
 
@@ -405,7 +406,7 @@ def _run_coga(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
         env=env,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
 
@@ -459,7 +460,7 @@ def test_retire_alias_help_reaches_the_script(repo: Path) -> None:
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True
+        ["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8"
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     return proc

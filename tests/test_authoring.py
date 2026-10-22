@@ -184,7 +184,7 @@ def test_finalize_authored_publishes_relocated_contexts_dir(
     checkout = repo.parent
     subprocess.run(
         ["git", "init", "-b", "main", str(checkout)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     (checkout / "docs" / "contexts").mkdir(parents=True)
     (checkout / "docs" / "contexts" / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
@@ -528,7 +528,7 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     checkout = repo.parent
     subprocess.run(
         ["git", "init", "-b", "main", str(checkout)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     ref = _create_task(repo, "Nested contexts")
     directory = ref.path.with_suffix("")

@@ -60,7 +60,9 @@ def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProc
     # reads ticket bodies, and a launch subprocess chain running under `LC_ALL=C`
     # would otherwise raise `UnicodeDecodeError` on the first em dash.
     if os.name == "nt":
-        args = [shutil.which(args[0]) or args[0], *args[1:]]
+        executable = shutil.which(args[0])
+        if executable and Path(executable).suffix.lower() in {".cmd", ".bat", ".com"}:
+            args = [executable, *args[1:]]
     return subprocess.run(
         args,
         cwd=cwd,

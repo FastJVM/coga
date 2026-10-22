@@ -41,7 +41,7 @@ STARTERS = (
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), *args],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     ).stdout
 
 
@@ -50,7 +50,7 @@ def _publish_cli(*args: str) -> subprocess.CompletedProcess[str]:
     """Exercise cli.main too: its final sweep must respect refusals."""
     return subprocess.run(
         [sys.executable, "-m", "coga.cli", "run", "publish-state", *args],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
 
 
@@ -96,8 +96,9 @@ def _onboarded_repo(
     vision.parent.mkdir(parents=True)
     vision.write_text(
         "---\nname: product/vision\ndescription: What we are building.\n---\n\n"
-        f"{VISION_BODY}\n"
-    , encoding="utf-8", newline="\n")
+        f"{VISION_BODY}\n",
+        encoding="utf-8", newline="\n",
+    )
     with monkeypatch.context() as m:
         m.setattr("coga.git.sync_task_state", lambda *a, **k: None)
         tickets = [
@@ -276,7 +277,7 @@ def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
 
     result = subprocess.run(
         [sys.executable, "-m", "coga.cli", "run", *separator, "publish-state", *rels],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
 
     assert result.returncode == 2, result.stdout + result.stderr
@@ -336,7 +337,7 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
     def cli(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, "-m", "coga.cli", *args],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
 
     def origin_ticket() -> str:

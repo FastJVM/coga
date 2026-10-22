@@ -307,7 +307,7 @@ def local_branches(root: Path) -> frozenset[str] | None:
                 "refs/heads/",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except OSError:

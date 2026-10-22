@@ -650,8 +650,9 @@ def _unset_selected_webhook(repo: Path) -> None:
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
             "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
 
 def test_bump_final_step_preflights_notification_before_mutation(
@@ -954,8 +955,9 @@ def _make_git_task(git_repo, *, branch: str, worktree: Path) -> tuple[str, Path]
     assert activated.exit_code == 0, activated.output
     ticket = git_repo.coga_os / "tasks" / f"{slug}.md"
     ticket.write_text(
-        ticket.read_text(encoding="utf-8").replace("status: active", "status: in_progress")
-    , encoding="utf-8", newline="\n")
+        ticket.read_text(encoding="utf-8").replace("status: active", "status: in_progress"),
+        encoding="utf-8", newline="\n",
+    )
     _record_dev(ticket, f"branch: {branch}\nworktree: {worktree}")
     return slug, ticket
 
@@ -1498,8 +1500,9 @@ def test_bootstrap_slack_completion_attributes_configured_agent(
     config_path = repo / "coga.toml"
     config_path.write_text(
         config_path.read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
     _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}---\n\nDone.\n")
     before = ticket_path.read_bytes()
@@ -1763,8 +1766,9 @@ def _add_codex_agent(repo: Path) -> None:
             cli = "codex"
             file = "AGENTS.md"
             """
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
 
 def _write_peer_review_workflow(repo: Path) -> None:
@@ -1943,8 +1947,9 @@ def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
             'file = "CLAUDE.md"\npeer = "codex"',
         )
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     _write_peer_review_workflow(repo)
     ref = create_task(
@@ -1966,8 +1971,9 @@ def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
         toml.read_text(encoding="utf-8")
-        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     with pytest.raises(
         OperatorResolutionError,
@@ -1983,8 +1989,9 @@ def test_declared_peer_beats_two_agent_inference(repo: Path) -> None:
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\npeer = "codex"',
         )
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert resolve_other_agent(cfg, "claude") == "codex"
 
@@ -1997,8 +2004,9 @@ def test_absent_agent_resolves_the_default_agent_key_and_its_peer(
     toml.write_text(
         'default_agent = "codex"\n'
         + toml.read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\npeer = "claude"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\npeer = "claude"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     assert resolve_main_agent(cfg, None, allow_prospective_default=True) == "codex"
     assert resolve_other_agent(cfg, None, allow_prospective_default=True) == "claude"
@@ -2032,8 +2040,9 @@ def _strand_on_a_third_agent(repo: Path) -> tuple[str, Path]:
     toml = repo / "coga.toml"
     toml.write_text(
         toml.read_text(encoding="utf-8")
-        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     return slug, task_path
 
 

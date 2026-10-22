@@ -17,6 +17,11 @@ An existing Git checkout may use CRLF through its own attributes or configuratio
 publication uses Git's clean-filter semantics while transaction guards retain
 their exact-byte comparisons. Coga does not change user-repo line-ending policy.
 
+Git paths use forward slashes on every platform. Publication preserves working
+file modes on POSIX. On Windows, where executable bits are not filesystem
+metadata, it preserves tracked files' Git index modes and gives new files mode
+`100644`; checkout-return proofs use the same modes.
+
 ## The Coga roots
 
 Everything in the Coga root and the configured contexts root publishes

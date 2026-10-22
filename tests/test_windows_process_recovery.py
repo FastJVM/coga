@@ -94,7 +94,7 @@ with oscompat.ProcessTree([sys.executable, '-c', child_code], stdout=-1, text=Tr
 """
     supervisor = subprocess.Popen(
         [sys.executable, "-c", script, str(parent), str(root)],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
     )
     try:
         evidence = json.loads(supervisor.stdout.readline())

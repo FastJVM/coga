@@ -72,8 +72,9 @@ def _seed_coga_gitignore(repo) -> None:
     because they are the ones publishing the checkout they run in.
     """
     (repo.coga_os / ".gitignore").write_text(
-        packaged_template_path(".gitignore").read_text(encoding="utf-8")
-    , encoding="utf-8", newline="\n")
+        packaged_template_path(".gitignore").read_text(encoding="utf-8"),
+        encoding="utf-8", newline="\n",
+    )
     repo.git("add", "--", "coga/.gitignore")
     repo.git("commit", "-m", "chore: seed coga-managed ignore rules")
 
@@ -179,8 +180,9 @@ def test_open_pr_stdout_is_only_the_url(tmp_path, monkeypatch):
     ticket.write_text(
         ticket.read_text(encoding="utf-8").replace(
             "## Dev\n", "## Dev\npr: https://github.com/acme/repo/pull/1\n"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
     monkeypatch.chdir(repo.coga_os)
     result = CliRunner().invoke(app, ["run", "open-pr", "quiet-out"])

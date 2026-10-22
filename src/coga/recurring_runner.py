@@ -892,7 +892,7 @@ def _configured_remote_identity(
         result = subprocess.run(
             ["git", "-C", str(root), "remote", "get-url", cfg.git_remote],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except OSError:
@@ -4643,7 +4643,7 @@ def _path_has_local_changes(root: Path, rel: str) -> bool:
     result = subprocess.run(
         ["git", "-C", str(root), "status", "--porcelain", "--", rel],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     lines = [line for line in result.stdout.splitlines() if line.strip()]
@@ -4738,7 +4738,7 @@ def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
     result = subprocess.run(
         ["git", "-C", str(root), "cat-file", "-e", f"{ref}:{rel}"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     return result.returncode == 0
@@ -4753,8 +4753,9 @@ def _adopt_control_template(
 ) -> None:
     """Point the local template at control's copy of its run cursors."""
     template_ticket.write_text(
-        _control_template_or_local(root, ref, ticket_rel, local_ticket)
-    , encoding="utf-8", newline="\n")
+        _control_template_or_local(root, ref, ticket_rel, local_ticket),
+        encoding="utf-8", newline="\n",
+    )
 
 
 # Sentinel key marking a per-run control-ledger cache as populated.
@@ -4856,7 +4857,7 @@ def _show_path(root: Path, ref: str, rel: str) -> str:
         result = subprocess.run(
             ["git", "-C", str(root), "show", f"{ref}:{rel}"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except FileNotFoundError:

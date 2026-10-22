@@ -703,7 +703,7 @@ def _check_git_identity(target: Path) -> None:
             result = subprocess.run(
                 ["git", "-C", str(probe), "var", identity_var],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8",
             )
         except OSError:
             return
@@ -858,7 +858,7 @@ def _repository_has_refs(target: Path) -> bool:
             "--format=%(refname)",
         ],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if result.returncode != 0:
@@ -873,7 +873,7 @@ def _git_can_read_repository(target: Path) -> bool:
         result = subprocess.run(
             ["git", "-C", str(target), "rev-parse", "--git-dir"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except OSError:
@@ -887,7 +887,7 @@ def _cached_remote_default_branch(target: Path, remote: str) -> str | None:
     result = subprocess.run(
         ["git", "-C", str(target), "symbolic-ref", "--quiet", "--short", ref],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if result.returncode == 1:
@@ -968,7 +968,7 @@ def _detect_control_branch(
         remote_configured = subprocess.run(
             ["git", "-C", str(target), "remote", "get-url", remote],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         ).returncode == 0
         has_refs = _repository_has_refs(target)
@@ -1769,7 +1769,7 @@ def _git_commit_coga_os(
             ["git", "-C", str(target), "add", "--", *paths],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         # Anything actually staged *among our paths*? Scope the check (and the
         # commit below) to `paths`: a nested init runs inside a live host repo
@@ -1779,7 +1779,7 @@ def _git_commit_coga_os(
         diff = subprocess.run(
             ["git", "-C", str(target), "diff", "--cached", "--quiet", "--", *paths],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if diff.returncode == 0:
             return None, None
@@ -1794,14 +1794,14 @@ def _git_commit_coga_os(
             ],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         phase = "git commit verification"
         rev = subprocess.run(
             ["git", "-C", str(target), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         return rev.stdout.strip() or None, None
     except FileNotFoundError as exc:

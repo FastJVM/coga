@@ -52,7 +52,7 @@ def check_activity(cfg: Config, today: date) -> RepoActivity:
         ):
             resolved = subprocess.run(
                 ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
-                cwd=cfg.repo_root, capture_output=True, text=True,
+                cwd=cfg.repo_root, capture_output=True, text=True, encoding="utf-8",
             )
             if resolved.returncode == 0:
                 refs.append(resolved.stdout.strip())
@@ -62,7 +62,7 @@ def check_activity(cfg: Config, today: date) -> RepoActivity:
             return RepoActivity(error="neither control ref resolves")
         history = subprocess.run(
             ["git", "log", "--first-parent", "--format=%ct%x09%s", *refs, "--"],
-            cwd=cfg.repo_root, capture_output=True, text=True, check=True,
+            cwd=cfg.repo_root, capture_output=True, text=True, encoding="utf-8", check=True,
         )
         newest: int | None = None
         for line in history.stdout.splitlines():

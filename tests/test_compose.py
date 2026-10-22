@@ -989,8 +989,9 @@ def test_workflow_fenced_headings_retain_inline_instructions(inline_workflow, fe
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement}, {name: pr}, {name: review}]\n---\n"
         "## implement\n" + instructions
-        + "\n## Notes\nNot instructions.\n## review\nReal review.\n"
-    , encoding="utf-8", newline="\n")
+        + "\n## Notes\nNot instructions.\n## review\nReal review.\n",
+        encoding="utf-8", newline="\n",
+    )
 
     workflow = Workflow.load(path)
     report = compose_prompt_report(cfg, ref, ticket)
@@ -1007,8 +1008,9 @@ def test_workflow_unclosed_fence_keeps_real_step_boundary(inline_workflow, fence
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement}, {name: review}]\n---\n"
         f"## implement\nBefore.\n{fence}markdown\nUnclosed example.\n"
-        "## review\nReal review.\n"
-    , encoding="utf-8", newline="\n")
+        "## review\nReal review.\n",
+        encoding="utf-8", newline="\n",
+    )
 
     assert Workflow.load(path).inline_instructions == {
         "implement": f"Before.\n{fence}markdown\nUnclosed example.",
@@ -1020,8 +1022,9 @@ def test_workflow_skill_backed_step_still_ignores_inline_prose(inline_workflow) 
     cfg, ref, ticket, path = inline_workflow
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement, skills: [infra/testing-conventions]}]\n---\n"
-        "## implement\nInline framing only.\n~~~markdown\n## Example\n~~~\nAfter example.\n"
-    , encoding="utf-8", newline="\n")
+        "## implement\nInline framing only.\n~~~markdown\n## Example\n~~~\nAfter example.\n",
+        encoding="utf-8", newline="\n",
+    )
     ticket.frontmatter["workflow"] = Workflow.load(path).freeze()
 
     prompt = compose_prompt(cfg, ref, ticket)
@@ -1255,8 +1258,9 @@ def _write_manual_spec_task(repo: Path, body: str) -> object:
     _, _, blackboard = tail.partition("<!-- coga:blackboard -->")
     path.write_text(
         head + body + "\n<!-- coga:blackboard -->"
-        + blackboard + "\n## Notes\n\nBlackboard heading stays.\n"
-    , encoding="utf-8", newline="\n")
+        + blackboard + "\n## Notes\n\nBlackboard heading stays.\n",
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     return cfg, list_tasks(cfg)[0]
 

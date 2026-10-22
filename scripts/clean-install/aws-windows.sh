@@ -340,7 +340,7 @@ EOF
         printf '\n## After setup (Git for Windows; uv and Python 3.11 for Administrator)\n'
         run walk_ps baseline
     } | tee "$evidence/baseline.txt"
-    echo "Provisioned. Next: $0 walk $1 pypi|main WIN_USER   or   $0 checkout $1 main"
+    echo "Provisioned. Next: $0 walk $1 pypi|REF WIN_USER   or   $0 checkout $1 main"
 }
 
 walk() {

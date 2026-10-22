@@ -184,7 +184,7 @@ def _task(git_repo, workflow: str, title: str = "Checkout prep") -> TaskRef:  # 
 
 
 def _rel(git_repo, ref: TaskRef) -> str:  # type: ignore[no-untyped-def]
-    return str(ref.ticket_path.relative_to(git_repo.root))
+    return ref.ticket_path.relative_to(git_repo.root).as_posix()
 
 
 def _control(git_repo, rel: str) -> str:  # type: ignore[no-untyped-def]
@@ -206,7 +206,7 @@ def _bump(git_repo, slug: str, *, subprocess_run: bool = False) -> None:  # type
         env["PYTHONPATH"] = str(Path(checkouts.__file__).resolve().parents[1])
         result = subprocess.run(
             [sys.executable, "-m", "coga.cli", "bump", slug],
-            cwd=git_repo.coga_os, env=env, capture_output=True, text=True,
+            cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8",
         )
         assert result.returncode == 0, result.stdout + result.stderr
         return
@@ -247,6 +247,7 @@ class _Agent:
 
 @pytest.fixture
 def launch_env(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch._preflight_push_auth", lambda *a, **k: None)
@@ -951,8 +952,9 @@ def test_script_phase_runs_on_control_before_branch_preparation(
         "import subprocess, pathlib\n"
         "head = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],"
         " capture_output=True, text=True).stdout\n"
-        f"pathlib.Path({str(witness)!r}).write_text(head)\n"
-    , encoding="utf-8", newline="\n")
+        f"pathlib.Path({str(witness)!r}).write_text(head)\n",
+        encoding="utf-8", newline="\n",
+    )
     coga_git.sync_task_state(cfg, task_dir, message="Seed scripted task")
     agent = _Agent(git_repo, [lambda seen: None])
     launch_env(agent)
@@ -962,7 +964,7 @@ def test_script_phase_runs_on_control_before_branch_preparation(
     assert result.exit_code == 0, result.output
     assert witness.read_text(encoding="utf-8").strip() == "main"
     assert agent.seen[0]["head"].startswith("coga/")
-    assert agent.seen[0]["dirty"] == [str((task_dir / "ticket.md").relative_to(git_repo.root))]
+    assert agent.seen[0]["dirty"] == [(task_dir / "ticket.md").relative_to(git_repo.root).as_posix()]
 
 
 def test_recorded_clone_keeps_the_primary_on_control(git_repo, launch_env) -> None:  # type: ignore[no-untyped-def]

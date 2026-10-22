@@ -15,7 +15,7 @@ SECRET = 'sentinel-credential-do-not-print'
 
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.check_output(['git', '-C', str(root), *args], text=True, stderr=subprocess.PIPE)
+    return subprocess.check_output(['git', '-C', str(root), *args], text=True, encoding="utf-8", stderr=subprocess.PIPE)
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def run_seed(source: Path, destination: Path) -> subprocess.CompletedProcess[str
     env = dict(os.environ, PYTHONPATH=str(REPO_ROOT / 'src'))
     result = subprocess.run(
         [sys.executable, str(SCRIPT), str(source / 'coga'), str(destination)],
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, encoding="utf-8", env=env,
     )
     assert SECRET not in result.stdout + result.stderr
     return result
@@ -196,7 +196,7 @@ def test_seed_reexecs_under_the_coga_console_interpreter(
     # the ambient interpreter exactly as under an isolated tool install.
     result = subprocess.run(
         [sys.executable, '-S', str(SCRIPT), str(source / 'coga'), str(destination)],
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, encoding="utf-8", env=env,
     )
     assert SECRET not in result.stdout + result.stderr
     assert result.returncode == 0, result.stderr
@@ -216,7 +216,7 @@ def test_seed_fails_loud_without_coga_or_its_console_script(
     env['PATH'] = str(tmp_path / 'bin')
     result = subprocess.run(
         [sys.executable, '-S', str(SCRIPT), str(source / 'coga'), str(destination)],
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, encoding="utf-8", env=env,
     )
     assert result.returncode == 2
     assert 'Local config setup failed: coga is not importable' in result.stderr

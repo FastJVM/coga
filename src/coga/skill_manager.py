@@ -905,7 +905,7 @@ def run_subprocess(
     return subprocess.run(
         list(args),
         cwd=cwd,
-        text=True,
+        text=True, encoding="utf-8",
         capture_output=True,
         check=False,
     )

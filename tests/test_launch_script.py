@@ -929,6 +929,7 @@ def test_blocked_script_agent_preflight_failure_reblocks_unresolved_ask(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A same-step script handoff remains owned until agent setup succeeds."""
+    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: f"/stub/{cli}")
     ref = _create_script_task(script_repo, "pass\n")
     blocked = CliRunner().invoke(
         app,
@@ -1573,7 +1574,7 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
         env=env,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stderr
@@ -1621,7 +1622,7 @@ def test_bootstrap_script_receives_trailing_launch_args_as_argv(
 
     assert result.exit_code == 0, result.output
     argv = json.loads(observed_path.read_text(encoding="utf-8"))
-    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+    assert Path(argv[0]).as_posix().endswith("bootstrap/argv-probe/ticket.py")
     assert argv[1:] == ["two words", "--no-launch", "x"]
 
 
@@ -1636,7 +1637,7 @@ def test_bootstrap_script_without_launch_args_gets_only_its_path(
     assert result.exit_code == 0, result.output
     argv = json.loads(observed_path.read_text(encoding="utf-8"))
     assert len(argv) == 1
-    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+    assert Path(argv[0]).as_posix().endswith("bootstrap/argv-probe/ticket.py")
 
 
 def test_bootstrap_script_runs_without_configured_agents(
@@ -1675,7 +1676,7 @@ def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
         env=env,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
@@ -1797,8 +1798,9 @@ def test_stateful_script_phase_rejects_args_from_a_caller(script_repo: Path) -> 
 def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatch, admission):
     monkeypatch.chdir(git_repo.coga_os)
     (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
-    , encoding="utf-8", newline="\n")
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
     seed_direct_body_workflow(git_repo.coga_os)
     ref = _create_script_task(
         git_repo.coga_os,
@@ -1849,8 +1851,9 @@ def test_script_chain_returns_the_checkout_between_real_git_phases(
     """Each chained ticket.py phase starts from a clean, fresh control checkout."""
     monkeypatch.chdir(git_repo.coga_os)
     (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
-    , encoding="utf-8", newline="\n")
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
     ref = _create_two_step_script_task(
         git_repo.coga_os,
         """

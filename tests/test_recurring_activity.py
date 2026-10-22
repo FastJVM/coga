@@ -25,7 +25,7 @@ MACHINE_SUBJECTS = [
 def _git(repo: Path, *args: str, **kwargs) -> str:
     return subprocess.run(
         ["git", "-C", str(repo), *args], check=True, capture_output=True,
-        text=True, **kwargs,
+        text=True, encoding="utf-8", **kwargs,
     ).stdout.strip()
 
 

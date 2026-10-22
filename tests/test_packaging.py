@@ -1043,7 +1043,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
         ],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, result.stderr
@@ -1132,6 +1132,6 @@ with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",fo
     assert not t._admitted(cfg)
 print("installed init and suppressed first snapshot passed")
 '''
-    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True,timeout=30)
+    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True, encoding="utf-8",timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "suppressed first snapshot passed" in result.stdout

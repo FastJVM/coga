@@ -33,7 +33,7 @@ def _write(path: Path, text: str) -> None:
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), *args],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     ).stdout
 
 
@@ -157,8 +157,9 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     vision = checkout / "docs" / "contexts" / "product" / "vision" / "SKILL.md"
     vision.parent.mkdir(parents=True)
     vision.write_text(
-        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n"
-    , encoding="utf-8", newline="\n")
+        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n",
+        encoding="utf-8", newline="\n",
+    )
     ticket = read_ticket(ref)
     ticket.frontmatter["contexts"] = ["email/payment-flow", "product/vision"]
     ticket.write(ref.ticket_path)

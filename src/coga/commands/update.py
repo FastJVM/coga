@@ -94,7 +94,7 @@ def is_git_repo(target: Path) -> bool:
         result = subprocess.run(
             ["git", "-C", str(probe), "rev-parse", "--is-inside-work-tree"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
     except OSError:
         return False

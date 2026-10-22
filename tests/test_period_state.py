@@ -79,8 +79,9 @@ def test_snapshot_round_trip(tmp_path: Path) -> None:
     # blackboard region (below the fence), which `write_snapshot` reads.
     parent_ticket = tmp_path / "ticket.md"
     parent_ticket.write_text(
-        "## Description\n\n<!-- coga:blackboard -->\n\nlast_commit: AAA\nposted: yes\n"
-    , encoding="utf-8", newline="\n")
+        "## Description\n\n<!-- coga:blackboard -->\n\nlast_commit: AAA\nposted: yes\n",
+        encoding="utf-8", newline="\n",
+    )
     task_dir = tmp_path / "task"
     task_dir.mkdir()
 

@@ -351,8 +351,9 @@ def test_toml_env_indirection_unset_var_is_none(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    , encoding="utf-8", newline="\n")
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook is None
@@ -690,8 +691,9 @@ def test_enabled_but_no_webhook_crashes(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    , encoding="utf-8", newline="\n")
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
@@ -801,8 +803,9 @@ def test_post_missing_webhook_reports_and_returns_when_non_fatal(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    , encoding="utf-8", newline="\n")
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     post(cfg, "should not crash", fatal=False)
@@ -816,8 +819,9 @@ def test_post_missing_webhook_still_crashes_when_fatal(
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
     config_path.write_text(
-        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
-    , encoding="utf-8", newline="\n")
+        config_path.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
+    )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:

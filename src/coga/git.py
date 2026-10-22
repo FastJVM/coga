@@ -487,11 +487,12 @@ def _publish_locked(
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
         rels = _candidates(root, pathspecs, base, ancestor, adopt_only)
+        index_modes = _index_modes(root) if required and os.name != "posix" else None
         for rel in required:
             if rel in rels:
                 continue
             _working_tree_bytes(root, rel)  # refuses a symlinked path
-            working = _regular_working_file(root, rel)
+            working = _regular_working_file(root, rel, index_modes=index_modes)
             entry = (working[0], _hash_blob(root, working[1], rel)) if working else None
             # Mode counts too: a mode-only edit control lacks is not on control.
             if entry != _tree_entry(root, base, rel):
@@ -815,6 +816,7 @@ def _build_tree(
     os.close(fd)
     os.unlink(index)
     env = {"GIT_INDEX_FILE": index}
+    index_modes = _index_modes(root) if os.name != "posix" else {}
     try:
         run_git(root, "read-tree", base, env=env)
         for rel in rels:
@@ -828,7 +830,9 @@ def _build_tree(
                 landed[rel] = data
             run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env)
             if data is not None:
-                mode = "100755" if os.access(root / rel, os.X_OK) else "100644"
+                mode = (
+                    "100755" if os.access(root / rel, os.X_OK) else "100644"
+                ) if os.name == "posix" else index_modes.get(rel, "100644")
                 run_git(
                     root, "update-index", "--add", "--cacheinfo",
                     mode, _hash_blob(root, data, rel), rel, env=env,
@@ -1411,6 +1415,7 @@ def _plan_preparation(
     blocking: list[str] = []
     candidate_bytes: dict[str, bytes | None] = {}
     entries = _status_v2_entries(status)
+    index_modes = _index_modes(root) if entries and os.name != "posix" else None
     paths = [rel for _kind, _fields, rel in entries]
     if paths:
         union = union_merge_paths(root, paths)
@@ -1421,7 +1426,7 @@ def _plan_preparation(
         if not _in_areas(rel, areas):
             blocking.append(f"{rel} (not Coga state)")
             continue
-        working = _regular_working_file(root, rel)
+        working = _regular_working_file(root, rel, index_modes=index_modes)
         published = _tree_entry(root, pinned, rel)
         if kind == "?":
             if working is False:
@@ -1599,7 +1604,21 @@ def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
     return rel in files or any(rel.startswith(prefix) for prefix in dirs)
 
 
-def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Literal[False]:
+def _index_modes(root: Path) -> dict[str, str]:
+    """Git owns executable bits on platforms without POSIX file modes."""
+    modes: dict[str, str] = {}
+    for record in run_git(root, "ls-files", "--stage", "-z").split("\x00"):
+        if record:
+            meta, _, rel = record.partition("\t")
+            mode, _oid, stage = meta.split()
+            if stage == "0" and mode in _REGULAR_MODES:
+                modes[rel] = mode
+    return modes
+
+
+def _regular_working_file(
+    root: Path, rel: str, *, index_modes: Mapping[str, str] | None = None,
+) -> tuple[str, bytes] | None | Literal[False]:
     """`(mode, bytes)` of a regular working file, `None` when absent, `False` otherwise."""
     path = root / rel
     if symlink_component(path) is not None:
@@ -1613,6 +1632,8 @@ def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Li
     if not stat.S_ISREG(info.st_mode):
         return False
     mode = "100755" if info.st_mode & 0o111 else "100644"
+    if os.name != "posix":
+        mode = (index_modes if index_modes is not None else _index_modes(root)).get(rel, "100644")
     return mode, path.read_bytes()
 
 
@@ -2284,9 +2305,9 @@ def relative_to_root(root: Path, path: Path) -> str:
     """`path` relative to the git root, without following any symlink."""
     lexical = Path(os.path.abspath(path))
     try:
-        return str(lexical.relative_to(root.resolve()))
+        return lexical.relative_to(root.resolve()).as_posix()
     except ValueError:
-        return str(lexical)
+        return lexical.as_posix()
 
 
 def symlink_component(path: Path) -> Path | None:

@@ -1102,8 +1102,9 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         # log, *past* the agent's last sync.
         log = git_repo.coga_os / "log.md"
         log.write_text(
-            log.read_text(encoding="utf-8") + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n'
-        , encoding="utf-8", newline="\n")
+            log.read_text(encoding="utf-8") + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
+        )
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session", fake_capture
@@ -1112,8 +1113,9 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     # A hand-edit elsewhere under coga/ must NOT be swept in by the teardown —
     # it commits at the next CLI dispatch boundary instead.
     (task / "ticket.md").write_text(
-        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n"
-    , encoding="utf-8", newline="\n")
+        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n",
+        encoding="utf-8", newline="\n",
+    )
 
     spawn_agent_session(
         cfg, ref, _ticket(),
@@ -1225,8 +1227,9 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
             ## Dev
             pr: https://github.com/acme/repo/pull/1
             """
-        ).lstrip()
-    , encoding="utf-8", newline="\n")
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
+    )
     git_repo.git("add", "--", "coga/tasks/ship-it/ticket.md")
     git_repo.git("commit", "-m", "ticket: seed ship-it")
     git_repo.git("push", "origin", "main")
@@ -1246,8 +1249,9 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
         ticket_path.write_text(
             ticket_path.read_text(encoding="utf-8").replace(
                 "step: 1 (open-pr)", "step: 2 (review)"
-            )
-        , encoding="utf-8", newline="\n")
+            ),
+            encoding="utf-8", newline="\n",
+        )
         from coga import git
 
         git.sync_task_state(cfg, task, message="Ticket: ship-it — step 2 (review)")
@@ -1261,8 +1265,9 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
         log = git_repo.coga_os / "log.md"
         log.write_text(
             log.read_text(encoding="utf-8")
-            + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n'
-        , encoding="utf-8", newline="\n")
+            + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
+        )
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session", fake_capture
@@ -2808,8 +2813,9 @@ def test_launch_captures_usage_with_session_id(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\nsession_id_flag = "--session-id"',
             1,
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     calls: list[list[str]] = []
     captures: list[dict] = []
     _allow_interactive_tty(monkeypatch)
@@ -3141,8 +3147,9 @@ def test_launch_bails_on_missing_context(
     ticket_md.write_text(
         ticket_md.read_text(encoding="utf-8").replace(
             "status: active", "status: active\ncontexts:\n- email/ghost"
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
 
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
@@ -4351,7 +4358,7 @@ def _seed_released_launch_admission(
     control.frontmatter["status"] = "in_progress"
     control.frontmatter["launch_generation"] = control_generation
     control.write(ref.ticket_path)
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     git_repo.git("add", ticket_rel)
     git_repo.git("commit", "-m", "Publish launch admission state")
     git_repo.git("push", "origin", "main")
@@ -4385,7 +4392,7 @@ def test_released_launch_admission_reconciles_control_ticket(
         "held-generation"
     )
     assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     remote = Ticket.parse(
         git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     )
@@ -4457,7 +4464,7 @@ def test_released_launch_admission_refuses_changed_control_ticket(
     cfg, ref, released_bytes = _seed_released_launch_admission(
         git_repo, control_generation
     )
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     control_bytes = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     git_repo.push_competing_commit(ticket_rel, control_bytes + "\nRemote correction.\n")
     local_head = git_repo.git("rev-parse", "HEAD")
@@ -5102,8 +5109,9 @@ def test_launch_recomposes_after_before_spawn_publication(
         ticket.write(ticket_path)
         config_path = bootstrap_repo / "coga.toml"
         config_path.write_text(
-            config_path.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "fresh-cli"')
-        , encoding="utf-8", newline="\n")
+            config_path.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "fresh-cli"'),
+            encoding="utf-8", newline="\n",
+        )
 
     def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
         assert events == ["publish", "revalidate"]
@@ -5225,8 +5233,9 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
     )
     (bootstrap_repo / "coga.toml").write_text(
         (bootstrap_repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[aliases]\nhello = "launch bootstrap/hello"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[aliases]\nhello = "launch bootstrap/hello"\n',
+        encoding="utf-8", newline="\n",
+    )
 
     calls: list[list[str]] = []
 
@@ -5721,9 +5730,10 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
     peer_ticket = peer / ticket_path.relative_to(git_repo.root)
     peer_ticket.write_text(
-        peer_ticket.read_text(encoding="utf-8") + "\nRemote prompt state: address the latest review.\n"
-    , encoding="utf-8", newline="\n")
-    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+        peer_ticket.read_text(encoding="utf-8") + "\nRemote prompt state: address the latest review.\n",
+        encoding="utf-8", newline="\n",
+    )
+    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
     git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
     assert "Remote prompt state" not in ticket_path.read_text(encoding="utf-8")
@@ -5786,8 +5796,9 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         log = cfg.repo_root / "log.md"
         log.write_text(
             log.read_text(encoding="utf-8")
-            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n'
-        , encoding="utf-8", newline="\n")
+            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
+        )
 
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session",
@@ -5872,11 +5883,11 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     handed_off.frontmatter["step"] = "2 (review)"
     hold_by_owner(handed_off)
     handed_off.write(peer_ticket)
-    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
     git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
     git_repo.push_competing_commit(
-        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.relative_to(git_repo.root).as_posix(),
         handed_off.render(),
     )
 
@@ -5937,8 +5948,9 @@ def test_human_assist_validates_override_after_remote_config_alignment(
     peer_config = peer / "coga" / "coga.toml"
     peer_config.write_text(
         peer_config.read_text(encoding="utf-8")
-        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     git_repo.git("add", "coga/coga.toml", cwd=peer)
     git_repo.git("commit", "-m", "config: add reviewer agent", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
@@ -6134,7 +6146,7 @@ def test_recorded_assist_script_publishes_direct_task_output(
         )
         """,
     )
-    script_rel = str(script_path.relative_to(git_repo.root))
+    script_rel = script_path.relative_to(git_repo.root).as_posix()
     git_repo.git("add", script_rel)
     git_repo.git("commit", "-m", "ticket: add deterministic phase")
     git_repo.git("push", "origin", "feature/review")
@@ -6154,7 +6166,7 @@ def test_recorded_assist_script_publishes_direct_task_output(
     )
 
     assert result.exit_code == 0
-    result_rel = str((task_dir / "result.txt").relative_to(git_repo.root))
+    result_rel = (task_dir / "result.txt").relative_to(git_repo.root).as_posix()
     # The script's task output is published to control right after it exits;
     # the PR branch is never pushed by Coga.
     assert git_repo.git(
@@ -6317,11 +6329,11 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
         status="blocked",
     )
     append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
-    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("add", ticket_path.relative_to(git_repo.root).as_posix())
     git_repo.git("commit", "-m", "ticket: record review blocker")
     git_repo.git("push", "origin", "feature/review")
     git_repo.push_competing_commit(
-        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.relative_to(git_repo.root).as_posix(),
         ticket_path.read_text(encoding="utf-8"),
     )
 
@@ -6354,7 +6366,7 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     )
 
     assert Ticket.read(ticket_path).status == "blocked"
-    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    ticket_rel = ticket_path.relative_to(git_repo.root).as_posix()
     control_ticket = git_repo.git(
         "show", f"refs/heads/main:{ticket_rel}", cwd=git_repo.origin
     )
@@ -6419,7 +6431,7 @@ def test_blocked_malformed_script_reblock_is_published_before_child_exit(
 
     assert excinfo.value.code == 17
     assert Ticket.read(ref.ticket_path).status == "blocked"
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     remote_ticket = Ticket.parse(
         git_repo.git(
             "show",
@@ -7276,7 +7288,7 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
         git_repo.git("commit", "-m", "Implement feature")
         # The ticket copy on the branch predates control; load control's copy
         # before writing the handoff (coga/checkouts).
-        rel = str(ref.ticket_path.relative_to(git_repo.root))
+        rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
         git_repo.git("restore", "--source=origin/main", "--worktree", "--", rel)
         replace_blackboard(
             ref.ticket_path,
@@ -7601,7 +7613,7 @@ def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
             [sys.executable, "-m", "coga.cli", "chat"],
             cwd=git_repo.coga_os,
             env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", timeout=20,
         )
         assert rival.returncode == 75, rival.stdout + rival.stderr
         assert "another chat is using this checkout" in rival.stderr
@@ -7660,7 +7672,7 @@ def test_orientation_guard_is_released_when_its_process_dies(
         cwd=git_repo.coga_os,
         env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True,
+        text=True, encoding="utf-8",
     )
     try:
         assert holder.stdout is not None

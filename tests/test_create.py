@@ -255,8 +255,9 @@ def test_create_live_uses_the_default_agent_key_over_declaration_order(
     toml.write_text(
         'default_agent = "codex"\n'
         + toml.read_text(encoding="utf-8")
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
+    )
     live = create_task(
         cfg=load_config(repo),
         title="Live now",
@@ -1221,8 +1222,9 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
             'description = "triage"\n'
             'values = ["P0", "P1", "P2"]\n'
             'default = "P2"\n'
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,
@@ -1264,8 +1266,9 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
 def test_extension_fields_round_trip(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text(encoding="utf-8")
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
-    , encoding="utf-8", newline="\n")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
+    )
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,

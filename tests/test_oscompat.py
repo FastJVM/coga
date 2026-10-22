@@ -49,7 +49,7 @@ with state_lock(SimpleNamespace(repo_root=Path(sys.argv[1]))):
                 with state_lock(cfg):  # same-thread reentrancy
                     child = subprocess.Popen(
                         [sys.executable, "-c", script, str(tmp_path)],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                     )
                     assert child.stdout.readline() == "waiting\n"
                     acquired = reader.submit(child.stdout.readline)
@@ -83,7 +83,7 @@ time.sleep(60)
 """
     with oscompat.ProcessTree(
         [sys.executable, "-c", script], cwd=tmp_path,
-        stdout=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE, text=True, encoding="utf-8",
     ) as tree:
         grandchild = int(tree.process.stdout.readline())
         assert oscompat.process_is_running(grandchild)
