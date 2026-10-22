@@ -577,6 +577,7 @@ def _fetch_control(root: Path, remote: str, control: str) -> None:
         run_git(
             root, "fetch", "--quiet", remote,
             f"+refs/heads/{control}:refs/remotes/{remote}/{control}",
+            env=_MESSAGE_LOCALE,
         )
     except GitError as exc:
         if "couldn't find remote ref" not in str(exc).lower():
@@ -1019,7 +1020,10 @@ def fast_forward_control(
         return True
     if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged):
         return False
-    result = _run(["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new])
+    result = _run(
+        ["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new],
+        env=_MESSAGE_LOCALE,
+    )
     if result.returncode != 0:
         sys.stderr.write(
             f"[git] note: local {control!r} in {holder} not fast-forwarded: "
@@ -2116,21 +2120,41 @@ def _main_worktree(path: Path) -> Path | None:
 
 
 def summarize_git_failure(output: str) -> str:
-    """Keep only the `error:`/`fatal:`/`CONFLICT` lines of git output, deduped.
+    """Keep actionable errors and bounded overwrite path lists, deduped.
 
     Falls back to the last non-empty line so an unrecognized failure is never
     silently emptied.
     """
     keep: list[str] = []
     last = ""
-    for raw in output.splitlines():
+    path_limit = 10
+    in_paths = False
+    path_count = 0
+    # The sentinel closes a path list even when Git's output ends with it.
+    for raw in [*output.splitlines(), ""]:
         line = raw.strip().split("\r")[-1].strip()
+        if in_paths and raw.startswith("\t") and len(raw) > 1:
+            path_count += 1
+            if path_count <= path_limit:
+                separator = " " if path_count == 1 else ", "
+                # Remove only Git's indent; whitespace can belong to the path.
+                keep[-1] += separator + raw[1:]
+            continue
+        if in_paths and path_count > path_limit:
+            keep[-1] += f", ... (+{path_count - path_limit} more files)"
+        in_paths = False
         if not line:
             continue
         last = line
-        if line.startswith(("error:", "fatal:", "CONFLICT")) and line not in keep:
+        if line.startswith(("error:", "fatal:", "CONFLICT")):
             keep.append(line)
-    return "; ".join(keep) if keep else last
+            in_paths = (
+                line.startswith("error:")
+                and "would be overwritten by" in line
+                and line.endswith(":")
+            )
+            path_count = 0
+    return "; ".join(dict.fromkeys(keep)) if keep else last
 
 
 # --- plumbing -----------------------------------------------------------------
@@ -2165,6 +2189,11 @@ def _run(
         raise GitError("`git` not found on PATH") from exc
 
 
+# Pins Git's diagnostics to English for the calls whose outcome depends on
+# matching message text; other calls keep the operator's locale for hooks.
+_MESSAGE_LOCALE = {"LC_ALL": "C"}
+
+
 def _git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
@@ -2183,7 +2212,9 @@ def toplevel(start: Path) -> Path | None:
     """The git working-tree root containing `start`, or `None` outside a repo."""
     if not start.is_dir():
         start = start.parent
-    result = _run(["git", "-C", str(start), "rev-parse", "--show-toplevel"])
+    result = _run(
+        ["git", "-C", str(start), "rev-parse", "--show-toplevel"], env=_MESSAGE_LOCALE
+    )
     if result.returncode != 0:
         if b"not a git repository" in result.stderr:
             return None

@@ -67,6 +67,12 @@ Coga state that publication has already put on control. Local commits
 touching anything else, state not yet on control, or an in-progress Git
 operation leave it alone with the remedy.
 
+When Git refuses a control fast-forward because local changes or untracked
+files would be overwritten, the stderr note includes the first 10 paths
+from each overwrite refusal, followed by a count of any omitted paths. The
+paths stay with their error heading so the operator can identify what blocks
+the move. Filename whitespace is preserved.
+
 A **feature or detached checkout** publishes the same way but keeps its
 published ticket and log dirty by design. `coga status` warns when control is
 ahead of the local copy. Never `git add` `coga/tasks/**` or `coga/log.md`
