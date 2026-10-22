@@ -149,4 +149,12 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: blocks-06-collapse-state-publication
+
+## Plan
+
+- `coga/state-publication` absorbs sweep's user facts (when the sweep runs, strict recipe, recovery), authoring's three facts, and sync's control/feature bullets.
+- Sweep and authoring internals, dated owner decisions -> `coga-dev/internals/state-publication`; sync's design rule + 2026-10-01 decision -> `coga-dev/patterns`.
+- `coga/sync` becomes a short map; repoint links.
