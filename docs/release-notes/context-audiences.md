@@ -62,6 +62,7 @@ Attach the shipped ref instead.
 | --- | --- |
 | `coga/recurring/scheduling/failures` | `coga/recurring/scheduling` |
 | `coga/recurring/scheduling/ledger` | `coga/recurring/scheduling` |
+| `coga/tickets/ownership` | `coga/tickets` |
 
 ## Development topics removed from the package
 
