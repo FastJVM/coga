@@ -129,3 +129,16 @@ or prompt destination. Callers catch `repl_supervisor.AgentCliNotFound` for
 the install-the-CLI remedy and report every other one through
 `missing_launch_file_message`, naming the path. On the PTY path a missing
 binary appears as the child's exit 127, not as that exception.
+
+## No launch preflight for the Codex sandbox grant
+
+A `coga launch` preflight that warns or refuses when the Git common dir is not
+writable or the [Codex sandbox grant](../../../coga/sandboxes/SKILL.md#codex-sandbox-grant)
+is missing was considered and left out (owner-confirmed plan, 2026-10-14). A
+write probe in the launch parent proves only the parent's access, not the
+child's effective sandbox; a check for the config file cannot establish child
+permissions, since codex permissions also come from other config layers and
+profiles; and a common-dir probe misses an external `GIT_OBJECT_DIRECTORY`.
+Dream's preflight works because it runs inside the launched agent. Reopening
+it needs its own capability design: where the probe runs, warn versus refuse,
+effective object storage, and which alternate configurations comply.

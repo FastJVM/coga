@@ -83,7 +83,7 @@ is `coga status` and the ticket bodies; stage posture is
   guided interview** on a new or existing ticket. Contract:
   [`coga/tickets/authoring`](../../coga/tickets/authoring/SKILL.md).
 - **Aliases are positional pass-through only** and print their expansion.
-  Contract: [`coga/configuration`](../../coga/configuration/SKILL.md).
+  Contract: [`coga/extension-model`](../../coga/extension-model/SKILL.md).
 - **Manual edits stay silent.** Editing a ticket, blackboard or context does
   not post or log; notifications are for agent-driven transitions. Contract:
   [`coga/notifications`](../../coga/notifications/SKILL.md).

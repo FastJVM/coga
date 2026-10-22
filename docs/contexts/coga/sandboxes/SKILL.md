@@ -71,16 +71,8 @@ writable_roots = ["<git common dir>"]
   so granting it leaves the common dir read-only.
 - The file is gitignored and machine-local: `writable_roots` needs this
   machine's absolute path. Coga ships no launch machinery for it.
-- A `coga launch` preflight that warns or refuses when the common dir is not
-  writable or the grant is missing was considered and left out (owner-confirmed
-  plan, 2026-10-14). A write probe in the launch parent proves only the
-  parent's access, not the child's effective sandbox; a check for this config
-  file cannot establish child permissions, since codex permissions also come
-  from other config layers and profiles; and a common-dir probe misses an
-  external `GIT_OBJECT_DIRECTORY`. Dream's preflight works because it runs
-  inside the launched agent. Reopening it needs its own capability design:
-  where the probe runs, warn versus refuse, effective object storage, and which
-  alternate configurations comply.
+- `coga launch` does not check the grant; Dream's preflight, which runs
+  inside the launched agent, is the check.
 - Codex reads a project `.codex/config.toml` only for a trusted project
   (`[projects."<absolute repo path>"] trust_level = "trusted"` in
   `~/.codex/config.toml`, which codex's first-run trust prompt writes).
