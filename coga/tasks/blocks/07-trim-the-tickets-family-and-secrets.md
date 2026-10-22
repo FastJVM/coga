@@ -354,3 +354,9 @@ checks:
 ## Blockers
 
 - [ ] [2026-10-21 19:03] [agent:codex] id=20261021T190358 Land PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only; it fixes three packaging failures reproduced on untouched main. Then rebase blocks/07-trim-tickets-secrets, re-review the resulting diff, and rerun the required full suite before bumping.
+
+---
+
+## Blocker reminders
+
+- eabedd06227b last_reminded: 2026-10-22 09:03
