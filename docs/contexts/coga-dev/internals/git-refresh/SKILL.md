@@ -157,7 +157,7 @@ cwd=<toplevel>)` marks a path stranded when the branch changed it since the
 merge base and no commit on control's side of the fork carried the branch
 tip's exact blob; a path the branch deleted is stranded while control still
 has it. A bump run from a feature checkout publishes straight to control and
-leaves the branch's copy uncommitted (dirty by design, per `coga/sync`), so it
+leaves the branch's copy uncommitted (dirty by design, per `coga/state-publication`), so it
 strands nothing; a stranded path arises when ticket content is committed on
 the branch by hand. `None` means unknown; callers stay silent rather than read it as "nothing stranded".
 

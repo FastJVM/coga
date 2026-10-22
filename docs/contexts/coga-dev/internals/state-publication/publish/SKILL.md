@@ -106,7 +106,7 @@ sync from the `Sync coga state` sweep. A best-effort caller adds a second
 line: local state was saved (task sync, `mark`) or retained (sweep, log,
 deletion); Git publication failed, or "could not be confirmed" for
 `UncertainPublishError`; do not rerun the command (`coga bump` names itself
-through `command=`); then the [recovery](../../../../coga/state-publication/sweep/SKILL.md#recovering-a-failed-publication).
+through `command=`); then the [recovery](../../../../coga/state-publication/SKILL.md#recovering-a-failed-publication).
 Only an `ObjectWriteError` adds the conditional step "if Git could not write to
 the object storage shown above, restore permitted access to it first". A
 refusal keeps its own reconciliation guidance and gets no retry hint. Strict

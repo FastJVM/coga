@@ -1,6 +1,6 @@
 ---
 name: coga/sync
-description: Overview of Coga's two sync layers (live notifications for humans, git publication of control and feature-checkout state) with links to the child topics that hold the detail; attaching this topic does not load those children.
+description: Map of Coga's two sync layers (live notifications for humans, Git publication of Coga state) with links to the topics that own each; attaching this topic does not load them.
 ---
 
 # Sync layers — notifications and git
@@ -11,64 +11,24 @@ each layer only reports or publishes it.
 
 - **Notifications** tell humans what changed, live, via the configured
   channel (Slack today). Only outcomes, urgent exceptions, and explicit FYIs
-  post; routine lifecycle churn stays in `coga/log.md` and git.
-- **Git** makes Coga state durable and shared. Coga publishes every eligible
-  (unignored) file under the Coga root and the configured contexts root —
-  tickets, the log, recurring templates, skills, workflows, shared config,
-  and contexts — onto the control branch (`origin/main` by default) without
-  committing on a local branch, stashing, or rebasing. The local control branch only fast-forwards, or realigns over
-  its own commits once they are proven to be Coga state control already
-  carries.
+  post; routine lifecycle churn stays in `coga/log.md` and Git.
+- **Git** makes Coga state durable and shared on the control branch
+  (`origin/main` by default), without committing on a local branch,
+  stashing, or rebasing.
 
 Both layers treat a failed announcement or push of a durable write alike:
 surface the miss, keep the file as written, and never let it undo the
-transition.
-
-## Control versus feature checkouts
-
-- A **control checkout** (HEAD is the control branch) stays clean and level:
-  each publish fast-forwards it, or realigns it when its local-only commits
-  are Coga state that publication has put on control (a hand commit of
-  ticket state). Local commits touching anything else, state not yet on
-  control, or an in-progress Git operation leave it alone with the remedy.
-- A **feature or detached checkout** publishes the same way but keeps its
-  published ticket and log dirty by design. Do not `git add` Coga state into
-  a PR. `coga status` warns when control is ahead of the local copy.
-  Owner decision (2026-10-01): the base prompt carries no rule forbidding
-  agents to commit Coga state, though a hand commit on local control diverges
-  it from origin and blocks launch. Prevention in the prompt would let agents
-  hide the divergence; the remedy belongs in a deterministic CLI guard that
-  detects it. Reopen only if such a guard proves insufficient.
-- The end-of-command sweep publishes every dirty file under those roots,
-  plus eligible committed state there (through the same provenance checks),
-  from **whichever checkout you ran the command in** — including a hand edit
-  to ticket prose, a recurring template, a skill, or a context on a feature
-  branch. From a feature branch only routine task, log, and recurring state
-  is adopted once committed; a committed knowledge edit there stays with the
-  branch's PR. Owner decision (2026-10-07): files inside the roots need no
-  separate knowledge PR; guided authoring publishes its knowledge edits with
-  its tickets, and source outside the roots keeps normal PR review. See the
-  [publication contract](../state-publication/SKILL.md).
-
-## Where the detail lives
+transition. There is no digest: every notification posts live or not at all.
 
 | Question | Topic |
 | --- | --- |
-| Which events post and where; what happens when a post fails | [`coga/notifications`](../notifications/SKILL.md) |
+| Which files publish, when, from which checkout; strict publication and recovery | [`coga/state-publication`](../state-publication/SKILL.md) |
+| Which events post, where, how to configure the channel, and what happens when a post fails | [`coga/notifications`](../notifications/SKILL.md) |
 | Which producers post on which surface | [`coga/notifications/producers`](../notifications/producers/SKILL.md) |
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
-| `publish`, the sweep, strict versus best-effort paths | [`coga/state-publication`](../state-publication/SKILL.md) and its [`publish`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md), [`sweep`](../state-publication/sweep/SKILL.md) and [`authoring`](../state-publication/authoring/SKILL.md) leaves |
-| Why a publish is refused; stale generations; schema conversions | [`coga-dev/internals/git-regressions`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md) |
-| `refresh`, fast-forward and realignment, staleness and stranded writes | [`coga-dev/internals/git-refresh`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-refresh/SKILL.md) |
-| Append-only files, `merge=union`, and concurrent writers | [`coga-dev/internals/spool-merge`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md) |
-| Composing new cross-run state without hidden queues | [`coga-dev/patterns`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md) |
 | Session usage records carried by the log | [`coga/usage`](../usage/SKILL.md) |
 
-There is no daily digest (removed, #786); every notification posts live or
-not at all.
-
-## Design rule for new features
-
-A change can affect both notification and publication behavior. For
-developers extending Coga itself, optional implementation guidance lives in
-[Coga patterns](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md#sync-for-new-commands).
+For developing Coga, the [state publication
+internals](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/SKILL.md)
+and [patterns](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md)
+hold the implementation and the rule for adding a state-changing command.

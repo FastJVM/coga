@@ -108,7 +108,7 @@ and did.
    The bump itself was recorded, so never bump again to publish it: after a
    `sync failed`, once Git access is restored, run the `coga run
    publish-state` recovery the report prints
-   ([sweep](../state-publication/sweep/SKILL.md#recovering-a-failed-publication)).
+   ([recovery](../state-publication/SKILL.md#recovering-a-failed-publication)).
    After a `sync refused` (control's ticket changed meanwhile), preserve the
    handoff and reconcile it onto control's copy
    ([reconciliation](reconciliation/SKILL.md)). An unused prepared branch
@@ -153,7 +153,8 @@ invoked, and launch never follows a recorded `worktree:`.
   control by the next sweep, ahead of the code PR, and re-adopted after a
   revert: make such a template also work under current control code, or
   keep it out of the Coga roots until the code lands. Which invocations
-  sweep is owned by [coga/sync](../sync/SKILL.md).
+  sweep is owned by
+  [coga/state-publication](../state-publication/SKILL.md#when-coga-publishes).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch
   and regenerates `.agent-skills/`. For a write-free view call
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.

@@ -1,16 +1,17 @@
 ---
 name: coga/ticket/finalize
-description: Finalize guided authoring by validating tasks, then publishing changed task paths and knowledge edits under the Coga and contexts roots together.
+description: Describe the validation and publication boundary that completes guided ticket authoring.
 ---
 
 # Ticket Authoring Finalize
 
-`coga ticket` calls the shared `coga.authoring.finalize_authored` helper after
-a successful authoring interview. It validates authored tasks, then
-publishes changed task paths together with every changed context, skill,
-workflow, or config file under the Coga and contexts roots; a failed publish
-keeps the edits and fails the command. The full contract, including unchanged targets and failures, lives
-in [coga/state-publication/authoring](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/authoring/SKILL.md).
+After a successful authoring interview, `coga ticket` validates and publishes
+its changes. Read "When Coga publishes" in
+[coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md#when-coga-publishes)
+for the publication and refusal contract.
+
+For development detail, finalization internals live in
+[coga-dev/internals/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/SKILL.md#guided-authoring-finalization).
 
 The command owns this lifecycle directly; this skill documents the shared
 behavior and does not provide an executable entry point.

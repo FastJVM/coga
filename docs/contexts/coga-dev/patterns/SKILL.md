@@ -1,6 +1,6 @@
 ---
 name: coga-dev/patterns
-description: Rules of thumb for composing a new feature from Coga's core primitives when it collects events or carries state across runs, without hidden state, hidden queues, or unsafe concurrent writes.
+description: Rules of thumb for composing a new feature from Coga's core primitives when it collects events, carries state across runs, or changes state others need to know about, without hidden state, hidden queues, or unsafe concurrent writes.
 ---
 
 # Coga patterns
@@ -58,10 +58,15 @@ layers:
 Never bypass both layers when the team needs awareness; never post chatter
 that is not an outcome, urgent exception, or explicit FYI.
 
+Owner decision (2026-10-01): the base prompt carries no rule forbidding
+agents to commit Coga state, though a hand commit on local control diverges
+it from origin and blocks launch. Prevention in the prompt would let agents
+hide the divergence; the remedy belongs in a deterministic CLI guard that
+detects it. Reopen only if such a guard proves insufficient.
+
 ## Not covered here
 
 - The primitives themselves — `coga/architecture` and `coga/recurring`.
-- How state lands on control across checkouts — `coga/sync` and
-  `coga/state-publication`.
+- How state lands on control across checkouts — `coga/state-publication`.
 - The checkout-local admission and publication barrier used by launches —
   `coga-dev/internals/launch-claims`.

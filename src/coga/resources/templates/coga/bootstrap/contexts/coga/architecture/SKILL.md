@@ -80,9 +80,7 @@ operating rules without a merge.
 - **State and notifications**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
-  [state publication](../state-publication/SKILL.md)
-  ([authoring](../state-publication/authoring/SKILL.md),
-  [sweep and recovery](../state-publication/sweep/SKILL.md)),
+  [state publication](../state-publication/SKILL.md),
   [usage](../usage/SKILL.md),
   [telemetry](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
 - **Extend a repo**: [extension-model](../extension-model/SKILL.md),

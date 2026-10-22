@@ -34,7 +34,7 @@ The repo separates implementation from the OS it operates:
   table in the same change. Only `_resolve_secret_value` runs `env:`
   indirection, for the two Slack webhook keys.
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
-  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/sync](../../coga/sync/SKILL.md).
+  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../coga/state-publication/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `launch.py` (launch API, preparation and supervision),
