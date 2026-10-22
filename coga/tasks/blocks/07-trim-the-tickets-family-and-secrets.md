@@ -1,6 +1,6 @@
 ---
 title: 07 Trim the tickets family and secrets
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga/knowledge
