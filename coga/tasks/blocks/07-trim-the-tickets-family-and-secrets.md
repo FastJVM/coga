@@ -1,10 +1,10 @@
 ---
 title: 07 Trim the tickets family and secrets
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/knowledge
-  - coga-dev/packaging
+- coga/knowledge
+- coga-dev/packaging
 workflow:
   name: code/with-review
   steps:
@@ -26,6 +26,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
