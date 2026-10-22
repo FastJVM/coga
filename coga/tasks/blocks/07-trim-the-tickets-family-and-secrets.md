@@ -1,6 +1,6 @@
 ---
 title: 07 Trim the tickets family and secrets
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,6 +27,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:77107e37-2afe-4142-92bf-2783d64b26c2
 ---
 
 ## Description
