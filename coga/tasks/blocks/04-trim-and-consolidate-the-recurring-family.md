@@ -149,6 +149,7 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1084
 branch: coga/blocks-04-recurring-trim
 
 ## Implementation
