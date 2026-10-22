@@ -1,6 +1,6 @@
 ---
 title: 03 Trim the checkouts and checkout-cleanup family
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: 617882c8-fdbf-4e77-9d3d-b2391253439b
 ---
 
 ## Description
@@ -175,62 +174,162 @@ Owner notes and follow-ups:
 - `docs/release-notes/context-audiences.md` still names `coga/checkout-cleanup/proofs` in a dated rename table. This is history, not a link, so I left it.
 - PR #1081 (ticket 02) syncs the packaged copies of checkouts, checkout-cleanup, and branch-sweep. This branch already makes those twins byte-identical with more edits, so whichever PR merges second takes this branch's version of those three packaged files.
 
+## Peer review
+
+Completed direct Codex review of final head `244bf2661750d594e4bdc169e4eb9290158e502f` against
+base `1539b07cc5a8ef33b38e8f9ded39735283b76b21`. The implement handoff identifies Claude as the
+implementer, so this was independent review of that implementation. Codex
+applied and self-reviewed the two corrections below; no nested review CLI ran.
+
+Fixed findings:
+- The new `coga-dev/internals/branch-sweep` text made mutual tip containment
+  mandatory, losing the PR-ref exception for divergent tips. Commit
+  `7e224f303` restores the actual `_publish_retirement_tag` decision and links
+  the user archive rule.
+- Source-pinned validation found the deleted proofs leaf still attached to
+  `microkernel/move-retire-to-a-command-ticket`. Although that ticket is
+  `done`, validation resolves its contexts. Commit `244bf2661` removes the
+  redundant attachment (the parent was already attached); lifecycle and
+  historical prose are unchanged.
+
+Review coverage: retained the entry/work/handoff, manual recovery, chat retry,
+claim, dirty-state, local-before-remote deletion and archive rules; compared
+moved internals with their source; checked the remaining leaves and inbound
+references. All nine affected live/package pairs are byte-identical, and no
+checkout-family link or anchor is broken. Remaining proofs mentions are this
+audit's history or completed-ticket prose. The new developer page is indexed.
+No terminal or rendered Slack exercise applies because this diff changes
+neither UI code nor message formats. No unresolved change-specific finding.
+
+Verification on the head/base above:
+- `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest`:
+  **3952 passed, 7 skipped, 3 failed** (Python 3.12.12, 367.64s). The failures
+  are the existing packaging twin, distribution and navigation failures on
+  main. Direct comparison verified all 12 remaining mismatched pairs are
+  unchanged by this branch; the other failures are the removed `coga/code`
+  topic's leftover packaged copy/registration and three links.
+- `PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json`: **151 OK,
+  0 errors, 0 fixes, 47 warnings**, exit 0.
+- `git diff --check origin/main...HEAD`: passed.
+
+Rebased onto current main before review and force-pushed with lease. The final
+fetch still had main at the base above. Returned this manual checkout to clean
+`main` before writing this handoff. The branch has three commits ahead of main.
+
+The required green suite is blocked on **blocks/02-delete-the-code-topic-and-remove-coga-repo-only**,
+whose [PR #1081](https://github.com/FastJVM/coga/pull/1081) was still open at
+handoff. After it merges, rebase this branch, preserve the canonical and
+packaged checkout edits through overlap, re-run the full suite and validation,
+and refresh the review/PR receipts before bumping. No PR for this branch has
+been opened. Ticket 08 still owns the launch-topic pointer update; the
+implement handoff records the topic-size follow-up.
+
 ## PR
 
 ```yaml
 title: Trim the checkouts and checkout-cleanup topic families
 author: claude
-author_evidence: Implement step ran in a Claude Code session (model claude-opus-5-5); manual session, no launch-prepared branch.
-head: e022f9ba5a352bf91d577abeb974dd3c1fef6f89
-base: 1a8f195111fc17ca29bee6a52c55a1c09ef79a48
-depth: skim
-rationale: Docs-only restructuring of shipped topics; check that no agent-followed procedure was lost from checkouts and that the proofs merge reads coherently.
-implementation: Applies the blocks audit rows for checkouts and checkout-cleanup. Merges checkout-cleanup/proofs into its parent, gives direct chat and the launch boundary one owner each, and moves dated decisions, private names, and Git plumbing into coga-dev pages.
-deviations: None from the audit verdicts.
-limitations: Three packaging tests fail on main and on this branch from ticket 02's unsynced twins (coga/code and 12 other topics), which open PR #1081 fixes. git-refresh is now over the 200-line review threshold.
+author_evidence: The implement handoff records a Claude Code session (claude-opus-5-5). This Codex peer-review
+  session authored the two small corrections in 7e224f303 and 244bf2661; Git publisher identity is not
+  the implementing-agent identity.
+head: 244bf2661750d594e4bdc169e4eb9290158e502f
+base: 1539b07cc5a8ef33b38e8f9ded39735283b76b21
+depth: deep
+rationale: 'The documentation change is bounded and the direct review completed, but the required full
+  suite still fails three pre-existing packaging checks. PR #1081 must land and this branch must be rebased
+  and checked again before advancing.'
+implementation: Trims the checkout topic families while retaining agent procedures; merges checkout-cleanup/proofs
+  into its parent; makes chat and the launch boundary their respective owners; moves mechanics and dated
+  decisions into coga-dev. Peer review preserves the divergent-tip archive exception in the moved internals
+  and removes an obsolete proofs attachment from a completed ticket that validation still reads.
+deviations: None from the audit verdicts. Historical prose mentions in completed tickets and the dated
+  rename table remain; the obsolete machine-resolved context attachment was removed.
+limitations: 'The three failing packaging checks are existing main drift covered by open PR #1081 (blocks/02-delete-the-code-topic-and-remove-coga-repo-only).
+  The launch-topic ownership pointer remains ticket 08 scope. git-refresh is 223 lines and exceeds the
+  topic-size review threshold. No rendered terminal or Slack check was needed: no UI code or message format
+  changed. Verification used Python 3.12.12; no Python 3.11 run was performed.'
 files:
   coga/recurring/autoclose-merged/ticket.md: Repoint proofs links to coga/checkout-cleanup.
   coga/recurring/branch-sweep/ticket.md: Repoint proofs links to coga/checkout-cleanup.
   coga/skills/coga/autoclose/sweep/SKILL.md: Repoint the Ignored state link to coga/checkout-cleanup.
+  coga/tasks/microkernel/move-retire-to-a-command-ticket.md: Remove the obsolete proofs context attachment;
+    the completed ticket already attaches checkout-cleanup, and validation resolves attached contexts
+    even for completed tickets.
   docs/README.md: Drop the removed proofs leaf from the library index.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Record the 2026-10-14 linked-worktree exceptions decision moved out of checkouts.
-  docs/contexts/coga-dev/internals/SKILL.md: List the new branch-sweep page and the widened launch-claims and git-refresh scope.
-  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: New home for checkout-disposal and branch-sweep mechanics moved out of the cleanup family.
-  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Receive launch-preparation mechanics, the chdir evidence, template-adoption history, and the 2026-10-06 decision.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Record the 2026-10-14 linked-worktree exceptions
+    decision moved out of checkouts.
+  docs/contexts/coga-dev/internals/SKILL.md: List the new branch-sweep page and the widened launch-claims
+    and git-refresh scope.
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Own the moved checkout-disposal and branch-sweep
+    mechanics; preserve the PR-ref exception when divergent tips cannot share one retirement tag.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Receive launch-preparation mechanics, the chdir
+    evidence, template-adoption history, and the 2026-10-06 decision.
   docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Receive the chat guard lock and receipt mechanics.
   docs/contexts/coga/checkout-cleanup/SKILL.md: Absorb the checkout proofs and drop private names.
-  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Trim to user rules and repoint the proofs link.
+  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Trim to user rules and repoint the proofs
+    link.
   docs/contexts/coga/checkout-cleanup/proofs/SKILL.md: Deleted; merged into checkout-cleanup.
-  docs/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Drop function names, the dated header, and worklist internals.
-  docs/contexts/coga/checkouts/SKILL.md: Trim history and mechanics; direct chat becomes a summary plus link.
+  docs/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Drop function names, the dated header,
+    and worklist internals.
+  docs/contexts/coga/checkouts/SKILL.md: Trim history and mechanics; direct chat becomes a summary plus
+    link.
   docs/contexts/coga/checkouts/chat/SKILL.md: Move lock and receipt internals to coga-dev.
-  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Move the re-pin loop, realignment plumbing, and contexts-root capture to coga-dev.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/proofs/SKILL.md: Packaged twin deleted.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Packaged twin, byte-identical.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Move the re-pin loop, realignment plumbing, and
+    contexts-root capture to coga-dev.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Packaged twin,
+    byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Packaged
+    twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/proofs/SKILL.md: Packaged
+    twin deleted.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Packaged
+    twin, byte-identical.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Packaged twin, byte-identical.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Packaged
+    twin, byte-identical.
   src/coga/resources/templates/coga/bootstrap/retire/ticket.md: Repoint the proofs link to coga/checkout-cleanup.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Packaged twin of the skill link repoint.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Packaged twin of the
+    skill link repoint.
   src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Packaged twin of the link repoint.
   src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: Packaged twin of the link repoint.
   tests/test_packaging.py: Drop checkout-cleanup/proofs from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the peer-review step comes next.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 244bf2661750d594e4bdc169e4eb9290158e502f
+  base: 1539b07cc5a8ef33b38e8f9ded39735283b76b21
+  detail: Completed direct Codex review of the entire final branch diff against main, including procedures,
+    moved mechanics, references and package twins. Independent review of the Claude implementation; Codex
+    authored and self-reviewed the two corrections. Fixed the lost divergent-tip archive exception and
+    the obsolete proofs context attachment. No unresolved change-specific finding. No nested review CLI
+    was run.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: failed
-    head: 659b1c599fc5c85b504e878a08d34b24c1109722
-    base: 32d930ad60d79a24ca02911842d3dc6fc8a7c85f
-    detail: 3 failed, 3952 passed, 7 skipped. All three failures are in test_packaging (twin identity, distribution, navigation links) and come only from ticket 02's coga/code deletion and 12 unsynced twins already on main (PR #1081). None are in this diff. The tested tree is this change before rebase; the rebase added only coga/log.md and this ticket.
-  - command: coga validate --json
-    status: passed
-    head: 659b1c599fc5c85b504e878a08d34b24c1109722
-    base: 32d930ad60d79a24ca02911842d3dc6fc8a7c85f
-    detail: Exit 0; 151 ok, 0 fixes, 47 warnings (idle/stuck tickets), none from this change.
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest
+  status: failed
+  head: 244bf2661750d594e4bdc169e4eb9290158e502f
+  base: 1539b07cc5a8ef33b38e8f9ded39735283b76b21
+  detail: 'Python 3.12.12: 3952 passed, 7 skipped, 3 failed in 367.64s. Failures: test_live_and_packaged_copies_stay_identical,
+    test_context_distribution_is_complete, test_context_navigation_has_no_broken_links. All are existing
+    main drift: 12 unrelated unsynced topic twins, the packaged coga/code topic and required registration
+    left after canonical deletion, and three coga/code links. PR #1081 covers these paths. This completed
+    run supersedes the two attempts interrupted while applying review findings.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src coga validate --json
+  status: passed
+  head: 244bf2661750d594e4bdc169e4eb9290158e502f
+  base: 1539b07cc5a8ef33b38e8f9ded39735283b76b21
+  detail: 'Exit 0: 151 OK, 0 fixes, 0 errors, 47 warnings. Source-pinned validation passes after removing
+    the redundant deleted-leaf attachment from microkernel/move-retire-to-a-command-ticket.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 244bf2661750d594e4bdc169e4eb9290158e502f
+  base: 1539b07cc5a8ef33b38e8f9ded39735283b76b21
+  detail: No whitespace errors.
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-10-21 17:14] [agent:codex] id=20261021T171440 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only before advancing this peer review: the required suite still has three pre-existing packaging failures covered by that PR. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts. Both change-specific review findings are fixed; validation passes.
