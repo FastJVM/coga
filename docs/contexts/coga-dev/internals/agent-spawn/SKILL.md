@@ -121,10 +121,8 @@ the one-shot `codex exec` analyze argv already inherits the environment.
 
 ## Large prompts
 
-Linux caps one execve argument near 128 KiB. When the prompt exceeds
-`_MAX_PROMPT_ARG_BYTES` (120,000 UTF-8 bytes), argv carries a pointer telling
-the agent to read the prompt file in full first; the file outlives the
-session.
+Oversized prompts use file-pointer delivery; the threshold and prompt-file
+lifetime are owned by [compose](../compose/SKILL.md#delivery).
 
 ## The supervisor
 

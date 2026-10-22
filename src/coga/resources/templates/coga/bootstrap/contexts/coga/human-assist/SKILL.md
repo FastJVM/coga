@@ -1,6 +1,6 @@
 ---
 name: coga/human-assist
-description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, the recorded checkout and PR-head proof it requires before composition, the scripts it may run, and whom its lifecycle lines credit.
+description: The `coga launch <slug> --agent <type>` assist on an owner-held step — when it is entered, the recorded-checkout path's PR-head proof, the scripts it may run, and whom its lifecycle lines credit.
 ---
 
 # Human-step assist
@@ -19,18 +19,20 @@ or PR validation.
 
 ## Recorded checkout
 
-The assist runs on the ticket's PR branch only when Git sync is enabled,
+Launch uses the recorded-checkout assist path when Git sync is enabled,
 `## Dev` records `branch:`, `worktree:`, and `pr:`, launch runs from exactly
 that checkout (primary, linked worktree, or independent fallback clone), and
-it is on the recorded branch. Otherwise the assist gets ordinary launch
-handling with no alignment and no assist identity. Launch's checkout
-boundary never moves this checkout
+it is on the recorded branch. Other assists follow ordinary
+[checkout handling](../checkouts/SKILL.md), without this alignment or assist
+identity. Launch's checkout boundary leaves a qualifying recorded checkout
+in place
 ([coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md)).
 
 ## PR-head proof before composition
 
-Before anything is composed, and for draft, active, in_progress, paused, and
-blocked tickets alike, launch proves the checkout holds the PR's head:
+For that recorded-checkout path, before anything is composed, launch proves
+the checkout holds the PR's head for draft, active, in_progress, paused, and
+blocked tickets alike:
 
 1. The recorded branch must not share the control branch's name.
 2. The PR is open, its head branch is the recorded branch, and its head
@@ -46,8 +48,8 @@ refuses.
 
 ## Scripts under an assist
 
-When the target carries `ticket.py`
-([script tickets](../script-tickets/SKILL.md)), the assist validates the
+When a recorded assist's target carries `ticket.py`
+([script tickets](../script-tickets/SKILL.md)), it validates the
 agent name, resolves secrets, preflights notification config and push auth,
 activates and starts the ticket, and only then runs the script. Agent CLI
 lookup and composition stay deferred until the script leaves agent work
@@ -57,12 +59,12 @@ the override stops participating.
 
 ## Attribution
 
-An assist is the exception to launch's attribution rule: in-session `bump`,
-`mark`, and `block` lines credit the assisting agent instead of the owner,
-including after a script hands the chain to an agent step. A script's own
-completion inside an assist still credits `system`. The identity only
-attributes; it grants no publication authority, and nested non-assist
-spawns drop it.
+The recorded assist identity is the exception to launch's attribution rule:
+in-session `bump`, `mark`, and `block` lines credit the assisting agent
+instead of the owner, including after a script hands the chain to an agent
+step. A script's own completion inside an assist still credits `system`.
+The identity only attributes; it grants no publication authority, and nested
+non-assist spawns drop it.
 
 Everything an assist publishes lands on control, never on the PR branch. The
 environment contract, alignment loop, and publication table are in

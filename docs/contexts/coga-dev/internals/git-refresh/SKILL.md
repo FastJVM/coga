@@ -191,6 +191,15 @@ The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
   switches, and spawns. The switch checks run before the audit and again,
   under the state lock, at the switch; a failure after the switch reports
   that the checkout was switched.
+- **Target reload.** Direct orientation prepares control before resolving
+  its bootstrap target, so it reads any local override from current control.
+  Ordinary launch's initial resolution only classifies the target and its
+  checkout exemption. After preparation it reloads config (a changed Git
+  destination refuses with 75) and re-resolves the same canonical ref, never
+  a different prefix match. An ordinary ref absent locally is retried after
+  preparation, so a ticket created on control since the branch point can
+  launch. Between phases, routing, secrets, scripts, and prompts are derived
+  from the refreshed files; a target gone from control ends the chain.
 - **Re-preflight after refresh.** After each control refresh during
   preparation, the ticket's status, step and complete frozen workflow must
   still match the copy already routed and preflighted, and

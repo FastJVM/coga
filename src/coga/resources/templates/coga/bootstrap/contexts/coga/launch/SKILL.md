@@ -30,32 +30,17 @@ stateful `ticket.py` target refuses them
 
 ## Checkout boundary
 
-An ordinary task launch and direct `coga chat` first publish Coga state and
-bring the invoking checkout to a clean, current control branch, before
-reading the ticket to compose, run `ticket.py`, or activate; chat does so
-before resolving its bootstrap target, so a repo-local override is read from
-current control. Launch then reloads config (a changed Git destination
-refuses with 75) and re-resolves the same ref, never a different prefix
-match; a ref that did not resolve locally is resolved again, so a ticket
-created on control since the checkout's branch point launches. The same
-publish-then-prepare runs after every agent session and `ticket.py` phase,
-before the next chain decision, and on every exit path; routing, secrets and
-prompts come from the refreshed files, and a target gone from control ends
-the chain. An entry refusal exits 75 with no work started; a later refusal
-warns, keeps the remaining work and the session's exit, and stops chaining.
-Direct chats in one checkout are serialized
-([coga/checkouts/chat](../checkouts/chat/SKILL.md)).
+Ordinary task launches and direct chats prepare current control before
+running ticket work and return there between phases and at teardown.
+Refreshed files supply subsequent routing and prompts; a target gone from
+control ends the chain. [coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md)
+owns the preparation and return procedure, refusals, recovery, and exemptions;
+[coga/checkouts/chat](../checkouts/chat/SKILL.md) owns direct-chat occupancy.
 
-Within a prepared launch, each agent step's branch is then created or reused
-from its frozen step before spawn ([coga/checkouts](../checkouts/SKILL.md));
-`ticket.py` phases run first and never move to a feature branch. Every
-composed prompt ends with a **Checkout (runtime)** notice of what launch
-observed and who returns the checkout
-([prompt composition](../prompt-composition/SKILL.md)). The procedure, its
-proofs, recovery, and the launches exempt from it (other bootstrap targets,
-`--prompt-report`, Git-less workspaces, recorded assist and sandbox-clone
-checkouts, megalaunch picks; recurring periods get only the return) are owned
-by [coga/checkouts/launch-boundary](../checkouts/launch-boundary/SKILL.md).
+Each agent step then uses the [checkout policy](../checkouts/SKILL.md)
+before spawning; script phases precede that branch setup. The
+[runtime checkout notice](../prompt-composition/SKILL.md#layer-order)
+identifies the prepared checkout and who returns it.
 
 ## Status is the signal
 

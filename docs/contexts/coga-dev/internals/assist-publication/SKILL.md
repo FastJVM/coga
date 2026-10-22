@@ -73,8 +73,9 @@ plus whatever `coga open-pr` pushes
   claims ([launch claims](../launch-claims/SKILL.md)) and recurring
   admission (`coga-dev/internals/recurring-admission`).
 - Publication authority comes from the PR-head proof made before
-  composition, not from the environment. `COGA_ASSIST_*` only attributes
-  audit lines to the assisting agent. Inside an assist, `coga bump` refuses
+  composition, not from the environment. `COGA_ASSIST_*` carries the
+  [recorded assist identity](../../../coga/human-assist/SKILL.md#attribution).
+  Inside an assist, `coga bump` refuses
   every rewind (`--to` / `--backward`); a human rewinds outside the assist.
 - The deterministic attribution marker (`COGA_SCRIPT_TASK`,
   [script tickets](../../../coga/script-tickets/SKILL.md)) is independent of the
