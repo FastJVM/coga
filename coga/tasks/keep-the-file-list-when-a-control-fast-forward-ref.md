@@ -119,4 +119,19 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/keep-control-fast-forward-paths
+
+## Implementation plan
+
+- Started from clean, current `main`; no previous branch or PR was recorded.
+- `src/coga/git.py` `summarize_git_failure` drops the indented path lines
+  that follow Git's overwrite refusals; `fast_forward_control` uses that
+  summary in the operator-facing note.
+- Add regression coverage before the fix for tracked and untracked overwrite
+  refusals, including a bounded list with an omitted-path count. Keep other
+  actionable-error filtering, deduplication, and fallback behavior intact.
+- Update the owning state-publication topic and its packaged twin, run the
+  tests with the checkout's Python 3.12 test environment, then commit, freshen,
+  push, return to `main`, and hand off to peer review with `coga bump`.
