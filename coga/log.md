@@ -9014,3 +9014,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 19:04 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-21 19:04 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [megalaunch] launched via coga megalaunch
 2026-10-21 19:16 v1 [stop-launch-prompt-report-from-sweeping-coga-state] [human:nicktoper] created (status=draft)
+2026-10-21 19:17 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [agent:claude] blocked: Depends on blocks/02-delete-the-code-topic-and-remove-coga-repo-only: implement is pushed (coga/blocks-08-trim-launch-prompt-workflow) but pytest has 3 packaging failures inherited from main, where commit 001aad66f published 02's docs/contexts edits without their packaged twins. Land 02 (then a relaunch rebases, reruns tests and bumps), or answer 'bump anyway' to send this to review with the inherited red suite.

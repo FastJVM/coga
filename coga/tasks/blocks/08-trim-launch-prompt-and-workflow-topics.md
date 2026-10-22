@@ -1,6 +1,6 @@
 ---
 title: 08 Trim launch, prompt and workflow topics
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 43d82caf-0cb9-4122-b2bc-a4caade1ace1
 ---
 
 ## Description
@@ -148,8 +147,129 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Handoff (implement, 2026-10-21)
+
+Done on `coga/blocks-08-trim-launch-prompt-workflow` (commit `c936fa924`,
+pushed; based on `c6ded3318`). Every README row for this ticket applied:
+
+- `session-conduct` merged into `prompt-composition` ("Session conduct":
+  selection table + override note; postures stay in the `prompt-*.md`
+  resources, which already state them). `existing-pr` merged into
+  `pr-publication` ("Updating an existing PR"). Both copies of both removed
+  topics deleted; dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`; links
+  repointed in `architecture`, `recurring/scheduling`, `docs/README.md`,
+  `code/open-pr` skill (live + bootstrap), coga-dev `agent-spawn`.
+- `launch` 192 -> 144 lines: API/phases -> coga-dev `internals/agent-spawn`;
+  checkout boundary is a summary + link to `checkouts/launch-boundary`;
+  assist attribution now owned only by `human-assist`.
+- `workflows` 200 -> 159 lines: branch-gate and code-review decisions, Dream
+  W43 case, reading rules -> coga-dev `current-direction`; function names dropped.
+- `prompt-composition` internals -> new coga-dev `internals/compose` (listed
+  in `internals/SKILL.md`); `activity-capture`'s `#launch-marker` link repointed.
+- `lifecycle` "Writer validation timing" -> coga-dev `codebase/gotchas`;
+  `commands/owner.py` comment repointed. Lifecycle twin re-synced.
+- `megalaunch` flag prose/function names -> `launch-claims` source notes.
+- `human-assist` names/alignment loop/`COGA_ASSIST_*` -> `assist-publication`.
+- `pr-publication` function names, retired-layout clauses, record parsing ->
+  `git-refresh` "`coga open-pr` source notes".
+- `script-tickets` "Why this shape" + source map -> coga-dev `microkernel`.
+- Known defect (`--prompt-report` still sweeps) filed as draft
+  `stop-launch-prompt-report-from-sweeping-coga-state` and removed from launch.
+
+Not changed: `docs/release-notes/context-audiences.md` names `existing-pr` in
+a dated rename table (text, not a link).
+
+### Main is red independent of this ticket
+
+Commit `001aad66f` ("Sync coga state") swept ticket 02's `docs/contexts`
+edits onto main without their packaged twins (deleted `coga/code` live only;
+architecture, checkouts, scheduling, cli, ... drift). On main and on this
+branch, 3 packaging tests fail for those paths only:
+`test_live_and_packaged_copies_stay_identical`,
+`test_context_distribution_is_complete`,
+`test_context_navigation_has_no_broken_links`. Every topic this ticket owns
+is byte-identical. They clear when
+`blocks/02-delete-the-code-topic-and-remove-coga-repo-only` lands its
+packaged side. Lesson: commit `docs/contexts` edits on the branch before any
+sweeping `coga` command.
+
+## PR
+
+```yaml
+title: Trim launch, prompt, lifecycle, workflow and PR topics
+author: claude
+author_evidence: Implement session ran in Claude Code (claude-opus-5-5); see handoff above.
+head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
+base: c6ded33184c4c427cf0615171b86d796b378318b
+depth: skim
+rationale: Documentation-only moves plus one code comment; read the description for which facts left the shipped topics and where they went.
+implementation: Applies the blocks/08 audit rows; merges session-conduct into prompt-composition and existing-pr into pr-publication; moves internals to coga-dev pages (new internals/compose).
+deviations: Launch's Python API went to internals/agent-spawn (no dedicated launch page exists). Workflows' dated decisions went to coga-dev current-direction.
+limitations: Full suite has 3 packaging failures inherited from main (ticket 02's half-published twins), not from this diff.
+files:
+  coga/skills/code/open-pr/SKILL.md: Repoint existing-pr link to pr-publication.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Packaged twin of the open-pr skill link fix.
+  docs/README.md: Drop removed topics from the library index.
+  docs/contexts/coga/architecture/SKILL.md: Drop links to removed topics.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Same link fix in the packaged copy.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Repoint session-conduct link.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Same link fix in the packaged copy.
+  docs/contexts/coga/launch/SKILL.md: Trim to user contract under 160 lines.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
+  docs/contexts/coga/prompt-composition/SKILL.md: Absorb session-conduct; move internals out.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
+  docs/contexts/coga/session-conduct/SKILL.md: Deleted; merged into prompt-composition.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/session-conduct/SKILL.md: Deleted packaged twin.
+  docs/contexts/coga/lifecycle/SKILL.md: Drop writer-validation internals and dated/private names.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin, re-synced.
+  docs/contexts/coga/megalaunch/SKILL.md: Drop flag prose and function names.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Packaged twin.
+  docs/contexts/coga/human-assist/SKILL.md: Drop internals; single owner of assist attribution.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md: Packaged twin.
+  docs/contexts/coga/pr-publication/SKILL.md: Absorb existing-pr; drop function names and record parsing.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md: Packaged twin.
+  docs/contexts/coga/pr-publication/existing-pr/SKILL.md: Deleted; merged into pr-publication.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/existing-pr/SKILL.md: Deleted packaged twin.
+  docs/contexts/coga/script-tickets/SKILL.md: Drop design rationale and function names.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Packaged twin.
+  docs/contexts/coga/workflows/SKILL.md: Drop history and names; under 160 lines.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: Packaged twin.
+  docs/contexts/coga-dev/internals/compose/SKILL.md: New page for prompt-composition internals.
+  docs/contexts/coga-dev/internals/SKILL.md: List the compose page; note agent-spawn's launch API.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Receive launch API/phases; repoint conduct ref.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Repoint launch-marker anchor to compose.
+  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: Receive assist alignment and identity internals.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Receive open-pr source notes and record parsing.
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Receive megalaunch source notes.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Receive the ticket.py design rationale and source map.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Receive prospective-validation rule from lifecycle.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Receive workflows' dated decisions and W43 evidence.
+  src/coga/commands/owner.py: Comment now cites coga-dev/codebase/gotchas.
+  tests/test_packaging.py: Drop removed topics from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Review is the workflow's later step; not yet run.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: failed
+    head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
+    base: c6ded33184c4c427cf0615171b86d796b378318b
+    detail: 3 failed, 3952 passed, 7 skipped; all 3 are the packaging failures already present on main from ticket 02's half-published twins.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: c936fa924fd38753e7fa97d1d4fdac505b97c47e
+    base: c6ded33184c4c427cf0615171b86d796b378318b
+    detail: Exit 0; 151 ok, 47 issues, none errors.
+```
 
 ## Dev
 
 branch: coga/blocks-08-trim-launch-prompt-workflow
+
+---
+
+## Blockers
+
+- [ ] [2026-10-21 19:17] [agent:claude] id=20261021T191736 Depends on blocks/02-delete-the-code-topic-and-remove-coga-repo-only: implement is pushed (coga/blocks-08-trim-launch-prompt-workflow) but pytest has 3 packaging failures inherited from main, where commit 001aad66f published 02's docs/contexts edits without their packaged twins. Land 02 (then a relaunch rebases, reruns tests and bumps), or answer 'bump anyway' to send this to review with the inherited red suite.
