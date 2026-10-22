@@ -23,13 +23,6 @@ an agent picks another branch name, or a slug is truncated. Anything that
 follows the link (bump gates, `open-pr`, autoclose, retire, status views)
 reads the record; a branch name need not match the slug.
 
-The ticket's `## Dev` record (`branch:`, `worktree:` for a sandbox clone,
-`pr:`) is the link from ticket to branch to PR. It is explicit, not inferred
-from the slug, because slug conventions break whenever a PR bundles tickets,
-an agent picks another branch name, or a slug is truncated. Anything that
-follows the link (bump gates, `open-pr`, autoclose, retire, status views)
-reads the record; a branch name need not match the slug.
-
 `origin` and `main` stand for the configured `[git].remote` and
 `[git].control_branch`; `coga/tasks/`, `coga/recurring/`, and `coga/log.md`
 for the configured workspace's task, recurring, and log paths. **The Coga
