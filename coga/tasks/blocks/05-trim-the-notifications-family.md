@@ -1,6 +1,6 @@
 ---
 title: 05 Trim the notifications family
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: 8bb04620-41d9-4dd9-b402-a7454e5da0c1
 ---
 
 ## Description
@@ -149,58 +148,183 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 branch: coga/blocks-05-trim-the-notifications-family
 
-## Handoff (implement)
+## Implementation
 
-Done on the branch (commit `db0ef105b`, pushed). Every README row for this family is applied:
+Claude Code / Claude Opus 5.5 implemented the audit in `db0ef105b` (rebased
+to `78f581157`). The notifications, producers and important topics are
+trimmed; failures is split into the user summary and local internals; Slack
+configuration lives in shipped TOML comments. The new internals topic is
+indexed and the deleted topic's registration and non-ticket links are removed.
+No disagreement with the audit. The repo-specific usage-report exception and
+its rationale remain in the local developer topic.
 
-- `coga/notifications`: the Configuration section is gone. Slack keys are now documented once, in the shipped `coga.toml`, which gained the facts only the topic had: Slack inferred when `channels` is absent, unknown channel fails load, `channels = []` gives one stderr line, three keys overridable locally, the `--check-slack` empty payload, opt-out behaviour and its cost, GIF kinds with the `panic` fallback, member IDs not secret. The fail-loud sentence was also corrected, because `fatal=False` posts report rather than crash. Message format, the snapshot test, #56 history, `OUTCOME_EVENT_KINDS`/`ValueError`, "outbound only" and "Adding a notifying command" moved to coga-dev. The new user section "When a post fails" holds the failures summary: best-effort vs refuse-before-write, never rerouted, rotate a leaked webhook. Kept the `#pinging-the-owner` anchor, which `coga/recurring/usage-report/ticket.md` and `coga/skills/coga/usage-report/post` link.
-- `notifications/producers`: dropped the Caller column, the "grep for the real call" note and the Accounting rule. Kept the phone-home "miss stays off log" fact as user-visible.
-- `notifications/failures`: deleted (both copies, and its entry in `test_packaging.py`). Links repointed in `sync` (row merged; design-rule step 1 now links coga-dev internals), `important` (→ `notifications#when-a-post-fails`), `producers`, `notifications`, `docs/README.md`, and the coga-dev `testing` page.
-- `important`: removed the repo-specific usage-report carve-out sentence. This follows the audit: the decision is this repo's, and it is now recorded on the coga-dev page. "Not covered here" now points webhook config at `coga.toml`.
-- New coga-dev page `internals/notifications` (157 lines, listed in the `internals` index), holding failure internals, preflight callers, log gaps, redaction, the caller list, the accounting rule, the usage-report exception, message format, and "Adding a notifying command".
+## Peer review
 
-Decisions / disagreement for owner: none against the audit. One judgment call: the generic "a repo may route a low-volume report to important" sentence was dropped rather than kept generic. If this conflicts with PR #1081 (ticket 02), which rewrites the same packaged `important` lines, take this version.
+**Direct review completed** by Codex in this fresh peer session, independently
+of Claude's implementation. The complete final diff covers head
+`b5668d59a8800e676e420761ac7a43931a1a145c` against base `13b702f1770b7b47c5bdbdd74cfb8589346bb891`.
+The branch was unconditionally rebased onto fetched main before review;
+the final freshness fetch found no further movement. Codex applied the fixes
+in `b5668d59a`, then re-read the final diff and self-checked those corrections.
+No nested reviewer CLI or subagent ran.
 
-Verification:
-- `.venv/bin/python -m pytest -q`: 3952 passed, 7 skipped, 3 failed. All 3 are `tests/test_packaging.py` failures already present on main (`identical`, `distribution_is_complete`, `navigation_has_no_broken_links`). They come from ticket 02's canonical half reaching main via sweep commit `001aad66f` (`coga/code` deletion plus 14 drifted twins), and PR #1081 carries the fix. No problem involves a file this branch touches, and the touched twins are verified by `cmp`.
-- `coga validate --json`: 0 errors, 47 pre-existing warnings.
-- After the rebase onto `aa64b7b7f` (only this ticket changed), `tests/test_packaging.py` and `tests/test_validate.py` were re-run with the same 3 failures.
+Fixed findings:
 
-Review has not run yet; peer-review is the next step.
+- The condensed failure section overstated preflight coverage and lost the
+  explicit-send failure outcome. It now distinguishes `coga slack` exit 1,
+  best-effort announcements after writes, and the named pre-write gates;
+  it notes the log exception through the producer inventory.
+- Repointing sync's numbered developer procedure made a shipped instruction
+  require an unshipped topic. The procedure now lives in
+  `coga-dev/patterns#sync-for-new-commands`; sync keeps optional navigation.
+  This pulls forward that one passage from the blocks/06 audit scope.
+- Completed the configuration-owner cleanup by removing the remaining
+  owner-map setup duplication; kept the `pinging-the-owner` anchor and the
+  repo-specific report decision's rationale.
+
+The original implementation and the fixes were checked against notification
+dispatch, Slack failure/redaction code, preflight callers, config parsing,
+and validate probing. No remaining change-specific finding. No live Slack or
+TTY exercise was applicable because this diff changes documentation/comments
+and the packaging registry, not rendered messages or interactive behavior.
+
+Verification on the final head (Python 3.12.12):
+
+- `.venv/bin/python -m pytest -q`: **3 failed, 3952 passed, 7 skipped in 356.79s (0:05:56)**.
+  Failures are `test_live_and_packaged_copies_stay_identical`,
+  `test_context_distribution_is_complete`, and
+  `test_context_navigation_has_no_broken_links` in `tests/test_packaging.py`.
+- `coga validate --json`: exit 0, 151 checks OK, **0 errors / 47 warnings**.
+- `.venv/bin/python /tmp/coga-blocks05-doc-audit.py`: four touched twin pairs
+  identical, both failures copies deleted, no notification link errors across
+  361 non-archive/non-task Markdown sources, no new global navigation or
+  distribution errors, no prohibited shipped developer refs, and identical
+  parsed TOML settings. Old task prose/audit mentions were inspected and kept
+  under the group's old-ticket exception.
+- `git diff --check main...HEAD`: passed.
+- An unchanged detached main clone at `13b702f1770b7b47c5bdbdd74cfb8589346bb891` reproduces all three
+  packaging failures (3 failed in 8.59s; exact command in the PR receipts).
+  Remaining drift is 14 unrelated twin pairs plus the coga/code package,
+  required-context entry, and three dangling links. Open PR #1081 contains
+  those repairs. Baseline log: `/tmp/coga-blocks05-main-packaging.log`.
+
+The reviewed branch is committed and pushed, but the required suite is not
+green. **Do not bump yet.** Dependency:
+`blocks/02-delete-the-code-topic-and-remove-coga-repo-only` / PR #1081.
+After it merges, rebase this branch, preserve this family's important-topic
+cleanup in any overlap, recheck twins and the final diff, rerun the suite and
+validation, and refresh these receipts before advancing. The current review
+completed; any later head/base needs a new receipt.
 
 ## PR
 
 ```yaml
-title: Trim the notifications family and split notifications/failures
-author: claude (Claude Code, claude-opus-5-5)
-head: db0ef105b61a501676a73158799cdf5bc4f87444
-base: aa64b7b7fa61a8a7f8eab9eb1fdbd0df361f7972
-review_depth: skim
-review_depth_rationale: docs-only reorganization plus coga.toml comments and one test-list entry; no runtime code changes
+title: Trim notification topics and separate user guidance from internals
+author: claude
+author_evidence: The implementation handoff and original commit db0ef105b identify Claude Code / Claude
+  Opus 5.5. That commit rebased to 78f581157. Codex independently reviewed it in this session and authored
+  the review corrections in b5668d59a.
+head: b5668d59a8800e676e420761ac7a43931a1a145c
+base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+depth: deep
+rationale: 'The documentation changes are bounded and directly reviewed, but the mandatory full suite
+  still fails three packaging checks reproduced on unchanged main. PR #1081 must land and this branch
+  must be reconciled and reverified before this step can advance.'
+implementation: Trim notifications, producers, and important; replace notifications/failures with a user
+  summary and local notification internals; centralize Slack setup in shipped TOML comments; repair links
+  and twins. Review fixes clarify explicit-send versus post-transition failure behavior and move sync
+  implementation instructions into coga-dev/patterns.
+deviations: No audit disagreement or runtime behavior change. The sync design-rule move scheduled for
+  the blocks/06 family was pulled forward because repointing its required reading to unshipped internals
+  would violate the audience boundary. Old ticket prose and audit history remain outside the link cleanup,
+  as the group instructions allow.
+limitations: 'Blocked on blocks/02-delete-the-code-topic-and-remove-coga-repo-only (PR #1081), which owns
+  main packaging drift and the leftover coga/code registration/links. No live Slack send or interactive
+  TTY check was needed: runtime messages and terminal behavior are unchanged. Tests ran on Python 3.12.12;
+  no Python 3.11 run is claimed.'
 files:
-  docs/contexts/coga/notifications/SKILL.md: user contract trimmed; failure summary added; config pointed at coga.toml
-  docs/contexts/coga/notifications/producers/SKILL.md: caller column and accounting rule removed
-  docs/contexts/coga/notifications/failures/SKILL.md: deleted (split)
-  docs/contexts/coga/important/SKILL.md: repo-specific exception removed; failures link repointed
-  docs/contexts/coga/sync/SKILL.md: failures row merged; design rule links coga-dev internals
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/{notifications,notifications/producers,important,sync}/SKILL.md: byte-identical twins
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md: deleted twin
-  src/coga/resources/templates/coga/coga.toml: notification comments absorb topic-only config facts
-  docs/contexts/coga-dev/internals/notifications/SKILL.md: new internals page
-  docs/contexts/coga-dev/internals/SKILL.md: index entry
-  docs/contexts/coga-dev/testing/SKILL.md: link repointed to coga.toml comments
-  docs/README.md: failures link removed
-  tests/test_packaging.py: drop coga/notifications/failures from the bootstrap context set
+  docs/README.md: Remove the deleted notifications/failures navigation entry.
+  docs/contexts/coga-dev/internals/SKILL.md: Index the new notification internals owner.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Own failure internals, producer callers, accounting,
+    message format, and the repo-specific usage-report decision.
+  docs/contexts/coga-dev/patterns/SKILL.md: Receive the developer-only sync design procedure so shipped
+    guidance does not require an unshipped topic.
+  docs/contexts/coga-dev/testing/SKILL.md: Point notification setup guidance at the shipped configuration
+    comments.
+  docs/contexts/coga/important/SKILL.md: Remove the repo-specific report exception and repoint failure
+    and configuration guidance.
+  docs/contexts/coga/notifications/SKILL.md: Retain the user contract and accurate failure summary; move
+    setup and developer details to their owners.
+  docs/contexts/coga/notifications/failures/SKILL.md: Delete the split topic after moving user guidance
+    and internals.
+  docs/contexts/coga/notifications/producers/SKILL.md: Keep the user-visible event/destination inventory
+    and move caller/accounting detail to developer guidance.
+  docs/contexts/coga/sync/SKILL.md: Repoint failures navigation and replace the developer procedure with
+    optional navigation.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md: Keep the packaged important
+    topic byte-identical to its canonical owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: Keep the packaged
+    notification topic byte-identical to its canonical owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/failures/SKILL.md: Delete the
+    packaged twin of the split failures topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: Keep the
+    packaged producer inventory byte-identical to its canonical owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: Keep the packaged sync overview
+    byte-identical to its canonical owner.
+  src/coga/resources/templates/coga/coga.toml: Own the moved Slack configuration comments without changing
+    parsed settings.
+  tests/test_packaging.py: Remove the retired failures topic from required bootstrap contexts.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: b5668d59a8800e676e420761ac7a43931a1a145c
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: Direct review completed on the final diff after rebase and fixes. Codex was independent of the
+    Claude implementation; Codex applied and self-checked its review corrections. Failure-summary accuracy
+    and a shipped procedure requiring local developer reading were fixed; the remaining owner-mapping
+    setup duplicate was removed and the usage-report rationale preserved. No unresolved change-specific
+    finding. The mandatory test failure is separately recorded and blocks advancement. No nested reviewer
+    CLI or subagent was used.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    head: de36a7b89 (same tree as db0ef105b minus rebase of ticket-only main commit)
-    result: 3 failed, 3952 passed, 7 skipped; failures pre-exist on main (ticket 02 sweep)
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_validate.py
-    head: db0ef105b
-    result: 3 failed (same pre-existing), 180 passed
-  - command: coga validate --json
-    result: rc 0, 47 warnings, no errors
-review: not run (peer-review step follows)
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: b5668d59a8800e676e420761ac7a43931a1a145c
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: 'Python 3.12.12: 3 failed, 3952 passed, 7 skipped in 356.79s (0:05:56). Only the three packaging
+    tests listed in Peer review fail; baseline reproduction confirms they predate this branch. Log: /tmp/coga-blocks05-peer-pytest.log.'
+- command: coga validate --json
+  status: passed
+  head: b5668d59a8800e676e420761ac7a43931a1a145c
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: Exit 0; 151 checks OK, 0 errors, 47 existing warnings (20 stuck-in-progress, 19 unfrozen-workflow,
+    7 empty-description, 1 large-blackboard).
+- command: .venv/bin/python /tmp/coga-blocks05-doc-audit.py
+  status: passed
+  head: b5668d59a8800e676e420761ac7a43931a1a145c
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: Four surviving touched context pairs are byte-identical; both failures copies are absent; all
+    361 scanned Markdown sources outside archives/tasks/log have no notification link errors; no new global
+    navigation or distribution errors; shipped developer-reference check passes; parsed TOML values are
+    unchanged. Task-reference scan found only existing task instructions/history and the family audit,
+    excluded by scope.
+- command: git diff --check main...HEAD
+  status: passed
+  head: b5668d59a8800e676e420761ac7a43931a1a145c
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: No whitespace errors on the complete reviewed branch diff.
+- command: PYTHONPATH=/tmp/coga-blocks05-main-review-13b702f17/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest -q tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_distribution_is_complete
+    tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  base: 13b702f1770b7b47c5bdbdd74cfb8589346bb891
+  detail: 'Baseline-only reproduction in an unchanged detached clone of main: the same 3 packaging tests
+    fail in 8.59s. This is evidence of pre-existing failures, not verification of the feature head.'
 ```
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+---
+
+## Blockers
+
+- [ ] [2026-10-21 18:01] [agent:codex] id=20261021T180105 Merge PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only to repair the three required packaging-test failures reproduced on main. Then rebase the pushed branch, rerun pytest and validation, and refresh the final review receipts before bumping. Direct review and documentation fixes are complete at b5668d59a; validation passes.
