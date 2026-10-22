@@ -1053,8 +1053,11 @@ def _fake_agent_reply(
     monkeypatch, reply: str, *, returncode: int = 0
 ) -> list[list[str]]:
     calls: list[list[str]] = []
+    real_run = subprocess.run
 
     def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] not in {"claude", "codex"}:
+            return real_run(cmd, **kwargs)
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, returncode, reply, "")
 
@@ -1063,9 +1066,15 @@ def _fake_agent_reply(
     return calls
 
 
+@pytest.mark.parametrize("settings", ["", "\n[autofix]\ncontexts = []\n"])
 def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
-    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+    repo: Path, settings: str, monkeypatch: pytest.MonkeyPatch, autofix_enabled
 ) -> None:
+    from coga.ticket import Ticket
+
+    toml = repo / "coga.toml"
+    toml.write_text(toml.read_text() + settings)
+    cfg_repo = load_config(repo)
     calls = _fake_agent_reply(
         monkeypatch,
         "VERDICT: problem\n"
@@ -1086,9 +1095,92 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     assert "status: active" in ticket
     assert "Fix the branch-sweep recipe timezone crash" in ticket
     assert "code/with-self-review" in ticket
+    assert Ticket.read(created[0] / "ticket.md").contexts == []
+    assert Ticket.read(created[0] / "ticket.md").frontmatter["agent"] == "claude"
     # The run that produced the finding travels with the ticket.
     assert "ZoneInfoNotFoundError" in (created[0] / "run-log.md").read_text()
     assert posts and "autofix created" in posts[0]
+
+
+@pytest.fixture
+def autofix_contexts_repo(repo: Path) -> Path:
+    """A repo with local triage guidance, a local override, and a bundled ref."""
+    for ref in ("team/triage", "coga/architecture"):
+        path = repo / "contexts" / ref / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"---\nname: {ref}\ndescription: Repo triage policy.\n---\n"
+            f"Use this repo's {ref} guidance to diagnose the failure.\n"
+        )
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture", "coga/context-layout"]\n'
+    )
+    return repo
+
+
+@pytest.mark.parametrize("analyst", [None, "codex"])
+def test_run_autofix_attaches_and_composes_repo_default_contexts(
+    autofix_contexts_repo: Path, analyst: str | None,
+    monkeypatch: pytest.MonkeyPatch, autofix_enabled,
+) -> None:
+    from coga.compose import compose_prompt_report
+    from coga.paths import bootstrap_context_path
+    from coga.tasks import list_tasks, read_ticket
+
+    repo = autofix_contexts_repo
+    if analyst is not None:
+        toml = repo / "coga.toml"
+        toml.write_text(toml.read_text() + f'agent = "{analyst}"\n')
+    cfg = load_config(repo)
+    calls = _fake_agent_reply(
+        monkeypatch, "VERDICT: problem\nTITLE: Fix the sweep crash\n---\nIt crashed.\n"
+    )
+    monkeypatch.setattr(autofix, "post", lambda cfg, msg, **kw: None)
+
+    autofix.run_autofix(cfg, _record())
+
+    ref = next(t for t in list_tasks(cfg) if t.directory == "autofix")
+    ticket = read_ticket(ref)
+    refs = ["team/triage", "coga/architecture", "coga/context-layout"]
+    assert ticket.frontmatter["contexts"] == refs
+    assert ticket.frontmatter["agent"] == "claude"
+    assert calls[0][0] == (analyst or "claude")
+    assert ticket.frontmatter["status"] == "active"
+    assert ticket.frontmatter["workflow"]["name"] == "code/with-self-review"
+    assert "ZoneInfoNotFoundError" in (ref.ticket_path.parent / "run-log.md").read_text()
+
+    report = compose_prompt_report(cfg, ref, ticket)
+    layers = [layer for layer in report.layers if layer.layer == "ticket_context"]
+    assert [layer.ref for layer in layers] == refs
+    assert [layer.text for layer in layers] == [
+        (repo / "contexts" / "team" / "triage" / "SKILL.md").read_text(),
+        (repo / "contexts" / "coga" / "architecture" / "SKILL.md").read_text(),
+        bootstrap_context_path(cfg, "coga/context-layout").read_text(),
+    ]
+
+
+def test_autofix_context_defaults_leave_existing_tickets_unchanged(cfg_repo) -> None:
+    from coga.ticket import Ticket
+
+    _, old_dir = autofix.create_autofix_ticket(
+        cfg_repo, Analysis(verdict="problem", title="Old failure", body="Old finding."),
+        run_log="Old run.",
+    )
+    old_bytes = (old_dir / "ticket.md").read_bytes()
+    toml = cfg_repo.repo_root / "coga.toml"
+    toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
+
+    _, new_dir = autofix.create_autofix_ticket(
+        load_config(cfg_repo.repo_root),
+        Analysis(verdict="problem", title="New failure", body="New finding."),
+        run_log="New run.",
+    )
+
+    assert Ticket.read(new_dir / "ticket.md").contexts == ["coga/architecture"]
+    assert (old_dir / "ticket.md").read_bytes() == old_bytes
 
 
 def test_run_autofix_composes_an_h2_headed_write_up_in_full(

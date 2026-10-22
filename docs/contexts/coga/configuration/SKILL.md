@@ -44,7 +44,7 @@ load ([coga/agents](../agents/SKILL.md#the-default-agent)).
 | `[launch]` | `idle_timeout`, `max_session` | shared |
 | `[ticket]` / `[ticket.fields.<name>]` | `fields` / `description`, `values`, `default`, `required` | shared ([coga/tickets](../tickets/SKILL.md)) |
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
-| `[autofix]` | `agent` | shared only |
+| `[autofix]` | `agent`, `contexts` | shared only ([coga/recurring/autofix](../recurring/autofix/SKILL.md)) |
 | `[upstream]` | `checkouts` | local only |
 | `[authoring]` | `agent` | local only ([coga/tickets/authoring](../tickets/authoring/SKILL.md)) |
 | `[telemetry]` | `enabled` (boolean only) | both; local overrides shared, including local true over shared false |

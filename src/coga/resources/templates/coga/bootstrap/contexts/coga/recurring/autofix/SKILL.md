@@ -41,7 +41,9 @@ The console output is unchanged.
    ticket a night.
 3. **A `problem` becomes an `active` ticket** under `coga/tasks/autofix/` on the
    `code/with-self-review` workflow, with the run record committed beside it as
-   `run-log.md`. The analyst's body becomes the ticket's `## Description`;
+   `run-log.md` and the repo's configured default contexts attached (see
+   Operating it below). Coga supplies this metadata; the analyst supplies the
+   finding. The analyst's body becomes the ticket's `## Description`;
    `parse_analysis` demotes its headings so the shallowest is `###`
    (`demote_headings`, fenced code untouched), because a `##` would end that
    section and drop the rest of the write-up from every launch prompt
@@ -86,6 +88,22 @@ the last run's output into the next run's instructions.
   type; validated at config load), else `Config.default_agent()`: the
   `default_agent` key (local over shared), else the first-declared
   `[agents.*]` table.
+- Generated-ticket contexts: optional shared-only `[autofix] contexts` in
+  `coga.toml`, a list of non-empty context refs, for example
+  `contexts = ["coga/upstream", "team/triage"]`. Coga attaches them in
+  declaration order to every newly generated `autofix/` ticket; existing
+  tickets keep their contexts. An absent table/key or `contexts = []` attaches
+  none, and a contexts-only table keeps the agent fallback above. Non-string
+  or blank entries fail config loading. Errors for these defaults name
+  `[autofix].contexts` and the offending value or ref, including invalid local
+  overrides under a relocated root. Every ref must resolve at config load
+  through the [context layout](../../context-layout/SKILL.md): the
+  effective local root (including `[layout] contexts`) first, bundled fallback
+  only when the local artifact is absent. An invalid local override is an
+  error even when a bundled copy exists. A missing ref deliberately stops
+  every config-loading command, surfacing bad policy before an unattended
+  sweep. These defaults express the repo's triage policy; the text-only
+  analyst does not choose contexts or mutate tickets.
 - The one-shot argv is built in for `claude` and `codex`; another CLI needs
   `[agents.<name>].analyze` (e.g. `"-p {prompt}"`) or the loop skips loudly.
 - The analyst's stdin is `/dev/null` (`codex exec` would append piped stdin).

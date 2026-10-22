@@ -761,7 +761,7 @@ def create_autofix_ticket(
         cfg=cfg,
         title=analysis.title,
         workflow_name=AUTOFIX_WORKFLOW,
-        contexts=[],
+        contexts=list(cfg.autofix_contexts),
         owner=cfg.current_user,
         status="active",
         directory=AUTOFIX_DIRECTORY,
