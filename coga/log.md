@@ -9091,3 +9091,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 09:06 v1 [blocks/02-delete-the-code-topic-and-remove-coga-repo-only] [human:nicktoper] auto-bumped on merge of PR #1081 → done
 2026-10-22 09:07 v1 [blocks/09-trim-setup-and-extension-topics] [human:nicktoper] auto-bumped on merge of PR #1082 → done
 2026-10-22 09:07 v1 [let-the-autofix-generator-attach-repo-default-contexts] [human:nicktoper] auto-bumped on merge of PR #1079 → done
+2026-10-22 09:07 v1 [pin-control-inside-the-state-lock-during-checkout] [human:nicktoper] auto-bumped on merge of PR #1076 → done

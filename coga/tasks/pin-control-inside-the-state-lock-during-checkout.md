@@ -1,6 +1,6 @@
 ---
 title: Pin control inside the state lock during checkout preparation
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/internals/git-refresh
@@ -27,7 +27,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
