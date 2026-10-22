@@ -36,7 +36,6 @@ contexts:
 - coga/script-tickets
 - coga/launch
 - coga/checkout-cleanup
-- coga/checkout-cleanup/proofs
 - coga/recurring/scheduling
 - coga/cli
 - coga-dev/codebase
