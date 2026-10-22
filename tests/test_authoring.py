@@ -372,7 +372,7 @@ def test_finalize_authored_publishes_deleted_support_only(
 def test_ticket_finalize_skill_is_documentation_only() -> None:
     skill = (FINALIZE_SKILL / "SKILL.md").read_text()
     assert "name: coga/ticket/finalize" in skill
-    assert "coga.authoring.finalize_authored" in skill
+    assert "coga/state-publication/SKILL.md#when-coga-publishes" in skill
     assert not (FINALIZE_SKILL / "run.py").exists()
 
 
