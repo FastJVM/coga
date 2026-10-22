@@ -55,16 +55,9 @@ coga launch add-a-health-check-endpoint
 ```
 
 `--prompt-report` shows the composed layers and their token counts
-([coga/prompt-composition](../prompt-composition/SKILL.md)). A real launch
-treats typing `coga launch` as the approval signal for a draft or paused
-ticket, but it activates in two phases (`src/coga/launch.py`
-`_prepare_auto_activate` / `_commit_auto_activate`). Activation is first
-prepared in memory, so the prompt sees the activated ticket. The durable
-write is deferred until every refusing preflight has passed: interactive
-TTY, agent CLI on `PATH`, prompt composition, secret resolution, and git
-push access. Only then is activation written and the ticket flipped to
-`in_progress`. A refused launch leaves the ticket unchanged and posts no
-"started" notice. Details: [coga/launch](../launch/SKILL.md).
+([coga/prompt-composition](../prompt-composition/SKILL.md)). Typing
+`coga launch` approves a draft or paused ticket; a launch refused by a
+preflight leaves the ticket unchanged ([coga/launch](../launch/SKILL.md)).
 
 The session is attended: you watch and talk to the agent. It does the step's
 work, records findings on the blackboard using its inline

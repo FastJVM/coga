@@ -55,15 +55,18 @@ command's behavior. Attach that topic when a task depends on it.
 
 ## Aliases and recipes
 
-Default aliases are argv rewrites, not commands with logic; each alias row
-above shows its expansion (`aliases.DEFAULT_ALIASES`). A repo adds or
-overrides them in `[aliases]`; the seeded `coga.toml` ships both
-`claude = "launch bootstrap/orient --agent claude"` and the matching
-`codex` line commented out, as optional examples to enable. `coga run` accepts only
-the fixed names in `runner.RECIPES` — the recurring jobs, `open-pr`, `delete-task`,
-`publish-state`, and `prepare-checkout`. Both
-mechanisms, and why a new command usually belongs at the edge, are in
-[coga/extension-model](../extension-model/SKILL.md).
+This section owns both lists. Default aliases are argv rewrites, not
+commands with logic, and dispatch even when `coga.toml` omits them; each
+alias row above shows its expansion. A repo adds or overrides aliases in
+`[aliases]`; the shipped `coga.toml` comments its entries and optional
+examples there.
+
+`coga run` accepts only these fixed recipe names: `autoclose`,
+`blocker-reminders`, `branch-sweep`, `validate-drift`,
+`cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`,
+`skill-update`, `open-pr`, `delete-task`, `publish-state`, and
+`prepare-checkout`. How both mechanisms behave, and why a new command usually
+belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).
 
 ## Picking a command
 

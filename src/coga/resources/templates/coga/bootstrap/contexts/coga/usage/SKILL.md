@@ -16,7 +16,8 @@ token records are excluded from the weekly aggregate telemetry snapshot;
 Consumers (agent autorouting, report views) are separate work. This primitive
 ships the records and the reader and deliberately defines no budget cap, no
 "remaining", and no dollar cost (tokens per task is the question; a price
-table is a deferred follow-up).
+table is a deferred follow-up; the record facts it must handle are in
+[usage pricing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/usage-pricing/SKILL.md)).
 
 How a record is captured, matched to a provider transcript, and bounded is
 [`coga-dev/internals/activity-capture`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md).
@@ -67,9 +68,8 @@ unknown count means the totals are a floor, not a measurement. Each unknown
 record carries a path-redacted `usage_reason` saying why; a session that provably never
 reached the API is recorded `ok` with zero tokens rather than unknown.
 
-`coga usage` is read-only: no mutation, no network, and it is in
-`cli._NON_SWEEPING_COMMANDS`, so it never triggers the end-of-command state
-sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,
+`coga usage` is read-only: no mutation, no network, and no end-of-command
+state sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,
 which estimates the prompt side before a run.
 
 ## Reading the numbers honestly
@@ -79,27 +79,3 @@ which estimates the prompt side before a run.
 - `human_turns` / `agent_turns` count explicit messages only.
 - Sessions observed in the same window are workstreams, not proof of
   simultaneous processes or a productivity multiplier.
-
-## Facts a future price table needs
-
-No pricing is implemented. These facts about the records were verified while a
-dollar-cost proxy was scoped and set aside; any price table must handle them
-rather than rediscover them.
-
-- **Claude cache writes mix two rates.** Claude transcripts carry
-  `usage.cache_creation.{ephemeral_5m_input_tokens, ephemeral_1h_input_tokens}`,
-  but `_parse_claude_session` keeps only the combined
-  `cache_creation_input_tokens`, so a record cannot tell which write rate
-  applied. Both TTLs occur in practice and the two rates differ, so no single
-  rate is both exact and a guaranteed lower bound.
-- **A Codex `cache_creation_input_tokens: null` means "no split exposed", not
-  "no charge".** OpenAI charges cache writes on GPT-5.6-and-later models, and
-  `_parse_codex_rollout` subtracts only cached-read tokens from input, so any
-  writes stay inside the `input_tokens` bucket.
-- **Context-length tiers are invisible.** Providers price long-context
-  requests at higher tiers, and records do not say which tier applied.
-- **A session's tokens go to its last model.** `_parse_claude_session` sums
-  usage once per message but records only the last real model seen (see
-  [activity capture](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md)), so
-  a session that switches models attributes all of its tokens to the final
-  one.
