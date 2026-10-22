@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 0805ef43-3619-4904-990f-79ad6d3c0b87
 ---
 
 ## Description
@@ -154,4 +153,83 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 branch: coga/blocks-03-trim-the-checkouts-and-checkout-cleanup-fcd4a4
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Handoff (implement, manual session)
+
+Committed `e022f9ba5` on the branch, rebased onto `origin/main` `1a8f19511`, and pushed. The session went back to clean `main`.
+
+What changed:
+- `coga/checkouts`: 252 → 193 lines. Every agent procedure is kept (table, entry/work/hand-off, sweep rules, stranded-write repair). Removed: the dated linked-worktree decision, `select_checkout_policy`/`sync_coga_state`/`coga_root_paths` names, re-preflight mechanics, the reservation/provenance detail, template-adoption history, `os.chdir` evidence, and the 2026-10-06 decision. "Direct chat" is now a two-line summary linking to `checkouts/chat`. Kept headings: "Start, work, end" (compose.py notice), "Stranded ticket writes" (checkouts.py, open-pr skill), "Which checkout a step starts in" (workflows anchor).
+- `checkouts/chat` (owns direct chat): lock-file location and receipt/reservation pinning moved to `coga-dev/internals/launch-claims` ("Direct chat occupancy guard and receipt"). It keeps a one-paragraph retry rule.
+- `checkouts/launch-boundary` (owns the boundary): the re-pin loop, `read-tree`/`update-ref`, and contexts-root capture moved to `coga-dev/internals/git-refresh` ("Launch preparation details"). The chat paragraph now links to `chat`.
+- `checkout-cleanup`: `proofs` merged in as "## The checkout proofs". Function names, `-d`→`-D` escalation, and `discover_coga_repos` moved to the new `coga-dev/internals/branch-sweep`, which is listed in the internals index. The date was dropped from the disappearance-policy text; it is recorded in internals/branch-sweep.
+- `branch-sweep`: the patch-id/submodule algorithm and tag-collision mechanics moved to internals/branch-sweep. User rules, the restore commands, and the `@<sha12>` fallback stay. The `#branch-sweep-protection-and-archive` anchor is kept.
+- `terminal-owners`: function names and the dated header were removed. The worklist backfill and union-merge rules moved to internals/branch-sweep.
+- `proofs` links were repointed to `context:coga/checkout-cleanup` in retire, autoclose-merged, branch-sweep, and the autoclose/sweep skill (live and packaged copies). `docs/README.md` was updated, and the topic was dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`.
+- The 2026-10-14 linked-worktree exceptions decision moved to `coga-dev/current-direction`.
+
+Owner notes and follow-ups:
+- I did not depart from the audit. I left the "Known gap" paragraphs alone because ticket 02 had already removed them from canonical main.
+- `coga-dev/internals/git-refresh` is now 223 lines, over the 200-line review threshold. Possible split: move "Launch preparation details" into its own page.
+- For ticket 08: `coga/launch` "Checkout boundary" says the chat occupancy guard's "scope and lifetime are owned by coga/checkouts/launch-boundary". The owner is `coga/checkouts/chat`; repoint it there.
+- `docs/release-notes/context-audiences.md` still names `coga/checkout-cleanup/proofs` in a dated rename table. This is history, not a link, so I left it.
+- PR #1081 (ticket 02) syncs the packaged copies of checkouts, checkout-cleanup, and branch-sweep. This branch already makes those twins byte-identical with more edits, so whichever PR merges second takes this branch's version of those three packaged files.
+
+## PR
+
+```yaml
+title: Trim the checkouts and checkout-cleanup topic families
+author: claude
+author_evidence: Implement step ran in a Claude Code session (model claude-opus-5-5); manual session, no launch-prepared branch.
+head: e022f9ba5a352bf91d577abeb974dd3c1fef6f89
+base: 1a8f195111fc17ca29bee6a52c55a1c09ef79a48
+depth: skim
+rationale: Docs-only restructuring of shipped topics; check that no agent-followed procedure was lost from checkouts and that the proofs merge reads coherently.
+implementation: Applies the blocks audit rows for checkouts and checkout-cleanup. Merges checkout-cleanup/proofs into its parent, gives direct chat and the launch boundary one owner each, and moves dated decisions, private names, and Git plumbing into coga-dev pages.
+deviations: None from the audit verdicts.
+limitations: Three packaging tests fail on main and on this branch from ticket 02's unsynced twins (coga/code and 12 other topics), which open PR #1081 fixes. git-refresh is now over the 200-line review threshold.
+files:
+  coga/recurring/autoclose-merged/ticket.md: Repoint proofs links to coga/checkout-cleanup.
+  coga/recurring/branch-sweep/ticket.md: Repoint proofs links to coga/checkout-cleanup.
+  coga/skills/coga/autoclose/sweep/SKILL.md: Repoint the Ignored state link to coga/checkout-cleanup.
+  docs/README.md: Drop the removed proofs leaf from the library index.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Record the 2026-10-14 linked-worktree exceptions decision moved out of checkouts.
+  docs/contexts/coga-dev/internals/SKILL.md: List the new branch-sweep page and the widened launch-claims and git-refresh scope.
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: New home for checkout-disposal and branch-sweep mechanics moved out of the cleanup family.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Receive launch-preparation mechanics, the chdir evidence, template-adoption history, and the 2026-10-06 decision.
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Receive the chat guard lock and receipt mechanics.
+  docs/contexts/coga/checkout-cleanup/SKILL.md: Absorb the checkout proofs and drop private names.
+  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Trim to user rules and repoint the proofs link.
+  docs/contexts/coga/checkout-cleanup/proofs/SKILL.md: Deleted; merged into checkout-cleanup.
+  docs/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Drop function names, the dated header, and worklist internals.
+  docs/contexts/coga/checkouts/SKILL.md: Trim history and mechanics; direct chat becomes a summary plus link.
+  docs/contexts/coga/checkouts/chat/SKILL.md: Move lock and receipt internals to coga-dev.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Move the re-pin loop, realignment plumbing, and contexts-root capture to coga-dev.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/proofs/SKILL.md: Packaged twin deleted.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/terminal-owners/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Packaged twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/retire/ticket.md: Repoint the proofs link to coga/checkout-cleanup.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Packaged twin of the skill link repoint.
+  src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Packaged twin of the link repoint.
+  src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md: Packaged twin of the link repoint.
+  tests/test_packaging.py: Drop checkout-cleanup/proofs from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the peer-review step comes next.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: failed
+    head: 659b1c599fc5c85b504e878a08d34b24c1109722
+    base: 32d930ad60d79a24ca02911842d3dc6fc8a7c85f
+    detail: 3 failed, 3952 passed, 7 skipped. All three failures are in test_packaging (twin identity, distribution, navigation links) and come only from ticket 02's coga/code deletion and 12 unsynced twins already on main (PR #1081). None are in this diff. The tested tree is this change before rebase; the rebase added only coga/log.md and this ticket.
+  - command: coga validate --json
+    status: passed
+    head: 659b1c599fc5c85b504e878a08d34b24c1109722
+    base: 32d930ad60d79a24ca02911842d3dc6fc8a7c85f
+    detail: Exit 0; 151 ok, 0 fixes, 47 warnings (idle/stuck tickets), none from this change.
+```
