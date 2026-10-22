@@ -1,6 +1,6 @@
 ---
 title: 06 Collapse state publication into one user topic
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: dab14b02-401c-4038-a73b-7643905d0a59
 ---
 
 ## Description
@@ -155,54 +154,239 @@ branch: blocks-06-collapse-state-publication
 
 ## Handoff (implement)
 
-Done on `blocks-06-collapse-state-publication` (pushed, one commit `042e0d10b`).
+Claude Opus 5.5 implemented the consolidation in original commit `042e0d10b`;
+peer-review rebased it to `b91664896`. The user publication topic absorbs
+recipe/recovery and authoring facts; the two leaves are removed; internals and
+dated decisions move to the existing development owners; sync becomes a map.
+Audit disagreement: none. The existing state-publication internals topic is
+already listed in the internals index; no new development page was introduced.
 
-- `coga/state-publication` (both copies) is the single user owner: roots, eligibility, "When Coga publishes" (lifecycle commands, sweep, launch, guided authoring's three facts, manual edits), control vs feature checkouts, pre-review hazard, "Strict publication on demand", "Recovering a failed publication". Dated 2026-10-07 framing dropped from the user topic.
-- `state-publication/authoring` and `/sweep` deleted (both copies; dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`). Their internals (sweep skips/selection, recipe wiring, finalization) and the 2026-10-07 decision are in `coga-dev/internals/state-publication`, already listed in the internals index (no new coga-dev page).
-- `coga/sync` is a map: two-layer summary, failure stance, owner table, optional coga-dev links. Design rule + 2026-10-01 decision moved to `coga-dev/patterns` (description updated).
-- Finalize skill (live + packaged) states the three authoring facts and links `coga/state-publication#when-coga-publishes`.
-- Repointed: checkouts, checkouts/manual, sandboxes, extension-model, architecture, configuration, docs/README.md, coga-dev codebase/internals/git-refresh/publish, `cli.py` and `publish_state.py` comments. Remaining `coga/sync` mentions are general "sync layer" references and stay valid.
-- On main: draft ticket `state-sync-published-unmerged-recurring-templates` attached `coga/state-publication/sweep` (validate error); repointed to `coga/state-publication` (it already had it, so the duplicate was dropped).
+## Peer review
 
-Audit disagreement: none.
+**Completed direct Codex review** of final head `a460ae2b99dd4b04e1507111d36fa41b3da36165` against base
+`46b146443b29368a1808a7af04d6d7a02052506b`. All 34 changed paths and the relevant publication implementations
+(`cli`, `git`, `authoring`, `publish_state`) were inspected. Original
+implementation identity is established by the implement handoff and commit
+attribution, not by peer configuration. Codex independently reviewed Claude's
+implementation, then self-reviewed its own corrections; the final receipt
+conservatively uses `kind: self`.
 
-### Pre-existing failures on main (not caused here)
+Findings fixed and pushed:
 
-`tests/test_packaging.py` fails 3 tests identically with and without this change (verified by stashing): 13 live/packaged context twins drifted and `coga/code` missing its canonical copy. Cause: tickets 01/02 (PRs #1080, #1081) had live `docs/contexts/` edits swept onto main before their packaged twins merged (the pre-review hazard). For `checkouts`, `sandboxes`, `architecture` I applied only my link edits to the packaged copies so as not to carry those tickets' content; those three still differ until #1081/#1080 land. Everything this ticket wrote is byte-identical across twins. Expect the open-pr step to need a rebase after those PRs merge.
+- The migration table still prescribed the removed authoring and sweep refs.
+  Its destinations now name the surviving topic; old refs appear only as
+  explicitly historical migration sources.
+- The finalize skill duplicated the detailed authoring contract. It now names
+  the user owner as required reading and keeps development navigation optional.
+- The consolidated wording overstated which committed changes the strict
+  recipe publishes. It now preserves committed-change selection, the review
+  boundary, and local-control behavior without requiring developer knowledge.
+- Removing the internal helper name exposed an existing documentation test
+  that required it. That assertion now checks the required user-topic reference;
+  the executable-entrypoint prohibition and authoring behavior tests remain.
+
+Corrections are `af460483c` and `a460ae2b9`. A final fetch/rebase left the head
+unchanged; the branch is pushed with `--force-with-lease` and this primary
+checkout has returned cleanly to `main` before this handoff.
+
+Reference/anchor audit found no surviving navigation to the deleted leaves;
+only old tickets and explicit historical migration spellings remain. The changed
+publication/finalize twins match. No terminal loop, pager, prompt interaction, or
+rendered notification changed, so no interactive surface exercise applies.
+
+**Unresolved acceptance dependency:**
+`blocks/02-delete-the-code-topic-and-remove-coga-repo-only` (PR
+https://github.com/FastJVM/coga/pull/1081) is still at its owner review gate and
+unmerged. Its canonical changes already reached main; its outstanding packaged
+changes account for the 15 mismatched context pairs and missing canonical
+`coga/code` on both main and this branch. In particular, this ticket's touched
+`architecture`, `checkouts`, and `sandboxes` pairs cannot yet satisfy byte identity.
+The earlier implement handoff grouped PRs #1080/#1081 together; the observed
+packaging failures specifically trace to #1081's changed paths.
+
+Final suite: **3 failed, 3952 passed, 7 skipped**. The failures are:
+
+- `test_packaging.py::test_live_and_packaged_copies_stay_identical`
+- `test_packaging.py::test_context_distribution_is_complete`
+- `test_packaging.py::test_context_navigation_has_no_broken_links`
+
+All three reproduce on main `46b146443b29368a1808a7af04d6d7a02052506b` in an independent test clone. The pristine
+feature-clone packaging run also passed its wheel check. Final validation exits
+0 with 151 OK, zero errors, and 47 warnings. Detailed commands and revision-specific
+receipts are below. No remaining change-specific review finding was found, but
+the ticket's passing-suite and touched-twin acceptance remain unmet, so this
+step must block rather than bump to the mechanical publication step.
+
+After task 02 lands: rebase this branch, resolve ordinary documentation drift,
+recheck every touched twin, rerun the full suite and validation, complete a
+review of the resulting head/base, refresh this preparation, and then bump once.
+
+Entry recovery: the sole dirty file on main was the stale-context removal in
+`state-sync-published-unmerged-recurring-templates` already documented by the
+implement step. Its ownership and exact diff were verified, then
+`coga run publish-state` published it as `46b146443` before the branch switch.
 
 ## PR
 
 ```yaml
 title: Collapse state publication into one user topic
-author:
-  agent: claude (claude-opus-5-5), coga megalaunch implement step
-head: 042e0d10b4803d25176a89aa5956200202e6b7e6
-base: bb5450faf1fca22e74002df317dae20e097540e4
-review_depth: skim
-review_depth_rationale: docs-only restructuring plus two code comments and one removed test list entry pair; no behavior change
+author: claude/codex
+author_evidence: Claude Opus 5.5 performed the implement step (original commit 042e0d10b, rebased to b91664896).
+  Codex performed this direct review and authored the corrections in af460483c and a460ae2b9.
+head: a460ae2b99dd4b04e1507111d36fa41b3da36165
+base: 46b146443b29368a1808a7af04d6d7a02052506b
+depth: deep
+rationale: 'Documentation consolidation with no executable behavior change, but the required suite and
+  twin-identity acceptance remain blocked by pre-existing packaging drift from task blocks/02-delete-the-code-topic-and-remove-coga-repo-only
+  (PR #1081). The final fixes were self-reviewed. Resume peer-review after that dependency lands; do not
+  publish yet.'
+implementation: Make coga/state-publication the user owner for roots, eligibility, publication timing
+  and checkout behavior, the pre-review hazard, strict publish-state, and recovery. Delete the authoring
+  and sweep leaves, retain their implementation details in the existing coga-dev internals page, and reduce
+  sync to a map. Move the developer design rule and dated decisions to coga-dev. Update navigation, migration
+  targets, packaged counterparts, and resource assertions. The finalize skill now requires the user owner
+  instead of restating its contract.
+deviations: The active draft state-sync-published-unmerged-recurring-templates had a stale context attachment;
+  its implement-step repair was still dirty on entry and was strictly published on main as 46b146443 before
+  branch work. Peer review also corrected overbroad committed-publication wording and aligned an existing
+  authoring test with the user reference. No runtime behavior changes or new development topics.
+limitations: 'Main and this branch both have 15 mismatched context pairs and a missing canonical coga/code
+  topic. Three touched pairs (architecture, checkouts, sandboxes) consequently remain non-identical. PR
+  #1081 contains the outstanding packaged changes. No interactive terminal or rendered Slack surface changed,
+  so those manual checks are inapplicable. Tests used Python 3.12.12. Historical receipts below retain
+  their original revisions.'
 files:
-  docs/contexts/coga/state-publication/SKILL.md (+ packaged): absorbs sweep recipe/recovery, authoring facts, sync control/feature bullets
-  docs/contexts/coga/state-publication/{authoring,sweep}/SKILL.md (+ packaged): deleted
-  docs/contexts/coga/sync/SKILL.md (+ packaged): shortened to a map
-  docs/contexts/coga-dev/internals/state-publication/SKILL.md: receives sweep, recipe wiring, finalization internals, 2026-10-07 decision
-  docs/contexts/coga-dev/patterns/SKILL.md: receives sync design rule and 2026-10-01 decision
-  coga/skills/coga/ticket/finalize/SKILL.md (+ packaged): three authoring facts, repointed link
-  checkouts, checkouts/manual, sandboxes, extension-model, architecture, configuration (+ packaged), docs/README.md, coga-dev codebase/internals/git-refresh/publish: link repoints
-  src/coga/cli.py, src/coga/publish_state.py: comment repoints
-  tests/test_packaging.py: drop deleted refs from REQUIRED_BOOTSTRAP_CONTEXT_REFS
-review: not run yet (implement step); no code review has happened
+  coga/skills/coga/ticket/finalize/SKILL.md: Replace the duplicate authoring contract with required reading
+    of its single user owner and optional implementation navigation.
+  docs/README.md: Replace authoring and sweep leaf links with the consolidated publication and recovery
+    topic.
+  docs/contexts/coga-dev/codebase/SKILL.md: Point the source map at the publication contract.
+  docs/contexts/coga-dev/internals/SKILL.md: Point publication references at the consolidated owner; the
+    existing internals page remains indexed.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Repoint the dirty-publication contract to its
+    user owner.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Retain sweep exclusions, strict recipe
+    wiring, authoring mechanics, and the dated publication decision locally.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Repoint recovery to the consolidated
+    user topic and anchor.
+  docs/contexts/coga-dev/patterns/SKILL.md: Own the state-changing-command design rule and the 2026-10-01
+    decision removed from the user sync map.
+  docs/contexts/coga/architecture/SKILL.md: Remove links to the deleted publication leaves from the topic
+    map.
+  docs/contexts/coga/checkouts/SKILL.md: Repoint publication timing and recovery to the single user owner.
+  docs/contexts/coga/checkouts/manual/SKILL.md: Repoint the strict-publication handoff contract.
+  docs/contexts/coga/configuration/SKILL.md: Repoint the Git-publication configuration reference.
+  docs/contexts/coga/extension-model/SKILL.md: Repoint the publish-state recipe contract.
+  docs/contexts/coga/sandboxes/SKILL.md: Repoint failed-publication recovery.
+  docs/contexts/coga/state-publication/SKILL.md: Own roots, eligibility, timing, checkout behavior, review
+    hazard, strict publication, and recovery; retain committed-change limits in user language.
+  docs/contexts/coga/state-publication/authoring/SKILL.md: Delete the split leaf after moving user facts
+    to the parent and implementation to coga-dev.
+  docs/contexts/coga/state-publication/sweep/SKILL.md: Delete the split leaf after moving the strict recipe
+    and recovery to the parent and implementation to coga-dev.
+  docs/contexts/coga/sync/SKILL.md: Shorten sync to an ownership map; move the publication contract and
+    developer design rules to their owners.
+  docs/release-notes/context-audiences.md: Make migration targets name the surviving publication topic;
+    deleted refs remain only as historical source spellings.
+  src/coga/cli.py: Repoint a source comment to the local owner of sweep exclusions; no runtime change.
+  src/coga/publish_state.py: Repoint a module-docstring reference to the user recipe contract; no runtime
+    change.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: 'Packaged counterpart:
+    Remove links to the deleted publication leaves from the topic map.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: 'Packaged counterpart:
+    Repoint publication timing and recovery to the single user owner.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: 'Packaged counterpart:
+    Repoint the strict-publication handoff contract.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: 'Packaged counterpart:
+    Repoint the Git-publication configuration reference.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: 'Packaged counterpart:
+    Repoint the publish-state recipe contract.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: 'Packaged counterpart:
+    Repoint failed-publication recovery.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: 'Packaged counterpart:
+    Own roots, eligibility, timing, checkout behavior, review hazard, strict publication, and recovery;
+    retain committed-change limits in user language.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/authoring/SKILL.md: 'Packaged
+    counterpart: Delete the split leaf after moving user facts to the parent and implementation to coga-dev.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/sweep/SKILL.md: 'Packaged
+    counterpart: Delete the split leaf after moving the strict recipe and recovery to the parent and implementation
+    to coga-dev.'
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: 'Packaged counterpart: Shorten
+    sync to an ownership map; move the publication contract and developer design rules to their owners.'
+  src/coga/resources/templates/coga/bootstrap/skills/coga/ticket/finalize/SKILL.md: 'Packaged counterpart:
+    Replace the duplicate authoring contract with required reading of its single user owner and optional
+    implementation navigation.'
+  tests/test_authoring.py: Update the documentation-only finalize skill assertion to require its user
+    publication reference instead of an internal Python helper name.
+  tests/test_packaging.py: Remove the two deleted context refs from the required bootstrap inventory.
+review:
+  reviewer: codex
+  kind: self
+  status: passed
+  head: a460ae2b99dd4b04e1507111d36fa41b3da36165
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Completed direct review of all 34 paths at this head/base, including re-review after both correction
+    commits. The original Claude implementation received an independent Codex review; Codex self-reviewed
+    its own fixes, so the combined final review is conservatively classified as self. Fixed stale migration
+    destinations, duplicate authoring ownership, overbroad publication selection wording, and the obsolete
+    internal-helper assertion. No unresolved change-specific findings. Packaging acceptance is still blocked
+    by PR #1081; this is not merge approval.'
 checks:
-  - command: .venv/bin/python -m pytest -q
-    result: 3 failed, 3952 passed, 7 skipped (tree identical to commit, before rebase onto bb5450faf which only touched this ticket)
-    note: the 3 test_packaging failures reproduce on main without this change (see above)
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_paths.py tests/test_layout_contexts.py tests/test_publish_state.py
-    result: 3 failed, 83 passed at head 042e0d10b (same 3 pre-existing)
-  - command: .venv/bin/coga validate --json
-    result: one error (draft ticket attaching removed sweep topic) fixed on main; remaining issues are warnings
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: a460ae2b99dd4b04e1507111d36fa41b3da36165
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Final commit: 3 failed, 3952 passed, 7 skipped in 343.11s. Only the three packaging failures
+    listed in Peer review remain; all reproduce on main.'
+- command: .venv/bin/coga validate --json
+  status: passed
+  head: a460ae2b99dd4b04e1507111d36fa41b3da36165
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Final commit: exit 0; ok_count 151, zero errors, 47 warnings.'
+- command: git diff --check main...HEAD
+  status: passed
+  head: a460ae2b99dd4b04e1507111d36fa41b3da36165
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Final commit: no whitespace errors.'
+- command: PYTHONPATH=/tmp/coga-blocks06-peer-review-check/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest -q tests/test_packaging.py
+  status: failed
+  head: af460483c97ab0c0af017093c16e3356a5a6e0b9
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Historical pristine-clone verification, cwd /tmp/coga-blocks06-peer-review-check: 3 failed,
+    27 passed in 3.83s. The clean-tree wheel test passed; only the same baseline packaging failures remained.
+    The later commit changes only tests/test_authoring.py.'
+- command: PYTHONPATH=/tmp/coga-blocks06-peer-review-check/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest -q tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_distribution_is_complete
+    tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: 46b146443b29368a1808a7af04d6d7a02052506b
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Baseline reproduction, cwd /tmp/coga-blocks06-peer-review-check at main: all 3 failed in 8.40s
+    with the same causes. This receipt verifies the baseline, not the feature head.'
+- command: .venv/bin/python -m pytest -q tests/test_authoring.py
+  status: passed
+  head: af460483c97ab0c0af017093c16e3356a5a6e0b9
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 28 passed in 8.08s. Run at af460483c with the one-line test correction unstaged; that exact
+    correction was then committed as a460ae2b9. The full final suite independently verifies the committed
+    tree.
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: af460483c97ab0c0af017093c16e3356a5a6e0b9
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Historical intermediate run: 4 failed, 3951 passed, 7 skipped in 346.78s. The additional internal-helper-name
+    assertion was corrected in a460ae2b9 and passes in the final full run.'
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: b91664896a22db9c0d47e7c2d9b8e2c2a7d8ca39
+  base: 46b146443b29368a1808a7af04d6d7a02052506b
+  detail: 'Historical initial review run after rebase: 3 failed, 3952 passed, 7 skipped in 346.49s; the
+    same pre-existing packaging failures.'
 ```
 
-## Plan
+---
 
-- `coga/state-publication` absorbs sweep's user facts (when the sweep runs, strict recipe, recovery), authoring's three facts, and sync's control/feature bullets.
-- Sweep and authoring internals, dated owner decisions -> `coga-dev/internals/state-publication`; sync's design rule + 2026-10-01 decision -> `coga-dev/patterns`.
-- `coga/sync` becomes a short map; repoint links.
+## Blockers
+
+- [ ] [2026-10-21 18:38] [agent:codex] id=20261021T183800 Land the owner-reviewed packaged changes from blocks/02-delete-the-code-topic-and-remove-coga-repo-only (PR #1081), then resume this peer-review for rebase and verification. Three packaging failures reproduce on main; architecture, checkouts, and sandboxes twins touched here remain non-identical. Final branch a460ae2b9 is pushed; direct review completed and validation passed, but the required passing-suite and twin-identity acceptance are unmet.
