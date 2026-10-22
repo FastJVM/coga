@@ -47,8 +47,7 @@ New tickets include a field guide from the
   correction loop, and a map of every topic.
 - The work unit: [tickets](contexts/coga/tickets/SKILL.md)
   ([discovery](contexts/coga/tickets/discovery/SKILL.md),
-  [authoring](contexts/coga/tickets/authoring/SKILL.md),
-  [ownership](contexts/coga/tickets/ownership/SKILL.md)),
+  [authoring](contexts/coga/tickets/authoring/SKILL.md)),
   [lifecycle](contexts/coga/lifecycle/SKILL.md),
   [workflows](contexts/coga/workflows/SKILL.md),
   [blackboard](contexts/coga/blackboard/SKILL.md).

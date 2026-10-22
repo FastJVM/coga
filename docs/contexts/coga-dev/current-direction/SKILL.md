@@ -135,3 +135,10 @@ is `coga status` and the ticket bodies; stage posture is
 - `coga update-workflow` to re-snapshot a workflow into in-flight tickets;
   edit frontmatter by hand.
 - A scheduler wrapper; operators run `coga recurring` themselves.
+- A ticket-split contract (owner decision 2026-09-25): no split skill,
+  `## Split` roster, or `Split from` cross-link convention (#889 closed), and
+  no oversized-ticket instruction in the `code/*` step skills (#899, removed
+  in `2ffcd4f8b`). Agents almost never split or escalated, so the text was
+  prompt noise. Splitting stays the sibling practice in
+  [coga/tickets/discovery](../../coga/tickets/discovery/SKILL.md); reopen only
+  on evidence of repeated oversized-ticket failures.

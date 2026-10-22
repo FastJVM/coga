@@ -61,6 +61,16 @@ kernel boundary below rather than replacing it. Shared helpers and launch-time
 trust hooks retain their own kernel justification independently of the
 user-facing heads that call them.
 
+The `owner` head's claim to core is its package-private transaction: it holds
+`git.state_lock` across the read, prospective validation, local byte
+comparison, write, audit, and strict publication with the original ticket
+bytes as `expect`. A concurrent local edit is preserved. A definite
+publication failure restores only the command's own ticket bytes and retracts
+its audit; an uncertain push keeps the write for reconciliation. Both exit 75
+to suppress the generic sweep. With Git disabled or unavailable through a
+documented soft-skip, the local write remains the result
+([publish primitive](../internals/state-publication/publish/SKILL.md)).
+
 ## Migrating a built-in to the edge
 
 A stateless verb outside the launch closure and recipe table, with no

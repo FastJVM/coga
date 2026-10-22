@@ -7,13 +7,13 @@ description: Where tickets live and how they are named — task discovery, file 
 
 Part of [coga/tickets](../SKILL.md).
 
-`src/coga/tasks.py` `list_tasks` walks `coga/tasks/` at any depth:
+Discovery walks `coga/tasks/` at any depth:
 
 - **Directory form**: a directory holding `ticket.md`, plus any attachments.
   A task directory is never recursed into (no task inside a task).
 - **File form**: a bare `tasks/<slug>.md`, for a self-contained task with no
   siblings. Promote with `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md`.
-- `<slug>.md` and `<slug>/` must not both exist (`DuplicateTaskSlugError`).
+- `<slug>.md` and `<slug>/` must not both exist.
 - `README.md` is never a task; it documents its directory. Names starting
   with `_` are skipped at every level: `_template/` holds the canonical
   ticket shape, and any other `_`-prefixed directory is **parked**.
@@ -34,17 +34,13 @@ Part of [coga/tickets](../SKILL.md).
   (`coga retire` accepts only a `done` or `canceled` ticket). Pick a group path other than
   the original's own path: `coga create` refuses to nest a ticket inside a
   directory-form task. Do not put `ticket.md` at a group root; that makes it a
-  task, and discovery stops there.
-  Owner decision (2026-09-25): there is deliberately no split contract (no
-  split skill, `## Split` roster, or `Split from` cross-link convention; #889
-  closed) and no oversized-ticket instruction in the `code/*` step skills
-  (#899, then removed in `2ffcd4f8b`): agents almost never split or escalated,
-  so the text was prompt noise. Splitting stays the ad-hoc sibling practice
-  above; reopen only on evidence of repeated oversized-ticket failures.
+  task, and discovery stops there. Coga deliberately has no split contract
+  (no split skill, roster section, or cross-link convention); reopen that
+  only on evidence of repeated oversized-ticket failures.
 
 A task's identity is its **path under `tasks/`**: the bare leaf at top level,
-otherwise the relative path (`marketing/social/relaunch`). `resolve_task`
-accepts an exact ref or a unique prefix; a nested task's bare leaf does not
+otherwise the relative path (`marketing/social/relaunch`). A ref resolves when
+it is an exact ref or a unique prefix; a nested task's bare leaf does not
 resolve, and ambiguous prefixes fail listing the matches. Agents use the exact
 task directory printed in the composed prompt header rather than rebuilding it
 from the ref. Log lines are tagged with the ref and never rewritten, so moving

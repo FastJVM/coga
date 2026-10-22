@@ -25,7 +25,7 @@ command's behavior. Attach that topic when a task depends on it.
 | Command | Owner |
 | --- | --- |
 | `create`, `ticket`, `show` | [coga/tickets/authoring](../tickets/authoring/SKILL.md) |
-| `owner` | [coga/tickets/ownership](../tickets/ownership/SKILL.md) |
+| `owner` | [coga/tickets](../tickets/SKILL.md#owner-and-relationships) |
 | `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete` | [coga/checkout-cleanup](../checkout-cleanup/SKILL.md) |
 | `retire` → `launch bootstrap/retire --` | packaged `bootstrap/retire/ticket.md` |
