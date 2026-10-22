@@ -51,6 +51,14 @@ reviewed PR.
   is not published.
 - **Launch** publishes routine state at entry and before returning the
   checkout ([coga/checkouts](../checkouts/SKILL.md)).
+- **Session teardown**, including `coga chat`, publishes the log after usage
+  capture. The agent's final answer precedes this write, so its claim of a
+  clean checkout cannot cover the usage record. Log publication requires the
+  file to be included or already on control; an excluded log (for example an
+  ignored, untracked `log.md`) is a reported failure. Failed or skipped
+  publication adds a session-end warning naming the retained log, alongside
+  the Git diagnostic. The agent's exit result stands. Explicitly disabled
+  Git keeps its usual informational note instead of that warning.
 - **Guided authoring** (`coga ticket`) publishes the authored tickets and
   every changed context, skill, workflow, or config file under the roots in
   **one** guarded publish. An authored change to the Git destination (`[git]`
@@ -126,3 +134,22 @@ is still denied it exits 1 with the files kept. Coga never changes
 permissions, sandbox configuration, Git environment routing, or object
 storage to recover; restoring access is the operator's call
 ([coga/sandboxes](../sandboxes/SKILL.md#restricted-sandboxes)).
+
+### A stranded log tail blocking catch-up
+
+A log append left by an earlier command can block `main` from fast-forwarding
+over newer remote log entries. `merge=union` preserves concurrent entries
+during publication, but does not let Git overwrite an uncommitted file.
+[Recurring catch-up](../recurring/scheduling/SKILL.md#variants) can identify an
+isolated tail and offer the strict recipe as a remedy. Ordinary launch already
+attempts state publication before preparing its checkout.
+
+Review the pending changes first. From the affected workspace, run
+`coga run publish-state /absolute/path/to/coga/log.md` and require exit 0
+before retrying catch-up. The named path requires the log to land; it does
+**not** restrict publication to that file: all eligible Coga state is swept.
+Inspect any intervening changes before running it. This keeps concurrent
+remote and local lines without hand-editing the audit trail or replaying the
+chat. Recovery is offered rather than performed at recurring admission:
+append-only bytes do not establish who wrote them or authorize publishing
+other pending work.

@@ -119,6 +119,11 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   stale or diverged control refuses service. Off-branch children use a
   temporary control worktree without switching or stashing the operator's
   checkout.
+- When catch-up fails on a behind control branch and the sole pending change
+  is an unstaged, complete-line append to the existing regular log, the reason
+  identifies a possible unpublished tail and offers
+  [publication recovery](../../state-publication/SKILL.md#a-stranded-log-tail-blocking-catch-up).
+  It preserves the tail and the refusal; no recovery runs automatically.
 - `coga recurring list` is read-only: templates, firings, period state.
   `coga recurring promote` is in [templates](../templates/SKILL.md#promotion).
 

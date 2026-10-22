@@ -3743,7 +3743,14 @@ def spawn_agent_session(
             # supervised chain reaches this finally per step, so each step's
             # record publishes promptly. Non-fatal.
             if isinstance(cfg, Config):
-                git.sync_log(cfg, message=f"Log: {session_slug}")
+                log_published = git.sync_log(cfg, message=f"Log: {session_slug}")
+                if log_published is None and cfg.git_enabled:
+                    _report(
+                        f"Session {session_slug} ended; log publication was not "
+                        f"confirmed. The local log is retained at {log_path(cfg)}. "
+                        "See the [git] diagnostic above before retrying publication.",
+                        fg='yellow', bold=True, err=True,
+                    )
         try:
             prompt_file.unlink()
         except FileNotFoundError:

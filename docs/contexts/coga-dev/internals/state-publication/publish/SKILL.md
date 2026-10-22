@@ -57,8 +57,12 @@ control branch missing locally and on the remote
 
 Wrappers: `sync_task_state(cfg, task_path, *, message, expect=None,
 strict=False, command=None)` publishes one task plus the log; `sync_log(cfg, *, message)`
-publishes the log alone with stderr-only failures (stateless launches, usage
-records); `sync_coga_state(cfg)` is the sweep.
+publishes the log alone with `require_paths` naming that log (stateless launches,
+usage records). It preserves `publish`'s `True`/`False` distinction for newly
+published versus already-held state and returns `None` on a reported failure
+or soft-skip. Failures remain stderr-only; `spawn_agent_session` checks for
+`None` to add the [session-end warning](../../../../coga/state-publication/SKILL.md#when-coga-publishes).
+`sync_coga_state(cfg)` is the sweep.
 
 ## Best-effort versus strict
 
