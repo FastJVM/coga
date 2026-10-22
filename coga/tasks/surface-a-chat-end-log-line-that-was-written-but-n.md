@@ -121,6 +121,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1090
 branch: codex/chat-end-log-publication
 
 ## Investigation
