@@ -9065,3 +9065,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 22:14 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-21 22:14 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-21 22:14 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] launched (operator=codex, agent=codex)
+2026-10-21 22:21 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] unblocked (asks resolved, still in_progress): The attending owner confirmed that merged PR #1081 resolves the dependency blocker. Resume peer-review, rebase onto current origin/main, verify touched twins, rerun the full suite and validation, and refresh the final review receipts before bumping.
