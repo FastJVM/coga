@@ -361,6 +361,10 @@ Work in this order. Step 1 alone should get `coga --help` running.
   option was rejected on 2026-10-13.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
