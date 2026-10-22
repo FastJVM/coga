@@ -1,6 +1,6 @@
 ---
 title: 07 Trim the tickets family and secrets
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: aca33bfb-502b-4680-9ef9-4a1f9303a2e6
 ---
 
 ## Description
@@ -154,7 +153,8 @@ branch: blocks/07-trim-tickets-secrets
 
 ## Implement handoff (2026-10-21)
 
-One commit `13dad0516` on the branch; all twins byte-identical.
+Original implementation: `13dad0516` (rebased as `e450aabef`). The peer
+review below supersedes this handoff's verification and twin claim.
 
 - `coga/tickets`: frontmatter key/required lists, extension declaration shape
   and removed-key names dropped (the ticket template owns them); kept the
@@ -194,60 +194,163 @@ One commit `13dad0516` on the branch; all twins byte-identical.
   Conflicts are expected only in `cli`, `tickets/discovery` twin and
   `test_packaging.py` (auto-merged cleanly in the trial).
 
+## Peer review
+
+Direct Codex review **completed** on head `a9d6165d54a371b9fbe8d608d033365898b8ef09` against base
+`080d9d172d984c0eb6fdfb939251ac7841cfc59e`. The initial Claude implementation (rebased as
+`e450aabefb011ca511deb32417f00d994e2a07ba`) was reviewed independently;
+Codex then authored and self-reviewed correction commit `a9d6165d5`.
+The final receipt conservatively records self-review of the combined diff,
+while preserving Claude's implementation identity. No nested reviewer CLI ran.
+
+Must-fix findings addressed:
+
+- Restored creation path validation and the description's closed-code-fence
+  exception in `tickets/authoring` and its twin. The shortened wording
+  incorrectly prohibited valid fenced `##` examples; `create.description_structure_problem`
+  and the existing create tests confirm the retained contract.
+- Synchronized the touched packaged `cli` with canonical `cli`: the packaged
+  recipe list was missing `prepare-checkout`. The implement handoff's claim
+  that every touched pair matched was not true before this correction.
+- Kept the no-split decision's reason with its standing owner,
+  `tickets/discovery`; `current-direction` now points there for the rationale
+  and reopening criterion instead of owning a second copy.
+
+All 21 diff paths were reviewed against the group audit, the unchanged ticket
+field guide, current owning topics, and affected implementations. All six
+surviving touched context pairs are byte-identical; both ownership copies are
+removed and the new development page is indexed and local-only. Searches of
+`docs/`, `src/`, `tests/`, `coga/`, README and AGENTS (excluding the archive and
+log) found no live links to the removed topic or anchors; remaining mentions
+are audit history or old tickets. Link/anchor checking of the 18 changed
+Markdown files found only the pre-existing `docs/README.md` link to `coga/code`.
+No runtime, raw-terminal, prompt UI, pager, or Slack rendering code changed,
+so no interactive-surface exercise applies. No new tests were added for these
+documentation corrections; the existing suite covers the referenced behavior.
+Audit disagreement: none.
+
+Final verification (exact commands and current-head receipts are in `## PR`):
+
+- Full suite: **3952 passed, 7 skipped, 3 failed** on Python 3.12.12.
+- Repo validation: exit 0, 151 ok, 47 warnings, no errors.
+- Pristine-clone wheel checks: **2 passed, 28 deselected**.
+- `git diff --check main...HEAD`: passed.
+
+Baseline reproduction was run in the pristine clone after checking out
+untouched main `080d9d172d984c0eb6fdfb939251ac7841cfc59e` (head and base both that OID):
+
+```sh
+PYTHONPATH=/tmp/coga-blocks07-peer-a9d6165d/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_distribution_is_complete tests/test_packaging.py::test_context_navigation_has_no_broken_links
+```
+
+Result: the same **3 failures** (architecture twin drift, orphaned packaged
+`coga/code`/required-ref entry, and stale `coga/code` links). An earlier
+exploratory full run began before the review corrections and also reported
+3952 passed, 7 skipped, 3 failed; it is not used as final-head evidence.
+
+The branch was fetched/rebased onto current main, committed and pushed with
+`--force-with-lease`; the primary checkout was returned cleanly to `main`
+before this handoff. PR #1081 remains open at the owner review gate for
+`blocks/02-delete-the-code-topic-and-remove-coga-repo-only`. Its missing
+prerequisite cleanup is the only remaining gate: do not bump while the
+required full suite is red. After that task lands, rebase this branch,
+re-review the resulting diff and rerun the suite and validation, then refresh
+these receipts before bumping. No PR exists for this ticket yet.
+
 ## PR
 
 ```yaml
 title: Trim the tickets family, secrets and blackboard topics
-author: claude
-author_evidence: Implement session ran on Claude Opus 5.5 (claude-opus-5-5) under megalaunch.
-head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
-base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
-depth: skim
-rationale: Docs-only restructure of shipped topics plus one new coga-dev page; no code behavior changes.
-implementation: Applies the blocks/07 audit verdicts; merges tickets/ownership into tickets; moves internals to coga-dev.
-deviations: Kept one undated sentence of the split decision in tickets/discovery so the declined decision stays with its standing owner.
-limitations: Full suite cannot be green on this base until PR #1081 (ticket 02) lands.
+author: claude/codex
+author_evidence: The implement handoff records Claude Opus 5.5 (claude-opus-5-5) as the original
+  implementer. Codex authored peer-review correction commit a9d6165d54a371b9fbe8d608d033365898b8ef09
+  in this session.
+head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+depth: deep
+rationale: 'Bounded documentation restructure with completed direct review, but the required full
+  suite still fails on three packaging defects reproduced on untouched main. Wait for blocks/02-delete-the-code-topic-and-remove-coga-repo-only
+  (PR #1081), then rebase, review the resulting diff, and refresh verification before publication.'
+implementation: Makes the ticket guide the owner of field shapes, merges ownership gates into
+  tickets, moves parser and writer internals to coga-dev/internals/blackboard-io, and retains
+  user-facing validation, vault policy, and writer rules. Peer review restored the fenced-description
+  exception and path validation, retained the split decision rationale in discovery, and synchronized
+  the CLI twin.
+deviations: Retains the undated no-split decision, its rationale and reopening criterion in discovery
+  so the standing owner keeps the product intent; dated history is in current-direction. Synchronizes
+  the touched CLI twin with the existing canonical prepare-checkout entry.
+limitations: 'The three baseline packaging failures require owner-reviewed PR #1081 to land. Codex
+  independently reviewed the Claude implementation and self-reviewed its own subsequent corrections;
+  the final receipt conservatively records self-review. No terminal or Slack rendering check applies
+  because runtime and rendered UI code are unchanged. Verification used Python 3.12.12, not a
+  separate Python 3.11 run.'
 files:
   docs/README.md: Drop the removed ownership leaf from the index.
   docs/contexts/coga-dev/codebase/SKILL.md: Name the secret-ref functions in the source map.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Record the ticket-split decision history.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Keep dated ticket-split history and link
+    to discovery for the standing decision and rationale.
   docs/contexts/coga-dev/internals/SKILL.md: List the new blackboard-io page.
-  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: New page for ticket body and blackboard IO internals.
+  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: New page for ticket body and blackboard
+    IO internals.
   docs/contexts/coga-dev/microkernel/SKILL.md: Hold the owner command's transaction rationale.
   docs/contexts/coga/blackboard/SKILL.md: Trim internals; keep the writer contract.
   docs/contexts/coga/cli/SKILL.md: Repoint the owner row to tickets.
   docs/contexts/coga/secrets/SKILL.md: Drop syntax and function names.
   docs/contexts/coga/tickets/SKILL.md: Validation rules only; absorb ownership gates.
-  docs/contexts/coga/tickets/authoring/SKILL.md: Drop flag syntax and the creation template section.
-  docs/contexts/coga/tickets/discovery/SKILL.md: Drop dated history and internal names.
+  docs/contexts/coga/tickets/authoring/SKILL.md: Trim flag syntax and creation-template internals
+    while preserving path validation and the closed-code-fence exception.
+  docs/contexts/coga/tickets/discovery/SKILL.md: Move dated history and implementation names out;
+    retain the standing no-split decision, reason and reopening criterion.
   docs/contexts/coga/tickets/ownership/SKILL.md: Merged into tickets.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Match the canonical
+    owner link and its existing prepare-checkout recipe entry.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md: Twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md: Twin.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md: Twin.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/ownership/SKILL.md: Twin of the merged leaf.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/ownership/SKILL.md: Twin of
+    the merged leaf.
   tests/test_packaging.py: Drop coga/tickets/ownership from required bootstrap refs.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+  base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+  detail: Direct review completed for all 21 changed paths against the audit, template, owning
+    topics, source and existing tests. Initial implementation was independently reviewed; Codex
+    then applied and self-reviewed the review fixes. No unresolved branch-specific findings; the
+    required green-suite gate is blocked by the separately reproduced main failures.
 checks:
-  - command: .venv/bin/python -m pytest
-    status: failed
-    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
-    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
-    detail: 3952 passed, 7 skipped, 3 failed in tests/test_packaging.py; all three are main's pre-existing coga/code and architecture drift (ticket 02, PR #1081).
-  - command: .venv/bin/python -m pytest tests/test_packaging.py (with ticket 02 branch merged, scratch worktree)
-    status: passed
-    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
-    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
-    detail: 30 passed.
-  - command: .venv/bin/coga validate --json
-    status: passed
-    head: 13dad0516f29c20d54a1c8a4d270bc776ac6bac7
-    base: ad2559b23747f04eae45bb05ecd4f5e90a15940a
-    detail: Exit 0.
+- command: .venv/bin/python -m pytest > /tmp/coga-blocks07-peer-final-pytest.log 2>&1
+  status: failed
+  head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+  base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+  detail: '3952 passed, 7 skipped, 3 failed in 345.29s on Python 3.12.12. All failures are in
+    test_packaging: architecture twin drift, missing canonical coga/code, and stale coga/code
+    links. The same three failures reproduce on untouched base 080d9d172d984c0eb6fdfb939251ac7841cfc59e.'
+- command: .venv/bin/coga validate --json > /tmp/coga-blocks07-peer-final-validate.json
+  status: passed
+  head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+  base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+  detail: Exit 0; 151 ok, 47 warnings, no errors.
+- command: PYTHONPATH=/tmp/coga-blocks07-peer-a9d6165d/src /home/n/Code/claude/coga/.venv/bin/python
+    -m pytest tests/test_packaging.py -k wheel
+  status: passed
+  head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+  base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+  detail: 'Ran from a pristine clone at this head: 2 passed, 28 deselected; built-wheel contents
+    and installed-wheel init/phone-home isolation passed.'
+- command: git diff --check main...HEAD
+  status: passed
+  head: a9d6165d54a371b9fbe8d608d033365898b8ef09
+  base: 080d9d172d984c0eb6fdfb939251ac7841cfc59e
+  detail: Exit 0 on the reviewed feature branch; no whitespace errors.
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-10-21 19:03] [agent:codex] id=20261021T190358 Land PR #1081 for blocks/02-delete-the-code-topic-and-remove-coga-repo-only; it fixes three packaging failures reproduced on untouched main. Then rebase blocks/07-trim-tickets-secrets, re-review the resulting diff, and rerun the required full suite before bumping.
