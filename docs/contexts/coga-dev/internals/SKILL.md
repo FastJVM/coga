@@ -55,6 +55,8 @@ and the local state lock serializes only one checkout's writers.
   files, the one-line-per-event log encoding, and union publication.
 - [Activity capture](activity-capture/SKILL.md): the bounded,
   secret-redacted usage record captured after each agent session.
+- [Usage pricing](usage-pricing/SKILL.md): record facts a future
+  dollar-cost price table must handle.
 
 ## Not covered here
 

@@ -6,13 +6,13 @@ description: What `coga uninstall` removes from a repo, including a relocated co
 # `coga uninstall [--yes] [--purge]`
 
 The inverse of `coga init`: it removes this repo's Coga footprint so trying
-Coga is reversible (`src/coga/commands/uninstall.py`). It removes files from
+Coga is reversible. It removes files from
 the working tree and commits nothing; commit or discard the removal like any
 other change. Git history remains the recovery source.
 
 ## What it removes
 
-The plan is gathered read-only first (`_build_plan`) and printed:
+The plan is gathered read-only first and printed:
 
 - `coga/`, the whole Coga tree;
 - the **configured contexts directory** when `[layout] contexts` places it
@@ -33,9 +33,8 @@ remove and no `--purge`, it says so and exits.
 - **Layout.** Uninstall only undoes the standard init layout, a `coga/`
   subdirectory. A repo whose `coga.toml` sits directly at the checkout root
   is refused rather than guessed at.
-- **Relocated root resolution.** `_configured_contexts_root` applies the
-  same checkout-root anchoring and containment rules as config load
-  (`resolve_layout_contexts_path`). It does not require the directory to
+- **Relocated root resolution.** Uninstall applies the same checkout-root
+  anchoring and containment rules as config load. It does not require the directory to
   exist or be trackable, because uninstall is also the recovery path for a
   broken install. If `coga.toml` or `[layout]` cannot be resolved safely, the
   plan prints a warning and leaves any relocated directory in place. Invalid
@@ -49,9 +48,8 @@ remove and no `--purge`, it says so and exits.
 Without `--purge`, the `coga` package stays installed (it serves every repo
 on the machine) and the command prints `uv tool uninstall coga` /
 `pipx uninstall coga` / `pip uninstall coga`. With `--purge`, it uninstalls
-through the installer that owns the running CLI's venv, detected by
-`running_cli_location` (`src/coga/commands/update.py`) from a marker in the
-unresolved `sys.executable` venv root:
+through the installer that owns the running CLI's venv, detected from a
+marker in the unresolved `sys.executable` venv root:
 
 - `uv-receipt.toml` (the preferred `uv tool install coga`,
   [coga/install](../install/SKILL.md)) → `uv tool uninstall coga` with

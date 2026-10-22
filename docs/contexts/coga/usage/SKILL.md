@@ -17,7 +17,7 @@ Consumers (agent autorouting, report views) are separate work. This primitive
 ships the records and the reader and deliberately defines no budget cap, no
 "remaining", and no dollar cost (tokens per task is the question; a price
 table is a deferred follow-up; the record facts it must handle are in
-[activity capture](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md#facts-a-future-price-table-needs)).
+[usage pricing](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/usage-pricing/SKILL.md)).
 
 How a record is captured, matched to a provider transcript, and bounded is
 [`coga-dev/internals/activity-capture`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/activity-capture/SKILL.md).

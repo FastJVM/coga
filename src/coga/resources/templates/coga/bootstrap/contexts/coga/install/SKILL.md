@@ -6,31 +6,21 @@ description: Prerequisites and installing the coga CLI (uv tool, pipx, virtualen
 # Installing Coga
 
 Coga is one CLI, installed once per machine, that operates every repo you
-adopt it into. Installing the package never modifies a repo; `coga init` does
-that, and offers to install missing external CLIs (see
-[coga/init](../init/SKILL.md)).
+adopt it into. Installing the package never modifies a repo;
+[`coga init`](../init/SKILL.md) does.
 
 ## Prerequisites
 
-- **Linux or macOS (POSIX).** Native Windows is unsupported:
-  `src/coga/git.py` imports `fcntl` at module top for the state-publication
-  lock, and `cli.py` imports `coga.git` eagerly, so every command, even
-  `coga --help`, fails with `No module named 'fcntl'`. A port needs a
-  portable substitute for that lock, not only guarded terminal imports. WSL
-  is the untested Windows route.
-- **Python 3.11+.** The package declares `requires-python = ">=3.11"`
-  (`pyproject.toml`) because config loading uses the standard-library
-  `tomllib`. The preferred uv install below can download a compatible
+- **Linux or macOS (POSIX).** Native Windows is unsupported: every command,
+  even `coga --help`, fails with `No module named 'fcntl'`. WSL is the
+  untested Windows route.
+- **Python 3.11+.** The preferred uv install below can download a compatible
   Python for you; pip and pipx need an installed Python 3.11+.
-- **Git.** The only external tool `coga init` enforces
-  (`src/coga/commands/init.py` `_require_init_tools`, driven by the
-  `required_at_init` entries in `src/coga/dependencies.py`). Git is also
-  Coga's sync layer: state changes are commits. On macOS, Git comes from
-  the Xcode Command Line Tools; install them first (below).
-- **An agent CLI**, installed and authenticated: Claude Code or Codex. Needed
-  by anything that launches an agent (`coga launch`, `coga ticket`,
-  `coga build`); `coga init` does not require one, but interactive init and
-  `coga build` offer to install one (below).
+- **Git.** The only external tool `coga init` enforces. Git is also Coga's
+  sync layer: state changes are commits. On macOS, Git comes from the Xcode
+  Command Line Tools; install them first (below).
+- **An agent CLI**, installed and authenticated: Claude Code or Codex, for
+  anything that launches an agent. `coga init` does not require one (below).
 - **GitHub CLI (`gh`)**, recommended but not required at init. PR workflows,
   the merged-ticket autoclose sweep, and `coga skill install` check for it at
   their point of use and fail with an install hint.
@@ -39,49 +29,33 @@ that, and offers to install missing external CLIs (see
   ([coga/secrets](../secrets/SKILL.md)).
 
 In an interactive terminal, `coga init` offers to install a missing `git`,
-`gh` (default yes, then `gh auth login` if the active github.com account
-is not logged in) or `op` (default no)
-with the machine's package manager — brew, winget, apt-get, dnf or pacman,
-with `sudo` on Linux — printing the exact command first. The per-tool
-packages live in `src/coga/dependencies.py`. Without a terminal, a known
-package manager or a package for the tool, init prints the install link
-instead: a missing `git` still stops init, a missing `gh` or `op` is a
-warning.
+`gh` (default yes, then `gh auth login` if the active github.com account is
+not logged in) or `op` (default no) with the machine's package manager —
+brew, winget, apt-get, dnf or pacman, with `sudo` on Linux — printing the
+exact command first. Without a terminal, a known package manager or a package
+for the tool, init prints the install link instead: a missing `git` still
+stops init, a missing `gh` or `op` is a warning.
 
-Agent CLIs take their own route, shared by interactive `coga init` and
-`coga build` (`src/coga/agent_cli_setup.py` `offer_agent_cli`, with the
-packages and login commands in `src/coga/dependencies.py`). Init, when
-neither `claude` nor `codex` is on `PATH`, asks which to install (or skip);
-`coga build`, when the onboarding ticket's agent CLI is missing, offers that
-one before failing. The installer is the vendor's package, never a
-`curl | sh` script: on macOS the brew cask (`claude-code`, `codex`), else
-`npm install -g @anthropic-ai/claude-code` or `@openai/codex` when `npm` is
-on `PATH`, else only the install URL is printed. The exact command is printed
-and runs only on a yes; a successful install then offers the login (`claude`,
-which signs in on first run, or `codex login`). How init may change the
-default agent is in [coga/init](../init/SKILL.md). Without a terminal,
-neither command prompts.
-
-> Owner reversal (2026-09-30): users read a missing `gh` as a broken,
-> unprofessional install and churn. Interactive `coga init` now offers to
-> install missing external CLIs; it still installs no Python package or
-> skill, and never installs anything without a yes.
->
-> Owner decision (2026-10-01): agent CLIs are offered too, through brew or
-> npm only, and init may set or replace the default agent behind an explicit
-> confirm.
+Agent CLIs take their own route. Interactive init, when neither `claude` nor
+`codex` is on `PATH`, asks which to install (or skip); `coga build` offers
+the onboarding ticket's missing agent CLI before failing. The installer is
+the vendor's package, never a `curl | sh` script: on macOS the brew cask
+(`claude-code`, `codex`), else `npm install -g @anthropic-ai/claude-code` or
+`@openai/codex` when `npm` is on `PATH`, else only the install URL. The
+command runs only on a yes, then offers the login (`claude`, which signs in
+on first run, or `codex login`). Without a terminal, neither command
+prompts. How init may change the default agent is in
+[coga/init](../init/SKILL.md).
 
 ### macOS: install the Command Line Tools first
 
 A fresh Mac has no real Git. `/usr/bin/git` is a stub that the Xcode
 Command Line Tools (CLT) replace, so the first `git` call, even
-`git --version`, triggers the CLT install instead of running Git. That call
-may be yours, a `git init`, or `coga init`'s. `coga init` cannot repair this:
-the stub is on PATH, so its missing-`git` check (`_require_init_tools` in
-`src/coga/commands/init.py`) passes and its install offer never runs. The
-Git command init runs next then fails. Install the CLT before installing
-Coga or running `git init` / `coga init`, and confirm `git --version` prints a
-version:
+`git --version`, triggers the CLT install instead of running Git.
+`coga init` cannot repair this: the stub is on PATH, so its missing-`git`
+check passes, its install offer never runs, and its next Git command fails.
+Install the CLT before installing Coga or running `git init` / `coga init`,
+and confirm `git --version` prints a version:
 
 - **At the Mac's screen**, run `xcode-select --install` (or any `git`
   command) and click **Install** in the dialog. Wait for it to finish, then
@@ -99,14 +73,8 @@ version:
   rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
   ```
 
-The CLT install is machine-wide, so one install covers every user. It
-provides Python 3.9 as `/usr/bin/python3`, which is below Coga's 3.11 floor.
-Install Python 3.11+ separately (`uv tool install` can manage its own Python).
-A clean-install walk has reproduced the SSH error on a fresh macOS host;
-the dialog path is unverified. This topic owns the
-headless steps; the clean-install runbook,
-[coga/testing/clean-install/macos-aws](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
-applies them to its walk host.
+The CLT install is machine-wide. Its `/usr/bin/python3` is 3.9, below
+Coga's floor; `uv tool install` manages its own Python.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an
@@ -121,13 +89,12 @@ The package is `coga` on PyPI. Preferred: an isolated tool install with
 uv tool install coga
 ```
 
-With default settings, uv finds a compatible Python or downloads a managed
-Python 3.11+ if none is available, including on systems whose `python3` is
-3.10 or older. You do not need to replace the system Python. See uv's
-[Python management](https://docs.astral.sh/uv/concepts/python-versions/) for
-download settings.
+By default uv finds a compatible Python or downloads a managed Python 3.11+,
+so an older system `python3` need not be replaced (uv's
+[Python management](https://docs.astral.sh/uv/concepts/python-versions/)).
 
-Alternatives, using an already-installed Python 3.11+:
+Alternatives, using an already-installed Python 3.11+ (check
+`python3 --version` first):
 
 ```sh
 pipx install --python python3.11 coga  # isolated; python3.11 must be installed
@@ -135,29 +102,16 @@ python3 -m venv .venv && . .venv/bin/activate && pip install coga
 python3 -m pip install coga       # deliberately into the current environment
 ```
 
-Check `python3 --version` before using either `python3` command above.
+### Install failures
 
-Contributors working on Coga itself install the checkout editable with the
-test extra: `python -m pip install -e ".[test]"`
-([coga-dev/codebase](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md) covers the source-checkout loop).
-
-### Python is older than 3.11
-
-On an older interpreter, `pip install coga` fails with
+**Python older than 3.11.** `pip install coga` fails with
 `Could not find a version that satisfies the requirement coga` and
-`Requires-Python >=3.11` diagnostics. The `0.0.1` placeholder, which provided
-no `coga` command, is yanked on PyPI and excluded from ordinary unpinned
-installs. Explicitly pinning `coga==0.0.1` can still install that placeholder;
-it is not a compatibility workaround.
-
-Use `uv tool install coga`, or install Python 3.11+ separately and run
-`pipx install --python python3.11 coga`. If uv is configured to use an older
-Python, request a compatible one with `uv tool install --python 3.11 coga`;
-automatic Python downloads must be enabled if that interpreter is absent.
-Creating a venv with an older Python does not help: a venv uses the
-interpreter that created it.
-
-### Other install failures
+`Requires-Python >=3.11` diagnostics. Pinning `coga==0.0.1` installs a
+yanked placeholder with no `coga` command, not a workaround. Use
+`uv tool install coga` (or `uv tool install --python 3.11 coga` if uv is
+configured for an older Python), or install Python 3.11+ and run
+`pipx install --python python3.11 coga`. A venv made by an older Python does
+not help.
 
 **`Hashes are required in --require-hashes mode`.** The machine has pip's
 hash-checking mode on globally (common on managed laptops). Either install
@@ -171,9 +125,9 @@ coga --help
 coga --version     # prints "coga <version>"
 ```
 
-`coga --version` reports the installed package version (`src/coga/cli.py`
-`_print_version_and_exit`; `unknown` if package metadata is missing). One CLI
-runs every repo, so there is no second, per-repo version.
+`coga --version` reports the installed package version (`unknown` if package
+metadata is missing). One CLI runs every repo, so there is no per-repo
+version.
 
 ## Upgrading and removing
 
@@ -189,7 +143,5 @@ refresh. Upgrade with the installer that owns the CLI:
 Removing Coga from a repo, and optionally the global package, is
 [coga/uninstall](../uninstall/SKILL.md).
 
-## Next
-
-Adopt Coga into a repository with [coga/init](../init/SKILL.md), then walk a
-first ticket with [coga/first-task](../first-task/SKILL.md).
+Next: adopt Coga into a repository with [coga/init](../init/SKILL.md), then
+walk a first ticket with [coga/first-task](../first-task/SKILL.md).

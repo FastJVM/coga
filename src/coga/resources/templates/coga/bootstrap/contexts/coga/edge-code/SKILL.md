@@ -7,11 +7,9 @@ description: Wheel-owned edge implementations, repo shims, upgrades, and explici
 
 ## Wheel-owned edge implementations
 
-`src/coga_edge/` ships beside `src/coga/` in the **same distribution**, with
-one version and install transaction, no extra dependency, registry or CLI.
-Edge modules may import shared `coga` infrastructure; core never
-imports edge implementations. Repo shims select the implementation. `coga_edge/__init__.py`
-has no eager job imports or side effects.
+Default implementations of some edge jobs ship as the `coga_edge` package in
+the **same distribution** as `coga`: one version, one install and upgrade,
+no extra dependency, registry or CLI. Repo shims select the implementation.
 
 A repo-owned `ticket.py` may import a stable module `main` and return its exit
 code. Init seeds that shim; recurring creation copies its bytes. On the next
@@ -44,9 +42,6 @@ Editing a wrapper that still imports the default is not an implementation fork.
 A fork stops receiving upstream fixes and must remain compatible with the
 shared core it imports; restoring the stock shim rejoins wheel updates.
 
-Phone-home's complete module is deliberately forkable: it imports only stdlib
-and shared `coga.*`, never relative or sibling edge modules, and carries both
-normal and private `--worker` dispatch behind `__main__`. Its worker executes
-that same file, including when copied to a local fork. Preserve these constraints
-when refactoring it. The migration procedure includes source inspection and
-copy commands; do not run production telemetry to find its source.
+Phone-home's module is self-contained, so a copy of the single file works as
+a local fork. The migration procedure includes source inspection and copy
+commands; do not run production telemetry to find its source.

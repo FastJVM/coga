@@ -17,6 +17,7 @@ coga/
   skills/<ref>/      project-local skills and overrides
   contexts/<ref>/    project-local contexts (default contexts root)
   workflows/<ref>.md project-local workflows
+  resources/<name>   optional overrides of packaged prompt and ticket text
   .agent-skills/     generated local-plus-bundled skill view (gitignored)
 ```
 
@@ -25,8 +26,9 @@ directory path. Owners of the other pieces: tickets and attachments in
 [coga/tickets](../tickets/SKILL.md) and
 [coga/script-tickets](../script-tickets/SKILL.md), recurring templates in
 [coga/recurring](../recurring/SKILL.md), skill shapes in
-[coga/skill-management](../skill-management/SKILL.md), and workflows in
-[coga/workflows](../workflows/SKILL.md).
+[coga/skill-management](../skill-management/SKILL.md), workflows in
+[coga/workflows](../workflows/SKILL.md), and resource overrides in
+[coga/prompt-composition](../prompt-composition/SKILL.md).
 
 ## Context audiences
 
@@ -50,17 +52,19 @@ and docstrings serve developers and do not make a topic a user dependency.
 
 ## Local first, then bundled
 
-Resolution is per ref. `src/coga/paths.py` `resolve_context_path` checks
-`context_path` (`cfg.contexts_root/<ref>/SKILL.md`) and, only when that local
-file is genuinely absent, falls back to `bootstrap_context_path`, the
-installed package's `bootstrap/contexts/<ref>/SKILL.md`. Skills, workflows
-and bootstrap tickets follow the same local-then-package order. The package
-`bootstrap/` tree is never materialized into a repo, so a local file at the
+Resolution is per ref. Coga reads `<contexts-root>/<ref>/SKILL.md` and, only
+when that local file is genuinely absent, falls back to the installed
+package's copy of the ref. Every `coga/*` topic ships that way. Skills,
+workflows and bootstrap tickets follow the same local-then-package order. The
+packaged copies are never materialized into a repo, so a local file at the
 same ref is an override and an upgrade changes the fallback without touching
-the repo.
+the repo. A ref that resolves nowhere fails composition, and `coga validate`
+and `coga create` reject it statically. A few scaffolds, such as
+`contexts/_template/`, are instead copied once by `coga init`; the repo then
+owns them, and the packaged originals are never read again.
 
-Before testing existence or falling back, `require_context_artifact` checks
-the local path at either root. Symlinked artifacts or ancestors (internal
+Before testing existence or falling back, Coga checks the local path at
+either root. Symlinked artifacts or ancestors (internal
 links, chains, dangling links, cycles), entries inside Git metadata or a
 nested checkout, and non-regular files are rejected. In a Git checkout the
 file must also be tracked or untracked-but-unignored, so a fresh clone
@@ -68,32 +72,6 @@ composes the same bytes. An uncommitted, unignored file is fine. Invalid
 artifacts raise actionable errors, surface as `broken-context` in
 `coga validate`, and stop composition before their bytes reach a prompt.
 This policy covers context refs only, not skills or ordinary attachments.
-
-## Three distribution states for a context
-
-- **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
-  (every `coga/*` topic). `coga init` skips
-  `bootstrap/`; `resolve_context_path` reads the package copy when the repo has
-  no local `<ref>/SKILL.md`. A repo overrides by creating the local file.
-- **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds
-  `.gitignore` and `_template/SKILL.md`. `commands/update.py`
-  `copy_fresh_templates` copies them once; the repo then owns them and nothing
-  reads the packaged original at runtime.
-- **Local-only**: a topic with no packaged copy, resolved first and unknown to
-  other repos (for example a repo's `product/` topics or Coga's Coga-dev set).
-
-Resolution is local, then `bootstrap/contexts/`, then `None`, which `compose`
-turns into a `ComposeError`; `validate` and `create` reject the ref
-statically. Skills and workflows have the same split: fallback only from
-`bootstrap/{skills,workflows}/`, while seeded `templates/coga/{skills,workflows}/`
-files are one-time copies.
-
-**Bundled launchers may only name fallback contexts.** A bundled
-`bootstrap/<verb>/ticket.md`, or a bundled skill that tells the agent to apply
-a context, must name contexts that resolve from `bootstrap/contexts/`, because
-an init-seeded copy may be pruned or predate the repo.
-`tests/test_packaging.py::test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts`
-enforces this.
 
 **Do not repair a missing bundled resource by copying it into
 `coga/bootstrap/`.** Fix package data or the resolver; a mirror hides the bug
@@ -108,22 +86,20 @@ contexts = "docs/contexts"
 ```
 
 Contexts are the one primitive humans hand-edit as prose, so a repo may keep
-them beside its docs. Unset (the default) means `coga/contexts/`.
-`Config.contexts_root` is the single accessor. Ref resolution, composition,
+them beside its docs. Unset (the default) means `coga/contexts/`. Ref
+resolution, composition,
 `coga validate`, `coga create` / `coga ticket` checks and authoring sync, the
 `mark done` product-stranding guard (which excludes the Coga root and the
 current contexts root from its diff), and `coga init` / `coga uninstall` all
 follow it.
 
-**Anchor.** The value is relative to the **Git checkout root**
-(`find_checkout_root`), not the Coga root. `Config.repo_root` is
-`<checkout>/coga/` in the nested layout but the checkout itself in the root
-layout. The checkout root is above both, so `docs/contexts` always means
+**Anchor.** The value is relative to the **Git checkout root**, not the Coga
+root. The Coga root is `<checkout>/coga/` in the nested layout but the
+checkout itself in the root layout. The checkout root is above both, so `docs/contexts` always means
 `<checkout>/docs/contexts`. A Coga root deeper in a monorepo spells the full
 path (`tools/ops/docs/contexts`).
 
-**Rejected at config load** (`resolve_layout_contexts_path`, `_parse_layout`),
-because a quiet miss is catastrophic: bundled fallback would keep
+**Rejected at config load**, because a quiet miss is catastrophic: bundled fallback would keep
 `coga/architecture` resolving while every local context vanished from
 prompts. Rejected values are a non-string or empty value; an absolute path;
 Git pathspec magic (leading `:`, `*`, `?`, `[`); no enclosing checkout; the
@@ -132,7 +108,7 @@ checkout (`..` escapes); the Coga root or one of its ancestors; Git's
 `.git` directory or a nested checkout; and a target that does not exist or
 is not a directory.
 
-**Trackability** (`_require_trackable_context_entry`): the root must not be
+**Trackability**: the root must not be
 gitignored, must contain at least one tracked or unignored file (use a
 `.gitkeep` for an intentionally empty root), and every real `SKILL.md` under
 it passes the artifact check above. The ignored `_template/` scaffold is

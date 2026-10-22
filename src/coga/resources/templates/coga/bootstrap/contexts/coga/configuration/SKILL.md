@@ -5,18 +5,18 @@ description: The shared `coga.toml` versus machine-local `coga.local.toml` split
 
 # Configuration
 
-`load_config` (`src/coga/config.py`) reads two files from the Coga root:
+Coga reads two files from the Coga root:
 
 - **`coga.toml`**, committed: repo policy every clone must agree on.
 - **`coga.local.toml`**, gitignored: facts about this machine and operator.
   `COGA_LOCAL_CONFIG` can point a process at an absolute path instead, so a
   Coga process in another checkout of the same repo, such as a relay
-  worktree, reads the operator's local settings (`local_config_path`).
+  worktree, reads the operator's local settings.
 
 Both are validated against fixed schemas on every command that loads config.
 Two invocations read neither file, so neither validates config nor sweeps
 state: `coga --version`, and `--help`/`-h` under a built-in command (for
-example `coga launch --help`; `cli._needs_no_config`). Top-level `coga --help`
+example `coga launch --help`). Top-level `coga --help`
 still loads config to list the repo's `[aliases]`. Never commit real
 credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
@@ -67,11 +67,9 @@ overrides it. `user` is always local and never guessed
 ## Unknown keys fail loud
 
 Any unrecognized key at any level of a fixed-schema table, in either file,
-raises `ConfigError` naming the offender and listing the allowed keys
-(`_reject_unknown_keys`, `_reject_unknown_sections`, plus the per-table
-parsers). A misspelled `[notification.slak]` therefore stops every
-config-loading command instead of silently resolving to "no webhook". Adding
-a config key means adding it to its table's allowlist in the same change.
+raises `ConfigError` naming the offender and listing the allowed keys. A
+misspelled `[notification.slak]` therefore stops every config-loading command
+instead of silently resolving to "no webhook".
 
 Free-form maps are exempt because their keys are data: `[aliases]`,
 `[extensions]` (a repo-owned namespace Coga passes through uninterpreted),
@@ -92,7 +90,7 @@ generic check, so the actionable message survives:
 
 Config values are otherwise literal. Exactly two fields run an `env:VAR`
 reference through the shared resolver: `[notification.slack].webhook` and
-`[notification.slack].important_webhook` (`_resolve_secret_value`). An unset
+`[notification.slack].important_webhook`. An unset
 variable there resolves to "no webhook configured". An `env:VAR` written in
 any other config field is a literal string, not an indirection, and `op://`
 is not understood anywhere in config. Ticket `secrets:` are a separate,
@@ -104,7 +102,7 @@ fail-loud path.
 owned by [coga/recurring](../recurring/SKILL.md). `[aliases]` expand to
 Coga argv ([coga/cli](../cli/SKILL.md)).
 
-`Config.telemetry_enabled` defaults true. Both `[telemetry]` layers are
+Telemetry defaults on. Both `[telemetry]` layers are
 validated even when overridden. No endpoint, key, cadence, or test bypass is
 configurable. Delivery, state and payload belong to
 [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md); git and notification switches remain
