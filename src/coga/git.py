@@ -2186,7 +2186,9 @@ def _run(
 
 
 def _git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    # `LC_ALL=C` keeps Git's diagnostics in English: failure summaries and
+    # refusal checks match its message text.
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
     if extra:
         env.update(extra)

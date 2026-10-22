@@ -2093,6 +2093,13 @@ def test_summarize_git_failure_bounds_overwrite_paths(path_count, trailer):
     assert git.summarize_git_failure(raw) == expected
 
 
+def test_git_env_pins_the_message_locale(monkeypatch):
+    monkeypatch.setenv("LC_ALL", "de_DE.UTF-8")
+    monkeypatch.setenv("LANG", "de_DE.UTF-8")
+
+    assert git._git_env()["LC_ALL"] == "C"
+
+
 def test_summarize_git_failure_dedupes_complete_overwrite_lists():
     heading = "error: Your local changes to the following files would be overwritten by merge:"
     raw = (
