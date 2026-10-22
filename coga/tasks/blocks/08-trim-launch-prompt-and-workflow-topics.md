@@ -352,6 +352,7 @@ checks:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1089
 branch: coga/blocks-08-trim-launch-prompt-workflow
 
 ---
