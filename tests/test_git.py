@@ -955,6 +955,7 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
 
     _seed_ticket(git_repo)
     if layout == "root":
+        monkeypatch.chdir(git_repo.root)
         for path in git_repo.coga_os.iterdir():
             path.rename(git_repo.root / path.name)
         git_repo.coga_os.rmdir()
@@ -965,7 +966,7 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
         contexts = git_repo.root / "docs" / "contexts"
         contexts.mkdir(parents=True)
         (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
-        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+        with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
             stream.write('[layout]\ncontexts = "docs/contexts"\n')
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"
@@ -1054,7 +1055,7 @@ def test_coga_root_paths_lists_a_relocated_contexts_root_separately(git_repo):
     contexts = git_repo.root / "docs" / "contexts"
     contexts.mkdir(parents=True)
     (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
-    with (git_repo.coga_os / "coga.toml").open("a") as stream:
+    with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write('[layout]\ncontexts = "docs/contexts"\n')
 
     cfg = load_config(git_repo.coga_os)
@@ -1454,7 +1455,7 @@ def test_checkout_return_reloads_config_before_publishing(
         cfg.contexts_root.rename(old_root)
         config_path.write_text(config_path.read_text(encoding="utf-8") + '\n[layout]\ncontexts = "docs/contexts"\n', encoding="utf-8", newline="\n")
         cfg = load_config(cfg.repo_root)
-    old_rel = str(cfg.contexts_root.relative_to(git_repo.root) / "team" / "SKILL.md")
+    old_rel = (cfg.contexts_root.relative_to(git_repo.root) / "team" / "SKILL.md").as_posix()
     git_repo.git("add", "coga", "docs" if relocated else "coga/contexts")
     git_repo.git("commit", "-m", "seed context")
     git_repo.git("push", "origin", "main")
@@ -2533,7 +2534,7 @@ def test_prepare_cleans_a_published_context_and_skill_from_a_feature_checkout(
         contexts = git_repo.root / "docs" / "contexts"
         contexts.mkdir(parents=True)
         (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
-        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+        with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
             stream.write('[layout]\ncontexts = "docs/contexts"\n')
         git_repo.git("add", "-A")
         git_repo.git("commit", "-m", "relocate contexts")

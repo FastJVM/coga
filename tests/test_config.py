@@ -756,7 +756,7 @@ def test_autofix_contexts_missing_ref_fails_at_config_load(
     assert "[autofix].contexts" in message
     assert "team/missing" in message
     assert str(repo / "contexts" / "team" / "missing" / "SKILL.md") in message
-    assert "bootstrap/contexts/team/missing/SKILL.md" in message
+    assert str(Path("bootstrap/contexts/team/missing/SKILL.md")) in message
 
 
 @pytest.mark.parametrize(
@@ -1995,7 +1995,7 @@ def test_layout_contexts_deleted_last_tracked_file_rejected(
 
 
 def test_layout_contexts_absolute_path_rejected(layout_repo: Path) -> None:
-    _set_layout_contexts(layout_repo, "/etc/contexts")
+    _set_layout_contexts(layout_repo, (layout_repo / "absolute-contexts").as_posix())
     with pytest.raises(ConfigError, match="must be a relative path"):
         load_config(layout_repo)
 
@@ -2092,13 +2092,15 @@ def test_upstream_checkouts_parsed_to_absolute_paths(
     kept, because the processor — not config load — decides what a moved
     client checkout means. Failing here would brick every command."""
     monkeypatch.setenv("HOME", str(repo))
+    monkeypatch.setenv("USERPROFILE", str(repo))
+    missing = repo / "not-on-disk" / "magicator"
     _set_upstream_checkouts(
-        repo, '["~/clients/multiply", "/definitely/not/on/disk/magicator"]'
+        repo, f'["~/clients/multiply", "{missing.as_posix()}"]'
     )
     cfg = load_config(repo)
     assert cfg.upstream_checkouts == (
         (repo / "clients" / "multiply").resolve(),
-        Path("/definitely/not/on/disk/magicator"),
+        missing,
     )
 
 
@@ -2119,7 +2121,7 @@ def test_upstream_checkouts_must_be_a_list(repo: Path) -> None:
 
 
 def test_upstream_checkouts_elements_must_be_strings(repo: Path) -> None:
-    _set_upstream_checkouts(repo, '["/one/path", 2]')
+    _set_upstream_checkouts(repo, f'["{repo.as_posix()}", 2]')
     with pytest.raises(
         ConfigError, match=r"\[upstream\]\.checkouts\[1\] must be a non-empty string"
     ):

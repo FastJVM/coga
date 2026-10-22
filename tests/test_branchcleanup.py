@@ -1127,7 +1127,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
     assert result.already_gone is True
     assert any("already gone" in note for note in notes)
     # The stale registration is branch sweep's repo-wide job, not retire's.
-    assert str(feature) in _git(repo, "worktree", "list").stdout
+    assert feature.as_posix() in _git(repo, "worktree", "list").stdout
 
 
 def test_no_worktree_line_is_noop(repo: Path) -> None:

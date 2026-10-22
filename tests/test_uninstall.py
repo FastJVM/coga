@@ -47,6 +47,7 @@ def _seed_footprint(
     local_bin = fake_home / ".local" / "bin"
     local_bin.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
     monkeypatch.chdir(target)
     return target
 

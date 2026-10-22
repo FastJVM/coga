@@ -166,7 +166,7 @@ def test_owner_lands_reassignment_and_audit_line_on_control(git_repo) -> None:
     result = CliRunner().invoke(app, ["owner", ref["slug"], "marc"])
 
     assert result.exit_code == 0, result.output
-    task_rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    task_rel = Path(ref["path"]).relative_to(git_repo.root).as_posix()
     control_ticket = Ticket.parse(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
@@ -298,7 +298,7 @@ def test_owner_stale_control_refuses_without_cli_sweep(git_repo, monkeypatch, st
     newer = Ticket.read(path)
     newer.frontmatter["status"] = status
     newer.body += "\nNew control notes.\n"
-    rel = str(path.relative_to(git_repo.root))
+    rel = path.relative_to(git_repo.root).as_posix()
     # Leave origin/main stale: the first push must fail, fetch, and recheck.
     git_repo.push_competing_commit(rel, newer.render())
     monkeypatch.setattr("sys.argv", ["coga", "owner", ref["slug"], "marc"])

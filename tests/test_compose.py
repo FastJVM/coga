@@ -130,7 +130,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
     # Header
     assert "Coga task — fix-retry-logic" in prompt
-    assert "Task directory: coga/tasks/fix-retry-logic" in prompt
+    assert f"Task directory: {Path('coga/tasks/fix-retry-logic.md')}" in prompt
     # Base prompt
     assert "You are an agent working inside Coga" in prompt
     # Session conduct — the attended default when no context is given
@@ -624,7 +624,7 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
 
     # A nested task is identified by its path under `tasks/`.
     assert "Coga task — auto/fix-retry-logic" in prompt
-    assert "Task directory: coga/tasks/auto/fix-retry-logic" in prompt
+    assert f"Task directory: {Path('coga/tasks/auto/fix-retry-logic')}" in prompt
 
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
@@ -1108,7 +1108,7 @@ def test_compose_raises_on_missing_context(repo: Path) -> None:
     assert "email/ghost" in msg
     assert ref.id_slug in msg
     # Names the exact path the user should create.
-    assert "email/ghost/SKILL.md" in msg
+    assert str(Path("email/ghost/SKILL.md")) in msg
 
 
 def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
@@ -1123,7 +1123,7 @@ def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
     msg = str(exc.value)
     assert "infra/ghost" in msg
     assert ref.id_slug in msg
-    assert "infra/ghost/SKILL.md" in msg
+    assert str(Path("infra/ghost/SKILL.md")) in msg
 
 
 def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
@@ -1412,5 +1412,5 @@ def test_compose_rejects_unusable_override_path(repo: Path, kind: str) -> None:
     _write_workflow_less_task(repo, title='Unusable override')
     ref = list_tasks(cfg)[0]
 
-    with pytest.raises(ComposeError, match=str(override)):
+    with pytest.raises(ComposeError, match=re.escape(str(override))):
         compose_prompt(cfg, ref, read_ticket(ref))

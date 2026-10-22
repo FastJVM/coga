@@ -762,7 +762,8 @@ def test_exec_failure_names_the_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @windows_interactive_skip
 @pytest.mark.skipif(
-    sys.platform != "linux", reason="per-argument MAX_ARG_STRLEN is Linux-specific"
+    os.name == "posix" and sys.platform != "linux",
+    reason="per-argument MAX_ARG_STRLEN is Linux-specific",
 )
 def test_oversized_argv_element_reports_e2big(
     monkeypatch: pytest.MonkeyPatch,

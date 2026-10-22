@@ -1146,7 +1146,7 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
     )
 
     assert result.exit_code == 0, result.output
-    task_rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    task_rel = Path(ref["path"]).relative_to(git_repo.root).as_posix()
     control_ticket = Ticket.parse(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
@@ -1178,7 +1178,7 @@ def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> d
         agent="claude",
         status=status,
     )
-    rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    rel = Path(ref["path"]).relative_to(git_repo.root).as_posix()
     git_repo.git("add", rel)
     git_repo.git("commit", "-m", f"seed {ref['slug']}")
     git_repo.git("push", "origin", "main")
@@ -1208,7 +1208,7 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     cfg = load_config(git_repo.coga_os)
     ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
     ticket_path = Path(ref["path"])
-    rel = str(ticket_path.relative_to(git_repo.root))
+    rel = ticket_path.relative_to(git_repo.root).as_posix()
     git_repo.checkout_branch("feature/contended")
 
     # Another checkout closes the ticket on the control branch under us.

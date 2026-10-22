@@ -994,7 +994,7 @@ def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
     # live in this checkout's own index, so point that root at nothing.
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, 0o755)
-    rel = str(script.relative_to(git_repo.root))
+    rel = script.relative_to(git_repo.root).as_posix()
     git_repo.git("add", "-A")
     git_repo.git("update-index", "--chmod=-x", rel)
     monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
@@ -1024,7 +1024,7 @@ def test_validate_uses_index_when_git_filemode_is_false(
 ) -> None:
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, working_mode)
-    rel = str(script.relative_to(git_repo.root))
+    rel = script.relative_to(git_repo.root).as_posix()
     git_repo.git("config", "core.fileMode", "false")
     git_repo.git("add", rel)
     git_repo.git("update-index", f"--chmod={index_mode}", rel)
@@ -1045,7 +1045,7 @@ def test_validate_index_fallback_preserves_non_ascii_paths(
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, 0o644)
     script = script.rename(script.with_name("café-語.sh"))
-    git_repo.git("add", str(script.relative_to(git_repo.root)))
+    git_repo.git("add", script.relative_to(git_repo.root).as_posix())
     # Git emits UTF-8 paths even when Windows' default encoding is cp1252.
     monkeypatch.setattr("locale.getencoding", lambda: "cp1252")
     monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)

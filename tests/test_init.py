@@ -537,6 +537,7 @@ def test_fresh_init_installs_nothing(
     Google packs remain one explicit `coga skill install` away."""
     _path_without_gh(tmp_path, monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     target = tmp_path / "company"
     subprocess.run(["git", "init", "-q", "-b", "main", str(target)], check=True)
     subprocess.run(
@@ -590,6 +591,7 @@ def test_init_writes_captured_user_name_to_local_toml(
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     # Surrounding whitespace is stripped, same as the prompt path.
     result = CliRunner().invoke(app, ["init", str(target), "--user", "  marc  "])
@@ -1431,6 +1433,7 @@ def test_init_commits_coga_os_when_target_is_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1464,6 +1467,7 @@ def test_init_fails_loud_when_target_is_not_git_repo(
     target = tmp_path / "company"
     target.mkdir()  # exists, but is not a git repo (nor inside one)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
@@ -1673,6 +1677,7 @@ def test_init_into_subdir_of_git_repo(
     assert not target.exists()
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1753,6 +1758,7 @@ def test_init_refuses_target_gitignored_by_host_repo(
     target = host / "build" / "ops"
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2, result.output
@@ -1779,6 +1785,7 @@ def test_init_into_subdir_leaves_unrelated_staged_files_alone(
     target = host / "tools" / "ops"
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1824,6 +1831,7 @@ def test_init_links_skills_into_agent_dirs(
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1844,6 +1852,7 @@ def test_init_skips_skill_link_when_agent_marker_is_a_file(
     sentinel = target / ".codex"
     sentinel.write_text("", encoding="utf-8", newline="\n")  # mimic the empty-file Codex marker
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1938,6 +1947,7 @@ def test_init_writes_agent_guides(
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1962,6 +1972,7 @@ def test_init_preserves_existing_agent_guides(
     target = _make_git_repo(tmp_path / "company")
     (target / "CLAUDE.md").write_text("# my hand-written guide\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1983,6 +1994,7 @@ def test_init_commits_agent_guides_in_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2015,6 +2027,7 @@ def test_init_records_current_branch_when_control_branch_is_absent(
     target = _make_real_git_repo(tmp_path / "company", "master")
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2034,6 +2047,7 @@ def test_init_keeps_unborn_configured_branch_implicit(
     target = _make_real_git_repo(tmp_path / "company", "main")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2057,6 +2071,7 @@ def test_init_keeps_default_when_control_branch_exists(
     subprocess.run(["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2106,6 +2121,7 @@ def test_init_uses_confirmed_remote_default_in_established_repo(
     )
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2132,6 +2148,7 @@ def test_init_warns_instead_of_pinning_ambiguous_established_branch(
     )
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2158,6 +2175,7 @@ def test_init_warns_when_no_branch_can_be_detected(
     subprocess.run(["git", "-C", str(target), "checkout", "-q", "--detach"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2247,6 +2265,7 @@ def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
     target = _make_real_git_repo(tmp_path / "company", "master")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     real_copy = update_cmd.copy_fresh_templates
 
     def copy_with_git_table(template_root, coga_os: Path) -> None:
@@ -2313,6 +2332,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2342,6 +2362,7 @@ def test_init_appends_to_existing_host_gitignore(
     (target / ".gitignore").write_text("node_modules/\ndist/\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
