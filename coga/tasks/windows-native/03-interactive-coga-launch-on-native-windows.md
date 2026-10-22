@@ -40,7 +40,7 @@ Make interactive agent sessions work on native Windows, then declare Windows
 supported. That covers `coga launch` of an agent step, `coga chat`,
 `coga build`, `coga ticket`'s authoring session, and `coga megalaunch`
 with its picker. This is the last of the three port tickets. It
-builds on `windows-native/core-port-cli-and-test-suite-pass-on-native-window`,
+builds on `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`,
 which makes every module import on Windows, adds `src/coga/oscompat.py`
 (`lock_dir`, `lock_fd`, `ProcessTree`), and makes every agent-session
 surface refuse on Windows with one "not supported yet" message. **Do not
@@ -472,7 +472,7 @@ session with `teardown` plus `status`.
 - Verifying Codex on native Windows. This ticket tests Coga, not agent
   CLIs (owner, 2026-10-19). The `.cmd` prompt-pointer rule stays, because
   it is Coga's own behavior.
-- WSL, macOS changes, and CI (`windows-native/pr-ci-with-linux-and-windows-test-jobs`).
+- WSL, macOS changes, and CI (`windows-native/02-pr-ci-with-linux-and-windows-test-jobs`).
 - Changing recurring/clone `ProcessTree` behavior on Windows. Those
   consumers keep hard-kill semantics.
 - Editing the README. Its platform sentence already says Windows.
@@ -802,7 +802,7 @@ remain implementation acceptance. Only this evaluator section was authored;
 the ticket body, code and workflow remain for their owning steps.
 
 
-Final checks: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task windows-native/interactive-coga-launch-on-native-windows --json` exited 0 (one task, no issues); `git diff --check` passed. The final `git fetch origin main` introduced no further changes.
+Final checks: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task windows-native/03-interactive-coga-launch-on-native-windows --json` exited 0 (one task, no issues); `git diff --check` passed. The final `git fetch origin main` introduced no further changes.
 
 ## Review-design corrections — 2026-10-19
 
@@ -891,7 +891,7 @@ interactive launch acceptance and Zach's machine check remain future work.
 
 Review validation: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python
 -m coga.cli validate --task
-windows-native/interactive-coga-launch-on-native-windows --json` exited 0
+windows-native/03-interactive-coga-launch-on-native-windows --json` exited 0
 (one task, no issues); `git diff --check` passed. Local assertions confirmed
 unchanged frontmatter, one blackboard fence, the required composable
 Description subsections, and positive/negative exact-marker matching for

@@ -43,7 +43,7 @@ Known going in: on macOS, the Xcode Command Line Tools git stub and the
 system Python 3.9 (below the 3.11 floor). Native Windows does not start at
 all: `coga.git` imports `fcntl` at module top, so even `coga --help` fails,
 and `repl_supervisor` / `megalaunch` need pty/termios/tty. The deep Windows
-port is `windows-native/core-port-cli-and-test-suite-pass-on-native-window` (owner decision 2026-10-13); this
+port is `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` (owner decision 2026-10-13); this
 ticket feeds it findings and does not duplicate it.
 
 Windows moved out on 2026-10-18 (owner). This ticket is macOS only; the
@@ -141,7 +141,7 @@ candidates for a surviving context, for review rather than as commitments:
 - Why native Windows does not run: `coga.git` imports `fcntl` at module
   top and `cli.py` imports `coga.git` eagerly, so even `coga --help` fails,
   and WSL is the untested route. Overlaps
-  `windows-native/core-port-cli-and-test-suite-pass-on-native-window`.
+  `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`.
 - The `--require-hashes` install failure and its two workarounds.
 - Which external CLIs are checked when, and that `coga init` enforces only
   `git`.
@@ -218,7 +218,7 @@ also why it wants its own ticket rather than a section here.
 Nothing from the macOS walk is owed to it. The Windows-specific fact this
 work produced — that `coga.git` imports `fcntl` at module top, so even
 `coga --help` fails — already belongs to
-`windows-native/core-port-cli-and-test-suite-pass-on-native-window` and is
+`windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` and is
 listed above among the facts to rehome when `coga/install` is deleted.
 
 ## Handoff — implement, 2026-10-18

@@ -34,7 +34,7 @@ all. Add a workflow that runs `python -m pytest` on pull requests and pushes
 to `main`, on both `ubuntu-latest` and `windows-latest`, with Python 3.11
 (the floor).
 
-Start after `windows-native/core-port-cli-and-test-suite-pass-on-native-window`
+Start after `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`
 is merged; before that, the Windows job can't pass.
 
 Done when the workflow is merged, both jobs pass on its own PR, and a
@@ -63,7 +63,7 @@ that run in the PR.
   `e2958c82d4fa7e3b9a930e7df7e0e311afba0fea`, and fetched again before
   handing off; the remote tip was unchanged.
 - The required predecessor,
-  `windows-native/core-port-cli-and-test-suite-pass-on-native-window`, is
+  `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`, is
   still `in_progress` at step 3 (`review-design`, owner-held), with no
   recorded implementation branch or PR. GitHub PR searches for `core-port`
   and Windows titles found no merged core-port PR; merged PR #1026 is the
@@ -74,7 +74,7 @@ that run in the PR.
   imports `termios` and `tty`. The prerequisite's promised Windows import
   fixes have not landed, so a Windows test job cannot yet pass.
 - Follow the ticket's explicit start-after-merge constraint: block on
-  `windows-native/core-port-cli-and-test-suite-pass-on-native-window` being
+  `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` being
   merged. No implementation branch, workflow changes, PR, or test run was
   made in this attempt.
 - Resume after that merge: add the Python 3.11 Linux/Windows workflow,
@@ -86,4 +86,4 @@ that run in the PR.
 
 ## Blockers
 
-- [ ] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
+- [ ] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/01-core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
