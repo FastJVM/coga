@@ -1,6 +1,6 @@
 ---
 title: 05 Trim the notifications family
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga/knowledge
