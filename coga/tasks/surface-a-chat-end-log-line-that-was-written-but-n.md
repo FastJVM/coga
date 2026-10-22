@@ -137,9 +137,53 @@ branch: codex/chat-end-log-publication
 - `src/coga/git.py` `sync_log` collapses unchanged, skipped, and failed publication
   to `False`, which the session caller ignores. It also does not require the log
   to be included, so an excluded log can silently look like a successful no-op.
-  Add a required-log check and an explicit session-end publication receipt, with
+  Add a required-log check and an explicit session-end failure summary, with
   regression coverage for successful, rejected, skipped, and excluded publication.
 - Evaluate stranded-tail recovery through the existing strict `publish-state`
   recipe. Avoid automatic broad publication at recurring admission: a log-shaped
   line alone does not prove CLI ownership, and the recipe sweeps other Coga edits.
   Document the recovery and verify concurrent remote/local log lines survive.
+
+## Implementation progress
+
+- Reproduced the silent excluded-log case before changing production code:
+  a Git-ignored, untracked log was written but `sync_log` returned `False`
+  without a diagnostic. The focused pre-fix run had 6 failures and 4 passes.
+  This demonstrates a real publication gap, not proof of the October 8 trigger.
+- `git.sync_log` now requires the log and returns `None` for failure/skip,
+  distinct from an already-published `False`. `launch.spawn_agent_session`
+  summarizes an unconfirmed publication at session end without changing the
+  agent's exit result; explicitly disabled Git remains informational.
+- `recurring_runner._sync_control_checkout_ahead` now offers the strict
+  recovery command for an isolated unstaged log tail on behind control.
+  Admission still preserves state and refuses; recovery is never automatic.
+- User contracts updated with their packaged twins; internal wrapper return
+  semantics updated in `coga-dev/internals/state-publication/publish`.
+- No task-layout, prompt-composition, workflow, or validation behavior changes;
+  seeded fixture edits and `coga validate --json` are not applicable.
+
+## Verification before reconciliation
+
+- Interpreter: Python 3.12.12 from `.venv/bin/python`. Actual implementer:
+  Codex (GPT-6 session), despite the ticket's configured `agent: claude`.
+- Regression-first command:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_launch.py tests/test_recurring.py -k 'sync_log or spawn_reports_unpublished_session_log or pre_scan_catch_up_offers_recovery' -q`
+  failed as expected before the fix (6 failed, 4 passed, 959 deselected), then
+  passed after the initial fix (10 passed, 959 deselected).
+- Intermediate affected-suite command:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_launch.py tests/test_recurring.py tests/test_publish_state.py tests/test_packaging.py -q`
+  returned 1011 passed. This preceded the final mode/partial-line guard coverage
+  and preservation of nonzero agent results; final verification follows below.
+- Full suite:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`
+  returned **4001 passed, 7 skipped** (351.77 s) on implementation commit
+  `8eff4292a042d65b2940bf9f17a823f81233987e`, merge base
+  `878308c9b062bc158c023635cb18074f7b85ce81`. It began on uncommitted implementation
+  bytes, which were committed unchanged during the run: `git diff --quiet HEAD --
+  src tests docs` succeeded; only this live ticket remained dirty.
+- `git diff --check` and `cmp` of both edited canonical/package topic pairs passed.
+- Python 3.11.15 is present but has no pytest (`python3.11 -m pytest --version`
+  reports `No module named pytest`); no 3.11 test claim is made.
+- Current upstream drift is only `coga/log.md` and another ticket. Rebase and
+  fresh affected-suite verification remain before push/handoff. No PR opened;
+  independent review belongs to the next workflow step.
