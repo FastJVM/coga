@@ -1,6 +1,6 @@
 ---
 title: Surface a chat-end log line that was written but never published
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:3af31713-152e-4fcd-bd1a-23fc3cd931eb
 ---
 
 ## Description
