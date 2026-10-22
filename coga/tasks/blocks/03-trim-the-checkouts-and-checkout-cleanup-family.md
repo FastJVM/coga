@@ -151,6 +151,7 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1083
 branch: coga/blocks-03-trim-the-checkouts-and-checkout-cleanup-fcd4a4
 
 ## Handoff (implement, manual session)
@@ -173,6 +174,12 @@ Owner notes and follow-ups:
 - For ticket 08: `coga/launch` "Checkout boundary" says the chat occupancy guard's "scope and lifetime are owned by coga/checkouts/launch-boundary". The owner is `coga/checkouts/chat`; repoint it there.
 - `docs/release-notes/context-audiences.md` still names `coga/checkout-cleanup/proofs` in a dated rename table. This is history, not a link, so I left it.
 - PR #1081 (ticket 02) syncs the packaged copies of checkouts, checkout-cleanup, and branch-sweep. This branch already makes those twins byte-identical with more edits, so whichever PR merges second takes this branch's version of those three packaged files.
+
+## Follow-ups (filed before open-pr)
+
+Obligations the merge does not discharge, filed as drafts:
+- `split-launch-preparation-out-of-the-git-refresh-in` — git-refresh is 223 lines; split its launch-preparation section.
+- `repoint-the-launch-topic-chat-occupancy-guard-owne` — coga/launch still names launch-boundary as chat guard owner (ticket 08 scope; fold in if 08 is open).
 
 ## Peer review
 
