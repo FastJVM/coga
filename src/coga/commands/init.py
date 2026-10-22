@@ -318,12 +318,12 @@ def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
     # `**/*.md` covers both shapes: a file-form `<slug>.md` and a directory-form
     # `<dir>/ticket.md` (both end in `.md`).
     for ticket in sorted(tasks.glob("**/*.md")):
-        text = ticket.read_text()
+        text = ticket.read_text(encoding="utf-8")
         new_text, count = _NEW_USER_LINE.subn(
             lambda match: f"{match.group(1)}: {encoded_name}", text
         )
         if count:
-            ticket.write_text(new_text)
+            ticket.write_text(new_text, encoding="utf-8", newline="\n")
             stamped.append(
                 ticket.parent.name if ticket.name == "ticket.md" else ticket.stem
             )
@@ -595,7 +595,7 @@ def _template_default_agent(template_root: Traversable) -> str | None:
     Mirrors `Config.default_agent`: a top-level `default_agent` naming a
     declared type wins, else the first-declared `[agents.*]` table.
     """
-    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text())
+    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text(encoding="utf-8"))
     agents = shared.get("agents")
     if not isinstance(agents, dict) or not agents:
         return None
@@ -624,7 +624,7 @@ def _write_default_agent(coga_toml: Path, name: str) -> bool:
     written, and the rewrite must parse to the original config plus exactly
     that key, or coga.toml is left untouched and this returns False.
     """
-    text = coga_toml.read_text()
+    text = coga_toml.read_text(encoding="utf-8")
     try:
         before = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
@@ -656,7 +656,7 @@ def _write_default_agent(coga_toml: Path, name: str) -> bool:
         return False
     if after != {**before, "default_agent": name}:
         return False
-    coga_toml.write_text(new_text)
+    coga_toml.write_text(new_text, encoding="utf-8", newline="\n")
     return True
 
 
@@ -671,10 +671,10 @@ def _stamp_agent_into_delivered_tickets(coga_os: Path, old: str, new: str) -> No
     if not tasks.is_dir():
         return
     for ticket in sorted(tasks.glob("**/*.md")):
-        text = ticket.read_text()
+        text = ticket.read_text(encoding="utf-8")
         new_text, count = pattern.subn(f"agent: {new}", text)
         if count:
-            ticket.write_text(new_text)
+            ticket.write_text(new_text, encoding="utf-8", newline="\n")
 
 
 def _check_git_identity(target: Path) -> None:
@@ -761,7 +761,7 @@ def _template_contexts_destination(
     from copying local contexts into the default directory while its own
     config points somewhere else.
     """
-    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text())
+    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text(encoding="utf-8"))
     return resolve_layout_contexts_path(shared.get("layout"), coga_os)
 
 
@@ -796,7 +796,7 @@ def _relocate_fresh_contexts(
         source.rename(destination)
         relocated_gitignore = destination / ".gitignore"
         if not relocated_gitignore.exists():
-            relocated_gitignore.write_text(_RELOCATED_CONTEXTS_GITIGNORE)
+            relocated_gitignore.write_text(_RELOCATED_CONTEXTS_GITIGNORE, encoding="utf-8", newline="\n")
     except BaseException:
         if destination.is_dir():
             shutil.rmtree(destination, ignore_errors=True)
@@ -840,7 +840,7 @@ def _scaffolded_git_defaults(coga_os: Path) -> tuple[str, str, bool]:
     that has one made a deliberate choice — and a second table written under
     it would not even parse.
     """
-    shared = tomllib.loads((coga_os / "coga.toml").read_text())
+    shared = tomllib.loads((coga_os / "coga.toml").read_text(encoding="utf-8"))
     git_table = shared.get("git")
     remote, control_branch, _worktrees_ticket_owned = _parse_git(git_table)
     return control_branch, remote, git_table is not None
@@ -1018,7 +1018,7 @@ def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
     """Record `[git] control_branch` in the freshly scaffolded `coga.toml`."""
     config_path = coga_os / "coga.toml"
     table = _render_git_control_branch_table(branch, default)
-    text = config_path.read_text()
+    text = config_path.read_text(encoding="utf-8")
     anchor = f"\n{_GIT_TABLE_ANCHOR}"
     if anchor in text:
         text = text.replace(anchor, f"\n{table}{anchor}", 1)
@@ -1026,7 +1026,7 @@ def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
         # A customized scaffold without the shipped headings still gets the
         # same table — a trailing one parses identically.
         text = text.rstrip("\n") + "\n\n" + table
-    config_path.write_text(text)
+    config_path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _local_toml_user(local_toml: Path) -> str | None:
@@ -1040,7 +1040,7 @@ def _local_toml_user(local_toml: Path) -> str | None:
     if not local_toml.is_file():
         return None
     try:
-        data = tomllib.loads(local_toml.read_text())
+        data = tomllib.loads(local_toml.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, OSError) as exc:
         typer.secho(
             f"{local_toml} could not be read as TOML ({exc}). Fix or remove "
@@ -1066,12 +1066,12 @@ def _write_local_user(local_toml: Path, name: str) -> str:
         text = render_local_toml(name)
         verb = "wrote"
     else:
-        document = tomlkit.parse(local_toml.read_text())
+        document = tomlkit.parse(local_toml.read_text(encoding="utf-8"))
         document["user"] = name
         text = tomlkit.dumps(document)
         verb = "updated"
     tomllib.loads(text)
-    local_toml.write_text(text)
+    local_toml.write_text(text, encoding="utf-8", newline="\n")
     return verb
 
 
@@ -1355,7 +1355,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         _stamp_user_into_delivered_tickets(coga_os, name)
 
         local_toml = coga_os / "coga.local.toml"
-        local_toml.write_text(render_local_toml(name))
+        local_toml.write_text(render_local_toml(name), encoding="utf-8", newline="\n")
 
         # Init must not scaffold the very control-branch mismatch every later
         # command nags about. Infer only when Git makes the repository's intent
@@ -1708,7 +1708,7 @@ def _write_agent_guides(target: Path) -> list[str]:
         if path.exists():
             continue
         try:
-            path.write_text(AGENT_GUIDE_TEMPLATE)
+            path.write_text(AGENT_GUIDE_TEMPLATE, encoding="utf-8", newline="\n")
         except OSError:
             continue
         written.append(name)

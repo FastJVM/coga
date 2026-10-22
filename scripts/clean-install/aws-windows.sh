@@ -9,7 +9,7 @@ usage() {
 usage (export AWS_PROFILE first; every aws call passes it):
   aws-windows.sh preflight REGION
   aws-windows.sh provision NAME REGION [AZ]   (COGA_CLEAN_INSTALL_ALLOCATE=yes)
-  aws-windows.sh walk NAME pypi|main WIN_USER [OPERATOR]
+  aws-windows.sh walk NAME pypi|REF WIN_USER [OPERATOR]  (main builds origin/main)
   aws-windows.sh ssh NAME [REMOTE-COMMAND ...]
   aws-windows.sh checkout NAME REF
   aws-windows.sh rdp NAME
@@ -344,7 +344,7 @@ EOF
 }
 
 walk() {
-    [[ $# -ge 3 && $# -le 4 && $2 =~ ^(pypi|main)$ ]] || usage
+    [[ $# -ge 3 && $# -le 4 && -n $2 && $2 != -* ]] || usage
     load "$1"
     local artifact=$2 user=$3 operator=${4:-installer}
     [[ $user =~ ^[a-z][a-z0-9]{0,19}$ ]] || { echo "WIN_USER must be a short lowercase name" >&2; exit 2; }
@@ -361,12 +361,12 @@ walk() {
     chmod 700 "$askpass"
 
     local mode=pypi remote_wheel=
-    if [[ $artifact == main ]]; then
+    if [[ $artifact != pypi ]]; then
         # Export the fetched commit, never the caller's working tree.
-        run git -C "$repo_root" fetch origin main
+        run git -C "$repo_root" fetch origin "$artifact"
         local sha tmp wheels
         sha=$(git -C "$repo_root" rev-parse FETCH_HEAD)
-        printf 'origin/main=%s\n' "$sha" | tee "$out/source.txt"
+        printf 'origin/%s=%s\n' "$artifact" "$sha" | tee "$out/source.txt"
         tmp=$(mktemp -d)
         mkdir "$tmp/source"
         git -C "$repo_root" archive "$sha" | tar -x -C "$tmp/source"

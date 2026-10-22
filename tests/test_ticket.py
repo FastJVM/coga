@@ -4,6 +4,13 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow

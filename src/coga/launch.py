@@ -18,7 +18,6 @@ composes and starts the agent.
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import shlex
@@ -61,6 +60,7 @@ from coga.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
+from coga.oscompat import lock_fd
 from coga.config import (
     build_launch_env,
     Config,
@@ -175,6 +175,41 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 }
 _ASSIST_ALIGNMENT_ATTEMPTS = 3
 _T = TypeVar("_T")
+
+WINDOWS_AGENT_SESSION_MESSAGE = (
+    "agent sessions are not supported on native Windows yet; see "
+    "windows-native/03-interactive-coga-launch-on-native-windows."
+)
+
+
+def agent_sessions_supported() -> bool:
+    return os.name != "nt"
+
+
+def require_agent_sessions() -> None:
+    """Refuse an agent entry before writes, including the CLI exit sweep."""
+    if not agent_sessions_supported():
+        _bail(WINDOWS_AGENT_SESSION_MESSAGE, exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+
+
+def _preflight_platform_target(task: str, *, prompt_report: bool) -> None:
+    """Only a locally visible script can admit work on native Windows.
+
+    This read-only classifier precedes checkout preparation, recurring
+    catch-up, chat receipts and draft creation. Missing/stale targets cannot
+    justify moving the checkout to discover whether they need an agent.
+    The normal path reclassifies after every sync as before.
+    """
+    if prompt_report or agent_sessions_supported():
+        return
+    try:
+        cfg = load_config()
+        ref = resolve_target(cfg, task)
+    except (ConfigError, TaskNotFoundError):
+        require_agent_sessions()
+        return
+    if script_entry_point(ref) is None:
+        require_agent_sessions()
 _CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
     "checkout_guard_scope", default=None
 )
@@ -230,7 +265,7 @@ def _orientation_checkout_guard(cfg: Config) -> Iterator[None]:
         )
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_fd(fd, blocking=False)
         except BlockingIOError:
             _bail(
                 "Cannot launch bootstrap/orient: another chat is using this "
@@ -294,6 +329,7 @@ def launch(
     Queue callers use the specialized recurring/delegation entry points below.
     No command-line parser objects or process exits cross this boundary.
     """
+    _preflight_platform_target(task, prompt_report=prompt_report)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
             try:
@@ -753,6 +789,8 @@ def _launch(
     agent_spawn_refusal: str | None = None,
 ) -> LaunchResult:
     """Run the fixed launch phases; each may finish without starting an agent."""
+    if agent_spawn_refusal is None:
+        _preflight_platform_target(task, prompt_report=prompt_report)
     invocation = _LaunchInvocation(
         task=task,
         args=args,
@@ -1610,6 +1648,9 @@ class _LaunchInvocation:
     def _prepare_agent(self) -> LaunchResult | None:
         """Preflight the selected agent before committing lifecycle changes."""
 
+        if not self.prompt_report:
+            require_agent_sessions()
+
         # Deterministic completion, failure, and handoff paths have already
         # returned without consulting agent config, materializing skills,
         # composing a prompt, or probing the CLI binary.
@@ -2388,6 +2429,11 @@ def _require_agent_after_script(
     """Fail loud when ``ticket.py`` left work open but no agent can take it."""
 
     step_label = _script_step_label(ticket)
+    if not agent_sessions_supported():
+        _bail(
+            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open; "
+            f"{WINDOWS_AGENT_SESSION_MESSAGE} The deterministic work was kept."
+        )
     if not _interactive_stdio_has_tty():
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
@@ -3479,6 +3525,7 @@ def spawn_agent_session(
     # rewriting it, so a variable this target does not export (a stateless
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
+    require_agent_sessions()
     env = apply_task_env(env, cfg, ref, ticket)
     # Never inherit a parent assist capability into a nested ordinary launch.
     # Re-mint it only for the exact recorded branch/PR this spawn already

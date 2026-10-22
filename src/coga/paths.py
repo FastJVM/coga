@@ -70,7 +70,7 @@ own local-override paths and is not part of this rule.
 def read_packaged_resource(name: str) -> str:
     """Read a top-level `coga/resources/` file, failing loud but catchably."""
     try:
-        return files("coga.resources").joinpath(name).read_text()
+        return files("coga.resources").joinpath(name).read_text(encoding="utf-8")
     except OSError as exc:
         raise PackagedResourceMissing(
             f"{name} is missing from the installed Coga package "

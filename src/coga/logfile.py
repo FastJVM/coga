@@ -159,7 +159,7 @@ def last_activity_map(cfg: Config) -> dict[str, datetime]:
     if not path.is_file():
         return out
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return out
     for line in log_lines(text):
@@ -194,7 +194,7 @@ def first_activity_map(cfg: Config) -> dict[str, datetime]:
     if not path.is_file():
         return out
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return out
     for line in log_lines(text):
@@ -229,7 +229,7 @@ def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
     if not path.is_file():
         return
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return
     for line in log_lines(text):
@@ -306,7 +306,7 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
         return []
     out: list[str] = []
     keeping = False
-    for line in log_lines(path.read_text()):
+    for line in log_lines(path.read_text(encoding="utf-8")):
         match = _LINE_RE.match(line)
         if match:
             keeping = match.group(2) == task_ref

@@ -9,6 +9,14 @@ Coga state becomes durable on the configured control branch (`origin/main`
 by default). The markdown on disk is always the write; publication only
 carries it there.
 
+Coga state and templates use UTF-8. Coga text writers emit LF on every platform,
+including tickets, log lines, blackboards, config and local run records.
+Readers accept LF and CRLF. Atomic replacement preserves POSIX modes on POSIX;
+on Windows it leaves the new file writable instead of copying POSIX mode bits.
+An existing Git checkout may use CRLF through its own attributes or configuration;
+publication uses Git's clean-filter semantics while transaction guards retain
+their exact-byte comparisons. Coga does not change user-repo line-ending policy.
+
 ## The Coga roots
 
 Everything in the Coga root and the configured contexts root publishes

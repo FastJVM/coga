@@ -22,6 +22,8 @@ syntax authority for every flag.
   new draft or an existing ticket at any status. It chooses workflow, contexts
   and main agent with the human, repairs an out-of-vocabulary status, and
   validates afterwards: a draft left without a workflow is rejected there.
+  Native Windows refuses before target resolution or draft creation, including
+  `--pick-agent`, under the [agent-session platform gate](../../launch/SKILL.md#phases-and-routing).
   `bootstrap/ticket` is injected only into that prompt, never persisted in
   `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
   `claude`/`codex` receive the prompt as system/developer context

@@ -14,7 +14,7 @@ the test suite on native Windows for the `windows-native/` port. Like the other
 harnesses, it is repository tooling and is not installed with Coga:
 
 - `scripts/clean-install/aws-windows.sh` runs on your machine. It drives the
-  AWS CLI, SSH, and the build of the `main` wheel.
+  AWS CLI, SSH, and the build of a fetched-ref wheel.
 - `scripts/clean-install/windows-walk.ps1` runs on the instance under the stock
   Windows PowerShell 5.1. Provision copies it to `C:\coga-clean-install\`.
 
@@ -96,6 +96,7 @@ down. Driver output goes to `host.txt`.
 ```sh
 ./scripts/clean-install/aws-windows.sh walk win1 pypi walk1 installer
 ./scripts/clean-install/aws-windows.sh walk win1 main walk2 installer
+./scripts/clean-install/aws-windows.sh walk win1 my-branch walk3 installer
 ```
 
 Each walk creates a **new local user** (`walk1`), in Users, Remote Desktop
@@ -122,11 +123,15 @@ as `container.sh`:
    `coga init --user <operator>`;
 6. `coga validate --json`.
 
-`main` mode builds the wheel on your machine from the fetched `origin/main`,
-never from your working tree, and copies only that wheel to the instance.
+Any artifact argument other than `pypi` names a ref to fetch from `origin`
+(a branch, tag, or full commit ID). `main` remains the ordinary main-wheel
+spelling. The driver builds from that exact fetched commit, never from the
+working tree, and copies only that wheel to the instance. For a port fix loop,
+push the branch first, then walk that branch as a new local user; a successful
+Administrator checkout is separate evidence from this fresh-user install.
 
 Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
-`result.txt` (exit code), the wheel and `source.txt` for `main`, and
+`result.txt` (exit code), the wheel and `source.txt` for fetched refs, and
 `windows/evidence/`, which holds `transcript.txt`, `steps.txt` (`PASS` lines
 and the first `FAIL (exit N)`), and `init-passed.txt` when init succeeds.
 Native commands retain their exit code; cmdlet errors fail with code 1,

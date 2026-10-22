@@ -1866,7 +1866,7 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
             ticket_path = ref.ticket_path
             if not ticket_path.is_file():
                 continue
-            text = ticket_path.read_text()
+            text = ticket_path.read_text(encoding="utf-8")
             if fence_count(text) >= 1:
                 continue
             title = ref.id_slug
@@ -1889,7 +1889,7 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
             )
             if not new.endswith("\n"):
                 new += "\n"
-            if ticket_path.read_text() != text:
+            if ticket_path.read_text(encoding="utf-8") != text:
                 raise TaskFileError(
                     f"ticket changed before its blackboard repair: {ticket_path}"
                 )

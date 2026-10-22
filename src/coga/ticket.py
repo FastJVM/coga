@@ -184,7 +184,7 @@ class Ticket:
     @classmethod
     def read(cls, path: Path) -> "Ticket":
         try:
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise TicketNotFoundError(f"ticket file missing: {path}") from exc
         return cls.parse(text)

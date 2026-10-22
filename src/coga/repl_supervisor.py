@@ -17,17 +17,20 @@ never tears down a *different* session that merely inherited the env var.
 from __future__ import annotations
 
 import errno
-import fcntl
 import os
-import pty
-import select
+
+if os.name == "posix":
+    import fcntl
+    import pty
+    import select
+    import termios
+    import tty
+
 import signal
 import struct
 import sys
 import tempfile
-import termios
 import time
-import tty
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path

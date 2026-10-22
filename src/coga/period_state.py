@@ -87,7 +87,7 @@ def write_snapshot(
     text = read_blackboard(ticket_path, blackboard_required=False) if ticket_path.is_file() else ""
     keys = parse_keys(text, list(state_keys))
     payload = {"parent": parent, "keys": keys}
-    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n")
+    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def read_snapshot(task_dir: Path) -> StateSnapshot | None:
@@ -101,7 +101,7 @@ def read_snapshot(task_dir: Path) -> StateSnapshot | None:
     if not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):

@@ -7,6 +7,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_skip
+
 import requests
 
 from coga.create import create_task
@@ -948,7 +950,7 @@ def test_validate_reports_non_executable_shebang_skill_script(repo: Path) -> Non
     assert not [i for i in clean.issues if i.kind == "non-executable-script"]
 
 
-@pytest.mark.skipif(os.name != "posix", reason="requires trustworthy POSIX modes")
+@windows_skip("requires trustworthy POSIX modes")
 def test_validate_ignores_global_filemode_outside_git(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -621,7 +621,7 @@ def _refresh_body(existing: dict, title: str, body: str, base: str, legacy_title
 def _write_pr(args: list[str], title: str, body: str, *, cwd: str) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(prefix="coga-pr-") as directory:
         path = Path(directory) / "body.md"
-        path.write_text(body, encoding="utf-8")
+        path.write_text(body, encoding="utf-8", newline="\n")
         return _run([*args, "--title", title, "--body-file", str(path)], cwd=cwd)
 
 

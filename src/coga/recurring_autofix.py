@@ -770,7 +770,7 @@ def create_autofix_ticket(
         created_by="system",
     )
     task_dir = Path(result["path"])
-    (task_dir / RUN_LOG_FILENAME).write_text(run_log)
+    (task_dir / RUN_LOG_FILENAME).write_text(run_log, encoding="utf-8", newline="\n")
     return result["slug"], task_dir
 
 
@@ -803,7 +803,7 @@ def write_run_log(cfg: Config, record: RunRecord, *, rendered: str = "") -> Path
         / f"{record.started:%Y%m%dT%H%M%S}.md"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered or record.render())
+    path.write_text(rendered or record.render(), encoding="utf-8", newline="\n")
     return path
 
 
@@ -919,7 +919,7 @@ def run_autofix_analyze_recipe(cfg: Config, argv: list[str]) -> int:
         )
         return 2
 
-    record_text = path.read_text()
+    record_text = path.read_text(encoding="utf-8")
     try:
         analysis = analyze_record(cfg, record_text, agent_override=args.agent)
     except (AutofixUnavailable, ConfigError) as exc:

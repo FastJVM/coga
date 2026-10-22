@@ -295,3 +295,47 @@ def test_launch_entry_refusal_through_main_skips_the_sweep(
         main()
     assert excinfo.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert sweeps == []
+
+
+@pytest.mark.parametrize("argv", [
+    ["launch", "windows-agent"],
+    ["chat"],
+    ["build"],
+    ["ticket", "A new Windows draft"],
+    ["ticket", "--pick-agent", "A new Windows draft"],
+    ["megalaunch"],
+    ["megalaunch", "--pick"],
+])
+def test_windows_agent_refusal_keeps_checkout_and_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys, argv: list[str]
+) -> None:
+    from coga import launch as launch_module
+
+    ticket = git_repo.coga_os / "tasks" / "windows-agent.md"
+    _write(ticket, TICKET)
+    git_repo.git("add", ".")
+    git_repo.git("commit", "-m", "seed Windows agent ticket")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/keep-this-checkout")
+    ticket.write_text(ticket.read_text() + "\nUnpublished Café notes.\n", encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "log.md").write_text("Unpublished log.\n", encoding="utf-8", newline="\n")
+    monkeypatch.chdir(git_repo.coga_os)
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False, raising=False)
+    monkeypatch.setattr("sys.argv", ["coga", *argv])
+    before = {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()}
+    head = git_repo.git("rev-parse", "HEAD")
+    control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+    index = git_repo.git("ls-files", "--stage")
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code != 0
+    output = capsys.readouterr()
+    assert "agent sessions are not supported on native Windows yet" in output.err
+    assert "windows-native/03-interactive-coga-launch-on-native-windows" in output.err
+    assert {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()} == before
+    assert git_repo.git("branch", "--show-current").strip() == "feature/keep-this-checkout"
+    assert git_repo.git("rev-parse", "HEAD") == head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
+    assert git_repo.git("ls-files", "--stage") == index

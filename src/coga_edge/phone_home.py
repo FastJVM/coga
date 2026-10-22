@@ -143,7 +143,7 @@ def _development_tree(path: Path) -> bool:
         if not (root / "src/coga/runner.py").is_file() or not (root / "tests").is_dir():
             continue
         try:
-            project = tomllib.loads((root / "pyproject.toml").read_text()).get("project", {})
+            project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8")).get("project", {})
         except (OSError, ValueError):
             # An unreadable development marker is not permission to send.
             return True

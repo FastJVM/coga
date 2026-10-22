@@ -17,11 +17,14 @@ Three ways in, one engine:
 from __future__ import annotations
 
 import os
-import select
+
+if os.name == "posix":
+    import select
+    import termios
+    import tty
+
 import signal
 import sys
-import termios
-import tty
 
 import typer
 from rich.console import Console, Group
@@ -102,6 +105,13 @@ def megalaunch(
     sequences that directory as one contiguous block in number order; this is
     a naming convention, not a flag.
     """
+    from coga.launch import LaunchBail, require_agent_sessions
+
+    try:
+        require_agent_sessions()
+    except LaunchBail as exc:
+        typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+        raise typer.Exit(exc.code) from None
     try:
         cfg = load_config()
     except ConfigError as exc:

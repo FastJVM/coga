@@ -11,11 +11,13 @@ import sys
 
 import pytest
 
+from conftest import windows_skip
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="The AWS driver runs on a Unix host")
+@windows_skip("The AWS driver runs on a Unix host")
 def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_path, monkeypatch):
     script = git_repo.root / "scripts/clean-install/aws-windows.sh"
     script.parent.mkdir(parents=True)

@@ -12,6 +12,15 @@ from textwrap import dedent
 from types import SimpleNamespace
 
 import pytest
+
+from conftest import windows_skip
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 from typer.testing import CliRunner
 
 from coga import git as coga_git
@@ -11996,6 +12005,14 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
 
     class InterruptedProcess:
         pid = 4242
+        identity = 4242
+
+        @property
+        def process(self):
+            return self
+
+        def close(self):
+            pass
         terminated = False
         reaped = False
 
@@ -12498,6 +12515,14 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
 
     class CompletedProcess:
         pid = 4242
+        identity = 4242
+
+        @property
+        def process(self):
+            return self
+
+        def close(self):
+            pass
 
         def wait(self, timeout=None):  # type: ignore[no-untyped-def]
             assert timeout is None
@@ -12564,7 +12589,7 @@ def test_control_worktree_child_starts_in_an_isolated_session(
         ["coga", "run", "recurring-scan"], tmp_path, {"PATH": "/bin"}
     )
 
-    assert actual is expected
+    assert actual.process is expected
     assert captured["cwd"] == tmp_path
     assert captured["start_new_session"] is True
 
@@ -12961,7 +12986,7 @@ def test_control_relay_waits_for_real_child_shutdown(
         process.wait()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX signal forwarding")
+@windows_skip("POSIX signal forwarding")
 def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path):
     import signal
     import sys

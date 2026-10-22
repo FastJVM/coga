@@ -46,7 +46,6 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import os
 import re
@@ -65,6 +64,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.logfile import append_log, ref_tag_for_path
@@ -178,14 +178,14 @@ def state_lock(cfg: Config) -> Iterator[None]:
         finally:
             held[1] -= 1
         return
-    lock_root = Path(tempfile.gettempdir()) / f"coga-state-publication-{os.getuid()}"
+    lock_root = lock_dir("coga-state-publication")
     try:
         lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         fd = os.open(lock_root / f"{checkout}.lock", os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as exc:
         raise GitError(f"could not open local state lock: {exc}") from exc
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        lock_fd(fd, blocking=True)
     except OSError as exc:
         os.close(fd)
         raise GitError(f"local state lock failed: {exc}") from exc
@@ -195,7 +195,7 @@ def state_lock(cfg: Config) -> Iterator[None]:
     finally:
         del _HELD_LOCKS[key]
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            unlock_fd(fd)
         finally:
             os.close(fd)
 

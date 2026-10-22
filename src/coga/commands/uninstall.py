@@ -146,7 +146,7 @@ def _build_plan(target: Path, coga_os: Path) -> _Plan:
         if not path.is_file():
             continue
         try:
-            modified = path.read_text() != AGENT_GUIDE_TEMPLATE
+            modified = path.read_text(encoding="utf-8") != AGENT_GUIDE_TEMPLATE
         except OSError:
             modified = True
         if modified:
@@ -167,7 +167,7 @@ def _configured_contexts_root(coga_os: Path) -> tuple[Path | None, str | None]:
     config never makes uninstall guess an external destructive target.
     """
     try:
-        shared = tomllib.loads((coga_os / "coga.toml").read_text())
+        shared = tomllib.loads((coga_os / "coga.toml").read_text(encoding="utf-8"))
         resolved = resolve_layout_contexts_path(shared.get("layout"), coga_os)
     except (ConfigError, OSError, tomllib.TOMLDecodeError) as exc:
         return None, (
@@ -373,7 +373,7 @@ def _has_managed_gitignore(target: Path) -> bool:
     if not gi.is_file():
         return False
     try:
-        return HOST_GITIGNORE_BEGIN in gi.read_text()
+        return HOST_GITIGNORE_BEGIN in gi.read_text(encoding="utf-8")
     except OSError:
         return False
 

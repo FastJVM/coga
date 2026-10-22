@@ -92,7 +92,7 @@ def render_show(cfg: Config, task: str, console: Console | None = None) -> None:
     else:
         from rich.markdown import Markdown
 
-        text = ticket_path.read_text()
+        text = ticket_path.read_text(encoding="utf-8")
         console.print(Markdown(text) if text.strip() else "[dim](empty)[/dim]")
 
     # Bootstrap tickets are stateless: no log history to reconstruct.

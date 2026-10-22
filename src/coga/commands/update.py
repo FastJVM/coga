@@ -130,7 +130,7 @@ def ensure_host_gitignore(target: Path) -> bool:
         return False
 
     gi = target / ".gitignore"
-    existing = gi.read_text() if gi.is_file() else ""
+    existing = gi.read_text(encoding="utf-8") if gi.is_file() else ""
 
     begin = existing.find(HOST_GITIGNORE_BEGIN)
     if begin == -1:
@@ -152,7 +152,7 @@ def ensure_host_gitignore(target: Path) -> bool:
 
     if new == existing:
         return False
-    gi.write_text(new)
+    gi.write_text(new, encoding="utf-8", newline="\n")
     return True
 
 
@@ -167,7 +167,7 @@ def remove_host_gitignore(target: Path) -> bool:
     gi = target / ".gitignore"
     if not gi.is_file():
         return False
-    existing = gi.read_text()
+    existing = gi.read_text(encoding="utf-8")
 
     begin = existing.find(HOST_GITIGNORE_BEGIN)
     if begin == -1:
@@ -190,7 +190,7 @@ def remove_host_gitignore(target: Path) -> bool:
 
     if new == existing:
         return False
-    gi.write_text(new)
+    gi.write_text(new, encoding="utf-8", newline="\n")
     return True
 
 
@@ -250,7 +250,7 @@ def _refresh_coga_gitignore(src_root: Traversable, dst_root: Path) -> bool:
     block = f"{COGA_GITIGNORE_BEGIN}\n{body}{COGA_GITIGNORE_END}\n"
 
     dst = dst_root / ".gitignore"
-    existing = dst.read_text() if dst.is_file() else ""
+    existing = dst.read_text(encoding="utf-8") if dst.is_file() else ""
 
     begin = existing.find(COGA_GITIGNORE_BEGIN)
     if begin == -1:
@@ -274,13 +274,13 @@ def _refresh_coga_gitignore(src_root: Traversable, dst_root: Path) -> bool:
 
     if new == existing:
         return False
-    dst.write_text(new)
+    dst.write_text(new, encoding="utf-8", newline="\n")
     return True
 
 
 def _render_coga_gitignore_body(src_root: Traversable) -> str:
     src = _resource_join(src_root, Path(".gitignore"))
-    upstream_text = src.read_text().rstrip()
+    upstream_text = src.read_text(encoding="utf-8").rstrip()
     body = _COGA_GITIGNORE_HEADER
     if upstream_text:
         body += upstream_text + "\n"

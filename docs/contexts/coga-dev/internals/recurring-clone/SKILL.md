@@ -39,7 +39,8 @@ the next sweep retries.
 
 ## Windows
 
-On Windows a wrapper (`_WINDOWS_JOB_WRAPPER`) joins a supervisor-owned job
+The shared `oscompat.ProcessTree` owns both recurring runners' children.
+On Windows its wrapper (`_WINDOWS_JOB_WRAPPER`) joins a supervisor-owned job
 object (`_WindowsJob`) before starting any script code, so descendants remain
 owned after their parent exits. Job termination and kill-on-close clean up the
 entire tree; setup or cleanup errors are reported, never replaced by

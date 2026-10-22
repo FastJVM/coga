@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import windows_interactive_skip
+
 from coga.repl_supervisor import (
     SENTINEL_ENV,
     _TIMEOUT_EXIT_CODE,
@@ -36,6 +38,7 @@ def _exited(code: int) -> int:
     return code << 8
 
 
+@windows_interactive_skip
 def test_classify_exit_passthrough_when_not_signalled() -> None:
     """No watcher stop → the child's own status passes straight through."""
     assert _classify_exit(_exited(0), term_kind=None) == (0, "natural", [])
@@ -47,6 +50,7 @@ def test_classify_exit_passthrough_when_not_signalled() -> None:
     )
 
 
+@windows_interactive_skip
 def test_classify_exit_our_signal_is_clean_done() -> None:
     """Death from our own SIGTERM/SIGKILL after a done stop reports a clean 0."""
     code, kind, notes = _classify_exit(_signaled(signal.SIGTERM), term_kind="done")
@@ -57,6 +61,7 @@ def test_classify_exit_our_signal_is_clean_done() -> None:
     assert (code, kind) == (0, "done")
 
 
+@windows_interactive_skip
 def test_classify_exit_timeout_teardown_is_non_zero() -> None:
     """Death from our own signal after a *timeout* stop reports the timeout exit
     code and kind — a wedge must not masquerade as a clean done."""
@@ -72,6 +77,7 @@ def test_classify_exit_timeout_teardown_is_non_zero() -> None:
     assert (code, kind) == (_TIMEOUT_EXIT_CODE, "timeout")
 
 
+@windows_interactive_skip
 def test_classify_exit_surfaces_real_crash_after_stop() -> None:
     """A crash by a non-our signal during teardown is surfaced as a crash, not
     masked — regardless of whether we were tearing down for done or timeout."""
@@ -83,6 +89,7 @@ def test_classify_exit_surfaces_real_crash_after_stop() -> None:
     assert (code, kind) == (128 + signal.SIGSEGV, "crash")
 
 
+@windows_interactive_skip
 def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
     """No-TTY callers (pytest, CI) skip the PTY path and just shell out."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: False)
@@ -93,6 +100,7 @@ def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> Non
     assert outcome.exit_code != 0
 
 
+@windows_interactive_skip
 def test_no_tty_missing_binary_raises_agent_cli_not_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -106,6 +114,7 @@ def test_no_tty_missing_binary_raises_agent_cli_not_found(
     assert isinstance(excinfo.value, FileNotFoundError)
 
 
+@windows_interactive_skip
 def test_no_tty_after_spawn_callback_releases_held_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -127,6 +136,7 @@ def test_no_tty_after_spawn_callback_releases_held_child(
     assert marker.read_text() == "ran"
 
 
+@windows_interactive_skip
 def test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -184,6 +194,7 @@ def test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write(
     assert marker.read_text() == "ran"
 
 
+@windows_interactive_skip
 def test_no_tty_release_failure_compensates_before_reaping_held_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -243,6 +254,7 @@ def test_no_tty_release_failure_compensates_before_reaping_held_child(
     assert not marker.exists()
 
 
+@windows_interactive_skip
 def test_no_tty_interrupt_after_gate_delivery_retains_admission(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -342,6 +354,7 @@ def _run_through_pty(
         os.close(devnull_in)
 
 
+@windows_interactive_skip
 def test_natural_exit_passes_through_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -351,6 +364,7 @@ def test_natural_exit_passes_through_exit_code(
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
 
 
+@windows_interactive_skip
 def test_pty_child_replaces_inherited_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -385,6 +399,7 @@ def test_pty_child_replaces_inherited_environment(
     assert observed.read_text() == "(None, 'kept')"
 
 
+@windows_interactive_skip
 def test_after_spawn_callback_releases_held_pty_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -410,6 +425,7 @@ def test_after_spawn_callback_releases_held_pty_child(
     assert marker.read_text() == "ran"
 
 
+@windows_interactive_skip
 def test_after_spawn_failure_reaps_pty_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -455,6 +471,7 @@ def _run_through_pty_idle(
         os.close(devnull_in)
 
 
+@windows_interactive_skip
 def test_idle_timeout_terminates_silent_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -479,6 +496,7 @@ def test_idle_timeout_terminates_silent_child(
     assert elapsed < 10  # torn down on idle, not after the full sleep
 
 
+@windows_interactive_skip
 def test_idle_timeout_does_not_fire_on_self_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -491,6 +509,7 @@ def test_idle_timeout_does_not_fire_on_self_exit(
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
 
 
+@windows_interactive_skip
 def test_max_session_terminates_output_producing_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -513,6 +532,7 @@ def test_max_session_terminates_output_producing_child(
     assert elapsed < 10  # torn down on the wall-clock cap, not left to spin
 
 
+@windows_interactive_skip
 def test_sentinel_file_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -530,6 +550,7 @@ def test_sentinel_file_terminates_child(
     assert (outcome.exit_code, outcome.kind) == (0, "done")
 
 
+@windows_interactive_skip
 def test_session_id_match_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -542,6 +563,7 @@ def test_session_id_match_terminates_child(
     assert (outcome.exit_code, outcome.kind) == (0, "done")
 
 
+@windows_interactive_skip
 def test_session_id_mismatch_is_ignored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -560,6 +582,7 @@ def test_session_id_mismatch_is_ignored(
     assert (outcome.exit_code, outcome.kind) == (5, "natural")
 
 
+@windows_interactive_skip
 def test_done_signal_is_observed_independently_of_teardown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -570,6 +593,7 @@ def test_done_signal_is_observed_independently_of_teardown(
     assert (outcome.kind, outcome.done_signalled) == ("done", True)
 
 
+@windows_interactive_skip
 def test_no_done_signal_reports_no_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -584,6 +608,7 @@ def test_no_done_signal_reports_no_observation(
     assert (mismatched.kind, mismatched.done_signalled) == ("natural", False)
 
 
+@windows_interactive_skip
 def test_no_tty_fallback_has_no_done_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -591,6 +616,7 @@ def test_no_tty_fallback_has_no_done_observation(
     assert run_with_done_marker(["true"], env={}).done_signalled is False
 
 
+@windows_interactive_skip
 def test_done_signal_followed_by_crash_keeps_crash_and_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -609,6 +635,7 @@ def test_done_signal_followed_by_crash_keeps_crash_and_observation(
     assert outcome.done_signalled is True
 
 
+@windows_interactive_skip
 def test_done_signal_during_timeout_teardown_keeps_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -628,6 +655,7 @@ def test_done_signal_during_timeout_teardown_keeps_timeout(
     assert outcome.done_signalled is True
 
 
+@windows_interactive_skip
 def test_late_done_signal_is_seen_after_child_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -721,6 +749,7 @@ def _run_through_pty_capture(
     return outcome, captured
 
 
+@windows_interactive_skip
 def test_exec_failure_names_the_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed exec must say *why* — a bare 127 reads as "command not found"
     even when the real cause is E2BIG or EACCES."""
@@ -731,6 +760,7 @@ def test_exec_failure_names_the_error(monkeypatch: pytest.MonkeyPatch) -> None:
     assert b"coga: exec /nonexistent/coga-agent-cli failed" in out
 
 
+@windows_interactive_skip
 @pytest.mark.skipif(
     sys.platform != "linux", reason="per-argument MAX_ARG_STRLEN is Linux-specific"
 )
@@ -745,6 +775,7 @@ def test_oversized_argv_element_reports_e2big(
     assert b"Argument list too long" in out
 
 
+@windows_interactive_skip
 def test_tty_sanitize_emitted_after_signal_teardown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -771,6 +802,7 @@ def test_tty_sanitize_clears_keyboard_protocols() -> None:
     assert b"\x1b[>4;0m" in _TTY_SANITIZE  # xterm modifyOtherKeys off
 
 
+@windows_interactive_skip
 def test_tty_sanitize_skipped_on_self_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

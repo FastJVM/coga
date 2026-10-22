@@ -14,10 +14,12 @@ from textwrap import dedent
 from unittest.mock import Mock
 
 import pytest
+
+from conftest import windows_skip
 from typer.testing import CliRunner
 
 from coga import recurring_runner as recurring_cmd
-from coga import recurring_clone
+from coga import recurring_clone, oscompat
 from coga.cli import app
 from coga.config import load_config
 from coga.recurring import (
@@ -231,7 +233,7 @@ def test_clone_timeout_keeps_diagnostics_and_does_not_advance_ledger(repo: Path)
     assert read_clone_ledger(cfg, "hung") is None
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX process-group cleanup")
+@windows_skip("POSIX process-group cleanup")
 @pytest.mark.parametrize("parent_waits", [True, False])
 def test_clone_timeout_kills_descendant_holding_stdout(repo: Path, parent_waits: bool) -> None:
     script = repo / "descendant.py"
@@ -308,11 +310,12 @@ def windows_kernel(monkeypatch: pytest.MonkeyPatch) -> Mock:
 def test_windows_job_owns_descendants_after_direct_child_exits(windows_kernel: Mock) -> None:
     child = Mock()
     child.poll.return_value = 0
-    with recurring_clone._WindowsJob() as job:
+    with oscompat._WindowsJob() as job:
         info = windows_kernel.SetInformationJobObject.call_args.args
         assert info[1] == 9  # JobObjectExtendedLimitInformation
         assert info[2]._obj.BasicLimitInformation.LimitFlags == 0x2000
-        recurring_clone._stop_clone_script(child, job)
+        job.terminate()
+        child.wait()
         windows_kernel.TerminateJobObject.assert_called_once_with(123, 124)
         child.wait.assert_called_once()
     windows_kernel.CloseHandle.assert_called_once_with(123)
@@ -320,7 +323,7 @@ def test_windows_job_owns_descendants_after_direct_child_exits(windows_kernel: M
 
 def test_windows_job_closes_when_process_start_fails(windows_kernel: Mock) -> None:
     with pytest.raises(OSError, match="spawn failed"):
-        with recurring_clone._WindowsJob():
+        with oscompat._WindowsJob():
             raise OSError("spawn failed")
     windows_kernel.CloseHandle.assert_called_once_with(123)
 
@@ -328,15 +331,15 @@ def test_windows_job_closes_when_process_start_fails(windows_kernel: Mock) -> No
 def test_windows_job_configuration_failure_releases_handle(windows_kernel: Mock) -> None:
     windows_kernel.SetInformationJobObject.return_value = 0
     with pytest.raises(OSError, match="Windows error"):
-        recurring_clone._WindowsJob()
+        oscompat._WindowsJob()
     windows_kernel.CloseHandle.assert_called_once_with(123)
 
 
 def test_windows_job_termination_error_is_reported_and_closes_handle(windows_kernel: Mock) -> None:
     windows_kernel.TerminateJobObject.return_value = 0
     with pytest.raises(OSError, match="Windows error"):
-        with recurring_clone._WindowsJob() as job:
-            recurring_clone._stop_clone_script(Mock(), job)
+        with oscompat._WindowsJob() as job:
+            job.terminate()
     windows_kernel.CloseHandle.assert_called_once_with(123)
 
 
@@ -360,11 +363,11 @@ def test_windows_wrapper_joins_job_before_starting_script(
     if failure:
         getattr(windows_kernel, failure).return_value = 0
         with pytest.raises(OSError, match="Windows error"):
-            exec(recurring_clone._WINDOWS_JOB_WRAPPER, {})
+            exec(oscompat._WINDOWS_JOB_WRAPPER, {})
         spawn.assert_not_called()
     else:
         with pytest.raises(SystemExit) as caught:
-            exec(recurring_clone._WINDOWS_JOB_WRAPPER, {})
+            exec(oscompat._WINDOWS_JOB_WRAPPER, {})
         assert caught.value.code == 17
         spawn.assert_called_once()
     if failure != "OpenJobObjectW":

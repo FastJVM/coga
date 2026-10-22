@@ -53,6 +53,35 @@ _TEMPLATES_COGA_OS = (
 )
 
 
+def windows_skip(reason: str):
+    """The single marker for Windows exclusions; each caller states why."""
+    return pytest.mark.skipif(os.name == "nt", reason=reason)
+
+
+windows_interactive_skip = windows_skip(
+    "agent sessions/PTY: windows-native/03-interactive-coga-launch-on-native-windows"
+)
+
+
+def write_executable(path: Path, source: str) -> Path:
+    """Install a Python CLI stub with the same argv on both native platforms."""
+    source = dedent(source).lstrip()
+    if source.startswith("#!"):
+        source = source.split("\n", 1)[1]
+    if os.name == "nt":
+        script = path.with_suffix(".py")
+        script.write_text(source, encoding="utf-8", newline="\n")
+        launcher = path.with_suffix(".cmd")
+        launcher.write_text(
+            f'@echo off\n"{sys.executable}" "{script}" %*\n',
+            encoding="utf-8", newline="\n",
+        )
+        return launcher
+    path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8", newline="\n")
+    path.chmod(0o755)
+    return path
+
+
 def seed_direct_body_workflow(coga_os: Path) -> None:
     """Copy the shipped `direct/body` workflow + skill into a test repo.
 
@@ -81,6 +110,9 @@ def _isolate_home(tmp_path_factory, monkeypatch):
     # alone so subprocess calls (git, etc.) still work in tests.
     fake_home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("APPDATA", str(fake_home / "AppData" / "Roaming"))
+    monkeypatch.setenv("LOCALAPPDATA", str(fake_home / "AppData" / "Local"))
 
 
 @pytest.fixture(autouse=True)
@@ -95,6 +127,8 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
     tmp = tmp_path_factory.mktemp("tmp")
     monkeypatch.setattr(tempfile, "tempdir", str(tmp))
     monkeypatch.setenv("TMPDIR", str(tmp))
+    monkeypatch.setenv("TMP", str(tmp))
+    monkeypatch.setenv("TEMP", str(tmp))
 
 
 @pytest.fixture(autouse=True)
@@ -407,6 +441,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     _g("config", "user.email", "test@example.com")
     _g("config", "user.name", "Coga Test")
     _g("config", "commit.gpgsign", "false")
+    _g("config", "core.autocrlf", "false")
 
     (coga_os / "coga.toml").write_text(
         dedent(

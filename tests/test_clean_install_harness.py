@@ -10,6 +10,10 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_skip
+
+pytestmark = windows_skip("Unix host-side bash clean-install harness")
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/clean-install/container.sh"
