@@ -9141,3 +9141,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 12:31 v1 [surface-a-chat-end-log-line-that-was-written-but-n] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-22 12:31 v1 [surface-a-chat-end-log-line-that-was-written-but-n] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-22 12:31 v1 [surface-a-chat-end-log-line-that-was-written-but-n] [megalaunch] launched via coga megalaunch
+2026-10-22 12:37 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [agent:codex] advanced to step 3 (open-pr) → claude
