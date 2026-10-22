@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 3af31713-152e-4fcd-bd1a-23fc3cd931eb
 ---
 
 ## Description
@@ -123,7 +122,7 @@ ordinary ticket.
 
 branch: codex/chat-end-log-publication
 
-## Investigation and plan
+## Investigation
 
 - Started on clean `main`, fetched and fast-forward checked against `origin/main`.
 - Confirmed multiply repair commit `daccdc5b7c6507ba7b93f920dd239dc67ea48b9c`
@@ -134,17 +133,18 @@ branch: codex/chat-end-log-publication
   The predecessor was checked at `93b1df8cfb5abab190952ef04ab3f1012643602c`.
   This was not a missing teardown call. The original supervisor stderr and
   installed version are unavailable; the exact historical Git failure is unknown.
-- `src/coga/git.py` `sync_log` collapses unchanged, skipped, and failed publication
-  to `False`, which the session caller ignores. It also does not require the log
-  to be included, so an excluded log can silently look like a successful no-op.
-  Add a required-log check and an explicit session-end failure summary, with
-  regression coverage for successful, rejected, skipped, and excluded publication.
-- Evaluate stranded-tail recovery through the existing strict `publish-state`
-  recipe. Avoid automatic broad publication at recurring admission: a log-shaped
-  line alone does not prove CLI ownership, and the recipe sweeps other Coga edits.
-  Document the recovery and verify concurrent remote/local log lines survive.
+- Before this change, `src/coga/git.py` `sync_log` collapsed unchanged, skipped,
+  and failed publication to `False`, which the session caller ignored. It did
+  not require the log to be included, so an excluded log could silently look
+  like a successful no-op.
 
-## Implementation progress
+## Implementation handoff
+
+- Implemented and pushed `198f3ad6a430e4368cf07e62b8fbcbaccafeafc5` on the branch
+  above. Rebased onto `69a4487cd82a4c0257ec2286a03b188bf07f134c`; no code conflicts.
+  Source, tests, and docs are byte-identical to the full-suite-tested pre-rebase
+  commit. Returned this manual checkout to clean, fast-forwarded `main` before
+  writing this handoff. No PR was opened; next action is independent peer review.
 
 - Reproduced the silent excluded-log case before changing production code:
   a Git-ignored, untracked log was written but `sync_log` returned `False`
@@ -157,6 +157,10 @@ branch: codex/chat-end-log-publication
 - `recurring_runner._sync_control_checkout_ahead` now offers the strict
   recovery command for an isolated unstaged log tail on behind control.
   Admission still preserves state and refuses; recovery is never automatic.
+  An append does not prove CLI ownership, and `publish-state` sweeps all eligible
+  Coga state, so the diagnostic requires inspection before explicit recovery.
+  Regression coverage rejects rewrites, staged logs, other dirt, mode changes,
+  and incomplete lines, and proves both local and remote lines survive recovery.
 - User contracts updated with their packaged twins; internal wrapper return
   semantics updated in `coga-dev/internals/state-publication/publish`.
 - No task-layout, prompt-composition, workflow, or validation behavior changes;
@@ -184,6 +188,71 @@ branch: codex/chat-end-log-publication
 - `git diff --check` and `cmp` of both edited canonical/package topic pairs passed.
 - Python 3.11.15 is present but has no pytest (`python3.11 -m pytest --version`
   reports `No module named pytest`); no 3.11 test claim is made.
-- Current upstream drift is only `coga/log.md` and another ticket. Rebase and
-  fresh affected-suite verification remain before push/handoff. No PR opened;
-  independent review belongs to the next workflow step.
+- Reconciliation incorporated only ticket/log updates. The affected-suite
+  command above was rerun on the final pushed revision: **1016 passed** (152.93 s).
+  `git diff --check` and both topic-pair comparisons also passed after rebase.
+  The structured receipts below retain the full suite's actual earlier OID.
+
+## PR
+
+```yaml
+title: Report unconfirmed session logs and offer stranded-tail recovery
+author: codex
+author_evidence: This implement session used Codex (GPT-6), not the ticket's configured Claude agent.
+head: 198f3ad6a430e4368cf07e62b8fbcbaccafeafc5
+base: 69a4487cd82a4c0257ec2286a03b188bf07f134c
+depth: deep
+rationale: Publication checks and recovery advice need independent review; the historical incident's exact trigger remains unconfirmed.
+implementation: Requires the log in publication, distinguishes failure from an already-published no-op, warns at session end when publication is unconfirmed, and offers explicit recovery for an isolated log tail blocking recurring catch-up.
+deviations: The October 8 code already attempted teardown publication. Its original installed version and supervisor stderr were unavailable, so this fixes a reproduced silent excluded-log case without claiming it caused that incident.
+limitations: Agent exit status is preserved and failures remain nonfatal. Recovery is advisory and sweeps all eligible Coga state when explicitly invoked. Full-suite verification preceded a ticket/log-only rebase; all affected suites were rerun afterwards. Python 3.11 and a real interactive agent session were not exercised.
+files:
+  src/coga/git.py: Require the log, preserve the publication result distinction, and give excluded files applicable recovery advice.
+  src/coga/launch.py: Summarize unconfirmed log publication after session capture while preserving the agent result.
+  src/coga/recurring_runner.py: Recognize a narrow append-only log-tail case and offer inspection plus strict recovery without mutation.
+  tests/test_git.py: Cover ignored logs, failure versus no-op results, and successful publication.
+  tests/test_launch.py: Cover session-end reporting for unreachable, excluded, and unavailable-control publication while preserving zero and nonzero agent exits.
+  tests/test_recurring.py: Verify hint boundaries, preservation on refusal, and union-safe recovery with concurrent remote entries.
+  docs/contexts/coga/state-publication/SKILL.md: Own session-end publication reporting and stranded-tail recovery instructions.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Describe the recurring catch-up diagnostic and its non-mutating behavior.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Document the required-log wrapper and its tri-state result.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Ship the byte-identical publication contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Ship the byte-identical recurring contract.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This is the implement step; independent code review is the next workflow step.
+checks:
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_launch.py tests/test_recurring.py tests/test_publish_state.py tests/test_packaging.py -q
+    status: passed
+    head: 198f3ad6a430e4368cf07e62b8fbcbaccafeafc5
+    base: 69a4487cd82a4c0257ec2286a03b188bf07f134c
+    detail: 1016 passed in 152.93 seconds on Python 3.12.12 after rebase.
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
+    status: passed
+    head: 8eff4292a042d65b2940bf9f17a823f81233987e
+    base: 878308c9b062bc158c023635cb18074f7b85ce81
+    detail: 4001 passed, 7 skipped in 351.77 seconds on Python 3.12.12. Implementation bytes were committed unchanged during the run. This is the pre-rebase receipt, not restamped onto the final OID.
+  - command: git diff --check
+    status: passed
+    head: 198f3ad6a430e4368cf07e62b8fbcbaccafeafc5
+    base: 69a4487cd82a4c0257ec2286a03b188bf07f134c
+    detail: No whitespace errors after reconciliation.
+  - command: cmp docs/contexts/coga/state-publication/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md
+    status: passed
+    head: 198f3ad6a430e4368cf07e62b8fbcbaccafeafc5
+    base: 69a4487cd82a4c0257ec2286a03b188bf07f134c
+    detail: Canonical and packaged publication topics are byte-identical after rebase.
+  - command: cmp docs/contexts/coga/recurring/scheduling/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md
+    status: passed
+    head: 198f3ad6a430e4368cf07e62b8fbcbaccafeafc5
+    base: 69a4487cd82a4c0257ec2286a03b188bf07f134c
+    detail: Canonical and packaged recurring topics are byte-identical after rebase.
+  - command: PYTHONPATH=/home/n/Code/codex/coga/src python3.11 -m pytest
+    status: not-run
+    detail: Python 3.11.15 is installed but the pytest availability probe failed with No module named pytest; tests ran in the existing Python 3.12.12 environment.
+  - command: coga validate --json
+    status: not-run
+    detail: No configuration, task-model, workflow, prompt-composition, or validation behavior changed.
+```
