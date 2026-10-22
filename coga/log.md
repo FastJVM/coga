@@ -9102,3 +9102,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 10:18 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-22 10:21 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-22 10:23 v1 [keep-the-file-list-when-a-control-fast-forward-ref] [human:nicktoper] created (status=draft)
+2026-10-22 10:23 v1 [surface-a-chat-end-log-line-that-was-written-but-n] [human:nicktoper] created (status=draft)
