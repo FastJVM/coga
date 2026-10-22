@@ -9088,3 +9088,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 09:06 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-22 09:06 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-10-22 09:06 v1 [blocks/01-self-document-coga-toml-and-split-the-agents-to] [human:nicktoper] auto-bumped on merge of PR #1080 → done
+2026-10-22 09:06 v1 [blocks/02-delete-the-code-topic-and-remove-coga-repo-only] [human:nicktoper] auto-bumped on merge of PR #1081 → done
