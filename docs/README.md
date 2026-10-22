@@ -76,8 +76,7 @@ New tickets include a field guide from the
   [Dream](../coga/recurring/dream/ticket.md).
 - Team sync: [Git state overview](contexts/coga/sync/SKILL.md),
   [notifications](contexts/coga/notifications/SKILL.md)
-  ([producers](contexts/coga/notifications/producers/SKILL.md),
-  [failures](contexts/coga/notifications/failures/SKILL.md)),
+  ([producers](contexts/coga/notifications/producers/SKILL.md)),
   [coga-important](contexts/coga/important/SKILL.md),
   [usage records](contexts/coga/usage/SKILL.md),
   [state publication](contexts/coga/state-publication/SKILL.md).

@@ -54,9 +54,8 @@ transition.
 
 | Question | Topic |
 | --- | --- |
-| Which events post, where, and how to configure the channel | [`coga/notifications`](../notifications/SKILL.md) |
+| Which events post and where; what happens when a post fails | [`coga/notifications`](../notifications/SKILL.md) |
 | Which producers post on which surface | [`coga/notifications/producers`](../notifications/producers/SKILL.md) |
-| What happens when a post fails; preflight; redaction | [`coga/notifications/failures`](../notifications/failures/SKILL.md) |
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
 | `publish`, the sweep, strict versus best-effort paths | [`coga/state-publication`](../state-publication/SKILL.md) and its [`publish`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md), [`sweep`](../state-publication/sweep/SKILL.md) and [`authoring`](../state-publication/authoring/SKILL.md) leaves |
 | Why a publish is refused; stale generations; schema conversions | [`coga-dev/internals/git-regressions`](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/git-regressions/SKILL.md) |
@@ -70,17 +69,6 @@ not at all.
 
 ## Design rule for new features
 
-A command that changes state others need to know about reaches both layers:
-
-1. Make the three notification decisions — surface, destination, preflight
-   policy — described in `coga/notifications`.
-2. Publish its task through `git.sync_task_state` at the logic boundary where
-   the write, validation, log append, and notification post have all
-   finalized ([publication implementation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md)). The end-of-command sweep
-   is a backstop with a generic message, not a substitute for the readable,
-   individually attributed publish.
-3. Echo the local outcome to stdout before posting, so it stays visible
-   above any notification error.
-
-Never bypass both layers when the team needs awareness; never post chatter
-that is not an outcome, urgent exception, or explicit FYI.
+A change can affect both notification and publication behavior. For
+developers extending Coga itself, optional implementation guidance lives in
+[Coga patterns](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md#sync-for-new-commands).

@@ -39,6 +39,25 @@ durable-file model (`coga/architecture`).
   composition needs append-only regions, disjoint hunks, or an explicit
   publish guard — see `coga-dev/internals/spool-merge`.
 
+## Sync for new commands
+
+A command that changes state others need to know about reaches both sync
+layers:
+
+1. Make the three notification decisions — surface, destination, preflight
+   policy — described in
+   [notification internals](../internals/notifications/SKILL.md#adding-a-notifying-command).
+2. Publish its task through `git.sync_task_state` at the logic boundary where
+   the write, validation, log append, and notification post have all
+   finalized ([publication implementation](../internals/state-publication/publish/SKILL.md)).
+   The end-of-command sweep is a backstop with a generic message, not a
+   substitute for the readable, individually attributed publish.
+3. Echo the local outcome to stdout before posting, so it stays visible
+   above any notification error.
+
+Never bypass both layers when the team needs awareness; never post chatter
+that is not an outcome, urgent exception, or explicit FYI.
+
 ## Not covered here
 
 - The primitives themselves — `coga/architecture` and `coga/recurring`.
