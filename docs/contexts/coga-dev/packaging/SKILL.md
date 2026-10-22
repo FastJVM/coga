@@ -22,6 +22,31 @@ editing `bootstrap/workflows/code/*.md` changes what `mark_active` freezes into
 Coga's own tickets. Check which side is live before assuming an edit is
 downstream-only.
 
+## Distribution states for a context
+
+- **Bootstrap fallback**: `templates/coga/bootstrap/contexts/<ref>/SKILL.md`
+  (every `coga/*` topic). `coga init` skips `bootstrap/`;
+  `paths.resolve_context_path` reads the package copy
+  (`bootstrap_context_path`) when the repo has no local `<ref>/SKILL.md`.
+- **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds
+  `.gitignore` and `_template/SKILL.md`. `commands/update.py`
+  `copy_fresh_templates` copies them once; nothing reads the packaged
+  original at runtime.
+- **Local-only**: no packaged copy, resolved first and unknown to other repos
+  (a repo's `product/` topics, or this repo's `coga-dev/` set).
+
+Resolution is local, then `bootstrap/contexts/`, then `None`, which `compose`
+turns into a `ComposeError`. Skills and workflows have the same split:
+fallback only from `bootstrap/{skills,workflows}/`, while seeded
+`templates/coga/{skills,workflows}/` files are one-time copies.
+
+**Bundled launchers may only name fallback contexts.** A bundled
+`bootstrap/<verb>/ticket.md`, or a bundled skill that tells the agent to apply
+a context, must name contexts that resolve from `bootstrap/contexts/`, because
+an init-seeded copy may be pruned or predate the repo.
+`tests/test_packaging.py::test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts`
+enforces this.
+
 ## Canonical copies and twins
 
 The audience criterion belongs to

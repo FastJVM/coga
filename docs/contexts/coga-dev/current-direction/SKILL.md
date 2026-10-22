@@ -92,6 +92,18 @@ is `coga status` and the ticket bodies; stage posture is
   recovery when a step went wrong but the premise holds. When the premise is
   wrong, cancel the ticket with its reason, fix the owning context and start
   a new one. Contract: [`coga/lifecycle`](../../coga/lifecycle/SKILL.md).
+- **Init offers to install missing external CLIs (owner reversal,
+  2026-09-30).** Users read a missing `gh` as a broken, unprofessional
+  install and churn. Interactive `coga init` offers `git`, `gh` and `op`; it
+  still installs no Python package or skill, and nothing without a yes.
+  Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
+  may set or replace the default agent behind an explicit confirm. Contract:
+  [`coga/install`](../../coga/install/SKILL.md).
+- **Native Windows stays unsupported; WSL is the untested route.**
+  `src/coga/git.py` imports `fcntl` at module top for the state-publication
+  lock and `cli.py` imports `coga.git` eagerly, so every command fails. A
+  port needs a portable substitute for that lock, not only guarded terminal
+  imports. Contract: [`coga/install`](../../coga/install/SKILL.md).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no
   ticket does ADK work. `anthropic/skill-creator/` is the verbatim

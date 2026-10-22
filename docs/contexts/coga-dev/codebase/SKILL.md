@@ -27,6 +27,12 @@ The repo separates implementation from the OS it operates:
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
   `workflow.py` / `bump.py` / `step_gate.py` / `mark.py` (steps, gates,
   status), `validate.py` (`coga validate`).
+  `config.load_config` rejects unknown keys through `_reject_unknown_keys`,
+  `_reject_unknown_sections` and the per-table parsers; removed or misplaced
+  keys get tailored errors first. Adding a config key means adding it to its
+  table's allowlist and the [coga/configuration](../../coga/configuration/SKILL.md)
+  table in the same change. Only `_resolve_secret_value` runs `env:`
+  indirection, for the two Slack webhook keys.
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
   `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/sync](../../coga/sync/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
@@ -43,7 +49,11 @@ The repo separates implementation from the OS it operates:
   disposal order), `retire_worklist.py` (`retires.md`).
 - `dependencies.py` (external CLI manifest) and `agent_cli_setup.py` (agent
   CLI install and login offer, for `coga init` and `coga build`).
-- `skill_manager.py` (`coga skill`), `notification/`,
+- `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed
+  membership, `classify_gh_update_output` maps `gh` output to outcomes; a
+  legacy digest that includes machine-local directories may still prove a
+  tree unchanged, and status reuses update's comparisons without writing),
+  `notification/`,
   `text.py` (shared ANSI stripper), `reminders.py` (sweep harness for
   downstream scripts).
 - `resources/`: prompt resources and the packaged Coga OS under

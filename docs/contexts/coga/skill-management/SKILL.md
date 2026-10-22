@@ -9,7 +9,6 @@ Coga resolves a skill ref from the directory path: project-local
 `coga/skills/<ref>/` first, then the package's `bootstrap/skills/`. Agents see
 the effective set through the generated `coga/.agent-skills/` view. Every
 install is explicit: `coga init` installs no skills and makes no `gh` call.
-`src/coga/skill_manager.py` implements everything below.
 
 ## Skill shapes
 
@@ -20,7 +19,7 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
 - **GitHub-backed, flat**: `coga skill install <owner/repo> <skill>` lands
   `coga/skills/<ref>/` under its upstream name. Membership is provenance, not
   a list: a skill is GitHub-backed exactly when its `SKILL.md` frontmatter
-  carries `gh skill`'s `metadata.github-repo` (`gh_skill_repo`). There is no
+  carries `gh skill`'s `metadata.github-repo`. There is no
   manifest; a pack never installed, or removed, stays absent.
 - **URL-backed, flat**: `coga skill install-url <url>` lands the same flat
   placement plus `.coga-source.json` (`schema: coga.skill-source.v1`,
@@ -43,10 +42,9 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
 
 ## `coga skill` commands
 
-`install <owner/repo-or-url> [skill]`, `install-url <url> [--force]`,
-`install-local <path> [skill]`, `update <skill>` or `update --all [--json] [--pr]
-[--pr-title ...] [--verify <cmd>]...`, `remove <skill>` (exact name, a normal
-Git delete), and `status [--check] [--json]`.
+The subcommands are `install`, `install-url`, `install-local`, `update`,
+`remove` (exact name, a normal Git delete), and `status`; flags are in
+`coga skill <subcommand> --help`.
 
 - `coga skill` wraps GitHub CLI `gh skill` (public preview, **gh 2.90.0+**);
   when it is unavailable Coga fails loud with an upgrade hint. `gh` is an
@@ -55,8 +53,7 @@ Git delete), and `status [--check] [--json]`.
   GitHub-backed skills are updated one `gh skill update --dir coga/skills
   --all <ref>` call at a time, so every outcome names that skill. Here `--all`
   only suppresses gh's confirmation; the explicit ref still selects one skill.
-  `classify_gh_update_output` maps the output to `updated`, `unchanged`,
-  `fetch-failed`, or `skipped-pinned`. `gh` is probed once before any write. A
+  Each outcome is `updated`, `unchanged`, `fetch-failed`, or `skipped-pinned`. `gh` is probed once before any write. A
   GitHub-backed skill nested below the root (`ns/<name>`) is `failed` without
   calling `gh`, which would move it to `coga/skills/<name>`.
 - URL-backed skills go through Coga's digest checks. An installed twin of a
@@ -68,21 +65,6 @@ Git delete), and `status [--check] [--json]`.
   [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
-
-## Known PR checkout failure
-
-`coga skill update --all --pr` applies updates before
-`run_skill_update_pr_flow` carries them onto the shared branch with
-`git checkout -B coga/skill-update <control-branch>` (`_commit_skill_updates`
-and `_checkout` in `src/coga/skill_manager.py`). Its preflight,
-`_assert_no_unmerged_paths`, checks only `git diff --name-only --diff-filter=U`.
-Ordinary dirty tracked files pass that check. If the checkout would overwrite
-one (for example `coga/log.md`), Git refuses and Coga surfaces the raw
-"Your local changes ... would be overwritten by checkout" error, exiting 2.
-This is a known failure mode, not a friendly dirty-tree preflight; it does not
-mean every dirty file blocks checkout. Publish or otherwise preserve the
-conflicting changes before retrying, and inspect the already-applied skill
-updates left in the working tree.
 
 ## URL-backed provenance rules
 
@@ -100,13 +82,10 @@ updates left in the working tree.
   adaptation, and an upstream change confined to those paths is not detected.
   The set is fixed rather than read from `.gitignore`, so a digest depends
   only on the tree's bytes.
-- **Older digests remain verifiable.** When a current digest differs from
-  its record, the legacy hash (including machine-local directories) may
-  still prove the installed or upstream tree unchanged. Update migrates
-  verified provenance to the current digests; a metadata-only repair reports
-  a change for `--pr` without replacing skill files. Status uses the same
-  comparisons without writing. A legacy mismatch is still an adaptation or
-  upstream change, not permission to discard edits.
+- **Older digests remain verifiable.** Provenance recorded by an older Coga
+  still verifies; `update` migrates it to the current digests, and that
+  metadata-only repair shows as a change in the `--pr` flow without touching
+  skill files. A legacy mismatch is still an adaptation or upstream change.
 - **`include` makes pruning reproducible.** Install and update prune the
   fetched tree to the listed repo-relative paths before landing it (no
   absolute paths or `..`; `SKILL.md` and `.coga-source.json` always kept).

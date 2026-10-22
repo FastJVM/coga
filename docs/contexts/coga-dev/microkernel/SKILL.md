@@ -69,3 +69,39 @@ preflights, and declarative gates (such as `requires: pr` in `bump`) in core
 when they have other consumers; keep tests pointed at the moved code with the
 same failure behavior; expose the bootstrap target and add an alias only for a
 stable spelling; never create a task per invocation.
+
+## The kernel tier and its edges
+
+The kernel is launch/compose and what launch calls mid-flight (`mark`, `bump`,
+secret injection, notify dispatch), what must exist before any launch
+(`create`, fresh `init`), the `block`/`unblock` state transitions, the fixed
+`runner.RECIPES`, and proven co-versioned commands.
+[coga/extension-model](../../coga/extension-model/SKILL.md) owns the tiers a
+repo chooses from.
+
+- **No inversion.** Moving logic out of the kernel moves the substance
+  unchanged: deterministic Python stays Python (a recipe or `ticket.py`),
+  never agent judgment.
+- **`prepare-checkout` is a recipe, not shared infra alone.** It is the one
+  in-chat consumer of the branch preparation in `src/coga/checkouts.py` that
+  ordinary launch also calls, so those mechanics are shared infra. The recipe
+  is registered because its argv, report and 0/2/75 exits must agree with
+  launch's private live-chat receipt. It is not a Typer head, alias, ticket
+  plugin, or general phase registry.
+- **Skill provenance at use is unbuilt.** Compose does not verify loaded
+  skills against a provenance digest; that launch-time trust hook would be
+  kernel when built.
+- **Keep the bad-alias escape hatch.** `aliases.validate_aliases` failing
+  makes `cli.main` exit 2 before ordinary commands; `init`, `uninstall` and
+  the `recurring --all` parent dispatch on `aliases.BUILTIN_COMMANDS`
+  defaults and survive it. Keep that when tightening validation.
+
+## Edge packaging invariants
+
+`src/coga_edge/` ships in the same wheel as `src/coga/`. Edge modules may
+import shared `coga` infrastructure; core never imports edge implementations.
+`coga_edge/__init__.py` has no eager job imports or side effects. Phone-home's
+module imports only stdlib and shared `coga.*`, never relative or sibling
+edge modules, and carries both normal and private `--worker` dispatch behind
+`__main__`; its worker executes that same file, including when copied to a
+local fork. Preserve these constraints when refactoring it.

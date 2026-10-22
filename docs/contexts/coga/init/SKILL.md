@@ -8,8 +8,8 @@ description: What `coga init` does for a fresh repo versus a clone of a repo tha
 `coga init [PATH] --user <name>` adopts Coga into an existing Git project. It
 belongs in the real project, not an empty scratch directory: Coga lives in
 the same repo as the work it organizes. Starting a brand-new project means
-`git init` first. The command (`src/coga/commands/init.py` `_do_init`) takes
-one of two paths depending on whether `PATH/coga/coga.toml` already exists.
+`git init` first. The command takes one of two paths depending on whether
+`PATH/coga/coga.toml` already exists.
 
 ## Fresh repo
 
@@ -31,9 +31,8 @@ each failure exits 2 with the remedy:
 
 Then init:
 
-1. Copies the packaged template tree (`src/coga/resources/templates/coga/`)
-   into `coga/`, skipping `bootstrap/`
-   (`src/coga/commands/update.py` `copy_fresh_templates`). The result is
+1. Copies the packaged template tree into `coga/`, skipping `bootstrap/`.
+   The result is
    `coga.toml`, `context.md`, `log.md`, `tasks/`, `recurring/`, `skills/`,
    `workflows/`, a `contexts/` holding only the `_template/` scaffold and its
    `.gitignore`, `coga/.gitattributes` (`merge=union` for `log.md` and
@@ -108,7 +107,7 @@ git clone <repo> && cd <repo>
 coga init --user <your-name>
 ```
 
-This path (`_setup_initialized_clone`) stages and commits nothing. It wires
+This path stages and commits nothing. It wires
 the agent skill links first. If that fails, it exits non-zero and leaves the
 local config untouched. Fix the reported path and re-run; correct links
 from an earlier attempt are reused. Then it writes `user`. A missing file
@@ -134,12 +133,4 @@ with `Run coga init --user <name>`.
 
 Discovery: commands find the repo by walking up for `coga.toml`, also
 checking a sibling `coga/` at each level. A nested Coga repo is only found
-from inside its own subtree (`src/coga/config.py` `find_repo_root`).
-
-## Ticket-writing template
-
-`coga create` instantiates the `ticket.md` body resource, generating canonical
-frontmatter and appending the configured `blackboard.md`. Its explanatory
-comment stays in each ticket. Init no longer seeds `tasks/_template/ticket.md`;
-existing copies remain repo-owned but are not read by creation or the editor.
-A repo may override `<coga root>/resources/ticket.md`.
+from inside its own subtree.
