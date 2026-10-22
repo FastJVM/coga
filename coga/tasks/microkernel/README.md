@@ -26,6 +26,30 @@ v1 is done here when the "Open command placements" table in
 (command ticket, `ticket.py`, `src/coga_edge/`, alias) or carries a written
 co-versioning proof.
 
+## Reduction objective
+
+Owner clarification (2026-10-22): alongside settling command placement,
+reduce the kernel's surface and the total code and complexity we maintain.
+Look for duplicated mechanics, redundant wrappers, and obsolete paths that
+can be removed within each ticket's reviewed scope. Reuse existing shared
+primitives; a new abstraction must replace real callers, not add another
+layer around them.
+
+Each design identifies concrete simplifications. Each implementation reports
+before/after evidence at named revisions: production-code size across core,
+edge, and ticket/skill scripts in its scope, plus the entrypoints, dependency
+paths, or duplicate implementations removed. State the counting method and
+report tests, documentation, and packaged copies separately. Distinguish code
+relocated from code deleted or deduplicated: moving it to the edge does not
+reduce the total maintenance burden by itself.
+
+There is no arbitrary line-count quota. Preserve behavior, deterministic
+execution, failure visibility, and meaningful test coverage. A justified
+behavior-preserving extraction may be size-neutral; record its boundary gain
+and hand any deferred simplification to a named sibling or follow-up instead
+of claiming a code reduction. Classification-only work supplies that evidence
+for the proposed change and leaves implementation to its reviewed follow-up.
+
 ## Ground rules
 
 - Commands operate on durable tickets, not untracked side effects. Keep CLI

@@ -37,6 +37,14 @@ Close the two residual rows of the "Open command placements" table:
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      classify unnecessary coordinator/wrapper layers as well as placement,
+      identify concrete deletions or reuse of existing authoring/finalization
+      primitives, and estimate the kernel and total production-code impact.
+      Hand implementation to the migration follow-up with that baseline;
+      preserve validation and post-exit finalization, and keep `skill *`
+      migration outside this classification ticket.
+
 - [ ] `ticket` has a written co-versioning proof in `coga-dev/microkernel`,
       or is moved to the edge with unchanged behavior and tests.
 - [ ] `skill *` has an explicit classification and reason in

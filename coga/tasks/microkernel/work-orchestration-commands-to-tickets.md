@@ -29,6 +29,13 @@ record why it must be co-versioned with the package.
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      simplify duplicated launch/orchestration scaffolding and unnecessary
+      wrappers in `megalaunch` and `slack` using the shared launch boundary.
+      Count their edge implementations in the before/after total; moving
+      queue policy out of core alone is a placement gain, not less code to
+      maintain. Keep recurring recipes and the executor outside this scope.
+
 - [ ] The design defines one shared creator/launcher/alias pattern for these
       heads, so they do not each invent a migration shape.
 - [x] `retire` is split into a concrete follow-up with exact acceptance

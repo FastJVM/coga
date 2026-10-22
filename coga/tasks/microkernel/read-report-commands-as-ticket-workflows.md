@@ -31,6 +31,13 @@ Preserve quick read ergonomics and machine-readable output (`--json`).
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      identify redundant command/report wrappers and duplicated rendering or
+      checking, reusing the existing views and validation primitives where
+      they serve actual callers. Report code and dependency reduction across
+      core and edge while preserving quick deterministic reads, JSON, and
+      exit codes.
+
 - [ ] Each head is classified as edge command, read-view wrapper with a
       written co-versioning proof, or alias sugar, and recorded in
       the local-only `coga-dev/microkernel` topic.

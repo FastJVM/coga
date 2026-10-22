@@ -91,6 +91,14 @@ verb migration unless it is required to prove the launch split.
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      re-inventory the current launch modules and callers, then identify
+      duplicated session setup/supervision and obsolete wrappers that this
+      split can remove. Report the kernel and total production-code delta
+      separately. Keep the first split behavior-preserving; a size-neutral
+      extraction must show a dependency reduction and name the follow-up
+      responsible for each deferred simplification.
+
 - [ ] `src/coga/commands/launch.py` is a thin Typer adapter: parse CLI values,
       resolve/report user-facing errors, invoke prompt-report or the launch
       service, and format the terminal outcome. Other modules no longer import

@@ -31,6 +31,12 @@ kernel hook and stays.
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      identify redundant support wrappers and duplicated bootstrap/tooling
+      mechanics in this scope, and measure simplification across core and
+      edge. Preserve secret handling and the ability to uninstall with a
+      broken alias configuration; relocation alone is not code reduction.
+
 - [ ] `secret get` and `uninstall` are each classified with a written reason
       in the local-only `coga-dev/microkernel` topic, not an implicit "already
       exists" reason.

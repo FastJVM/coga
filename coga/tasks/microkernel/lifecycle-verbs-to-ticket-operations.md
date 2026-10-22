@@ -37,6 +37,13 @@ confirmed that boundary for v1 on 2026-10-16.
 
 ### Acceptance criteria
 
+- [ ] Apply the group's [reduction objective](README.md#reduction-objective):
+      identify redundant wrappers or duplicated state-write scaffolding in
+      the three owned heads, reuse existing shared primitives where justified,
+      and report the resulting code and dependency reduction separately from
+      placement changes. Preserve the lifecycle invariants below and the
+      confirmed kernel home of `block`/`unblock`.
+
 - [ ] The design names, for `block`, `unblock` and `owner`, the internal
       state-write primitive each head calls, and separates the primitive from
       the user-facing head.
