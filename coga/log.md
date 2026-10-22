@@ -9107,3 +9107,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 11:48 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-22 11:48 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-22 11:48 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] launched (operator=codex, agent=codex)
+2026-10-22 11:49 v1 [windows-native/pr-ci-with-linux-and-windows-test-jobs] [megalaunch] activated (draft → active) — explicit megalaunch pick
