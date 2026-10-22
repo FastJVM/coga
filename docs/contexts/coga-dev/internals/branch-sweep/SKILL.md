@@ -75,8 +75,11 @@ before any PR lookup or deletion.
 ## Retirement tags
 
 `_publish_retirement_tag` archives the actual authorized tip, fetching
-missing remote objects first. If both local and remote refs will be deleted,
-one of those tips must contain the other; the tag points to that descendant.
+missing remote objects first. `_containing_tip` first looks for a tip that
+contains all the others. If none exists, tips covered by `pr_heads` are
+excluded and the remaining tips must have a containing tip for the tag;
+otherwise publication refuses. The user-facing recovery contract is the
+[archive rule](../../../coga/checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
 The second worktree proof also requires the worktree's HEAD to still be the
 archived local tip; an initial refusal leaves the archive untouched.
 
