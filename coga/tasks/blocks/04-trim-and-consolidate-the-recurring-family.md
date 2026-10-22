@@ -1,6 +1,6 @@
 ---
 title: 04 Trim and consolidate the recurring family
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
