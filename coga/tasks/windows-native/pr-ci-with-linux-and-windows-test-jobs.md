@@ -1,6 +1,6 @@
 ---
 title: PR CI with Linux and Windows test jobs
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:ff354710-ecc2-470f-960c-fe7efcfbd25d
 ---
 
 ## Description
