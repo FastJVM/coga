@@ -9037,3 +9037,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 21:14 v1 [blocks/03-trim-the-checkouts-and-checkout-cleanup-family] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-21 21:14 v1 [blocks/03-trim-the-checkouts-and-checkout-cleanup-family] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-10-21 21:17 v1 [blocks/03-trim-the-checkouts-and-checkout-cleanup-family] [human:nicktoper] unblocked (asks resolved, still in_progress): PR #1081 has merged (a1a3f5049b5dd2457f531a4d81b79b6a6425bb9f). The attending human confirmed clearing this blocker and continuing: rebase the pushed branch onto current main, rerun the full suite and validation, and refresh the final peer-review and PR receipts before advancing.
+2026-10-21 21:29 v1 [blocks/03-trim-the-checkouts-and-checkout-cleanup-family] [agent:codex] advanced to step 3 (open-pr) → claude
