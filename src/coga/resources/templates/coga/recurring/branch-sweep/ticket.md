@@ -68,12 +68,12 @@ which:
    Then it removes the eligible worktree, reported under `removed worktree`,
    and deletes the local branch and/or remote ref under the local-before-remote
    deletion rules in
-   [coga/checkout-cleanup/proofs](context:coga/checkout-cleanup/proofs) that
+   [coga/checkout-cleanup](context:coga/checkout-cleanup) that
    `coga retire` also follows, skipping and reporting anything unmerged with no
    merged PR,
 7. from the control branch, disposes of the `retires.md` entries that record
    this clone as `owner` under the
-   [checkout proofs](context:coga/checkout-cleanup/proofs) autoclose runs, and
+   [checkout proofs](context:coga/checkout-cleanup) autoclose runs, and
    publishes just that worklist when it discharged or refreshed one — the
    only commit this clone-scoped run makes, and
 8. prints a `## Branch Sweep` report — the outcome lists and every
