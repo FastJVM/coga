@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -3725,9 +3726,53 @@ def _sync_control_checkout_ahead(
         f"{cfg.git_remote}/{cfg.git_control_branch}."
         f"\nResolve it in {root} as the [git] note above says, then re-run."
     )
+    reason += _stranded_log_recovery_hint(cfg, root)
     if announce_failure:
         sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {reason}\n")
     return _ControlCatchup(fresh=False, reason=reason)
+
+
+def _stranded_log_recovery_hint(cfg: Config, root: Path) -> str:
+    """Offer recovery for a lone unstaged log append on behind control.
+
+    This is evidence for a useful remedy, not proof of who wrote the tail or
+    permission to publish it during admission. Any failed probe keeps the
+    original catch-up diagnostic; no checkout contents or refs are changed.
+    """
+    path = log_path(cfg)
+    rel = git.relative_to_root(root, path)
+    control = f"{cfg.git_remote}/{cfg.git_control_branch}"
+    try:
+        if git.symlink_component(path) is not None:
+            return ""
+        status = git.run_git(root, "status", "--porcelain", "-z", "--untracked-files=all")
+        if status != f" M {rel}\x00":
+            return ""
+        if git.run_git(root, "diff", "--summary", "HEAD", "--", rel):
+            return ""  # A mode change is more than a log append.
+        git.run_git(root, "merge-base", "--is-ancestor", "HEAD", control)
+        if git.run_git(root, "rev-parse", "HEAD") == git.run_git(root, "rev-parse", control):
+            return ""
+        before = git.tree_bytes(root, "HEAD", rel)
+        after = path.read_bytes()
+        if (
+            before is None
+            or (before and not before.endswith(b"\n"))
+            or not after.startswith(before)
+            or len(after) == len(before)
+            or not after.endswith(b"\n")
+        ):
+            return ""
+    except (git.GitError, OSError):
+        return ""
+    return (
+        f"\nA possible unpublished log tail in {path} may be blocking catch-up. "
+        f"Review `git -C {shlex.quote(str(root))} diff -- {shlex.quote(rel)}`, "
+        f"then run `coga run publish-state {shlex.quote(str(path))}` from "
+        f"{shlex.quote(str(cfg.repo_root))} and retry. This publishes all eligible "
+        "Coga state; inspect any new changes before running it. "
+        "The tail was preserved; no recovery was attempted."
+    )
 
 
 def _launch_created(

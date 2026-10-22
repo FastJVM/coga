@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import itertools
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
@@ -1922,11 +1924,54 @@ def test_sync_log_reports_on_stderr_only(git_repo, capsys):
     append_log(cfg, "bootstrap/orient", "human:marc", "launched")
     git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
 
-    assert git.sync_log(cfg, message="Log: bootstrap/orient") is False
+    assert git.sync_log(cfg, message="Log: bootstrap/orient") is None
     err = capsys.readouterr().err
     assert "log sync failed" in err
     assert "The local log was retained" in err
     assert "sync failed" not in _global_log(cfg)
+
+
+def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
+    """A written log excluded by Git must not look like a published no-op."""
+    cfg = load_config(git_repo.coga_os)
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+    append_log(cfg, "bootstrap/orient", "system", "session usage")
+    before = _global_log(cfg)
+
+    assert git.sync_log(cfg, message="Log: bootstrap/orient") is None
+
+    err = capsys.readouterr().err
+    assert "log sync failed" in err
+    assert "excluded from publication" in err
+    assert _global_log(cfg) == before
+    assert not git_repo.origin_tracks("coga/log.md")
+
+    # Follow the actual printed remedy: it must require the excluded log,
+    # not let a no-path sweep report success while the log is still ignored.
+    recovery = shlex.split(err.split("Run `", 1)[1].split("`", 1)[0])
+    assert recovery[:3] == ["coga", "run", "publish-state"]
+    command = [sys.executable, "-m", "coga.cli", *recovery[1:]]
+    refused = subprocess.run(command, capture_output=True, text=True)
+    assert refused.returncode == 1, refused.stdout + refused.stderr
+    assert "excluded from publication" in refused.stderr
+    assert _global_log(cfg) == before
+    assert not git_repo.origin_tracks("coga/log.md")
+
+    (git_repo.root / ".git" / "info" / "exclude").write_text("")
+    recovered = subprocess.run(command, capture_output=True, text=True)
+    assert recovered.returncode == 0, recovered.stdout + recovered.stderr
+    assert _control(git_repo, "coga/log.md") == before
+    assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_sync_log_distinguishes_already_published_from_failure(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    append_log(cfg, "bootstrap/orient", "system", "session usage")
+
+    assert git.sync_log(cfg, message="Log: bootstrap/orient") is True
+    assert git.sync_log(cfg, message="Log: bootstrap/orient") is False
+    assert "log sync failed" not in capsys.readouterr().err
+    assert _control(git_repo, "coga/log.md") == _global_log(cfg)
 
 
 # --- state_lock ---------------------------------------------------------------

@@ -249,16 +249,22 @@ def sync_task_state(
     return None
 
 
-def sync_log(cfg: Config, *, message: str) -> bool:
-    """Publish `coga/log.md` alone (stateless launches); stderr-only on failure."""
+def sync_log(cfg: Config, *, message: str) -> bool | None:
+    """Publish the required log; return True/False for published/already held.
+
+    A failed or skipped publication returns None, with its reason on stderr.
+    Requiring the log prevents an ignored new log from silently succeeding
+    as a no-op. Callers can distinguish that failure from an unchanged log.
+    """
     try:
-        return bool(publish(cfg, [log_path(cfg)], message))
+        path = log_path(cfg)
+        return publish(cfg, [path], message, require_paths=[path])
     except GitError as exc:
         sys.stderr.write(sync_failure_report(
             cfg, exc, message=message, label="log sync failed",
-            retained="The local log was retained",
+            retained="The local log was retained", recovery_paths=[path],
         ))
-        return False
+        return None
 
 
 def sync_coga_state(
@@ -490,9 +496,9 @@ def _publish_locked(
             # Mode counts too: a mode-only edit control lacks is not on control.
             if entry != _tree_entry(root, base, rel):
                 raise GitError(
-                    f"{rel}: required authored file is excluded from publication "
-                    "and differs from control; merge its reviewed change before "
-                    "completing the authoring handoff"
+                    f"{rel}: required file is excluded from publication "
+                    "and differs from control; check ignore rules or merge its "
+                    "reviewed change before retrying"
                 )
         if not rels:
             return False

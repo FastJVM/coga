@@ -1130,6 +1130,57 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     assert "outside.txt" in git_repo.git("status", "--porcelain")
 
 
+@pytest.mark.parametrize("exit_code", [0, 7])
+@pytest.mark.parametrize("failure", ["offline", "ignored", "missing-control"])
+def test_spawn_reports_unpublished_session_log(
+    git_repo, monkeypatch, capsys, failure, exit_code
+):
+    """Chat ends normally, but its later usage append must not fail silently."""
+    cfg = load_config(git_repo.coga_os)
+    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    monkeypatch.setattr(
+        "coga.launch.compose_prompt",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
+    )
+    if failure == "ignored":
+        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+
+    def finish_session(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if failure == "offline":
+            git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
+        elif failure == "missing-control":
+            git_repo.git("branch", "-m", "main", "other")
+            git_repo.git("remote", "remove", "origin")
+        return ReplOutcome(exit_code=exit_code, kind="exit")
+
+    monkeypatch.setattr("coga.launch.run_with_done_marker", finish_session)
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        launch_module.append_log(cfg, "bootstrap/orient", "system", '{"tokens": 1}')
+
+    monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_usage)
+
+    result = spawn_agent_session(
+        cfg, ref, _ticket(),
+        AgentType(name="claude", cli="claude", file="CLAUDE.md", mode="local"),
+        env={}, actor="human:marc", log_message="launched", discussion=True,
+        commit_log=failure != "ignored",
+    )
+
+    assert result.exit_code == exit_code
+    err = capsys.readouterr().err
+    assert "Session bootstrap/orient ended; log publication was not confirmed" in err
+    assert str(git_repo.coga_os / "log.md") in err
+    assert '{"tokens": 1}' in _read_log(git_repo.coga_os)
+    if failure != "ignored":
+        assert '{"tokens": 1}' not in git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    else:
+        assert not git_repo.origin_tracks("coga/log.md")
+    if failure == "offline":
+        assert "coga run publish-state" in err
+
+
 def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, monkeypatch):
     """The usage record appended after a PR-gated bump reaches control only.
 

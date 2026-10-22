@@ -9501,6 +9501,56 @@ def test_pre_scan_catch_up_diverged_names_the_fix(git_repo, capsys) -> None:
     assert git_repo.git("status", "--porcelain") == ""
 
 
+@pytest.mark.parametrize(
+    "change", ["append", "rewrite", "other-dirt", "staged", "mode", "partial-line"]
+)
+def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change) -> None:
+    """Offer strict recovery for a stranded append without publishing on admission."""
+    from coga.publish_state import run_publish_state_recipe
+
+    cfg = load_config(git_repo.coga_os)
+    append_log(cfg, "bootstrap/orient", "system", "original session")
+    assert coga_git.sync_log(cfg, message="seed log") is True
+    log = log_path(cfg)
+    original = log.read_text()
+    git_repo.push_competing_commit("coga/log.md", original + "remote session\n")
+    append_log(cfg, "bootstrap/orient", "system", "stranded session")
+    if change == "rewrite":
+        log.write_text(log.read_text().replace("original session", "edited session"))
+    elif change == "other-dirt":
+        (git_repo.coga_os / "tasks" / "notes.md").write_text("unfinished work\n")
+    elif change == "staged":
+        git_repo.git("add", "coga/log.md")
+    elif change == "mode":
+        git_repo.git("config", "core.fileMode", "true")
+        log.chmod(0o755)
+    elif change == "partial-line":
+        log.write_text(log.read_text().rstrip("\n"))
+    before = log.read_bytes()
+    head = git_repo.git("rev-parse", "HEAD")
+    remote = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    catchup = recurring_cmd._sync_control_checkout_ahead(cfg, announce_failure=False)
+
+    assert not catchup.fresh
+    assert log.read_bytes() == before
+    assert git_repo.git("rev-parse", "HEAD") == head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote
+    if change != "append":
+        assert "coga run publish-state" not in catchup.reason
+        return
+    assert "unpublished log tail" in catchup.reason
+    assert f"coga run publish-state {log}" in catchup.reason
+    assert "all eligible Coga state" in catchup.reason
+
+    assert run_publish_state_recipe(cfg, [str(log)]) == 0
+    assert recurring_cmd._sync_control_checkout_ahead(cfg).fresh
+    published = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert published.count("stranded session") == 1
+    assert published.count("remote session") == 1
+    assert git_repo.git("status", "--porcelain") == ""
+
+
 def test_pre_scan_catch_up_realigns_a_state_only_divergence(git_repo, capsys) -> None:
     """A local commit of Coga state control already carries no longer stalls
     the catch-up: control is realigned and the scan starts from its tip."""
