@@ -1,6 +1,6 @@
 ---
 title: Keep the file list when a control fast-forward refuses over local changes
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:536140b1-d196-4784-bba9-9880b1c9ff34
 ---
 
 ## Description
