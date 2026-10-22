@@ -9021,3 +9021,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 19:17 v1 [blocks/09-trim-setup-and-extension-topics] [megalaunch] launched via coga megalaunch
 2026-10-21 19:24 v1 [preflight-dirty-tracked-files-before-skill-update] [human:nicktoper] created (status=draft)
 2026-10-21 19:26 v1 [stop-the-contexts-root-sweep-from-publishing-canon] [human:nicktoper] created (status=draft)
+2026-10-21 19:39 v1 [blocks/09-trim-setup-and-extension-topics] [agent:claude] advanced to step 2 (peer-review) → codex — Implement done; main's 3 packaging failures are inherited from blocks/02 and clear once PR #1081 merges.
