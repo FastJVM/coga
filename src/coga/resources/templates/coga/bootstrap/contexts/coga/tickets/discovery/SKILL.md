@@ -35,8 +35,9 @@ Discovery walks `coga/tasks/` at any depth:
   the original's own path: `coga create` refuses to nest a ticket inside a
   directory-form task. Do not put `ticket.md` at a group root; that makes it a
   task, and discovery stops there. Coga deliberately has no split contract
-  (no split skill, roster section, or cross-link convention); reopen that
-  only on evidence of repeated oversized-ticket failures.
+  (no split skill, roster section, or cross-link convention): agents rarely
+  used the added instructions, so they were prompt noise. Reopen only on
+  evidence of repeated oversized-ticket failures.
 
 A task's identity is its **path under `tasks/`**: the bare leaf at top level,
 otherwise the relative path (`marketing/social/relaunch`). A ref resolves when

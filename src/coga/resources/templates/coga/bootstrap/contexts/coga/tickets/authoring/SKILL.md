@@ -10,13 +10,14 @@ syntax authority for every flag.
 
 - `coga create "<dir/>Title"` writes a raw `draft` (no Slack, no launch). A
   `/` separates an optional group path (created if missing) from the title
-  leaf, which is slugified for the ref and kept verbatim as the title. A
-  `_`-prefixed segment makes the target parked
+  leaf, which is slugified for the ref and kept verbatim as the title. It
+  rejects `..`, nesting inside an existing task, and non-slug-like group
+  components. A `_`-prefixed segment makes the target parked
   ([discovery](../discovery/SKILL.md)). A workflow is optional in draft
   ([coga/workflows](../../workflows/SKILL.md)). A supplied description may not
-  contain a `##` heading or an own-line blackboard fence; a blank description
-  is meant only for parked captures, and `coga validate` warns
-  `empty-description` on non-terminal tickets.
+  contain a `##` heading outside a closed code fence or an own-line blackboard
+  fence anywhere. A blank description is meant only for parked captures, and
+  `coga validate` warns `empty-description` on non-terminal tickets.
 - `coga ticket [title|ref]` runs the guided `bootstrap/ticket` interview on a
   new draft or an existing ticket at any status. It chooses workflow, contexts
   and main agent with the human, repairs an out-of-vocabulary status, and
