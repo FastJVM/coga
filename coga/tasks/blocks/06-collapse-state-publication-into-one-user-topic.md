@@ -358,3 +358,13 @@ checks:
 
 - [x] [2026-10-21 18:38] [agent:codex] id=20261021T183800 Land the owner-reviewed packaged changes from blocks/02-delete-the-code-topic-and-remove-coga-repo-only (PR #1081), then resume this peer-review for rebase and verification. Three packaging failures reproduce on main; architecture, checkouts, and sandboxes twins touched here remain non-identical. Final branch a460ae2b9 is pushed; direct review completed and validation passed, but the required passing-suite and twin-identity acceptance are unmet.
   resolved: [2026-10-21 22:21] [human:nicktoper] The attending owner confirmed that merged PR #1081 resolves the dependency blocker. Resume peer-review, rebase onto current origin/main, verify touched twins, rerun the full suite and validation, and refresh the final review receipts before bumping.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `blocks/06-collapse-state-publication-into-one-user-topic`
+Recorded: 2026-10-22T16:20:33+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: use one complete fenced yaml mapping under ## PR.
