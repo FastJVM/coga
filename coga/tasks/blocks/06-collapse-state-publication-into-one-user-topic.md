@@ -25,9 +25,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: ad587c34-ac7f-4a6f-92c9-986bccf786ad
 ---
 
 ## Description
@@ -152,6 +151,54 @@ coga-dev page is listed in `docs/contexts/coga-dev/internals/SKILL.md`;
 ## Dev
 
 branch: blocks-06-collapse-state-publication
+
+## Handoff (implement)
+
+Done on `blocks-06-collapse-state-publication` (pushed, one commit `042e0d10b`).
+
+- `coga/state-publication` (both copies) is the single user owner: roots, eligibility, "When Coga publishes" (lifecycle commands, sweep, launch, guided authoring's three facts, manual edits), control vs feature checkouts, pre-review hazard, "Strict publication on demand", "Recovering a failed publication". Dated 2026-10-07 framing dropped from the user topic.
+- `state-publication/authoring` and `/sweep` deleted (both copies; dropped from `REQUIRED_BOOTSTRAP_CONTEXT_REFS`). Their internals (sweep skips/selection, recipe wiring, finalization) and the 2026-10-07 decision are in `coga-dev/internals/state-publication`, already listed in the internals index (no new coga-dev page).
+- `coga/sync` is a map: two-layer summary, failure stance, owner table, optional coga-dev links. Design rule + 2026-10-01 decision moved to `coga-dev/patterns` (description updated).
+- Finalize skill (live + packaged) states the three authoring facts and links `coga/state-publication#when-coga-publishes`.
+- Repointed: checkouts, checkouts/manual, sandboxes, extension-model, architecture, configuration, docs/README.md, coga-dev codebase/internals/git-refresh/publish, `cli.py` and `publish_state.py` comments. Remaining `coga/sync` mentions are general "sync layer" references and stay valid.
+- On main: draft ticket `state-sync-published-unmerged-recurring-templates` attached `coga/state-publication/sweep` (validate error); repointed to `coga/state-publication` (it already had it, so the duplicate was dropped).
+
+Audit disagreement: none.
+
+### Pre-existing failures on main (not caused here)
+
+`tests/test_packaging.py` fails 3 tests identically with and without this change (verified by stashing): 13 live/packaged context twins drifted and `coga/code` missing its canonical copy. Cause: tickets 01/02 (PRs #1080, #1081) had live `docs/contexts/` edits swept onto main before their packaged twins merged (the pre-review hazard). For `checkouts`, `sandboxes`, `architecture` I applied only my link edits to the packaged copies so as not to carry those tickets' content; those three still differ until #1081/#1080 land. Everything this ticket wrote is byte-identical across twins. Expect the open-pr step to need a rebase after those PRs merge.
+
+## PR
+
+```yaml
+title: Collapse state publication into one user topic
+author:
+  agent: claude (claude-opus-5-5), coga megalaunch implement step
+head: 042e0d10b4803d25176a89aa5956200202e6b7e6
+base: bb5450faf1fca22e74002df317dae20e097540e4
+review_depth: skim
+review_depth_rationale: docs-only restructuring plus two code comments and one removed test list entry pair; no behavior change
+files:
+  docs/contexts/coga/state-publication/SKILL.md (+ packaged): absorbs sweep recipe/recovery, authoring facts, sync control/feature bullets
+  docs/contexts/coga/state-publication/{authoring,sweep}/SKILL.md (+ packaged): deleted
+  docs/contexts/coga/sync/SKILL.md (+ packaged): shortened to a map
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: receives sweep, recipe wiring, finalization internals, 2026-10-07 decision
+  docs/contexts/coga-dev/patterns/SKILL.md: receives sync design rule and 2026-10-01 decision
+  coga/skills/coga/ticket/finalize/SKILL.md (+ packaged): three authoring facts, repointed link
+  checkouts, checkouts/manual, sandboxes, extension-model, architecture, configuration (+ packaged), docs/README.md, coga-dev codebase/internals/git-refresh/publish: link repoints
+  src/coga/cli.py, src/coga/publish_state.py: comment repoints
+  tests/test_packaging.py: drop deleted refs from REQUIRED_BOOTSTRAP_CONTEXT_REFS
+review: not run yet (implement step); no code review has happened
+checks:
+  - command: .venv/bin/python -m pytest -q
+    result: 3 failed, 3952 passed, 7 skipped (tree identical to commit, before rebase onto bb5450faf which only touched this ticket)
+    note: the 3 test_packaging failures reproduce on main without this change (see above)
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_paths.py tests/test_layout_contexts.py tests/test_publish_state.py
+    result: 3 failed, 83 passed at head 042e0d10b (same 3 pre-existing)
+  - command: .venv/bin/coga validate --json
+    result: one error (draft ticket attaching removed sweep topic) fixed on main; remaining issues are warnings
+```
 
 ## Plan
 

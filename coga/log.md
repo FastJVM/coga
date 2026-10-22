@@ -8995,3 +8995,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-21 18:01 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-21 18:01 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-21 18:01 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [megalaunch] launched via coga megalaunch
+2026-10-21 18:14 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [agent:claude] advanced to step 2 (peer-review) → codex
