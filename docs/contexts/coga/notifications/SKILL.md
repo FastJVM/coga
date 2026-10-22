@@ -37,25 +37,29 @@ bearer tokens: commit only `env:` references (`coga/secrets`).
 
 ## Pinging the owner
 
-Every post carries a `[<project>] [<owner>]` prefix. The owner is the only
-addressee — no watcher list, no cc trailer, no separate `--important`
-recipient. An incoming webhook cannot look users up, so
-`[notification.slack.users]` in shared `coga.toml` maps a Coga name (the
-ticket's `owner` token) to a Slack member ID; a mapped owner gets a real
-`<@…>` ping, an unmapped one is named in plain text.
+Posts identify the project and ticket owner. The owner is the only addressee
+— no watcher list, no cc trailer, no separate `--important` recipient. The
+owner mapping documented in the shipped `coga.toml` determines whether the
+owner is pinged or named in plain text.
 
 ## When a post fails
 
 Once Slack is selected and enabled, an unresolved webhook or a delivery miss
-(transport error, revoked webhook, non-2xx) is reported on stderr, and a
-delivery miss for a ticket also gets a `slack` line in `coga/log.md`. A post
-announcing a transition already written — a block, a bump FYI, done or
-canceled, a watchdog pause, recurring alerts — reports and returns, because
-the markdown is the source of truth. Commands that will post check the
-webhook configuration first (a terminal or `--message` bump, `mark done`,
-`mark canceled`), so a missing webhook refuses them before the ticket
-changes. An important post with no `important_webhook` is refused, never
-rerouted to flow. Fix the configuration and rerun.
+(transport error, revoked webhook, non-2xx) is reported on stderr. Delivery
+misses normally also get a `slack` line in `coga/log.md` for a ticket; the
+[producer inventory](producers/SKILL.md) notes the receipt exception.
+
+An explicit send such as `coga slack` exits with status 1 when it cannot
+post. An announcement of a transition already written — a block, a bump
+FYI, done or canceled, a watchdog pause, recurring alerts — reports and
+returns even when the webhook is missing. The markdown remains the source
+of truth; a failed announcement does not undo the transition.
+
+A terminal or `--message` bump, `mark done`, and `mark canceled` check
+webhook configuration before changing the ticket. A missing webhook refuses
+these invocations before the write; fix the configuration and retry the
+refused command. Ordinary blocks and launches do not have that gate. An
+important post with no `important_webhook` is never rerouted to flow.
 
 Coga never prints a raw Slack error, since it would contain the webhook URL.
 If a webhook URL or `/services/…` path ever appears in a diagnostic, treat it

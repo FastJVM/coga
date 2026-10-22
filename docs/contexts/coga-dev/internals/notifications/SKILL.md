@@ -128,7 +128,8 @@ unreviewed cadence decision. Keep the inventory in step with `coga/recurring`
 when templates change.
 
 This repo's own `coga/recurring/usage-report` routes its weekly report to
-important by owner decision; the user topic does not advertise that carve-out.
+important by owner decision, so token consumption is seen on a cadence short
+enough to notice a change. The user topic does not advertise that carve-out.
 
 ## Message format
 

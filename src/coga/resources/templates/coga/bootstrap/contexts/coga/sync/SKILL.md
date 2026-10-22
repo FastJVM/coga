@@ -69,18 +69,6 @@ not at all.
 
 ## Design rule for new features
 
-A command that changes state others need to know about reaches both layers:
-
-1. Make the three notification decisions — surface, destination, preflight
-   policy — described in
-   [notification internals](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/notifications/SKILL.md).
-2. Publish its task through `git.sync_task_state` at the logic boundary where
-   the write, validation, log append, and notification post have all
-   finalized ([publication implementation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md)). The end-of-command sweep
-   is a backstop with a generic message, not a substitute for the readable,
-   individually attributed publish.
-3. Echo the local outcome to stdout before posting, so it stays visible
-   above any notification error.
-
-Never bypass both layers when the team needs awareness; never post chatter
-that is not an outcome, urgent exception, or explicit FYI.
+A change can affect both notification and publication behavior. For
+developers extending Coga itself, optional implementation guidance lives in
+[Coga patterns](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/patterns/SKILL.md#sync-for-new-commands).
