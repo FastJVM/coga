@@ -66,7 +66,7 @@ task ref; see [PR publication](../pr-publication/SKILL.md) and
 in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
 is the strict, exit-coded form of the state sweep for a handoff that must know
 its files reached control (`build/onboarding`); its contract is in
-[coga/state-publication/sweep](../state-publication/sweep/SKILL.md).
+[coga/state-publication](../state-publication/SKILL.md#strict-publication-on-demand).
 `prepare-checkout` prepares a ticket's branch from inside a chat session,
 using the same preparation as ordinary launch; its contract is in
 [coga/checkouts/chat](../checkouts/chat/SKILL.md).

@@ -85,8 +85,7 @@ New tickets include a field guide from the
   ([preparation](contexts/coga/pr-publication/preparation/SKILL.md),
   [existing PRs](contexts/coga/pr-publication/existing-pr/SKILL.md));
   [human assists](contexts/coga/human-assist/SKILL.md);
-  [state authoring](contexts/coga/state-publication/authoring/SKILL.md) and
-  [sweep recovery](contexts/coga/state-publication/sweep/SKILL.md).
+  [state publication and recovery](contexts/coga/state-publication/SKILL.md).
 - Extending and recovering a repo: [extension choices](contexts/coga/extension-model/SKILL.md),
   [edge code and forks](contexts/coga/edge-code/SKILL.md),
   [agent sandboxes](contexts/coga/sandboxes/SKILL.md).

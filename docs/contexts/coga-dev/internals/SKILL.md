@@ -16,7 +16,7 @@ load any child page. Attach the specific page a ticket touches.
 
 Shared ground rules: control is the only durable home for task state, Coga
 never commits on a local branch, every publication is one `git.publish`
-whose provenance check is the cross-checkout compare-and-set (`coga/sync`),
+whose provenance check is the cross-checkout compare-and-set (`coga/state-publication`),
 and the local state lock serializes only one checkout's writers.
 
 ## Guarantees and their pages
@@ -75,5 +75,5 @@ and the local state lock serializes only one checkout's writers.
 ## Not covered here
 
 What launch does and what advances a step (`coga/launch`, `coga/lifecycle`),
-the git primitive (`coga/sync`), and where code lives and how it is tested
+the git primitive (`coga/state-publication`), and where code lives and how it is tested
 (`coga-dev/codebase`, `coga-dev/testing`).

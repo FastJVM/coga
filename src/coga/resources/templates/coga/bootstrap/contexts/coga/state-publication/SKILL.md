@@ -1,22 +1,24 @@
 ---
 name: coga/state-publication
-description: Which Coga files publish to control, eligibility, and avoiding publication before review; authoring and sweep recovery live in its leaves.
+description: Which Coga files publish to control and when, eligibility, avoiding publication before review, control versus feature checkouts, the strict `coga run publish-state` recipe, and recovering a failed publication.
 ---
 
 # Publishing Coga state
 
-Coga state becomes durable on the configured control branch.
-
-Leaves: [authoring](authoring/SKILL.md), [sweep and recovery](sweep/SKILL.md).
+Coga state becomes durable on the configured control branch (`origin/main`
+by default). The markdown on disk is always the write; publication only
+carries it there.
 
 ## The Coga roots
 
-Owner decision (2026-10-07): everything in the Coga root and the configured
-contexts root publishes automatically — tickets, the log, recurring
-templates, skills, workflows, shared `coga.toml`, `context.md`, and contexts.
-There is no separate knowledge PR for files inside these roots; the accepted
-tradeoff is that instruction edits there land directly, and Git history is
-the visible record and the correction mechanism.
+Everything in the Coga root and the configured contexts root publishes
+automatically — tickets, the log, recurring templates, skills, workflows,
+shared `coga.toml`, `context.md`, and contexts. There is no separate
+knowledge PR for files inside these roots: instruction edits there land
+directly, and Git history is the visible record and the correction
+mechanism. A human may still choose a PR for a change they want reviewed;
+this is an automatic publication boundary, not a permission barrier against
+explicit Git commands.
 
 The roots are the configured Coga directory and contexts directory, with a
 nested root counted once. When a launch moves the contexts root, its return
@@ -28,22 +30,90 @@ records, generated agent-skill views, caches, and other ignored artifacts stay
 local and are never force-added. Untracked symlinks discovered through a
 directory pathspec are skipped; explicitly named or tracked symlinks and paths
 with symlinked ancestors are refused before reading their working bytes. Root
-membership and Git path conversion are lexical: a directory link never adds
-its target to the publication scope. Checkout cleanup rejects the same links.
-Submodules are refused, including a dirty, staged, or
-removed gitlink; a directory is never published as a submodule deletion.
-Source
-outside the roots, including the packaged copies under `src/`, is ordinary
-code: it reaches control only through a branch and reviewed PR.
+membership is lexical: a directory link never adds its target to the
+publication scope. Submodules are refused, including a dirty, staged, or
+removed gitlink. Source outside the roots, including the packaged copies
+under `src/`, is ordinary code: it reaches control only through a branch and
+reviewed PR.
 
-**Pre-review state publication hazard.** The sweep and authoring finalizer run
-from whichever checkout invoked them. A feature checkout's *dirty* files in
-the roots — ticket prose, log, recurring template (including `ticket.py`),
+## When Coga publishes
+
+- **Lifecycle commands** publish their own task write with an attributed
+  message as soon as the write, log line, and notification are final.
+- **The end-of-command sweep** runs after most commands that change state,
+  succeed or fail, and publishes every dirty eligible file under the roots,
+  plus committed state control does not have yet. Read-only commands
+  (`status`, `show`, `validate`, `usage`, `--help`) never sweep, and neither
+  do `init` and `uninstall`. The sweep is best-effort: a failed push is
+  reported on stderr, the files stay as written, and the next command retries.
+  A command that deliberately leaves retryable state dirty, or a launch whose
+  checkout preparation or return refused, withholds its sweep so that state
+  is not published.
+- **Launch** publishes routine state at entry and before returning the
+  checkout ([coga/checkouts](../checkouts/SKILL.md)).
+- **Guided authoring** (`coga ticket`) publishes the authored tickets and
+  every changed context, skill, workflow, or config file under the roots in
+  **one** guarded publish. An authored change to the Git destination (`[git]`
+  enabled, remote, or control branch) refuses. A refused or failed publish
+  keeps every edit on disk and `coga ticket` exits non-zero.
+- **Ordinary manual edits** inside the roots publish through the next
+  command's sweep. Local prompt composition still reads local edits.
+
+## Control versus feature checkouts
+
+A **control checkout** (HEAD is the control branch) stays clean and level:
+each publish fast-forwards it, or realigns it when its local-only commits are
+Coga state that publication has already put on control. Local commits
+touching anything else, state not yet on control, or an in-progress Git
+operation leave it alone with the remedy.
+
+A **feature or detached checkout** publishes the same way but keeps its
+published ticket and log dirty by design. `coga status` warns when control is
+ahead of the local copy. Never `git add` `coga/tasks/**` or `coga/log.md`
+into a PR; `coga open-pr` excludes that state from its cleanliness gate and
+refuses a branch whose only commits are Coga state.
+
+**Pre-review publication hazard.** The sweep and guided authoring run from
+whichever checkout invoked them. A feature checkout's *dirty* files in the
+roots — ticket prose, log, recurring template (including `ticket.py`),
 context, skill, or workflow — land on control before review. Committed ones
-on a feature branch stay with the branch unless they are routine state, so
-commit an edit you want reviewed before running a sweeping Coga command in
-that checkout. Checkout practice is `coga/checkouts`.
+on a feature branch stay with the branch unless they are routine task, log,
+or recurring state, so commit an edit you want reviewed before running a
+sweeping Coga command in that checkout.
 
-Never `git add` `coga/tasks/**` or `coga/log.md` into a PR; `coga open-pr`
-excludes that state from its cleanliness gate and refuses a branch whose only
-commits are Coga state.
+## Strict publication on demand
+
+The sweep cannot tell its caller whether a file landed. A handoff that hands
+files to someone else's fresh clone runs `coga run publish-state [--message M]
+[PATH...]` instead. It fetches the remote control branch, then publishes every
+eligible file under the roots and requires each named file to be on control.
+
+- **Exit 0**: every named file is on control (landed now or already
+  matching), listed on stdout; or `[git].enabled = false` leaves no control
+  branch, which stdout says.
+- **Exit 1**: refused, failed, uncertain, not a repository, or no control
+  branch. Files stay as written, stderr names the cause, and a task run
+  records a `## Recipe Failure` section on its blackboard.
+- **Exit 2**: bad arguments, or a named path that is not a regular file
+  inside the roots, before any publication write.
+
+The recipe never runs the exit sweep, so nothing publishes tickets
+separately from a required context it refused. Paths resolve against the
+current directory; anchor them at the checkout root.
+
+## Recovering a failed publication
+
+A failed best-effort publication keeps the local write, and the transition it
+recorded has already happened: rerunning `bump` (or any lifecycle command)
+would advance again, never republish. Recover with the strict recipe, from
+the same checkout, once Git can write where the failure said it was writing
+(including an external object directory). The failure report names the
+command, run from the Coga root it prints: `coga run publish-state <ticket
+file> <log>` after task sync (a directory-form task names its `ticket.md`),
+or the no-path form after the sweep, log-only sync, or a deletion (a deleted
+path is not a valid argument, but the recipe publishes it anyway). It adds no
+transition, an immediate repeat is a no-op (`already on`), and while access
+is still denied it exits 1 with the files kept. Coga never changes
+permissions, sandbox configuration, Git environment routing, or object
+storage to recover; restoring access is the operator's call
+([coga/sandboxes](../sandboxes/SKILL.md#restricted-sandboxes)).

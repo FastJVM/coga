@@ -40,7 +40,7 @@ explained beside the key in the shipped `coga.toml`.
 | `[notification]` | `channels`, `slack` | both |
 | `[notification.slack]` | `webhook`, `important_webhook`, `enabled`, `gifs`, `users` | both; local wins ([coga/notifications](../notifications/SKILL.md)) |
 | `[git]` | `enabled`, `remote`, `control_branch`, `worktrees_ticket_owned` | shared |
-| `[git]` | `enabled` only | local; overrides shared ([coga/sync](../sync/SKILL.md)) |
+| `[git]` | `enabled` only | local; overrides shared ([coga/state-publication](../state-publication/SKILL.md)) |
 | `[recurring]` | `idle_days` (non-negative integer, default `14`; `0` disables inactivity gating) | shared only |
 | `[launch]` | `idle_timeout`, `max_session` | shared |
 | `[ticket]` / `[ticket.fields.<name>]` | `fields` / `description`, `values`, `default`, `required` | shared ([coga/tickets](../tickets/SKILL.md)) |
