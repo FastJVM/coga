@@ -64,6 +64,9 @@ and the local state lock serializes only one checkout's writers.
   refuses a state file, and shipping a stored-ticket schema conversion.
 - [Spool merge](spool-merge/SKILL.md): `merge=union` append-only
   files, the one-line-per-event log encoding, and union publication.
+- [Blackboard IO](blackboard-io/SKILL.md): the fence matcher, body-section
+  parser, superseded-design projection, stock-blackboard check, creation
+  template, and blackboard writer races.
 - [Activity capture](activity-capture/SKILL.md): the bounded,
   secret-redacted usage record captured after each agent session.
 - [Usage pricing](usage-pricing/SKILL.md): record facts a future

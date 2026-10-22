@@ -23,7 +23,9 @@ The repo separates implementation from the OS it operates:
   with no business logic are the target; `init.py` still carries substantial
   logic. Launch's command adapter calls shared `coga.launch`. `update.py` (init's
   template-copy helpers) and `common.py` are shared helpers, not commands.
-- `config.py` (shared/local TOML, fixed schema), `compose.py` (prompt layers),
+- `config.py` (shared/local TOML, fixed schema; ticket secret refs in
+  `parse_inline_secrets`, `select_launch_secrets`, `build_launch_env`,
+  `scrub_op_auth_env`), `compose.py` (prompt layers),
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
   `workflow.py` / `bump.py` / `step_gate.py` / `mark.py` (steps, gates,
   status), `validate.py` (`coga validate`).

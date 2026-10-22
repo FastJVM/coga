@@ -407,7 +407,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/tickets",
         "coga/tickets/authoring",
         "coga/tickets/discovery",
-        "coga/tickets/ownership",
         "coga/uninstall",
         "coga/usage",
         "coga/workflows",

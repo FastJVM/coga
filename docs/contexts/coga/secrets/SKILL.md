@@ -1,6 +1,6 @@
 ---
 name: coga/secrets
-description: Ticket secret references (`env:` and `op://`), how launch resolves and injects them, `coga secret get`, the one-service-account vault policy, and why a declaration is not process isolation.
+description: How launch resolves and injects a ticket's secret references, `coga secret get`, the one-service-account vault policy, and why a declaration is not process isolation.
 ---
 
 # Secrets
@@ -11,43 +11,26 @@ carries values, and config carries almost nothing
 
 ## Declaring a ticket's secrets
 
-There is no central catalog. A ticket declares what it uses inline:
-
-```yaml
-secrets:
-  - STRIPE_KEY: op://<automation-vault>/stripe/api-key
-  - WEBHOOK_URL: env:SLACK_WEBHOOK_URL
-```
-
-`src/coga/config.py` `parse_inline_secrets` accepts null or `[]` (none), or a
-list of single-key maps `NAME: <ref>`. It rejects a non-list, a bare string
-(the removed catalog form), a multi-key entry, a duplicate or empty name, a
-name in the reserved `COGA_` namespace, and any ref that is not `op://…` or
-`env:VAR`. A raw literal cannot live in a committed ticket. A ref lives on the
-ticket that consumes it, not where the credential lives.
+There is no central catalog. A ticket declares the references it uses in its
+`secrets:` frontmatter; the ticket template's guide comment owns the entry
+shape. A ref lives on the ticket that consumes it, not where the credential
+lives, and a raw literal is rejected.
 
 ## Resolution at launch
 
-`select_launch_secrets` resolves each ref live. `op://` refs are passed
-verbatim to `op read`, stripping one trailing newline. `env:VAR` refs are read
-from the operator's environment. Failure is loud and happens before any agent
-or recipe process spawns, and before a draft's activation is written
-([coga/launch](../launch/SKILL.md)). Failures are `op` missing, `op read`
-non-zero (not signed in, no access), or an unset variable. Messages name the
-Coga secret and reference, never the value.
-
-`build_launch_env` then builds the child environment: it starts from the
-parent environment with every 1Password CLI auth variable scrubbed, removes
-each source variable an `env:VAR` ref names, and writes each resolved value
-under its declared name (see below).
+Launch resolves each ref live: `op://` refs through `op read` (one trailing
+newline stripped), `env:VAR` refs from the operator's environment. Failure is
+loud and happens before any agent or recipe process spawns, and before a
+draft's activation is written ([coga/launch](../launch/SKILL.md)). Failures
+are `op` missing, `op read` non-zero (not signed in, no access), or an unset
+variable. Messages name the Coga secret and reference, never the value.
 
 ## `coga secret get <ref>`
 
 A human-facing query: resolve one `op://…` or `env:VAR` ref through the same
-`select_launch_secrets` path and print the value to stdout, never logged or
-posted (`src/coga/commands/secret.py`). It needs no `user`. A raw literal,
-unset variable, or `op` failure exits 2 without printing a value. Agents do
-not call it.
+launch path and print the value to stdout, never logged or posted. It needs
+no `user`. A raw literal, unset variable, or `op` failure exits 2 without
+printing a value. Agents do not call it.
 
 ## Vault policy: one service account, one automation vault
 
@@ -77,19 +60,18 @@ personal `op` login reads everything and gives a false pass.
 ## A declaration plus an env scrub, not a sandbox
 
 Vault scoping bounds what a leaked token can read. It does not confine a
-launched task. `config.build_launch_env()` resolves the declared refs in the
-parent, then builds the child environment from the parent's minus every
-1Password CLI auth variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`,
-`OP_CONNECT_HOST`, `OP_SESSION_*`, via `config.scrub_op_auth_env()`) and each
-named `env:VAR` source, then adds each resolved value under its declared
-destination alias. The same scrub covers the `coga ticket` interviewer and the
-recurring autofix analysis call. Coga's own child processes are not tasks and
-keep it: `coga recurring` runs its inner scan unscrubbed, so the launches it
-makes can still resolve `op://` refs.
+launched task. Launch resolves the declared refs in the parent, then builds
+the child environment from the parent's minus every 1Password CLI auth
+variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`, `OP_CONNECT_HOST`,
+`OP_SESSION_*`) and each named `env:VAR` source, then adds each resolved value
+under its declared name. The same scrub covers the `coga ticket` interviewer
+and the recurring autofix analysis call. Coga's own child processes are not
+tasks and keep it: `coga recurring` runs its inner scan unscrubbed, so the
+launches it makes can still resolve `op://` refs.
 
 - A launched agent cannot `op read` through an inherited token, whatever its
   ticket declared. A launch started from inside a task, of a ticket that
-  declares `op://` secrets, therefore fails preflight with a `SecretError`.
+  declares `op://` secrets, therefore fails preflight.
 - Destination names still change the outcome.
   `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` hands the token on under that
   alias only. `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` deliberately
@@ -104,6 +86,4 @@ makes can still resolve `op://` refs.
 The `secrets:` list bounds what Coga resolves and names for a task. Read the
 vault and service-account grant as the boundary of what a leaked token reads,
 and every same-user credential source as the boundary of the process. Real
-confinement needs process isolation Coga does not have. New reference kinds
-would be another prefix branch in `parse_inline_secrets` /
-`select_launch_secrets`, not a provider registry.
+confinement needs process isolation Coga does not have.
