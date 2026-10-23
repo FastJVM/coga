@@ -1,6 +1,6 @@
 ---
 title: Decide the fate of the multiply-probe-harness worktree evidence
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
