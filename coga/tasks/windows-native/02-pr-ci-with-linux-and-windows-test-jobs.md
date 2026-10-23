@@ -1,6 +1,6 @@
 ---
 title: PR CI with Linux and Windows test jobs
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
