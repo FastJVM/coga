@@ -1,6 +1,6 @@
 ---
 title: PR CI with Linux and Windows test jobs
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
