@@ -9169,3 +9169,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-22 20:38 v1 [competition-testing/test-speckit] [human:zach] created (status=draft)
 2026-10-22 20:39 v1 [competition-testing/test-bmad-method] [human:zach] created (status=draft)
 2026-10-22 20:39 v1 [competition-testing/test-compound-engineering] [human:zach] created (status=draft)
+2026-10-23 08:45 v1 [competition-testing/test-speckit] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)

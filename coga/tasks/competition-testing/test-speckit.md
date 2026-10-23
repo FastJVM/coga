@@ -2,12 +2,16 @@
 title: Test SpecKit
 status: draft
 owner: zach
-workflow: null
+contexts:
+  - coga-dev/principles
+workflow: draft-for-human
 ---
 
 ## Description
 
 Install GitHub Spec Kit (https://github.com/github/spec-kit) and run a real task through it end to end, then write up how it compares to Coga. Spec Kit is the most-adopted tool in this space at roughly 142k stars; install is `uv tool install specify-cli` then `specify init <project> --integration <agent>`, and it needs Python 3.11+ and uv. It ships three prescribed processes: spec-driven development (constitution, specify, plan, tasks, implement, converge), bug fixing (bug-assess, bug-fix, bug-test), and idea assessment (assess-intake, research, define, shape, decide), plus a documented path for adding custom processes. Cover four things in the write-up: the installation experience end to end, how much the fixed command sequence constrains the way you work, whether the custom-process extension point genuinely lets you define your own loop or only reskins theirs, and what it does that Coga does not.
+
+Done when the SpecKit section of the "Coga Competitor Tests" Google Doc answers all four questions from a completed trial, and Zach has shared the doc with Nico.
 
 Why now: Coga positioning is unresolved. From the outside it reads as a weaker overlap of Spec Kit, BMAD and Compound Engineering, and the claim we want to make — that Coga is a hackable substrate you shape to your own way of working rather than a fixed cycle — needs first-hand evidence. The installation angle is doubly useful because the installer is being reworked under marketing/fix-installer.
 
@@ -96,6 +100,64 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Where findings go
+
+Findings live in the Google Doc, not in this repo. `FastJVM/coga` is public, so
+competitor notes committed here are published. Keep the blackboard to a pointer:
+doc link, step status, and neutral mechanics such as whether install succeeded.
+
+The doc is "Coga Competitor Tests" —
+https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
+(its Drive filename is still "Untitled document"). It is a numbered running log
+per tool, with Zach's screenshots inline. Its SpecKit section is the deliverable.
+
+The Google Drive tools can read that doc but cannot write to it:
+`Google_Drive__update_file` changes metadata only, and there is no content-edit
+tool for an existing Doc. So the agent drafts markdown and Zach pastes it in —
+Docs converts pasted markdown to real headings and lists. Do not create a
+replacement Doc; the screenshots live in this one.
+
+### The trial task
+
+Build `tiny-ticket`: a command-line tool that stores tasks as markdown files
+with YAML frontmatter, with three commands — create a task, list tasks, and
+validate the files. Validation enforces that `status` is one of a fixed set and
+that any non-draft task has a workflow.
+
+Zach picked it because he knows the correct design cold, so a bad spec or plan
+is obvious on sight, and it is small enough to build three times. The bias is
+that it is Coga's own problem domain; name that in the write-up rather than
+hiding it.
+
+The same task runs through BMAD and Compound Engineering in the sibling tickets
+`competition-testing/test-bmad-method` and
+`competition-testing/test-compound-engineering`, so the three write-ups compare.
+Keep the product name `tiny-ticket` in all three and vary only the project
+directory: `speckit-tiny-ticket`, `bmad-tiny-ticket`, `ce-tiny-ticket`.
+
+### Running the trial
+
+Zach runs Spec Kit hands-on in a VM (`cogatest@cogatests-Virtual-Machine`) and
+brings findings back to the session; the agent discusses them and drafts the
+write-up. The agent does not run Spec Kit.
+
+Two install facts already established, both from `specify check` on that VM:
+
+- The `--integration` token for Claude Code is `claude`, per
+  https://github.github.io/spec-kit/integrations/index.html. The names in
+  `specify check` output are display names, not accepted values.
+- Claude Code reads "not found" on the VM, so `specify init` will fail its
+  agent-tools check until Claude Code is installed there. `--ignore-agent-tools`
+  skips the check but leaves no agent to run the task with.
+
+Installation findings are also input to `marketing/fix-installer`; relay them to
+that ticket rather than only to the doc.
+
+### Out of scope
+
+Do not commit trial output, competitor notes, or the `tiny-ticket` source into
+this repo. The scratch project stays in the VM.
 
 <!-- coga:blackboard -->
 
