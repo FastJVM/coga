@@ -9188,3 +9188,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 10:24 v1 [blocks/05-trim-the-notifications-family] [human:nicktoper] auto-bumped on merge of PR #1085 → done
 2026-10-23 10:24 v1 [blocks/06-collapse-state-publication-into-one-user-topic] [human:nicktoper] auto-bumped on merge of PR #1086 → done
 2026-10-23 10:24 v1 [blocks/07-trim-the-tickets-family-and-secrets] [human:nicktoper] auto-bumped on merge of PR #1087 → done
+2026-10-23 10:24 v1 [blocks/08-trim-launch-prompt-and-workflow-topics] [human:nicktoper] auto-bumped on merge of PR #1089 → done
