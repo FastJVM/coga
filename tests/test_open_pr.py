@@ -1260,12 +1260,13 @@ def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
     repo.git("commit", "-m", "Base files")
     repo.git("push", "origin", "main")
     wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
-    repo.git("mv", "coga/old name.txt", "coga/new | name.txt", cwd=wt)
+    renamed = "coga/new & name.txt" if os.name == "nt" else "coga/new | name.txt"
+    repo.git("mv", "coga/old name.txt", renamed, cwd=wt)
     repo.git("rm", "coga/delete.txt", cwd=wt)
     repo.git("commit", "-m", "Rename and delete", cwd=wt)
     prep = _preparation(repo, wt)
     prep["files"].update({"coga/old name.txt": "Rename the documented example.",
-                          "coga/new | name.txt": "Rename the documented example.",
+                          renamed: "Rename the documented example.",
                           "coga/delete.txt": "Remove obsolete instructions."})
     ticket = _prepared_ticket(repo, wt, prep)
     bin_dir = tmp_path / "bin"
@@ -1274,12 +1275,27 @@ def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
     body = json.loads((bin_dir / "view.json").read_text(encoding="utf-8"))["body"]
     assert "<code>coga/old name.txt</code> | R100 |\n" in body
-    assert "<code>coga/new &#124; name.txt</code> | R100 |\n" in body
+    escaped = "coga/new &amp; name.txt" if os.name == "nt" else "coga/new &#124; name.txt"
+    assert f"<code>{escaped}</code> | R100 |\n" in body
     assert "<code>coga/delete.txt</code> | D |\n" in body
     assert "<code>coga/change.txt</code> | A |\n" in body
     assert "| Path | Change |\n| --- | --- |" in body
     assert "| Why |" not in body
     assert "Rename the documented example." not in body
+
+
+def test_open_pr_escapes_file_names_from_foreign_platforms():
+    """Git metadata can name a file that this platform cannot check out."""
+    from coga.open_pr import _pr_presentation
+
+    ticket = Ticket.parse("---\ntitle: File names\n---\n")
+    _, body = _pr_presentation(
+        ticket, "", "", "file-names", head="a" * 40, base="b" * 40,
+        changes=[("R100", ["coga/old name.txt", "coga/new | name.txt"])],
+    )
+
+    assert "<code>coga/old name.txt</code> | R100 |\n" in body
+    assert "<code>coga/new &#124; name.txt</code> | R100 |\n" in body
 
 
 @pytest.mark.parametrize("yaml_text", ["- item", "checks: [broken", "title: [wrong type]"])

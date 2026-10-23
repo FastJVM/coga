@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -9552,8 +9553,12 @@ def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change)
     elif change == "staged":
         git_repo.git("add", "coga/log.md")
     elif change == "mode":
-        git_repo.git("config", "core.fileMode", "true")
-        log.chmod(0o755)
+        if os.name == "posix":
+            git_repo.git("config", "core.fileMode", "true")
+            log.chmod(0o755)
+        else:
+            blob = git_repo.git("rev-parse", ":coga/log.md").strip()
+            git_repo.git("update-index", "--cacheinfo", f"100755,{blob},coga/log.md")
     elif change == "partial-line":
         log.write_text(log.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8", newline="\n")
     before = log.read_bytes()
@@ -9570,7 +9575,7 @@ def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change)
         assert "coga run publish-state" not in catchup.reason
         return
     assert "unpublished log tail" in catchup.reason
-    assert f"coga run publish-state {log}" in catchup.reason
+    assert f"coga run publish-state {shlex.quote(str(log))}" in catchup.reason
     assert "all eligible Coga state" in catchup.reason
 
     assert run_publish_state_recipe(cfg, [str(log)]) == 0
@@ -9964,6 +9969,9 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
     attachments = source / "attachments"
     attachments.mkdir()
     (attachments / "nested-link").symlink_to(external_file)
+    file_target = (source / "file-link").readlink()
+    dir_target = (source / "dir-link").readlink()
+    nested_target = (attachments / "nested-link").readlink()
 
     result = CliRunner().invoke(
         app, ["recurring", "promote", "linked-task", "--schedule", "0 3 * * *"]
@@ -9972,11 +9980,11 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
     assert result.exit_code == 0, result.output
     dest = repo / "recurring" / "linked-task"
     assert (dest / "file-link").is_symlink()
-    assert (dest / "file-link").readlink() == external_file
+    assert (dest / "file-link").readlink() == file_target
     assert (dest / "dir-link").is_symlink()
-    assert (dest / "dir-link").readlink() == external_dir
+    assert (dest / "dir-link").readlink() == dir_target
     assert (dest / "attachments" / "nested-link").is_symlink()
-    assert (dest / "attachments" / "nested-link").readlink() == external_file
+    assert (dest / "attachments" / "nested-link").readlink() == nested_target
 
 
 def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
