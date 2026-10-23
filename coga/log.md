@@ -9223,3 +9223,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 16:12 v1 [make-every-code-workflow-review-with-the-other-age] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-23 16:12 v1 [make-every-code-workflow-review-with-the-other-age] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-23 16:12 v1 [make-every-code-workflow-review-with-the-other-age] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-23 16:16 v1 [competition-testing/test-speckit] [agent:claude] advanced to step 2 (human-owns-and-finishes) → zach — SpecKit trial ran end to end; doc section written as we went. Holding the Nico share until BMAD and Compound Engineering are also written up.

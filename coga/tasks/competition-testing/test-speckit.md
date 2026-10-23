@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
 ---
 
@@ -188,19 +188,14 @@ doc link and that the section is done — not what the trial found.
 Findings live in the doc, not here (this repo is public):
 https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
 
-Claude Code installed on the VM; `specify init speckit-tiny-ticket --integration
-claude` succeeded. Spec Kit installs as Claude Code skills in `.claude/skills`
-plus helper scripts. Trial is at doc entry 5.
-
-Order is enforced, by the helper scripts rather than by prose: `/speckit-plan`
-cold fails in `setup-plan.sh` on a missing feature directory.
-
-## Open question
-
-What `.specify/extensions.yml` actually allows — before/after hooks on their
-stages, or genuinely new steps. This is the ticket's custom-process question.
-Come back to it after the loop.
+The trial ran end to end on the VM: install, the full spec-driven loop through
+`/speckit-implement`, whether the command order is enforced, and what the
+extension point allows. Zach wrote the SpecKit section as we went, so the doc
+is current. `/speckit-converge` was not run.
 
 ## Next
 
-Run the loop from `/speckit-constitution`.
+Zach finishes the section and shares the doc with Nico by named account. He is
+holding the share until the BMAD and Compound Engineering trials are also
+written up, so this step stays open until then — it is not stalled.
+Then `report-to-coga` records the link and that the section is done.
