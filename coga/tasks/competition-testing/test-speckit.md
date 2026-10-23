@@ -16,7 +16,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 ---
 
