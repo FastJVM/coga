@@ -507,6 +507,8 @@ def _installer_calls(calls: list[list[str]]) -> list[list[str]]:
         if not argv:
             continue
         head = Path(argv[0]).name
+        if os.name == "nt":
+            head = Path(head).stem.casefold()
         if head in _INSTALLER_COMMANDS:
             hits.append(argv)
         elif "-m" in argv and argv[argv.index("-m") + 1 :][:1] in (["pip"], ["pipx"]):
@@ -515,12 +517,16 @@ def _installer_calls(calls: list[list[str]]) -> list[list[str]]:
 
 
 def _path_without_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A `PATH` holding only `git`, so `gh` is genuinely absent."""
+    """A `PATH` with real Git and no `gh`."""
     git = shutil.which("git")
     assert git is not None, "these tests need a real git"
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    (bin_dir / "git").symlink_to(git)
+    if os.name == "nt":
+        # Windows finds git.exe through PATH; keep its installed directory.
+        bin_dir = Path(git).parent
+    else:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "git").symlink_to(git)
     monkeypatch.setenv("PATH", str(bin_dir))
     assert shutil.which("gh") is None
 
@@ -1899,8 +1905,8 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
     assert blocked == []
     assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (coga_os / ".agent-skills" / "team" / "local").is_symlink()
-    assert os.readlink(target / ".codex" / "skills" / "coga") == (
-        "../../coga/.agent-skills"
+    assert Path(os.readlink(target / ".codex" / "skills" / "coga")) == (
+        Path("../../coga/.agent-skills")
     )
 
 
@@ -1936,7 +1942,7 @@ def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> 
 
     init_cmd._link_skills_for_agents(target, coga_os)
 
-    assert os.readlink(old) == "../../coga/.agent-skills"
+    assert Path(os.readlink(old)) == Path("../../coga/.agent-skills")
 
 
 # --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
