@@ -9204,3 +9204,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 11:46 v1 [show-which-agents-are-available-on-the-machine-dur] [human:zach] created (status=draft)
 2026-10-23 13:26 v1 [windows-native/02-pr-ci-with-linux-and-windows-test-jobs] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-23 13:26 v1 [windows-native/02-pr-ci-with-linux-and-windows-test-jobs] [human:nicktoper] started (active → in_progress) via coga launch
+2026-10-23 13:26 v1 [windows-native/02-pr-ci-with-linux-and-windows-test-jobs] [human:nicktoper] launched (operator=claude, agent=claude)
