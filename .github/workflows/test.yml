@@ -1,0 +1,39 @@
+name: Test
+
+# Run the suite on the declared Python floor on Linux and native Windows, so a
+# POSIX-only import or path assumption cannot silently break Windows support.
+# Owner decision and posture: docs/contexts/coga-dev/testing/SKILL.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.os }}, Python 3.11)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set Git identity
+        run: |
+          git config --global user.name "Coga CI"
+          git config --global user.email "ci@coga.invalid"
+      - name: Install
+        run: python -m pip install -e ".[test]"
+      - name: Test
+        run: python -m pytest
