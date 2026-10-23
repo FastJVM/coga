@@ -97,6 +97,18 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
+### Where findings go
+
+The doc is "Coga Competitor Tests" —
+https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
+It is a numbered running log per tool, and the Compound Engineering section is
+the deliverable. `FastJVM/coga` is public, so findings stay in the doc and the
+blackboard stays a pointer.
+
+Zach shares the doc with Nico by named account once all three sections exist.
+The SpecKit section is written and that share is still outstanding, so the last
+of this ticket and `competition-testing/test-bmad-method` to finish carries it.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
