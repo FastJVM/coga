@@ -183,4 +183,24 @@ doc link and that the section is done — not what the trial found.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## State
+
+Findings live in the doc, not here (this repo is public):
+https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
+
+Claude Code installed on the VM; `specify init speckit-tiny-ticket --integration
+claude` succeeded. Spec Kit installs as Claude Code skills in `.claude/skills`
+plus helper scripts. Trial is at doc entry 5.
+
+Order is enforced, by the helper scripts rather than by prose: `/speckit-plan`
+cold fails in `setup-plan.sh` on a missing feature directory.
+
+## Open question
+
+What `.specify/extensions.yml` actually allows — before/after hooks on their
+stages, or genuinely new steps. This is the ticket's custom-process question.
+Come back to it after the loop.
+
+## Next
+
+Run the loop from `/speckit-constitution`.
