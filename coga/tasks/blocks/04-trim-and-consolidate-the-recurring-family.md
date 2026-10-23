@@ -1,6 +1,6 @@
 ---
 title: 04 Trim and consolidate the recurring family
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga/knowledge
@@ -25,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
