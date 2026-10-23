@@ -1,10 +1,21 @@
 ---
 title: where have code review disappeared?
-status: draft
+status: active
 owner: nicktoper
 agent: claude
-workflow: draft-for-human
-contexts: []
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
 ---
 
 ## Description
