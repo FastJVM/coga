@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -85,6 +85,70 @@ branch: coga/windows-native-02-pr-ci-with-linux-and-windows-t-6501cb
   replace the obsolete no-CI posture in `coga-dev/testing`, run the suite,
   and prepare the implementation handoff. Later PR steps still owe both
   green jobs and the linked scratch-branch Windows failure run.
+
+## Implement handoff — 2026-10-23 (claude, attended)
+
+- Blocker resolved: owner reviewed PR #1093; Claude rebased it onto main in a
+  scratch worktree (one test_compose conflict; dropped a branch commit's
+  restored principles copy in `coga/context.md` to follow main's 4c9d8699f),
+  force-pushed with lease, owner merged (5132aa6ac). `coga unblock` ran.
+- Owner explicitly reversed the 2026-09-24 no-pytest-CI decision in this
+  session (asked because `coga-dev/testing` required an owner decision).
+- Commit `2ab0ff48e` adds `.github/workflows/test.yml`: `pull_request` + push
+  to `main`; matrix `ubuntu-latest`/`windows-latest`, Python 3.11,
+  `fail-fast: false`, `contents: read`; global git identity; `python -m pip
+  install -e ".[test]"`; `python -m pytest`. Concurrency cancels superseded
+  PR runs only. `coga-dev/testing` "CI posture and receipts" now records the
+  CI and the decision; verifiers still record exact commands and counts.
+- **Next steps (open-pr/review) still owe:** both jobs green on this PR, and
+  the scratch-branch failure run linked in the PR. A pushed scratch branch
+  alone does **not** trigger the workflow (no `push` trigger outside `main`):
+  open a draft PR from the scratch branch (e.g. targeting this feature
+  branch; `pull_request` has no base filter) with a top-level `import fcntl`
+  in a CLI-imported module, capture the failing Windows run URL, then close
+  it and delete the scratch branch.
+- **Adjacent bug, not fixed here:**
+  `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
+  fails in a fresh `python3.11 -m venv` (`ModuleNotFoundError: No module
+  named 'yaml'`). The `release_env` fixture symlinks `sys.executable` to
+  `tools/coga/bin/python`; a venv interpreter symlinked outside its venv
+  starts as the base interpreter, which lacks the venv's site-packages. It
+  passes in `.venv` only because that base 3.12 has PyYAML. CI is unaffected
+  (setup-python installs into the base interpreter). No follow-up ticket yet.
+
+## PR
+
+```yaml
+title: Run pytest on Linux and Windows for PRs and main pushes
+author: claude
+author_evidence: Attended implement session ran as Claude (claude-opus-5-5); see implement handoff.
+head: 2ab0ff48e036e88d5029c437f51b38d2d48eb336
+base: 726a08778adc39d9f964db49a852d1d3bc27cc32
+depth: skim
+rationale: Small additive workflow plus one doc paragraph; read it for the trigger choice and the reversed owner decision. Real CI runs are still pending.
+implementation: Adds a Python 3.11 pytest matrix on ubuntu-latest and windows-latest for pull requests and pushes to main, and records the PR CI posture in coga-dev/testing.
+deviations: Adds a concurrency group that cancels superseded PR runs (not asked for; saves Windows runner time).
+limitations: The workflow has not run on GitHub yet; both green jobs and the deliberately broken scratch-branch Windows failure are owed by later steps. coga validate is not run in CI.
+files:
+  .github/workflows/test.yml: New PR/main-push pytest workflow on Linux and Windows, Python 3.11.
+  docs/contexts/coga-dev/testing/SKILL.md: Replace the no-CI posture with the PR CI posture and the 2026-10-23 owner decision, as the ticket requires.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; review belongs to later workflow steps.
+checks:
+  - command: python3.11 -m venv <scratch>/venv311 && <scratch>/venv311/bin/python -m pip install -e ".[test]" && <scratch>/venv311/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 2ab0ff48e036e88d5029c437f51b38d2d48eb336
+    base: 726a08778adc39d9f964db49a852d1d3bc27cc32
+    detail: Python 3.11.15 -- 1 failed, 4047 passed, 10 skipped. Sole failure is the pre-existing test_clean_install_harness release_env venv-symlink bug (no PyYAML in the uv base 3.11); unrelated to this diff, which touches no Python.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
+    status: passed
+    head: 2ab0ff48e036e88d5029c437f51b38d2d48eb336
+    base: 726a08778adc39d9f964db49a852d1d3bc27cc32
+    detail: Python 3.12.12 -- 1 passed; base interpreter has PyYAML.
+```
 
 ---
 
