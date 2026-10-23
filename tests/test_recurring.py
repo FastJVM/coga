@@ -11642,15 +11642,17 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
 
 
 def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
-    git_repo,
+    git_repo, monkeypatch,
 ) -> None:
     """The child starts in the mirrored workspace, not the monorepo root."""
     _seed_recipe_template_on_control(git_repo)
     original = git_repo.coga_os
     nested = git_repo.root / "tools" / "ops" / "coga"
     nested.parent.mkdir(parents=True)
+    monkeypatch.chdir(git_repo.root)
     shutil.move(str(original), str(nested))
     git_repo.coga_os = nested
+    monkeypatch.chdir(nested)
     (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "nest coga workspace")
@@ -11668,10 +11670,11 @@ def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
     assert "created recurring/z-script-check" in ledger
 
 
-def test_control_worktree_services_a_root_layout_workspace(git_repo) -> None:
+def test_control_worktree_services_a_root_layout_workspace(git_repo, monkeypatch) -> None:
     """A root Coga layout starts inside `checkout`, not its temp parent."""
     _seed_recipe_template_on_control(git_repo)
     nested = git_repo.coga_os
+    monkeypatch.chdir(git_repo.root)
     for child in nested.iterdir():
         shutil.move(str(child), str(git_repo.root / child.name))
     nested.rmdir()
