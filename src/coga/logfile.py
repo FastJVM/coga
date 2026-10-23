@@ -143,7 +143,7 @@ def ref_tag_for_path(cfg: Config, path: Path) -> str:
         # (a directory-form anchor is `<slug>` / `<slug>/ticket.md` unaffected).
         if rel.suffix == ".md" and rel.name != "ticket.md":
             rel = rel.with_suffix("")
-        return f"{prefix}{rel}" if str(rel) != "." else prefix.rstrip("/")
+        return f"{prefix}{rel.as_posix()}" if str(rel) != "." else prefix.rstrip("/")
     return Path(path.name).stem if path.suffix == ".md" else path.name
 
 

@@ -15,6 +15,7 @@ from coga.logfile import (
     iter_log_messages,
     iter_log_messages_reverse,
     last_activity_map,
+    ref_tag_for_path,
     retract_log_lines,
     task_log_lines,
 )
@@ -42,6 +43,25 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _write(company / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.chdir(company)
     return company
+
+
+@pytest.mark.parametrize(
+    ("relative", "expected"),
+    [
+        ("tasks/team/review.md", "team/review"),
+        ("tasks/recurring/weekly-check", "recurring/weekly-check"),
+        ("recurring/team/weekly-check", "recurring/team/weekly-check"),
+    ],
+)
+def test_path_derived_tags_match_nested_task_history(
+    repo: Path, relative: str, expected: str,
+) -> None:
+    cfg = load_config(repo)
+    tag = ref_tag_for_path(cfg, repo / relative)
+
+    assert tag == expected
+    append_log(cfg, tag, "git", "sync failed: offline")
+    assert len(task_log_lines(cfg, expected)) == 1
 
 
 def test_first_activity_is_earliest_line_even_when_log_is_unsorted(
