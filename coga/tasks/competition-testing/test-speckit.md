@@ -101,31 +101,30 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
+### How this runs
+
+Zach runs Spec Kit hands-on in a VM (`cogatest@cogatests-Virtual-Machine`),
+pastes screenshots into the session, and notes what he sees. The agent discusses
+findings with him and drafts write-up text for the doc. The agent does not run
+Spec Kit. This is information gathering, not a staged project — follow Zach's
+lead on what to look at next.
+
 ### Where findings go
-
-Findings live in the Google Doc, not in this repo. `FastJVM/coga` is public, so
-competitor notes committed here are published. Keep the blackboard to a pointer:
-doc link, step status, and neutral mechanics such as whether install succeeded.
-
-The test: anything that reads as an evaluation of Spec Kit goes to the doc;
-anything that would read the same if Spec Kit were any other tool may be
-committed. "Install failed its agent-tools check" passes. "The extension point
-only reskins their loop" does not.
-
-The competitive framing already in `## Description` is a deliberate accepted
-exception, published since `0d1a863c5`. Do not scrub it and do not read it as
-license to commit findings.
 
 The doc is "Coga Competitor Tests" —
 https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
 (its Drive filename is still "Untitled document"). It is a numbered running log
 per tool, with Zach's screenshots inline. Its SpecKit section is the deliverable.
 
-The Google Drive tools can read that doc but cannot write to it:
-`Google_Drive__update_file` changes metadata only, and there is no content-edit
-tool for an existing Doc. So the agent drafts markdown and Zach pastes it in —
-Docs converts pasted markdown to real headings and lists. Do not create a
-replacement Doc; the screenshots live in this one.
+The Drive tools can read that doc but cannot write to it: `update_file` changes
+metadata only, and there is no content-edit tool for an existing Doc. So the
+agent drafts markdown and Zach pastes it in — Docs converts pasted markdown to
+real headings and lists. Do not create a replacement Doc; the screenshots live
+in this one.
+
+`FastJVM/coga` is public, so findings stay in the doc and the blackboard stays a
+pointer. The doc itself is owner-only, so its URL here is safe; share it with
+Nico by named account rather than switching on link-sharing.
 
 ### The trial task
 
@@ -135,35 +134,19 @@ validate the files. Validation enforces that `status` is one of a fixed set and
 that any non-draft task has a workflow.
 
 Zach picked it because he knows the correct design cold, so a bad spec or plan
-is obvious on sight, and it is small enough to build three times.
-
-Two biases to name in the write-up rather than hide: it is Coga's own problem
-domain, and a three-command CLI may be small enough that constitution, specify,
-plan and tasks were never going to pay off. The second makes "the fixed sequence
-constrains you" close to a foregone conclusion.
+is obvious on sight. The bias to name rather than hide is that it is Coga's own
+problem domain.
 
 The same task runs through BMAD and Compound Engineering in the sibling tickets
 `competition-testing/test-bmad-method` and
-`competition-testing/test-compound-engineering`, so the three write-ups compare.
-Keep the product name `tiny-ticket` in all three and vary only the project
-directory: `speckit-tiny-ticket`, `bmad-tiny-ticket`, `ce-tiny-ticket`.
+`competition-testing/test-compound-engineering`. Keep the product name
+`tiny-ticket` in all three and vary only the project directory:
+`speckit-tiny-ticket`, `bmad-tiny-ticket`, `ce-tiny-ticket`. What is worth
+comparing across the three gets decided once the docs exist, not up front.
 
-### Running the trial
+### Install facts already established
 
-Zach runs Spec Kit hands-on in a VM (`cogatest@cogatests-Virtual-Machine`) and
-brings findings back to the session; the agent discusses them and drafts the
-write-up. The agent does not run Spec Kit.
-
-Step 1 `agent-produces` is therefore an attended co-working session and must not
-be launched unattended — the agent has nothing to draft until Zach has run the
-trial. Expect it to iterate: trial, discuss, draft, more trial.
-
-The draft should run one heading per question, evidence before verdict, and mark
-which claims Zach observed firsthand versus which the agent inferred. Questions
-two and three are felt, not measured, so the agent is writing about an
-experience it did not have.
-
-Two install facts already established, both from `specify check` on that VM:
+From `specify check` on the VM:
 
 - The `--integration` token for Claude Code is `claude`, per
   https://github.github.io/spec-kit/integrations/index.html. The names in
@@ -172,34 +155,19 @@ Two install facts already established, both from `specify check` on that VM:
   agent-tools check until Claude Code is installed there. `--ignore-agent-tools`
   skips the check but leaves no agent to run the task with.
 
-Zach installs Claude Code on the VM before the trial starts; nothing else can
-proceed until that is done, and the two sibling tickets share the blocker.
-
 Installer findings are also input to
 `marketing/fix-installer/make-the-readme-install-section-the-only-install-p`,
-which owns the copy-pasteable install commands. Relay them there as well as to
-the doc.
-
-For the Coga side of the comparison, read `coga/workflows`, `coga/tickets`, and
-`coga/knowledge` in `docs/contexts/`. They are cited, not attached.
+which owns the copy-pasteable install commands.
 
 ### Out of scope
 
-Only the spec-driven development loop gets trialled. Spec Kit's bug-fixing and
-idea-assessment processes are listed in `## Description` for completeness; do
-not run them.
-
-At `report-to-coga`, record the doc link, that the SpecKit section is complete,
-and that it was shared. Record nothing about what the trial found — the stock
-step text says to record what was produced and decided, and `### Where findings
-go` overrides it here.
+Only the spec-driven development loop gets trialled; Spec Kit's bug-fixing and
+idea-assessment processes are named in `## Description` for completeness.
 
 Do not commit trial output, competitor notes, or the `tiny-ticket` source into
-this repo. The scratch project stays in the VM.
+this repo. The scratch project stays in the VM. At `report-to-coga`, record the
+doc link and that the section is done — not what the trial found.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-Findings stay in the Google Doc, not here — this repo is public. See
-`## Context` → "Where findings go" for the link and the paste workflow.
