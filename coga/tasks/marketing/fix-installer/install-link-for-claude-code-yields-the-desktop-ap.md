@@ -7,9 +7,36 @@ workflow: null
 
 ## Description
 
-placeholder
+`README.md:103` links `https://claude.com/claude-code`, which gives the user
+the Claude desktop `.dmg`. Dragging that into Applications does not give coga
+the `claude` CLI it drives, so `coga build` still reports no agent. On a fresh
+Mac `installer_argv` in `src/coga/agent_cli_setup.py` finds neither brew nor
+npm, returns None, and falls back to printing that same URL. Decide what a
+fresh Mac is told to run so the user ends up with the CLI.
+
+Done when: a user on a fresh Mac who follows the install path ends up with a
+working, authenticated `claude` CLI.
 
 ## Context
+
+### Why
+
+- Finding 15 on `test-and-fix-install-on-macos-and-windows`, recorded there as
+  the highest-severity finding of the walk and still open.
+- Zach's Mac VM walk log records the dead end in full: Claude.dmg downloaded,
+  dragged to Applications, and simply downloading Claude did not set it up the
+  way coga needs.
+- His workaround was to install Node from nodejs.org and then run
+  `npm install -g @anthropic-ai/claude-code`, which no documentation mentions.
+- `src/coga/agent_cli_setup.py:9-12` states the policy that the installer is
+  the vendor's package and never a `curl | sh` script, so the obvious fix runs
+  against current policy.
+- That tension is finding 16 on the same ticket, open and awaiting an owner
+  ruling; this ticket cannot land without it.
+- `https://claude.ai/install.sh` is Anthropic's own script and installs under
+  `$HOME` with neither Node nor Homebrew, which is why the five-line block on
+  PR #1043 used it.
+- The same gap applies to Codex: its manifest entry offers only brew and npm.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

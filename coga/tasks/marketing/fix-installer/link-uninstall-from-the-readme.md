@@ -7,9 +7,24 @@ workflow: null
 
 ## Description
 
-placeholder
+The README never mentions uninstalling coga, and
+`docs/contexts/coga/uninstall/SKILL.md` is the page that covers it. Put the
+uninstall route in the README, under the install section.
+
+Done when: the README tells a user how to uninstall coga.
 
 ## Context
+
+### Why
+
+- Finding 12 on `test-and-fix-install-on-macos-and-windows`, open.
+- Zach's Mac VM walk log: there is a separate page for uninstall that should be
+  listed on the README, probably right under the install section.
+- `make-the-readme-install-section-the-only-install-p` is deleting the separate
+  install page, so decide whether uninstall stays a separate page or folds into
+  the README the same way.
+- The uninstall topic owns the upgrade and removal commands per installer,
+  which is one of the orphan facts listed on the macOS walk ticket.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

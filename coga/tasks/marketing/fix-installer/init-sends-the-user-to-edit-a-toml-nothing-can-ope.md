@@ -7,9 +7,29 @@ workflow: null
 
 ## Description
 
-placeholder
+`coga init` makes "Edit `<repo>/coga/coga.toml` — set your agents,
+notification channels, and aliases" the first of its next steps, at
+`src/coga/commands/init.py:1545`. A fresh Mac has no application registered for
+`.toml`, so a new user cannot open the file the first instruction points at.
+Decide whether that step is needed at all, and if it stays, say how to open the
+file.
+
+Done when: a new user on a fresh Mac is not sent to a file they cannot open.
 
 ## Context
+
+### Why
+
+- Findings 10 and 11 on `test-and-fix-install-on-macos-and-windows`, both
+  open: next steps leads with an unnecessary `coga.toml` edit, and nothing
+  opens `.toml` on a fresh Mac.
+- Zach's Mac VM walk log: his run had no system application set to open the
+  coga files, and his instinct was TextEdit over VS Code because TextEdit ships
+  with macOS.
+- He also doubted the step belongs in the instructions at all, which is the
+  first question to settle.
+- `ask-which-agents-to-enable-during-coga-init` removes the agents half of that
+  edit, so decide what is left of the step after it lands.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
