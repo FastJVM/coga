@@ -155,8 +155,8 @@ invoked, and launch never follows a recorded `worktree:`.
   keep it out of the Coga roots until the code lands. Which invocations
   sweep is owned by
   [coga/state-publication](../state-publication/SKILL.md#when-coga-publishes).
-- **`coga launch <target> --prompt-report` writes.** It sweeps like any launch
-  and regenerates `.agent-skills/`. For a write-free view call
+- **`coga launch <target> --prompt-report` regenerates `.agent-skills/`.**
+  It skips the state sweep. For a write-free view call
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.
 - **Launch and megalaunch compose from the invoking checkout.** An ordinary
   ticket launch or direct chat brings it to fresh control first (the [launch
