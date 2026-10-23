@@ -132,7 +132,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Coga task — fix-retry-logic" in prompt
     assert "Task directory: coga/tasks/fix-retry-logic" in prompt
     # Base prompt
-    assert "You are an agent working on a ticket inside Coga" in prompt
+    assert "You are an agent working inside Coga" in prompt
     # Session conduct — the attended default when no context is given
     assert "Session conduct — attended" in prompt
     # Repo context
@@ -234,9 +234,11 @@ def test_compose_selects_exactly_one_session_conduct_layer(
     assert len(conduct) == 1
     assert conduct[0].ref == SESSION_CONDUCT_RESOURCES[launch_context]
     # Conduct is read before any task material, so it sits directly after the
-    # neutral base prompt.
+    # neutral base prompt and the task ticket's loop.
     layer_names = [layer.layer for layer in composition.layers]
-    assert layer_names[:3] == ["header", "base_prompt", "session_conduct"]
+    assert layer_names[:4] == [
+        "header", "base_prompt", "ticket_loop", "session_conduct"
+    ]
 
     normalized = " ".join(composition.prompt.split())
     present, absent = CONDUCT_CASES[launch_context]
@@ -313,6 +315,7 @@ def test_queue_conduct_resources_share_their_invariants() -> None:
 
 _PACKAGED_PROMPT_LAYERS = (
     "prompt.md",
+    "prompt-ticket.md",
     "prompt-blocker-resolution.md",
     *SESSION_CONDUCT_RESOURCES.values(),
 )
@@ -388,6 +391,27 @@ def test_coga_repo_principles_reach_launches_without_ticket_attachment(
     assert len(layers) == 1
     assert layers[0].text == source.read_text()
     assert report.prompt.count(principles.read_text()) == 1
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
+def test_compose_ticket_loop_only_for_task_tickets(
+    repo: Path, bootstrap: bool
+) -> None:
+    """Blackboard, bump, and block rules compose only where a lifecycle exists;
+    a stateless bootstrap target finishes as its own ticket says."""
+    cfg = load_config(repo)
+    if bootstrap:
+        ref = resolve_bootstrap(cfg, "orient")
+    else:
+        ref = resolve_task(cfg, _write_workflow_less_task(repo, title="Loop"))
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    layers = [layer.layer for layer in report.layers]
+    assert ("ticket_loop" in layers) is not bootstrap
+    assert ("`coga bump <id>` is the only command" in report.prompt) is not bootstrap
+    # The ticket-file editing rules and reconciliation hold in every session.
+    assert "You may edit `contexts` and the body sections" in report.prompt
+    assert "`coga/checkouts/reconciliation`" in report.prompt
 
 
 @pytest.mark.parametrize(
@@ -1308,7 +1332,7 @@ def test_compose_uses_repo_base_prompt_override(repo: Path) -> None:
     assert base.ref == "prompt.md"
     assert base.path == str(repo / "resources" / "prompt.md")
     assert "Repo base prompt marker." in composition.prompt
-    assert "You are an agent working on a ticket inside Coga" not in (
+    assert "You are an agent working inside Coga" not in (
         composition.prompt
     )
 

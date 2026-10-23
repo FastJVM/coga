@@ -50,6 +50,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/prompt-blocker-resolution.md",
     "coga/resources/prompt-megalaunch.md",
     "coga/resources/prompt-queue.md",
+    "coga/resources/prompt-ticket.md",
     "coga/resources/retire.md",
     "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",

@@ -14,9 +14,16 @@ on the next launch. There is no follow-up loading.
 ## Layer order
 
 1. **Header**: task ref, title, exact task directory, status.
-2. **Base prompt** (resource `prompt.md`): the operating loop; neutral on
-   conduct. Its shared reconciliation checkpoint directs agents to
+2. **Base prompt** (resource `prompt.md`): the rules every session needs —
+   checkout start, ticket-file editing rules, boundaries; neutral on conduct.
+   Its shared reconciliation checkpoint directs agents to
    [coga/checkouts/reconciliation](../checkouts/reconciliation/SKILL.md).
+   **Ticket loop** (resource `prompt-ticket.md`) follows it for a task ticket
+   only: the blackboard, `bump`, and `block` loop. A stateless
+   `bootstrap/<name>` target omits it, since it has no lifecycle; its own
+   ticket says how it finishes. A repo whose older `resources/prompt.md`
+   override still carries those sections composes them twice until it drops
+   them.
 3. **Session conduct**: exactly one resource chosen by launch context
    ([below](#session-conduct)).
 4. **Blocker preamble** (`prompt-blocker-resolution.md`), only when the
@@ -44,9 +51,10 @@ marker; it is not a layer and the report never shows it.
 ## Session conduct
 
 How a session executes is a property of the **invocation**, not of the task.
-Exactly one conduct resource sits immediately after the base prompt; it is
-selected, never stacked or appended after task layers, and the base prompt
-defers to it for every instruction to ask or to block. What each posture
+Exactly one conduct resource sits immediately after the base prompt (and
+the ticket loop, when composed); it is selected, never stacked or appended
+after task layers, and both those layers defer to it for every instruction
+to ask or to block. What each posture
 requires is the resource text itself.
 
 | Launch context | Resource | Chosen by |
@@ -66,8 +74,8 @@ input, not conduct, and never change which resource is selected.
 
 - The fixed text layers read top-level resources, repo override first:
   `<coga root>/resources/<name>` (`coga/resources/` by default) wholly
-  replaces the packaged copy. The overridable names are `prompt.md`, the
-  three conduct resources, `prompt-blocker-resolution.md`, and three
+  replaces the packaged copy. The overridable names are `prompt.md`,
+  `prompt-ticket.md`, the three conduct resources, `prompt-blocker-resolution.md`, and three
   non-prompt resources rendered by other commands: `blackboard.md` (the stock
   placeholder `coga create` writes; [coga/blackboard](../blackboard/SKILL.md)),
   `ticket.md` (the ordinary `coga create` body; one literal `{description}`
