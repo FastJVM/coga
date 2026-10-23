@@ -392,6 +392,13 @@ Follow-up for review/retro: commands/uninstall.py::_uninstall_via_tool prints
 POSIX VAR=value syntax in Windows recovery hints; execution is correct. No
 existing ticket found. Preserve this finding until its durable owner receives it.
 
+## Open-PR handoff — 2026-10-23
+
+Filed the uninstall-hint follow-up as draft
+`windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w` (open-pr
+obligation check). The workflow has no code-review step before open-pr; no code
+review was performed. The owner `review` step remains.
+
 ## PR
 
 ```yaml
@@ -1313,3 +1320,12 @@ also advanced; reconciliation precedes the next push.
   three approved Defender exclusions and verified unrelated exclusions were
   preserved. Evidence: `/tmp/coga-windows-task-cleanup18.txt` and
   `/tmp/coga-windows-exclusions-removed18.txt`. AWS teardown still awaits SSO.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`
+Recorded: 2026-10-23T17:41:49+00:00
+
+    Branch 'coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f' is not safe to publish. refs/heads/coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`.
