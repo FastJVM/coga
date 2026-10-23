@@ -239,7 +239,12 @@ class _WindowsJob:
         self.close()
 
     def command(self, argv: list[str]) -> list[str]:
-        return [sys.executable, "-c", _WINDOWS_JOB_WRAPPER, self.name, *argv]
+        # A venv launcher owns another kill-on-close job. Nesting our job
+        # inside it would kill descendants when the wrapper exits, before
+        # our supervisor decides whether the tree has finished or timed out.
+        # The stdlib-only wrapper needs no venv; the requested argv keeps it.
+        python = getattr(sys, "_base_executable", None) or sys.executable
+        return [python, "-c", _WINDOWS_JOB_WRAPPER, self.name, *argv]
 
     def terminate(self) -> None:
         import ctypes

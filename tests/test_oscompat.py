@@ -102,3 +102,25 @@ def test_lock_directory_is_per_user() -> None:
     assert root.parent == Path(__import__("tempfile").gettempdir())
     assert root.name.startswith("coga-test-lock-")
     assert "/" not in root.name and "\\" not in root.name
+
+
+def test_process_tree_keeps_descendant_owned_after_parent_exits(tmp_path: Path) -> None:
+    script = """
+import subprocess, sys
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+print(child.pid, flush=True)
+"""
+    with oscompat.ProcessTree(
+        [sys.executable, "-c", script], cwd=tmp_path,
+        stdout=subprocess.PIPE, text=True, encoding="utf-8",
+    ) as tree:
+        grandchild = int(tree.process.stdout.readline())
+        try:
+            assert tree.process.wait(timeout=10) == 0
+            assert tree.exists()
+            assert oscompat.process_is_running(grandchild)
+        finally:
+            tree.kill()
+        if os.name == "nt":
+            assert tree.wait_empty(timeout=10)
+            assert not oscompat.process_is_running(grandchild)

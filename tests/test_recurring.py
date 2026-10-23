@@ -12651,8 +12651,8 @@ def test_recurring_all_summary_names_repos_serviced_from_a_control_worktree(
     assert "deterministic phases only, agent handoffs parked" in result.output
     # The on-control repo is an ordinary sweep and must not be listed.
     listed = result.output.split("agent handoffs parked")[-1]
-    assert "parked/repo" in listed
-    assert "ordinary/repo" not in listed
+    assert str(Path("parked/repo")) in listed
+    assert str(Path("ordinary/repo")) not in listed
 
 
 def test_recurring_all_summary_omits_a_failed_off_control_repo(
