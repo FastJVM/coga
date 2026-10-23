@@ -255,6 +255,29 @@ def test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit(
     assert len(sweeps) == 1
 
 
+@pytest.mark.parametrize(
+    ("argv", "sweeps_expected"),
+    [
+        (["coga", "launch", "x", "--prompt-report"], 0),
+        (["coga", "launch", "--prompt-report", "bootstrap/orient"], 0),
+        (["coga", "launch", "x"], 1),
+    ],
+)
+def test_prompt_report_skips_the_sweep(
+    clone: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    sweeps_expected: int,
+) -> None:
+    """A prompt report must not publish dirty knowledge edits it is measuring."""
+    monkeypatch.setattr("sys.argv", argv)
+    sweeps: list[object] = []
+    monkeypatch.setattr("coga.git.sync_coga_state", sweeps.append)
+    monkeypatch.setattr("coga.cli.app", lambda: None)
+    main()
+    assert len(sweeps) == sweeps_expected
+
+
 def test_launch_entry_refusal_through_main_skips_the_sweep(
     clone: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

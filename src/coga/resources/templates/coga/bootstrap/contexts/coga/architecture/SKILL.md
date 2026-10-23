@@ -13,28 +13,23 @@ rebuilds its prompt from files.
 
 - **Tickets** under `coga/tasks/`: frontmatter, body, and a blackboard of
   working state composed into the next launch; disposable once done.
-  [tickets](../tickets/SKILL.md), [lifecycle](../lifecycle/SKILL.md),
-  [blackboard](../blackboard/SKILL.md).
 - **Log**: append-only `coga/log.md`, CLI-written, never composed.
 - **Contexts**: facts and contracts ("what is true"), attached per ticket.
 - **Skills**: process ("how to do it"), attached to workflow steps or tickets.
 - **Workflows**: ordered steps with roles and gates, frozen into tickets.
-  [workflows](../workflows/SKILL.md).
 - **Recurring templates** and stateless **bootstrap targets**.
 - **Config**: shared `coga.toml`, machine-local `coga.local.toml`.
 
 Contexts and skills are `SKILL.md` files. They, workflows and bootstrap
 targets resolve local-first, then from the package's bundled batteries.
-Links never load content; only attached refs compose
-([knowledge](../knowledge/SKILL.md)).
+Links never load content; only attached refs compose.
 
 ## Transient runtime
 
 `coga launch` runs a ticket's `ticket.py` phase, if any, then composes one
-prompt ([prompt-composition](../prompt-composition/SKILL.md), including
-its session conduct) and supervises one agent
-session per step. Status is the signal of who is working; there is no lock.
-What a session learns survives only in files.
+prompt and supervises one agent session per step. Status is the signal of
+who is working; there is no lock. What a session learns survives only in
+files.
 
 ## The correction loop
 
@@ -44,56 +39,42 @@ operating rules without a merge.
 
 ## Who Coga acts as
 
-- **Operator.** The OS user plus tools they already authenticate: `git`, SSH
-  agent or credential helper, `gh`. Coga stores no GitHub token. Git transport
-  uses your remote, GitHub API work uses `gh` auth, and a missing login fails
-  with a setup hint (`gh auth login`, fix your remote).
-- **Repo.** Identified by its Git checkout and `coga/` config. There is no
-  hosted account. For the optional weekly snapshot, a UUID v4 lives as
-  committed state in the phone-home recurring parent blackboard and is shared
-  by synced clones; it is not a human account.
-  [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns its lifecycle and concurrency
-  limits.
-- **Task capability.** A ticket's declared `secrets:` is a declaration of
-  intent, not confinement ([secrets](../secrets/SKILL.md)).
+Coga acts as the OS user, through tools they already authenticate (`git`
+and its remote, `gh`); it stores no GitHub token and has no hosted account.
+A missing login fails with a setup hint. The optional weekly snapshot
+identifies the repo by a committed UUID, not a person; the
+[phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)
+owns it. A ticket's `secrets:` declares intent, not confinement
+([secrets](../secrets/SKILL.md)).
 
 ## Topic map
 
 - **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
   [first-task](../first-task/SKILL.md), [uninstall](../uninstall/SKILL.md),
   [cli](../cli/SKILL.md).
-- **Understand**: [knowledge](../knowledge/SKILL.md) and the model topics
-  linked above.
+- **Model**: [knowledge](../knowledge/SKILL.md),
+  [tickets](../tickets/SKILL.md), [lifecycle](../lifecycle/SKILL.md),
+  [blackboard](../blackboard/SKILL.md), [workflows](../workflows/SKILL.md),
+  [prompt-composition](../prompt-composition/SKILL.md).
 - **Configure**: [configuration](../configuration/SKILL.md),
   [context-layout](../context-layout/SKILL.md),
   [secrets](../secrets/SKILL.md).
 - **Run work**: [launch](../launch/SKILL.md),
   [script-tickets](../script-tickets/SKILL.md),
   [megalaunch](../megalaunch/SKILL.md),
-  [human assist](../human-assist/SKILL.md).
-- **Recurring and maintenance**: [recurring](../recurring/SKILL.md)
-  ([templates](../recurring/templates/SKILL.md),
-  [scheduling](../recurring/scheduling/SKILL.md) and its inactivity leaf,
-  [delegation](../recurring/delegation/SKILL.md),
-  [autofix](../recurring/autofix/SKILL.md)),
-  [period-task](../period-task/SKILL.md), [dream](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md).
-- **State and notifications**: [sync](../sync/SKILL.md),
+  [human-assist](../human-assist/SKILL.md),
+  [recurring](../recurring/SKILL.md),
+  [period-task](../period-task/SKILL.md).
+- **State**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
-  [state publication](../state-publication/SKILL.md),
-  [usage](../usage/SKILL.md),
-  [telemetry](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
-- **Extend a repo**: [extension-model](../extension-model/SKILL.md),
+  [state-publication](../state-publication/SKILL.md),
+  [usage](../usage/SKILL.md).
+- **Extend and ship code**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
-  [edge code](../edge-code/SKILL.md), [sandboxes](../sandboxes/SKILL.md);
-  code tickets: [checkouts](../checkouts/SKILL.md),
-  [design history](../blackboard/SKILL.md#superseded-designs),
-  [checkout-cleanup](../checkout-cleanup/SKILL.md), each with its leaves;
-  [PR publication](../pr-publication/SKILL.md)
-  ([preparation](../pr-publication/preparation/SKILL.md)).
+  [edge-code](../edge-code/SKILL.md), [sandboxes](../sandboxes/SKILL.md),
+  [checkouts](../checkouts/SKILL.md),
+  [checkout-cleanup](../checkout-cleanup/SKILL.md),
+  [pr-publication](../pr-publication/SKILL.md).
 
-The separate Coga-dev library is for changing Coga itself. Its
-[source map](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/codebase/SKILL.md)
-and [internals index](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/SKILL.md)
-are optional navigation; the [audience criterion](../context-layout/SKILL.md#context-audiences)
-explains which knowledge ships.
+Each topic links its own children.

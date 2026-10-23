@@ -264,6 +264,13 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         # session's unfinished contexts and skills. The launcher's own
         # return and final sweep own that state.
         return False
+    if command == "launch" and any(
+        arg == "--prompt-report" for arg in args[1:]
+    ):
+        # A report composes and exits without spawning, so it writes no task
+        # state; a sweep would only publish the operator's unreviewed edits
+        # under the roots, which is exactly when they measure a prompt.
+        return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
         for arg in args[1:]

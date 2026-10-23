@@ -350,32 +350,15 @@ def test_coga_repo_instructions_carry_the_minimal_core_boundary() -> None:
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])
-def test_coga_repo_principles_reach_launches_without_ticket_attachment(
+def test_coga_repo_principles_compose_only_when_attached(
     repo: Path, bootstrap: bool
 ) -> None:
-    """Both launch entry paths receive the checked copy of the canonical principles."""
+    """This repo's context names the principles rather than composing them, so
+    only tickets that attach `coga-dev/principles` pay for them."""
     repo_root = Path(__file__).resolve().parents[1]
     source = repo_root / "coga/context.md"
     principles = repo_root / "docs/contexts/coga-dev/principles/SKILL.md"
-    assert not source.is_symlink()
-    comment, separator, mirrored = source.read_text().partition("\n\n")
-    assert comment == (
-        "<!-- Generated from docs/contexts/coga-dev/principles/SKILL.md; "
-        "edit that owner and refresh this copy. -->"
-    )
-    assert separator
-    assert mirrored == principles.read_text()
-    github_root = "https://github.com/FastJVM/coga/blob/main/"
-    for document in (source, principles):
-        links = re.findall(r"\]\(([^)]+)\)", document.read_text())
-        assert links
-        for link in links:
-            target = (
-                repo_root / link.removeprefix(github_root)
-                if link.startswith(github_root)
-                else document.parent / link
-            )
-            assert target.is_file(), (document, link)
+    assert "`coga-dev/principles`" in source.read_text()
     (repo / "context.md").write_text(source.read_text())
 
     cfg = load_config(repo)
@@ -390,7 +373,8 @@ def test_coga_repo_principles_reach_launches_without_ticket_attachment(
     layers = [layer for layer in report.layers if layer.layer == "repo_context"]
     assert len(layers) == 1
     assert layers[0].text == source.read_text()
-    assert report.prompt.count(principles.read_text()) == 1
+    assert "Expand human capacity" in principles.read_text()
+    assert "Expand human capacity" not in report.prompt
 
 
 @pytest.mark.parametrize("bootstrap", [False, True])

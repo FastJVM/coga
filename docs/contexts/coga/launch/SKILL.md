@@ -116,8 +116,9 @@ prepared launch returns its checkout instead.
 
 - `--prompt-report` prints each composed layer, exact refs, bytes, and
   `characters / 4` token estimates without spawning. It refuses a `ticket.py`
-  target and never executes ticket code, but it refreshes the agent-skill
-  view and runs the end-of-command state sweep like any launch.
+  target and never executes ticket code. It refreshes the agent-skill view
+  but skips the end-of-command state sweep, so measuring a prompt never
+  publishes the edits being measured.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.
 - Refusals exit 2; a checkout-boundary entry refusal, a stale recurring
