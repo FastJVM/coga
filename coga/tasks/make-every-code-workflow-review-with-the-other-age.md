@@ -1,6 +1,6 @@
 ---
 title: Make every code workflow review with the other agent
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
