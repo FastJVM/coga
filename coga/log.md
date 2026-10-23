@@ -9198,3 +9198,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 10:25 v1 [recurring/blocker-reminders] [system] task done
 2026-10-23 10:25 v1 [recurring/blocker-reminders] [system] script exited with code 0
 2026-10-23 10:41 v1 [windows-native/01-core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-23 10:41 v1 [windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w] [human:nicktoper] created (status=draft)
