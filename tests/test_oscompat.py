@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 from types import SimpleNamespace
@@ -123,4 +124,9 @@ print(child.pid, flush=True)
             tree.kill()
         if os.name == "nt":
             assert tree.wait_empty(timeout=10)
+            # Job accounting reaches zero before all terminated process
+            # handles are signaled; wait for the observed grandchild too.
+            deadline = time.monotonic() + 10
+            while oscompat.process_is_running(grandchild) and time.monotonic() < deadline:
+                time.sleep(0.01)
             assert not oscompat.process_is_running(grandchild)
