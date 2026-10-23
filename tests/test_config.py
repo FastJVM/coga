@@ -1510,7 +1510,10 @@ def test_build_launch_env_resolves_op_in_parent_then_scrubs_auth(
 
 def test_build_launch_env_scrubs_auth_from_an_explicit_base_env() -> None:
     env = build_launch_env(None, [], base_env={**_OP_AUTH_ENV, "HOME": "/h"})
-    assert env == {"HOME": "/h"}
+    expected = {"HOME": "/h"}
+    if os.name == "nt":
+        expected["PYTHONIOENCODING"] = "utf-8"
+    assert env == expected
 
 
 def test_build_launch_env_honors_an_explicit_auth_destination(

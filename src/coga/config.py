@@ -2002,6 +2002,10 @@ def build_launch_env(
     """
     resolved = select_launch_secrets(cfg, declared)
     env = scrub_op_auth_env(os.environ if base_env is None else base_env)
+    if os.name == "nt":
+        # Python ticket/clone scripts share the CLI's UTF-8 pipes. This does
+        # not enable UTF-8 mode or change the default encoding of state files.
+        env["PYTHONIOENCODING"] = "utf-8"
     for _name, ref in parse_inline_secrets(declared):
         if ref.startswith("env:"):
             env.pop(ref[len("env:") :], None)

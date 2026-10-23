@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import re
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -597,7 +598,7 @@ def test_reconcile_records_the_owner_while_the_worktree_still_exists(
     recorded = _entry("cross", branch="feature", worktree=str(worktree))
     # A line written before the field existed is backfilled on the next run.
     rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
-    path.write_text(path.read_text(encoding="utf-8").replace(f", owner `{owner.resolve()}`", ""), encoding="utf-8", newline="\n")
+    path.write_text(re.sub(r", owner `[^`]*`", "", path.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
 
     change = rw.reconcile_worklist(cfg, path, root=root)
 
@@ -622,7 +623,7 @@ def test_reconcile_counts_a_backfilled_and_moved_entry_as_one_refresh(
     root, owner, worktree = _cross_clone(tmp_path)
     recorded = _entry("cross", branch="feature", worktree=str(worktree))
     rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
-    path.write_text(path.read_text(encoding="utf-8").replace(f", owner `{owner.resolve()}`", ""), encoding="utf-8", newline="\n")
+    path.write_text(re.sub(r", owner `[^`]*`", "", path.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
 
     # The same run backfills the owner and takes a new branch for the slug.
     moved = replace(recorded, branch="feature-2")

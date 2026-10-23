@@ -1531,8 +1531,10 @@ def test_windows_prompt_report_allows_an_agent_ticket(script_repo, monkeypatch):
     assert ref.ticket_path.read_bytes() == before
 
 
+@pytest.mark.parametrize("value", ["machine-value", "Café → 東京"])
 def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     script_repo: Path,
+    value: str,
 ) -> None:
     bootstrap = script_repo / "bootstrap" / "deterministic"
     _write(
@@ -1549,7 +1551,7 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     )
     _write(
         bootstrap / "ticket.py",
-        """
+        f"""
         import os
         import sys
 
@@ -1557,10 +1559,13 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
         assert os.environ["COGA_TASK_SLUG"] == "bootstrap/deterministic"
         assert "COGA_TASK_BLACKBOARD" not in os.environ
         assert "COGA_TASK_STEP" not in os.environ
-        print("machine-value")
+        print({value!r})
+        print({value!r}, file=sys.stderr)
         """,
     )
     env = os.environ.copy()
+    env.pop("PYTHONIOENCODING", None)
+    env.pop("PYTHONUTF8", None)
     source_path = str(_SOURCE_ROOT / "src")
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = (
@@ -1578,7 +1583,8 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "machine-value\n"
+    assert result.stdout == value + "\n"
+    assert value in result.stderr
     assert "Launch: task bootstrap/deterministic" in result.stderr
     assert "bootstrap/deterministic: script ran successfully" in result.stderr
     assert not (script_repo / "log.md").exists()

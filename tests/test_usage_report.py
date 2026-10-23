@@ -461,7 +461,7 @@ def test_period_task_renders_last_week_from_the_template_and_closes_its_step(
 
     assert result.exit_code == 0, result.output
     assert read_ticket(ref).status == "done"
-    stderr = capfd.readouterr().err
+    stderr = capfd.readouterr().err.replace("\r\n", "\n")
     assert stderr.count(expected) == 1
     assert "no channels configured: " + expected.splitlines()[0] in stderr
 

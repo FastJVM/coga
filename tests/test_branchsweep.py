@@ -1088,7 +1088,7 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
     assert linked.is_dir()
     assert _branch_exists_local(repo, "feat")
     assert any(
-        f"live ticket 'reuses-checkout' also records worktree '{linked.resolve().as_posix()}'"
+        f"live ticket 'reuses-checkout' also records worktree {str(linked.resolve())!r}"
         in note
         for note in result.notes
     )

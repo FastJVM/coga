@@ -29,7 +29,7 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import windows_skip
+from conftest import remove_test_checkout, windows_skip
 from typer.testing import CliRunner
 
 from coga import git
@@ -1137,11 +1137,11 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
     elif change == "mode":
         if os.name == "posix":
             context.chmod(0o755)
-        else:
-            git_repo.git("update-index", "--chmod=+x", "coga/contexts/team/SKILL.md")
     else:
         context.write_text("authored knowledge\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/contexts")
+    if change == "mode" and os.name != "posix":
+        git_repo.git("update-index", "--chmod=+x", "coga/contexts/team/SKILL.md")
     git_repo.git("commit", "-m", "authored knowledge for review")
     if already_published:
         git_repo.git("push", "origin", "HEAD:main")
@@ -1198,6 +1198,7 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
         return SimpleNamespace(exit_code=0)
 
     monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr(command, "spawn_agent_session", interview)
     monkeypatch.chdir(git_repo.coga_os)
     monkeypatch.setattr(sys, "argv", ["coga", "ticket", "demo"])
@@ -1521,7 +1522,7 @@ def test_sweep_refuses_submodules_without_deleting_them(git_repo, capsys, change
         git_repo.git("push", "origin", "main")
     original = git_repo.git("ls-tree", "origin/main", "--", rel)
     if change == "deleted":
-        shutil.rmtree(sub)
+        remove_test_checkout(sub)
     elif change != "added":
         knowledge.write_text("edited\n", encoding="utf-8", newline="\n")
         if change == "committed":

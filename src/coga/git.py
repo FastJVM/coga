@@ -2406,6 +2406,12 @@ def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
         return (root / rel).read_bytes()
     except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
         return None
+    except PermissionError:
+        # Opening a directory reports EACCES on Windows, not EISDIR. Let the
+        # existing tree-mode guard diagnose a submodule or non-regular entry.
+        if os.name == "nt" and (root / rel).is_dir():
+            return None
+        raise
 
 
 def _dirty_paths(root: Path, pathspecs: list[str]) -> list[str]:

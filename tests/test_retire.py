@@ -756,7 +756,7 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
     result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
-    assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
+    assert f"Worktree cleanup: removed linked worktree {str(feature)!r}." in result.output
     assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
     assert not feature.exists()
     retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
@@ -817,7 +817,7 @@ def test_retire_disposes_of_a_done_tickets_checkout_then_deletes_it(
     result = CliRunner().invoke(retire_cmd.app, [slug])
 
     assert result.exit_code == 0, result.output
-    assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
+    assert f"Worktree cleanup: removed linked worktree {str(feature)!r}." in result.output
     assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
     assert f"Retire: dropped {slug} from {worklist}." in result.output
     assert not feature.exists()

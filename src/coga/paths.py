@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from importlib.resources import files
 from pathlib import Path
+import errno
+import os
 import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
@@ -182,6 +184,17 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
         try:
             candidate.lstat()
         except FileNotFoundError:
+            # Windows reports a non-directory ancestor as ENOENT, whereas
+            # POSIX reports ENOTDIR. It is an invalid override, not absence.
+            if os.name == "nt":
+                for parent in candidate.parents:
+                    if parent.exists() and not parent.is_dir():
+                        exc = NotADirectoryError(
+                            errno.ENOTDIR, "Not a directory", str(parent),
+                        )
+                        raise WorkflowError(
+                            f"Cannot inspect workflow {candidate}: {exc}"
+                        ) from exc
             continue
         except OSError as exc:
             raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc

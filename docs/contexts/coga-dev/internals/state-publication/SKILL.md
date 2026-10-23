@@ -107,7 +107,9 @@ non-zero exit.
 `authoring.finalize_authored` fingerprints the eligible files under
 `coga_root_paths` (`authoring_sync_roots`) before the interview: file mode
 plus content hash, so a mode-only edit is a change; Git lists the files, so
-ignored ones are never hashed, and symlinks are never followed. After it,
+ignored ones are never hashed, and symlinks are never followed. On Windows,
+the fingerprint takes executable modes from the Git index, as publication
+does; POSIX continues to read the working file's mode. After it,
 finalization reloads and validates configuration before discovering files or
 validating tickets. A Git-destination change refuses as at the launch
 boundary and keeps the edits: the handoff publishes only where the interview
