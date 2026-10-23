@@ -152,7 +152,9 @@ Server.
 PR CI exists (owner decision, 2026-10-23, reversing the 2026-09-24 no-CI
 decision): `.github/workflows/test.yml` runs `python -m pip install -e
 ".[test]"` then `python -m pytest` on Python 3.11 on `ubuntu-latest` and
-`windows-latest` for every pull request and push to `main`. It does not run
+`windows-latest` for every pull request and push to `main`. Superseded PR
+runs are canceled; each main push has a separate concurrency group so queued
+main runs are preserved. It does not run
 `coga validate`, interactive launch (checked on EC2), or anything needing a
 real agent CLI, network, or AWS; such tests must skip cleanly rather than be
 excluded from CI. The publish-only `.github/workflows/release.yml`
