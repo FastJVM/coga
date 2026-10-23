@@ -154,7 +154,10 @@ decision): `.github/workflows/test.yml` runs `python -m pip install -e
 ".[test]"` then `python -m pytest` on Python 3.11 on `ubuntu-latest` and
 `windows-latest` for every pull request and push to `main`. Superseded PR
 runs are canceled; each main push has a separate concurrency group so queued
-main runs are preserved. It does not run
+main runs are preserved. The POSIX migration-runbook test requires ripgrep
+(`rg`) on PATH; CI installs it in the Linux job. The test step uses
+`TERM=dumb` so Typer's forced terminal formatting in Actions does not insert
+ANSI codes into plain-text assertions. It does not run
 `coga validate`, interactive launch (checked on EC2), or anything needing a
 real agent CLI, network, or AWS; such tests must skip cleanly rather than be
 excluded from CI. The publish-only `.github/workflows/release.yml`
