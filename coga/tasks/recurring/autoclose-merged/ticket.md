@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 108eb053-dc2e-4dd3-9c13-0999f49172a2
+period_generation: a6e55005-2698-42e4-8684-8bde4d0bbd84
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -85,16 +86,3 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-10-22T16:07:27+00:00
-Task: `recurring/autoclose-merged`
-
-5 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `blocks/01-self-document-coga-toml-and-split-the-agents-to` "01 Self-document coga.toml and split the agents topic": branch `coga/blocks-01-self-document-coga-toml-and-split-the--38a971`
-- `blocks/02-delete-the-code-topic-and-remove-coga-repo-only` "02 Delete the code topic and remove Coga-repo-only text from shipped topics": branch `coga/blocks-02-delete-the-code-topic-and-remove-coga--23a0ec`
-- `blocks/09-trim-setup-and-extension-topics` "09 Trim setup and extension topics": branch `coga/blocks-09-trim-setup-extension`
-- `let-the-autofix-generator-attach-repo-default-contexts` "Let the autofix generator attach repo-default contexts": branch `coga/let-the-autofix-generator-attach-repo-default-co-140a79`
-- `pin-control-inside-the-state-lock-during-checkout` "Pin control inside the state lock during checkout preparation": branch `fix/prep-pin-under-state-lock`

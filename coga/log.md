@@ -9175,3 +9175,9 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 09:32 v1 [competition-testing/test-speckit] [human:zach] started (active → in_progress) via coga launch
 2026-10-23 09:32 v1 [competition-testing/test-speckit] [human:zach] launched (operator=claude, agent=claude)
 2026-10-23 10:13 v1 [windows-native/01-core-port-cli-and-test-suite-pass-on-native-window] [human:nicktoper] advanced to step 5 (open-pr) — Native Windows and Linux suites pass; fresh-user branch-wheel walk passed; AWS teardown verified. Structured PR preparation is on the blackboard.
+2026-10-23 10:23 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-23 10:23 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-23
+2026-10-23 10:23 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-23
+2026-10-23 10:23 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-23 10:23 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-23
+2026-10-23 10:23 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-23
