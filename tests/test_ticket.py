@@ -4,6 +4,13 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
@@ -17,7 +24,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _prompt_arg(cmd: list[str]) -> str:
@@ -480,7 +487,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     combined = result.output + (result.stderr or "")
     assert "email/ghost" in combined
     assert "broken-context" in combined
-    assert "email/ghost/SKILL.md" in combined
+    assert str(Path("email/ghost/SKILL.md")) in combined
     assert not called
 
 
@@ -780,7 +787,7 @@ def _authoring_setup(
     local = 'user = "marc"\n'
     if local_agent is not None:
         local += f'\n[authoring]\nagent = "{local_agent}"\n'
-    (repo / "coga.local.toml").write_text(local)
+    (repo / "coga.local.toml").write_text(local, encoding="utf-8", newline="\n")
     path = repo / "bootstrap" / "ticket" / "ticket.md"
     bootstrap = Ticket.read(path)
     if bootstrap_agent is None:

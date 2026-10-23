@@ -39,8 +39,16 @@ the next sweep retries.
 
 ## Windows
 
-On Windows a wrapper (`_WINDOWS_JOB_WRAPPER`) joins a supervisor-owned job
+The shared `oscompat.ProcessTree` owns both recurring runners' children.
+On Windows its wrapper (`_WINDOWS_JOB_WRAPPER`) joins a supervisor-owned job
 object (`_WindowsJob`) before starting any script code, so descendants remain
 owned after their parent exits. Job termination and kill-on-close clean up the
 entire tree; setup or cleanup errors are reported, never replaced by
-best-effort PID lookup. This costs one wrapper process per run.
+best-effort PID lookup. The deadline includes live job members even when the
+parent has exited and stdout reached EOF. This costs one wrapper process per run.
+The stdlib-only wrapper uses the base Python executable: placing Coga's job
+inside a virtual-environment launcher's own job would let that launcher kill
+descendants when the wrapper exits. The requested script command still uses
+its original interpreter and environment. CPython's
+[`PC/launcher.c`, `run_child`](https://github.com/python/cpython/blob/3.11/PC/launcher.c)
+sets up the launcher's additional job.

@@ -70,7 +70,7 @@ def script_task_slug() -> str | None:
 
 
 def load_status(ticket_path: Path) -> str | None:
-    text = ticket_path.read_text()
+    text = ticket_path.read_text(encoding="utf-8")
     if not text.startswith("---"):
         return None
     parts = text.split("---", 2)
@@ -113,7 +113,7 @@ def blackboard_region(ticket: Path) -> str:
     (it was a separate `blackboard.md` before)."""
     if not ticket.is_file():
         return ""
-    text = ticket.read_text()
+    text = ticket.read_text(encoding="utf-8")
     idx = text.find(_BLACKBOARD_FENCE)
     return text[idx + len(_BLACKBOARD_FENCE):] if idx != -1 else ""
 
@@ -176,7 +176,7 @@ def open_pr_state(repo: Path) -> OpenPrState:
         cwd=repo,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if listed.returncode != 0:
         detail = listed.stderr.strip() or listed.stdout.strip() or "no output"
@@ -199,7 +199,7 @@ def open_pr_state(repo: Path) -> OpenPrState:
             cwd=repo,
             check=False,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if diff.returncode != 0:
             detail = diff.stderr.strip() or diff.stdout.strip() or "no output"

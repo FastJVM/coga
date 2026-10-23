@@ -9,6 +9,7 @@ worktree, and a bare `origin`, so the shared retire proofs
 from __future__ import annotations
 
 import shutil
+import shlex
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -22,14 +23,14 @@ from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
-from conftest import GitRepo, init_git_repo
+from conftest import GitRepo, init_git_repo, remove_test_checkout
 
 PR_URL = "https://github.com/o/r/pull/30"
 
 
 def _git(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(cwd), *args], capture_output=True, text=True
+        ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8"
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     return proc.stdout.strip()
@@ -56,7 +57,7 @@ def _landed_checkout(repo: GitRepo, tmp_path: Path, branch: str = "feature-x") -
     _git(repo.root, "worktree", "add", str(worktree), "-b", branch)
     _git(worktree, "config", "user.email", "t@example.com")
     _git(worktree, "config", "user.name", "Tester")
-    (worktree / f"{branch}.txt").write_text("work\n")
+    (worktree / f"{branch}.txt").write_text("work\n", encoding="utf-8", newline="\n")
     _git(worktree, "add", f"{branch}.txt")
     _git(worktree, "commit", "-m", f"{branch} work")
     _git(worktree, "push", "-u", "origin", branch)
@@ -146,7 +147,7 @@ IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important-test"
 
 def _route_important(repo: GitRepo) -> None:
     toml = repo.coga_os / "coga.toml"
-    toml.write_text(toml.read_text() + f'important_webhook = "{IMPORTANT_WEBHOOK}"\n')
+    toml.write_text(toml.read_text(encoding="utf-8") + f'important_webhook = "{IMPORTANT_WEBHOOK}"\n', encoding="utf-8", newline="\n")
     _git(repo.root, "commit", "-am", "route important")
 
 
@@ -157,7 +158,7 @@ def _period_task(repo: GitRepo, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
     """
     template = repo.coga_os / "recurring" / "autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     period = repo.coga_os / "tasks" / "recurring" / "autoclose-merged" / "ticket.md"
     period.parent.mkdir(parents=True)
     period.write_text(
@@ -175,7 +176,8 @@ def _period_task(repo: GitRepo, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
 
             <!-- coga:blackboard -->
             """
-        ).lstrip()
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
@@ -247,7 +249,7 @@ def test_recipe_preserves_a_dirty_checkout_alerts_important_and_records_it(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     worktree = _landed_checkout(git_repo, tmp_path)
-    (worktree / "scratch.txt").write_text("unsaved\n")
+    (worktree / "scratch.txt").write_text("unsaved\n", encoding="utf-8", newline="\n")
     slug, ticket = _final_step_ticket(git_repo, branch="feature-x", worktree=worktree)
     _route_important(git_repo)
     period, worklist = _period_task(git_repo, monkeypatch)
@@ -265,7 +267,7 @@ def test_recipe_preserves_a_dirty_checkout_alerts_important_and_records_it(
     assert preserved.slug == slug
     assert "contains tracked or untracked local state" in preserved.disposal.reason
     # A preserved closure is the one shape that still enters the worklist.
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [(e.slug, e.branch, e.worktree) for e in entries] == [
         (slug, "feature-x", str(worktree))
     ]
@@ -276,7 +278,7 @@ def test_recipe_preserves_a_dirty_checkout_alerts_important_and_records_it(
     assert f"`{slug}`" in important[0]
     assert "contains tracked or untracked local state" in important[0]
     assert not any("🧹" in text for _url, text in posts)
-    report = period.read_text()
+    report = period.read_text(encoding="utf-8")
     assert "1 checkout(s) preserved" in report
     assert f"`coga retire {slug}`" in report
     assert "  - Worktree cleanup:" in report
@@ -291,13 +293,14 @@ def test_recipe_drains_a_worklist_entry_whose_ticket_is_gone(
     worktree = _landed_checkout(git_repo, tmp_path, branch="orphan")
     template = git_repo.coga_os / "recurring" / "autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     worklist = template / rw.RETIRE_WORKLIST_FILENAME
     worklist.write_text(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("retired-long-ago", "orphan", str(worktree), "2026-09-01")],
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     tip = _git(git_repo.root, "rev-parse", "refs/heads/orphan")
     _stub_gh(monkeypatch, git_repo, merged_by_head={"orphan": tip})
@@ -314,7 +317,7 @@ def test_recipe_drains_a_worklist_entry_whose_ticket_is_gone(
     assert outcome.slug == "retired-long-ago"
     assert outcome.title is None and not outcome.ticket_exists
     assert outcome.disposed
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entries == []
     out = capsys.readouterr().out
     assert "`retired-long-ago` (worklist backlog, ticket already deleted)" in out
@@ -352,13 +355,14 @@ def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
     replace_blackboard(live["path"], blackboard + "\n\n## Dev\n\nbranch: feature-x\n")
     template = git_repo.coga_os / "recurring" / "autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     worklist = template / rw.RETIRE_WORKLIST_FILENAME
     worklist.write_text(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("finished", "feature-x", str(worktree), "2026-09-01")],
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     _stub_gh(monkeypatch, git_repo)
     _capture_posts(monkeypatch)
@@ -373,7 +377,7 @@ def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
     assert outcome.disposal.reason == (
         f"live ticket {live['slug']!r} also records branch 'feature-x'"
     )
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [e.slug for e in entries] == ["finished"]
     out = capsys.readouterr().out
     assert "1 checkout(s) preserved" in out
@@ -443,7 +447,7 @@ def test_branch_only_refusal_is_reported_and_recorded(
     assert [item.slug for item in result.preserved] == [slug]
     assert [item.slug for item in result.retire_pending] == [slug]
     assert _local_branch_exists(git_repo.root, "feature-x")
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [entry.slug for entry in entries] == [slug]
     assert any("⚠️" in text and slug in text for _, text in posts)
 
@@ -458,7 +462,7 @@ def test_disposal_from_recurring_control_checkout(
     _stub_gh(monkeypatch, git_repo)
     parent = tmp_path / "coga-recurring-review"
     parent.mkdir()
-    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}")
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}", encoding="utf-8", newline="\n")
     control = parent / "checkout"
     _git(git_repo.root, "switch", "-c", "operator-work")
     _git(git_repo.root, "worktree", "add", str(control), "main")
@@ -495,12 +499,12 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     if local_state == "wrong-branch":
         _git(worktree, "switch", "-c", "unrelated-work")
     elif local_state == "ignored":
-        (worktree / ".gitignore").write_text("local-secret\n")
+        (worktree / ".gitignore").write_text("local-secret\n", encoding="utf-8", newline="\n")
         _git(worktree, "add", ".gitignore")
         _git(worktree, "commit", "-m", "Ignore local data")
-        (worktree / "local-secret").write_text("must survive\n")
+        (worktree / "local-secret").write_text("must survive\n", encoding="utf-8", newline="\n")
     elif local_state == "squashed":
-        (worktree / "feature.txt").write_text("feature\n")
+        (worktree / "feature.txt").write_text("feature\n", encoding="utf-8", newline="\n")
         _git(worktree, "add", "feature.txt")
         _git(worktree, "commit", "-m", "Feature change")
         _git(owner, "merge", "--squash", "upstream-fix")
@@ -519,18 +523,18 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     assert preserved.home is not None and preserved.home.kind == "foreign-linked"
     remedy = preserved.manual_command
     assert f"the worktree belongs to `{owner}`" in remedy
-    assert f"`git -C {owner} worktree list --porcelain`" in remedy
-    assert f"`git -C {worktree.resolve()} status --short --untracked-files=all --ignored`" in remedy
+    assert f"`git -C {shlex.quote(str(owner))} worktree list --porcelain`" in remedy
+    assert f"`git -C {shlex.quote(str(worktree.resolve()))} status --short --untracked-files=all --ignored`" in remedy
     assert "worktree remove" not in remedy
-    assert "`git -C " + str(owner) + " branch -" not in remedy
+    assert "`git -C " + shlex.quote(str(owner)) + " branch -" not in remedy
     assert "exact merged-head verification" in remedy
     assert "Keep the worktree until that plan is verified" in remedy
     assert f"`coga retire {slug}` fails the same proof" in remedy
-    assert f"({remedy})" in period.read_text()
+    assert f"({remedy})" in period.read_text(encoding="utf-8")
     [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
     assert f"the worktree belongs to `{owner}`" in important
     # Still debt: the worklist is its only durable trace once the ticket goes.
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [(e.slug, e.worktree) for e in entries] == [(slug, str(worktree))]
 
 
@@ -547,7 +551,7 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     posts = _capture_posts(monkeypatch)
     cfg = load_config(git_repo.coga_os)
     assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
-    _, [entry] = rw.parse_worklist(worklist.read_text())
+    _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(owner.resolve())
 
     _git(owner, "worktree", "remove", str(worktree))
@@ -558,12 +562,12 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     [kept] = result.preserved
     assert kept.slug == slug and kept.branch_owner == owner.resolve()
     assert kept.checkout_state == "branch `upstream-fix`"
-    remedy = f"`git -C {owner.resolve()} branch -d upstream-fix`"
+    remedy = f"`git -C {shlex.quote(str(owner.resolve()))} branch -d upstream-fix`"
     assert remedy in kept.manual_command
-    assert remedy in period.read_text()
+    assert remedy in period.read_text(encoding="utf-8")
     [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
     assert remedy in important
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entries == [entry]
     assert _local_branch_exists(owner, "upstream-fix")
 
@@ -573,7 +577,7 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     assert am.run_autoclose_recipe(cfg, [], result=result) == 0
 
     assert [item.slug for item in result.disposed] == [slug]
-    assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
     assert f"1 discharged (`{slug}`)" in capsys.readouterr().out
 
 
@@ -591,11 +595,11 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     posts = _capture_posts(monkeypatch)
     cfg = load_config(git_repo.coga_os)
     assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
-    _, [entry] = rw.parse_worklist(worklist.read_text())
+    _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(owner.resolve())
 
     shutil.rmtree(worktree)
-    shutil.rmtree(owner)
+    remove_test_checkout(owner)
     posts.clear()
     result = am.AutocloseResult()
     assert am.run_autoclose_recipe(cfg, [], result=result) == 0
@@ -608,8 +612,8 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     assert "correct the entry's `owner`" in remedy
     [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
     assert remedy in important and "branch -d" not in important
-    assert remedy in period.read_text()
-    assert rw.parse_worklist(worklist.read_text())[1] == [entry]
+    assert remedy in period.read_text(encoding="utf-8")
+    assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == [entry]
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -621,7 +625,7 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
     _git(clone, "branch", "feature-x")
     # A same-named local branch must never be touched for this foreign ticket.
     _git(git_repo.root, "branch", "feature-x")
-    (clone / "local-data").write_text("keep me")
+    (clone / "local-data").write_text("keep me", encoding="utf-8", newline="\n")
     _route_important(git_repo)
     _, worklist = _period_task(git_repo, monkeypatch)
     if legacy:
@@ -629,7 +633,7 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
         worklist.parent.mkdir(parents=True, exist_ok=True)
         worklist.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [
             rw.RetireFollowUp(slug, "feature-x", str(clone), "2026-09-01"),
-        ]))
+        ]), encoding="utf-8", newline="\n")
     else:
         slug, _ = _final_step_ticket(git_repo, branch="feature-x", worktree=clone)
     _stub_gh(monkeypatch, git_repo)
@@ -643,9 +647,9 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
     assert kept.branch_owner == clone.resolve()
     assert kept.worktree is None
     assert "remove" not in kept.manual_command
-    assert f"git -C {clone} branch -d feature-x" in kept.manual_command
+    assert f"git -C {shlex.quote(str(clone))} branch -d feature-x" in kept.manual_command
     assert _local_branch_exists(git_repo.root, "feature-x")
-    _, [entry] = rw.parse_worklist(worklist.read_text())
+    _, [entry] = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entry.owner == str(clone.resolve())
 
     _git(clone, "branch", "-D", "feature-x")
@@ -654,9 +658,9 @@ def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
         result = am.AutocloseResult()
         assert am.run_autoclose_recipe(cfg, [], result=result) == 0
         assert not result.preserved
-        assert rw.parse_worklist(worklist.read_text())[1] == []
+        assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
     assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
-    assert (clone / "local-data").read_text() == "keep me"
+    assert (clone / "local-data").read_text(encoding="utf-8") == "keep me"
     assert _local_branch_exists(git_repo.root, "feature-x")
 
 
@@ -697,12 +701,12 @@ def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
 
     # `/tmp` is wiped: the branch went with the clone, so this is not an
     # unreadable owner to locate forever.
-    shutil.rmtree(clone)
+    remove_test_checkout(clone)
     posts.clear()
     result = am.AutocloseResult()
     assert am.run_autoclose_recipe(cfg, [], result=result) == 0
     assert not result.preserved
-    assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert rw.parse_worklist(worklist.read_text(encoding="utf-8"))[1] == []
     assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
 
 
@@ -713,7 +717,7 @@ def test_primary_checkout_recorded_as_worktree_is_not_retire_debt(
     # checkout itself. Only the branch is debt; it lands and is disposed of,
     # and nothing is preserved, posted to coga-important, or recorded.
     _git(git_repo.root, "switch", "-c", "feature-x")
-    (git_repo.root / "feature-x.txt").write_text("work\n")
+    (git_repo.root / "feature-x.txt").write_text("work\n", encoding="utf-8", newline="\n")
     _git(git_repo.root, "add", "feature-x.txt")
     _git(git_repo.root, "commit", "-m", "feature-x work")
     _git(git_repo.root, "push", "-u", "origin", "feature-x")
@@ -752,13 +756,14 @@ def test_worklist_entry_naming_the_primary_checkout_clears_with_its_branch(
     # than being re-posted to coga-important forever.
     template = git_repo.coga_os / "recurring" / "autoclose-merged"
     template.mkdir(parents=True)
-    (template / "ticket.md").write_text("template\n")
+    (template / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     worklist = template / rw.RETIRE_WORKLIST_FILENAME
     worklist.write_text(
         rw.render_worklist(
             rw.RETIRE_WORKLIST_HEADER,
             [rw.RetireFollowUp("in-place", branch, str(git_repo.root), "2026-09-01")],
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     _stub_gh(monkeypatch, git_repo)
     posts = _capture_posts(monkeypatch)
@@ -770,7 +775,7 @@ def test_worklist_entry_naming_the_primary_checkout_clears_with_its_branch(
     assert [(o.branch, o.worktree, o.disposed) for o in result.checkouts] == (
         [("gone", None, True)] if branch else []
     )
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert entries == []
     assert git_repo.root.is_dir()
     assert not any("⚠️" in text for _url, text in posts)

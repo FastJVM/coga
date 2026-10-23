@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -30,13 +31,20 @@ def _reexec_under_coga_interpreter() -> int:
         print('Local config setup failed: coga is not importable and no `coga` '
               'command is on PATH.', file=sys.stderr)
         return 2
-    with open(console, 'rb') as script:
-        shebang = script.readline().decode('utf-8', 'replace').strip()
-    if not shebang.startswith('#!'):
+    data = Path(console).read_bytes()
+    if os.name == 'nt':
+        # Wheel installers embed the interpreter line between the Windows
+        # launcher and its zip payload. The executable can live outside the
+        # environment (for example in uv's tool bin directory).
+        matches = re.findall(rb'#!([^\r\n]+)\r?\nPK\x03\x04', data)
+        interpreter = [matches[-1].decode('utf-8').strip('"')] if matches else []
+    else:
+        shebang = data.split(b'\n', 1)[0].decode('utf-8', 'replace').strip()
+        interpreter = shebang[2:].split() if shebang.startswith('#!') else []
+    if not interpreter:
         print('Local config setup failed: coga is not importable and the `coga` '
               'command has no interpreter shebang.', file=sys.stderr)
         return 2
-    interpreter = shebang[2:].split()
     env = dict(os.environ, **{_REEXEC_ENV: '1'})
     return subprocess.run([*interpreter, __file__, *sys.argv[1:]], env=env).returncode
 
@@ -97,19 +105,21 @@ def seed_local_config(source_workspace: Path, destination_checkout: Path) -> Non
         _, existing_actor = read_local(destination)
         if existing_actor != actor:
             raise SeedError('Destination actor differs from primary checkout; refusing to overwrite.')
-        destination.chmod(0o600)
+        if os.name == 'posix':
+            destination.chmod(0o600)
     else:
         # Exclusive creation protects an existing file; restrict before writing.
         fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
             with os.fdopen(fd, 'wb') as output:
-                os.fchmod(output.fileno(), 0o600)
+                if os.name == 'posix':
+                    os.fchmod(output.fileno(), 0o600)
                 output.write(data)
             read_local(destination)
         except Exception:
             destination.unlink()
             raise
-    if stat.S_IMODE(destination.stat().st_mode) != 0o600:
+    if os.name == 'posix' and stat.S_IMODE(destination.stat().st_mode) != 0o600:
         raise SeedError('Cannot restrict local config permissions to 0600.')
 
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from importlib.resources import files
 from pathlib import Path
+import errno
+import os
 import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
@@ -70,7 +72,7 @@ own local-override paths and is not part of this rule.
 def read_packaged_resource(name: str) -> str:
     """Read a top-level `coga/resources/` file, failing loud but catchably."""
     try:
-        return files("coga.resources").joinpath(name).read_text()
+        return files("coga.resources").joinpath(name).read_text(encoding="utf-8")
     except OSError as exc:
         raise PackagedResourceMissing(
             f"{name} is missing from the installed Coga package "
@@ -182,6 +184,17 @@ def resolve_workflow_path(cfg: Config, name: str) -> Path:
         try:
             candidate.lstat()
         except FileNotFoundError:
+            # Windows reports a non-directory ancestor as ENOENT, whereas
+            # POSIX reports ENOTDIR. It is an invalid override, not absence.
+            if os.name == "nt":
+                for parent in candidate.parents:
+                    if parent.exists() and not parent.is_dir():
+                        exc = NotADirectoryError(
+                            errno.ENOTDIR, "Not a directory", str(parent),
+                        )
+                        raise WorkflowError(
+                            f"Cannot inspect workflow {candidate}: {exc}"
+                        ) from exc
             continue
         except OSError as exc:
             raise WorkflowError(f"Cannot inspect workflow {candidate}: {exc}") from exc

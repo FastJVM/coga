@@ -129,11 +129,15 @@ def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
     (making a skill script executable) is a change publication must carry.
     """
     snapshot: dict[Path, str] = {}
+    root = find_checkout_root(cfg.repo_root) if os.name != "posix" else None
+    index_modes = git._index_modes(root) if root is not None else {}
     for path in _authoring_files(cfg):
         # Never turn a link in an authoring root into an explicit publication
         # request for its target (which may be source outside these roots).
         if git.symlink_component(path) is None and path.is_file():
             mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+            if root is not None:
+                mode = index_modes.get(git.relative_to_root(root, path), "100644")
             digest = sha256(path.read_bytes()).hexdigest()
             snapshot[path.absolute()] = f"{mode}:{digest}"
     return snapshot

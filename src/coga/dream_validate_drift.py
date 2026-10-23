@@ -93,7 +93,7 @@ def run_validate_json(
         cwd=cwd,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if result.returncode not in (0, 1):
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
@@ -713,7 +713,7 @@ def commit_and_push_fixes(
         cwd=git_root,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if upstream.returncode == 0:
         _run_git(["push"], cwd=git_root)
@@ -728,7 +728,7 @@ def _run_git(args: list[str], *, cwd: Path) -> str:
         cwd=cwd,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"

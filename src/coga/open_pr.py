@@ -20,7 +20,9 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -57,6 +59,10 @@ def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProc
     # Decode as UTF-8 explicitly rather than through the ambient locale: this
     # reads ticket bodies, and a launch subprocess chain running under `LC_ALL=C`
     # would otherwise raise `UnicodeDecodeError` on the first em dash.
+    if os.name == "nt":
+        executable = shutil.which(args[0])
+        if executable and Path(executable).suffix.lower() in {".cmd", ".bat", ".com"}:
+            args = [executable, *args[1:]]
     return subprocess.run(
         args,
         cwd=cwd,
@@ -621,7 +627,7 @@ def _refresh_body(existing: dict, title: str, body: str, base: str, legacy_title
 def _write_pr(args: list[str], title: str, body: str, *, cwd: str) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(prefix="coga-pr-") as directory:
         path = Path(directory) / "body.md"
-        path.write_text(body, encoding="utf-8")
+        path.write_text(body, encoding="utf-8", newline="\n")
         return _run([*args, "--title", title, "--body-file", str(path)], cwd=cwd)
 
 

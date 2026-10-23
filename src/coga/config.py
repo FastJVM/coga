@@ -1489,6 +1489,34 @@ def require_context_artifact(
     anchor = checkout or root
     if not root.is_relative_to(anchor):
         raise ConfigError(f"Context root {root} is outside the checkout {anchor}.")
+    if os.name == "nt" and checkout is not None:
+        # With core.symlinks=false, Git checks links out as ordinary files
+        # containing the target name. They still cannot be context artifacts
+        # (or ancestors): another checkout could follow the recorded link.
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(checkout), "ls-files", "--stage", "-z"],
+                capture_output=True, check=False,
+            )
+        except OSError as exc:
+            raise ConfigError(
+                f"Cannot verify context artifact {artifact} with Git: {exc}"
+            ) from exc
+        if result.returncode != 0:
+            raise ConfigError(
+                f"Cannot verify context artifact {artifact} with Git: "
+                f"{result.stderr.decode('utf-8', errors='replace').strip()}"
+            )
+        for entry in result.stdout.split(b"\0"):
+            metadata, _, name = entry.partition(b"\t")
+            if metadata.startswith(b"120000 "):
+                link = checkout / os.fsdecode(name)
+                if artifact == link or link in artifact.parents:
+                    raise ConfigError(
+                        f"Context artifact {artifact} traverses the symlink "
+                        f"recorded by Git at {link}. Replace it with a regular "
+                        "context file or directory and stage the replacement."
+                    )
     current = anchor
     for part in ("", *artifact.relative_to(anchor).parts):
         current = current / part
@@ -1974,6 +2002,10 @@ def build_launch_env(
     """
     resolved = select_launch_secrets(cfg, declared)
     env = scrub_op_auth_env(os.environ if base_env is None else base_env)
+    if os.name == "nt":
+        # Python ticket/clone scripts share the CLI's UTF-8 pipes. This does
+        # not enable UTF-8 mode or change the default encoding of state files.
+        env["PYTHONIOENCODING"] = "utf-8"
     for _name, ref in parse_inline_secrets(declared):
         if ref.startswith("env:"):
             env.pop(ref[len("env:") :], None)

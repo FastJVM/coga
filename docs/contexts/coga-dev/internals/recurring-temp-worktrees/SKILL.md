@@ -61,6 +61,13 @@ a repo with refused agent templates is listed with the failed repos.
 
 ## Cancellation and cleanup
 
+Both recurring runners use `oscompat.ProcessTree`. POSIX retains the process
+session, TERM/wait/KILL order and existing timeouts. Windows owns descendants
+with the clone runner's kill-on-close Job Object; cancellation terminates that
+job and waits for its active process count to reach zero before removal.
+Startup waits until the wrapper joined the job or exited, so a late wrapper
+cannot enter the tree after the supervisor has stopped it.
+
 The inner scan runs in its own process session. Once its handle is known,
 cancellation signals the whole **process group** and waits for the leader, so a
 `ticket.py` descendant cannot keep writing to a removed checkout. Known-safe
@@ -85,3 +92,14 @@ after transferring its run records (retaining it if that fails). An ambiguous
 `starting` window, a live wrapper or group, an old or invalid marker, and any
 unrelated user worktree are all retained. `--all` discovery prunes these temp
 parents (prefix plus marker), even when `<path>` includes `/tmp` or `/`.
+
+Windows markers use version 3 and store the globally named Job Object in
+`inner_pgid`; POSIX keeps the version-2 numeric PGID protocol. The job's random
+name lasts for its kernel lifetime and is not a recycled PID. Inspection uses
+`OpenProcess(SYNCHRONIZE)` and a zero-time wait for owner liveness, never
+`os.kill(pid, 0)`. An inaccessible or reused PID is conservatively live.
+Recovery opens the recorded job for query only: active processes or a query
+error retain the checkout. A missing job is gone under its kill-on-close
+contract; an existing empty job is also safe. Old, foreign-platform and invalid
+markers are retained, as is the ambiguous `starting` window. Normal cleanup
+and crash recovery preserve transcripts through the same transfer gate above.

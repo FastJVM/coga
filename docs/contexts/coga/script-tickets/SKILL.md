@@ -78,6 +78,18 @@ After an agent step advances, the supervisor runs `ticket.py` again for the
 new step before spawning. `--prompt-report` refuses a script target, and the
 agent-only in-process delegation seam rejects one.
 
+On native Windows the deterministic phase still runs. Python child processes
+receive `PYTHONIOENCODING=utf-8` so their standard streams match the
+[CLI encoding](../cli/SKILL.md), including redirected script output. This
+does not enable Python UTF-8 mode or change locale-default file decoding.
+If the script leaves an agent
+phase open, a direct launch exits 2 with the platform refusal and retains the
+script's output and lifecycle writes; it does not undo or complete the step.
+A recurring sweep instead records the refusal and pauses the unfinished period
+using its ordinary [unfinished-run policy](../recurring/scheduling/SKILL.md#admission-and-unfinished-runs).
+The unchanged-state guarantee for agent-only entry does not apply after a
+script has run.
+
 ## Completion attribution
 
 `coga bump` and `coga mark done` credit `system` when `COGA_SCRIPT_TASK`

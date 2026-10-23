@@ -246,6 +246,12 @@ def run_megalaunch(
     The dependency drain belongs only to the default sweep. Explicit
     selections never expand into unpicked work.
     """
+    from coga.launch import LaunchBail, require_agent_sessions
+
+    try:
+        require_agent_sessions()
+    except LaunchBail as exc:
+        raise MegalaunchError(exc.reason) from None
     cfg = cfg or load_config()
     if agent_override is not None:
         cfg.agent_type(agent_override)
@@ -1044,7 +1050,7 @@ def save_selection(cfg: Config, slugs: list[str]) -> None:
         "selected": list(slugs),
         "saved_at": datetime.now(timezone.utc).isoformat(),
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n")
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def load_selection(cfg: Config) -> list[str]:
@@ -1056,7 +1062,7 @@ def load_selection(cfg: Config) -> list[str]:
             "(`coga megalaunch --pick`)."
         )
     try:
-        payload = json.loads(path.read_text())
+        payload = json.loads(path.read_text(encoding="utf-8"))
         slugs = payload["selected"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         raise MegalaunchError(f"Unreadable saved selection at {path}: {exc}") from exc

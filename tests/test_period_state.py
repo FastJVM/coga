@@ -50,7 +50,7 @@ def _set_parent_state(repo: Path, region: str) -> None:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 # --- pure helpers -------------------------------------------------------------
@@ -79,7 +79,8 @@ def test_snapshot_round_trip(tmp_path: Path) -> None:
     # blackboard region (below the fence), which `write_snapshot` reads.
     parent_ticket = tmp_path / "ticket.md"
     parent_ticket.write_text(
-        "## Description\n\n<!-- coga:blackboard -->\n\nlast_commit: AAA\nposted: yes\n"
+        "## Description\n\n<!-- coga:blackboard -->\n\nlast_commit: AAA\nposted: yes\n",
+        encoding="utf-8", newline="\n",
     )
     task_dir = tmp_path / "task"
     task_dir.mkdir()
@@ -102,7 +103,7 @@ def test_read_snapshot_absent_returns_none(tmp_path: Path) -> None:
 
 
 def test_read_snapshot_corrupt_returns_none(tmp_path: Path) -> None:
-    (tmp_path / SNAPSHOT_FILE).write_text("{not json")
+    (tmp_path / SNAPSHOT_FILE).write_text("{not json", encoding="utf-8", newline="\n")
     assert read_snapshot(tmp_path) is None
 
 
@@ -110,7 +111,7 @@ def test_read_snapshot_corrupt_returns_none(tmp_path: Path) -> None:
 def test_read_snapshot_valid_json_non_object_returns_none(
     tmp_path: Path, payload: str
 ) -> None:
-    (tmp_path / SNAPSHOT_FILE).write_text(payload)
+    (tmp_path / SNAPSHOT_FILE).write_text(payload, encoding="utf-8", newline="\n")
     assert read_snapshot(tmp_path) is None
 
 

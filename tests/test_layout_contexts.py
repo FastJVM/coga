@@ -27,13 +27,13 @@ from coga.validate import validate_task
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), *args],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     ).stdout
 
 
@@ -153,11 +153,12 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     # sync — the created task reaches origin, and so do an edit to a relocated
     # context and a new one (build's product/vision shape): the contexts root
     # is a Coga root, published by the sweep without a knowledge branch.
-    resolved.write_text(resolved.read_text() + "\nRetry-After is authoritative.\n")
+    resolved.write_text(resolved.read_text(encoding="utf-8") + "\nRetry-After is authoritative.\n", encoding="utf-8", newline="\n")
     vision = checkout / "docs" / "contexts" / "product" / "vision" / "SKILL.md"
     vision.parent.mkdir(parents=True)
     vision.write_text(
-        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n"
+        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n",
+        encoding="utf-8", newline="\n",
     )
     ticket = read_ticket(ref)
     ticket.frontmatter["contexts"] = ["email/payment-flow", "product/vision"]
@@ -229,9 +230,9 @@ def test_context_artifacts_rejected_before_fallback(
 ) -> None:
     if not relocated:
         config = relocated_repo / "coga.toml"
-        config.write_text(config.read_text().replace(
+        config.write_text(config.read_text(encoding="utf-8").replace(
             '[layout]\ncontexts = "docs/contexts"', "",
-        ))
+        ), encoding="utf-8", newline="\n")
     cfg = load_config(relocated_repo)
     # Use a bundled ref: an invalid local artifact must never become a miss.
     create_task(
@@ -241,7 +242,7 @@ def test_context_artifacts_rejected_before_fallback(
     artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
     artifact.parent.mkdir(parents=True)
     target = tmp_path / "machine-local.md"
-    target.write_text("MACHINE LOCAL MARKER\n")
+    target.write_text("MACHINE LOCAL MARKER\n", encoding="utf-8", newline="\n")
     if kind == "chain":
         middle = cfg.contexts_root / "middle.md"
         middle.symlink_to(target)
@@ -252,7 +253,7 @@ def test_context_artifacts_rejected_before_fallback(
         artifact.symlink_to("SKILL.md")
     elif kind in {"internal", "ignored", "tracked-internal"}:
         target = relocated_repo.parent / "product-not-swept.md"
-        target.write_text("unpublished target\n")
+        target.write_text("unpublished target\n", encoding="utf-8", newline="\n")
         if kind == "ignored":
             _write(relocated_repo.parent / ".gitignore", "product-not-swept.md\n")
         if kind == "tracked-internal":
@@ -304,9 +305,9 @@ def test_unpublishable_regular_context_rejected(
 ) -> None:
     if not relocated:
         config = relocated_repo / "coga.toml"
-        config.write_text(config.read_text().replace(
+        config.write_text(config.read_text(encoding="utf-8").replace(
             '[layout]\ncontexts = "docs/contexts"', "",
-        ))
+        ), encoding="utf-8", newline="\n")
     cfg = load_config(relocated_repo)
     artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
     _write(artifact, "unpublishable context\n")

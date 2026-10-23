@@ -58,7 +58,7 @@ def test_shim_calls_the_registered_recipe_and_bumps_through_the_cli(
     `OptionInfo` sentinels instead of real option defaults.
     """
     script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
-    source = script.read_text()
+    source = script.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(script))
 
     imported: dict[str, str] = {}
@@ -146,9 +146,9 @@ def test_clone_shim_bumps_only_when_run_as_a_period_task(
     seeded, monkeypatch, template, recipe_name, slug, recipe_code, expected, exit_code,
 ) -> None:
     script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
-    assert "scope: clone" in (script.parent / "ticket.md").read_text()
+    assert "scope: clone" in (script.parent / "ticket.md").read_text(encoding="utf-8")
     assert recipe_name in RECIPES
-    assert f'run_recipe(load_config(), "{recipe_name}", [])' in script.read_text()
+    assert f'run_recipe(load_config(), "{recipe_name}", [])' in script.read_text(encoding="utf-8")
     cfg = load_config(seeded)
     calls = []
 
@@ -183,7 +183,7 @@ def test_clone_shim_bumps_only_when_run_as_a_period_task(
 def test_every_shimmed_template_dropped_the_recipe_field() -> None:
     """`recipe:` left the format; the file beside `ticket.md` is the signal."""
     for template, _ in (*SHIMMED_TEMPLATES, *CLONE_SHIMMED_TEMPLATES):
-        ticket = (PACKAGED / "recurring" / template / "ticket.md").read_text()
+        ticket = (PACKAGED / "recurring" / template / "ticket.md").read_text(encoding="utf-8")
         assert "\nrecipe:" not in ticket, template
 
 
@@ -202,7 +202,7 @@ def test_autoclose_shim_leaves_branches_to_the_clone_sweep(
     calls = []
     blackboard = seeded / "tasks/recurring/autoclose-merged/ticket.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("---\ntitle: Autoclose\n---\n\n<!-- coga:blackboard -->\n")
+    blackboard.write_text("---\ntitle: Autoclose\n---\n\n<!-- coga:blackboard -->\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
 
     def recipe(name, code):
@@ -288,18 +288,18 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
         ("ticket.md", SCRIPT_ENTRY_POINT)
     )
     script = ref.task_dir / SCRIPT_ENTRY_POINT
-    script.write_text(script.read_text().replace(
+    script.write_text(script.read_text(encoding="utf-8").replace(
         "from coga.runner import run_recipe",
         "from coga.runner import RECIPES, run_recipe\n"
         "RECIPES.clear()\n"
         f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0",
-    ))
+    ), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code == 0, result.output
     assert read_ticket(ref).status == "done"
-    audit = (seeded / "log.md").read_text()
+    audit = (seeded / "log.md").read_text(encoding="utf-8")
     assert audit.count("[system] task done") == 1
     assert "[human:marc] task done" not in audit
     assert f"system finished *{ref.id_slug}*" in capfd.readouterr().err
@@ -317,7 +317,7 @@ def test_period_task_left_unfinished_when_its_shim_fails(seeded: Path) -> None:
     )
     cfg = load_config(seeded)
     ref = create_named(cfg, "blocker-reminders").ref
-    (ref.task_dir / SCRIPT_ENTRY_POINT).write_text("raise SystemExit(17)\n")
+    (ref.task_dir / SCRIPT_ENTRY_POINT).write_text("raise SystemExit(17)\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
@@ -355,7 +355,8 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
         "    sys.stderr.write('[blockers] webhook refused the reminder\\n')\n"
         "    return 2\n"
         "runner.RECIPES['blocker-reminders'] = fail\n"
-        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n"
+        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n",
+        encoding="utf-8", newline="\n",
     )
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])

@@ -33,9 +33,15 @@ from coga.ticket import Ticket
 _SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """Agent orchestration uses stubs; platform-boundary cases override this."""
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: True)
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -175,11 +181,14 @@ def test_classifier_reserves_only_ticket_py_in_a_task_directory(
     assert script_entry_point(directory_ref) is None
 
 
+@pytest.mark.parametrize("native_windows", [False, True])
 def test_script_only_launch_is_headless_and_receives_task_contract(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capfd: pytest.CaptureFixture[str],
+    native_windows: bool,
 ) -> None:
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: not native_windows)
     observed_path = script_repo.parent / "observed.json"
     sentinel = script_repo.parent / "outer-done"
     monkeypatch.setenv("COGA_DONE_SENTINEL", str(sentinel))
@@ -262,7 +271,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
 
     assert result.exit_code == 0, result.output
     assert Ticket.read(ref.ticket_path).status == "done"
-    observed = json.loads(observed_path.read_text())
+    observed = json.loads(observed_path.read_text(encoding="utf-8"))
     assert observed["argv"] == []
     assert observed["cwd"] == str(script_repo.parent.resolve())
     assert observed["env"] == {
@@ -282,7 +291,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
         "COGA_EXPECTED_STEP": None,
         "COGA_DONE_SENTINEL": None,
     }
-    task_log = (script_repo / "log.md").read_text()
+    task_log = (script_repo / "log.md").read_text(encoding="utf-8")
     assert task_log.count("task done") == 1
     assert "[system] task done" in task_log
     assert f"system finished *{ref.id_slug}*" in capfd.readouterr().err
@@ -339,7 +348,7 @@ def test_ticket_py_phase_resolves_op_secret_without_1password_auth(
 
     assert result.exit_code == 0, result.output
     assert op_reads and set(op_reads) == {"parent-auth"}
-    observed = json.loads(observed_path.read_text())
+    observed = json.loads(observed_path.read_text(encoding="utf-8"))
     assert observed == {"token": "op-value", "op_auth": []}
 
 
@@ -365,7 +374,7 @@ def test_script_chain_attributes_each_child_bump_to_system(
 
     assert result.exit_code == 0, result.output
     assert Ticket.read(ref.ticket_path).status == "done"
-    task_log = (script_repo / "log.md").read_text()
+    task_log = (script_repo / "log.md").read_text(encoding="utf-8")
     assert task_log.count("[system] advanced to step 2 (finish)") == 1
     assert task_log.count("[system] task done") == 1
     assert task_log.count("launched as a script") == 2
@@ -454,7 +463,7 @@ def test_nonzero_script_exit_halts_and_notifies_once(
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
     assert ticket.step == "1 (execute)"
-    assert "script exited with code 17" in (script_repo / "log.md").read_text()
+    assert "script exited with code 17" in (script_repo / "log.md").read_text(encoding="utf-8")
     assert len(notifications) == 1
     args, kwargs = notifications[0]
     assert "💥 script failed" in str(args[1])
@@ -499,7 +508,7 @@ def test_nonzero_script_exit_survives_unreadable_ticket_result(
 
     assert result.exit_code == 17, result.output
     assert "Script exited with 17" in result.output
-    assert "script exited with code 17" in (script_repo / "log.md").read_text()
+    assert "script exited with code 17" in (script_repo / "log.md").read_text(encoding="utf-8")
     assert len(notifications) == 1
     assert "exit 17" in notifications[0]
 
@@ -686,7 +695,7 @@ def test_recorded_assist_script_receives_capability_and_publishes_result(
     )
 
     assert result.exit_code == 0
-    observed = json.loads(observed_path.read_text())
+    observed = json.loads(observed_path.read_text(encoding="utf-8"))
     assert observed == {
         "COGA_SUPERVISED": None,
         "COGA_EXPECTED_TASK": str(ref.path.resolve()),
@@ -920,6 +929,7 @@ def test_blocked_script_agent_preflight_failure_reblocks_unresolved_ask(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A same-step script handoff remains owned until agent setup succeeds."""
+    monkeypatch.setattr(launch_module.shutil, "which", lambda cli: f"/stub/{cli}")
     ref = _create_script_task(script_repo, "pass\n")
     blocked = CliRunner().invoke(
         app,
@@ -1442,7 +1452,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code == 0, result.output
-    assert counter.read_text() == "1"
+    assert counter.read_text(encoding="utf-8") == "1"
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == ("blocked" if blocked_resume else "in_progress")
     assert ticket.step == "2 (approve)"
@@ -1452,7 +1462,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
         assert "- [ ]" in read_blackboard(ref.ticket_path)
 
 
-@pytest.mark.parametrize("unavailable", ["tty", "cli", "human"])
+@pytest.mark.parametrize("unavailable", ["tty", "cli", "human", "windows"])
 def test_open_script_step_fails_loud_when_no_agent_can_continue(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1468,6 +1478,7 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
             handle.write("\\ndeterministic work retained\\n")
         """,
     )
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: unavailable != "windows")
     if unavailable == "human":
         ticket = Ticket.read(ref.ticket_path)
         hold_by_owner(ticket)
@@ -1502,10 +1513,28 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
     assert ticket.step == "1 (execute)"
+    if unavailable == "windows":
+        assert launch_module.WINDOWS_AGENT_SESSION_MESSAGE in result.output
 
 
+def test_windows_prompt_report_allows_an_agent_ticket(script_repo, monkeypatch):
+    ref = _create_script_task(script_repo, "raise AssertionError('not a script launch')\n")
+    (ref.task_dir / "ticket.py").unlink()
+    before = ref.ticket_path.read_bytes()
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False)
+    monkeypatch.setattr(launch_module, "spawn_agent_session", _fail("agent spawned"))
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
+
+    assert result.exit_code == 0, result.output
+    assert launch_module.WINDOWS_AGENT_SESSION_MESSAGE not in result.output
+    assert ref.ticket_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("value", ["machine-value", "Café → 東京"])
 def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     script_repo: Path,
+    value: str,
 ) -> None:
     bootstrap = script_repo / "bootstrap" / "deterministic"
     _write(
@@ -1522,7 +1551,7 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     )
     _write(
         bootstrap / "ticket.py",
-        """
+        f"""
         import os
         import sys
 
@@ -1530,10 +1559,13 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
         assert os.environ["COGA_TASK_SLUG"] == "bootstrap/deterministic"
         assert "COGA_TASK_BLACKBOARD" not in os.environ
         assert "COGA_TASK_STEP" not in os.environ
-        print("machine-value")
+        print({value!r})
+        print({value!r}, file=sys.stderr)
         """,
     )
     env = os.environ.copy()
+    env.pop("PYTHONIOENCODING", None)
+    env.pop("PYTHONUTF8", None)
     source_path = str(_SOURCE_ROOT / "src")
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = (
@@ -1547,11 +1579,12 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
         env=env,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "machine-value\n"
+    assert result.stdout == value + "\n"
+    assert value in result.stderr
     assert "Launch: task bootstrap/deterministic" in result.stderr
     assert "bootstrap/deterministic: script ran successfully" in result.stderr
     assert not (script_repo / "log.md").exists()
@@ -1594,8 +1627,8 @@ def test_bootstrap_script_receives_trailing_launch_args_as_argv(
     )
 
     assert result.exit_code == 0, result.output
-    argv = json.loads(observed_path.read_text())
-    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+    argv = json.loads(observed_path.read_text(encoding="utf-8"))
+    assert Path(argv[0]).as_posix().endswith("bootstrap/argv-probe/ticket.py")
     assert argv[1:] == ["two words", "--no-launch", "x"]
 
 
@@ -1608,26 +1641,26 @@ def test_bootstrap_script_without_launch_args_gets_only_its_path(
     result = CliRunner().invoke(app, ["launch", "bootstrap/argv-probe"])
 
     assert result.exit_code == 0, result.output
-    argv = json.loads(observed_path.read_text())
+    argv = json.loads(observed_path.read_text(encoding="utf-8"))
     assert len(argv) == 1
-    assert argv[0].endswith("bootstrap/argv-probe/ticket.py")
+    assert Path(argv[0]).as_posix().endswith("bootstrap/argv-probe/ticket.py")
 
 
 def test_bootstrap_script_runs_without_configured_agents(
     script_repo: Path,
 ) -> None:
     config = script_repo / "coga.toml"
-    text = config.read_text()
+    text = config.read_text(encoding="utf-8")
     start = text.index("[agents.claude]")
     end = text.index("[notification]")
-    config.write_text(text[:start] + text[end:])
+    config.write_text(text[:start] + text[end:], encoding="utf-8", newline="\n")
     observed_path = script_repo.parent / "argv.json"
     _write_argv_probe(script_repo, observed_path)
 
     result = CliRunner().invoke(app, ["launch", "bootstrap/argv-probe", "--", "a"])
 
     assert result.exit_code == 0, result.output
-    assert json.loads(observed_path.read_text())[1:] == ["a"]
+    assert json.loads(observed_path.read_text(encoding="utf-8"))[1:] == ["a"]
 
 
 def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
@@ -1649,7 +1682,7 @@ def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
         env=env,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
@@ -1771,7 +1804,8 @@ def test_stateful_script_phase_rejects_args_from_a_caller(script_repo: Path) -> 
 def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatch, admission):
     monkeypatch.chdir(git_repo.coga_os)
     (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     seed_direct_body_workflow(git_repo.coga_os)
     ref = _create_script_task(
@@ -1786,7 +1820,7 @@ def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatc
     old_root = git_repo.root / "docs" / "contexts"
     _write(old_root / "team" / "SKILL.md", "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
     config = git_repo.coga_os / "coga.toml"
-    config.write_text(config.read_text() + '\n[layout]\ncontexts = "docs/contexts"\n')
+    config.write_text(config.read_text(encoding="utf-8") + '\n[layout]\ncontexts = "docs/contexts"\n', encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed script relocation")
     git_repo.git("push", "origin", "main")
@@ -1823,7 +1857,8 @@ def test_script_chain_returns_the_checkout_between_real_git_phases(
     """Each chained ticket.py phase starts from a clean, fresh control checkout."""
     monkeypatch.chdir(git_repo.coga_os)
     (git_repo.coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     ref = _create_two_step_script_task(
         git_repo.coga_os,

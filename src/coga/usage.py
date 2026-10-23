@@ -375,7 +375,7 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     if not path.is_file():
         return []
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return []
     records: list[UsageRecord] = []
@@ -500,7 +500,7 @@ def _parse_claude_session(
     content_safe = True
     excluded_remaining = list(excluded_user_texts)
     try:
-        lines = path.read_text().splitlines()
+        lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         return _unknown("anthropic", session_id=session_id, reason=str(exc))
     for line_index, line in enumerate(lines):
@@ -691,7 +691,7 @@ def _parse_codex_rollout(
     seen_turn_context = False
     excluded_remaining = list(excluded_user_texts)
     try:
-        lines = path.read_text().splitlines()
+        lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         return _unknown(provider, reason=str(exc))
 
@@ -831,7 +831,7 @@ def _claude_transcript_active_in_window(
     window_end: datetime,
 ) -> bool:
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return False
     for line in text.splitlines():
@@ -871,7 +871,7 @@ def _claude_transcript_has_marker(
     a sibling launch's argv (for example via `ps`) cannot claim it.
     """
     try:
-        lines = path.read_text().splitlines()
+        lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
     for line in lines:
@@ -903,7 +903,7 @@ def _codex_rollout_has_marker(path: Path, marker: str) -> bool:
     developer message. Tool calls and outputs never count.
     """
     try:
-        lines = path.read_text().splitlines()
+        lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
     for line in lines:
@@ -943,7 +943,7 @@ def _codex_rollout_paths() -> list[Path]:
 
 def _read_codex_session_meta(path: Path) -> dict[str, str] | None:
     try:
-        with path.open() as fh:
+        with path.open(encoding="utf-8") as fh:
             for line in fh:
                 if not line.strip():
                     continue

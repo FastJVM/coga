@@ -25,14 +25,12 @@ deletes a branch.
 from __future__ import annotations
 
 import errno
-import fcntl
 import hashlib
 import json
 import os
 import re
 import secrets
 import sys
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
@@ -49,6 +47,7 @@ from coga.autoclose import (
 from coga.blackboard import update_blackboard_under_barrier
 from coga.checkout_policy import CheckoutPolicy, select_checkout_policy
 from coga.compose import CheckoutNotice
+from coga.oscompat import lock_dir, lock_fd, unlock_fd, process_is_running
 from coga.config import Config
 from coga.tasks import TaskRef
 from coga.taskfile import TaskFileError, split_body
@@ -814,7 +813,7 @@ class ChatSession:
 def orientation_lock_paths(root: Path) -> tuple[Path, Path]:
     """The orientation guard's lock file and its companion chat receipt."""
     checkout = hashlib.sha256(os.fsencode(root.resolve())).hexdigest()
-    lock_root = Path(tempfile.gettempdir()) / f"coga-orientation-{os.getuid()}"
+    lock_root = lock_dir("coga-orientation")
     return lock_root / f"{checkout}.lock", lock_root / f"{checkout}.json"
 
 
@@ -902,7 +901,7 @@ def _guard_is_held(lock: Path) -> Iterator[bool]:
         return
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_fd(fd, blocking=False)
         except BlockingIOError:
             yield True
             return
@@ -911,20 +910,14 @@ def _guard_is_held(lock: Path) -> Iterator[bool]:
                 yield True
                 return
             raise
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        unlock_fd(fd)
         yield False
     finally:
         os.close(fd)
 
 
 def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return process_is_running(pid)
 
 
 @dataclass(frozen=True)

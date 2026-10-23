@@ -86,8 +86,11 @@ sees the admitted UUID only after the child can run. Recovery:
 
 ## The local state lock
 
-`git.state_lock` is a per-checkout advisory `flock` whose file lives in the
-system temp directory, outside the worktree. It is reentrant per thread and
+`git.state_lock` is a per-checkout advisory lock whose file lives in the
+per-user system temp directory, outside the worktree. `oscompat.lock_fd` uses
+`flock` on POSIX and an exclusive byte-zero `msvcrt.locking` lock on Windows.
+Blocking Windows acquisition retries without a deadline; nonblocking contention
+raises `BlockingIOError` on both platforms. It is reentrant per thread and
 released by the kernel on exit, so it leaves no stale state and needs no
 cleanup. It serializes this checkout's Coga ticket writers, blocker and
 blackboard writers, and `publish`, and it spans megalaunch's append, final
@@ -98,7 +101,7 @@ Cross-checkout safety comes only from the publish compare-and-set.
 
 The user contract is [coga/checkouts/chat](../../../coga/checkouts/chat/SKILL.md);
 this is how `checkouts.prepare_chat_checkout` keeps it. The guard is a
-nonblocking `flock` keyed by the resolved Git toplevel, with its file in the
+nonblocking descriptor lock keyed by the resolved Git toplevel, with its file in the
 per-user system temp directory, outside the working tree. The OS releases it
 on supervisor exit, so the file is not a durable ownership record. It is
 separate from the short `git.state_lock`, so agent subprocesses can still

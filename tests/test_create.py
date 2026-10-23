@@ -23,7 +23,7 @@ from coga.validate import Issue, TaskValidationError
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _patch_recurring_command_launch(
@@ -46,6 +46,7 @@ def _patch_recurring_command_launch(
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", typed_child_launch
     )
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 
 @pytest.fixture
@@ -125,7 +126,7 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket_path.is_file()
     assert ticket_path.name == "fix-retry-logic.md"
     assert not (repo / "tasks" / "fix-retry-logic").exists()
-    ticket_text = ticket_path.read_text()
+    ticket_text = ticket_path.read_text(encoding="utf-8")
     assert fence_count(ticket_text) == 1
     assert "\nscript:" not in ticket_text
     ticket = Ticket.read(ticket_path)
@@ -254,8 +255,9 @@ def test_create_live_uses_the_default_agent_key_over_declaration_order(
     toml = repo / "coga.toml"
     toml.write_text(
         'default_agent = "codex"\n'
-        + toml.read_text()
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + toml.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     live = create_task(
         cfg=load_config(repo),
@@ -355,7 +357,7 @@ def test_create_rejects_an_unconfigured_explicit_agent(repo: Path) -> None:
 def test_create_keeps_an_explicit_agent_on_a_draft(repo: Path) -> None:
     _write(
         repo / "coga.toml",
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
     )
     cfg = load_config(repo)
@@ -535,7 +537,7 @@ def test_create_into_parked_directory_is_hidden_from_discovery(repo: Path) -> No
     ref = create_task(title="Some wish", **_dir_kwargs(cfg, directory="_v2"))
     assert ref["slug"] == "_v2/some-wish"
     assert ref["path"] == repo / "tasks" / "_v2" / "some-wish.md"
-    assert "## Description\n\n\n" in ref["path"].read_text()
+    assert "## Description\n\n\n" in ref["path"].read_text(encoding="utf-8")
     assert all(not r.id_slug.startswith("_v2") for r in list_tasks(cfg))
 
 
@@ -554,7 +556,7 @@ def test_create_refuses_inside_the_ticket_template(repo: Path) -> None:
     cfg = load_config(repo)
     tmpl = repo / "tasks" / "_template"
     tmpl.mkdir(parents=True, exist_ok=True)
-    (tmpl / "ticket.md").write_text("---\ntitle: t\n---\n")
+    (tmpl / "ticket.md").write_text("---\ntitle: t\n---\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="'_template' is reserved"):
         create_task(title="Child", **_dir_kwargs(cfg, directory="_template"))
 
@@ -616,7 +618,7 @@ def test_create_dir_rejects_nesting_inside_task(repo: Path) -> None:
     cfg = load_config(repo)
     parent = repo / "tasks" / "parent"
     parent.mkdir(parents=True)
-    (parent / "ticket.md").write_text("---\ntitle: parent\n---\n")
+    (parent / "ticket.md").write_text("---\ntitle: parent\n---\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="can't live inside another task"):
         create_task(title="Child", **_dir_kwargs(cfg, directory="parent"))
 
@@ -706,7 +708,7 @@ def test_create_log_entry_written(repo: Path) -> None:
         status=None,
     )
     # The audit line lands in the repo-global log, tagged with the new slug.
-    log = log_path(cfg).read_text()
+    log = log_path(cfg).read_text(encoding="utf-8")
     assert "[x] [human:marc] created" in log
     lines = task_log_lines(cfg, ref["slug"])
     assert any("[human:marc] created" in line for line in lines)
@@ -960,7 +962,7 @@ def test_cli_create_description_lands_in_description_section(
     ticket_path = repo / "tasks" / "retry-webhooks.md"
     t = Ticket.read(ticket_path)
     assert "## Description\n\nBack off on 429s.\n\n## Context\n" in t.body
-    assert fence_count(ticket_path.read_text()) == 1
+    assert fence_count(ticket_path.read_text(encoding="utf-8")) == 1
 
 
 @pytest.mark.parametrize("owner", ["nicktoper", " nicktoper "])
@@ -1078,7 +1080,7 @@ def test_cli_create_description_allows_subheadings_and_inline_fence_mention(
     )
     assert result.exit_code == 0, result.output
     ticket_path = repo / "tasks" / "fence-docs.md"
-    assert fence_count(ticket_path.read_text()) == 1
+    assert fence_count(ticket_path.read_text(encoding="utf-8")) == 1
     t = Ticket.read(ticket_path)
     assert f"## Description\n\n{description}\n\n## Context\n" in t.body
 
@@ -1213,7 +1215,7 @@ def test_create_draft_parked_capture_is_kept_but_not_listed(
 
 def test_create_writes_declared_extension_fields(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
@@ -1221,7 +1223,8 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
             'description = "triage"\n'
             'values = ["P0", "P1", "P2"]\n'
             'default = "P2"\n'
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     ref = create_task(
@@ -1237,7 +1240,7 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
     assert t.frontmatter["docket"] == ""
     assert t.frontmatter["priority"] == "P2"
 
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text(encoding="utf-8")
     assert "# --- extensions ---" in raw
     # Marker sits between canonical keys and extension keys.
     marker_pos = raw.index("# --- extensions ---")
@@ -1257,14 +1260,15 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         agent="claude",
         status="draft",
     )
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text(encoding="utf-8")
     assert "# --- extensions ---" not in raw
 
 
 def test_extension_fields_round_trip(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     ref = create_task(
@@ -1281,7 +1285,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
     t.write(ref["path"])
     again = Ticket.read(ref["path"])
     assert again.frontmatter["docket"] == "55-12345"
-    raw = ref["path"].read_text()
+    raw = ref["path"].read_text(encoding="utf-8")
     assert "# --- extensions ---" in raw
 
 
@@ -1293,7 +1297,7 @@ def test_resolve_task_exact_then_prefix(repo: Path) -> None:
     for slug in ("fix-retry", "fix-retry-logic"):
         d = repo / "tasks" / slug
         d.mkdir(parents=True)
-        (d / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n")
+        (d / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n", encoding="utf-8", newline="\n")
 
     # Exact slug wins even when it's a prefix of another slug.
     assert resolve_task(cfg, "fix-retry").slug == "fix-retry"
@@ -1394,10 +1398,10 @@ def test_created_ticket_carries_guide_through_rewrite_and_composition(
     above, _ = split_body(ticket.body)
     assert [section.key for section in body_sections(above)] == ["description", "context"]
     assert _extract_section(above, "Context") == guide
-    assert fence_count(path.read_text()) == 1
+    assert fence_count(path.read_text(encoding="utf-8")) == 1
     ticket.frontmatter["owner"] = "another-human"
     ticket.write(path)
-    assert guide in path.read_text()
+    assert guide in path.read_text(encoding="utf-8")
     task = resolve_task(cfg, result["slug"])
     assert compose_prompt(cfg, task, Ticket.read(path)).count(guide) == 1
     issues = validate_task(cfg, result["slug"]).issues
@@ -1429,7 +1433,7 @@ def test_create_uses_body_template_override_without_reinterpreting_description(
         cfg=load_config(repo), title="Local template", workflow_name=None,
         contexts=[], owner=None, status=None, description="Keep {description} literally.",
     )
-    text = result["path"].read_text()
+    text = result["path"].read_text(encoding="utf-8")
     assert "Keep {description} literally." in text
     assert "<!-- Local ticket guide. -->" in text
     assert "<!-- Ticket guide" not in text
@@ -1445,7 +1449,7 @@ def test_create_explicit_body_does_not_inject_ordinary_template(
         contexts=[], owner=None, status=None,
         body="## Description\n\nRecurring task intent.\n\n## Context\n\nTemplate context.\n",
     )
-    text = result["path"].read_text()
+    text = result["path"].read_text(encoding="utf-8")
     assert "Recurring task intent." in text
     assert "Template context." in text
     assert "Local ticket guide" not in text

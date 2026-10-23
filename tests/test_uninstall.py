@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,7 +26,7 @@ def _seed_footprint(
     target = tmp_path / "company"
     coga_os = target / "coga"
     coga_os.mkdir(parents=True)
-    (coga_os / "coga.toml").write_text("version = 1\n")
+    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
     (coga_os / ".agent-skills").mkdir()
 
     # Agent skill discovery symlinks.
@@ -35,18 +36,19 @@ def _seed_footprint(
         (skills / "coga").symlink_to(coga_os / ".agent-skills")
 
     # Root orientation guides (shipped content, unmodified).
-    (target / "CLAUDE.md").write_text(AGENT_GUIDE_TEMPLATE)
-    (target / "AGENTS.md").write_text(AGENT_GUIDE_TEMPLATE)
+    (target / "CLAUDE.md").write_text(AGENT_GUIDE_TEMPLATE, encoding="utf-8", newline="\n")
+    (target / "AGENTS.md").write_text(AGENT_GUIDE_TEMPLATE, encoding="utf-8", newline="\n")
 
     # Coga-managed .gitignore block (needs a git dir to be written).
     (target / ".git").mkdir()
-    (target / ".gitignore").write_text("node_modules/\n")
+    (target / ".gitignore").write_text("node_modules/\n", encoding="utf-8", newline="\n")
     ensure_host_gitignore(target)
 
     fake_home = tmp_path / "home"
     local_bin = fake_home / ".local" / "bin"
     local_bin.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
     monkeypatch.chdir(target)
     return target
 
@@ -66,7 +68,7 @@ def test_uninstall_removes_full_footprint(
     assert not (target / "AGENTS.md").exists()
     assert (Path(tmp_path / "home" / ".local" / "bin" / "coga")).exists() is False
     # User .gitignore line survives; managed block is gone.
-    gi = (target / ".gitignore").read_text()
+    gi = (target / ".gitignore").read_text(encoding="utf-8")
     assert "node_modules/" in gi
     assert ".claude/skills/coga" not in gi
 
@@ -75,18 +77,19 @@ def test_uninstall_removes_relocated_contexts_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _seed_footprint(tmp_path, monkeypatch)
-    (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     (target / "coga" / "coga.toml").write_text(
-        'version = 1\n[layout]\ncontexts = "docs/contexts"\n'
+        'version = 1\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
     )
     context = target / "docs" / "contexts" / "team" / "style" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("# Style\n")
+    context.write_text("# Style\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
 
     assert result.exit_code == 0, result.output
-    assert "remove docs/contexts/ (configured contexts directory)" in result.output
+    assert f"remove {Path('docs/contexts')}/ (configured contexts directory)" in result.output
     assert not (target / "docs" / "contexts").exists()
     assert not (target / "coga").exists()
 
@@ -95,7 +98,7 @@ def test_uninstall_broken_config_warns_without_guessing_external_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _seed_footprint(tmp_path, monkeypatch)
-    (target / "coga" / "coga.toml").write_text("this is not = valid toml\n")
+    (target / "coga" / "coga.toml").write_text("this is not = valid toml\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
 
@@ -131,14 +134,14 @@ def test_uninstall_backs_up_modified_guide(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _seed_footprint(tmp_path, monkeypatch)
-    (target / "CLAUDE.md").write_text("# my own edits\n")
+    (target / "CLAUDE.md").write_text("# my own edits\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
     assert result.exit_code == 0, result.output
 
     # Edited guide is preserved under a backup name; the original is gone.
     assert not (target / "CLAUDE.md").exists()
-    assert (target / "CLAUDE.md.coga-bak").read_text() == "# my own edits\n"
+    assert (target / "CLAUDE.md.coga-bak").read_text(encoding="utf-8") == "# my own edits\n"
     # Unmodified guide is removed outright (no backup).
     assert not (target / "AGENTS.md").exists()
     assert not (target / "AGENTS.md.coga-bak").exists()
@@ -152,7 +155,7 @@ def test_uninstall_never_touches_the_operators_cli(
     _seed_footprint(tmp_path, monkeypatch)
     local_bin = tmp_path / "home" / ".local" / "bin"
     other = tmp_path / "other-coga"
-    other.write_text("#!/bin/sh\n")
+    other.write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
     (local_bin / "coga").symlink_to(other)
 
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
@@ -224,7 +227,7 @@ def test_uninstall_purge_runs_uv_tool_for_uv_install(
     assert result.exit_code == 0, result.output
     assert calls == [["/usr/bin/uv", "tool", "uninstall", "coga"]]
     assert envs[0] is not None
-    assert envs[0]["UV_TOOL_DIR"] == "/opt/uv tools"
+    assert envs[0]["UV_TOOL_DIR"] == str(Path("/opt/uv tools"))
     assert "Uninstalled `coga` via uv" in result.output
     assert "-m pip" not in result.output
 
@@ -248,7 +251,7 @@ def test_uninstall_purge_uv_failure_prints_command_with_tool_dir(
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
     assert result.exit_code == 0, result.output
     assert "uv uninstall failed" in result.output
-    assert "UV_TOOL_DIR='/opt/uv tools' uv tool uninstall coga" in result.output
+    assert f"UV_TOOL_DIR={shlex.quote(str(Path('/opt/uv tools')))} uv tool uninstall coga" in result.output
 
 
 def test_uninstall_purge_uv_install_without_uv_prints_uv_hint(
@@ -268,7 +271,7 @@ def test_uninstall_purge_uv_install_without_uv_prints_uv_hint(
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
     assert result.exit_code == 0, result.output
     assert "Couldn't find uv on PATH" in result.output
-    assert "UV_TOOL_DIR=/ uv tool uninstall coga" in result.output
+    assert f"UV_TOOL_DIR={shlex.quote(str(Path('/')))} uv tool uninstall coga" in result.output
     assert "pip uninstall" not in result.output
 
 
@@ -315,9 +318,10 @@ def test_main_uninstall_ignores_legacy_uninstall_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     target = _seed_footprint(tmp_path, monkeypatch)
-    (target / "coga" / "coga.local.toml").write_text('user = "me"\n')
+    (target / "coga" / "coga.local.toml").write_text('user = "me"\n', encoding="utf-8", newline="\n")
     (target / "coga" / "coga.toml").write_text(
-        'version = 1\n[aliases]\nuninstall = "status"\n'
+        'version = 1\n[aliases]\nuninstall = "status"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setattr(sys, "argv", ["coga", "uninstall", "--yes"])
 

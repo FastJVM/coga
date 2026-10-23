@@ -8,7 +8,7 @@ description: How to run and trust Coga's test suite and validation from a checko
 ## Commands
 
 ```sh
-python -m pip install -e ".[test]"   # editable, with pytest and hatchling
+python -m pip install -e ".[test]"   # editable, with pytest, hatchling and pip
 coga --help                          # or: python -m coga.cli --help
 python -m pytest
 coga validate --json                 # or: python -m coga.validate --json
@@ -17,8 +17,8 @@ coga validate --json                 # or: python -m coga.validate --json
 Coga needs Python 3.11+ (`tomllib`); an older interpreter fails loud. If pip's
 hash-checking mode blocks the editable install, use `uv` or prefix the one
 command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
-`python -m venv --without-pip`) has no `pip`, which the wheel tests need; run
-`python -m ensurepip` (or `uv pip install pip`) in it first. Run
+`python -m venv --without-pip`) initially has no `pip`; `uv sync --extra test`
+or `uv pip install -e ".[test]"` installs all test tools, including pip. Run
 `coga validate --json` after config, workflow, or task-model changes.
 
 **Validate `tests/fixtures/seeded-repo/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
@@ -119,14 +119,33 @@ Server.
   `tests/test_autoclose_sweep.py`) or freeze the period; assert structure.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
+- **Native Windows fixtures use UTF-8 and LF explicitly.** `conftest` isolates
+  HOME, USERPROFILE, APPDATA, LOCALAPPDATA and the temp variables. Fixture
+  paths are resolved to their canonical spelling, including HOME and TEMP,
+  so a reused directory with different username casing matches Git's path
+  reports on Windows. `init_git_repo` disables `core.autocrlf` for ordinary
+  fixtures. Dedicated Git tests still exercise CRLF clean filters.
+  `write_executable` supplies a
+  Python shebang on POSIX and a `.cmd` launcher on Windows. Use
+  `remove_test_checkout` when a fixture deliberately removes a Git clone;
+  Git for Windows marks object files read-only.
+- **All Windows exclusions use `conftest.windows_skip(reason)`.** The shared
+  `windows_interactive_skip` names the interactive Windows ticket. Keep
+  mocked orchestration tests running; skip only actual PTY/agent behavior,
+  POSIX modes or Unix host/runbook scripts, and list every non-interactive
+  exclusion with its reason in the PR. Native locks and Job Object recovery
+  tests must run on Windows, without externally enabling Python UTF-8 mode.
+  This repository keeps `.gitignore` LF because Git for Windows can interpret
+  CR-only blank ignore lines as matches; this does not change init's policy
+  for adopting repositories.
 - **`coga.config` and `coga.launch` share one `subprocess` module
   object.** Use one argv-dispatching mock on `coga.config.subprocess.run`.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
   with `--no-build-isolation` and fails (not skips) without it; see
   [coga-dev/packaging](../packaging/SKILL.md). The wheel tests shell out to
-  `python -m pip`, so they also fail with `No module named pip` in a
-  pip-less venv; see Commands above.
+  `python -m pip`, so `pip` is also an explicit test extra for uv-created
+  environments that otherwise omit it.
 
 ## CI posture and receipts
 

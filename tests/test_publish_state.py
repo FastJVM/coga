@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from conftest import windows_skip
 from typer.testing import CliRunner
 
 from coga import validate
@@ -39,7 +41,7 @@ STARTERS = (
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), *args],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     ).stdout
 
 
@@ -48,7 +50,7 @@ def _publish_cli(*args: str) -> subprocess.CompletedProcess[str]:
     """Exercise cli.main too: its final sweep must respect refusals."""
     return subprocess.run(
         [sys.executable, "-m", "coga.cli", "run", "publish-state", *args],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
 
 
@@ -83,7 +85,7 @@ def _onboarded_repo(
         (checkout / contexts).parent.mkdir(parents=True, exist_ok=True)
         _git(checkout, "mv", "coga/contexts", contexts)
         toml = coga_os / "coga.toml"
-        toml.write_text(toml.read_text() + f'\n[layout]\ncontexts = "{contexts}"\n')
+        toml.write_text(toml.read_text(encoding="utf-8") + f'\n[layout]\ncontexts = "{contexts}"\n', encoding="utf-8", newline="\n")
         _git(checkout, "commit", "-q", "-am", "Relocate contexts")
     _git(checkout, "push", "-q", "-u", "origin", "main")
 
@@ -94,7 +96,8 @@ def _onboarded_repo(
     vision.parent.mkdir(parents=True)
     vision.write_text(
         "---\nname: product/vision\ndescription: What we are building.\n---\n\n"
-        f"{VISION_BODY}\n"
+        f"{VISION_BODY}\n",
+        encoding="utf-8", newline="\n",
     )
     with monkeypatch.context() as m:
         m.setattr("coga.git.sync_task_state", lambda *a, **k: None)
@@ -169,7 +172,7 @@ def test_onboarding_publish_failure_leaves_unfinished_handoff(
     # Recoverable: every file is still on disk exactly where onboarding wrote it.
     for path in files:
         assert path.is_file()
-    assert VISION_BODY in files[0].read_text()
+    assert VISION_BODY in files[0].read_text(encoding="utf-8")
     # No bump: the step a successful handoff would advance is unchanged.
     after = read_ticket(resolve_task(cfg, ONBOARDING_TASK))
     assert after.frontmatter["step"] == step_before
@@ -185,7 +188,7 @@ def test_publish_state_refuses_paths_outside_the_coga_roots(
 ) -> None:
     checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
     source = checkout / "app.py"
-    source.write_text("print('hi')\n")
+    source.write_text("print('hi')\n", encoding="utf-8", newline="\n")
     before = _origin_files(origin)
 
     outside = _publish_cli("app.py")
@@ -203,7 +206,7 @@ def test_publish_state_disabled_git_reports_local_only(
 ) -> None:
     checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
     toml = checkout / "coga" / "coga.toml"
-    toml.write_text(toml.read_text() + "\n[git]\nenabled = false\n")
+    toml.write_text(toml.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n", encoding="utf-8", newline="\n")
 
     result = _publish_cli(files[0].relative_to(checkout).as_posix())
 
@@ -268,13 +271,13 @@ def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
     _git(checkout, "switch", "-c", "feature")
     _git(checkout, "add", rels[0])
     _git(checkout, "commit", "-qm", "Vision pending review")
-    (checkout / "coga" / "coga.local.toml").write_text("")
+    (checkout / "coga" / "coga.local.toml").write_text("", encoding="utf-8", newline="\n")
     published_before = _git(origin, "rev-parse", "main")
     bytes_before = [path.read_bytes() for path in files]
 
     result = subprocess.run(
         [sys.executable, "-m", "coga.cli", "run", *separator, "publish-state", *rels],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
     )
 
     assert result.returncode == 2, result.stdout + result.stderr
@@ -308,12 +311,13 @@ notes
 """
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
     git_repo, tmp_path: Path
 ) -> None:
     """One transition, two failed publications, then recovery without another bump."""
     ticket = git_repo.coga_os / "tasks" / "demo.md"
-    ticket.write_text(_RESTRICTED_TICKET)
+    ticket.write_text(_RESTRICTED_TICKET, encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "coga/tasks/demo.md")
     git_repo.git("commit", "-qm", "seed demo")
     git_repo.git("push", "-q", "origin", "main")
@@ -333,7 +337,7 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
     def cli(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, "-m", "coga.cli", *args],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
 
     def origin_ticket() -> str:
@@ -354,16 +358,16 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
         assert "Local task state was saved; Git publication failed." in bumped.stderr
         assert "Do not rerun `coga bump` to recover." in bumped.stderr
         assert "coga run publish-state tasks/demo.md log.md" in bumped.stderr
-        assert "step: 2 (review)" in ticket.read_text()
+        assert "step: 2 (review)" in ticket.read_text(encoding="utf-8")
         assert "step: 1 (implement)" in origin_ticket()
-        local_log = (git_repo.coga_os / "log.md").read_text()
+        local_log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
         assert local_log.count("advanced to step 2") == 1
 
         # Recovery while access is still denied fails loudly and keeps state.
         still_denied = cli("run", "publish-state", "tasks/demo.md", "log.md", env=denied)
         assert still_denied.returncode == 1, still_denied.stdout + still_denied.stderr
         assert "publication failed" in still_denied.stderr
-        assert "step: 2 (review)" in ticket.read_text()
+        assert "step: 2 (review)" in ticket.read_text(encoding="utf-8")
         assert "step: 1 (implement)" in origin_ticket()
     finally:
         store.chmod(0o755)
@@ -374,7 +378,7 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
     assert recovered.returncode == 0, recovered.stdout + recovered.stderr
     assert "published to origin/main" in recovered.stdout
     assert "step: 2 (review)" in origin_ticket()
-    assert "step: 2 (review)" in ticket.read_text()
+    assert "step: 2 (review)" in ticket.read_text(encoding="utf-8")
     assert origin_log().count("advanced to step 2") == 1
     assert len(git_repo.origin_subjects()) == subjects + 1
 
@@ -384,4 +388,4 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
     assert "already on origin/main" in repeated.stdout
     assert len(git_repo.origin_subjects()) == subjects + 1
     assert origin_log().count("advanced to step 2") == 1
-    assert "step: 2 (review)" in ticket.read_text()
+    assert "step: 2 (review)" in ticket.read_text(encoding="utf-8")

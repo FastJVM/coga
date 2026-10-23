@@ -21,7 +21,7 @@ from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 TICKET = """
@@ -71,6 +71,34 @@ def test_root_help_runs_without_user(
         main()
     assert exc.value.code == 0
     assert "Organize agent work" in capsys.readouterr().out
+
+
+def test_windows_cli_uses_utf8_when_output_is_redirected(clone, monkeypatch):
+    import io
+    import sys
+    from types import SimpleNamespace
+    from coga import cli
+
+    def command():
+        print("Café → 語")
+        print("Café → 語", file=sys.stderr)
+        raise SystemExit(0)
+
+    output, errors = io.BytesIO(), io.BytesIO()
+    stdout = io.TextIOWrapper(output, encoding="cp1252")
+    stderr = io.TextIOWrapper(errors, encoding="cp1252")
+    monkeypatch.setattr(cli, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(cli, "app", command)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+    monkeypatch.setattr(sys, "argv", ["coga", "--help"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    stdout.flush()
+    stderr.flush()
+    assert output.getvalue().decode("utf-8").strip() == "Café → 語"
+    assert errors.getvalue().decode("utf-8").strip() == "Café → 語"
 
 
 def test_command_help_runs_without_user(
@@ -295,3 +323,47 @@ def test_launch_entry_refusal_through_main_skips_the_sweep(
         main()
     assert excinfo.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert sweeps == []
+
+
+@pytest.mark.parametrize("argv", [
+    ["launch", "windows-agent"],
+    ["chat"],
+    ["build"],
+    ["ticket", "A new Windows draft"],
+    ["ticket", "--pick-agent", "A new Windows draft"],
+    ["megalaunch"],
+    ["megalaunch", "--pick"],
+])
+def test_windows_agent_refusal_keeps_checkout_and_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys, argv: list[str]
+) -> None:
+    from coga import launch as launch_module
+
+    ticket = git_repo.coga_os / "tasks" / "windows-agent.md"
+    _write(ticket, TICKET)
+    git_repo.git("add", ".")
+    git_repo.git("commit", "-m", "seed Windows agent ticket")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/keep-this-checkout")
+    ticket.write_text(ticket.read_text(encoding="utf-8") + "\nUnpublished Café notes.\n", encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "log.md").write_text("Unpublished log.\n", encoding="utf-8", newline="\n")
+    monkeypatch.chdir(git_repo.coga_os)
+    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False, raising=False)
+    monkeypatch.setattr("sys.argv", ["coga", *argv])
+    before = {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()}
+    head = git_repo.git("rev-parse", "HEAD")
+    control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+    index = git_repo.git("ls-files", "--stage")
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code != 0
+    output = capsys.readouterr()
+    assert "agent sessions are not supported on native Windows yet" in output.err
+    assert "windows-native/03-interactive-coga-launch-on-native-windows" in output.err
+    assert {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()} == before
+    assert git_repo.git("branch", "--show-current").strip() == "feature/keep-this-checkout"
+    assert git_repo.git("rev-parse", "HEAD") == head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
+    assert git_repo.git("ls-files", "--stage") == index

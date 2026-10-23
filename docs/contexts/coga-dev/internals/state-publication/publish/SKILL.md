@@ -35,6 +35,9 @@ control branch missing locally and on the remote
    path; local `<control>` when there is no remote or no tracking ref yet.
 3. **Guard** (`_guard`): the provenance and generation checks; any refusal
    raises `StateRegressionError` before anything is pushed.
+   A directory read reports `EACCES` on Windows and `EISDIR` on POSIX;
+   `_working_tree_bytes` normalizes that case so the tree-mode guard can
+   report its submodule refusal and preserve the entry.
 4. **Tree and push**: a temporary `GIT_INDEX_FILE` seeded from base, each
    candidate overlaid (or removed when deleted), `merge=union` paths
    three-way union-merged without re-adding a line control already has

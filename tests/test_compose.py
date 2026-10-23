@@ -28,7 +28,7 @@ from coga.workflow import Workflow, WorkflowError
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _write_workflow_less_task(
@@ -59,7 +59,7 @@ def _write_workflow_less_task(
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return slug
 
 
@@ -130,7 +130,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
     # Header
     assert "Coga task — fix-retry-logic" in prompt
-    assert "Task directory: coga/tasks/fix-retry-logic" in prompt
+    assert f"Task directory: {Path('coga/tasks/fix-retry-logic.md')}" in prompt
     # Base prompt
     assert "You are an agent working inside Coga" in prompt
     # Session conduct — the attended default when no context is given
@@ -300,7 +300,7 @@ def test_queue_conduct_resources_share_their_invariants() -> None:
         context: (
             files("coga.resources")
             .joinpath(SESSION_CONDUCT_RESOURCES[context])
-            .read_text()
+            .read_text(encoding="utf-8")
         )
         for context in ("megalaunch", "recurring")
     }
@@ -325,7 +325,7 @@ _PACKAGED_PROMPT_LAYERS = (
 def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> None:
     """Every repo composes these layers from the installed package, so a rule
     about Coga's own source tree belongs in its repository instructions."""
-    text = files("coga.resources").joinpath(resource).read_text()
+    text = files("coga.resources").joinpath(resource).read_text(encoding="utf-8")
 
     for marker in (
         "src/coga",
@@ -340,7 +340,7 @@ def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> Non
 def test_coga_repo_instructions_carry_the_minimal_core_boundary() -> None:
     """Both agents use the shared root guide (`coga/init` and `coga-dev/packaging`)."""
     repo_root = Path(__file__).resolve().parents[1]
-    text = (repo_root / "AGENTS.md").read_text()
+    text = (repo_root / "AGENTS.md").read_text(encoding="utf-8")
 
     assert "Keep core minimal" in text
     assert "≥2 real consumers" in text
@@ -358,8 +358,8 @@ def test_coga_repo_principles_compose_only_when_attached(
     repo_root = Path(__file__).resolve().parents[1]
     source = repo_root / "coga/context.md"
     principles = repo_root / "docs/contexts/coga-dev/principles/SKILL.md"
-    assert "`coga-dev/principles`" in source.read_text()
-    (repo / "context.md").write_text(source.read_text())
+    assert "`coga-dev/principles`" in source.read_text(encoding="utf-8")
+    (repo / "context.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
 
     cfg = load_config(repo)
     if bootstrap:
@@ -372,8 +372,8 @@ def test_coga_repo_principles_compose_only_when_attached(
     report = compose_prompt_report(cfg, ref, ticket)
     layers = [layer for layer in report.layers if layer.layer == "repo_context"]
     assert len(layers) == 1
-    assert layers[0].text == source.read_text()
-    assert "Expand human capacity" in principles.read_text()
+    assert layers[0].text == source.read_text(encoding="utf-8")
+    assert "Expand human capacity" in principles.read_text(encoding="utf-8")
     assert "Expand human capacity" not in report.prompt
 
 
@@ -580,11 +580,11 @@ def test_stock_step_prompt_escalates_per_launch_mode(
         resources = files("coga.resources").joinpath("templates/coga")
         _write(
             repo / "workflows" / "direct" / "body.md",
-            resources.joinpath("workflows/direct/body.md").read_text(),
+            resources.joinpath("workflows/direct/body.md").read_text(encoding="utf-8"),
         )
         _write(
             repo / "skills" / "direct" / "body" / "SKILL.md",
-            resources.joinpath("skills/direct/body/SKILL.md").read_text(),
+            resources.joinpath("skills/direct/body/SKILL.md").read_text(encoding="utf-8"),
         )
     cfg = load_config(repo)
     create_task(
@@ -624,7 +624,7 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
 
     # A nested task is identified by its path under `tasks/`.
     assert "Coga task — auto/fix-retry-logic" in prompt
-    assert "Task directory: coga/tasks/auto/fix-retry-logic" in prompt
+    assert f"Task directory: {Path('coga/tasks/auto/fix-retry-logic')}" in prompt
 
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
@@ -974,7 +974,7 @@ def inline_workflow(repo: Path) -> tuple[Config, TaskRef, Ticket, Path]:
         "step": "1 (implement)",
     })
     path = repo / "workflows" / "audit-inline.md"
-    path.write_text("---\nname: audit-inline\nsteps: [{name: implement}]\n---\n## implement\nDo work.\n")
+    path.write_text("---\nname: audit-inline\nsteps: [{name: implement}]\n---\n## implement\nDo work.\n", encoding="utf-8", newline="\n")
     return cfg, ref, ticket, path
 
 
@@ -989,7 +989,8 @@ def test_workflow_fenced_headings_retain_inline_instructions(inline_workflow, fe
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement}, {name: pr}, {name: review}]\n---\n"
         "## implement\n" + instructions
-        + "\n## Notes\nNot instructions.\n## review\nReal review.\n"
+        + "\n## Notes\nNot instructions.\n## review\nReal review.\n",
+        encoding="utf-8", newline="\n",
     )
 
     workflow = Workflow.load(path)
@@ -1007,7 +1008,8 @@ def test_workflow_unclosed_fence_keeps_real_step_boundary(inline_workflow, fence
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement}, {name: review}]\n---\n"
         f"## implement\nBefore.\n{fence}markdown\nUnclosed example.\n"
-        "## review\nReal review.\n"
+        "## review\nReal review.\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert Workflow.load(path).inline_instructions == {
@@ -1020,7 +1022,8 @@ def test_workflow_skill_backed_step_still_ignores_inline_prose(inline_workflow) 
     cfg, ref, ticket, path = inline_workflow
     path.write_text(
         "---\nname: audit-inline\nsteps: [{name: implement, skills: [infra/testing-conventions]}]\n---\n"
-        "## implement\nInline framing only.\n~~~markdown\n## Example\n~~~\nAfter example.\n"
+        "## implement\nInline framing only.\n~~~markdown\n## Example\n~~~\nAfter example.\n",
+        encoding="utf-8", newline="\n",
     )
     ticket.frontmatter["workflow"] = Workflow.load(path).freeze()
 
@@ -1040,7 +1043,7 @@ def test_workflow_skill_backed_step_still_ignores_inline_prose(inline_workflow) 
 ])
 def test_compose_rejects_invalid_inline_workflow(inline_workflow, contents: str) -> None:
     cfg, ref, ticket, path = inline_workflow
-    path.write_text(contents)
+    path.write_text(contents, encoding="utf-8", newline="\n")
     with pytest.raises(ComposeError) as caught:
         compose_prompt(cfg, ref, ticket)
     assert str(path) in str(caught.value)
@@ -1105,7 +1108,7 @@ def test_compose_raises_on_missing_context(repo: Path) -> None:
     assert "email/ghost" in msg
     assert ref.id_slug in msg
     # Names the exact path the user should create.
-    assert "email/ghost/SKILL.md" in msg
+    assert str(Path("email/ghost/SKILL.md")) in msg
 
 
 def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
@@ -1120,7 +1123,7 @@ def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
     msg = str(exc.value)
     assert "infra/ghost" in msg
     assert ref.id_slug in msg
-    assert "infra/ghost/SKILL.md" in msg
+    assert str(Path("infra/ghost/SKILL.md")) in msg
 
 
 def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
@@ -1157,7 +1160,7 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
     out = write_prompt_file(prompt, ref, dest_dir=tmp_path)
     assert out.exists()
-    assert out.read_text() == prompt
+    assert out.read_text(encoding="utf-8") == prompt
     assert out.name.startswith("coga-x-")
 
 
@@ -1251,11 +1254,12 @@ Shape text.
 def _write_manual_spec_task(repo: Path, body: str) -> object:
     slug = _write_workflow_less_task(repo, title="Manual spec")
     path = repo / "tasks" / slug / "ticket.md"
-    head, _, tail = path.read_text().partition("## Description")
+    head, _, tail = path.read_text(encoding="utf-8").partition("## Description")
     _, _, blackboard = tail.partition("<!-- coga:blackboard -->")
     path.write_text(
         head + body + "\n<!-- coga:blackboard -->"
-        + blackboard + "\n## Notes\n\nBlackboard heading stays.\n"
+        + blackboard + "\n## Notes\n\nBlackboard heading stays.\n",
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     return cfg, list_tasks(cfg)[0]
@@ -1334,7 +1338,7 @@ def test_compose_falls_back_to_packaged_resources(repo: Path) -> None:
         if l.layer in {"base_prompt", "session_conduct"}
     }
     assert fixed["base_prompt"].text == (
-        files("coga.resources").joinpath("prompt.md").read_text()
+        files("coga.resources").joinpath("prompt.md").read_text(encoding="utf-8")
     )
     assert fixed["base_prompt"].path is None
     assert fixed["session_conduct"].path is None
@@ -1408,5 +1412,5 @@ def test_compose_rejects_unusable_override_path(repo: Path, kind: str) -> None:
     _write_workflow_less_task(repo, title='Unusable override')
     ref = list_tasks(cfg)[0]
 
-    with pytest.raises(ComposeError, match=str(override)):
+    with pytest.raises(ComposeError, match=re.escape(str(override))):
         compose_prompt(cfg, ref, read_ticket(ref))

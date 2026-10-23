@@ -27,6 +27,7 @@ to warn one step earlier; both read the same three-state answer.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,11 +73,17 @@ def _run(
     callers can distinguish "tool absent" from "tool ran and failed".
     """
     run_env = {**os.environ, **env} if env else None
+    if os.name == "nt":
+        executable = shutil.which(args[0], path=(run_env or os.environ).get("PATH"))
+        if executable and Path(executable).suffix.lower() in {".cmd", ".bat", ".com"}:
+            args = [executable, *args[1:]]
     try:
         proc = subprocess.run(
             args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=_PROBE_TIMEOUT,
             env=run_env,

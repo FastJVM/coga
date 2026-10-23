@@ -239,7 +239,7 @@ def install_url_skill(
         (gh_source / "SKILL.md").write_text(
             f"---\n{rendered_frontmatter}\n---\n{gh_skill.body}",
             encoding="utf-8",
-        )
+        newline="\n")
         gh_install_root = Path(tmp) / "gh-installed"
         gh_install_root.mkdir()
         args = [
@@ -831,7 +831,7 @@ def open_or_update_pr(
                 "Could not determine current git branch for skill update PR."
             )
         branch = branch_result.stdout.strip()
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as fh:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n", delete=False) as fh:
         fh.write(body)
         body_file = fh.name
     try:
@@ -905,7 +905,7 @@ def run_subprocess(
     return subprocess.run(
         list(args),
         cwd=cwd,
-        text=True,
+        text=True, encoding="utf-8",
         capture_output=True,
         check=False,
     )
@@ -971,7 +971,7 @@ def read_source_metadata(skill_dir: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise SkillManagerError(f"Invalid skill source metadata: {path}: {exc}") from exc
     if data.get("schema") != SOURCE_SCHEMA:
@@ -981,7 +981,7 @@ def read_source_metadata(skill_dir: Path) -> dict[str, Any] | None:
 
 def write_source_metadata(skill_dir: Path, metadata: dict[str, Any]) -> None:
     path = skill_dir / SOURCE_METADATA
-    path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def parse_include_allowlist(metadata: dict[str, Any]) -> list[str] | None:

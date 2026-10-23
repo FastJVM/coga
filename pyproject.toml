@@ -41,6 +41,9 @@ dependencies = [
 test = [
   "pytest>=8",
   "hatchling>=1.18",
+  # Artifact tests invoke pip to build and install wheels; uv environments
+  # do not include it implicitly.
+  "pip>=23",
 ]
 
 [project.scripts]

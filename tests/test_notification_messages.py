@@ -35,7 +35,7 @@ IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _write_workflow_less_task(
@@ -64,7 +64,7 @@ def _write_workflow_less_task(
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return slug, task_dir
 
 
@@ -329,7 +329,7 @@ def test_completion_identity_requires_matching_execution_context(
     assert result.exit_code == 0, result.output
     verb = "advanced" if action == "advance" else "finished"
     log_message = "advanced to step 2 (pr)" if action == "advance" else "task done"
-    assert f"[{actor}] {log_message}" in (repo / "log.md").read_text()
+    assert f"[{actor}] {log_message}" in (repo / "log.md").read_text(encoding="utf-8")
     assert len(posts) == 1
     assert f"{finisher} {verb} *{slug}*" in posts[0]
 

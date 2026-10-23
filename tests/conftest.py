@@ -53,6 +53,46 @@ _TEMPLATES_COGA_OS = (
 )
 
 
+def windows_skip(reason: str):
+    """The single marker for Windows exclusions; each caller states why."""
+    return pytest.mark.skipif(os.name == "nt", reason=reason)
+
+
+windows_interactive_skip = windows_skip(
+    "agent sessions/PTY: windows-native/03-interactive-coga-launch-on-native-windows"
+)
+
+
+def write_executable(path: Path, source: str) -> Path:
+    """Install a Python CLI stub with the same argv on both native platforms."""
+    source = dedent(source).lstrip()
+    if source.startswith("#!"):
+        source = source.split("\n", 1)[1]
+    if os.name == "nt":
+        script = path.with_suffix(".py")
+        script.write_text(source, encoding="utf-8", newline="\n")
+        launcher = path.with_suffix(".cmd")
+        launcher.write_text(
+            f'@echo off\n"{sys.executable}" "{script}" %*\n',
+            encoding="utf-8", newline="\n",
+        )
+        return launcher
+    path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8", newline="\n")
+    path.chmod(0o755)
+    return path
+
+
+def remove_test_checkout(path: Path) -> None:
+    """Remove a disposable Git fixture, including Windows read-only objects."""
+    def retry_readonly(function, failed_path, exception):
+        if os.name != "nt" or not isinstance(exception[1], PermissionError):
+            raise exception[1]
+        os.chmod(failed_path, 0o700)
+        function(failed_path)
+
+    shutil.rmtree(path, onerror=retry_readonly)
+
+
 def seed_direct_body_workflow(coga_os: Path) -> None:
     """Copy the shipped `direct/body` workflow + skill into a test repo.
 
@@ -73,14 +113,24 @@ def seed_direct_body_workflow(coga_os: Path) -> None:
     shutil.copy(_TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md", wf_dst)
 
 
+@pytest.fixture
+def tmp_path(tmp_path: Path) -> Path:
+    # Windows may reuse pytest-of-Administrator as pytest-of-administrator.
+    # Compare fixture paths using the same canonical spelling Git reports.
+    return tmp_path.resolve()
+
+
 @pytest.fixture(autouse=True)
 def _isolate_home(tmp_path_factory, monkeypatch):
     # Pointing HOME at a tmp dir is enough — `_try_install_shim` resolves
     # `Path.home() / ".local" / "bin"` against entries on $PATH, and the fake
     # home dir won't be on the host's real PATH. We deliberately leave PATH
     # alone so subprocess calls (git, etc.) still work in tests.
-    fake_home = tmp_path_factory.mktemp("home")
+    fake_home = tmp_path_factory.mktemp("home").resolve()
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("APPDATA", str(fake_home / "AppData" / "Roaming"))
+    monkeypatch.setenv("LOCALAPPDATA", str(fake_home / "AppData" / "Local"))
 
 
 @pytest.fixture(autouse=True)
@@ -92,9 +142,11 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
     # them instead; `TMPDIR` carries it to `coga` subprocesses so they lock
     # in the same place. It stays apart from the tests' own repos so a temp
     # scan cannot rediscover them.
-    tmp = tmp_path_factory.mktemp("tmp")
+    tmp = tmp_path_factory.mktemp("tmp").resolve()
     monkeypatch.setattr(tempfile, "tempdir", str(tmp))
     monkeypatch.setenv("TMPDIR", str(tmp))
+    monkeypatch.setenv("TMP", str(tmp))
+    monkeypatch.setenv("TEMP", str(tmp))
 
 
 @pytest.fixture(autouse=True)
@@ -335,6 +387,7 @@ class GitRepo:
             ["git", "-C", str(cwd or self.root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return out.stdout
@@ -367,6 +420,7 @@ class GitRepo:
             self.git("config", "user.email", "rival@example.com", cwd=clone)
             self.git("config", "user.name", "Rival", cwd=clone)
             self.git("config", "commit.gpgsign", "false", cwd=clone)
+            self.git("config", "core.autocrlf", "false", cwd=clone)
             # The bare origin's symbolic HEAD isn't `main`, so the fresh clone
             # lands on an unborn default branch — pin it to origin/main.
             self.git("checkout", "-B", "main", "origin/main", cwd=clone)
@@ -374,7 +428,7 @@ class GitRepo:
             self.git("pull", "--ff-only", "origin", "main", cwd=clone)
         target = clone / relpath
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text)
+        target.write_text(text, encoding="utf-8", newline="\n")
         self.git("add", "--", relpath, cwd=clone)
         self.git("commit", "-m", f"competing: {relpath}", cwd=clone)
         self.git("push", "origin", "main", cwd=clone)
@@ -390,7 +444,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     origin = tmp_path / "origin.git"
     subprocess.run(
         ["git", "init", "--bare", str(origin)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
     root = tmp_path / "repo"
@@ -400,13 +454,14 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     def _g(*args: str) -> None:
         subprocess.run(
             ["git", "-C", str(root), *args],
-            check=True, capture_output=True, text=True,
+            check=True, capture_output=True, text=True, encoding="utf-8",
         )
 
     _g("init", "-b", "main")
     _g("config", "user.email", "test@example.com")
     _g("config", "user.name", "Coga Test")
     _g("config", "commit.gpgsign", "false")
+    _g("config", "core.autocrlf", "false")
 
     (coga_os / "coga.toml").write_text(
         dedent(
@@ -421,15 +476,16 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             [notification.slack]
             webhook = "env:SLACK_WEBHOOK_URL"
             """
-        ).lstrip()
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
     )
-    (coga_os / "coga.local.toml").write_text('user = "marc"\n')
+    (coga_os / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     # Mirror `coga init`'s ignores: the generated agent-skill view is local.
-    (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n")
+    (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n", encoding="utf-8", newline="\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
     # resolves `log.md` as `merge=union` (the subtree sweep's union split
     # depends on it).
-    (coga_os / ".gitattributes").write_text("**/log.md merge=union\n")
+    (coga_os / ".gitattributes").write_text("**/log.md merge=union\n", encoding="utf-8", newline="\n")
     workflows = coga_os / "workflows"
     workflows.mkdir()
     (workflows / "code.md").write_text(
@@ -456,7 +512,8 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             ## merge
             Merge the code.
             """
-        ).lstrip()
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
     )
     seed_direct_body_workflow(coga_os)
     (coga_os / "tasks").mkdir()

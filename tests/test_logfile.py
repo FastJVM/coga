@@ -15,6 +15,7 @@ from coga.logfile import (
     iter_log_messages,
     iter_log_messages_reverse,
     last_activity_map,
+    ref_tag_for_path,
     retract_log_lines,
     task_log_lines,
 )
@@ -23,7 +24,7 @@ from coga.paths import log_path
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -44,6 +45,25 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+@pytest.mark.parametrize(
+    ("relative", "expected"),
+    [
+        ("tasks/team/review.md", "team/review"),
+        ("tasks/recurring/weekly-check", "recurring/weekly-check"),
+        ("recurring/team/weekly-check", "recurring/team/weekly-check"),
+    ],
+)
+def test_path_derived_tags_match_nested_task_history(
+    repo: Path, relative: str, expected: str,
+) -> None:
+    cfg = load_config(repo)
+    tag = ref_tag_for_path(cfg, repo / relative)
+
+    assert tag == expected
+    append_log(cfg, tag, "git", "sync failed: offline")
+    assert len(task_log_lines(cfg, expected)) == 1
+
+
 def test_first_activity_is_earliest_line_even_when_log_is_unsorted(
     repo: Path,
 ) -> None:
@@ -53,7 +73,8 @@ def test_first_activity_is_earliest_line_even_when_log_is_unsorted(
         "2026-06-05 09:00 [alpha] [human:marc] bumped\n"
         "2026-06-01 10:00 [alpha] [human:marc] created\n"
         "not a log line\n"
-        "2026-06-03 11:00 [beta] [human:marc] created\n"
+        "2026-06-03 11:00 [beta] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
     )
 
     created = first_activity_map(cfg)
@@ -78,7 +99,8 @@ def test_iter_log_messages_reverse_yields_entries_newest_line_first(
         "2026-06-01 10:00 [alpha] [system] created alpha for 2026-06-01\n"
         "not a log line\n"
         "2026-06-03 11:00 [beta] [system] created beta for 2026-06-03\n"
-        "2026-06-05 09:00 [alpha] [human:marc] bumped\n"
+        "2026-06-05 09:00 [alpha] [human:marc] bumped\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert list(iter_log_messages_reverse(cfg)) == [
@@ -97,7 +119,8 @@ def test_iter_log_messages_reverse_reads_across_block_boundaries(
         "".join(
             f"2026-06-{day:02d} 10:00 [task-{day}] [system] message {day}\n"
             for day in range(1, 21)
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     forward = list(iter_log_messages(cfg))
@@ -111,7 +134,8 @@ def test_iter_log_messages_reverse_handles_a_missing_trailing_newline(
     cfg = load_config(repo)
     log_path(cfg).write_text(
         "2026-06-01 10:00 [alpha] [system] first\n"
-        "2026-06-02 10:00 [alpha] [system] last"
+        "2026-06-02 10:00 [alpha] [system] last",
+        encoding="utf-8", newline="\n",
     )
 
     assert list(iter_log_messages_reverse(cfg, block_size=4)) == [
@@ -122,6 +146,25 @@ def test_iter_log_messages_reverse_handles_a_missing_trailing_newline(
 
 def test_iter_log_messages_reverse_missing_log_yields_nothing(repo: Path) -> None:
     assert list(iter_log_messages_reverse(load_config(repo))) == []
+
+
+def test_log_round_trip_preserves_non_ascii_messages_and_refs(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref, message = "café/東京", "résumé — 語\nsecond line"
+    written = append_log(cfg, ref, "system", message)
+
+    assert log_path(cfg).read_bytes() == written
+    assert b"\r" not in written
+    assert ref.encode("utf-8") in written
+    assert list(iter_log_messages(cfg)) == [(ref, message)]
+    assert list(iter_log_messages_reverse(cfg, block_size=7)) == [(ref, message)]
+    assert task_log_lines(cfg, ref) == [written.decode("utf-8").rstrip("\n")]
+    assert ref in first_activity_map(cfg) and ref in last_activity_map(cfg)
+
+    append_log(cfg, "peer", "system", "Autre café")
+    append_log(cfg, ref, "system", "Retract this attempt")
+    retract_log_lines(cfg, ref, written)
+    assert list(iter_log_messages(cfg)) == [(ref, message), ("peer", "Autre café")]
 
 
 # A sync failure carrying complete Git stderr, as `mark.py` logs it.
@@ -185,7 +228,8 @@ def test_readers_tolerate_legacy_continuation_lines(repo: Path) -> None:
         " ! [rejected]        main -> main (fetch first)\n"
         "2026-06-02 10:00 [beta] [human:marc] created\n"
         "hint: stray continuation of beta\n"
-        "2026-06-03 10:00 [alpha] [human:marc] bumped\n"
+        "2026-06-03 10:00 [alpha] [human:marc] bumped\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert list(iter_log_messages(cfg)) == [
@@ -254,7 +298,7 @@ def test_version_marker_preserves_legacy_text_and_distinguishes_new_events(repo:
     cfg = load_config(repo)
     message = r'v1 C:\temp\file literal \n and \\ and \r'
     legacy = f"2026-06-01 10:00 [alpha] [system] {message}\n"
-    log_path(cfg).write_text(legacy)
+    log_path(cfg).write_text(legacy, encoding="utf-8", newline="\n")
     written = append_log(cfg, "alpha", "system", message)
     assert b" v1 [alpha] [system] " in written
     assert log_path(cfg).read_bytes().startswith(legacy.encode())

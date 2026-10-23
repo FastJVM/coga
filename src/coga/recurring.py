@@ -947,7 +947,7 @@ def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
         r"\[([^\]]+)\] (paused|created) .*$"
     )
     latest: dict[str, tuple[str, str]] = {}
-    with log_path(cfg).open() as stream:
+    with log_path(cfg).open(encoding="utf-8") as stream:
         for line in stream:
             match = event_re.match(line)
             if match is None:
@@ -1525,7 +1525,8 @@ def promote_task(
                     shutil.copy2(sibling, sibling_dest)
         ticket_path = dest / "ticket.md"
         ticket_path.write_text(
-            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD))
+            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD)),
+            encoding="utf-8", newline="\n",
         )
         Template.load(dest, now=now)
     except (RecurringError, OSError):
@@ -2069,7 +2070,7 @@ def _read_template_source(path: Path) -> tuple[dict[str, Any], str]:
     ticket = path / "ticket.md"
     if not ticket.is_file():
         raise RecurringError("missing ticket.md")
-    match = _FM_RE.match(ticket.read_text())
+    match = _FM_RE.match(ticket.read_text(encoding="utf-8"))
     if not match:
         raise RecurringError("ticket.md missing YAML frontmatter")
     try:

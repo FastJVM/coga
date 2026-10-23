@@ -21,7 +21,7 @@ class Skill:
 
     @classmethod
     def load(cls, path: Path) -> "Skill":
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         match = _FM_RE.match(text)
         if not match:
             raise ValueError(f"{path} must begin with YAML frontmatter")

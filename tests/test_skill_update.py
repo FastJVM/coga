@@ -198,7 +198,7 @@ def test_recipe_hands_back_the_results_it_already_holds(
 ) -> None:
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("")
+    blackboard.write_text("", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -230,7 +230,7 @@ def test_recipe_hands_back_the_results_it_already_holds(
     assert report.command == build_update_command(
         pr=True, pr_title="Update Coga-managed skills"
     )
-    assert report.report == blackboard.read_text()
+    assert report.report == blackboard.read_text(encoding="utf-8")
     assert render_result_line(report.results) == "1 skill(s): 1 updated, 0 need follow-up, 0 skipped."
 
 
@@ -241,7 +241,7 @@ def test_recipe_result_is_populated_on_the_followup_exit(
     # survive it.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("")
+    blackboard.write_text("", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -310,7 +310,7 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
     # blackboard like every other outcome.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("")
+    blackboard.write_text("", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -325,7 +325,7 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
     report = SkillUpdateReport()
     assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 2
 
-    written = blackboard.read_text()
+    written = blackboard.read_text(encoding="utf-8")
     assert "## Skill Update" in written
     assert "Task: `skill-update`" in written
     assert "### Failed" in written
@@ -417,7 +417,7 @@ def test_recipe_survives_a_permission_error_on_the_hard_exit(
     # write itself raises PermissionError on a read-only checkout or full disk.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("")
+    blackboard.write_text("", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
 
     def boom(*, cwd: Path | None, pr: bool, pr_title: str):
@@ -433,7 +433,7 @@ def test_recipe_survives_a_permission_error_on_the_hard_exit(
 
 
 def test_skill_update_skill_declares_contract() -> None:
-    text = (SKILL_UPDATE / "SKILL.md").read_text()
+    text = (SKILL_UPDATE / "SKILL.md").read_text(encoding="utf-8")
     norm = " ".join(text.split())
 
     assert "name: bootstrap/skill-update" in text
@@ -464,9 +464,9 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     lifecycle. No declaration field selects that mode — the file does."""
     coga_os = SKILL_UPDATE.parents[3]
     template_dir = coga_os / "recurring" / "skill-update"
-    ticket = (template_dir / "ticket.md").read_text()
-    script = (template_dir / "ticket.py").read_text()
-    workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text()
+    ticket = (template_dir / "ticket.md").read_text(encoding="utf-8")
+    script = (template_dir / "ticket.py").read_text(encoding="utf-8")
+    workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text(encoding="utf-8")
 
     assert ticket.startswith("---\n")
     assert "schedule:" in ticket
@@ -490,7 +490,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -582,7 +582,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
 ) -> None:
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    blackboard.write_text("")
+    blackboard.write_text("", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -607,7 +607,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
 
     assert skill_update.run_skill_update_recipe(load_config(repo), []) == 1
-    text = blackboard.read_text()
+    text = blackboard.read_text(encoding="utf-8")
     assert "## Skill Update" in text
     assert "Task: `skill-update`" in text
     assert "### Needs follow-up" in text

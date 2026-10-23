@@ -24,12 +24,12 @@ t = load_phone_home()
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _seed(root: Path) -> Path:
     parent = root / "recurring/phone-home/ticket.md"
-    _write(parent, (PACKAGED / "recurring/phone-home/ticket.md").read_text())
+    _write(parent, (PACKAGED / "recurring/phone-home/ticket.md").read_text(encoding="utf-8"))
     return parent
 
 
@@ -188,7 +188,7 @@ Review.
     messages = [message for _, message in iter_log_messages(cfg)]
     assert "advanced to step 2 (review (owner)) → Jane Doe" in messages
     assert "task done" in messages
-    assert "[human:Jane Doe] task done" in (repo / "log.md").read_text()
+    assert "[human:Jane Doe] task done" in (repo / "log.md").read_text(encoding="utf-8")
     append_log(cfg, "recurring/phone-home", "human:Jane Doe", "task done")
     event = _run(repo, monkeypatch)[0][1]
     assert event["properties"]["movement_count"] == 2
@@ -288,7 +288,7 @@ def test_suppressed_updates_marker_without_identity(repo):
 
 
 def test_real_worker_inherits_test_gate(repo):
-    result = subprocess.run([sys.executable, str(Path(t.__file__)), "--worker", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
+    result = subprocess.run([sys.executable, str(Path(t.__file__)), "--worker", "capture", str(repo)], input="{}", text=True, encoding="utf-8", capture_output=True, timeout=5)
     assert result.stdout.strip() == "suppressed"
 
 
@@ -359,10 +359,10 @@ def test_parent_publication_reaches_second_checkout_without_dirty_files(git_repo
     _run(root, monkeypatch)
     assert parent.read_bytes().split(b"<!-- coga:blackboard -->")[0] == header
     assert not git_repo.origin_tracks("unrelated.txt")
-    assert (git_repo.root/"tracked.txt").read_text() == "tracked dirty"
+    assert (git_repo.root/"tracked.txt").read_text(encoding="utf-8") == "tracked dirty"
     assert git_repo.git("show", "main:tracked.txt", cwd=git_repo.origin) == "committed"
     clone = tmp_path/"second"
-    git_repo.git("clone", "-b", "main", str(git_repo.origin), str(clone))
+    git_repo.git("clone", "-c", "core.autocrlf=false", "-b", "main", str(git_repo.origin), str(clone))
     assert (clone/"coga/recurring/phone-home/ticket.md").read_bytes() == parent.read_bytes()
     _write(clone/"coga/coga.local.toml", 'user = "marc"\n')
     assert _state(clone/"coga")["repo_id"] == REPO_ID
@@ -428,7 +428,7 @@ def test_publication_failure_keeps_reservation_and_local_evidence(repo, monkeypa
     monkeypatch.setattr(t.git, "publish", fail)
     sent = _run(repo, monkeypatch)
     assert len(sent) == 1 and _state(repo)["run"] == 1
-    assert "sync failed" in (repo/"log.md").read_text()
+    assert "sync failed" in (repo/"log.md").read_text(encoding="utf-8")
     assert "local state retained" in capsys.readouterr().out
 
 

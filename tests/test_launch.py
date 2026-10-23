@@ -9,11 +9,18 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
-from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow
+from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow, windows_interactive_skip
 from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
@@ -60,12 +67,12 @@ IMPORTANT_WEBHOOK = "https://slack.example.test/important"
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _read_log(repo: Path) -> str:
     """The repo-global audit log (`coga/log.md`)."""
-    return (repo / "log.md").read_text()
+    return (repo / "log.md").read_text(encoding="utf-8")
 
 
 def _capture_slack(sink: list[str], json_payload):
@@ -424,7 +431,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
             "Begin",
         ]
     ]
-    assert "launched" in (tmp_path / "log.md").read_text()
+    assert "launched" in (tmp_path / "log.md").read_text(encoding="utf-8")
 
 
 def test_spawn_agent_session_appends_kickoff_for_codex(
@@ -538,7 +545,7 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
         assert not log_file.exists()
         events.append("spawn")
         after_spawn()
-        assert "launched after spawn" in log_file.read_text()
+        assert "launched after spawn" in log_file.read_text(encoding="utf-8")
         events.append("audit")
         return ReplOutcome(0, "natural")
 
@@ -551,7 +558,7 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
             assert not log_file.exists()
             events.append("validate-before-audit")
         else:
-            assert "launched after spawn" in log_file.read_text()
+            assert "launched after spawn" in log_file.read_text(encoding="utf-8")
             events.append("validate-after-audit")
 
     monkeypatch.setattr(
@@ -678,7 +685,7 @@ def test_spawn_agent_session_retracts_audit_when_child_release_fails(
         assert on_spawn_admission_failure is not None
         with spawn_release_guard():
             after_spawn()
-            assert "launched before failed release" in log_file.read_text()
+            assert "launched before failed release" in log_file.read_text(encoding="utf-8")
             on_spawn_admission_failure()
             assert not log_file.exists()
         raise OSError("held-child release failed")
@@ -736,7 +743,7 @@ def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
         assert spawn_release_guard is not None
         with spawn_release_guard():
             after_spawn()
-            assert "launched before interrupt" in log_file.read_text()
+            assert "launched before interrupt" in log_file.read_text(encoding="utf-8")
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
@@ -767,7 +774,7 @@ def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
             record_launch_on_spawn=True,
         )
 
-    assert "launched before interrupt" in log_file.read_text()
+    assert "launched before interrupt" in log_file.read_text(encoding="utf-8")
     assert len(usage_calls) == 1
     assert usage_calls[0]["outcome_status"] == "interrupted"
 
@@ -1064,7 +1071,7 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     task = git_repo.coga_os / "tasks" / "demo"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n")
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed demo task")
     git_repo.git("push", "origin", "main")
@@ -1072,11 +1079,11 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
 
     # A tracked code file outside coga/, dirtied — must survive the teardown.
     outside = git_repo.root / "outside.txt"
-    outside.write_text("original\n")
+    outside.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "outside.txt")
     git_repo.git("commit", "-m", "seed outside")
     git_repo.git("push", "origin", "main")
-    outside.write_text("locally modified\n")
+    outside.write_text("locally modified\n", encoding="utf-8", newline="\n")
 
     monkeypatch.setattr(
         "coga.launch.compose_prompt",
@@ -1095,7 +1102,8 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         # log, *past* the agent's last sync.
         log = git_repo.coga_os / "log.md"
         log.write_text(
-            log.read_text() + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n'
+            log.read_text(encoding="utf-8") + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
         )
 
     monkeypatch.setattr(
@@ -1105,7 +1113,8 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     # A hand-edit elsewhere under coga/ must NOT be swept in by the teardown —
     # it commits at the next CLI dispatch boundary instead.
     (task / "ticket.md").write_text(
-        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n"
+        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n",
+        encoding="utf-8", newline="\n",
     )
 
     spawn_agent_session(
@@ -1144,7 +1153,7 @@ def test_spawn_reports_unpublished_session_log(
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     if failure == "ignored":
-        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+        (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
 
     def finish_session(*args, **kwargs):  # type: ignore[no-untyped-def]
         if failure == "offline":
@@ -1218,13 +1227,14 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
             ## Dev
             pr: https://github.com/acme/repo/pull/1
             """
-        ).lstrip()
+        ).lstrip(),
+        encoding="utf-8", newline="\n",
     )
     git_repo.git("add", "--", "coga/tasks/ship-it/ticket.md")
     git_repo.git("commit", "-m", "ticket: seed ship-it")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("ship-it")
-    (git_repo.root / "implementation.txt").write_text("done\n")
+    (git_repo.root / "implementation.txt").write_text("done\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "implementation.txt")
     git_repo.git("commit", "-m", "feature: ship it")
 
@@ -1237,9 +1247,10 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
 
     def finish_with_publishing_bump(*args, **kwargs):  # type: ignore[no-untyped-def]
         ticket_path.write_text(
-            ticket_path.read_text().replace(
+            ticket_path.read_text(encoding="utf-8").replace(
                 "step: 1 (open-pr)", "step: 2 (review)"
-            )
+            ),
+            encoding="utf-8", newline="\n",
         )
         from coga import git
 
@@ -1253,8 +1264,9 @@ def test_spawn_publishes_usage_log_to_control_after_pr_gated_handoff(git_repo, m
     def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
         log = git_repo.coga_os / "log.md"
         log.write_text(
-            log.read_text()
-            + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n'
+            log.read_text(encoding="utf-8")
+            + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
         )
 
     monkeypatch.setattr(
@@ -1426,7 +1438,7 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
         # other crash and every non-zero natural exit stays a failure.
         (ReplOutcome(exit_code=128 + signal.SIGINT, kind="crash"), "interrupted"),
         (ReplOutcome(exit_code=128 + signal.SIGSEGV, kind="crash"), "failed"),
-        (ReplOutcome(exit_code=128 + signal.SIGKILL, kind="crash"), "failed"),
+        (ReplOutcome(exit_code=137, kind="crash"), "failed"),  # recorded POSIX SIGKILL
         (ReplOutcome(exit_code=1, kind="crash"), "failed"),
         (ReplOutcome(exit_code=130, kind="natural"), "failed"),
         (ReplOutcome(exit_code=-signal.SIGINT, kind="natural"), "failed"),
@@ -1710,7 +1722,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         slack_urls.append(url)
@@ -2158,7 +2170,7 @@ def test_internal_recurring_launch_stops_hybrid_before_agent_setup(
     )
 
     assert result.kind == "script"
-    assert (ref.task_dir / "deterministic.txt").read_text() == "script ran\n"
+    assert (ref.task_dir / "deterministic.txt").read_text(encoding="utf-8") == "script ran\n"
     # Shared launch leaves the honest open-step state for its recurring caller;
     # the runner then parks that exact period as paused.
     assert Ticket.read(ref.ticket_path).status == "in_progress"
@@ -2622,7 +2634,7 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
     )
     task_dir = Path(created["path"])
     ticket_path = task_dir / "ticket.md"
-    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n")
+    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n", encoding="utf-8", newline="\n")
 
     monkeypatch.chdir(active_task)
     monkeypatch.setattr(
@@ -2676,7 +2688,7 @@ def test_launch_refreshes_launch_checkout_on_exit(
         lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     refreshed: list[Path] = []
     monkeypatch.setattr(
@@ -2779,7 +2791,7 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
         return _R()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -2795,13 +2807,14 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 def test_launch_captures_usage_with_session_id(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    text = (active_task / "coga.toml").read_text()
+    text = (active_task / "coga.toml").read_text(encoding="utf-8")
     (active_task / "coga.toml").write_text(
         text.replace(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\nsession_id_flag = "--session-id"',
             1,
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     calls: list[list[str]] = []
     captures: list[dict] = []
@@ -2821,7 +2834,7 @@ def test_launch_captures_usage_with_session_id(
         "coga.launch.usage_tracking.capture_session", fake_capture
     )
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2857,7 +2870,7 @@ def test_launch_fails_loud_on_unset_declared_secret(
         lambda cmd, env=None, check=False, cwd=None: calls.append(cmd),
     )
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2887,7 +2900,7 @@ def test_launch_rejects_secret_alias_in_reserved_coga_namespace(
     ticket.write(ref.ticket_path)
 
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2926,7 +2939,7 @@ def test_launch_injects_only_declared_secret(
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -2969,7 +2982,7 @@ def test_launch_fails_loud_on_op_read_error(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -3006,7 +3019,7 @@ def test_launch_injects_op_secret(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -3047,7 +3060,7 @@ def test_launch_resolves_op_secret_but_scrubs_1password_auth_from_agent(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -3078,7 +3091,7 @@ def test_direct_launch_timeout_exits_non_zero(
         "coga.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(
@@ -3114,7 +3127,7 @@ def test_launch_uses_local_agent_override(
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker", fake_supervisor
     )
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3132,16 +3145,17 @@ def test_launch_bails_on_missing_context(
     ref = list_tasks(cfg)[0]
     ticket_md = ref.ticket_path
     ticket_md.write_text(
-        ticket_md.read_text().replace(
+        ticket_md.read_text(encoding="utf-8").replace(
             "status: active", "status: active\ncontexts:\n- email/ghost"
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3167,8 +3181,8 @@ def test_launch_refuses_invalid_inline_workflow_before_start(
     ticket.write(ref.ticket_path)
     path = active_task / "workflows" / "audit-inline.md"
     path.parent.mkdir(exist_ok=True)
-    path.write_text("---\nname: audit-inline\nsteps: [\n---\n")
-    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    path.write_text("---\nname: audit-inline\nsteps: [\n---\n", encoding="utf-8", newline="\n")
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(launch_module, "spawn_agent_session", lambda **kw: pytest.fail("agent started"))
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
@@ -3199,7 +3213,7 @@ def test_launch_handles_agent_self_deleting_task(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3224,7 +3238,7 @@ def test_launch_marks_llm_session_supervised(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -3233,7 +3247,7 @@ def test_launch_marks_llm_session_supervised(
     assert envs
     assert envs[0].get("COGA_SUPERVISED") == "1"
     assert envs[0].get(EXPECTED_STEP_ENV) == "1 (execute)"
-    assert envs[0].get(EXPECTED_TASK_ENV, "").endswith(
+    assert Path(envs[0].get(EXPECTED_TASK_ENV, "")).as_posix().endswith(
         "/tasks/fix-retry-logic.md"
     )
 
@@ -3257,7 +3271,7 @@ def test_launch_in_progress_resumes_without_status_transition(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
@@ -3279,7 +3293,7 @@ def test_launch_llm_without_tty_fails_before_lock(
         raise AssertionError("interactive launch should fail before spawning agent")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -3322,7 +3336,7 @@ def test_launch_llm_chains_consecutive_agent_steps(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3391,7 +3405,7 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
@@ -3440,7 +3454,7 @@ def test_launch_override_refuses_when_the_main_agent_is_unconfigured(
 
     monkeypatch.setattr("coga.launch.subprocess.run", fail_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
@@ -3521,7 +3535,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3579,7 +3593,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3617,7 +3631,7 @@ def test_launch_harness_stops_on_agent_block(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3663,7 +3677,7 @@ def test_launch_blocked_interactive_resumes_with_preamble(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3696,7 +3710,7 @@ def test_launch_blocked_timeout_reblocks_unresolved_ask(
     _allow_interactive_tty(monkeypatch)
     _block_task(slug)
 
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout"),
@@ -3728,7 +3742,7 @@ def _session_edits_ticket(
     the pre-session snapshot is frozen exactly where production freezes it.
     """
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     def fake_supervisor(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
@@ -3800,7 +3814,7 @@ def test_launch_does_not_warn_when_ticket_is_unchanged(
     ("edit", "exit_code"),
     [
         (lambda path: path.unlink(), 0),
-        (lambda path: path.write_text("not a ticket\n"), 3),
+        (lambda path: path.write_text("not a ticket\n", encoding="utf-8", newline="\n"), 3),
     ],
     ids=["removed", "unreadable"],
 )
@@ -3852,7 +3866,7 @@ def test_launch_blocked_without_tty_still_refuses(
         raise AssertionError("a blocked ticket must not spawn without a TTY")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 2
@@ -3880,7 +3894,7 @@ def test_launch_blocked_without_open_ask_refuses(
         raise AssertionError("a blocked ticket with no ask must not spawn")
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 2
@@ -3944,7 +3958,7 @@ def test_launch_blocked_session_records_resolution_in_flight(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -3974,7 +3988,7 @@ def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     return calls
 
@@ -4146,7 +4160,7 @@ def test_launch_refusal_leaves_draft_unactivated(
     t.frontmatter["status"] = prior
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls: list[list[str]] = []
 
@@ -4160,7 +4174,7 @@ def test_launch_refusal_leaves_draft_unactivated(
 
     monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", slug])
@@ -4170,7 +4184,7 @@ def test_launch_refusal_leaves_draft_unactivated(
     assert "stripe_key" in combined and "op://vault/stripe/key" in combined
     assert calls == []  # no agent spawned
     # The whole point: nothing durable was written for a session that never ran.
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
     assert "activated (" not in _read_log(active_task)
 
 
@@ -4185,7 +4199,7 @@ def test_launch_refuses_unsynthesized_draft_blackboard(
     t.write(ticket_md)
     before_blackboard = "\n## Ticket authoring notes\n\nNeeds body synthesis.\n"
     replace_blackboard(ticket_md, before_blackboard)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
 
@@ -4199,7 +4213,7 @@ def test_launch_refuses_unsynthesized_draft_blackboard(
         in combined
     )
     assert calls == []
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
     assert "activated (draft" not in _read_log(active_task)
 
 
@@ -4218,7 +4232,7 @@ def test_launch_refuses_done_ticket(
     t.frontmatter["status"] = "done"
     t.frontmatter.pop("step", None)  # mark done clears the step
     t.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
 
@@ -4232,7 +4246,7 @@ def test_launch_refuses_done_ticket(
     after = Ticket.read(ticket_md)
     assert after.status == "done"
     assert after.step is None
-    assert ticket_md.read_text() == before  # ticket file untouched
+    assert ticket_md.read_text(encoding="utf-8") == before  # ticket file untouched
 
 
 def test_launch_refuses_canceled_ticket(
@@ -4245,7 +4259,7 @@ def test_launch_refuses_canceled_ticket(
     ticket.frontmatter["status"] = "canceled"
     ticket.frontmatter.pop("step", None)
     ticket.write(ticket_md)
-    before = ticket_md.read_text()
+    before = ticket_md.read_text(encoding="utf-8")
 
     calls = _launch_single_spawn(monkeypatch)
     result = CliRunner().invoke(app, ["launch", slug])
@@ -4255,7 +4269,7 @@ def test_launch_refuses_canceled_ticket(
     assert "is canceled" in combined
     assert "terminal status" in combined
     assert calls == []
-    assert ticket_md.read_text() == before
+    assert ticket_md.read_text(encoding="utf-8") == before
 
 
 def test_launch_refuses_a_pending_megalaunch_admission(
@@ -4344,7 +4358,7 @@ def _seed_released_launch_admission(
     control.frontmatter["status"] = "in_progress"
     control.frontmatter["launch_generation"] = control_generation
     control.write(ref.ticket_path)
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     git_repo.git("add", ticket_rel)
     git_repo.git("commit", "-m", "Publish launch admission state")
     git_repo.git("push", "origin", "main")
@@ -4378,7 +4392,7 @@ def test_released_launch_admission_reconciles_control_ticket(
         "held-generation"
     )
     assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     remote = Ticket.parse(
         git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     )
@@ -4450,7 +4464,7 @@ def test_released_launch_admission_refuses_changed_control_ticket(
     cfg, ref, released_bytes = _seed_released_launch_admission(
         git_repo, control_generation
     )
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     control_bytes = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     git_repo.push_competing_commit(ticket_rel, control_bytes + "\nRemote correction.\n")
     local_head = git_repo.git("rev-parse", "HEAD")
@@ -4582,7 +4596,7 @@ def test_launch_build_continues_once_agent_cli_installed(
     installed: set[str] = set()
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}" if name in installed else None,
+        lambda name, **kwargs: f"/usr/bin/{name}" if name in installed else None,
     )
     monkeypatch.setattr(
         "coga.launch.offer_agent_cli",
@@ -4612,7 +4626,7 @@ def test_launch_warns_for_large_blackboard(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
 
     runner = CliRunner()
@@ -4628,12 +4642,12 @@ def test_launch_prompt_report_warns_for_uncomposed_sections(
     left out rather than letting them vanish silently."""
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    text = ref.ticket_path.read_text()
+    text = ref.ticket_path.read_text(encoding="utf-8")
     ref.ticket_path.write_text(text.replace(
         "\n<!-- coga:blackboard -->",
         "\n## Acceptance Criteria\n\n- Done.\n\n<!-- coga:blackboard -->",
         1,
-    ))
+    ), encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
 
@@ -4833,7 +4847,7 @@ def test_resolve_conflicts_bootstrap_launch_is_stateless_and_receives_pr_arg(
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     cfg = load_config(active_task)
@@ -4925,7 +4939,7 @@ def test_launch_returns_spawned_bootstrap_termination_kind(
     """
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker",
@@ -4957,7 +4971,7 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
     events: list[str] = []
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     def fake_supervisor(*args, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
@@ -4992,7 +5006,7 @@ def test_python_launch_uses_ordinary_defaults(
 ) -> None:
     """An internal caller can omit every CLI option without leaking sentinels."""
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name, **kwargs: f"/usr/bin/{name}")
     calls = []
     def supervisor(*args, **kwargs):
         calls.append(kwargs)
@@ -5021,7 +5035,7 @@ def test_python_launch_translates_signal_after_unwinding_library_handlers(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch, signum: int,
 ) -> None:
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name, **kwargs: f"/usr/bin/{name}")
     handlers: dict[int, object] = {}
 
     def remember_handler(received: int, handler: object) -> None:
@@ -5059,7 +5073,7 @@ def test_successive_launches_keep_arguments_and_refusal_state_separate(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr(launch_module.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(launch_module.shutil, "which", lambda name, **kwargs: f"/usr/bin/{name}")
     prompts: list[str] = []
     def supervisor(cmd, *args, **kwargs):
         prompts.append(_prompt_arg(cmd))
@@ -5084,7 +5098,7 @@ def test_launch_recomposes_after_before_spawn_publication(
     events: list[str] = []
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     def publish_period_start() -> None:
@@ -5095,7 +5109,8 @@ def test_launch_recomposes_after_before_spawn_publication(
         ticket.write(ticket_path)
         config_path = bootstrap_repo / "coga.toml"
         config_path.write_text(
-            config_path.read_text().replace('cli = "claude"', 'cli = "fresh-cli"')
+            config_path.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "fresh-cli"'),
+            encoding="utf-8", newline="\n",
         )
 
     def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
@@ -5217,8 +5232,9 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
         """,
     )
     (bootstrap_repo / "coga.toml").write_text(
-        (bootstrap_repo / "coga.toml").read_text()
-        + '\n[aliases]\nhello = "launch bootstrap/hello"\n'
+        (bootstrap_repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[aliases]\nhello = "launch bootstrap/hello"\n',
+        encoding="utf-8", newline="\n",
     )
 
     calls: list[list[str]] = []
@@ -5233,7 +5249,7 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr("sys.argv", ["coga", "hello", "world"])
@@ -5274,7 +5290,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
         "coga.launch.subprocess.run",
         lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5297,7 +5313,7 @@ def test_launch_bootstrap_skips_status_and_lock(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5352,7 +5368,7 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -5392,7 +5408,7 @@ def test_launch_orient_bootstrap_stays_silent(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/orient"])
@@ -5430,7 +5446,7 @@ def test_launch_regular_task_does_not_use_discussion_template(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -5455,7 +5471,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex"])
@@ -5489,7 +5505,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(
         "coga.launch._recorded_single_checkout_assist_branch",
         lambda *args, **kwargs: pytest.fail(
@@ -5542,7 +5558,7 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
     monkeypatch.setattr(
         "coga.launch.git.sync_log",
         lambda cfg, **kwargs: sync_calls.append(kwargs),
@@ -5698,7 +5714,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("before review\n")
+    (git_repo.root / "implementation.txt").write_text("before review\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: initial implementation")
     git_repo.git("push", "-u", "origin", "feature/review")
@@ -5714,12 +5730,13 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
     peer_ticket = peer / ticket_path.relative_to(git_repo.root)
     peer_ticket.write_text(
-        peer_ticket.read_text() + "\nRemote prompt state: address the latest review.\n"
+        peer_ticket.read_text(encoding="utf-8") + "\nRemote prompt state: address the latest review.\n",
+        encoding="utf-8", newline="\n",
     )
-    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
     git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
-    assert "Remote prompt state" not in ticket_path.read_text()
+    assert "Remote prompt state" not in ticket_path.read_text(encoding="utf-8")
 
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -5729,7 +5746,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
     real_compose_prompt = launch_module.compose_prompt
     composed_ticket_bodies: list[str] = []
@@ -5754,7 +5771,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
             "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
         ).strip()
-        (git_repo.root / "implementation.txt").write_text("review fixed\n")
+        (git_repo.root / "implementation.txt").write_text("review fixed\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "implementation.txt")
         git_repo.git("commit", "-m", "fix: address review")
         git_repo.git("push", "origin", "feature/review")
@@ -5778,8 +5795,9 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
         log = cfg.repo_root / "log.md"
         log.write_text(
-            log.read_text()
-            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n'
+            log.read_text(encoding="utf-8")
+            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n',
+            encoding="utf-8", newline="\n",
         )
 
     monkeypatch.setattr(
@@ -5809,7 +5827,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     )
     # The single checkout keeps its live log dirty by design.
     assert git_repo.git("status", "--porcelain").split() == ["M", "coga/log.md"]
-    assert "Remote prompt state: address the latest review." in ticket_path.read_text()
+    assert "Remote prompt state: address the latest review." in ticket_path.read_text(encoding="utf-8")
     assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
@@ -5848,7 +5866,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     git_repo.git("commit", "-m", "ticket: seed stale handoff")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/review")
-    (git_repo.root / "implementation.txt").write_text("implemented\n")
+    (git_repo.root / "implementation.txt").write_text("implemented\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: implementation")
     git_repo.git("push", "-u", "origin", "feature/review")
@@ -5865,11 +5883,11 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     handed_off.frontmatter["step"] = "2 (review)"
     hold_by_owner(handed_off)
     handed_off.write(peer_ticket)
-    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("add", peer_ticket.relative_to(peer).as_posix(), cwd=peer)
     git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
     git_repo.git("push", "origin", "feature/review", cwd=peer)
     git_repo.push_competing_commit(
-        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.relative_to(git_repo.root).as_posix(),
         handed_off.render(),
     )
 
@@ -5881,7 +5899,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
     observed: list[tuple[str | None, str | None]] = []
 
@@ -5929,8 +5947,9 @@ def test_human_assist_validates_override_after_remote_config_alignment(
     git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
     peer_config = peer / "coga" / "coga.toml"
     peer_config.write_text(
-        peer_config.read_text()
-        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
+        peer_config.read_text(encoding="utf-8")
+        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     git_repo.git("add", "coga/coga.toml", cwd=peer)
     git_repo.git("commit", "-m", "config: add reviewer agent", cwd=peer)
@@ -5944,7 +5963,7 @@ def test_human_assist_validates_override_after_remote_config_alignment(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
     observed: list[str] = []
 
@@ -6036,7 +6055,7 @@ def _seed_single_checkout_human_review(
     git_repo.git("push", "origin", "main")
     if branch != "main":
         git_repo.checkout_branch(branch)
-    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: reviewed branch")
     git_repo.git("push", "-u", "origin", branch)
@@ -6057,7 +6076,7 @@ def test_recorded_assist_cancellation_lands_reason_on_control(
     audit = git_repo.coga_os / "log.md"
     git_repo.push_competing_commit(
         "coga/log.md",
-        audit.read_text() + "2026-01-01 00:00 rival: unrelated event\n",
+        audit.read_text(encoding="utf-8") + "2026-01-01 00:00 rival: unrelated event\n",
     )
     posts: list[str] = []
     monkeypatch.setattr(
@@ -6127,7 +6146,7 @@ def test_recorded_assist_script_publishes_direct_task_output(
         )
         """,
     )
-    script_rel = str(script_path.relative_to(git_repo.root))
+    script_rel = script_path.relative_to(git_repo.root).as_posix()
     git_repo.git("add", script_rel)
     git_repo.git("commit", "-m", "ticket: add deterministic phase")
     git_repo.git("push", "origin", "feature/review")
@@ -6147,7 +6166,7 @@ def test_recorded_assist_script_publishes_direct_task_output(
     )
 
     assert result.exit_code == 0
-    result_rel = str((task_dir / "result.txt").relative_to(git_repo.root))
+    result_rel = (task_dir / "result.txt").relative_to(git_repo.root).as_posix()
     # The script's task output is published to control right after it exits;
     # the PR branch is never pushed by Coga.
     assert git_repo.git(
@@ -6310,12 +6329,12 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
         status="blocked",
     )
     append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
-    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("add", ticket_path.relative_to(git_repo.root).as_posix())
     git_repo.git("commit", "-m", "ticket: record review blocker")
     git_repo.git("push", "origin", "feature/review")
     git_repo.push_competing_commit(
-        str(ticket_path.relative_to(git_repo.root)),
-        ticket_path.read_text(),
+        ticket_path.relative_to(git_repo.root).as_posix(),
+        ticket_path.read_text(encoding="utf-8"),
     )
 
     _allow_interactive_tty(monkeypatch)
@@ -6326,7 +6345,7 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker",
@@ -6347,7 +6366,7 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     )
 
     assert Ticket.read(ticket_path).status == "blocked"
-    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    ticket_rel = ticket_path.relative_to(git_repo.root).as_posix()
     control_ticket = git_repo.git(
         "show", f"refs/heads/main:{ticket_rel}", cwd=git_repo.origin
     )
@@ -6412,7 +6431,7 @@ def test_blocked_malformed_script_reblock_is_published_before_child_exit(
 
     assert excinfo.value.code == 17
     assert Ticket.read(ref.ticket_path).status == "blocked"
-    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    ticket_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
     remote_ticket = Ticket.parse(
         git_repo.git(
             "show",
@@ -6475,8 +6494,8 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         str(linked),
         "main",
     )
-    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n')
-    (linked / "implementation.txt").write_text("reviewed branch\n")
+    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
+    (linked / "implementation.txt").write_text("reviewed branch\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "implementation.txt", cwd=linked)
     git_repo.git("commit", "-m", "feature: linked implementation", cwd=linked)
     git_repo.git(
@@ -6497,7 +6516,7 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
 
     def observe_clean_checkout(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -6577,7 +6596,7 @@ def test_human_assist_without_tty_does_not_protect_rewritten_log(
         title="Reject rewritten TTY-less assist log",
         status="in_progress",
     )
-    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n")
+    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n", encoding="utf-8", newline="\n")
     _deny_interactive_tty(monkeypatch)
 
     with pytest.raises(launch_module.LaunchBail) as excinfo:
@@ -6607,7 +6626,7 @@ def test_human_assist_rejects_control_named_pr_before_writing(
     )
     log_file = git_repo.coga_os / "log.md"
     retained_line = "retained control-name assist retry\n"
-    log_file.write_text(log_file.read_text() + retained_line)
+    log_file.write_text(log_file.read_text(encoding="utf-8") + retained_line, encoding="utf-8", newline="\n")
     remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
@@ -6626,7 +6645,7 @@ def test_human_assist_rejects_control_named_pr_before_writing(
         )
 
     assert excinfo.value.code == 2
-    assert retained_line in log_file.read_text()
+    assert retained_line in log_file.read_text(encoding="utf-8")
     assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
     assert "same name as the configured control branch" in excinfo.value.reason
 
@@ -6666,7 +6685,7 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/unrelated")
-    (git_repo.root / "unrelated.txt").write_text("another PR\n")
+    (git_repo.root / "unrelated.txt").write_text("another PR\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "unrelated.txt")
     git_repo.git("commit", "-m", "feature: unrelated")
     git_repo.git("push", "-u", "origin", "feature/unrelated")
@@ -6682,7 +6701,7 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
     )
     monkeypatch.setattr(
         "coga.launch.shutil.which",
-        lambda name: f"/usr/bin/{name}",
+        lambda name, **kwargs: f"/usr/bin/{name}",
     )
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker",
@@ -6924,7 +6943,7 @@ def test_launch_interactive_rotates_across_agents(
         return _Result()
 
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -7030,7 +7049,7 @@ def test_conduct_is_a_composed_layer_not_a_prompt_suffix(
 
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker",
@@ -7064,7 +7083,7 @@ def test_queue_conduct_resources_require_durable_terminal_transitions() -> None:
     recurring = (
         files("coga.resources")
         .joinpath(SESSION_CONDUCT_RESOURCES["recurring"])
-        .read_text()
+        .read_text(encoding="utf-8")
     )
     assert "coga block" in recurring
     assert "coga bump" in recurring
@@ -7107,7 +7126,7 @@ def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
 
     monkeypatch.setattr("coga.launch.compose_prompt", flaky)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -7137,7 +7156,7 @@ def test_launch_preflight_names_the_missing_file_too(
 
     monkeypatch.setattr("coga.launch.compose_prompt", boom)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -7162,7 +7181,7 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
 
     monkeypatch.setattr("coga.launch.run_with_done_marker", boom)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
     slug = list_tasks(load_config(active_task))[0].id_slug
@@ -7222,7 +7241,7 @@ class _CheckoutSession:
 def _checkout_launch_env(monkeypatch: pytest.MonkeyPatch, session) -> None:  # type: ignore[no-untyped-def]
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
-        "coga.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
     monkeypatch.setattr("coga.launch._preflight_push_auth", lambda *a, **k: None)
     monkeypatch.setattr("coga.launch.spawn_agent_session", session)
@@ -7264,19 +7283,19 @@ def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None)
 
     def act(ref: TaskRef) -> None:
         git_repo.git("switch", "-c", "feature/work")
-        (git_repo.root / "feature.py").write_text("print('work')\n")
+        (git_repo.root / "feature.py").write_text("print('work')\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "feature.py")
         git_repo.git("commit", "-m", "Implement feature")
         # The ticket copy on the branch predates control; load control's copy
         # before writing the handoff (coga/checkouts).
-        rel = str(ref.ticket_path.relative_to(git_repo.root))
+        rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
         git_repo.git("restore", "--source=origin/main", "--worktree", "--", rel)
         replace_blackboard(
             ref.ticket_path,
             read_blackboard(ref.ticket_path) + f"\n## Handoff\n\n{handoff}\n",
         )
         if leave is not None:
-            (git_repo.root / leave).write_text("unpublished work\n")
+            (git_repo.root / leave).write_text("unpublished work\n", encoding="utf-8", newline="\n")
 
     return act
 
@@ -7314,7 +7333,7 @@ def test_launch_returns_a_feature_branch_handoff_before_the_next_step(
     assert [seen[0] for seen in session.seen] == ["main", "main", "main"]
     assert session.seen[1][2] == "2 (review)"
     _assert_clean_control(git_repo)
-    assert "implemented" in ref.ticket_path.read_text()
+    assert "implemented" in ref.ticket_path.read_text(encoding="utf-8")
     # Feature code stayed on its branch and never reached control.
     assert not (git_repo.root / "feature.py").exists()
     assert git_repo.git("branch", "--list", "feature/work").strip()
@@ -7325,7 +7344,7 @@ def test_launch_entry_refuses_unsafe_dirt_with_the_retry_exit(
 ) -> None:
     ref = _published_checkout_task(git_repo)
     git_repo.checkout_branch("feature/x")
-    (git_repo.root / "wip.py").write_text("unsaved\n")
+    (git_repo.root / "wip.py").write_text("unsaved\n", encoding="utf-8", newline="\n")
     before = _branch_and_tip(git_repo)
     session = _CheckoutSession(git_repo)
     _checkout_launch_env(monkeypatch, session)
@@ -7337,7 +7356,7 @@ def test_launch_entry_refuses_unsafe_dirt_with_the_retry_exit(
     assert "No work was started." in result.output
     assert session.seen == []
     assert _branch_and_tip(git_repo) == before
-    assert (git_repo.root / "wip.py").read_text() == "unsaved\n"
+    assert (git_repo.root / "wip.py").read_text(encoding="utf-8") == "unsaved\n"
 
 
 def test_launch_teardown_refusal_preserves_work_result_and_stops_chaining(
@@ -7358,10 +7377,10 @@ def test_launch_teardown_refusal_preserves_work_result_and_stops_chaining(
     assert "notes.txt (not Coga state)" in result.output
     assert coga_git.state_sweep_withheld.get() is True
     assert _branch_and_tip(git_repo)[0] == "feature/work"
-    assert (git_repo.root / "notes.txt").read_text() == "unpublished work\n"
+    assert (git_repo.root / "notes.txt").read_text(encoding="utf-8") == "unpublished work\n"
     # The completed step stands: bump already published it.
     control = git_repo.git(
-        "show", f"main:{ref.ticket_path.relative_to(git_repo.root)}", cwd=git_repo.origin
+        "show", f"main:{ref.ticket_path.relative_to(git_repo.root).as_posix()}", cwd=git_repo.origin
     )
     assert "step: 2 (review)" in control
 
@@ -7527,14 +7546,14 @@ def test_orientation_refusal_preserves_edits_and_explains_investigation(
 ) -> None:
     git_repo.checkout_branch("feature/unfinished")
     tracked = git_repo.root / "work.py"
-    tracked.write_text("original\n")
+    tracked.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "work.py")
     git_repo.git("commit", "-m", "Unfinished work")
-    tracked.write_text("staged\n")
+    tracked.write_text("staged\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "work.py")
-    tracked.write_text("unstaged\n")
+    tracked.write_text("unstaged\n", encoding="utf-8", newline="\n")
     untracked = git_repo.root / "notes.txt"
-    untracked.write_text("Unpublished notes\n")
+    untracked.write_text("Unpublished notes\n", encoding="utf-8", newline="\n")
     before = _branch_and_tip(git_repo)
     status = git_repo.git("status", "--porcelain")
     stash = git_repo.git("stash", "list")
@@ -7553,8 +7572,8 @@ def test_orientation_refusal_preserves_edits_and_explains_investigation(
     assert _branch_and_tip(git_repo) == before
     assert git_repo.git("status", "--porcelain") == status
     assert git_repo.git("show", ":work.py") == "staged\n"
-    assert tracked.read_text() == "unstaged\n"
-    assert untracked.read_text() == "Unpublished notes\n"
+    assert tracked.read_text(encoding="utf-8") == "unstaged\n"
+    assert untracked.read_text(encoding="utf-8") == "Unpublished notes\n"
     assert git_repo.git("stash", "list") == stash
 
 
@@ -7563,7 +7582,7 @@ def test_orientation_returns_to_control_after_session_changes_branch(
 ) -> None:
     def work(_ref: BootstrapRef) -> bool:
         git_repo.checkout_branch("feature/from-chat")
-        (git_repo.root / "work.py").write_text("committed work\n")
+        (git_repo.root / "work.py").write_text("committed work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "work.py")
         git_repo.git("commit", "-m", "Work from chat")
         return False
@@ -7579,6 +7598,7 @@ def test_orientation_returns_to_control_after_session_changes_branch(
     assert git_repo.git("show", "feature/from-chat:work.py") == "committed work\n"
 
 
+@windows_interactive_skip
 def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -7594,7 +7614,7 @@ def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
             [sys.executable, "-m", "coga.cli", "chat"],
             cwd=git_repo.coga_os,
             env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", timeout=20,
         )
         assert rival.returncode == 75, rival.stdout + rival.stderr
         assert "another chat is using this checkout" in rival.stderr
@@ -7605,7 +7625,7 @@ def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
 
     def work(_ref: BootstrapRef) -> bool:
         git_repo.checkout_branch("feature/active-chat")
-        (git_repo.root / "work.py").write_text("first chat's committed work\n")
+        (git_repo.root / "work.py").write_text("first chat's committed work\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "work.py")
         git_repo.git("commit", "-m", "Active chat work")
         assert git_repo.git("status", "--porcelain") == ""
@@ -7653,7 +7673,7 @@ def test_orientation_guard_is_released_when_its_process_dies(
         cwd=git_repo.coga_os,
         env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True,
+        text=True, encoding="utf-8",
     )
     try:
         assert holder.stdout is not None

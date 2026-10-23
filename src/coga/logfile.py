@@ -143,7 +143,7 @@ def ref_tag_for_path(cfg: Config, path: Path) -> str:
         # (a directory-form anchor is `<slug>` / `<slug>/ticket.md` unaffected).
         if rel.suffix == ".md" and rel.name != "ticket.md":
             rel = rel.with_suffix("")
-        return f"{prefix}{rel}" if str(rel) != "." else prefix.rstrip("/")
+        return f"{prefix}{rel.as_posix()}" if str(rel) != "." else prefix.rstrip("/")
     return Path(path.name).stem if path.suffix == ".md" else path.name
 
 
@@ -159,7 +159,7 @@ def last_activity_map(cfg: Config) -> dict[str, datetime]:
     if not path.is_file():
         return out
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return out
     for line in log_lines(text):
@@ -194,7 +194,7 @@ def first_activity_map(cfg: Config) -> dict[str, datetime]:
     if not path.is_file():
         return out
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return out
     for line in log_lines(text):
@@ -229,7 +229,7 @@ def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
     if not path.is_file():
         return
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return
     for line in log_lines(text):
@@ -306,7 +306,7 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
         return []
     out: list[str] = []
     keeping = False
-    for line in log_lines(path.read_text()):
+    for line in log_lines(path.read_text(encoding="utf-8")):
         match = _LINE_RE.match(line)
         if match:
             keeping = match.group(2) == task_ref

@@ -28,6 +28,8 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+from conftest import remove_test_checkout, windows_skip, write_executable
 from typer.testing import CliRunner
 
 from coga import git
@@ -60,7 +62,7 @@ def _cfg(repo_root: Path, **over) -> Config:
 
 def _global_log(cfg: Config) -> str:
     log = cfg.repo_root / "log.md"
-    return log.read_text() if log.is_file() else ""
+    return log.read_text(encoding="utf-8") if log.is_file() else ""
 
 
 def _ticket_text(
@@ -105,7 +107,7 @@ def _seed_ticket(git_repo, slug: str = "demo", **kwargs) -> Path:
     """Write a file-form ticket, commit it, push it, and return its path."""
     path = git_repo.coga_os / "tasks" / f"{slug}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_ticket_text(**kwargs))
+    path.write_text(_ticket_text(**kwargs), encoding="utf-8", newline="\n")
     git_repo.git("add", "--", f"coga/tasks/{slug}.md")
     git_repo.git("commit", "-m", f"seed {slug}")
     git_repo.git("push", "origin", "main")
@@ -119,6 +121,34 @@ def _control(git_repo, rel: str) -> str | None:
     ).splitlines():
         return None
     return git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
+
+
+@pytest.mark.parametrize("tracked_executable", [False, True])
+def test_publication_preserves_git_modes_and_can_prepare_checkout(
+    git_repo, tracked_executable: bool,
+):
+    cfg = load_config(git_repo.coga_os)
+    path = _seed_ticket(git_repo)
+    rel = "coga/tasks/demo.md"
+    if tracked_executable:
+        if os.name == "posix":
+            path.chmod(0o755)
+        git_repo.git("update-index", "--chmod=+x", rel)
+        git_repo.git("commit", "-m", "executable fixture")
+        git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "-b", "feature")
+    path.write_text(_ticket_text(blackboard="Café 東京\n"), encoding="utf-8", newline="\n")
+    new_path = git_repo.coga_os / "tasks" / "new.md"
+    new_path.write_text(_ticket_text(), encoding="utf-8", newline="\n")
+
+    assert git.publish(cfg, [path, new_path], "publish modes")
+
+    expected_mode = "100755" if tracked_executable else "100644"
+    assert git_repo.git("ls-tree", "origin/main", rel).startswith(expected_mode + " ")
+    assert git_repo.git("ls-tree", "origin/main", "coga/tasks/new.md").startswith("100644 ")
+    result = git.prepare_control_checkout(cfg)
+    assert result.kind != "refused", result
+    assert git_repo.git("status", "--porcelain") == ""
 
 
 def _dirty(git_repo, cwd: Path | None = None) -> set[str]:
@@ -148,8 +178,8 @@ def _clone(git_repo, name: str) -> Path:
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
     root = tmp_path / "coga"
     root.mkdir()
-    (root / "coga.toml").write_text(f"version = 1\n{shared_extra}")
-    (root / "coga.local.toml").write_text(f'user = "marc"\n{local_extra}')
+    (root / "coga.toml").write_text(f"version = 1\n{shared_extra}", encoding="utf-8", newline="\n")
+    (root / "coga.local.toml").write_text(f'user = "marc"\n{local_extra}', encoding="utf-8", newline="\n")
     return root
 
 
@@ -201,7 +231,7 @@ def test_git_remote_must_be_nonempty(tmp_path):
 def test_publish_lands_on_control_and_never_commits_locally(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(step="2 (review)"))
+    ticket.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     append_log(cfg, "demo", "agent:claude", "advanced to step 2 (review)")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — step 2") is True
@@ -224,8 +254,8 @@ def test_publish_from_feature_checkout_lands_on_control_and_leaves_branch_alone(
     ticket = _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     feature_tip = git_repo.git("rev-parse", "HEAD").strip()
-    (git_repo.root / "wip.py").write_text("# half-written\n")
-    ticket.write_text(_ticket_text(status="blocked"))
+    (git_repo.root / "wip.py").write_text("# half-written\n", encoding="utf-8", newline="\n")
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is True
 
@@ -253,8 +283,8 @@ def test_publish_carries_a_task_directory_with_attachments(git_repo):
     cfg = load_config(git_repo.coga_os)
     task = git_repo.coga_os / "tasks" / "dir-form"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_text(_ticket_text())
-    (task / "notes.md").write_text("attachment\n")
+    (task / "ticket.md").write_text(_ticket_text(), encoding="utf-8", newline="\n")
+    (task / "notes.md").write_text("attachment\n", encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, task, message="Ticket: dir-form — created") is True
 
@@ -277,7 +307,7 @@ def test_publish_without_fast_forward_leaves_the_control_checkout_alone(git_repo
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
     tip = git_repo.git("rev-parse", "main").strip()
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.publish(cfg, [ticket], "Ticket: demo — blocked", fast_forward=False) is True
 
@@ -291,7 +321,7 @@ def test_publish_with_no_remote_commits_on_local_control_only(git_repo, capsys):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
     git_repo.git("remote", "remove", "origin")
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is True
 
@@ -311,13 +341,13 @@ def test_publish_with_no_remote_fails_when_local_control_cannot_advance(
     tip = git_repo.git("rev-parse", "main").strip()
     # The primary checkout holds `main` with conflicting dirty state, so the
     # feature worktree's publish cannot `merge --ff-only` it forward.
-    ticket.write_text(_ticket_text(status="paused"))
+    ticket.write_text(_ticket_text(status="paused"), encoding="utf-8", newline="\n")
     worktree = tmp_path / "feature-worktree"
     git_repo.git("worktree", "add", "-b", "feature/wt", str(worktree), "main")
     shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
     try:
         wt_ticket = worktree / "coga" / "tasks" / "demo.md"
-        wt_ticket.write_text(_ticket_text(status="blocked"))
+        wt_ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
         written = wt_ticket.read_bytes()
         assert git.sync_task_state(
             load_config(worktree / "coga"), wt_ticket, message="Ticket: demo — blocked"
@@ -332,7 +362,7 @@ def test_publish_with_no_remote_fails_when_local_control_cannot_advance(
     assert "sync failed" in err
     assert "could not be fast-forwarded" in err
     assert git_repo.git("rev-parse", "main").strip() == tip
-    assert "status: paused" in ticket.read_text()
+    assert "status: paused" in ticket.read_text(encoding="utf-8")
 
 
 def test_publish_refuses_a_symlinked_task_file(git_repo, tmp_path, capsys):
@@ -340,7 +370,7 @@ def test_publish_refuses_a_symlinked_task_file(git_repo, tmp_path, capsys):
     bytes — possibly from outside the repo — on control as a regular file."""
     cfg = load_config(git_repo.coga_os)
     secret = tmp_path / "outside.md"
-    secret.write_text("token = do-not-publish\n")
+    secret.write_text("token = do-not-publish\n", encoding="utf-8", newline="\n")
     link = git_repo.coga_os / "tasks" / "linked.md"
     link.symlink_to(secret)
 
@@ -362,7 +392,7 @@ def test_publish_refuses_to_delete_a_missing_union_merged_log(git_repo, capsys):
     git_repo.git("commit", "-m", "seed log")
     git_repo.git("push", "origin", "main")
     (git_repo.coga_os / "log.md").unlink()
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is None
 
@@ -384,7 +414,7 @@ def test_offline_publish_leaves_the_write_dirty_and_the_sweep_retries_it(git_rep
     ticket = _seed_ticket(git_repo)
     url = git_repo.git("remote", "get-url", "origin").strip()
     git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     written = ticket.read_bytes()
 
     # Exits 0 (returns), reports once, keeps the file exactly as written.
@@ -409,7 +439,7 @@ def test_a_push_accepted_before_the_connection_dropped_counts_as_published(
 ):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     real_push = git._push
 
     def push_then_lose_the_ack(root, remote, refspec):  # type: ignore[no-untyped-def]
@@ -426,7 +456,7 @@ def test_a_push_accepted_before_the_connection_dropped_counts_as_published(
 def test_a_push_failure_control_cannot_be_reread_is_uncertain(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     monkeypatch.setattr(git, "_push", lambda *a: "fatal: the remote end hung up")
 
     def offline_fetch(*args):  # type: ignore[no-untyped-def]
@@ -449,13 +479,13 @@ def test_two_checkouts_publishing_different_tickets_both_land(git_repo):
     peer = _clone(git_repo, "peer")
     peer_cfg = load_config(peer / "coga")
 
-    (peer / "coga" / "tasks" / "second.md").write_text(_ticket_text(status="blocked"))
+    (peer / "coga" / "tasks" / "second.md").write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     assert git.sync_task_state(
         peer_cfg, peer / "coga" / "tasks" / "second.md", message="Ticket: second — blocked"
     ) is True
     # This checkout's base is now stale: the push is rejected once, the
     # rebuild lands on the peer's tip.
-    first.write_text(_ticket_text(step="2 (review)"))
+    first.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     assert git.sync_task_state(cfg, first, message="Ticket: first — step 2") is True
 
     assert "step: 2 (review)" in _control(git_repo, "coga/tasks/first.md")
@@ -465,7 +495,7 @@ def test_two_checkouts_publishing_different_tickets_both_land(git_repo):
         "Ticket: second — blocked",
     ]
     assert _dirty(git_repo) == set()
-    assert second.read_text() == _ticket_text(status="blocked")
+    assert second.read_text(encoding="utf-8") == _ticket_text(status="blocked")
 
 
 def test_publishing_the_same_ticket_from_a_stale_base_is_refused_with_the_fix(
@@ -477,7 +507,7 @@ def test_publishing_the_same_ticket_from_a_stale_base_is_refused_with_the_fix(
     git_repo.push_competing_commit(
         "coga/tasks/demo.md", _ticket_text(blackboard="peer prose\n")
     )
-    ticket.write_text(_ticket_text(blackboard="my prose\n"))
+    ticket.write_text(_ticket_text(blackboard="my prose\n"), encoding="utf-8", newline="\n")
 
     with pytest.raises(git.StateRegressionError) as excinfo:
         git.publish(cfg, [ticket], "Ticket: demo — blackboard")
@@ -489,7 +519,7 @@ def test_publishing_the_same_ticket_from_a_stale_base_is_refused_with_the_fix(
     # Nothing landed, nothing moved: the peer's prose is on control, mine is
     # still on disk, and this checkout's `main` did not advance.
     assert "peer prose" in _control(git_repo, "coga/tasks/demo.md")
-    assert "my prose" in ticket.read_text()
+    assert "my prose" in ticket.read_text(encoding="utf-8")
     assert git_repo.git("show", "HEAD:coga/tasks/demo.md").encode() == original
 
 
@@ -501,7 +531,7 @@ def test_log_appended_on_both_sides_keeps_both_lines(git_repo):
         "coga/log.md", control_log + "2026-01-01 00:00 [rival] [system] rival line\n"
     )
     append_log(cfg, "demo", "agent:claude", "my line")
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is True
 
@@ -509,7 +539,7 @@ def test_log_appended_on_both_sides_keeps_both_lines(git_repo):
     assert "rival line" in landed
     assert "my line" in landed
     # The control checkout's working log carries the union result and is clean.
-    assert (git_repo.coga_os / "log.md").read_text() == landed
+    assert (git_repo.coga_os / "log.md").read_text(encoding="utf-8") == landed
     assert _dirty(git_repo) == set()
 
 
@@ -607,12 +637,12 @@ def test_expect_pins_the_exact_control_copy(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
     read = ticket.read_bytes()
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.publish(cfg, [ticket], "Ticket: demo — blocked", expect={ticket: read}) is True
 
     # A second writer holding the same pre-write bytes loses.
-    ticket.write_text(_ticket_text(status="paused"))
+    ticket.write_text(_ticket_text(status="paused"), encoding="utf-8", newline="\n")
     with pytest.raises(git.StateRegressionError):
         git.publish(cfg, [ticket], "Ticket: demo — paused", expect={ticket: read})
     assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
@@ -622,7 +652,7 @@ def test_expect_none_means_the_path_must_not_exist_on_control(git_repo):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo, "taken")
     new = git_repo.coga_os / "tasks" / "taken.md"
-    new.write_text(_ticket_text(status="blocked"))
+    new.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     with pytest.raises(git.StateRegressionError):
         git.publish(cfg, [new], "Ticket: taken — created", expect={new: None})
@@ -637,7 +667,7 @@ def test_guard_sees_every_base_the_publish_pushes_on(git_repo, monkeypatch):
     stale = git_repo.git("rev-parse", "refs/remotes/origin/main").strip()
     git_repo.push_competing_commit("coga/log.md", "peer line\n")
     tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     bases: list[str] = []
 
     assert git.publish(cfg, [ticket], "Ticket: demo — blocked", guard=bases.append) is True
@@ -650,7 +680,7 @@ def test_guard_refusal_lands_nothing_and_leaves_the_write_dirty(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
     before = git_repo.origin_subjects()
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     def refuse(base: str) -> None:
         raise git.StateRegressionError(f"not on {base[:7]}")
@@ -660,7 +690,7 @@ def test_guard_refusal_lands_nothing_and_leaves_the_write_dirty(git_repo):
 
     assert git_repo.origin_subjects() == before
     assert "status: blocked" not in (_control(git_repo, "coga/tasks/demo.md") or "")
-    assert ticket.read_text() == _ticket_text(status="blocked")
+    assert ticket.read_text(encoding="utf-8") == _ticket_text(status="blocked")
 
 
 def test_a_feature_checkout_keeps_publishing_its_own_ticket(git_repo):
@@ -669,9 +699,9 @@ def test_a_feature_checkout_keeps_publishing_its_own_ticket(git_repo):
     ticket = _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
 
-    ticket.write_text(_ticket_text(status="in_progress", blackboard="first\n"))
+    ticket.write_text(_ticket_text(status="in_progress", blackboard="first\n"), encoding="utf-8", newline="\n")
     assert git.sync_task_state(cfg, ticket, message="one") is True
-    ticket.write_text(_ticket_text(step="2 (review)", blackboard="first\nsecond\n"))
+    ticket.write_text(_ticket_text(step="2 (review)", blackboard="first\nsecond\n"), encoding="utf-8", newline="\n")
     assert git.sync_task_state(cfg, ticket, message="two") is True
 
     assert "step: 2 (review)" in _control(git_repo, "coga/tasks/demo.md")
@@ -686,13 +716,13 @@ def test_pending_claim_on_control_accepts_only_its_own_admission(git_repo):
     ticket = _seed_ticket(git_repo, generation="pending:abc")
 
     # A bump from a checkout that read the pending copy is sealed out …
-    ticket.write_text(_ticket_text(step="2 (review)"))
+    ticket.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     with pytest.raises(git.StateRegressionError, match="pending launch admission"):
         git.publish(cfg, [ticket], "Ticket: demo — step 2")
     assert "sync refused" in _global_log(cfg)
 
     # … while the exact prefix-stripped admission lands.
-    ticket.write_text(_ticket_text(generation="abc"))
+    ticket.write_text(_ticket_text(generation="abc"), encoding="utf-8", newline="\n")
     assert git.publish(cfg, [ticket], "Ticket: demo — launch admitted") is True
     assert "launch_generation: abc" in _control(git_repo, "coga/tasks/demo.md")
 
@@ -700,7 +730,7 @@ def test_pending_claim_on_control_accepts_only_its_own_admission(git_repo):
 def test_a_released_witness_is_never_published(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo, generation="pending:abc")
-    ticket.write_text(_ticket_text(generation="released:abc"))
+    ticket.write_text(_ticket_text(generation="released:abc"), encoding="utf-8", newline="\n")
 
     with pytest.raises(git.StateRegressionError, match="released launch witness"):
         git.publish(cfg, [ticket], "Ticket: demo — released")
@@ -736,12 +766,12 @@ def test_fast_forward_names_files_that_local_changes_would_overwrite(
     rel = "coga/log.md"
     path = git_repo.root / rel
     if tracked:
-        path.write_text("original\n")
+        path.write_text("original\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "--", rel)
         git_repo.git("commit", "-m", "seed log")
         git_repo.git("push", "origin", "main")
     tip = git_repo.git("rev-parse", "main").strip()
-    path.write_text("local changes\n")
+    path.write_text("local changes\n", encoding="utf-8", newline="\n")
     git_repo.push_competing_commit(rel, "remote changes\n")
     git_repo.git("fetch", "origin", "main")
     new = git_repo.git("rev-parse", "origin/main").strip()
@@ -752,7 +782,7 @@ def test_fast_forward_names_files_that_local_changes_would_overwrite(
     assert "not fast-forwarded" in note
     assert "would be overwritten by merge:" in note
     assert rel in note
-    assert path.read_text() == "local changes\n"
+    assert path.read_text(encoding="utf-8") == "local changes\n"
     assert git_repo.git("rev-parse", "main").strip() == tip
 
 
@@ -785,7 +815,7 @@ def test_publish_from_a_worktree_fast_forwards_the_main_checkout(git_repo, tmp_p
     shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
     try:
         wt_ticket = worktree / "coga" / "tasks" / "demo.md"
-        wt_ticket.write_text(_ticket_text(status="blocked"))
+        wt_ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
         assert git.sync_task_state(
             load_config(worktree / "coga"), wt_ticket, message="Ticket: demo — blocked"
         ) is True
@@ -794,7 +824,7 @@ def test_publish_from_a_worktree_fast_forwards_the_main_checkout(git_repo, tmp_p
         assert git_repo.git("rev-parse", "main").strip() == git_repo.git(
             "rev-parse", "main", cwd=git_repo.origin
         ).strip()
-        assert "status: blocked" in ticket.read_text()
+        assert "status: blocked" in ticket.read_text(encoding="utf-8")
         assert _dirty(git_repo) == set()
         # The worktree kept its own branch and its dirty live copy.
         assert _dirty(git_repo, cwd=worktree) == {"coga/tasks/demo.md"}
@@ -806,7 +836,7 @@ def test_fast_forward_leaves_an_ahead_main_alone_and_names_the_fix(
     git_repo, tmp_path, capsys
 ):
     ticket = _seed_ticket(git_repo)
-    (git_repo.root / "local.txt").write_text("human commit\n")
+    (git_repo.root / "local.txt").write_text("human commit\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "local.txt")
     git_repo.git("commit", "-m", "local unpushed")
     ahead_tip = git_repo.git("rev-parse", "main").strip()
@@ -815,7 +845,7 @@ def test_fast_forward_leaves_an_ahead_main_alone_and_names_the_fix(
     shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
     try:
         wt_ticket = worktree / "coga" / "tasks" / "demo.md"
-        wt_ticket.write_text(_ticket_text(status="blocked"))
+        wt_ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
         assert git.sync_task_state(
             load_config(worktree / "coga"), wt_ticket, message="Ticket: demo — blocked"
         ) is True
@@ -824,7 +854,7 @@ def test_fast_forward_leaves_an_ahead_main_alone_and_names_the_fix(
 
     assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
     assert git_repo.git("rev-parse", "main").strip() == ahead_tip
-    assert "status: in_progress" in ticket.read_text()
+    assert "status: in_progress" in ticket.read_text(encoding="utf-8")
     assert _dirty(git_repo) == set()
     assert "git pull --rebase --autostash origin main" in capsys.readouterr().err
     # The human's commit was neither pushed nor rebased.
@@ -838,7 +868,7 @@ def test_refresh_fast_forwards_a_behind_control_checkout(git_repo):
 
     assert git.refresh(cfg) is True
 
-    assert "status: blocked" in ticket.read_text()
+    assert "status: blocked" in ticket.read_text(encoding="utf-8")
     assert git_repo.git("rev-parse", "main").strip() == git_repo.git(
         "rev-parse", "main", cwd=git_repo.origin
     ).strip()
@@ -848,7 +878,7 @@ def test_refresh_fast_forwards_a_behind_control_checkout(git_repo):
 def test_refresh_refuses_an_ahead_or_diverged_control_checkout(git_repo, capsys):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
-    (git_repo.root / "local.txt").write_text("human commit\n")
+    (git_repo.root / "local.txt").write_text("human commit\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "local.txt")
     git_repo.git("commit", "-m", "local unpushed")
     tip = git_repo.git("rev-parse", "main").strip()
@@ -870,7 +900,7 @@ def test_refresh_on_a_feature_checkout_touches_nothing(git_repo):
 
     assert git.refresh(cfg) is True
 
-    assert "step: 1 (implement)" in ticket.read_text()
+    assert "step: 1 (implement)" in ticket.read_text(encoding="utf-8")
     assert git_repo.git("status", "--porcelain") == ""
     # The fetch still landed, so `coga status` can warn.
     assert git.stale_coga_task_rels(cfg) == ["coga/tasks/demo.md"]
@@ -885,7 +915,7 @@ def test_teardown_refresh_then_claim_from_a_moved_remote_admits_the_pick(git_rep
 
     assert git.refresh(cfg) is True
     pre_write = ticket.read_bytes()
-    ticket.write_text(_ticket_text(status="in_progress", generation="pending:xyz"))
+    ticket.write_text(_ticket_text(status="in_progress", generation="pending:xyz"), encoding="utf-8", newline="\n")
 
     assert git.publish(
         cfg, [ticket], "Ticket: demo — in_progress", expect={ticket: pre_write}
@@ -898,7 +928,7 @@ def test_no_private_fetch_refs_are_left_behind(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
     git_repo.push_competing_commit("other.txt", "remote\n")
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is True
 
@@ -925,17 +955,18 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
 
     _seed_ticket(git_repo)
     if layout == "root":
+        monkeypatch.chdir(git_repo.root)
         for path in git_repo.coga_os.iterdir():
             path.rename(git_repo.root / path.name)
         git_repo.coga_os.rmdir()
         git_repo.coga_os = git_repo.root
-        (git_repo.root / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n")
+        (git_repo.root / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n", encoding="utf-8", newline="\n")
         monkeypatch.chdir(git_repo.root)
     elif layout == "relocated":
         contexts = git_repo.root / "docs" / "contexts"
         contexts.mkdir(parents=True)
-        (contexts / ".gitkeep").write_text("")
-        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+        (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
+        with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
             stream.write('[layout]\ncontexts = "docs/contexts"\n')
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"
@@ -943,7 +974,7 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
     skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
     for path in (context, moved_from, skill):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("---\nname: team\ndescription: team.\n---\noriginal\n")
+        path.write_text("---\nname: team\ndescription: team.\n---\noriginal\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed knowledge and layout")
     git_repo.git("push", "origin", "main")
@@ -954,36 +985,36 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
     monkeypatch.setenv("COGA_TASK_TICKET", str(ticket))
     monkeypatch.setenv("COGA_TASK_SLUG", "demo")
     before = snapshot_authoring_state(cfg)
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
     append_log(cfg, "demo", "human:marc", "hand edit")
     recurring = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
     recurring.parent.mkdir(parents=True)
-    recurring.write_text("---\ntitle: weekly\n---\n")
-    context.write_text(context.read_text() + "owner decision\n")
+    recurring.write_text("---\ntitle: weekly\n---\n", encoding="utf-8", newline="\n")
+    context.write_text(context.read_text(encoding="utf-8") + "owner decision\n", encoding="utf-8", newline="\n")
     moved_to = cfg.contexts_root / "renamed" / "SKILL.md"
     moved_to.parent.mkdir(parents=True)
     moved_from.rename(moved_to)
     skill.unlink()
     new_skill = skill.parent / "notes.md"
-    new_skill.write_text("new knowledge\n")
+    new_skill.write_text("new knowledge\n", encoding="utf-8", newline="\n")
     workflow = git_repo.coga_os / "workflows" / "code.md"
-    workflow.write_text(workflow.read_text() + "\nEdited workflow prose.\n")
+    workflow.write_text(workflow.read_text(encoding="utf-8") + "\nEdited workflow prose.\n", encoding="utf-8", newline="\n")
     config = git_repo.coga_os / "coga.toml"
-    config.write_text(config.read_text() + "\n# shared config\n")
+    config.write_text(config.read_text(encoding="utf-8") + "\n# shared config\n", encoding="utf-8", newline="\n")
     published = (context, moved_from, moved_to, skill, new_skill, workflow, config)
     local_config = git_repo.coga_os / "coga.local.toml"
-    local_config.write_text(local_config.read_text() + "# machine-local\n")
+    local_config.write_text(local_config.read_text(encoding="utf-8") + "# machine-local\n", encoding="utf-8", newline="\n")
     view = git_repo.coga_os / ".agent-skills" / "team" / "SKILL.md"
     view.parent.mkdir(parents=True)
-    view.write_text("generated view\n")
+    view.write_text("generated view\n", encoding="utf-8", newline="\n")
     unrelated = git_repo.root / "src.py"
     if layout != "root":
-        unrelated.write_text("code under review\n")
+        unrelated.write_text("code under review\n", encoding="utf-8", newline="\n")
 
     if finalize:
         finalize_authored(cfg, before_snapshot=before, ref=ref)
         assert "status: blocked" in _control(git_repo, ticket.relative_to(git_repo.root).as_posix())
-        assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == context.read_text()
+        assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == context.read_text(encoding="utf-8")
         err = capsys.readouterr().err
         assert str(context) in err
         assert str(log_path(cfg)) not in err and str(local_config) not in err
@@ -994,9 +1025,9 @@ def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
 
     assert "status: blocked" in landed(ticket)
     assert "hand edit" in landed(git_repo.coga_os / "log.md")
-    assert landed(recurring) == recurring.read_text()
+    assert landed(recurring) == recurring.read_text(encoding="utf-8")
     for path in published:
-        assert landed(path) == (path.read_text() if path.exists() else None)
+        assert landed(path) == (path.read_text(encoding="utf-8") if path.exists() else None)
     for path in (local_config, view):
         assert landed(path) is None
     if layout != "root":
@@ -1011,20 +1042,20 @@ def test_sweep_publishes_knowledge_once_when_the_roots_overlap(git_repo):
     assert git.coga_root_paths(cfg) == (git_repo.coga_os.resolve(),)
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("---\nname: team\ndescription: team.\n---\nbody\n")
+    context.write_text("---\nname: team\ndescription: team.\n---\nbody\n", encoding="utf-8", newline="\n")
     before = _origin_tip(git_repo)
 
     git.sync_coga_state(cfg)
 
-    assert _control(git_repo, "coga/contexts/team/SKILL.md") == context.read_text()
+    assert _control(git_repo, "coga/contexts/team/SKILL.md") == context.read_text(encoding="utf-8")
     assert git_repo.git("rev-list", "--count", f"{before}..{_origin_tip(git_repo)}").strip() == "1"
 
 
 def test_coga_root_paths_lists_a_relocated_contexts_root_separately(git_repo):
     contexts = git_repo.root / "docs" / "contexts"
     contexts.mkdir(parents=True)
-    (contexts / ".gitkeep").write_text("")
-    with (git_repo.coga_os / "coga.toml").open("a") as stream:
+    (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
+    with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write('[layout]\ncontexts = "docs/contexts"\n')
 
     cfg = load_config(git_repo.coga_os)
@@ -1039,11 +1070,11 @@ def test_sweep_skips_an_untracked_symlink_and_still_publishes_the_rest(git_repo,
     ticket = _seed_ticket(git_repo)
     target = tmp_path / "skill"
     target.mkdir()
-    (target / "SKILL.md").write_text("outside\n")
+    (target / "SKILL.md").write_text("outside\n", encoding="utf-8", newline="\n")
     link = git_repo.coga_os / "views" / "skill"
     link.parent.mkdir()
     link.symlink_to(target, target_is_directory=True)
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     git.sync_coga_state(cfg)
 
@@ -1063,23 +1094,23 @@ def test_authoring_refused_over_a_concurrent_context_edit_keeps_everything(git_r
     ticket = _seed_ticket(git_repo)
     context = cfg.contexts_root / "product" / "vision" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("original\n")
+    context.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed vision")
     git_repo.git("push", "origin", "main")
     before = snapshot_authoring_state(cfg)
     git_repo.push_competing_commit("coga/contexts/product/vision/SKILL.md", "peer\n")
     git_repo.git("fetch", "origin")
-    context.write_text("agreed vision\n")
-    ticket.write_text(_ticket_text(blackboard="authored\n"))
+    context.write_text("agreed vision\n", encoding="utf-8", newline="\n")
+    ticket.write_text(_ticket_text(blackboard="authored\n"), encoding="utf-8", newline="\n")
     tip = _origin_tip(git_repo)
 
     with pytest.raises(AuthoringError, match="not published"):
         finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
 
     assert _origin_tip(git_repo) == tip
-    assert context.read_text() == "agreed vision\n"
-    assert "authored" in ticket.read_text()
+    assert context.read_text(encoding="utf-8") == "agreed vision\n"
+    assert "authored" in ticket.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("change", ["add", "modify", "delete", "mode"])
@@ -1095,7 +1126,7 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
     if change != "add":
-        context.write_text("original\n")
+        context.write_text("original\n", encoding="utf-8", newline="\n")
         git_repo.git("add", "coga/contexts")
         git_repo.git("commit", "-m", "seed context")
         git_repo.git("push", "origin", "main")
@@ -1104,14 +1135,17 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
     if change == "delete":
         context.unlink()
     elif change == "mode":
-        context.chmod(0o755)
+        if os.name == "posix":
+            context.chmod(0o755)
     else:
-        context.write_text("authored knowledge\n")
+        context.write_text("authored knowledge\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/contexts")
+    if change == "mode" and os.name != "posix":
+        git_repo.git("update-index", "--chmod=+x", "coga/contexts/team/SKILL.md")
     git_repo.git("commit", "-m", "authored knowledge for review")
     if already_published:
         git_repo.git("push", "origin", "HEAD:main")
-    ticket.write_text(_ticket_text(blackboard="authored task\n"))
+    ticket.write_text(_ticket_text(blackboard="authored task\n"), encoding="utf-8", newline="\n")
     tip = _origin_tip(git_repo)
 
     if already_published:
@@ -1122,17 +1156,17 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
             finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
         assert _origin_tip(git_repo) == tip
         assert "Published these knowledge edits" not in capsys.readouterr().err
-    assert "authored task" in ticket.read_text()
+    assert "authored task" in ticket.read_text(encoding="utf-8")
     assert context.exists() == (change != "delete")
     if change == "mode":
-        assert context.read_text() == "original\n"
+        assert context.read_text(encoding="utf-8") == "original\n"
     elif context.exists():
-        assert context.read_text() == "authored knowledge\n"
+        assert context.read_text(encoding="utf-8") == "authored knowledge\n"
 
 
 @pytest.mark.parametrize("failure", ["committed_context", "push"])
 def test_ticket_command_withholds_sweep_after_failed_authoring(
-    git_repo, monkeypatch, capsys, failure,
+    git_repo, monkeypatch, capsys, failure, tmp_path,
 ):
     import importlib
     import sys
@@ -1140,9 +1174,13 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
     from coga import cli
 
     command = importlib.import_module("coga.commands.ticket")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_executable(bin_dir / "true", "pass\n")
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     task = _seed_ticket(git_repo)
     config = git_repo.coga_os / "coga.toml"
-    config.write_text(config.read_text().replace('cli = "claude"', 'cli = "true"'))
+    config.write_text(config.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "true"'), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "configure test agent")
     git_repo.git("push", "origin", "main")
@@ -1152,7 +1190,7 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
 
     def interview(*args, **kwargs):
         context.parent.mkdir(parents=True)
-        context.write_text("---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+        context.write_text("---\nname: team\ndescription: Team.\n---\nKnowledge.\n", encoding="utf-8", newline="\n")
         if failure == "committed_context":
             git_repo.git("add", "coga/contexts")
             git_repo.git("commit", "-m", "review-bound knowledge")
@@ -1164,6 +1202,7 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
         return SimpleNamespace(exit_code=0)
 
     monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr(command, "spawn_agent_session", interview)
     monkeypatch.chdir(git_repo.coga_os)
     monkeypatch.setattr(sys, "argv", ["coga", "ticket", "demo"])
@@ -1186,12 +1225,12 @@ def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_rep
     _seed_ticket(git_repo)
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("original\n")
+    context.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed context")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/x")
-    context.write_text("reviewed in the PR\n")
+    context.write_text("reviewed in the PR\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "coga/contexts/team/SKILL.md")
     _hand_commit(git_repo, "coga/tasks/demo.md", _ticket_text(blackboard="handoff\n"))
 
@@ -1208,7 +1247,7 @@ def test_authoring_does_not_publish_source_reached_through_a_symlink(git_repo, e
 
     cfg = load_config(git_repo.coga_os)
     source = git_repo.root / "src.py"
-    source.write_text("reviewed source\n")
+    source.write_text("reviewed source\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "src.py")
     git_repo.git("commit", "-m", "seed source")
     git_repo.git("push", "origin", "main")
@@ -1219,16 +1258,16 @@ def test_authoring_does_not_publish_source_reached_through_a_symlink(git_repo, e
     before = snapshot_authoring_state(cfg)
     if not existing_link:
         link.symlink_to(source)
-    source.write_text("unreviewed source\n")
+    source.write_text("unreviewed source\n", encoding="utf-8", newline="\n")
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("authored knowledge\n")
+    context.write_text("authored knowledge\n", encoding="utf-8", newline="\n")
 
     finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
 
     assert _control(git_repo, "src.py") == "reviewed source\n"
     assert _control(git_repo, "coga/contexts/team/SKILL.md") == "authored knowledge\n"
-    assert source.read_text() == "unreviewed source\n"
+    assert source.read_text(encoding="utf-8") == "unreviewed source\n"
     assert link.is_symlink()
 
 
@@ -1244,11 +1283,11 @@ def test_publication_refuses_a_skill_directory_replaced_by_a_symlink(
     skill = cfg.repo_root / "skills" / "team"
     skill.mkdir(parents=True)
     child = skill / "helper.py"
-    child.write_text("original skill\n")
+    child.write_text("original skill\n", encoding="utf-8", newline="\n")
     source = (git_repo.root if target_location == "inside" else tmp_path) / "source"
     source.mkdir()
     source_child = source / "helper.py"
-    source_child.write_text("reviewed source\n")
+    source_child.write_text("reviewed source\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/skills")
     if target_location == "inside":
         git_repo.git("add", "source")
@@ -1260,7 +1299,7 @@ def test_publication_refuses_a_skill_directory_replaced_by_a_symlink(
     child.unlink()
     skill.rmdir()
     skill.symlink_to(source if target_location != "missing" else tmp_path / "missing")
-    source_child.write_text("unreviewed source\n")
+    source_child.write_text("unreviewed source\n", encoding="utf-8", newline="\n")
 
     if mode == "authoring":
         with pytest.raises(AuthoringError, match="symlinked ancestor"):
@@ -1276,7 +1315,7 @@ def test_publication_refuses_a_skill_directory_replaced_by_a_symlink(
     assert _control(git_repo, "coga/skills/team/helper.py") == "original skill\n"
     if target_location == "inside":
         assert _control(git_repo, "source/helper.py") == "reviewed source\n"
-    assert source_child.read_text() == "unreviewed source\n"
+    assert source_child.read_text(encoding="utf-8") == "unreviewed source\n"
     assert skill.is_symlink()
 
 
@@ -1288,20 +1327,20 @@ def test_authoring_keeps_newly_ignored_files_local_without_blocking_publication(
 
     cfg = load_config(git_repo.coga_os)
     scratch = cfg.repo_root / "scratch.txt"
-    scratch.write_text("local scratch\n")
+    scratch.write_text("local scratch\n", encoding="utf-8", newline="\n")
     before = snapshot_authoring_state(cfg)
     ignore = cfg.repo_root / ".gitignore"
-    ignore.write_text("scratch.txt\n")
+    ignore.write_text("scratch.txt\n", encoding="utf-8", newline="\n")
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("authored knowledge\n")
+    context.write_text("authored knowledge\n", encoding="utf-8", newline="\n")
 
     finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
 
-    assert scratch.read_text() == "local scratch\n"
+    assert scratch.read_text(encoding="utf-8") == "local scratch\n"
     assert not git_repo.origin_tracks("coga/scratch.txt")
     assert "scratch.txt" not in capsys.readouterr().err
-    assert _control(git_repo, "coga/.gitignore") == ignore.read_text()
+    assert _control(git_repo, "coga/.gitignore") == ignore.read_text(encoding="utf-8")
     assert _control(git_repo, "coga/contexts/team/SKILL.md") == "authored knowledge\n"
     assert git_repo.git("status", "--porcelain").strip() == ""
 
@@ -1311,12 +1350,12 @@ def test_default_context_symlink_does_not_expand_publication_roots(git_repo):
     source = git_repo.root / "source"
     source.mkdir()
     child = source / "helper.py"
-    child.write_text("reviewed source\n")
+    child.write_text("reviewed source\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "source")
     git_repo.git("commit", "-m", "seed source")
     git_repo.git("push", "origin", "main")
     cfg.contexts_root.symlink_to(source, target_is_directory=True)
-    child.write_text("unreviewed source\n")
+    child.write_text("unreviewed source\n", encoding="utf-8", newline="\n")
     tip = _origin_tip(git_repo)
 
     assert git.coga_root_paths(cfg) == (cfg.repo_root,)
@@ -1333,26 +1372,26 @@ def test_checkout_return_refuses_symlinked_ancestors_even_with_published_bytes(
     skill = cfg.repo_root / "skills" / "team"
     skill.mkdir(parents=True)
     child = skill / "helper.py"
-    child.write_text("published\n")
+    child.write_text("published\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/skills")
     git_repo.git("commit", "-m", "seed skill")
     git_repo.git("push", "origin", "main")
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "helper.py").write_text("published\n")
+    (outside / "helper.py").write_text("published\n", encoding="utf-8", newline="\n")
     child.unlink()
     skill.rmdir()
     skill.symlink_to(outside, target_is_directory=True)
     # Hide the untracked directory link, leaving only the tracked child's
     # apparent deletion for the cleanup proof to examine.
-    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/skills/team\n")
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/skills/team\n", encoding="utf-8", newline="\n")
 
     outcome = git.prepare_control_checkout(cfg)
 
     assert outcome.kind == "refused"
     assert any("coga/skills/team/helper.py" in item for item in outcome.blocking)
     assert skill.is_symlink()
-    assert (outside / "helper.py").read_text() == "published\n"
+    assert (outside / "helper.py").read_text(encoding="utf-8") == "published\n"
 
 
 @pytest.mark.parametrize("feature", [False, True])
@@ -1367,7 +1406,7 @@ def test_authoring_reloads_config_and_publishes_context_relocation_atomically(
     task = _seed_ticket(git_repo)
     context = cfg.contexts_root / "team" / "note" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("---\nname: team/note\ndescription: A note.\n---\nKnowledge.\n")
+    context.write_text("---\nname: team/note\ndescription: A note.\n---\nKnowledge.\n", encoding="utf-8", newline="\n")
     ticket = Ticket.read(task)
     ticket.frontmatter["contexts"] = ["team/note"]
     ticket.write(task)
@@ -1382,10 +1421,10 @@ def test_authoring_reloads_config_and_publishes_context_relocation_atomically(
     destination.parent.mkdir()
     cfg.contexts_root.rename(destination)
     config_path = cfg.repo_root / "coga.toml"
-    config = config_path.read_text() + '\n[layout]\ncontexts = "docs/contexts"\n'
+    config = config_path.read_text(encoding="utf-8") + '\n[layout]\ncontexts = "docs/contexts"\n'
     if invalid_config:
         config = config.replace("version = 1", "version = 999")
-    config_path.write_text(config)
+    config_path.write_text(config, encoding="utf-8", newline="\n")
 
     if invalid_config:
         with pytest.raises(AuthoringError, match="configuration is invalid"):
@@ -1397,7 +1436,7 @@ def test_authoring_reloads_config_and_publishes_context_relocation_atomically(
         assert _control(git_repo, "coga/contexts/team/note/SKILL.md") is None
         assert _control(git_repo, "docs/contexts/team/note/SKILL.md") == (
             destination / "team" / "note" / "SKILL.md"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         assert git_repo.git("rev-parse", "origin/main^").strip() == tip
     assert (destination / "team" / "note" / "SKILL.md").is_file()
 
@@ -1413,15 +1452,15 @@ def test_checkout_return_reloads_config_before_publishing(
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+    context.write_text("---\nname: team\ndescription: Team.\n---\nKnowledge.\n", encoding="utf-8", newline="\n")
     config_path = cfg.repo_root / "coga.toml"
     if relocated:
         old_root = git_repo.root / "docs" / "contexts"
         old_root.parent.mkdir()
         cfg.contexts_root.rename(old_root)
-        config_path.write_text(config_path.read_text() + '\n[layout]\ncontexts = "docs/contexts"\n')
+        config_path.write_text(config_path.read_text(encoding="utf-8") + '\n[layout]\ncontexts = "docs/contexts"\n', encoding="utf-8", newline="\n")
         cfg = load_config(cfg.repo_root)
-    old_rel = str(cfg.contexts_root.relative_to(git_repo.root) / "team" / "SKILL.md")
+    old_rel = (cfg.contexts_root.relative_to(git_repo.root) / "team" / "SKILL.md").as_posix()
     git_repo.git("add", "coga", "docs" if relocated else "coga/contexts")
     git_repo.git("commit", "-m", "seed context")
     git_repo.git("push", "origin", "main")
@@ -1433,7 +1472,7 @@ def test_checkout_return_reloads_config_before_publishing(
     destination = git_repo.root / "docs" / "topics"
     destination.parent.mkdir(exist_ok=True)
     cfg.contexts_root.rename(destination)
-    config = config_path.read_text()
+    config = config_path.read_text(encoding="utf-8")
     if relocated:
         config = config.replace('contexts = "docs/contexts"', 'contexts = "docs/topics"')
     else:
@@ -1442,7 +1481,7 @@ def test_checkout_return_reloads_config_before_publishing(
         config = config.replace("version = 1", "version = 999")
     elif config_change == "destination":
         config += '\n[git]\ncontrol_branch = "other"\n'
-    config_path.write_text(config)
+    config_path.write_text(config, encoding="utf-8", newline="\n")
     token = git.state_sweep_withheld.set(False)
     try:
         settled = boundary.settle(cfg, subject="context relocation")
@@ -1452,7 +1491,7 @@ def test_checkout_return_reloads_config_before_publishing(
             assert git_repo.git("branch", "--show-current").strip() == "main"
             assert _control(git_repo, "docs/topics/team/SKILL.md") == (
                 destination / "team" / "SKILL.md"
-            ).read_text()
+            ).read_text(encoding="utf-8")
             assert _control(git_repo, old_rel) is None
             assert _control(git_repo, "coga/coga.toml") == config
             assert git_repo.git("rev-parse", "origin/main^").strip() == tip
@@ -1462,7 +1501,7 @@ def test_checkout_return_reloads_config_before_publishing(
             assert boundary.stopped
             assert git.state_sweep_withheld.get()
             assert _origin_tip(git_repo) == tip
-            assert config_path.read_text() == config
+            assert config_path.read_text(encoding="utf-8") == config
             assert (destination / "team" / "SKILL.md").is_file()
     finally:
         git.state_sweep_withheld.reset(token)
@@ -1478,7 +1517,7 @@ def test_sweep_refuses_submodules_without_deleting_them(git_repo, capsys, change
     git_repo.git("-C", str(sub), "config", "user.name", "Test")
     git_repo.git("-C", str(sub), "config", "user.email", "test@example.com")
     knowledge = sub / "SKILL.md"
-    knowledge.write_text("original\n")
+    knowledge.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("-C", str(sub), "add", ".")
     git_repo.git("-C", str(sub), "commit", "-m", "seed module")
     git_repo.git("add", rel)
@@ -1487,9 +1526,9 @@ def test_sweep_refuses_submodules_without_deleting_them(git_repo, capsys, change
         git_repo.git("push", "origin", "main")
     original = git_repo.git("ls-tree", "origin/main", "--", rel)
     if change == "deleted":
-        shutil.rmtree(sub)
+        remove_test_checkout(sub)
     elif change != "added":
-        knowledge.write_text("edited\n")
+        knowledge.write_text("edited\n", encoding="utf-8", newline="\n")
         if change == "committed":
             git_repo.git("-C", str(sub), "commit", "-am", "edit module")
 
@@ -1498,7 +1537,7 @@ def test_sweep_refuses_submodules_without_deleting_them(git_repo, capsys, change
     assert "is a submodule" in capsys.readouterr().err
     assert git_repo.git("ls-tree", "origin/main", "--", rel) == original
     if change != "deleted":
-        assert knowledge.read_text() == ("original\n" if change == "added" else "edited\n")
+        assert knowledge.read_text(encoding="utf-8") == ("original\n" if change == "added" else "edited\n")
 
 
 def test_sweep_publishes_a_hand_committed_skill_from_a_clean_control_checkout(git_repo):
@@ -1519,19 +1558,19 @@ def test_sweep_refuses_a_stale_context_overwrite(git_repo, capsys):
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
-    context.write_text("original\n")
+    context.write_text("original\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed context")
     git_repo.git("push", "origin", "main")
     git_repo.push_competing_commit("coga/contexts/team/SKILL.md", "peer edit\n")
     git_repo.git("fetch", "origin")
-    context.write_text("local edit\n")
+    context.write_text("local edit\n", encoding="utf-8", newline="\n")
 
     git.sync_coga_state(cfg)
 
     assert "sync refused" in capsys.readouterr().err
     assert _control(git_repo, "coga/contexts/team/SKILL.md") == "peer edit\n"
-    assert context.read_text() == "local edit\n"
+    assert context.read_text(encoding="utf-8") == "local edit\n"
 
 
 def test_sweep_leaves_a_stale_ticket_refused_but_converges_a_fresh_one(git_repo, capsys):
@@ -1539,8 +1578,8 @@ def test_sweep_leaves_a_stale_ticket_refused_but_converges_a_fresh_one(git_repo,
     stale = _seed_ticket(git_repo, "stale")
     fresh = _seed_ticket(git_repo, "fresh")
     git_repo.push_competing_commit("coga/tasks/stale.md", _ticket_text(status="done"))
-    stale.write_text(_ticket_text(status="blocked"))
-    fresh.write_text(_ticket_text(status="blocked"))
+    stale.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
+    fresh.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     git.sync_coga_state(cfg)
     err = capsys.readouterr().err
@@ -1562,7 +1601,7 @@ def _hand_commit(git_repo, rel: str, text: str | None, message: str = "hand comm
         git_repo.git("rm", "-r", "--quiet", "--", rel)
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8", newline="\n")
         git_repo.git("add", "--", rel)
     git_repo.git("commit", "-m", message)
     return git_repo.git("rev-parse", "HEAD").strip()
@@ -1594,7 +1633,7 @@ def test_sweep_publishes_committed_state_from_a_feature_checkout(git_repo):
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     hand = _ticket_text(blackboard="feature handoff\n")
-    (git_repo.root / "src.py").write_text("code\n")
+    (git_repo.root / "src.py").write_text("code\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "src.py")
     tip = _hand_commit(git_repo, "coga/tasks/demo.md", hand)
 
@@ -1625,7 +1664,7 @@ def test_sweep_does_not_republish_a_ticket_this_feature_checkout_lacks(git_repo)
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     fresh = git_repo.coga_os / "tasks" / "fresh.md"
-    fresh.write_text(_ticket_text())
+    fresh.write_text(_ticket_text(), encoding="utf-8", newline="\n")
     assert git.publish(cfg, [fresh], "Ticket: fresh — created") is True
     fresh.unlink()
     before = _origin_tip(git_repo)
@@ -1641,7 +1680,7 @@ def test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory(git_r
     _seed_ticket(git_repo)
     weekly = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
     weekly.parent.mkdir(parents=True)
-    weekly.write_text("---\ntitle: weekly\n---\n")
+    weekly.write_text("---\ntitle: weekly\n---\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/recurring")
     git_repo.git("commit", "-m", "seed recurring")
     git_repo.git("push", "origin", "main")
@@ -1702,6 +1741,7 @@ def test_object_dir_follows_a_relative_override_from_another_cwd(
     assert git._object_dir(git_repo.root) == store.resolve()
 
 
+@windows_skip("POSIX directory write permissions")
 def test_unwritable_object_dir_names_checkout_destination_and_cause(
     git_repo, tmp_path, monkeypatch
 ):
@@ -1755,7 +1795,7 @@ def test_failed_location_probe_keeps_the_original_error(git_repo, monkeypatch):
 def test_a_failing_clean_filter_is_an_object_write_failure_without_a_cause(git_repo):
     git_repo.git("config", "filter.broken.clean", "false")
     git_repo.git("config", "filter.broken.required", "true")
-    (git_repo.root / ".gitattributes").write_text("*.md filter=broken\n")
+    (git_repo.root / ".gitattributes").write_text("*.md filter=broken\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(git.ObjectWriteError) as caught:
         git._hash_blob(git_repo.root, b"x\n", "coga/tasks/demo.md")
@@ -1769,7 +1809,7 @@ def test_best_effort_task_sync_separates_saved_state_from_failed_publication(
 ):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(step="2 (review)"))
+    ticket.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     written = ticket.read_bytes()
     _failing_hash_object(monkeypatch, _EROFS)
 
@@ -1783,7 +1823,11 @@ def test_best_effort_task_sync_separates_saved_state_from_failed_publication(
     assert "Local task state was saved; Git publication failed." in err
     assert "Do not rerun `coga bump` to recover." in err
     assert "If Git could not write to the object storage shown above" in err
-    assert f"`coga run publish-state tasks/demo.md log.md` from {git_repo.coga_os}" in err
+    required = shlex.quote(str(Path("tasks") / "demo.md"))
+    assert (
+        f"`coga run publish-state {required} log.md` "
+        f"from {shlex.quote(str(git_repo.coga_os))}"
+    ) in err
     assert ticket.read_bytes() == written
     # The audit line stays concise: the failure, not the remedy.
     log = _global_log(cfg)
@@ -1794,7 +1838,7 @@ def test_best_effort_task_sync_separates_saved_state_from_failed_publication(
 def test_strict_task_sync_stays_neutral_and_raises(git_repo, monkeypatch, capsys):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(step="2 (review)"))
+    ticket.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     _failing_hash_object(monkeypatch, _EROFS)
 
     with pytest.raises(git.ObjectWriteError):
@@ -1810,7 +1854,7 @@ def test_failure_report_quotes_recovery_paths_and_drops_missing_ones(tmp_path):
     root = tmp_path / "my repo" / "coga"
     task = root / "tasks" / "with space"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_text("x\n")
+    (task / "ticket.md").write_text("x\n", encoding="utf-8", newline="\n")
     exc = git.GitError("`git push origin` failed (exit 1): fatal: unreachable")
 
     text = git.sync_failure_report(
@@ -1818,8 +1862,9 @@ def test_failure_report_quotes_recovery_paths_and_drops_missing_ones(tmp_path):
         recovery_paths=(task, root / "log.md"),
     )
 
-    assert "coga run publish-state 'tasks/with space/ticket.md'`" in text
-    assert f"from '{root}'" in text
+    required = shlex.quote(str(Path("tasks") / "with space" / "ticket.md"))
+    assert f"coga run publish-state {required}`" in text
+    assert f"from {shlex.quote(str(root))}" in text
     assert "Do not rerun the command to recover." in text
     # A transport failure gets no storage-access diagnosis.
     assert "object storage" not in text
@@ -1842,7 +1887,7 @@ def test_failure_report_keeps_uncertainty_and_refusal_distinct(tmp_path):
 def test_failed_failure_log_never_masks_the_sync_failure(git_repo, monkeypatch, capsys):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
-    ticket.write_text(_ticket_text(step="2 (review)"))
+    ticket.write_text(_ticket_text(step="2 (review)"), encoding="utf-8", newline="\n")
     _failing_hash_object(monkeypatch, _EROFS)
 
     def unwritable_log(*args):  # type: ignore[no-untyped-def]
@@ -1868,7 +1913,7 @@ def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = tmp_path / "tasks" / "demo.md"
     task.parent.mkdir(parents=True)
-    task.write_text(_ticket_text())
+    task.write_text(_ticket_text(), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, task, message="Ticket: demo — created") is None
     assert "not a git repo" in capsys.readouterr().err
@@ -1878,7 +1923,7 @@ def test_sync_suppressed_when_disabled(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path, git_enabled=False)
     task = tmp_path / "tasks" / "demo.md"
     task.parent.mkdir(parents=True)
-    task.write_text(_ticket_text())
+    task.write_text(_ticket_text(), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, task, message="Ticket: demo — created") is None
     assert "disabled" in capsys.readouterr().err
@@ -1892,7 +1937,7 @@ def test_sync_skips_with_guidance_when_control_branch_absent(git_repo, capsys):
     git_repo.git("branch", "-m", "main", "master")
     git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
     git_repo.git("remote", "remove", "origin")
-    ticket.write_text(_ticket_text(status="blocked"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
 
     assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is None
 
@@ -1906,7 +1951,7 @@ def test_sync_nonfatal_on_rev_parse_failure(tmp_path, monkeypatch, real_git, cap
     cfg = _cfg(tmp_path)
     task = tmp_path / "tasks" / "demo.md"
     task.parent.mkdir(parents=True)
-    task.write_text(_ticket_text())
+    task.write_text(_ticket_text(), encoding="utf-8", newline="\n")
 
     class Result:
         returncode = 128
@@ -1934,7 +1979,7 @@ def test_sync_log_reports_on_stderr_only(git_repo, capsys):
 def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
     """A written log excluded by Git must not look like a published no-op."""
     cfg = load_config(git_repo.coga_os)
-    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n")
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
     append_log(cfg, "bootstrap/orient", "system", "session usage")
     before = _global_log(cfg)
 
@@ -1957,7 +2002,7 @@ def test_sync_log_refuses_an_ignored_untracked_log(git_repo, capsys):
     assert _global_log(cfg) == before
     assert not git_repo.origin_tracks("coga/log.md")
 
-    (git_repo.root / ".git" / "info" / "exclude").write_text("")
+    (git_repo.root / ".git" / "info" / "exclude").write_text("", encoding="utf-8", newline="\n")
     recovered = subprocess.run(command, capture_output=True, text=True)
     assert recovered.returncode == 0, recovered.stdout + recovered.stderr
     assert _control(git_repo, "coga/log.md") == before
@@ -1982,7 +2027,7 @@ def test_state_lock_is_reentrant_within_a_thread(git_repo):
     with git.state_lock(cfg):
         with git.state_lock(cfg):
             ticket = _seed_ticket(git_repo)
-            ticket.write_text(_ticket_text(status="blocked"))
+            ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
             # `publish` takes the lock again inside megalaunch's admission window.
             assert git.publish(cfg, [ticket], "Ticket: demo — blocked") is True
     assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
@@ -1999,7 +2044,7 @@ def test_stale_coga_task_rels_names_only_provably_newer_remote_copies(git_repo):
     git_repo.push_competing_commit("coga/tasks/edited.md", _ticket_text(blackboard="prose\n"))
     git_repo.push_competing_commit("coga/tasks/new.md", _ticket_text())
     git_repo.git("fetch", "origin", "main")
-    assert "step: 1" in ahead.read_text()
+    assert "step: 1" in ahead.read_text(encoding="utf-8")
 
     assert git.stale_coga_task_rels(cfg) == ["coga/tasks/ahead.md", "coga/tasks/new.md"]
 
@@ -2205,7 +2250,7 @@ def test_cli_block_from_feature_branch_leaves_code_untouched(git_repo):
     slug = result.output.split(":", 1)[0].strip()
     assert runner.invoke(app, ["mark", "active", slug]).exit_code == 0
     git_repo.checkout_branch("feature/x")
-    (git_repo.root / "wip.py").write_text("# half-written change\n")
+    (git_repo.root / "wip.py").write_text("# half-written change\n", encoding="utf-8", newline="\n")
 
     blocked = runner.invoke(
         app, ["block", "--task", slug, "--reason", "blocked on design"]
@@ -2272,7 +2317,7 @@ def test_recurring_all_child_does_not_sweep_the_off_control_host(
     git_repo.checkout_branch("feature/wip")
     wip = git_repo.coga_os / "contexts" / "wip" / "SKILL.md"
     wip.parent.mkdir(parents=True)
-    wip.write_text("---\nname: wip\n---\n\nunfinished\n")
+    wip.write_text("---\nname: wip\n---\n\nunfinished\n", encoding="utf-8", newline="\n")
     before = git_repo.origin_subjects()
     monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *_: None)
     dispatched: list[bool] = []
@@ -2382,7 +2427,7 @@ def _feature_with_published_ticket(git_repo, cfg: Config) -> Path:
     """A feature checkout whose ticket edit is published to control but still dirty here."""
     ticket = _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
-    ticket.write_text(_ticket_text(blackboard="handoff\n"))
+    ticket.write_text(_ticket_text(blackboard="handoff\n"), encoding="utf-8", newline="\n")
     assert git.publish(cfg, [ticket], "Ticket: demo — handoff") is True
     assert _dirty(git_repo) == {"coga/tasks/demo.md"}
     return ticket
@@ -2397,7 +2442,7 @@ def test_prepare_moves_a_clean_feature_checkout_to_a_fresh_control(git_repo):
     outcome = git.prepare_control_checkout(cfg)
 
     _assert_prepared(git_repo, outcome)
-    assert "step: 2 (review)" in ticket.read_text()
+    assert "step: 2 (review)" in ticket.read_text(encoding="utf-8")
     # The feature branch is kept, never deleted.
     assert git_repo.git("branch", "--list", "feature/x").strip()
 
@@ -2408,14 +2453,14 @@ def test_prepare_fast_forwards_a_behind_control_checkout(git_repo):
     git_repo.push_competing_commit("other.txt", "remote\n")
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    assert (git_repo.root / "other.txt").read_text() == "remote\n"
+    assert (git_repo.root / "other.txt").read_text(encoding="utf-8") == "remote\n"
 
 
 @pytest.mark.parametrize("shape", ["ahead", "diverged"])
 def test_prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing(git_repo, shape):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
-    (git_repo.root / "local.txt").write_text("human commit\n")
+    (git_repo.root / "local.txt").write_text("human commit\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "local.txt")
     git_repo.git("commit", "-m", "local unpushed")
     if shape == "diverged":
@@ -2447,11 +2492,11 @@ def test_prepare_refuses_an_in_progress_merge(git_repo):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
-    (git_repo.root / "a.txt").write_text("feature\n")
+    (git_repo.root / "a.txt").write_text("feature\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "a.txt")
     git_repo.git("commit", "-m", "feature a")
     git_repo.git("checkout", "main")
-    (git_repo.root / "a.txt").write_text("main\n")
+    (git_repo.root / "a.txt").write_text("main\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "a.txt")
     git_repo.git("commit", "-m", "main a")
     git_repo.git("push", "origin", "main")
@@ -2486,7 +2531,7 @@ def test_prepare_cleans_a_published_ticket_edit_from_a_feature_checkout(git_repo
     ticket = _feature_with_published_ticket(git_repo, cfg)
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    assert "handoff" in ticket.read_text()
+    assert "handoff" in ticket.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("relocated", [False, True])
@@ -2498,8 +2543,8 @@ def test_prepare_cleans_a_published_context_and_skill_from_a_feature_checkout(
     if relocated:
         contexts = git_repo.root / "docs" / "contexts"
         contexts.mkdir(parents=True)
-        (contexts / ".gitkeep").write_text("")
-        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+        (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
+        with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
             stream.write('[layout]\ncontexts = "docs/contexts"\n')
         git_repo.git("add", "-A")
         git_repo.git("commit", "-m", "relocate contexts")
@@ -2510,19 +2555,19 @@ def test_prepare_cleans_a_published_context_and_skill_from_a_feature_checkout(
     skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
     for path in (context, skill):
         path.parent.mkdir(parents=True)
-        path.write_text("authored on the branch\n")
+        path.write_text("authored on the branch\n", encoding="utf-8", newline="\n")
 
     git.sync_coga_state(cfg)
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    assert context.read_text() == skill.read_text() == "authored on the branch\n"
+    assert context.read_text(encoding="utf-8") == skill.read_text(encoding="utf-8") == "authored on the branch\n"
 
 
 def test_prepare_still_refuses_dirty_source_outside_the_coga_roots(git_repo):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
-    (git_repo.root / "src.py").write_text("unreviewed code\n")
+    (git_repo.root / "src.py").write_text("unreviewed code\n", encoding="utf-8", newline="\n")
 
     git.sync_coga_state(cfg)
     outcome = git.prepare_control_checkout(cfg)
@@ -2543,7 +2588,8 @@ def test_prepare_realigns_over_a_hand_committed_context_already_on_control(git_r
     assert tip[:12] in capsys.readouterr().err
 
 
-def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):
+@pytest.mark.parametrize("autocrlf", ["input", "true"])
+def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo, autocrlf):
     """Under `core.autocrlf`, publish must hash through the clean filters.
 
     Raw bytes landed a CRLF blob on control while `git add` staged LF, so
@@ -2551,11 +2597,11 @@ def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):
     """
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
-    git_repo.git("config", "core.autocrlf", "input")
+    git_repo.git("config", "core.autocrlf", autocrlf)
     git_repo.checkout_branch("feature/x")
     task = git_repo.coga_os / "tasks" / "recurring" / "sweep"
     task.mkdir(parents=True)
-    (task / "ticket.md").write_bytes(_ticket_text().replace("\n", "\r\n").encode())
+    (task / "ticket.md").write_bytes(_ticket_text(blackboard="Café — 語\n").replace("\n", "\r\n").encode())
     (task / "ticket.py").write_bytes(b"print('hi')\r\nraise SystemExit(0)\r\n")
     git_repo.git("add", "--", "coga/tasks/recurring/sweep")
     assert git.publish(cfg, [task], "Recurring: create sweep") is True
@@ -2574,12 +2620,12 @@ def test_prepare_cleans_published_untracked_and_deleted_state(git_repo):
     git_repo.checkout_branch("feature/x")
     fresh = git_repo.coga_os / "tasks" / "fresh" / "ticket.md"
     fresh.parent.mkdir(parents=True)
-    fresh.write_text(_ticket_text())
+    fresh.write_text(_ticket_text(), encoding="utf-8", newline="\n")
     gone.unlink()
     assert git.publish(cfg, [fresh.parent, gone], "Ticket: create and delete") is True
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    assert fresh.read_text() == _ticket_text()
+    assert fresh.read_text(encoding="utf-8") == _ticket_text()
     assert not gone.exists()
 
 
@@ -2597,7 +2643,7 @@ def test_prepare_proves_a_union_log_published_after_control_moved(git_repo):
     ).encode()
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    log = (git_repo.coga_os / "log.md").read_text()
+    log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     assert "peer line" in log and "my line" in log
 
 
@@ -2613,7 +2659,7 @@ def test_prepare_refuses_an_unpublished_log_line(git_repo):
 
     assert outcome.kind == "refused"
     assert outcome.blocking == ("coga/log.md (lines not yet on control)",)
-    assert "not published" in (git_repo.coga_os / "log.md").read_text()
+    assert "not published" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
 
 
 def _publish_feature_log_twice(git_repo, cfg: Config) -> None:
@@ -2647,7 +2693,7 @@ def test_prepare_proves_a_feature_log_published_twice(git_repo):
     _publish_feature_log_twice(git_repo, cfg)
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    log = (git_repo.coga_os / "log.md").read_text()
+    log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     assert log.count("mine one") == 1 and "mine two" in log
 
 
@@ -2661,7 +2707,7 @@ def test_publish_from_a_far_back_merge_base_lands_no_duplicate(git_repo):
             "coga/log.md", base + "".join(f"peer {n}\n" for n in range(1, count + 1))
         )
     # The working log carries control's later lines at different positions.
-    git.log_path(cfg).write_text(base + "peer 2\npeer 1\nmine\n")
+    git.log_path(cfg).write_text(base + "peer 2\npeer 1\nmine\n", encoding="utf-8", newline="\n")
 
     assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
 
@@ -2697,14 +2743,14 @@ def test_published_proof_filters_lines_already_on_control(git_repo, working, rea
 def test_prepare_refuses_mixed_state_without_partial_cleanup(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _feature_with_published_ticket(git_repo, cfg)
-    (git_repo.root / "src.py").write_text("feature work\n")
-    edited = ticket.read_text()
+    (git_repo.root / "src.py").write_text("feature work\n", encoding="utf-8", newline="\n")
+    edited = ticket.read_text(encoding="utf-8")
 
     outcome = git.prepare_control_checkout(cfg)
 
     assert outcome.kind == "refused"
     assert outcome.blocking == ("src.py (not Coga state)",)
-    assert ticket.read_text() == edited
+    assert ticket.read_text(encoding="utf-8") == edited
     assert _dirty(git_repo) == {"coga/tasks/demo.md", "src.py"}
     assert _head(git_repo)[0] == "feature/x"
 
@@ -2713,10 +2759,10 @@ def test_prepare_refuses_staged_content_that_is_not_published(git_repo):
     """The working copy matches control, but the index holds a third version."""
     cfg = load_config(git_repo.coga_os)
     ticket = _feature_with_published_ticket(git_repo, cfg)
-    published = ticket.read_text()
-    ticket.write_text(_ticket_text(blackboard="staged draft\n"))
+    published = ticket.read_text(encoding="utf-8")
+    ticket.write_text(_ticket_text(blackboard="staged draft\n"), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/tasks/demo.md")
-    ticket.write_text(published)
+    ticket.write_text(published, encoding="utf-8", newline="\n")
 
     outcome = git.prepare_control_checkout(cfg)
 
@@ -2725,6 +2771,7 @@ def test_prepare_refuses_staged_content_that_is_not_published(git_repo):
     assert "staged draft" in git_repo.git("show", ":coga/tasks/demo.md")
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_prepare_refuses_a_mode_change_with_equal_bytes(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _feature_with_published_ticket(git_repo, cfg)
@@ -2741,7 +2788,7 @@ def test_prepare_refuses_a_symlinked_state_file(git_repo, tmp_path):
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     target = tmp_path / "elsewhere.md"
-    target.write_text(_ticket_text())
+    target.write_text(_ticket_text(), encoding="utf-8", newline="\n")
     (git_repo.coga_os / "tasks" / "linked.md").symlink_to(target)
 
     outcome = git.prepare_control_checkout(cfg)
@@ -2756,7 +2803,8 @@ def test_prepare_refuses_an_ignored_file_the_move_would_overwrite(git_repo):
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     (git_repo.root / ".gitignore").write_text(
-        "coga/coga.local.toml\ncoga/.agent-skills/\nbuild/\n"
+        "coga/coga.local.toml\ncoga/.agent-skills/\nbuild/\n",
+        encoding="utf-8", newline="\n",
     )
     git_repo.git("add", ".gitignore")
     git_repo.git("commit", "-m", "ignore build")
@@ -2764,13 +2812,13 @@ def test_prepare_refuses_an_ignored_file_the_move_would_overwrite(git_repo):
     git_repo.push_competing_commit("build/out.txt", "published\n")
     git_repo.git("checkout", "feature/x")
     (git_repo.root / "build").mkdir()
-    (git_repo.root / "build" / "out.txt").write_text("local only\n")
+    (git_repo.root / "build" / "out.txt").write_text("local only\n", encoding="utf-8", newline="\n")
 
     outcome = git.prepare_control_checkout(cfg)
 
     assert outcome.kind == "refused"
     assert outcome.blocking == ("build/out.txt",)
-    assert (git_repo.root / "build" / "out.txt").read_text() == "local only\n"
+    assert (git_repo.root / "build" / "out.txt").read_text(encoding="utf-8") == "local only\n"
 
 
 def test_prepare_refuses_when_evidence_changes_before_mutation(git_repo, monkeypatch):
@@ -2782,7 +2830,7 @@ def test_prepare_refuses_when_evidence_changes_before_mutation(git_repo, monkeyp
     def plan_then_edit(*args, **kwargs):
         plan = real(*args, **kwargs)
         if not calls:
-            ticket.write_text(_ticket_text(blackboard="concurrent edit\n"))
+            ticket.write_text(_ticket_text(blackboard="concurrent edit\n"), encoding="utf-8", newline="\n")
         calls.append(plan)
         return plan
 
@@ -2791,7 +2839,7 @@ def test_prepare_refuses_when_evidence_changes_before_mutation(git_repo, monkeyp
     outcome = git.prepare_control_checkout(cfg)
 
     assert outcome.kind == "refused"
-    assert "concurrent edit" in ticket.read_text()
+    assert "concurrent edit" in ticket.read_text(encoding="utf-8")
     assert _head(git_repo)[0] == "feature/x"
 
 
@@ -2837,7 +2885,7 @@ def test_prepare_repins_when_control_moves_under_it(git_repo, monkeypatch, call)
     moved = next(tip for tip in calls if tip is not None)
     _assert_prepared(git_repo, outcome)
     assert outcome.commit == moved
-    assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
+    assert (git_repo.coga_os / "log.md").read_text(encoding="utf-8") == "- sibling launch\n"
 
 
 @pytest.mark.parametrize("on_control", [False, True], ids=["feature", "control"])
@@ -2873,7 +2921,7 @@ def test_prepare_retries_a_delayed_published_control_advance(
 
     _assert_prepared(git_repo, outcome)
     assert outcome.commit == moved[0]
-    assert (git_repo.coga_os / "log.md").read_text() == "- sibling launch\n"
+    assert (git_repo.coga_os / "log.md").read_text(encoding="utf-8") == "- sibling launch\n"
 
 
 @pytest.mark.parametrize("change", ["working", "index", "branch", "head"])
@@ -2887,7 +2935,7 @@ def test_prepare_refuses_other_changes_during_a_published_control_advance(
     published = _ticket_text(blackboard="already published\n")
     git_repo.push_competing_commit("coga/tasks/demo.md", published)
     if change == "index":
-        ticket.write_text(published)
+        ticket.write_text(published, encoding="utf-8", newline="\n")
     real = git._plan_preparation
     snapshots = []
 
@@ -2896,7 +2944,7 @@ def test_prepare_refuses_other_changes_during_a_published_control_advance(
         if not snapshots:
             git_repo.git("update-ref", "refs/heads/main", "origin/main")
             if change == "working":
-                ticket.write_text(published)
+                ticket.write_text(published, encoding="utf-8", newline="\n")
             elif change == "index":
                 git_repo.git("add", "coga/tasks/demo.md")
             elif change == "branch":
@@ -2995,7 +3043,7 @@ def test_prepare_is_exempt_without_git_or_a_remote(git_repo, tmp_path, monkeypat
 
 def test_prepare_uses_the_configured_remote_and_control_names(git_repo):
     toml = git_repo.coga_os / "coga.toml"
-    toml.write_text(toml.read_text() + '\n[git]\nremote = "upstream"\ncontrol_branch = "trunk"\n')
+    toml.write_text(toml.read_text(encoding="utf-8") + '\n[git]\nremote = "upstream"\ncontrol_branch = "trunk"\n', encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "custom git names")
     git_repo.git("branch", "-m", "main", "trunk")
@@ -3108,7 +3156,7 @@ def test_prepare_names_the_rebase_for_an_unpublished_hand_commit_and_retry_recov
     command = "git pull --rebase --autostash origin main"
     assert f"run `{command}` on 'main', then retry" in outcome.reason
     pulled = subprocess.run(
-        command.split(), cwd=git_repo.root, capture_output=True, text=True, check=False
+        command.split(), cwd=git_repo.root, capture_output=True, text=True, encoding="utf-8", check=False
     )
     assert pulled.returncode == 0, pulled.stderr
 
@@ -3140,7 +3188,7 @@ def test_prepare_refuses_a_local_commit_touching_state_and_code(git_repo):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
     hand = _ticket_text(blackboard="hand\n")
-    (git_repo.root / "local.txt").write_text("code\n")
+    (git_repo.root / "local.txt").write_text("code\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "local.txt")
     _hand_commit(git_repo, "coga/tasks/demo.md", hand)
     git_repo.push_competing_commit("coga/tasks/demo.md", hand)
@@ -3162,7 +3210,7 @@ def test_prepare_realigns_from_a_feature_branch_with_no_control_holder(git_repo,
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
 
-    assert (git_repo.coga_os / "tasks" / "demo.md").read_text() == hand
+    assert (git_repo.coga_os / "tasks" / "demo.md").read_text(encoding="utf-8") == hand
     assert (git_repo.coga_os / "tasks" / "other.md").exists()
     err = capsys.readouterr().err
     assert err.count("[git] realigned local 'main'") == 1
@@ -3179,8 +3227,8 @@ def test_prepare_realigns_a_subsumed_control_checkout_to_a_clean_tip(git_repo):
     assert _dirty(git_repo) == {"coga/log.md"}
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
-    assert (git_repo.coga_os / "tasks" / "demo.md").read_text() == hand
-    assert "already published" in (git_repo.coga_os / "log.md").read_text()
+    assert (git_repo.coga_os / "tasks" / "demo.md").read_text(encoding="utf-8") == hand
+    assert "already published" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
 
 
 def test_prepare_refuses_when_the_realignment_proof_changes_before_apply(
@@ -3252,7 +3300,7 @@ def test_realignment_refuses_an_unfinished_merge_before_staging_anything(git_rep
     git_repo.git("add", "coga/log.md")
     git_repo.git("commit", "-m", "log")
     git_repo.git("checkout", "--quiet", "-b", "feature/code", "HEAD~1")
-    (git_repo.root / "code.txt").write_text("feature code\n")
+    (git_repo.root / "code.txt").write_text("feature code\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "code.txt")
     git_repo.git("commit", "-m", "code")
     git_repo.git("checkout", "--quiet", "main")
@@ -3281,9 +3329,9 @@ def test_realignment_refuses_every_in_progress_operation(git_repo, capsys, marke
     if marker.startswith("rebase-"):
         path.mkdir()
     else:
-        path.write_text(git_repo.git("rev-parse", "HEAD"))
+        path.write_text(git_repo.git("rev-parse", "HEAD"), encoding="utf-8", newline="\n")
     log = git_repo.coga_os / "log.md"
-    log.write_text("dirty\n")
+    log.write_text("dirty\n", encoding="utf-8", newline="\n")
     staged = {"coga/log.md": (b"dirty\n", b"landed\n")}
     before = _snapshot(git_repo)
 
@@ -3299,7 +3347,7 @@ def test_realignment_refuses_when_the_operation_check_cannot_inspect(
 ):
     cfg = load_config(git_repo.coga_os)
     _subsumed_divergence(git_repo)
-    (git_repo.coga_os / "log.md").write_text("dirty\n")
+    (git_repo.coga_os / "log.md").write_text("dirty\n", encoding="utf-8", newline="\n")
     staged = {"coga/log.md": (b"dirty\n", b"landed\n")}
     before = _snapshot(git_repo)
     real = git.run_git
@@ -3356,7 +3404,7 @@ def test_subsumed_guard_refuses_a_merge_commit_with_non_state_changes(git_repo):
     _hand_commit(git_repo, "coga/tasks/demo.md", hand)
     git_repo.git("checkout", "--quiet", "main")
     git_repo.git("merge", "--no-ff", "--no-commit", "side")
-    (git_repo.root / "evil.txt").write_text("snuck into the merge\n")
+    (git_repo.root / "evil.txt").write_text("snuck into the merge\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "evil.txt")
     git_repo.git("commit", "-m", "merge side")
     merge = git_repo.git("rev-parse", "HEAD").strip()
@@ -3430,7 +3478,10 @@ def test_subsumed_guard_compares_executable_modes(git_repo):
     assert verdict.kind == "unpublished"
     assert verdict.blocking == ("coga/tasks/demo.md (file mode differs from control)",)
 
-    _peer_commit(git_repo, lambda clone: (clone / "coga/tasks/demo.md").chmod(0o755))
+    _peer_commit(git_repo, lambda clone: (
+        (clone / "coga/tasks/demo.md").chmod(0o755) if os.name == "posix"
+        else git.run_git(clone, "update-index", "--chmod=+x", "coga/tasks/demo.md")
+    ))
     git_repo.git("fetch", "--quiet", "origin")
     assert _subsumed(git_repo, cfg).kind == "ok"
 
@@ -3464,9 +3515,9 @@ def test_subsumed_guard_union_merges_committed_log_lines(git_repo):
     git_repo.git("add", "coga/log.md")
     git_repo.git("commit", "-m", "seed log")
     git_repo.git("push", "origin", "main")
-    seed = (git_repo.coga_os / "log.md").read_text()
+    seed = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     append_log(cfg, "demo", "agent:claude", "committed line")
-    mine = (git_repo.coga_os / "log.md").read_text()
+    mine = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
     git_repo.git("add", "coga/log.md")
     git_repo.git("commit", "-m", "log by hand")
     git_repo.push_competing_commit("coga/log.md", seed + "peer line\n")

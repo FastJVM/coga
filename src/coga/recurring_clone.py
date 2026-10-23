@@ -24,7 +24,6 @@ import json
 import math
 import os
 import queue
-import signal
 import subprocess
 import sys
 import threading
@@ -32,9 +31,9 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
 
 from coga import git
+from coga.oscompat import ProcessTree
 from coga.atomicio import atomic_write_text
 from coga.config import Config, build_launch_env
 from coga.task_env import TASK_ENV_KEYS, host_repo_root
@@ -201,123 +200,12 @@ def run_clone_template(
     )
 
 
-_WINDOWS_JOB_WRAPPER = """
-import ctypes
-import subprocess
-import sys
-
-kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-kernel.OpenJobObjectW.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_wchar_p]
-kernel.OpenJobObjectW.restype = ctypes.c_void_p
-kernel.GetCurrentProcess.argtypes = []
-kernel.GetCurrentProcess.restype = ctypes.c_void_p
-kernel.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-kernel.AssignProcessToJobObject.restype = ctypes.c_int
-kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-kernel.CloseHandle.restype = ctypes.c_int
-job = kernel.OpenJobObjectW(0x0001, False, sys.argv[1])  # JOB_OBJECT_ASSIGN_PROCESS
-if not job:
-    raise ctypes.WinError(ctypes.get_last_error())
-try:
-    if not kernel.AssignProcessToJobObject(job, kernel.GetCurrentProcess()):
-        raise ctypes.WinError(ctypes.get_last_error())
-finally:
-    if not kernel.CloseHandle(job):
-        raise ctypes.WinError(ctypes.get_last_error())
-# Join before starting any script code; descendants inherit the job. The
-# supervisor alone retains a handle, so its exit also terminates the tree.
-raise SystemExit(subprocess.call(sys.argv[2:]))
-"""
-
-
-class _WindowsJob:
-    """Retain process-tree ownership even after the script's parent exits."""
-
-    def __init__(self) -> None:
-        import ctypes
-
-        class BasicLimits(ctypes.Structure):
-            _fields_ = [
-                ("PerProcessUserTimeLimit", ctypes.c_int64),
-                ("PerJobUserTimeLimit", ctypes.c_int64),
-                ("LimitFlags", ctypes.c_uint32),
-                ("MinimumWorkingSetSize", ctypes.c_size_t),
-                ("MaximumWorkingSetSize", ctypes.c_size_t),
-                ("ActiveProcessLimit", ctypes.c_uint32),
-                ("Affinity", ctypes.c_size_t),
-                ("PriorityClass", ctypes.c_uint32),
-                ("SchedulingClass", ctypes.c_uint32),
-            ]
-
-        class ExtendedLimits(ctypes.Structure):
-            _fields_ = [
-                ("BasicLimitInformation", BasicLimits),
-                ("IoInfo", ctypes.c_uint64 * 6),
-                ("ProcessMemoryLimit", ctypes.c_size_t),
-                ("JobMemoryLimit", ctypes.c_size_t),
-                ("PeakProcessMemoryUsed", ctypes.c_size_t),
-                ("PeakJobMemoryUsed", ctypes.c_size_t),
-            ]
-
-        self._kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        self._kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
-        self._kernel.CreateJobObjectW.restype = ctypes.c_void_p
-        self._kernel.SetInformationJobObject.argtypes = [
-            ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32,
-        ]
-        self._kernel.SetInformationJobObject.restype = ctypes.c_int
-        self._kernel.TerminateJobObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-        self._kernel.TerminateJobObject.restype = ctypes.c_int
-        self._kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-        self._kernel.CloseHandle.restype = ctypes.c_int
-        self.name = f"Local\\coga-clone-{uuid4().hex}"
-        self._handle = self._kernel.CreateJobObjectW(None, self.name)
-        if not self._handle:
-            raise ctypes.WinError(ctypes.get_last_error())
-        limits = ExtendedLimits()
-        limits.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+def _stop_clone_script(tree: ProcessTree) -> None:
+    """Stop the script's process tree and reap the direct child."""
+    child = tree.process
+    if os.name == "posix":
         try:
-            if not self._kernel.SetInformationJobObject(
-                self._handle, 9, ctypes.byref(limits), ctypes.sizeof(limits),
-            ):  # JobObjectExtendedLimitInformation
-                raise ctypes.WinError(ctypes.get_last_error())
-        except BaseException:
-            self.close()
-            raise
-
-    def __enter__(self) -> _WindowsJob:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()
-
-    def command(self, argv: list[str]) -> list[str]:
-        return [sys.executable, "-c", _WINDOWS_JOB_WRAPPER, self.name, *argv]
-
-    def terminate(self) -> None:
-        import ctypes
-
-        if not self._kernel.TerminateJobObject(self._handle, 124):
-            raise ctypes.WinError(ctypes.get_last_error())
-
-    def close(self) -> None:
-        import ctypes
-
-        if self._handle:
-            if not self._kernel.CloseHandle(self._handle):
-                raise ctypes.WinError(ctypes.get_last_error())
-            self._handle = None
-
-
-def _stop_clone_script(
-    child: subprocess.Popen[bytes], job: _WindowsJob | None = None,
-) -> None:
-    """Stop the script's process group and reap the direct child."""
-    if job is not None:
-        job.terminate()
-    elif os.name == "posix":
-        try:
-            os.killpg(child.pid, signal.SIGTERM)
+            tree.terminate()
         except ProcessLookupError:
             pass
         try:
@@ -326,35 +214,29 @@ def _stop_clone_script(
             pass
         # The parent may exit before descendants that still hold stdout open.
         try:
-            os.killpg(child.pid, signal.SIGKILL)
+            tree.kill()
         except ProcessLookupError:
             pass
     else:
-        child.kill()
+        tree.kill()
     child.wait(timeout=_TERMINATE_GRACE)
 
 
 def _run_clone_script(
     argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
 ) -> tuple[int, str, str]:
-    if os.name == "nt":
-        with _WindowsJob() as job:
-            return _drain_clone_script(
-                job.command(argv), cwd=cwd, env=env, timeout=timeout, job=job,
-            )
-    return _drain_clone_script(argv, cwd=cwd, env=env, timeout=timeout)
+    with ProcessTree(
+        argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, bufsize=0,
+    ) as tree:
+        return _drain_clone_script(tree, timeout=timeout)
 
 
 def _drain_clone_script(
-    argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
-    job: _WindowsJob | None = None,
+    tree: ProcessTree, *, timeout: float,
 ) -> tuple[int, str, str]:
     """Drain stdout with bounded storage, including while enforcing a deadline."""
-    child = subprocess.Popen(
-        argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, bufsize=0,
-        start_new_session=os.name == "posix",
-    )
+    child = tree.process
     assert child.stdout is not None
     chunks: queue.Queue[bytes | OSError | None] = queue.Queue(maxsize=8)
     stop = threading.Event()
@@ -404,11 +286,11 @@ def _drain_clone_script(
     timed_out = False
     stopped = False
     try:
-        while not eof or child.poll() is None:
+        while not eof or child.poll() is None or (os.name == "nt" and tree.exists()):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
-                _stop_clone_script(child, job)
+                _stop_clone_script(tree)
                 stopped = True
                 break
             try:
@@ -436,12 +318,12 @@ def _drain_clone_script(
         stop.set()
         try:
             if not stopped and (child.poll() is None or not eof):
-                _stop_clone_script(child, job)
+                _stop_clone_script(tree)
         finally:
             # Kill-on-close is also the fallback if explicit termination fails.
             # Release ownership before joining a reader waiting on descendants.
-            if job is not None:
-                job.close()
+            if os.name == "nt":
+                tree.close()
                 child.wait(timeout=_TERMINATE_GRACE)
             reader.join(timeout=_TERMINATE_GRACE)
             child.stdout.close()

@@ -28,7 +28,7 @@ PEER_REVIEW_WORKFLOWS = (
 
 
 def _review_section(name: str) -> str:
-    text = (BOOTSTRAP_WORKFLOWS / name).read_text()
+    text = (BOOTSTRAP_WORKFLOWS / name).read_text(encoding="utf-8")
     marker = "\n## review\n"
     assert marker in text, f"{name} has no `## review` section"
     return text.split(marker, 1)[1]
@@ -51,7 +51,7 @@ def test_review_section_names_coga_retire_as_the_closing_act(name: str) -> None:
 
 @pytest.mark.parametrize("name", PEER_REVIEW_WORKFLOWS)
 def test_peer_review_section_carries_the_authorship_caveat(name: str) -> None:
-    text = (BOOTSTRAP_WORKFLOWS / name).read_text()
+    text = (BOOTSTRAP_WORKFLOWS / name).read_text(encoding="utf-8")
     sections = _parse_inline_sections(text, {"peer-review"})
 
     # Only step-named sections are composed, so the caveat must live in the

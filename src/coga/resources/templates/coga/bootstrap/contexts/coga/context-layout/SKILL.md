@@ -66,9 +66,12 @@ owns them, and the packaged originals are never read again.
 Before testing existence or falling back, Coga checks the local path at
 either root. Symlinked artifacts or ancestors (internal
 links, chains, dangling links, cycles), entries inside Git metadata or a
-nested checkout, and non-regular files are rejected. In a Git checkout the
-file must also be tracked or untracked-but-unignored, so a fresh clone
-composes the same bytes. An uncommitted, unignored file is fine. Invalid
+nested checkout, and non-regular files are rejected. On Windows this includes
+links recorded in the Git index, even when `core.symlinks=false` materializes
+them as ordinary files. Replace the link
+with a regular file or directory and stage that replacement before retrying.
+In a Git checkout the file must also be tracked or untracked-but-unignored,
+so a fresh clone composes the same bytes. An uncommitted, unignored file is fine. Invalid
 artifacts raise actionable errors, surface as `broken-context` in
 `coga validate`, and stop composition before their bytes reach a prompt.
 This policy covers context refs only, not skills or ordinary attachments.

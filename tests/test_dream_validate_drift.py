@@ -40,7 +40,7 @@ def _source_pythonpath() -> str:
 
 def _emitted_validator_kind_samples() -> set[str]:
     """Derive literal kinds and one sample for every dynamic kind family."""
-    tree = ast.parse(VALIDATE_SOURCE.read_text())
+    tree = ast.parse(VALIDATE_SOURCE.read_text(encoding="utf-8"))
     kinds: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.keyword) or node.arg != "kind":
@@ -81,7 +81,7 @@ commit_and_push_fixes = validate_drift.commit_and_push_fixes
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _seed_repo(root: Path) -> Path:
@@ -367,13 +367,13 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
-    text = blackboard.read_text()
+    text = blackboard.read_text(encoding="utf-8")
     assert "## Dream Skill: validate-drift" in text
     assert "Task: `validate-drift-child`" in text
     assert "`broken-context`: `broken-context` (error)" in text
@@ -404,7 +404,7 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
         / "ticket.md"
     )
     _write(packaged, "---\ntitle: Orient\n---\n\nbody\n")
-    before = packaged.read_text()
+    before = packaged.read_text(encoding="utf-8")
     env = os.environ.copy()
     env.update(
         {
@@ -430,13 +430,13 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
-    assert packaged.read_text() == before
+    assert packaged.read_text(encoding="utf-8") == before
     assert "## Dream Skill: validate-drift" in result.stdout
     assert "COGA_TASK_BLACKBOARD" in result.stderr
 
@@ -454,7 +454,7 @@ def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None
     coga_os = _seed_repo(tmp_path)
     outer = tmp_path / "outer-repo" / "coga" / "tasks" / "live-ticket.md"
     _write(outer, "---\ntitle: Live\n---\n\n<!-- coga:blackboard -->\n")
-    before = outer.read_text()
+    before = outer.read_text(encoding="utf-8")
     env = os.environ.copy()
     env.update(
         {
@@ -480,13 +480,13 @@ def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
-    assert outer.read_text() == before
+    assert outer.read_text(encoding="utf-8") == before
     assert "## Dream Skill: validate-drift" in result.stdout
     assert "COGA_TASK_BLACKBOARD" in result.stderr
     assert str((coga_os / "tasks").resolve()) in result.stderr
@@ -508,7 +508,7 @@ def test_worker_refuses_blackboard_when_target_root_is_unknown(
     fixture_cwd.mkdir()
     outer = tmp_path / "outer-repo" / "coga" / "tasks" / "live-ticket.md"
     _write(outer, "---\ntitle: Live\n---\n\n<!-- coga:blackboard -->\n")
-    before = outer.read_text()
+    before = outer.read_text(encoding="utf-8")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(outer.resolve()))
     monkeypatch.setenv("COGA_TASK_SLUG", "live-ticket")
     monkeypatch.setattr(
@@ -527,7 +527,7 @@ def test_worker_refuses_blackboard_when_target_root_is_unknown(
 
     captured = capsys.readouterr()
     assert result == 0
-    assert outer.read_text() == before
+    assert outer.read_text(encoding="utf-8") == before
     assert "## Dream Skill: validate-drift" in captured.out
     assert "target Coga root could not be discovered" in captured.err
 
@@ -540,9 +540,9 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     # Single-file format: the deterministic drift `--fix` repairs is a ticket.md
     # missing its blackboard fence (there is no separate blackboard.md/log.md to
     # recreate). `_seed_repo` writes the body with no fence, so the fix adds one.
-    assert fence_count((task / "ticket.md").read_text()) == 0
+    assert fence_count((task / "ticket.md").read_text(encoding="utf-8")) == 0
     report = task / "report.md"
-    report.write_text("")
+    report.write_text("", encoding="utf-8", newline="\n")
     env = os.environ.copy()
     env.update(
         {
@@ -567,15 +567,15 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
     # The fix landed in the repo: ticket.md now carries exactly one fence.
-    assert fence_count((task / "ticket.md").read_text()) == 1
-    text = report.read_text()
+    assert fence_count((task / "ticket.md").read_text(encoding="utf-8")) == 1
+    text = report.read_text(encoding="utf-8")
     assert "Applied fixes: 1." in text
     assert "added blackboard fence + region" in text
     assert "PR Proposal" in text
@@ -585,7 +585,7 @@ def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
     fixed = tmp_path / "coga" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
-    fixed.write_text("")
+    fixed.write_text("", encoding="utf-8", newline="\n")
 
     with pytest.raises(RuntimeError, match="refusing to push validation fixes directly"):
         commit_and_push_fixes(
@@ -607,7 +607,7 @@ def test_commit_and_push_uses_configured_remote_without_upstream(
 ) -> None:
     fixed = tmp_path / "coga" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
-    fixed.write_text("")
+    fixed.write_text("", encoding="utf-8", newline="\n")
     commands: list[list[str]] = []
 
     def fake_run_git(args, *, cwd):

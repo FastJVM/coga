@@ -601,7 +601,7 @@ def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
                 "number,headRefOid",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except FileNotFoundError as exc:
@@ -626,7 +626,7 @@ def pr_view(url: str, fields: str) -> dict[str, object]:
         result = subprocess.run(
             ["gh", "pr", "view", url, "--json", fields],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except FileNotFoundError as exc:
@@ -714,7 +714,7 @@ def pr_review_threads(url: str) -> list[dict[str, object]]:
         if cursor is not None:
             argv.extend(["-F", f"cursor={cursor}"])
         try:
-            result = subprocess.run(argv, capture_output=True, text=True, check=False)
+            result = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", check=False)
         except FileNotFoundError as exc:
             raise GhError("`gh` not found on PATH") from exc
         if result.returncode != 0:

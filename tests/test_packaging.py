@@ -207,7 +207,7 @@ def _canonical_contexts_root() -> Path:
     toml_path = REPO_ROOT / LIVE_ROOT / "coga.toml"
     configured = None
     if toml_path.is_file():
-        shared = tomllib.loads(toml_path.read_text())
+        shared = tomllib.loads(toml_path.read_text(encoding="utf-8"))
         configured = shared.get("layout", {}).get("contexts")
     return Path(configured) if configured else LIVE_ROOT / "contexts"
 
@@ -313,7 +313,7 @@ def test_twin_discovery_ignores_generated_installation_artifacts(
         for relative in pair:
             path = tmp_path / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("shipped content\n")
+            path.write_text("shipped content\n", encoding="utf-8", newline="\n")
 
     # Local installations in both roots carry path-specific bytes. They must
     # neither become twin pairs nor require intentional-divergence entries.
@@ -330,7 +330,7 @@ def test_twin_discovery_ignores_generated_installation_artifacts(
         ):
             path = tmp_path / base / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"local to {base}\n")
+            path.write_text(f"local to {base}\n", encoding="utf-8", newline="\n")
 
     assert set(_discover_live_packaged_twins()) == set(expected)
 
@@ -515,7 +515,7 @@ def test_adopting_repo_resolves_only_user_fallbacks_and_can_author_local_topics(
 
     local = contexts / "coga-dev/testing/SKILL.md"
     local.parent.mkdir(parents=True)
-    local.write_text("repo-owned development guidance\n")
+    local.write_text("repo-owned development guidance\n", encoding="utf-8", newline="\n")
     assert resolve_context_path(cfg, "coga-dev/testing") == local
 
 
@@ -525,14 +525,14 @@ def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
     if contexts_dir is not None:
         toml += f'[layout]\ncontexts = "{contexts_dir}"\n'
     (root / LIVE_ROOT).mkdir(parents=True)
-    (root / LIVE_ROOT / "coga.toml").write_text(toml)
+    (root / LIVE_ROOT / "coga.toml").write_text(toml, encoding="utf-8", newline="\n")
     canonical = root / (contexts_dir or "coga/contexts")
     packaged = root / PACKAGED_ROOT
     for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
         for base in (canonical, packaged / BOOTSTRAP_CONTEXTS):
             path = base / ref / "SKILL.md"
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"{ref}\n")
+            path.write_text(f"{ref}\n", encoding="utf-8", newline="\n")
     for name in REQUIRED_INIT_CONTEXT_FILES:
         bases = [packaged / SEEDED_CONTEXTS]
         if name != "_template/SKILL.md":
@@ -540,11 +540,11 @@ def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
         for base in bases:
             path = base / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"{name}\n")
+            path.write_text(f"{name}\n", encoding="utf-8", newline="\n")
     for namespace in LOCAL_ONLY_CONTEXT_NAMESPACES:
         path = canonical / namespace / "example/SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("local-only example\n")
+        path.write_text("local-only example\n", encoding="utf-8", newline="\n")
     return canonical
 
 
@@ -601,7 +601,7 @@ def test_context_distribution_reports_an_unclassified_local_topic(
     canonical = _seed_distribution_fixture(tmp_path, None)
     stray = canonical / "team/new-topic/SKILL.md"
     stray.parent.mkdir(parents=True)
-    stray.write_text("new\n")
+    stray.write_text("new\n", encoding="utf-8", newline="\n")
 
     assert _context_distribution_problems() == [
         "canonical context 'team/new-topic' is neither packaged nor under "
@@ -616,7 +616,7 @@ def test_context_distribution_accepts_new_development_topics_without_exceptions(
     canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
     topic = canonical / "coga-dev/internals/new-topic/SKILL.md"
     topic.parent.mkdir(parents=True)
-    topic.write_text("development details\n")
+    topic.write_text("development details\n", encoding="utf-8", newline="\n")
 
     assert _context_distribution_problems() == []
 
@@ -629,10 +629,10 @@ def test_context_distribution_rejects_packaged_development_files(
     for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
         for name in ("SKILL.md", "notes.md"):
             relative = Path("coga-dev/example") / name
-            (canonical / relative).write_text("local only\n")
+            (canonical / relative).write_text("local only\n", encoding="utf-8", newline="\n")
             packaged = tmp_path / PACKAGED_ROOT / subdir / relative
             packaged.parent.mkdir(parents=True, exist_ok=True)
-            packaged.write_text("local only\n")
+            packaged.write_text("local only\n", encoding="utf-8", newline="\n")
 
     problems = _context_distribution_problems()
     assert len([problem for problem in problems if "local-only context file" in problem]) == 4
@@ -779,11 +779,11 @@ def test_executable_context_instructions_honor_layout_override() -> None:
             "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/"
             "dream/scan/knowledge-scan/SKILL.md"
         )
-    ).read_text()
-    onboarding = (repo_root / "coga/workflows/build/onboarding.md").read_text()
+    ).read_text(encoding="utf-8")
+    onboarding = (repo_root / "coga/workflows/build/onboarding.md").read_text(encoding="utf-8")
     onboarding_ticket = (
         repo_root / "src/coga/resources/templates/coga/tasks/coga-build.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
     assert "coga/contexts/**/SKILL.md" not in knowledge_scan
     assert "[layout] contexts" in knowledge_scan
@@ -793,7 +793,7 @@ def test_executable_context_instructions_honor_layout_override() -> None:
 
 def test_context_template_ignores_move_with_contexts_tree() -> None:
     rules = (
-        (REPO_ROOT / _canonical_contexts_root() / ".gitignore").read_text().splitlines()
+        (REPO_ROOT / _canonical_contexts_root() / ".gitignore").read_text(encoding="utf-8").splitlines()
     )
 
     assert "**/_template/" in rules
@@ -802,7 +802,7 @@ def test_context_template_ignores_move_with_contexts_tree() -> None:
 
 def test_package_includes_coga_resources() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
 
     # Resources live inside the `coga` package (`src/coga/resources/...`), so
     # declaring `packages = ["src/coga"]` ships them — no separate
@@ -957,7 +957,7 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
     assert wrapper.frontmatter["schedule"] == "0 8 * * 1"
     assert "\nscript:" not in (
         recurring_root / "resolve-conflicts" / "ticket.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     # The template declares its delegation instead of instructing a wrapper
     # agent to shell out to a nested `coga launch` (the double hop that could
     # not run without a fake pty). The sweep owns the period task's lifecycle,
@@ -1008,7 +1008,7 @@ def test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket() -> 
     assert wrapper.frontmatter["schedule"] == "0 7 * * *"
     assert "\nscript:" not in (
         recurring_root / "address-pr-comments" / "ticket.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     # Same shape as the `resolve-conflicts` wrapper: the delegation is the
     # frozen field, the sweep owns the period lifecycle, and a delegated
     # period must stay workflow-less so it resolves to the one-step default.
@@ -1043,7 +1043,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
         ],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, result.stderr
@@ -1095,7 +1095,7 @@ def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
     subprocess.run([sys.executable,"-m","pip","install","--no-deps","--target",str(installed),str(wheel)],capture_output=True,check=True)
     target = tmp_path/"company"
     target.mkdir()
-    env = {**os.environ, "PYTHONPATH":str(installed), "CI":"true"}
+    env = {**os.environ, "PYTHONPATH":str(installed), "PYTHONIOENCODING":"utf-8", "CI":"true"}
     script = r'''
 import json
 from pathlib import Path
@@ -1132,6 +1132,6 @@ with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",fo
     assert not t._admitted(cfg)
 print("installed init and suppressed first snapshot passed")
 '''
-    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True,timeout=30)
+    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True, encoding="utf-8",timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "suppressed first snapshot passed" in result.stdout

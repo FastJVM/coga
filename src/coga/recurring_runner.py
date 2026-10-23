@@ -25,6 +25,9 @@ import typer
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.launch import LaunchBail, _interactive_stdio_has_tty, settle_delegated_period
+from coga import oscompat
+from coga import launch as launch_module
+from coga.oscompat import ProcessTree
 from coga.compose import LaunchContext
 from coga.config import (
     LOCAL_CONFIG_ENV,
@@ -889,7 +892,7 @@ def _configured_remote_identity(
         result = subprocess.run(
             ["git", "-C", str(root), "remote", "get-url", cfg.git_remote],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except OSError:
@@ -1053,9 +1056,9 @@ def _run_repo_recurring(
                 control_worktree_parent,
                 expected="starting",
                 state="running",
-                pgid=process.pid,
+                pgid=process.identity,
             )
-            return process.wait()
+            return process.process.wait()
         except BaseException:
             # From the moment a handle exists, every interruption is
             # actionable: terminate the isolated group before the caller's
@@ -1076,6 +1079,8 @@ def _run_repo_recurring(
             except OSError:
                 pass
             raise
+        finally:
+            process.close()
 
     result = subprocess.run(
         command,
@@ -1091,54 +1096,56 @@ _CONTROL_WORKTREE_STOP_TIMEOUT = 10.0
 
 def _start_repo_recurring_process(
     command: list[str], cwd: Path, env: dict[str, str]
-) -> subprocess.Popen[bytes]:
+) -> ProcessTree:
     """Start the inner scan in a session whose whole process tree we own."""
-    return subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True)
+    return ProcessTree(command, cwd=cwd, env=env)
 
 
 def _signal_repo_recurring_process_group(
-    process: subprocess.Popen[bytes], signum: int
+    process: ProcessTree, signum: int
 ) -> None:
     """Signal the isolated inner scan and every recipe descendant."""
-    os.killpg(process.pid, signum)
+    if signum == signal.SIGTERM:
+        process.terminate()
+    else:
+        process.kill()
 
 
 def _repo_recurring_process_group_exists(
-    process: subprocess.Popen[bytes],
+    process: ProcessTree,
 ) -> bool:
     """Whether any descendant still occupies the isolated process group."""
-    return _process_group_is_running(process.pid)
+    return process.exists()
 
 
-def _process_group_is_running(pgid: int) -> bool:
+def _process_group_is_running(pgid: int | str) -> bool:
     """Conservatively report whether a process group may still be alive."""
-    if pgid <= 0:
-        return True
-    try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
-        return False
-    except OSError:
-        return True
-    return True
+    return oscompat.process_tree_is_running(pgid)
 
 
 def _terminate_repo_recurring_process(
-    process: subprocess.Popen[bytes],
+    process: ProcessTree,
 ) -> None:
     """Terminate and reap an interrupted inner scan before checkout cleanup."""
-    if process.poll() is not None:
+    child = process.process
+    if os.name == "nt":
+        process.kill()
+        child.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
+        if not process.wait_empty(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT):
+            raise TimeoutError("Recurring Windows process job did not stop")
+        return
+    if child.poll() is not None:
         return
     try:
         _signal_repo_recurring_process_group(process, signal.SIGTERM)
     except ProcessLookupError:
-        process.wait()
+        child.wait()
         return
     try:
-        process.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
+        child.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
     except subprocess.TimeoutExpired:
         _signal_repo_recurring_process_group(process, signal.SIGKILL)
-        process.wait()
+        child.wait()
         return
     # The leader can obey SIGTERM before a recipe descendant does. Once it is
     # reaped, kill any process still occupying the isolated group so no user
@@ -1161,11 +1168,19 @@ class _ControlWorktreeOwner:
     pid: int
     workspace_rel: Path
     inner_state: str
-    inner_pgid: int | None
+    inner_pgid: int | str | None
 
 
 def _is_positive_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_process_tree_identity(value: object) -> bool:
+    if os.name == "posix":
+        return _is_positive_int(value)
+    return isinstance(value, str) and re.fullmatch(
+        r"Global\\coga-process-[0-9a-f]{32}", value
+    ) is not None
 
 
 def _safe_control_worktree_workspace(
@@ -1194,6 +1209,7 @@ def _atomic_write_control_worktree_owner(
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
+            newline="\n",
             dir=marker.parent,
             prefix=f".{marker.name}.",
             delete=False,
@@ -1218,7 +1234,7 @@ def _write_control_worktree_owner(
     *,
     pid: int | None = None,
     inner_state: str = "not-started",
-    inner_pgid: int | None = None,
+    inner_pgid: int | str | None = None,
 ) -> None:
     """Mark a temp directory as this process's narrowly owned checkout."""
     owner_pid = os.getpid() if pid is None else pid
@@ -1234,7 +1250,7 @@ def _write_control_worktree_owner(
     if inner_state not in _CONTROL_WORKTREE_INNER_STATES:
         raise ValueError(f"unknown control-worktree inner state: {inner_state}")
     if inner_state == "running":
-        if not _is_positive_int(inner_pgid):
+        if not _is_process_tree_identity(inner_pgid):
             raise ValueError("a running control worktree requires an inner pgid")
     elif inner_pgid is not None:
         raise ValueError(f"{inner_state} cannot carry an inner pgid")
@@ -1243,7 +1259,7 @@ def _write_control_worktree_owner(
     _atomic_write_control_worktree_owner(
         marker,
         {
-            "version": 2,
+            "version": 2 if os.name == "posix" else 3,
             "pid": owner_pid,
             "root": str(resolved_root),
             "control": control,
@@ -1259,23 +1275,23 @@ def _transition_control_worktree_inner(
     *,
     expected: str,
     state: str,
-    pgid: int | None = None,
+    pgid: int | str | None = None,
 ) -> None:
     """Durably advance the marker around the isolated child spawn."""
     marker = parent / _CONTROL_WORKTREE_OWNER_FILE
     try:
-        payload = json.loads(marker.read_text())
+        payload = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, TypeError, ValueError, UnicodeError) as exc:
         raise OSError(
             f"could not read control-worktree owner marker: {exc}"
         ) from exc
     if (
         not isinstance(payload, dict)
-        or payload.get("version") != 2
+        or payload.get("version") != (2 if os.name == "posix" else 3)
         or payload.get("pid") != os.getpid()
         or payload.get("inner_state") != expected
         or state not in _CONTROL_WORKTREE_INNER_STATES
-        or (state == "running" and not _is_positive_int(pgid))
+        or (state == "running" and not _is_process_tree_identity(pgid))
         or (state != "running" and pgid is not None)
     ):
         raise OSError("control-worktree owner marker changed unexpectedly")
@@ -1286,15 +1302,7 @@ def _transition_control_worktree_inner(
 
 def _process_is_running(pid: int) -> bool:
     """Conservatively report whether an owner PID may still be alive."""
-    if pid <= 0:
-        return True
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except OSError:
-        return True
-    return True
+    return oscompat.process_is_running(pid)
 
 
 def _read_control_worktree_owner(
@@ -1314,7 +1322,7 @@ def _read_control_worktree_owner(
         ):
             return None
         payload = json.loads(
-            (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text()
+            (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
         )
         if not isinstance(payload, dict):
             return None
@@ -1323,7 +1331,7 @@ def _read_control_worktree_owner(
         inner_state = payload.get("inner_state")
         inner_pgid = payload.get("inner_pgid")
         if (
-            payload.get("version") != 2
+            payload.get("version") != (2 if os.name == "posix" else 3)
             or payload.get("root") != str(root.resolve())
             or payload.get("control") != control
             or not _is_positive_int(pid)
@@ -1333,7 +1341,7 @@ def _read_control_worktree_owner(
             or inner_state not in _CONTROL_WORKTREE_INNER_STATES
             or (
                 inner_state == "running"
-                and not _is_positive_int(inner_pgid)
+                and not _is_process_tree_identity(inner_pgid)
             )
             or (inner_state != "running" and inner_pgid is not None)
         ):
@@ -1891,6 +1899,9 @@ def run_recurring_scan(
             cfg, control_worktree_host
         )
         agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
+    elif not launch_module.agent_sessions_supported():
+        agent_spawn_refusal = launch_module.WINDOWS_AGENT_SESSION_MESSAGE
+        agent_refusal_label = "agent sessions unsupported on Windows"
     elif not _interactive_stdio_has_tty():
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
@@ -4015,7 +4026,7 @@ def _sync_recurring_create(
     # stays in the overlay only for the *run* cursors it carries
     # (`state_keys` values).
     template_ticket = template_dir / "ticket.md"
-    original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
+    original_ticket = template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
     local_ticket = original_ticket
     template_ref = _recurring_ref(template_name)
     if control_ledger is None:
@@ -4084,7 +4095,7 @@ def _sync_recurring_create(
         _append_sync_failure(cfg, ref.path, exc, sink=sync_failures)
     finally:
         if restore_ticket:
-            template_ticket.write_text(restore_ticket)
+            template_ticket.write_text(restore_ticket, encoding="utf-8", newline="\n")
     return created_on_control
 
 
@@ -4206,7 +4217,7 @@ def _sync_recurring_create_paths(
                 f"check: {exc}. Message was: {message}\n"
             )
             if local_ticket:
-                template_ticket.write_text(local_ticket)
+                template_ticket.write_text(local_ticket, encoding="utf-8", newline="\n")
 
             def guard_fallback(at: str) -> None:
                 if already_handled(at):
@@ -4293,7 +4304,7 @@ def _sync_recurring_create_paths(
                 f"could not land {task_rel} after "
                 f"{git.MAX_PUBLISH_ATTEMPTS} attempts — contention"
             )
-        committed_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
+        committed_ticket = template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
         return committed_ticket or original_ticket, True
     except _ControlLedgerChanged as exc:
         # A refused local create must not become an orphan that the next scan
@@ -4623,7 +4634,7 @@ def _restore_control_task_if_present(
     if preserve_local_changes and _path_has_local_changes(root, task_rel):
         return False, None
     snapshot = root / task_rel / ".state-snapshot.json"
-    snapshot_text = snapshot.read_text() if snapshot.is_file() else None
+    snapshot_text = snapshot.read_text(encoding="utf-8") if snapshot.is_file() else None
     _restore_selected_paths_from_ref(root, ref, [task_rel])
     return True, snapshot_text
 
@@ -4632,7 +4643,7 @@ def _path_has_local_changes(root: Path, rel: str) -> bool:
     result = subprocess.run(
         ["git", "-C", str(root), "status", "--porcelain", "--", rel],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     lines = [line for line in result.stdout.splitlines() if line.strip()]
@@ -4676,12 +4687,12 @@ def _reconcile_forced_period_after_control_restore(
         # there is no mark to adopt from control, so leave it as it stands.
         return snapshot_ticket_text
 
-    template_ticket.write_text(control_ticket or snapshot_ticket_text)
+    template_ticket.write_text(control_ticket or snapshot_ticket_text, encoding="utf-8", newline="\n")
     _append_forced_reused_log(cfg, template_ref, task_id_slug, force_period_key)
 
     snapshot = root / task_rel / SNAPSHOT_FILE
     if snapshot_text is not None and snapshot_text_is_fresh:
-        snapshot.write_text(snapshot_text)
+        snapshot.write_text(snapshot_text, encoding="utf-8", newline="\n")
     elif state_keys:
         _write_snapshot_from_text(
             root / task_rel,
@@ -4690,7 +4701,7 @@ def _reconcile_forced_period_after_control_restore(
             state_keys,
         )
 
-    return template_ticket.read_text() if template_ticket.is_file() else ""
+    return template_ticket.read_text(encoding="utf-8") if template_ticket.is_file() else ""
 
 
 def _append_forced_reused_log(
@@ -4712,7 +4723,7 @@ def _write_snapshot_from_text(
 ) -> None:
     keys = parse_keys(blackboard_text, list(state_keys))
     payload = {"parent": parent, "keys": keys}
-    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n")
+    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def _task_id_slug_from_rel(rel: str) -> str:
@@ -4727,7 +4738,7 @@ def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
     result = subprocess.run(
         ["git", "-C", str(root), "cat-file", "-e", f"{ref}:{rel}"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     return result.returncode == 0
@@ -4742,7 +4753,8 @@ def _adopt_control_template(
 ) -> None:
     """Point the local template at control's copy of its run cursors."""
     template_ticket.write_text(
-        _control_template_or_local(root, ref, ticket_rel, local_ticket)
+        _control_template_or_local(root, ref, ticket_rel, local_ticket),
+        encoding="utf-8", newline="\n",
     )
 
 
@@ -4845,7 +4857,7 @@ def _show_path(root: Path, ref: str, rel: str) -> str:
         result = subprocess.run(
             ["git", "-C", str(root), "show", f"{ref}:{rel}"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except FileNotFoundError:

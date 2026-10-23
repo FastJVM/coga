@@ -12,7 +12,7 @@ from coga.cli import app
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _write_legacy_null_task(repo: Path, *, slug: str, title: str) -> None:
@@ -34,7 +34,7 @@ def _write_legacy_null_task(repo: Path, *, slug: str, title: str) -> None:
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture

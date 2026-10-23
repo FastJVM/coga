@@ -12,7 +12,7 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
         / "code"
         / "address-pr-comments"
         / "SKILL.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
     assert "gh api graphql" in skill
     assert "reviewThreads" in skill

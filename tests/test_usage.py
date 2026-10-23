@@ -24,7 +24,7 @@ from coga.usage import (
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _window() -> tuple[datetime, datetime]:
@@ -38,6 +38,7 @@ def test_parse_claude_transcript_sums_assistant_usage(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-123"
@@ -78,6 +79,7 @@ def test_parse_claude_transcript_counts_last_usage_per_message(
     tmp_path: Path, monkeypatch, final_output: int
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-duplicates"
@@ -122,6 +124,7 @@ def test_parse_claude_transcript_deduplicates_after_window_filter(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-window-duplicates"
@@ -156,6 +159,7 @@ def test_parse_claude_transcript_keeps_usage_when_later_line_lacks_it(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-missing-usage"
@@ -200,6 +204,7 @@ def test_parse_claude_transcript_prefers_real_model(
     tmp_path: Path, monkeypatch, models: tuple[str, ...], expected_model: str
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-synthetic"
@@ -248,6 +253,7 @@ def test_parse_claude_activity_excludes_injected_text_and_redacts(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-activity"
@@ -309,6 +315,7 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     old = tmp_path / ".codex" / "sessions" / "2026" / "06" / "22" / "rollout-old.jsonl"
@@ -317,7 +324,7 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
     _write(
         new,
         f"""
-        {{"type":"session_meta","payload":{{"id":"codex-session","timestamp":"2026-06-23T12:01:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","payload":{{"id":"codex-session","timestamp":"2026-06-23T12:01:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"turn_context","payload":{{"model":"gpt-5.4"}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3,"reasoning_output_tokens":1,"total_tokens":13}}}}}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":50,"cached_input_tokens":12,"output_tokens":13,"reasoning_output_tokens":5,"total_tokens":63}}}}}}}}
@@ -354,6 +361,7 @@ def test_parse_codex_activity_uses_messages_after_turn_context_only(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     rollout = (
@@ -368,7 +376,7 @@ def test_parse_codex_activity_uses_messages_after_turn_context_only(
     _write(
         rollout,
         f"""
-        {{"type":"session_meta","timestamp":"2026-06-23T12:00:00Z","payload":{{"id":"codex-activity","timestamp":"2026-06-23T12:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","timestamp":"2026-06-23T12:00:00Z","payload":{{"id":"codex-activity","timestamp":"2026-06-23T12:00:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"response_item","timestamp":"2026-06-23T12:00:01Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"injected environment"}}]}}}}
         {{"type":"turn_context","timestamp":"2026-06-23T12:00:02Z","payload":{{"model":"gpt-5.4"}}}}
         {{"type":"response_item","timestamp":"2026-06-23T12:00:03Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"# composed prompt"}}]}}}}
@@ -405,6 +413,7 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -416,7 +425,7 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
         _write(
             path,
             f"""
-            {{"type":"session_meta","payload":{{"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+            {{"type":"session_meta","payload":{{"id":"{session_id}","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
             {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
             """,
         )
@@ -446,7 +455,7 @@ _SUBAGENT_MARKERS = (
 def _write_codex_rollout(
     path: Path, *, session_id: str, cwd: Path, extra_meta: str, total: int
 ) -> None:
-    meta = f'"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"'
+    meta = f'"id":"{session_id}","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"'
     if extra_meta:
         meta += "," + extra_meta
     _write(
@@ -463,6 +472,7 @@ def test_parse_codex_rollout_ignores_subagent_rollouts_on_same_cwd(
     tmp_path: Path, monkeypatch, child_marker: str
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -501,6 +511,7 @@ def test_parse_codex_rollout_with_only_subagent_rollouts_is_unknown(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -531,6 +542,7 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     rollout = (
@@ -545,7 +557,7 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
     _write(
         rollout,
         f"""
-        {{"type":"session_meta","payload":{{"id":"stale","timestamp":"2026-06-23T11:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","payload":{{"id":"stale","timestamp":"2026-06-23T11:00:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
         """,
     )
@@ -601,7 +613,7 @@ def test_append_and_load_records_from_log(tmp_path: Path) -> None:
         f.write("2026-06-23 12:01 [work] [human:marc] bumped to step 2\n")
 
     # The record rides one standard tagged log line, JSON as the message.
-    first = log.read_text().splitlines()[0]
+    first = log.read_text(encoding="utf-8").splitlines()[0]
     assert "[work] [system] " in first
     assert first.endswith(record.to_json())
     # Non-record log lines are skipped, not errors.
@@ -647,11 +659,11 @@ def test_load_records_reads_encoded_and_legacy_backslash_records(
     log = coga_os / "log.md"
     log.write_text(
         f"2026-06-23 11:00 [work] [system] {legacy.to_json()}\n", encoding="utf-8"
-    )
+    , newline="\n")
 
     append_record(cfg, record)
 
-    assert len(log.read_text().splitlines()) == 2
+    assert len(log.read_text(encoding="utf-8").splitlines()) == 2
     assert load_records(cfg) == [legacy, record]
 
 
@@ -950,6 +962,7 @@ def test_parse_claude_falls_back_to_resumed_transcript(
     """A resumed session keeps writing to the transcript it resumed from, so the
     pinned `--session-id` file is never created. Usage must still be attributed."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -976,6 +989,7 @@ def test_parse_claude_fallback_ignores_transcript_outside_window(
 ) -> None:
     """A stale transcript in the same cwd must not be attributed to this run."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -999,6 +1013,7 @@ def test_parse_claude_fallback_ignores_transcript_outside_window(
 def test_parse_claude_fallback_reports_ambiguity(tmp_path: Path, monkeypatch) -> None:
     """Concurrent sessions in one cwd must report ambiguity, never guess."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1069,7 +1084,7 @@ def _write_marked_codex_rollout(
         }
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join([meta, *messages, usage]) + "\n")
+    path.write_text("\n".join([meta, *messages, usage]) + "\n", encoding="utf-8", newline="\n")
 
 
 def _prompt(marker: str) -> str:
@@ -1084,6 +1099,7 @@ def test_parse_codex_concurrent_rollouts_resolve_by_launch_marker(
     marker is ours. An ordinary prompt follows codex's own AGENTS.md user
     message; a discussion prompt is a developer message."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -1125,6 +1141,7 @@ def test_parse_codex_marker_in_tool_output_does_not_match(
     """A sibling that saw this launch's argv (say via `ps`) holds the marker
     only in tool output, which never counts — so no rollout claims it."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -1167,6 +1184,7 @@ def test_parse_codex_marker_absent_from_all_candidates_stays_unknown(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
@@ -1211,6 +1229,7 @@ def test_parse_claude_resumed_fallback_resolves_by_launch_marker(
     """A resumed session plus a concurrent one in the same cwd: the transcript
     whose in-window user turn carries this launch's marker is ours."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1248,6 +1267,7 @@ def test_parse_claude_empty_pinned_transcript_is_zero(
 ) -> None:
     """The pinned transcript exists but never reached the API: provably zero."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1281,6 +1301,7 @@ def test_parse_claude_malformed_pinned_transcript_stays_unknown(
     tmp_path: Path, monkeypatch, unreadable_line: str
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1312,6 +1333,7 @@ def test_parse_claude_empty_fallback_transcript_stays_unknown(
     """A fallback candidate proves nothing about this launch, so emptiness
     there is not zero."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1347,6 +1369,7 @@ def test_capture_records_usage_reason_for_unknown(
     )
     _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     cwd = tmp_path / "repo"
     cwd.mkdir()
     start, end = _window()
@@ -1369,7 +1392,7 @@ def test_capture_records_usage_reason_for_unknown(
     record = load_records(load_config(coga_os))[0]
     assert record.usage_status == "unknown"
     assert record.usage_reason == "codex rollout not found for cwd: <path>"
-    assert str(tmp_path) not in (coga_os / "log.md").read_text()
+    assert str(tmp_path) not in (coga_os / "log.md").read_text(encoding="utf-8")
 
 
 def test_redact_local_paths_keeps_reason_category() -> None:

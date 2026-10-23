@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import remove_test_checkout
+
 import coga.branchcleanup
 from coga.branchcleanup import (
     BranchCleanupResult,
@@ -21,7 +23,7 @@ from coga.config import load_config
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True
+        ["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8"
     )
     if check:
         assert proc.returncode == 0, proc.stderr + proc.stdout
@@ -29,7 +31,7 @@ def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
 
 
 def _commit(root: Path, name: str, content: str, message: str) -> None:
-    (root / name).write_text(content)
+    (root / name).write_text(content, encoding="utf-8", newline="\n")
     _git(root, "add", name)
     _git(root, "commit", "-m", message)
 
@@ -45,7 +47,7 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "--bare", "-b", "main", str(remote)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     root = tmp_path / "work"
@@ -53,7 +55,7 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(
         ["git", "init", "-b", "main", str(root)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(root, "config", "user.email", "t@example.com")
@@ -62,9 +64,10 @@ def repo(tmp_path: Path) -> Path:
 
     coga_os = root / "coga"
     coga_os.mkdir()
-    (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
+    (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n', encoding="utf-8", newline="\n")
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
 
     _commit(root, "base.txt", "base", "base")
@@ -362,7 +365,7 @@ def test_rebasing_worktree_still_blocks_the_forced_local_delete(
 
     assert result.local_deleted is False
     assert _branch_exists_local(repo, "feat")
-    assert result.local_worktree_path == str(worktree)
+    assert Path(result.local_worktree_path) == worktree
 
 
 def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
@@ -380,7 +383,7 @@ def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
     subprocess.run(
         ["git", "clone", str(repo.parent / "origin.git"), str(other)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
     _git(other, "config", "user.email", "t@example.com")
@@ -531,7 +534,7 @@ def test_landed_local_with_lagging_upstream_held_by_worktree_is_kept(
 
     assert result.local_deleted is False
     assert _branch_exists_local(repo, "feat")
-    assert result.local_worktree_path == str(worktree)
+    assert Path(result.local_worktree_path) == worktree
 
 
 def test_unmerged_no_pr_is_skipped(repo: Path, monkeypatch) -> None:
@@ -747,7 +750,7 @@ def test_removing_worktree_unpins_branch_for_cleanup(
 def test_dirty_worktree_left_in_place(repo: Path, tmp_path: Path) -> None:
     feature = tmp_path / "feature"
     _add_worktree(repo, feature, "feat")
-    (feature / "uncommitted.txt").write_text("work in progress")
+    (feature / "uncommitted.txt").write_text("work in progress", encoding="utf-8", newline="\n")
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -766,12 +769,12 @@ def test_dirty_worktree_left_in_place(repo: Path, tmp_path: Path) -> None:
 
 
 def test_ignored_local_file_left_in_place(repo: Path, tmp_path: Path) -> None:
-    (repo / ".gitignore").write_text("*.secret\n")
+    (repo / ".gitignore").write_text("*.secret\n", encoding="utf-8", newline="\n")
     _git(repo, "add", ".gitignore")
     _git(repo, "commit", "-m", "ignore local secrets")
     feature = tmp_path / "feature"
     _add_worktree(repo, feature, "feat")
-    (feature / "credentials.secret").write_text("do not delete")
+    (feature / "credentials.secret").write_text("do not delete", encoding="utf-8", newline="\n")
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -782,7 +785,7 @@ def test_ignored_local_file_left_in_place(repo: Path, tmp_path: Path) -> None:
     )
 
     assert result.removed is False
-    assert (feature / "credentials.secret").read_text() == "do not delete"
+    assert (feature / "credentials.secret").read_text(encoding="utf-8") == "do not delete"
     assert any("ignored local state" in note for note in notes)
 
 
@@ -795,15 +798,15 @@ def _run_tests_in(worktree: Path) -> None:
     """
     cache = worktree / ".pytest_cache"
     cache.mkdir()
-    (cache / ".gitignore").write_text("*\n")
-    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55")
+    (cache / ".gitignore").write_text("*\n", encoding="utf-8", newline="\n")
+    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55", encoding="utf-8", newline="\n")
     pycache = worktree / "src" / "__pycache__"
     pycache.mkdir(parents=True)
     (pycache / "mod.cpython-312.pyc").write_bytes(b"\x00compiled")
 
 
 def _ignore_pycache(repo: Path) -> None:
-    (repo / ".gitignore").write_text("__pycache__/\n*.secret\n")
+    (repo / ".gitignore").write_text("__pycache__/\n*.secret\n", encoding="utf-8", newline="\n")
     _git(repo, "add", ".gitignore")
     _git(repo, "commit", "-m", "ignore caches and local secrets")
 
@@ -837,7 +840,7 @@ def test_precious_ignored_file_survives_alongside_cache(
     feature = tmp_path / "feature"
     _add_worktree(repo, feature, "feat")
     _run_tests_in(feature)
-    (feature / "credentials.secret").write_text("do not delete")
+    (feature / "credentials.secret").write_text("do not delete", encoding="utf-8", newline="\n")
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -848,7 +851,7 @@ def test_precious_ignored_file_survives_alongside_cache(
     )
 
     assert result.removed is False
-    assert (feature / "credentials.secret").read_text() == "do not delete"
+    assert (feature / "credentials.secret").read_text(encoding="utf-8") == "do not delete"
     refusal = next(note for note in notes if "left in place" in note)
     # The blocking entry is the reason, and the cache noise no longer drowns it.
     assert "credentials.secret" in refusal
@@ -862,7 +865,7 @@ def test_ignored_only_refusal_offers_the_force_command(
     _ignore_pycache(repo)
     feature = tmp_path / "feature's $cache"
     _add_worktree(repo, feature, "feat")
-    (feature / "coga.local.toml.secret").write_text("user = 'marc'")
+    (feature / "coga.local.toml.secret").write_text("user = 'marc'", encoding="utf-8", newline="\n")
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -903,10 +906,10 @@ def test_non_ascii_cache_filename_is_still_regenerable(
 
 
 def _ignore_coga_local_state(repo: Path) -> None:
-    (repo / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n")
+    (repo / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n", encoding="utf-8", newline="\n")
     skill = repo / "coga" / "skills" / "demo"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# demo\n")
+    (skill / "SKILL.md").write_text("# demo\n", encoding="utf-8", newline="\n")
     _git(repo, "add", ".gitignore", "coga/skills")
     _git(repo, "commit", "-m", "ignore coga local state")
 
@@ -954,7 +957,7 @@ def test_edited_local_config_copy_preserves_the_checkout(
     _add_worktree(repo, feature, "feat")
     _copy_coga_local_state(repo, feature)
     local = feature / "coga" / "coga.local.toml"
-    local.write_text(local.read_text() + 'agent = "codex"\n')
+    local.write_text(local.read_text(encoding="utf-8") + 'agent = "codex"\n', encoding="utf-8", newline="\n")
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -965,7 +968,7 @@ def test_edited_local_config_copy_preserves_the_checkout(
     )
 
     assert result.removed is False
-    assert 'agent = "codex"' in local.read_text()
+    assert 'agent = "codex"' in local.read_text(encoding="utf-8")
     refusal = next(note for note in notes if "left in place" in note)
     assert "coga/coga.local.toml" in refusal
     assert ".agent-skills" not in refusal
@@ -1055,7 +1058,7 @@ def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
     subprocess.run(
         ["git", "clone", "--no-hardlinks", str(repo), str(clone)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=True,
     )
 
@@ -1110,7 +1113,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
 ) -> None:
     feature = tmp_path / "feature"
     _add_worktree(repo, feature, "feat")
-    subprocess.run(["rm", "-rf", str(feature)], check=True)
+    remove_test_checkout(feature)
 
     notes: list[str] = []
     result = remove_ticket_worktree(
@@ -1124,7 +1127,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
     assert result.already_gone is True
     assert any("already gone" in note for note in notes)
     # The stale registration is branch sweep's repo-wide job, not retire's.
-    assert str(feature) in _git(repo, "worktree", "list").stdout
+    assert feature.as_posix() in _git(repo, "worktree", "list").stdout
 
 
 def test_no_worktree_line_is_noop(repo: Path) -> None:

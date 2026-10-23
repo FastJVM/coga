@@ -102,28 +102,33 @@ def _seed_fake_templates(templates: Path) -> None:
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
         "coga.local.toml\n.coga/\n.agent-skills/\n"
-        "**/_template/\n**/_template.md\n"
+        "**/_template/\n**/_template.md\n",
+        encoding="utf-8", newline="\n",
     )
-    (templates / "coga.toml").write_text("version = 1\n")
-    (templates / "context.md").write_text("context\n")
+    (templates / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
+    (templates / "context.md").write_text("context\n", encoding="utf-8", newline="\n")
     (templates / "contexts").mkdir()
     (templates / "contexts" / ".gitignore").write_text(
-        "**/_template/\n**/_template.md\n"
+        "**/_template/\n**/_template.md\n",
+        encoding="utf-8", newline="\n",
     )
     # Packaged skills + canonical coga/* contexts live under bootstrap/ in the
     # package resource tree, not in initialized repos.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
-        "bootstrap/ticket skill\n"
+        "bootstrap/ticket skill\n",
+        encoding="utf-8", newline="\n",
     )
     for name in ("orient", "ticket"):
         (templates / "bootstrap" / name).mkdir(parents=True)
         (templates / "bootstrap" / name / "ticket.md").write_text(
-            f"{name} bootstrap ticket\n"
+            f"{name} bootstrap ticket\n",
+            encoding="utf-8", newline="\n",
         )
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "retro/done-ticket skill\n"
+        "retro/done-ticket skill\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep").mkdir(
         parents=True
@@ -136,19 +141,22 @@ def _seed_fake_templates(templates: Path) -> None:
         / "autoclose"
         / "sweep"
         / "SKILL.md"
-    ).write_text("---\nname: coga/autoclose/sweep\n---\nsweep\n")
+    ).write_text("---\nname: coga/autoclose/sweep\n---\nsweep\n", encoding="utf-8", newline="\n")
     for ctx in ("architecture", "cli"):
         (templates / "bootstrap" / "contexts" / "coga" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").write_text(
-            f"coga/{ctx} context\n"
+            f"coga/{ctx} context\n",
+            encoding="utf-8", newline="\n",
         )
     (templates / "bootstrap" / "contexts" / "coga" / "sync").mkdir(parents=True)
     (templates / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
-        "coga/sync context\n"
+        "coga/sync context\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "bootstrap" / "contexts" / "coga" / "code").mkdir(parents=True)
     (templates / "bootstrap" / "contexts" / "coga" / "code" / "SKILL.md").write_text(
-        "coga/code context\n"
+        "coga/code context\n",
+        encoding="utf-8", newline="\n",
     )
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
@@ -158,30 +166,35 @@ def _seed_fake_templates(templates: Path) -> None:
     ]:
         path = templates / kind / fname
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"# {kind} template\n")
+        path.write_text(f"# {kind} template\n", encoding="utf-8", newline="\n")
     # Coga-owned recurring battery — no `_` prefix.
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "autoclose-merged").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
-        "autoclose merged template\n"
+        "autoclose merged template\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
-    (templates / "recurring" / "dream" / "ticket.md").write_text("dream template\n")
+    (templates / "recurring" / "dream" / "ticket.md").write_text("dream template\n", encoding="utf-8", newline="\n")
     (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
-        "skill update template\n"
+        "skill update template\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
     (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
-        "direct body skill\n"
+        "direct body skill\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "direct" / "body.md").write_text(
-        "direct body workflow\n"
+        "direct body workflow\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
-        "skill update workflow\n"
+        "skill update workflow\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "workflows" / "build").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "build" / "onboarding.md").write_text(
@@ -197,7 +210,8 @@ def _seed_fake_templates(templates: Path) -> None:
         "\n"
         "## gather-and-spec\n"
         "\n"
-        "Ask what the user wants to build.\n"
+        "Ask what the user wants to build.\n",
+        encoding="utf-8", newline="\n",
     )
     (templates / "tasks" / "coga-build").mkdir(parents=True, exist_ok=True)
     (templates / "tasks" / "coga-build" / "ticket.md").write_text(
@@ -225,17 +239,19 @@ def _seed_fake_templates(templates: Path) -> None:
         "\n"
         "<!-- coga:blackboard -->\n"
         "\n"
-        "notepad\n"
+        "notepad\n",
+        encoding="utf-8", newline="\n",
     )
     # Single-file format: the audit log + its union-merge attribute ship at the
     # coga root, not as per-task siblings.
-    (templates / "log.md").write_text("")
-    (templates / ".gitattributes").write_text("/log.md merge=union\n")
+    (templates / "log.md").write_text("", encoding="utf-8", newline="\n")
+    (templates / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
     (templates / "workflows" / "autoclose-merged" / "sweep.md").write_text(
-        "autoclose merged workflow\n"
+        "autoclose merged workflow\n",
+        encoding="utf-8", newline="\n",
     )
 
 
@@ -274,7 +290,7 @@ def test_init_into_empty_dir(tmp_path: Path, fake_vendor) -> None:
         target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
     ).is_symlink()
 
-    assert "version = 1" in (target / "coga" / "coga.toml").read_text()
+    assert "version = 1" in (target / "coga" / "coga.toml").read_text(encoding="utf-8")
 
 
 def test_init_materializes_configured_contexts_at_checkout_root(
@@ -301,7 +317,8 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         check=True,
     )
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
@@ -315,7 +332,7 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         ["git", "-C", str(checkout), "ls-files"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout.splitlines()
     assert "docs/contexts/.gitignore" in tracked
     assert "docs/contexts/_template/SKILL.md" not in tracked
@@ -325,7 +342,7 @@ def test_init_materializes_configured_contexts_at_checkout_root(
         ["git", "-C", str(checkout), "status", "--porcelain"],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     ).stdout == ""
 
 
@@ -347,7 +364,8 @@ def test_init_relocates_contexts_before_empty_repo_onboarding_log(
         check=True,
     )
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
@@ -357,7 +375,7 @@ def test_init_relocates_contexts_before_empty_repo_onboarding_log(
     assert (checkout / "docs" / "contexts" / ".gitignore").is_file()
     assert "[coga-build] [coga:init] created" in (
         checkout / "coga" / "log.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
 
 def test_init_rejects_ignored_configured_contexts_before_writing(
@@ -376,9 +394,10 @@ def test_init_rejects_ignored_configured_contexts_before_writing(
         ["git", "-C", str(checkout), "config", "user.name", "Coga Test"],
         check=True,
     )
-    (checkout / ".gitignore").write_text("docs/contexts/\n")
+    (checkout / ".gitignore").write_text("docs/contexts/\n", encoding="utf-8", newline="\n")
     (fake_vendor / "coga.toml").write_text(
-        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
 
@@ -436,10 +455,10 @@ def test_packaged_template_first_run_works_without_slack(
     repo = tmp_path / "coga"
     repo.mkdir()
     shutil.copy(_PACKAGED_COGA_TOML, repo / "coga.toml")
-    (repo / "coga.local.toml").write_text('user = "marc"\n')
+    (repo / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
 
-    text = (repo / "coga.toml").read_text()
+    text = (repo / "coga.toml").read_text(encoding="utf-8")
     assert "channels = []" in text
 
     cfg = load_config(repo)
@@ -455,7 +474,7 @@ def test_packaged_template_first_run_works_without_slack(
 
 def test_packaged_log_has_no_baked_history() -> None:
     """Init owns the timestamped onboarding event; the static template cannot."""
-    assert _PACKAGED_LOG.read_text() == ""
+    assert _PACKAGED_LOG.read_text(encoding="utf-8") == ""
 
 
 _INSTALLER_COMMANDS = frozenset({"gh", "pip", "pip3", "pipx", "uv", "npm", "npx"})
@@ -488,6 +507,8 @@ def _installer_calls(calls: list[list[str]]) -> list[list[str]]:
         if not argv:
             continue
         head = Path(argv[0]).name
+        if os.name == "nt":
+            head = Path(head).stem.casefold()
         if head in _INSTALLER_COMMANDS:
             hits.append(argv)
         elif "-m" in argv and argv[argv.index("-m") + 1 :][:1] in (["pip"], ["pipx"]):
@@ -496,12 +517,16 @@ def _installer_calls(calls: list[list[str]]) -> list[list[str]]:
 
 
 def _path_without_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A `PATH` holding only `git`, so `gh` is genuinely absent."""
+    """A `PATH` with real Git and no `gh`."""
     git = shutil.which("git")
     assert git is not None, "these tests need a real git"
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    (bin_dir / "git").symlink_to(git)
+    if os.name == "nt":
+        # Windows finds git.exe through PATH; keep its installed directory.
+        bin_dir = Path(git).parent
+    else:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "git").symlink_to(git)
     monkeypatch.setenv("PATH", str(bin_dir))
     assert shutil.which("gh") is None
 
@@ -518,6 +543,7 @@ def test_fresh_init_installs_nothing(
     Google packs remain one explicit `coga skill install` away."""
     _path_without_gh(tmp_path, monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     target = tmp_path / "company"
     subprocess.run(["git", "init", "-q", "-b", "main", str(target)], check=True)
     subprocess.run(
@@ -528,9 +554,9 @@ def test_fresh_init_installs_nothing(
         ["git", "-C", str(target), "config", "user.name", "Coga Test"], check=True
     )
     if existing_project:
-        (target / "README.md").write_text("# an existing project\n")
+        (target / "README.md").write_text("# an existing project\n", encoding="utf-8", newline="\n")
         (target / "src").mkdir()
-        (target / "src" / "app.py").write_text("print('hi')\n")
+        (target / "src" / "app.py").write_text("print('hi')\n", encoding="utf-8", newline="\n")
 
     for name in ("install_github_skill", "install_url_skill"):
         monkeypatch.setattr(
@@ -562,7 +588,7 @@ def test_fresh_init_installs_nothing(
     assert (target / "coga" / "recurring" / "dream" / "ticket.md").is_file()
     if existing_project:
         assert "Skipped the onboarding ticket" in result.output
-        assert (target / "README.md").read_text() == "# an existing project\n"
+        assert (target / "README.md").read_text(encoding="utf-8") == "# an existing project\n"
 
 
 def test_init_writes_captured_user_name_to_local_toml(
@@ -571,6 +597,7 @@ def test_init_writes_captured_user_name_to_local_toml(
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     # Surrounding whitespace is stripped, same as the prompt path.
     result = CliRunner().invoke(app, ["init", str(target), "--user", "  marc  "])
@@ -578,7 +605,7 @@ def test_init_writes_captured_user_name_to_local_toml(
 
     local_toml = target / "coga" / "coga.local.toml"
     assert local_toml.is_file()
-    text = local_toml.read_text()
+    text = local_toml.read_text(encoding="utf-8")
     # The `--user` value lands in `user` — a fresh init never leaves it empty.
     assert 'user = "marc"' in text
     assert 'user = ""' not in text
@@ -615,13 +642,13 @@ def test_init_rejects_invalid_user(tmp_path: Path, fake_vendor) -> None:
 
 def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor) -> None:
     target = _make_git_repo(tmp_path / "existing-repo")
-    (target / "README.md").write_text("hi")
+    (target / "README.md").write_text("hi", encoding="utf-8", newline="\n")
     (target / "src").mkdir()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert (target / "coga" / "coga.toml").is_file()
-    assert (target / "README.md").read_text() == "hi"
+    assert (target / "README.md").read_text(encoding="utf-8") == "hi"
 
 
 def _make_initialized_clone(target: Path) -> Path:
@@ -630,7 +657,7 @@ def _make_initialized_clone(target: Path) -> Path:
     `coga.local.toml`, no agent skill symlinks, no `.agent-skills/` view."""
     _make_git_repo(target)
     (target / "coga").mkdir()
-    (target / "coga" / "coga.toml").write_text("version = 1\n")
+    (target / "coga" / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
     return target
 
 
@@ -643,7 +670,7 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
     the footprint. `coga.local.toml` is left untouched."""
     target = _make_initialized_clone(tmp_path / "occupied")
     local_toml = target / "coga" / "coga.local.toml"
-    local_toml.write_text('user = "marc"\nextra = 1\n')
+    local_toml.write_text('user = "marc"\nextra = 1\n', encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
@@ -653,7 +680,7 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
     assert "coga uninstall" in result.output
     assert f"from inside {target}" in result.output
     assert "remove the dir" in result.output
-    assert local_toml.read_text() == 'user = "marc"\nextra = 1\n'
+    assert local_toml.read_text(encoding="utf-8") == 'user = "marc"\nextra = 1\n'
     assert not (target / ".claude").exists()
 
 
@@ -673,13 +700,13 @@ def test_init_sets_up_clone_of_initialized_repo(tmp_path: Path, fake_vendor) -> 
 
     local_toml = target / "coga" / "coga.local.toml"
     assert local_toml.is_file()
-    assert 'user = "tester"' in local_toml.read_text()
+    assert 'user = "tester"' in local_toml.read_text(encoding="utf-8")
     assert (target / ".claude" / "skills" / "coga").is_symlink()
     assert (target / ".codex" / "skills" / "coga").is_symlink()
     assert (target / "coga" / ".agent-skills").is_dir()
     # The committed tree is untouched: no template copy, no agent guides, no
     # commit.
-    assert (target / "coga" / "coga.toml").read_text() == "version = 1\n"
+    assert (target / "coga" / "coga.toml").read_text(encoding="utf-8") == "version = 1\n"
     assert not (target / "coga" / "tasks").exists()
     assert not (target / "CLAUDE.md").exists()
     assert not (target / ".gitignore").exists()
@@ -693,21 +720,21 @@ def test_init_clone_setup_requires_git_before_writing(
     target = tmp_path / "unpacked"
     coga_os = target / "coga"
     coga_os.mkdir(parents=True)
-    (coga_os / "coga.toml").write_text("version = 1\n")
+    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
     local_toml = coga_os / "coga.local.toml"
     if local_text is not None:
-        local_toml.write_text(local_text)
+        local_toml.write_text(local_text, encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
     assert result.exit_code == 2, result.output
     assert "not inside a git repository" in result.output
     assert "git init" in result.output
-    assert (coga_os / "coga.toml").read_text() == "version = 1\n"
+    assert (coga_os / "coga.toml").read_text(encoding="utf-8") == "version = 1\n"
     if local_text is None:
         assert not local_toml.exists()
     else:
-        assert local_toml.read_text() == local_text
+        assert local_toml.read_text(encoding="utf-8") == local_text
     assert not (coga_os / ".agent-skills").exists()
     assert not (target / ".claude").exists()
     assert not (target / ".codex").exists()
@@ -721,14 +748,14 @@ def test_init_clone_setup_is_idempotent(tmp_path: Path, fake_vendor) -> None:
     first = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert first.exit_code == 0, first.output
     local_toml = target / "coga" / "coga.local.toml"
-    before = local_toml.read_text()
+    before = local_toml.read_text(encoding="utf-8")
     link = target / ".claude" / "skills" / "coga"
     link_before = os.readlink(link)
 
     second = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert second.exit_code == 2
     assert "repo is already initialized" in second.output
-    assert local_toml.read_text() == before
+    assert local_toml.read_text(encoding="utf-8") == before
     assert os.readlink(link) == link_before
 
 
@@ -776,11 +803,12 @@ def test_init_on_clone_edits_userless_local_toml_in_place(
         'user = ""\n'
         "\n"
         "[agents.claude]\n"
-        'argv = "claude --dangerously-skip-permissions"\n'
+        'argv = "claude --dangerously-skip-permissions"\n',
+        encoding="utf-8", newline="\n",
     )
     result = CliRunner().invoke(app, ["init", str(empty_user), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert local_toml.read_text() == (
+    assert local_toml.read_text(encoding="utf-8") == (
         "# my notes\n"
         'user = "tester"\n'
         "\n"
@@ -791,11 +819,11 @@ def test_init_on_clone_edits_userless_local_toml_in_place(
 
     no_user_line = _make_initialized_clone(tmp_path / "no-user-line")
     local_toml = no_user_line / "coga" / "coga.local.toml"
-    local_toml.write_text("extra = 1")
+    local_toml.write_text("extra = 1", encoding="utf-8", newline="\n")
     result = CliRunner().invoke(app, ["init", str(no_user_line), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert local_toml.read_text() == 'extra = 1\nuser = "tester"\n'
-    assert tomllib.loads(local_toml.read_text()) == {"extra": 1, "user": "tester"}
+    assert local_toml.read_text(encoding="utf-8") == 'extra = 1\nuser = "tester"\n'
+    assert tomllib.loads(local_toml.read_text(encoding="utf-8")) == {"extra": 1, "user": "tester"}
 
 
 def test_init_on_clone_refuses_unparseable_local_toml(
@@ -805,12 +833,12 @@ def test_init_on_clone_refuses_unparseable_local_toml(
     the file and leaves it alone."""
     target = _make_initialized_clone(tmp_path / "clone")
     local_toml = target / "coga" / "coga.local.toml"
-    local_toml.write_text("user = \n")
+    local_toml.write_text("user = \n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
     assert "could not be read as TOML" in result.output
-    assert local_toml.read_text() == "user = \n"
+    assert local_toml.read_text(encoding="utf-8") == "user = \n"
 
 
 @pytest.mark.parametrize(
@@ -839,13 +867,13 @@ def test_init_clone_preserves_toml_structure(
     """Only the root user changes, even when its spelling or context varies."""
     target = _make_initialized_clone(tmp_path / "clone")
     local_toml = target / "coga" / "coga.local.toml"
-    local_toml.write_text("# machine settings\n" + contents)
-    before = tomllib.loads(local_toml.read_text())
+    local_toml.write_text("# machine settings\n" + contents, encoding="utf-8", newline="\n")
+    before = tomllib.loads(local_toml.read_text(encoding="utf-8"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
     assert result.exit_code == 0, result.output
-    rendered = local_toml.read_text()
+    rendered = local_toml.read_text(encoding="utf-8")
     assert tomllib.loads(rendered) == {**before, "user": "tester"}
     assert "# machine settings\n" in rendered
     if "# keep the name note" in contents:
@@ -866,7 +894,7 @@ def test_init_clone_retries_after_skill_view_failure(
     target = _make_initialized_clone(tmp_path / "clone")
     local_toml = target / "coga" / "coga.local.toml"
     if existing_local is not None:
-        local_toml.write_text(existing_local)
+        local_toml.write_text(existing_local, encoding="utf-8", newline="\n")
 
     def fail_refresh(_root: Path) -> None:
         raise error
@@ -878,7 +906,7 @@ def test_init_clone_retries_after_skill_view_failure(
     if existing_local is None:
         assert not local_toml.exists()
     else:
-        assert local_toml.read_text() == existing_local
+        assert local_toml.read_text(encoding="utf-8") == existing_local
 
     retry = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert retry.exit_code == 0, retry.output
@@ -894,14 +922,14 @@ def test_init_clone_retries_after_blocked_agent_link(
     target = _make_initialized_clone(tmp_path / "clone")
     blocker = target / ".codex" / "skills" / "coga"
     blocker.parent.mkdir(parents=True)
-    blocker.write_text("operator-owned file\n")
+    blocker.write_text("operator-owned file\n", encoding="utf-8", newline="\n")
 
     first = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert first.exit_code == 2, first.output
     assert str(blocker) in first.output
     assert "re-run `coga init --user NAME`" in first.output
     assert not (target / "coga" / "coga.local.toml").exists()
-    assert blocker.read_text() == "operator-owned file\n"
+    assert blocker.read_text(encoding="utf-8") == "operator-owned file\n"
     claude_link = target / ".claude" / "skills" / "coga"
     assert claude_link.is_symlink()
     original_link = claude_link.lstat()
@@ -923,7 +951,7 @@ def test_init_real_clone_preserves_head_index_and_working_tree(
     subprocess.run(["git", "init", "-q", "-b", "main", str(source)], check=True)
     shutil.copyfile(fake_vendor / ".gitignore", source / "coga" / ".gitignore")
     update_cmd.ensure_host_gitignore(source)
-    (source / "README.md").write_text("committed project\n")
+    (source / "README.md").write_text("committed project\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(source), "add", "."], check=True)
     subprocess.run(
         [
@@ -937,14 +965,14 @@ def test_init_real_clone_preserves_head_index_and_working_tree(
         ["git", "clone", "-q", "--no-hardlinks", str(source), str(target)],
         check=True,
     )
-    (target / "staged.txt").write_text("unrelated staged work\n")
+    (target / "staged.txt").write_text("unrelated staged work\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(target), "add", "staged.txt"], check=True)
-    (target / "README.md").write_text("unrelated unstaged work\n")
+    (target / "README.md").write_text("unrelated unstaged work\n", encoding="utf-8", newline="\n")
 
     def git(*args: str) -> str:
         return subprocess.run(
             ["git", "-C", str(target), *args],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, encoding="utf-8", check=True,
         ).stdout
 
     probes = [
@@ -1013,7 +1041,7 @@ def test_init_ships_build_ticket_template(
 
     tasks = target / "coga" / "tasks"
     ticket = tasks / "coga-build.md"
-    text = ticket.read_text()
+    text = ticket.read_text(encoding="utf-8")
     assert "status: active" in text
     assert "name: build/onboarding" in text
     assert "step: 1 (gather-and-spec)" in text
@@ -1033,7 +1061,7 @@ def test_init_ships_build_ticket_template(
     assert not (tasks / "coga-build" / "log.md").exists()
     onboarding = (
         target / "coga" / "workflows" / "build" / "onboarding.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert "--workflow\n  code/design-then-implement" in onboarding
     assert "--workflow draft-for-human" in onboarding
     assert "such a draft cannot be activated or launched" in onboarding
@@ -1061,7 +1089,7 @@ def test_init_records_onboarding_creation_at_runtime(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
     assert result.exit_code == 0, result.output
-    assert (target / "coga" / "log.md").read_text() == (
+    assert (target / "coga" / "log.md").read_text(encoding="utf-8") == (
         "2031-02-03 04:05 v1 [coga-build] [coga:init] "
         "created (mode=interactive, status=active)\n"
     )
@@ -1080,7 +1108,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     tasks = target / "coga" / "tasks"
     # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
     for ticket in tasks.glob("**/*.md"):
-        assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
+        assert "new-user" not in ticket.read_text(encoding="utf-8"), f"new-user survived in {ticket}"
     assert not (tasks / "browser-automation.md").exists()
 
 
@@ -1121,7 +1149,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     and the next-steps coax points the user at `coga ticket` without seeding a
     browser-automation draft."""
     target = _make_git_repo(tmp_path / "existing-repo")
-    (target / "main.py").write_text("print(1)\n")
+    (target / "main.py").write_text("print(1)\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1133,7 +1161,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
-    assert (target / "coga" / "log.md").read_text() == ""
+    assert (target / "coga" / "log.md").read_text(encoding="utf-8") == ""
 
 
 def test_init_hosting_scaffold_repo_seeds_onboarding(
@@ -1143,9 +1171,9 @@ def test_init_hosting_scaffold_repo_seeds_onboarding(
     scaffold (stub README, LICENSE, .gitattributes) is still empty: the
     onboarding ticket is seeded, so the advertised `coga build` resolves."""
     target = _make_git_repo(tmp_path / "thinkpick")
-    (target / "README.md").write_text("# thinkpick\n")
-    (target / "LICENSE").write_text("MIT License\n\n" + "Permission... " * 200)
-    (target / ".gitattributes").write_text("* text=auto\n")
+    (target / "README.md").write_text("# thinkpick\n", encoding="utf-8", newline="\n")
+    (target / "LICENSE").write_text("MIT License\n\n" + "Permission... " * 200, encoding="utf-8", newline="\n")
+    (target / ".gitattributes").write_text("* text=auto\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1153,7 +1181,7 @@ def test_init_hosting_scaffold_repo_seeds_onboarding(
     assert (target / "coga" / "tasks" / "coga-build.md").is_file()
     assert "[coga-build] [coga:init] created" in (
         target / "coga" / "log.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert "Run `coga build`" in result.output
     assert "Skipped the onboarding ticket" not in result.output
 
@@ -1170,7 +1198,7 @@ def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
     target = _make_git_repo(tmp_path / "company")
     if filled:
-        (target / "main.py").write_text("print(1)\n")
+        (target / "main.py").write_text("print(1)\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
@@ -1180,7 +1208,7 @@ def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
         result.output
     )
     assert (target / "coga" / "tasks" / "coga-build.md").is_file() is not filled
-    log = (target / "coga" / "log.md").read_text()
+    log = (target / "coga" / "log.md").read_text(encoding="utf-8")
     assert ("[coga-build] [coga:init] created" in log) is not filled
     # The tolerance is scoped to init's one internal read: the variable is
     # still exported afterwards, and an ordinary config load still refuses it.
@@ -1215,8 +1243,8 @@ def test_init_filled_repo_ignores_coga_managed_files(
     target = tmp_path / "company"
     target.mkdir()
     (target / ".git").mkdir()
-    (target / ".DS_Store").write_text("")
-    (target / "CLAUDE.md").write_text("user-authored guide")
+    (target / ".DS_Store").write_text("", encoding="utf-8", newline="\n")
+    (target / "CLAUDE.md").write_text("user-authored guide", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1236,27 +1264,27 @@ def test_repo_is_empty_true_for_missing_or_coga_managed(tmp_path: Path) -> None:
     assert init_cmd._repo_is_empty(target) is True
 
     (target / ".git").mkdir()
-    (target / ".DS_Store").write_text("")
-    (target / "CLAUDE.md").write_text("x")
-    (target / "AGENTS.md").write_text("x")
-    (target / ".gitignore").write_text("x")
+    (target / ".DS_Store").write_text("", encoding="utf-8", newline="\n")
+    (target / "CLAUDE.md").write_text("x", encoding="utf-8", newline="\n")
+    (target / "AGENTS.md").write_text("x", encoding="utf-8", newline="\n")
+    (target / ".gitignore").write_text("x", encoding="utf-8", newline="\n")
     assert init_cmd._repo_is_empty(target) is True
 
 
 def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
     target = tmp_path / "proj"
     target.mkdir()
-    (target / "main.py").write_text("print(1)\n")
+    (target / "main.py").write_text("print(1)\n", encoding="utf-8", newline="\n")
     assert init_cmd._repo_is_empty(target) is False
 
 
 def test_repo_is_empty_true_for_hosting_scaffold(tmp_path: Path) -> None:
     target = tmp_path / "scaffolded"
     target.mkdir()
-    (target / "README.md").write_text("# scaffolded\n\nA one-line description.\n")
-    (target / "LICENSE").write_text("x" * 5000)
-    (target / "COPYING.txt").write_text("x")
-    (target / ".gitattributes").write_text("* text=auto\n")
+    (target / "README.md").write_text("# scaffolded\n\nA one-line description.\n", encoding="utf-8", newline="\n")
+    (target / "LICENSE").write_text("x" * 5000, encoding="utf-8", newline="\n")
+    (target / "COPYING.txt").write_text("x", encoding="utf-8", newline="\n")
+    (target / ".gitattributes").write_text("* text=auto\n", encoding="utf-8", newline="\n")
     assert init_cmd._repo_is_empty(target) is True
 
 
@@ -1269,7 +1297,7 @@ def test_repo_is_empty_false_for_real_readme(tmp_path: Path, readme: str) -> Non
     """A README past stub size is a real project README, not scaffold."""
     target = tmp_path / "proj"
     target.mkdir()
-    (target / "README.md").write_text(readme)
+    (target / "README.md").write_text(readme, encoding="utf-8", newline="\n")
     assert init_cmd._repo_is_empty(target) is False
 
 
@@ -1280,7 +1308,7 @@ def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
     tasks = coga_os / "tasks"
     for name in ("coga-build", "real-work", "_template"):
         (tasks / name).mkdir(parents=True)
-        (tasks / name / "ticket.md").write_text("---\n---\n")
+        (tasks / name / "ticket.md").write_text("---\n---\n", encoding="utf-8", newline="\n")
 
     pruned = init_cmd._prune_onboarding_tickets(coga_os)
 
@@ -1295,17 +1323,20 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     tasks = coga_os / "tasks"
     (tasks / "alpha").mkdir(parents=True)
     (tasks / "alpha" / "ticket.md").write_text(
-        "---\nowner: new-user\nagent: claude\n---\n"
+        "---\nowner: new-user\nagent: claude\n---\n",
+        encoding="utf-8", newline="\n",
     )
     (tasks / "beta").mkdir(parents=True)
     (tasks / "beta" / "ticket.md").write_text(
-        "---\nowner: new-user\ntitle: Beta\n---\n"
+        "---\nowner: new-user\ntitle: Beta\n---\n",
+        encoding="utf-8", newline="\n",
     )
     # The `replace-with-human-name` token is a different placeholder, owned by
     # create_task/recurring — the stamp must leave it alone.
     (tasks / "_template").mkdir(parents=True)
     (tasks / "_template" / "ticket.md").write_text(
-        "---\nowner: replace-with-human-name\n---\n"
+        "---\nowner: replace-with-human-name\n---\n",
+        encoding="utf-8", newline="\n",
     )
 
     stamped = init_cmd._stamp_user_into_delivered_tickets(coga_os, "marc")
@@ -1315,11 +1346,11 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     alpha = Ticket.read(alpha_path)
     assert alpha.owner == "marc"
     assert alpha.agent == "claude"  # non-placeholder line untouched
-    assert "new-user" not in alpha_path.read_text()
+    assert "new-user" not in alpha_path.read_text(encoding="utf-8")
     beta_path = tasks / "beta" / "ticket.md"
     assert Ticket.read(beta_path).owner == "marc"
-    assert "new-user" not in beta_path.read_text()
-    template = (tasks / "_template" / "ticket.md").read_text()
+    assert "new-user" not in beta_path.read_text(encoding="utf-8")
+    template = (tasks / "_template" / "ticket.md").read_text(encoding="utf-8")
     assert "replace-with-human-name" in template  # left alone
 
 
@@ -1328,7 +1359,7 @@ def test_stamp_user_quotes_yaml_sensitive_names(tmp_path: Path, name: str) -> No
     coga_os = tmp_path / "coga"
     ticket_path = coga_os / "tasks" / "coga-build.md"
     ticket_path.parent.mkdir(parents=True)
-    ticket_path.write_text("---\nowner: new-user\n---\n")
+    ticket_path.write_text("---\nowner: new-user\n---\n", encoding="utf-8", newline="\n")
 
     init_cmd._stamp_user_into_delivered_tickets(coga_os, name)
 
@@ -1343,54 +1374,58 @@ def _seed_local_coga_os(root: Path) -> Path:
     coga_os = root / "coga"
     (coga_os / "skills" / "_template").mkdir(parents=True)
     (coga_os / "tasks" / "_template").mkdir(parents=True)
-    (coga_os / "skills" / "_template" / "SKILL.md").write_text("OLD skill template\n")
-    (coga_os / "tasks" / "_template" / "ticket.md").write_text("OLD ticket template\n")
+    (coga_os / "skills" / "_template" / "SKILL.md").write_text("OLD skill template\n", encoding="utf-8", newline="\n")
+    (coga_os / "tasks" / "_template" / "ticket.md").write_text("OLD ticket template\n", encoding="utf-8", newline="\n")
     (coga_os / "skills" / "myteam" / "real-skill").mkdir(parents=True)
-    (coga_os / "skills" / "myteam" / "real-skill" / "SKILL.md").write_text("user content\n")
+    (coga_os / "skills" / "myteam" / "real-skill" / "SKILL.md").write_text("user content\n", encoding="utf-8", newline="\n")
     (coga_os / "bootstrap" / "create").mkdir(parents=True)
-    (coga_os / "bootstrap" / "create" / "ticket.md").write_text("OLD bootstrap ticket\n")
+    (coga_os / "bootstrap" / "create" / "ticket.md").write_text("OLD bootstrap ticket\n", encoding="utf-8", newline="\n")
     (coga_os / "bootstrap" / "stale").mkdir(parents=True)
-    (coga_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE ticket from a prior upstream\n")
-    (coga_os / "coga.toml").write_text("version = 1\n")
-    (coga_os / "rules.md").write_text("obsolete global rules\n")
+    (coga_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE ticket from a prior upstream\n", encoding="utf-8", newline="\n")
+    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
+    (coga_os / "rules.md").write_text("obsolete global rules\n", encoding="utf-8", newline="\n")
     (coga_os / "scripts").mkdir()
-    (coga_os / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
+    (coga_os / "scripts" / "cron.sh").write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
 
     # Stale top-level file an earlier upstream shipped (counter / numeric IDs).
-    (coga_os / "counter").write_text("7\n")
+    (coga_os / "counter").write_text("7\n", encoding="utf-8", newline="\n")
     # Stale top-level dir an earlier upstream shipped (meta/ → bootstrap/ rename).
     (coga_os / "meta").mkdir()
-    (coga_os / "meta" / "ticket.md").write_text("OLD meta/ ticket\n")
+    (coga_os / "meta" / "ticket.md").write_text("OLD meta/ ticket\n", encoding="utf-8", newline="\n")
     # Stale nested dir from a bootstrap skill rename (create → ticket in 350c4ed).
     (coga_os / "skills" / "bootstrap" / "create").mkdir(parents=True)
-    (coga_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n")
+    (coga_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n", encoding="utf-8", newline="\n")
     # Optional Coga-owned skill content now lives in skills/ and should be
     # preserved for the managed-skill reconciler, not pruned as obsolete.
     (coga_os / "skills" / "coga" / "calendar-reminder").mkdir(parents=True)
     (coga_os / "skills" / "coga" / "calendar-reminder" / "SKILL.md").write_text(
-        "OLD coga/calendar-reminder skill\n"
+        "OLD coga/calendar-reminder skill\n",
+        encoding="utf-8", newline="\n",
     )
     (coga_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "OLD retro/done-ticket skill\n"
+        "OLD retro/done-ticket skill\n",
+        encoding="utf-8", newline="\n",
     )
     (coga_os / ".agent-skills").mkdir()
     (coga_os / ".agent-skills" / "_template").symlink_to("../skills/_template")
     (coga_os / "contexts" / "coga" / "sync").mkdir(parents=True)
     (coga_os / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
-        "OLD coga/sync context\n"
+        "OLD coga/sync context\n",
+        encoding="utf-8", newline="\n",
     )
     (coga_os / "contexts" / "coga" / "code").mkdir(parents=True)
     (coga_os / "contexts" / "coga" / "code" / "SKILL.md").write_text(
-        "OLD coga/code context\n"
+        "OLD coga/code context\n",
+        encoding="utf-8", newline="\n",
     )
     # Stale `_*` create upstream no longer ships (rename or removal).
     (coga_os / "recurring").mkdir(exist_ok=True)
-    (coga_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
+    (coga_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n", encoding="utf-8", newline="\n")
 
     vendored = coga_os / ".coga" / "src" / "coga"
     vendored.mkdir(parents=True)
-    (vendored / "cli.py").write_text("# OLD vendored cli\n")
+    (vendored / "cli.py").write_text("# OLD vendored cli\n", encoding="utf-8", newline="\n")
     return coga_os
 
 
@@ -1404,6 +1439,7 @@ def test_init_commits_coga_os_when_target_is_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1411,14 +1447,14 @@ def test_init_commits_coga_os_when_target_is_git_repo(
 
     log = subprocess.run(
         ["git", "-C", str(target), "log", "--oneline"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     )
     assert "Create coga via `coga init`" in log.stdout
 
     # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files", "coga"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert any(p.startswith("coga/coga.toml") for p in tracked)
     assert not any(".coga/" in p for p in tracked)
@@ -1437,6 +1473,7 @@ def test_init_fails_loud_when_target_is_not_git_repo(
     target = tmp_path / "company"
     target.mkdir()  # exists, but is not a git repo (nor inside one)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
@@ -1556,7 +1593,7 @@ def test_init_warns_loud_when_commit_fails(
     subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     hook = target / ".git" / "hooks" / "pre-commit"
-    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n")
+    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n", encoding="utf-8", newline="\n")
     hook.chmod(0o755)
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
 
@@ -1577,7 +1614,7 @@ def test_init_warns_loud_when_commit_fails(
     # coga/ survived on disk and is staged, ready to commit once fixed.
     staged = subprocess.run(
         ["git", "-C", str(target), "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout
     assert "coga/coga.toml" in staged
 
@@ -1639,13 +1676,14 @@ def test_init_into_subdir_of_git_repo(
     subprocess.run(["git", "init", "-q", str(host)], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
-    (host / "README.md").write_text("host project\n")
+    (host / "README.md").write_text("host project\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(host), "add", "README.md"], check=True)
     subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
     target = host / "tools" / "ops"
     assert not target.exists()
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1655,12 +1693,12 @@ def test_init_into_subdir_of_git_repo(
     # Committed into the *host* repo, with paths below the git root.
     tracked = subprocess.run(
         ["git", "-C", str(host), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert "tools/ops/coga/coga.toml" in tracked
     # The coga-managed ignore block lands at the nested target — git scopes a
     # nested .gitignore to its own dir, where the symlinks and .coga/ live.
-    host_gi = (target / ".gitignore").read_text()
+    host_gi = (target / ".gitignore").read_text(encoding="utf-8")
     assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
     assert ".claude/skills/coga" in host_gi
     # A nested init sits in an established host project: onboarding is never
@@ -1679,7 +1717,7 @@ def test_init_refuses_target_inside_existing_coga_repo(
     host = _make_git_repo(tmp_path / "company")
     coga_os = host / "coga"
     coga_os.mkdir()
-    (coga_os / "coga.toml").write_text("version = 1\n")
+    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
 
     for target in (coga_os / "sub", coga_os):
         result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1699,7 +1737,7 @@ def test_init_refuses_sibling_subdir_of_root_level_coga(
     host = _make_git_repo(tmp_path / "company")
     coga_os = host / "coga"
     coga_os.mkdir()
-    (coga_os / "coga.toml").write_text("version = 1\n")
+    (coga_os / "coga.toml").write_text("version = 1\n", encoding="utf-8", newline="\n")
 
     target = host / "data"  # sibling of coga/, governed by the root coga
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1720,12 +1758,13 @@ def test_init_refuses_target_gitignored_by_host_repo(
     subprocess.run(["git", "init", "-q", str(host)], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
-    (host / ".gitignore").write_text("build/\n")
+    (host / ".gitignore").write_text("build/\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(host), "add", ".gitignore"], check=True)
     subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
     target = host / "build" / "ops"
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2, result.output
@@ -1743,29 +1782,30 @@ def test_init_into_subdir_leaves_unrelated_staged_files_alone(
     subprocess.run(["git", "init", "-q", str(host)], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
-    (host / "README.md").write_text("host project\n")
+    (host / "README.md").write_text("host project\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(host), "add", "README.md"], check=True)
     subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
     # The user has unrelated work staged when they run `coga init`.
-    (host / "wip.py").write_text("print('wip')\n")
+    (host / "wip.py").write_text("print('wip')\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "-C", str(host), "add", "wip.py"], check=True)
     target = host / "tools" / "ops"
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     committed = subprocess.run(
         ["git", "-C", str(host), "show", "--name-only", "--format=", "HEAD"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.split()
     assert "wip.py" not in committed
     assert "tools/ops/coga/coga.toml" in committed
     # The user's staged file is untouched — still staged, not committed.
     staged = subprocess.run(
         ["git", "-C", str(host), "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.split()
     assert "wip.py" in staged
 
@@ -1797,6 +1837,7 @@ def test_init_links_skills_into_agent_dirs(
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1815,8 +1856,9 @@ def test_init_skips_skill_link_when_agent_marker_is_a_file(
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     sentinel = target / ".codex"
-    sentinel.write_text("")  # mimic the empty-file Codex marker
+    sentinel.write_text("", encoding="utf-8", newline="\n")  # mimic the empty-file Codex marker
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1852,10 +1894,10 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
     bundled_root = tmp_path / "package-skills"
     bundled = bundled_root / "retro" / "done-ticket"
     bundled.mkdir(parents=True)
-    (bundled / "SKILL.md").write_text("bundled retro\n")
+    (bundled / "SKILL.md").write_text("bundled retro\n", encoding="utf-8", newline="\n")
     _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
-    (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
+    (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n", encoding="utf-8", newline="\n")
 
     wired, blocked = init_cmd._link_skills_for_agents(target, coga_os)
 
@@ -1863,8 +1905,8 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
     assert blocked == []
     assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (coga_os / ".agent-skills" / "team" / "local").is_symlink()
-    assert os.readlink(target / ".codex" / "skills" / "coga") == (
-        "../../coga/.agent-skills"
+    assert Path(os.readlink(target / ".codex" / "skills" / "coga")) == (
+        Path("../../coga/.agent-skills")
     )
 
 
@@ -1878,8 +1920,8 @@ def test_agent_skill_view_prefers_local_skill_over_bootstrap(
     local = coga_os / "skills" / "tools" / "example"
     bundled.mkdir(parents=True)
     local.mkdir(parents=True)
-    (bundled / "SKILL.md").write_text("bundled\n")
-    (local / "SKILL.md").write_text("local\n")
+    (bundled / "SKILL.md").write_text("bundled\n", encoding="utf-8", newline="\n")
+    (local / "SKILL.md").write_text("local\n", encoding="utf-8", newline="\n")
     _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
 
     init_cmd._link_skills_for_agents(target, coga_os)
@@ -1893,14 +1935,14 @@ def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> 
     target = tmp_path / "company"
     coga_os = target / "coga"
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
-    (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
+    (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n", encoding="utf-8", newline="\n")
     old = target / ".claude" / "skills" / "coga"
     old.parent.mkdir(parents=True)
     old.symlink_to("../../coga/skills")
 
     init_cmd._link_skills_for_agents(target, coga_os)
 
-    assert os.readlink(old) == "../../coga/.agent-skills"
+    assert Path(os.readlink(old)) == Path("../../coga/.agent-skills")
 
 
 # --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
@@ -1911,6 +1953,7 @@ def test_init_writes_agent_guides(
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1918,7 +1961,7 @@ def test_init_writes_agent_guides(
     for name in ("CLAUDE.md", "AGENTS.md"):
         path = target / name
         assert path.is_file(), f"missing {name}"
-        body = path.read_text()
+        body = path.read_text(encoding="utf-8")
         # Identical content for both — orientation that points at canonical contexts.
         assert body == init_cmd.AGENT_GUIDE_TEMPLATE
         assert "Coga's own contexts are package-backed" in body
@@ -1933,15 +1976,16 @@ def test_init_preserves_existing_agent_guides(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
-    (target / "CLAUDE.md").write_text("# my hand-written guide\n")
+    (target / "CLAUDE.md").write_text("# my hand-written guide\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     # Pre-existing CLAUDE.md untouched; AGENTS.md still created.
-    assert (target / "CLAUDE.md").read_text() == "# my hand-written guide\n"
-    assert (target / "AGENTS.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
+    assert (target / "CLAUDE.md").read_text(encoding="utf-8") == "# my hand-written guide\n"
+    assert (target / "AGENTS.md").read_text(encoding="utf-8") == init_cmd.AGENT_GUIDE_TEMPLATE
     assert "Wrote AGENTS.md" in result.output
     assert "CLAUDE.md" not in result.output.split("Wrote ", 1)[1].splitlines()[0]
 
@@ -1956,13 +2000,14 @@ def test_init_commits_agent_guides_in_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert "CLAUDE.md" in tracked
     assert "AGENTS.md" in tracked
@@ -1988,6 +2033,7 @@ def test_init_records_current_branch_when_control_branch_is_absent(
     target = _make_real_git_repo(tmp_path / "company", "master")
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1995,7 +2041,7 @@ def test_init_records_current_branch_when_control_branch_is_absent(
     assert load_config(target / "coga").git_control_branch == "master"
     assert '[git]\ncontrol_branch = "master"' in (
         target / "coga" / "coga.toml"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert 'Set [git] control_branch = "master"' in result.output
 
 
@@ -2007,12 +2053,13 @@ def test_init_keeps_unborn_configured_branch_implicit(
     target = _make_real_git_repo(tmp_path / "company", "main")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     assert load_config(target / "coga").git_control_branch == "main"
-    assert "\n[git]\n" not in (target / "coga" / "coga.toml").read_text()
+    assert "\n[git]\n" not in (target / "coga" / "coga.toml").read_text(encoding="utf-8")
     assert "Set [git] control_branch" not in result.output
     assert "could not safely select a control branch" not in result.output
 
@@ -2030,6 +2077,7 @@ def test_init_keeps_default_when_control_branch_exists(
     subprocess.run(["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2037,7 +2085,7 @@ def test_init_keeps_default_when_control_branch_exists(
     assert load_config(target / "coga").git_control_branch == "main"
     assert "control_branch = \"feature\"" not in (
         target / "coga" / "coga.toml"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert "Set [git] control_branch" not in result.output
 
 
@@ -2079,6 +2127,7 @@ def test_init_uses_confirmed_remote_default_in_established_repo(
     )
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2086,7 +2135,7 @@ def test_init_uses_confirmed_remote_default_in_established_repo(
     assert load_config(target / "coga").git_control_branch == "master"
     assert 'control_branch = "feature"' not in (
         target / "coga" / "coga.toml"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert 'Set [git] control_branch = "master"' in result.output
 
 
@@ -2105,6 +2154,7 @@ def test_init_warns_instead_of_pinning_ambiguous_established_branch(
     )
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2112,7 +2162,7 @@ def test_init_warns_instead_of_pinning_ambiguous_established_branch(
     assert load_config(target / "coga").git_control_branch == "main"
     assert 'control_branch = "feature"' not in (
         target / "coga" / "coga.toml"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert "could not safely select a control branch" in result.output
     assert "established repository" in result.output
     assert 'control_branch = "<your-branch>"' in result.output
@@ -2131,6 +2181,7 @@ def test_init_warns_when_no_branch_can_be_detected(
     subprocess.run(["git", "-C", str(target), "checkout", "-q", "--detach"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -2220,13 +2271,15 @@ def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
     target = _make_real_git_repo(tmp_path / "company", "master")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     real_copy = update_cmd.copy_fresh_templates
 
     def copy_with_git_table(template_root, coga_os: Path) -> None:
         real_copy(template_root, coga_os)
         config = coga_os / "coga.toml"
         config.write_text(
-            config.read_text() + '\n[git]\ncontrol_branch = "trunk"\n'
+            config.read_text(encoding="utf-8") + '\n[git]\ncontrol_branch = "trunk"\n',
+            encoding="utf-8", newline="\n",
         )
 
     monkeypatch.setattr(init_cmd, "copy_fresh_templates", copy_with_git_table)
@@ -2253,7 +2306,7 @@ def test_packaged_config_leaves_the_git_table_to_init(tmp_path: Path) -> None:
 def test_packaged_config_carries_the_control_branch_anchor() -> None:
     """`_pin_control_branch` inserts above the aliases heading. Keep the
     shipped template and that anchor from drifting apart."""
-    assert init_cmd._GIT_TABLE_ANCHOR in _PACKAGED_COGA_TOML.read_text()
+    assert init_cmd._GIT_TABLE_ANCHOR in _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
 
 
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2285,11 +2338,12 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    host_gi = (target / ".gitignore").read_text()
+    host_gi = (target / ".gitignore").read_text(encoding="utf-8")
     assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
     assert update_cmd.HOST_GITIGNORE_END in host_gi
     assert ".claude/skills/coga" in host_gi
@@ -2298,7 +2352,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     # Block was committed alongside coga/ in the init commit.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, encoding="utf-8", check=True,
     ).stdout.splitlines()
     assert ".gitignore" in tracked
 
@@ -2311,14 +2365,15 @@ def test_init_appends_to_existing_host_gitignore(
     subprocess.run(["git", "init", "-q", str(target)], check=True)
     subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    (target / ".gitignore").write_text("node_modules/\ndist/\n")
+    (target / ".gitignore").write_text("node_modules/\ndist/\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    host_gi = (target / ".gitignore").read_text()
+    host_gi = (target / ".gitignore").read_text(encoding="utf-8")
     assert "node_modules/" in host_gi
     assert "dist/" in host_gi
     assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
@@ -2331,10 +2386,10 @@ def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:
     (target / ".git").mkdir()
 
     assert update_cmd.ensure_host_gitignore(target) is True
-    first = (target / ".gitignore").read_text()
+    first = (target / ".gitignore").read_text(encoding="utf-8")
     # Second call with no changes should be a no-op.
     assert update_cmd.ensure_host_gitignore(target) is False
-    assert (target / ".gitignore").read_text() == first
+    assert (target / ".gitignore").read_text(encoding="utf-8") == first
 
 
 def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
@@ -2343,11 +2398,12 @@ def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
     (target / ".git").mkdir()
     # Block with begin marker but no end marker — replace from begin to EOF.
     (target / ".gitignore").write_text(
-        f"node_modules/\n{update_cmd.HOST_GITIGNORE_BEGIN}\nstale-content\n"
+        f"node_modules/\n{update_cmd.HOST_GITIGNORE_BEGIN}\nstale-content\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert update_cmd.ensure_host_gitignore(target) is True
-    text = (target / ".gitignore").read_text()
+    text = (target / ".gitignore").read_text(encoding="utf-8")
     assert "stale-content" not in text
     assert "node_modules/" in text
     assert ".claude/skills/coga" in text
@@ -2358,31 +2414,32 @@ def test_refresh_coga_gitignore_is_idempotent(tmp_path: Path) -> None:
     """Running the refresh twice on the same input is a no-op."""
     src_root = tmp_path / "upstream"
     src_root.mkdir()
-    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\n")
+    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\n", encoding="utf-8", newline="\n")
     dst_root = tmp_path / "coga"
     dst_root.mkdir()
 
     assert update_cmd._refresh_coga_gitignore(src_root, dst_root) is True
-    first = (dst_root / ".gitignore").read_text()
+    first = (dst_root / ".gitignore").read_text(encoding="utf-8")
     assert update_cmd._refresh_coga_gitignore(src_root, dst_root) is False
-    assert (dst_root / ".gitignore").read_text() == first
+    assert (dst_root / ".gitignore").read_text(encoding="utf-8") == first
 
 
 def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
     """An existing marker block is replaced wholesale; user content outside is kept."""
     src_root = tmp_path / "upstream"
     src_root.mkdir()
-    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\nnew-entry/\n")
+    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\nnew-entry/\n", encoding="utf-8", newline="\n")
     dst_root = tmp_path / "coga"
     dst_root.mkdir()
     # Existing file: stale marker block + user-area content.
     (dst_root / ".gitignore").write_text(
         f"{update_cmd.COGA_GITIGNORE_BEGIN}\nold-stale-entry/\n"
-        f"{update_cmd.COGA_GITIGNORE_END}\n\nuser-rule/\n"
+        f"{update_cmd.COGA_GITIGNORE_END}\n\nuser-rule/\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert update_cmd._refresh_coga_gitignore(src_root, dst_root) is True
-    text = (dst_root / ".gitignore").read_text()
+    text = (dst_root / ".gitignore").read_text(encoding="utf-8")
     assert "old-stale-entry/" not in text
     assert "new-entry/" in text
     assert "user-rule/" in text
@@ -2401,7 +2458,7 @@ def _stub_executable_in(venv: Path) -> Path:
     """Create a venv-shaped tree with `bin/python` and return the python path."""
     (venv / "bin").mkdir(parents=True, exist_ok=True)
     py = venv / "bin" / "python"
-    py.write_text("#!/bin/sh\n")
+    py.write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
     py.chmod(0o755)
     return py
 
@@ -2413,7 +2470,7 @@ def test_running_cli_location_detects_pipx(
     coga_os.mkdir(parents=True)
     pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "coga"
     py = _stub_executable_in(pipx_venv)
-    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
 
     kind, where = update_cmd.running_cli_location()
@@ -2426,7 +2483,7 @@ def test_running_cli_location_detects_uv_tool(
 ) -> None:
     uv_venv = tmp_path / "home" / ".local" / "share" / "uv" / "tools" / "coga"
     py = _stub_executable_in(uv_venv)
-    (uv_venv / "uv-receipt.toml").write_text("[tool]\n")
+    (uv_venv / "uv-receipt.toml").write_text("[tool]\n", encoding="utf-8", newline="\n")
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
 
     kind, where = update_cmd.running_cli_location()
@@ -2465,12 +2522,12 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
     host_py_dir = tmp_path / "opt" / "homebrew" / "Cellar" / "python@3.14" / "bin"
     host_py_dir.mkdir(parents=True)
     host_py = host_py_dir / "python3.14"
-    host_py.write_text("#!/bin/sh\n")
+    host_py.write_text("#!/bin/sh\n", encoding="utf-8", newline="\n")
     host_py.chmod(0o755)
 
     pipx_venv = tmp_path / "home" / ".local" / "pipx" / "venvs" / "coga"
     (pipx_venv / "bin").mkdir(parents=True)
-    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n", encoding="utf-8", newline="\n")
     pipx_python = pipx_venv / "bin" / "python"
     pipx_python.symlink_to(host_py)
     monkeypatch.setattr(update_cmd.sys, "executable", str(pipx_python))
@@ -2740,9 +2797,9 @@ def test_init_offers_nothing_when_preflight_fails(
     else:
         _make_git_repo(target)
         (target / "coga").mkdir()
-        (target / "coga" / "coga.toml").write_text("")
+        (target / "coga" / "coga.toml").write_text("", encoding="utf-8", newline="\n")
         if case == "initialized":
-            (target / "coga" / "coga.local.toml").write_text('user = "tester"\n')
+            (target / "coga" / "coga.local.toml").write_text('user = "tester"\n', encoding="utf-8", newline="\n")
         else:
             argv = ["init", str(target)]
     _restore_real_dep_checks(monkeypatch)
@@ -2892,14 +2949,14 @@ def test_write_default_agent_names_the_agent_in_the_packaged_coga_toml(
     template's commented example becomes the key, and nothing else changes."""
     coga_toml = tmp_path / "coga.toml"
     original = (
-        update_cmd.packaged_template_root().joinpath("coga.toml").read_text()
+        update_cmd.packaged_template_root().joinpath("coga.toml").read_text(encoding="utf-8")
     )
     assert '# default_agent = "claude"' in original
-    coga_toml.write_text(original)
+    coga_toml.write_text(original, encoding="utf-8", newline="\n")
 
     assert init_cmd._write_default_agent(coga_toml, "codex")
 
-    text = coga_toml.read_text()
+    text = coga_toml.read_text(encoding="utf-8")
     parsed = tomllib.loads(text)
     assert parsed == {**tomllib.loads(original), "default_agent": "codex"}
     assert list(parsed["agents"]) == ["claude", "codex"]
@@ -2908,16 +2965,16 @@ def test_write_default_agent_names_the_agent_in_the_packaged_coga_toml(
     )
     # Idempotent: the same name again succeeds without a second key.
     assert init_cmd._write_default_agent(coga_toml, "codex")
-    assert coga_toml.read_text() == text
+    assert coga_toml.read_text(encoding="utf-8") == text
     # An existing key is replaced in place.
     assert init_cmd._write_default_agent(coga_toml, "claude")
-    assert coga_toml.read_text() == original.replace(
+    assert coga_toml.read_text(encoding="utf-8") == original.replace(
         '# default_agent = "claude"', 'default_agent = "claude"', 1
     )
     # An unknown type is refused and leaves the file untouched.
-    before = coga_toml.read_text()
+    before = coga_toml.read_text(encoding="utf-8")
     assert not init_cmd._write_default_agent(coga_toml, "unknown")
-    assert coga_toml.read_text() == before
+    assert coga_toml.read_text(encoding="utf-8") == before
 
 
 def test_write_default_agent_inserts_before_the_first_table(tmp_path: Path) -> None:
@@ -2928,11 +2985,11 @@ def test_write_default_agent_inserts_before_the_first_table(tmp_path: Path) -> N
         'version = 1\n\n# --- Agents ---\n[agents.claude]\ncli = "claude"\n'
         '\n[agents.codex]\ncli = "codex"\n'
     )
-    coga_toml.write_text(original)
+    coga_toml.write_text(original, encoding="utf-8", newline="\n")
 
     assert init_cmd._write_default_agent(coga_toml, "codex")
 
-    assert coga_toml.read_text() == original.replace(
+    assert coga_toml.read_text(encoding="utf-8") == original.replace(
         "# --- Agents ---", 'default_agent = "codex"\n\n# --- Agents ---', 1
     )
 
@@ -2942,10 +2999,10 @@ def test_write_default_agent_leaves_an_unparseable_file_untouched(
 ) -> None:
     coga_toml = tmp_path / "coga.toml"
     original = '[agents.codex]\ncli = "codex"\n[[broken\n'
-    coga_toml.write_text(original)
+    coga_toml.write_text(original, encoding="utf-8", newline="\n")
 
     assert not init_cmd._write_default_agent(coga_toml, "codex")
-    assert coga_toml.read_text() == original
+    assert coga_toml.read_text(encoding="utf-8") == original
 
 
 def test_init_writes_the_chosen_default_agent(
@@ -2999,5 +3056,5 @@ def test_init_ships_phone_home_disclosure_without_running_it(tmp_path, fake_vend
     _state = load_phone_home()._state
     state, _ = _state(read_blackboard(target / "coga/recurring/phone-home/ticket.md"))
     assert state["run"] == 0 and state["repo_id"] is None
-    config = (target / "coga/coga.toml").read_text()
+    config = (target / "coga/coga.toml").read_text(encoding="utf-8")
     assert "[telemetry]" in config and "not an install count" in config

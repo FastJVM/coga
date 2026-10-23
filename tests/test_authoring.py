@@ -6,6 +6,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_skip
+
 from conftest import seed_direct_body_workflow
 from coga.authoring import (
     AuthoringError,
@@ -37,7 +39,7 @@ FINALIZE_SKILL = (
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -182,10 +184,10 @@ def test_finalize_authored_publishes_relocated_contexts_dir(
     checkout = repo.parent
     subprocess.run(
         ["git", "init", "-b", "main", str(checkout)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     (checkout / "docs" / "contexts").mkdir(parents=True)
-    (checkout / "docs" / "contexts" / ".gitkeep").write_text("")
+    (checkout / "docs" / "contexts" / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
     with (repo / "coga.toml").open("a") as f:
         f.write('[layout]\ncontexts = "docs/contexts"\n')
 
@@ -259,7 +261,7 @@ def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
     promoted_dir.mkdir()
     promoted_ticket = promoted_dir / "ticket.md"
     original_ref.path.replace(promoted_ticket)
-    (promoted_dir / "notes.txt").write_text("supporting material\n")
+    (promoted_dir / "notes.txt").write_text("supporting material\n", encoding="utf-8", newline="\n")
 
     promoted_ref = resolve_task(cfg, original_ref.id_slug)
     assert promoted_ref.file_form is False
@@ -370,7 +372,7 @@ def test_finalize_authored_publishes_deleted_support_only(
 
 
 def test_ticket_finalize_skill_is_documentation_only() -> None:
-    skill = (FINALIZE_SKILL / "SKILL.md").read_text()
+    skill = (FINALIZE_SKILL / "SKILL.md").read_text(encoding="utf-8")
     assert "name: coga/ticket/finalize" in skill
     assert "coga/state-publication/SKILL.md#when-coga-publishes" in skill
     assert not (FINALIZE_SKILL / "run.py").exists()
@@ -422,7 +424,7 @@ def test_finalize_authored_support_only_validates_and_skips_unchanged_task(
         if change == "deleted":
             assert not path.exists()
         else:
-            assert path.read_text() == ("original\n" if change == "unchanged" else "authored\n")
+            assert path.read_text(encoding="utf-8") == ("original\n" if change == "unchanged" else "authored\n")
 
 
 @pytest.mark.parametrize("failure", ["validation", "publication"])
@@ -454,8 +456,8 @@ def test_finalize_authored_keeps_edits_and_fails_without_a_completed_handoff(
         with pytest.raises(AuthoringError, match="not published: test push failure"):
             finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert "Published these knowledge edits" not in capsys.readouterr().err
-    assert context.read_text() == "knowledge\n"
-    assert "Authored detail." in ref.ticket_path.read_text()
+    assert context.read_text(encoding="utf-8") == "knowledge\n"
+    assert "Authored detail." in ref.ticket_path.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -470,16 +472,17 @@ def test_finalize_authored_refuses_an_authored_git_destination_change(
     config = repo / "coga.toml"
     with config.open("a") as f:
         f.write(f"[git]\n{setting}\n")
-    authored_config = config.read_text()
+    authored_config = config.read_text(encoding="utf-8")
     calls = []
     monkeypatch.setattr("coga.authoring.git.publish", lambda *args, **kwargs: calls.append(args))
 
     with pytest.raises(AuthoringError, match="changes the Git destination"):
         finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert calls == []
-    assert config.read_text() == authored_config
+    assert config.read_text(encoding="utf-8") == authored_config
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_finalize_authored_publishes_a_mode_only_change(repo, monkeypatch):
     cfg = load_config(repo)
     ref = _create_task(repo, "Mode")
@@ -509,12 +512,12 @@ def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, chang
     ref = resolve_task(cfg, ref.id_slug)
     attachment = directory / "notes.txt"
     if change != "new":
-        attachment.write_text("before\n")
+        attachment.write_text("before\n", encoding="utf-8", newline="\n")
     before = snapshot_authoring_state(cfg)
     if change == "deleted":
         attachment.unlink()
     else:
-        attachment.write_text("after\n")
+        attachment.write_text("after\n", encoding="utf-8", newline="\n")
     calls = []
     monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -525,7 +528,7 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     checkout = repo.parent
     subprocess.run(
         ["git", "init", "-b", "main", str(checkout)],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     ref = _create_task(repo, "Nested contexts")
     directory = ref.path.with_suffix("")
@@ -533,7 +536,7 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     ref.path.replace(directory / "ticket.md")
     (directory / "knowledge" / "team").mkdir(parents=True)
     context = directory / "knowledge" / "team" / "SKILL.md"
-    context.write_text("before\n")
+    context.write_text("before\n", encoding="utf-8", newline="\n")
     rel = directory.relative_to(checkout).as_posix()
     with (repo / "coga.toml").open("a") as f:
         f.write(f'[layout]\ncontexts = "{rel}/knowledge"\n')
@@ -541,8 +544,8 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     ref = resolve_task(cfg, ref.id_slug)
     attachment = directory / "notes.txt"
     before = snapshot_authoring_state(cfg)
-    context.write_text("after\n")
-    attachment.write_text("notes\n")
+    context.write_text("after\n", encoding="utf-8", newline="\n")
+    attachment.write_text("notes\n", encoding="utf-8", newline="\n")
     calls = []
     monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)

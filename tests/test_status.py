@@ -26,7 +26,7 @@ from coga.tasks import (
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 TICKET = """
@@ -302,7 +302,8 @@ def test_status_order_by_created_lists_oldest_first(repo: Path) -> None:
     # beta's create line is older, so it sorts first despite slug order.
     log_path(load_config(repo)).write_text(
         "2026-06-02 10:00 [alpha] [human:marc] created\n"
-        "2026-06-01 10:00 [beta] [human:marc] created\n"
+        "2026-06-01 10:00 [beta] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
     )
 
     result = CliRunner().invoke(app, ["status", "--order-by", "created"])
@@ -318,7 +319,8 @@ def test_status_order_by_created_reverse_lists_newest_first(repo: Path) -> None:
     _task(repo, "beta")
     log_path(load_config(repo)).write_text(
         "2026-06-02 10:00 [alpha] [human:marc] created\n"
-        "2026-06-01 10:00 [beta] [human:marc] created\n"
+        "2026-06-01 10:00 [beta] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
     )
 
     result = CliRunner().invoke(app, ["status", "--order-by", "created", "--reverse"])
@@ -382,7 +384,8 @@ def test_status_updated_survives_a_task_directory_rename(git_repo) -> None:
     coga_os = git_repo.coga_os
     _write(coga_os / "tasks" / "old-name" / "ticket.md", TICKET)
     log_path(load_config(coga_os)).write_text(
-        "2026-06-01 10:00 [old-name] [human:marc] created\n"
+        "2026-06-01 10:00 [old-name] [human:marc] created\n",
+        encoding="utf-8", newline="\n",
     )
 
     def _g(*args: str) -> None:

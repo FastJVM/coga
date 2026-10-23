@@ -68,6 +68,17 @@ is not. Megalaunch's claim and the local state lock are not ownership locks
 
 ## Phases and routing
 
+Native Windows currently runs deterministic work only. Agent sessions refuse
+with a message naming
+`windows-native/03-interactive-coga-launch-on-native-windows`. A read-only
+target classification precedes checkout preparation, chat receipts, recurring
+catch-up and lifecycle writes. Only a locally visible `ticket.py` admits work;
+an absent target cannot authorize a checkout change to discover it. Agent-only
+refusal exits 75 to suppress the CLI's state sweep, leaving local and control
+state unchanged. `--prompt-report` remains available with its usual semantics.
+The platform gate is repeated at agent preparation and the shared spawn entry.
+For a script that leaves work open, see [script tickets](../script-tickets/SKILL.md#chaining).
+
 A directory ticket with the exact sibling `ticket.py` runs it headlessly
 first ([script tickets](../script-tickets/SKILL.md)). Only an agent phase
 composes a prompt and requires stdin and stdout to both be TTYs.

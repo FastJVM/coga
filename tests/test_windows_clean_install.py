@@ -11,18 +11,20 @@ import sys
 
 import pytest
 
+from conftest import windows_skip
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="The AWS driver runs on a Unix host")
+@windows_skip("The AWS driver runs on a Unix host")
 def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_path, monkeypatch):
     script = git_repo.root / "scripts/clean-install/aws-windows.sh"
     script.parent.mkdir(parents=True)
     shutil.copyfile(ROOT / "scripts/clean-install/aws-windows.sh", script)
     evidence = git_repo.root / ".coga/clean-install/win1"
     evidence.mkdir(parents=True)
-    (evidence / "resources.env").write_text("REGION=us-east-1\nPUBLIC_IP=192.0.2.1\n")
+    (evidence / "resources.env").write_text("REGION=us-east-1\nPUBLIC_IP=192.0.2.1\n", encoding="utf-8", newline="\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     capture = tmp_path / "ssh.json"
@@ -30,16 +32,17 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
     ssh.write_text(
         f"#!{sys.executable}\nimport json, sys\n"
         f"open({str(capture)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
-        "sys.exit(23)\n"
+        "sys.exit(23)\n",
+        encoding="utf-8", newline="\n",
     )
     ssh.chmod(0o755)
     monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     monkeypatch.setenv("AWS_PROFILE", "test")
     words = ["python", "-c", "import sys; print(sys.argv)", "", "a&b", "a>b", "%PATH%",
              'a"b', "it's literal", "space ", "trailing\\", "line\nend\n", "café"]
-    result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True)
+    result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 23, result.stdout + result.stderr
-    remote = json.loads(capture.read_text())[-1]
+    remote = json.loads(capture.read_text(encoding="utf-8"))[-1]
     prefix = "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "
     assert remote.startswith(prefix)
     encoded = remote.removeprefix(prefix)
@@ -52,9 +55,9 @@ def test_windows_ssh_transports_literal_arguments_and_exit_code(git_repo, tmp_pa
     # An encoder failure must not start an empty/default remote command.
     capture.unlink()
     iconv = bin_dir / "iconv"
-    iconv.write_text("#!/bin/sh\nexit 29\n")
+    iconv.write_text("#!/bin/sh\nexit 29\n", encoding="utf-8", newline="\n")
     iconv.chmod(0o755)
-    result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True)
+    result = subprocess.run(["bash", str(script), "ssh", "win1", *words], capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 29
     assert not capture.exists()
 
@@ -93,7 +96,7 @@ Step 'later' {{ 'continued' }}
 """
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], capture_output=True, text=True,
+        ["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == expected, result.stdout + result.stderr
     lines = (tmp_path / "steps.txt").read_text(encoding="utf-8-sig").splitlines()

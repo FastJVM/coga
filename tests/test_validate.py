@@ -7,6 +7,8 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import windows_skip
+
 import requests
 
 from coga.create import create_task
@@ -20,7 +22,7 @@ from coga.validate import _main, apply_safe_fixes, probe_slack, run, validate_ta
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 @pytest.fixture
@@ -139,9 +141,10 @@ def test_unreadable_repo_resource_override_is_an_error(repo: Path) -> None:
 def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     created = create_task(
@@ -183,12 +186,12 @@ def test_agentless_draft_validates_future_peer_without_selecting_main_agent(
     expect_error: bool,
 ) -> None:
     config_path = repo / "coga.toml"
-    config_text = config_path.read_text()
+    config_text = config_path.read_text(encoding="utf-8")
     if peer is not None:
         config_text += f'peer = "{peer}"\n'
     for name in other_agents:
         config_text += f'\n[agents.{name}]\ncli = "{name}"\nfile = "AGENTS.md"\n'
-    config_path.write_text(config_text)
+    config_path.write_text(config_text, encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     created = create_task(
         cfg=cfg,
@@ -274,9 +277,9 @@ def test_broken_skill_ref(repo: Path) -> None:
         ---
 
         ## Description
-    """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
+    """).lstrip(), encoding="utf-8", newline="\n")
+    (task_dir / "blackboard.md").write_text("# Blackboard\n", encoding="utf-8", newline="\n")
+    (task_dir / "log.md").write_text("", encoding="utf-8", newline="\n")
     report = run(cfg)
     assert any(i.kind == "broken-skill" for i in report.issues)
 
@@ -356,7 +359,7 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
     )
     assert "Checked:" in issue.message
     assert str(repo / "skills" / "local" / "missing" / "SKILL.md") in issue.message
-    assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
+    assert str(Path("bootstrap/skills/local/missing/SKILL.md")) in issue.message
 
 
 def test_validate_reports_recurring_template_that_lost_its_blackboard_fence(
@@ -593,7 +596,8 @@ def test_validate_reports_broken_recurring_template_entry_point(
         """,
     )
     (repo / "recurring" / "script-check" / "ticket.py").write_text(
-        "def broken(\n"
+        "def broken(\n",
+        encoding="utf-8", newline="\n",
     )
 
     report = run(load_config(repo))
@@ -841,8 +845,8 @@ def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
         description="Described.",
     )
     path = Path(created["path"])
-    text = path.read_text()
-    path.write_text(text.replace("status: draft\n", "status: draft\nscript: null\n"))
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("status: draft\n", "status: draft\nscript: null\n"), encoding="utf-8", newline="\n")
 
     ticket = Ticket.read(path)
     report = run(cfg)
@@ -870,8 +874,8 @@ def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
         status="draft",
     )
     path = Path(created["path"])
-    text = path.read_text()
-    path.write_text(text.replace("status: draft\n", "status: draft\nscript: run.py\n"))
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("status: draft\n", "status: draft\nscript: run.py\n"), encoding="utf-8", newline="\n")
 
     ticket = Ticket.read(path)
     report = run(cfg)
@@ -895,8 +899,8 @@ def test_validate_checks_only_the_reserved_ticket_py_entry_point(repo: Path) -> 
         force_directory=True,
     )
     task_dir = Path(created["path"])
-    (task_dir / "helper.py").write_text("this is not valid Python\n")
-    (task_dir / "ticket.py").write_text("print('ok')\n")
+    (task_dir / "helper.py").write_text("this is not valid Python\n", encoding="utf-8", newline="\n")
+    (task_dir / "ticket.py").write_text("print('ok')\n", encoding="utf-8", newline="\n")
 
     good = validate_task(cfg, created["slug"])
 
@@ -906,7 +910,7 @@ def test_validate_checks_only_the_reserved_ticket_py_entry_point(repo: Path) -> 
         if issue.kind == "unrunnable-script-entry-point"
     ]
 
-    (task_dir / "ticket.py").write_text("def broken(:\n")
+    (task_dir / "ticket.py").write_text("def broken(:\n", encoding="utf-8", newline="\n")
     broken = validate_task(cfg, created["slug"])
 
     issue = next(
@@ -927,6 +931,7 @@ def _write_shebang_script(repo: Path, mode: int) -> Path:
     return script
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_validate_reports_non_executable_shebang_skill_script(repo: Path) -> None:
     # The shebang is the author's declaration that the file is run directly,
     # so a `100644` copy fails permission-denied on every fresh clone. An
@@ -948,12 +953,12 @@ def test_validate_reports_non_executable_shebang_skill_script(repo: Path) -> Non
     assert not [i for i in clean.issues if i.kind == "non-executable-script"]
 
 
-@pytest.mark.skipif(os.name != "posix", reason="requires trustworthy POSIX modes")
+@windows_skip("requires trustworthy POSIX modes")
 def test_validate_ignores_global_filemode_outside_git(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     global_config = tmp_path / "global.gitconfig"
-    global_config.write_text("[core]\nfileMode = false\n")
+    global_config.write_text("[core]\nfileMode = false\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(repo.parent))
@@ -989,7 +994,7 @@ def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
     # live in this checkout's own index, so point that root at nothing.
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, 0o755)
-    rel = str(script.relative_to(git_repo.root))
+    rel = script.relative_to(git_repo.root).as_posix()
     git_repo.git("add", "-A")
     git_repo.git("update-index", "--chmod=-x", rel)
     monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
@@ -1019,7 +1024,7 @@ def test_validate_uses_index_when_git_filemode_is_false(
 ) -> None:
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, working_mode)
-    rel = str(script.relative_to(git_repo.root))
+    rel = script.relative_to(git_repo.root).as_posix()
     git_repo.git("config", "core.fileMode", "false")
     git_repo.git("add", rel)
     git_repo.git("update-index", f"--chmod={index_mode}", rel)
@@ -1040,7 +1045,7 @@ def test_validate_index_fallback_preserves_non_ascii_paths(
     cfg = load_config(git_repo.coga_os)
     script = _write_shebang_script(git_repo.coga_os, 0o644)
     script = script.rename(script.with_name("café-語.sh"))
-    git_repo.git("add", str(script.relative_to(git_repo.root)))
+    git_repo.git("add", script.relative_to(git_repo.root).as_posix())
     # Git emits UTF-8 paths even when Windows' default encoding is cp1252.
     monkeypatch.setattr("locale.getencoding", lambda: "cp1252")
     monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
@@ -1077,6 +1082,7 @@ def test_validate_prunes_skill_dependencies_before_scanning(
     assert not skipped.intersection(scanned)
 
 
+@windows_skip("POSIX filesystem mode bits and permissions")
 def test_validate_checks_bundled_shebang_scripts(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1115,7 +1121,7 @@ def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
         ---
 
         ## Description
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     report = run(cfg)
     assert any(
         i.kind == "bad-shape" and "requires" in i.message for i in report.issues
@@ -1142,7 +1148,7 @@ def test_step_requires_known_gate_is_clean(repo: Path) -> None:
         ---
 
         ## Description
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     report = run(cfg)
     assert not any(
         i.kind == "bad-shape" and "requires" in i.message for i in report.issues
@@ -1169,7 +1175,7 @@ def test_step_requires_non_string_is_error(repo: Path, requires: str) -> None:
         ---
 
         ## Description
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
 
     report = run(cfg)
 
@@ -1531,7 +1537,8 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
     )
     report = run(cfg)
     assert any(
@@ -1556,7 +1563,8 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     # fence-less; the safe fix re-appends a fence + rendered region.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
     )
 
     fixes = apply_safe_fixes(cfg)
@@ -1564,7 +1572,7 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     assert [fix.message for fix in fixes] == ["added blackboard fence + region"]
     assert all(fix.kind == "blackboard-fence" for fix in fixes)
     from coga.taskfile import fence_count
-    assert fence_count(ticket_path.read_text()) == 1
+    assert fence_count(ticket_path.read_text(encoding="utf-8")) == 1
 
 
 def test_run_fix_repairs_before_reporting(repo: Path) -> None:
@@ -1583,7 +1591,8 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     # fix pass re-adds it before the issue scan runs.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
+        ticket_path.read_text(encoding="utf-8").replace("<!-- coga:blackboard -->\n", ""),
+        encoding="utf-8", newline="\n",
     )
 
     report = run(cfg, fix=True)
@@ -1977,9 +1986,10 @@ def test_check_slack_redacts_relative_webhook_path_from_validation_output(
 ) -> None:
     fake_secret = "C0GA_FAKE_PROBE_TOKEN_42F1D8"
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setenv(
         "SLACK_WEBHOOK_URL",
@@ -2011,8 +2021,9 @@ def test_run_check_slack_emits_issue_for_revoked(
 ) -> None:
     # Add slack webhook to the repo's config.
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.setattr(
         "requests.post",
@@ -2029,9 +2040,10 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
 ) -> None:
     """Selecting Slack but leaving the webhook unset still fails loud."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "env:UNSET_SLACK_WEBHOOK"\n'
+        '[notification.slack]\nwebhook = "env:UNSET_SLACK_WEBHOOK"\n',
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
@@ -2050,9 +2062,10 @@ def test_validate_warns_when_selected_slack_lacks_important_webhook(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
     )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -2071,13 +2084,15 @@ def test_validate_warns_when_selected_slack_lacks_important_webhook(
 
 def test_validate_skips_important_warning_when_slack_disabled(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
     )
     (repo / "coga.local.toml").write_text(
-        (repo / "coga.local.toml").read_text()
-        + "\n[notification.slack]\nenabled = false\n"
+        (repo / "coga.local.toml").read_text(encoding="utf-8")
+        + "\n[notification.slack]\nenabled = false\n",
+        encoding="utf-8", newline="\n",
     )
 
     report = run(load_config(repo))
@@ -2092,9 +2107,10 @@ def test_task_scoped_validate_includes_important_webhook_warning(
     repo: Path,
 ) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     created = create_task(
@@ -2117,11 +2133,12 @@ def test_task_scoped_validate_includes_important_webhook_warning(
 
 def test_validate_has_no_important_warning_when_webhook_resolves(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + '\n[notification]\nchannels = ["slack"]\n'
         '[notification.slack]\n'
         'webhook = "https://hooks.slack.com/services/flow"\n'
-        'important_webhook = "https://hooks.slack.com/services/important"\n'
+        'important_webhook = "https://hooks.slack.com/services/important"\n',
+        encoding="utf-8", newline="\n",
     )
 
     report = run(load_config(repo))
@@ -2136,8 +2153,9 @@ def test_run_no_slack_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n',
+        encoding="utf-8", newline="\n",
     )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -2173,6 +2191,10 @@ def _fake_subprocess_factory(responses: dict[tuple[str, ...], object]):
             "config", "--local", "--bool", "--get", "core.fileMode"
         ):
             return _FakeProc(0, "true\n")
+        if tuple(args[:2]) == ("git", "-C") and tuple(args[3:]) == (
+            "ls-files", "--stage", "-z", "--", "."
+        ):
+            return _FakeProc(0, "")
         for key, resp in responses.items():
             if tuple(args[: len(key)]) == key:
                 if isinstance(resp, Exception):
@@ -2483,8 +2505,9 @@ def test_run_no_github_check_by_default(
 
 def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     create_task(
@@ -2515,8 +2538,9 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     # Add the declaration AFTER the ticket exists — simulates declaring a new
     # extension once tickets are already on disk.
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     report = run(cfg)
@@ -2527,8 +2551,9 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
 def test_validate_warns_orphan_extension(repo: Path) -> None:
     """A field present on disk but not declared in TOML → warn, not error."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
-        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+        (repo / "coga.toml").read_text(encoding="utf-8")
+        + '\n[ticket.fields.docket]\ndescription = "d"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     create_task(
@@ -2542,9 +2567,10 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     )
     # Now remove the declaration.
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text().replace(
+        (repo / "coga.toml").read_text(encoding="utf-8").replace(
             '\n[ticket.fields.docket]\ndescription = "d"\n', ""
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     report = run(cfg)
@@ -2555,13 +2581,14 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
 
 def test_validate_flags_enum_violation(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + (
             "\n[ticket.fields.priority]\n"
             'description = "p"\n'
             'values = ["P0", "P1", "P2"]\n'
             'default = "P2"\n'
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     create_task(
@@ -2588,13 +2615,14 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     """Empty extension values are fine at validate time — they only block
     `mark active` when the field is `required = true`."""
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text()
+        (repo / "coga.toml").read_text(encoding="utf-8")
         + (
             "\n[ticket.fields.priority]\n"
             'description = "p"\n'
             'values = ["P0", "P1"]\n'
             "required = true\n"
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     create_task(
@@ -2650,7 +2678,7 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return task_dir
 
 
@@ -2700,7 +2728,7 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     stamp = (datetime.now() - timedelta(hours=100)).strftime("%Y-%m-%d %H:%M")
     log = log_path(cfg)
     log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text(f"{stamp} [{ref.id_slug}] [agent:claude] picked up\n")
+    log.write_text(f"{stamp} [{ref.id_slug}] [agent:claude] picked up\n", encoding="utf-8", newline="\n")
     report = run(cfg, idle_hours=72.0)
     assert any(i.kind == "stuck-in-progress" for i in report.issues)
 
@@ -2723,7 +2751,7 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return task_dir
 
 
@@ -2982,14 +3010,14 @@ def test_validate_bad_blackboard_does_not_hide_readiness_or_repair(repo: Path) -
         owner='marc', status='draft', description='Work.',
     )
     path = Path(created['path'])
-    path.write_text(path.read_text() + '\nCustom working notes.\n')
+    path.write_text(path.read_text(encoding="utf-8") + '\nCustom working notes.\n', encoding="utf-8", newline="\n")
     override = repo / 'resources' / 'blackboard.md'
     override.parent.mkdir()
     override.write_bytes(b'\xff')
     report = validate_task(cfg, created['slug'])
     assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
 
-    path.write_text(path.read_text().replace('<!-- coga:blackboard -->', ''))
+    path.write_text(path.read_text(encoding="utf-8").replace('<!-- coga:blackboard -->', ''), encoding="utf-8", newline="\n")
     before = path.read_bytes()
     report = run(cfg, fix=True)
     assert path.read_bytes() == before
@@ -3020,10 +3048,10 @@ def test_validate_reports_inaccessible_resource_directory(
 def test_validate_rejects_non_directory_resource_root(repo: Path, root_kind: str) -> None:
     root = repo / "resources"
     if root_kind == "file":
-        root.write_text("Not a directory.")
+        root.write_text("Not a directory.", encoding="utf-8", newline="\n")
     elif root_kind == "file-link":
         target = repo / "resource-file"
-        target.write_text("Not a directory.")
+        target.write_text("Not a directory.", encoding="utf-8", newline="\n")
         root.symlink_to(target)
     elif root_kind == "broken-link":
         root.symlink_to("missing-resources")

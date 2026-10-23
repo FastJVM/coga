@@ -84,6 +84,13 @@ def ticket(
     ),
 ) -> None:
     """Run the bootstrap/ticket authoring skill."""
+    from coga.launch import LaunchBail, require_agent_sessions
+
+    try:
+        require_agent_sessions()
+    except LaunchBail as exc:
+        typer.secho(exc.reason, fg=typer.colors.RED, err=True)
+        raise typer.Exit(exc.code) from None
     if pick_agent and agent_override:
         _bail("Pass --agent or --pick-agent, not both.")
     # Checked before any target is scaffolded, so a non-TTY `--pick-agent`

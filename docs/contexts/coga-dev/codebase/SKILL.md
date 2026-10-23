@@ -39,6 +39,9 @@ The repo separates implementation from the OS it operates:
   `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../coga/state-publication/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
+- `oscompat.py`: per-user lock paths and descriptor locks for publication
+  and chat, and owned process trees for both recurring runners. POSIX uses
+  flock/process groups; Windows uses byte-range locks and Job Objects.
 - `launch.py` (launch API, preparation and supervision),
   `checkout_policy.py` (pure step-to-entry-checkout table) and
   `checkouts.py` (shared branch preparation for launch and the

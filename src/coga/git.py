@@ -46,7 +46,6 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import os
 import re
@@ -65,6 +64,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.logfile import append_log, ref_tag_for_path
@@ -161,7 +161,7 @@ _HELD_LOCKS: dict[tuple[str, int], list[int]] = {}
 def state_lock(cfg: Config) -> Iterator[None]:
     """Serialize this checkout's Coga writers and publishers.
 
-    A short, kernel-released advisory `flock` around a ticket's
+    A short, kernel-released advisory lock around a ticket's
     read-modify-write and its publication. Reentrant within one thread, so
     a caller that holds it across a longer window (megalaunch's admission)
     can still call `publish`; every other thread and process waits. Its file
@@ -178,14 +178,14 @@ def state_lock(cfg: Config) -> Iterator[None]:
         finally:
             held[1] -= 1
         return
-    lock_root = Path(tempfile.gettempdir()) / f"coga-state-publication-{os.getuid()}"
+    lock_root = lock_dir("coga-state-publication")
     try:
         lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         fd = os.open(lock_root / f"{checkout}.lock", os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as exc:
         raise GitError(f"could not open local state lock: {exc}") from exc
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        lock_fd(fd, blocking=True)
     except OSError as exc:
         os.close(fd)
         raise GitError(f"local state lock failed: {exc}") from exc
@@ -195,7 +195,7 @@ def state_lock(cfg: Config) -> Iterator[None]:
     finally:
         del _HELD_LOCKS[key]
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            unlock_fd(fd)
         finally:
             os.close(fd)
 
@@ -487,11 +487,12 @@ def _publish_locked(
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
         rels = _candidates(root, pathspecs, base, ancestor, adopt_only)
+        index_modes = _index_modes(root) if required and os.name != "posix" else None
         for rel in required:
             if rel in rels:
                 continue
             _working_tree_bytes(root, rel)  # refuses a symlinked path
-            working = _regular_working_file(root, rel)
+            working = _regular_working_file(root, rel, index_modes=index_modes)
             entry = (working[0], _hash_blob(root, working[1], rel)) if working else None
             # Mode counts too: a mode-only edit control lacks is not on control.
             if entry != _tree_entry(root, base, rel):
@@ -815,6 +816,7 @@ def _build_tree(
     os.close(fd)
     os.unlink(index)
     env = {"GIT_INDEX_FILE": index}
+    index_modes = _index_modes(root) if os.name != "posix" else {}
     try:
         run_git(root, "read-tree", base, env=env)
         for rel in rels:
@@ -828,7 +830,9 @@ def _build_tree(
                 landed[rel] = data
             run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env)
             if data is not None:
-                mode = "100755" if os.access(root / rel, os.X_OK) else "100644"
+                mode = (
+                    "100755" if os.access(root / rel, os.X_OK) else "100644"
+                ) if os.name == "posix" else index_modes.get(rel, "100644")
                 run_git(
                     root, "update-index", "--add", "--cacheinfo",
                     mode, _hash_blob(root, data, rel), rel, env=env,
@@ -1411,6 +1415,7 @@ def _plan_preparation(
     blocking: list[str] = []
     candidate_bytes: dict[str, bytes | None] = {}
     entries = _status_v2_entries(status)
+    index_modes = _index_modes(root) if entries and os.name != "posix" else None
     paths = [rel for _kind, _fields, rel in entries]
     if paths:
         union = union_merge_paths(root, paths)
@@ -1421,7 +1426,7 @@ def _plan_preparation(
         if not _in_areas(rel, areas):
             blocking.append(f"{rel} (not Coga state)")
             continue
-        working = _regular_working_file(root, rel)
+        working = _regular_working_file(root, rel, index_modes=index_modes)
         published = _tree_entry(root, pinned, rel)
         if kind == "?":
             if working is False:
@@ -1599,7 +1604,21 @@ def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
     return rel in files or any(rel.startswith(prefix) for prefix in dirs)
 
 
-def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Literal[False]:
+def _index_modes(root: Path) -> dict[str, str]:
+    """Git owns executable bits on platforms without POSIX file modes."""
+    modes: dict[str, str] = {}
+    for record in run_git(root, "ls-files", "--stage", "-z").split("\x00"):
+        if record:
+            meta, _, rel = record.partition("\t")
+            mode, _oid, stage = meta.split()
+            if stage == "0" and mode in _REGULAR_MODES:
+                modes[rel] = mode
+    return modes
+
+
+def _regular_working_file(
+    root: Path, rel: str, *, index_modes: Mapping[str, str] | None = None,
+) -> tuple[str, bytes] | None | Literal[False]:
     """`(mode, bytes)` of a regular working file, `None` when absent, `False` otherwise."""
     path = root / rel
     if symlink_component(path) is not None:
@@ -1613,6 +1632,8 @@ def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Li
     if not stat.S_ISREG(info.st_mode):
         return False
     mode = "100755" if info.st_mode & 0o111 else "100644"
+    if os.name != "posix":
+        mode = (index_modes if index_modes is not None else _index_modes(root)).get(rel, "100644")
     return mode, path.read_bytes()
 
 
@@ -2284,9 +2305,9 @@ def relative_to_root(root: Path, path: Path) -> str:
     """`path` relative to the git root, without following any symlink."""
     lexical = Path(os.path.abspath(path))
     try:
-        return str(lexical.relative_to(root.resolve()))
+        return lexical.relative_to(root.resolve()).as_posix()
     except ValueError:
-        return str(lexical)
+        return lexical.as_posix()
 
 
 def symlink_component(path: Path) -> Path | None:
@@ -2385,6 +2406,12 @@ def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
         return (root / rel).read_bytes()
     except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
         return None
+    except PermissionError:
+        # Opening a directory reports EACCES on Windows, not EISDIR. Let the
+        # existing tree-mode guard diagnose a submodule or non-regular entry.
+        if os.name == "nt" and (root / rel).is_dir():
+            return None
+        raise
 
 
 def _dirty_paths(root: Path, pathspecs: list[str]) -> list[str]:

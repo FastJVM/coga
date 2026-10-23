@@ -32,6 +32,15 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+from conftest import windows_interactive_skip
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 from typer.testing import CliRunner
 
 import coga
@@ -47,7 +56,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _chain_workflow(step_names: list[str]) -> str:
@@ -254,7 +263,7 @@ def test_supervisor_auto_restarts_through_three_steps(
 
     # The bumps really landed: the audit log records each auto-restart advance
     # (step 1 is the seeded starting step, so only 2 and 3 are "advanced to").
-    log = (plain_repo / "log.md").read_text()
+    log = (plain_repo / "log.md").read_text(encoding="utf-8")
     assert "advanced to step 2 (review)" in log
     assert "advanced to step 3 (finalize)" in log
 
@@ -294,15 +303,17 @@ sys.exit(coga("bump", slug))
 def _install_fake_agent(coga_os: Path, tmp_path: Path) -> Path:
     script = tmp_path / "fake_agent.py"
     script.write_text(
-        _FAKE_AGENT.format(python=sys.executable, step_env=EXPECTED_STEP_ENV)
+        _FAKE_AGENT.format(python=sys.executable, step_env=EXPECTED_STEP_ENV),
+        encoding="utf-8", newline="\n",
     )
     script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     # Point the claude CLI at the fake agent.
     toml = coga_os / "coga.toml"
-    toml.write_text(toml.read_text().replace('cli = "claude"', f'cli = "{script}"'))
+    toml.write_text(toml.read_text(encoding="utf-8").replace('cli = "claude"', f'cli = "{script}"'), encoding="utf-8", newline="\n")
     return script
 
 
+@windows_interactive_skip
 def test_launch_functionally_auto_restarts_through_three_steps(
     plain_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -335,10 +346,10 @@ def test_launch_functionally_auto_restarts_through_three_steps(
     assert result.exit_code == 0, result.output
 
     # The supervisor spawned a real agent three times, one per step, in order.
-    sessions = fake_log.read_text().split()
+    sessions = fake_log.read_text(encoding="utf-8").split()
     assert sessions == [
         "1", "(implement)", "2", "(review)", "3", "(finalize)",
-    ], fake_log.read_text()
+    ], fake_log.read_text(encoding="utf-8")
 
     ticket = Ticket.read(list_tasks(load_config(plain_repo))[0].ticket_path)
     assert ticket.status == "done"

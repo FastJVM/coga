@@ -39,7 +39,7 @@ def test_blocker_examples_are_inert_for_readers(tmp_path: Path, fence: str) -> N
         "  resolved: [2026-09-18 13:00] [human:marc] Legacy answer\n"
     )
     ticket = tmp_path / "ticket.md"
-    ticket.write_text("---\ntitle: Work\n---\n<!-- coga:blackboard -->\n" + text)
+    ticket.write_text("---\ntitle: Work\n---\n<!-- coga:blackboard -->\n" + text, encoding="utf-8", newline="\n")
     before = ticket.read_bytes()
 
     blockers = parse_blockers_text(text)
@@ -279,7 +279,8 @@ def test_blackboard_size_warning_measures_live_prompt_content(tmp_path: Path) ->
     ticket.write_text(
         "---\ntitle: Work\n---\n\n## Description\nCurrent work.\n\n"
         "<!-- coga:blackboard -->\n\n## Superseded designs\n"
-        + "Old design. " * 4000
+        + "Old design. " * 4000,
+        encoding="utf-8", newline="\n",
     )
     before = ticket.read_bytes()
 
@@ -305,28 +306,30 @@ def test_prelaunch_blackboard_ignores_missing_optional_blackboard(
 
             Stateless bootstrap ticket.
             """
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
-    before = ticket.read_text()
+    before = ticket.read_text(encoding="utf-8")
 
     reason = prelaunch_blackboard_synthesis_reason(
         ticket, blackboard_required=False
     )
 
     assert reason is None
-    assert ticket.read_text() == before
+    assert ticket.read_text(encoding="utf-8") == before
 
 
 def _cfg_with_blackboard_override(tmp_path: Path, template: str | None) -> Config:
     root = tmp_path / "coga"
     root.mkdir()
     (root / "coga.toml").write_text(
-        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
+        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n',
+        encoding="utf-8", newline="\n",
     )
-    (root / "coga.local.toml").write_text('user = "marc"\n')
+    (root / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
     if template is not None:
         (root / "resources").mkdir()
-        (root / "resources" / "blackboard.md").write_text(template)
+        (root / "resources" / "blackboard.md").write_text(template, encoding="utf-8", newline="\n")
     return load_config(root)
 
 

@@ -40,7 +40,8 @@ Discovery walks `coga/tasks/` at any depth:
   evidence of repeated oversized-ticket failures.
 
 A task's identity is its **path under `tasks/`**: the bare leaf at top level,
-otherwise the relative path (`marketing/social/relaunch`). A ref resolves when
+otherwise the relative path (`marketing/social/relaunch`). Refs and log tags
+use forward slashes on every platform, including native Windows. A ref resolves when
 it is an exact ref or a unique prefix; a nested task's bare leaf does not
 resolve, and ambiguous prefixes fail listing the matches. Agents use the exact
 task directory printed in the composed prompt header rather than rebuilding it

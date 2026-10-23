@@ -13,6 +13,8 @@ phases.
 
 An existing local entry always wins, including an unreadable file, directory,
 or broken symlink: it must be repaired, never bypassed with bundled text. A
+file used as a workflow directory is also an error, including on Windows
+where the filesystem reports the nested path as missing. A
 genuinely absent definition is distinguished from a malformed or unreadable
 one, which names its path and cause and refuses launch; only absence composes
 the missing-definition placeholder.

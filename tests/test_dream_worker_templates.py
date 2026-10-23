@@ -36,7 +36,7 @@ def test_dream_ships_as_a_recurring_template() -> None:
     """Dream is a recurring task template, not a built-in command. The body
     lives in the template's `## Description` section so `create_task` picks
     it up the same way it does for any other recurring template."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
 
     assert text.startswith("---\n")
     assert "schedule:" in text
@@ -46,7 +46,7 @@ def test_dream_ships_as_a_recurring_template() -> None:
 
 
 def test_dream_documents_decide_then_execute_phases() -> None:
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
 
     assert not (DREAM / "SKILL.md").exists()
     assert not (DREAM / "scan.py").exists()
@@ -135,7 +135,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
 
 def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
     """Dream cleans this sweep; the scheduler replaces stale completed runs."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     # Prose wraps across lines; normalize whitespace and bold markers so phrase
     # assertions don't depend on where the line breaks fall.
     norm = " ".join(text.replace("**", "").split())
@@ -178,8 +178,8 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
 def test_dream_documents_the_knowledge_scan_skill() -> None:
     """Phase 2 delegates the reusable taxonomy/corpus/output contract to a
     prompt-only Dream scan skill."""
-    text = DREAM_PROMPT.read_text()
-    skill_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
+    skill_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text(encoding="utf-8")
     skill_norm = " ".join(skill_text.split())
 
     assert "### Phase 2 — knowledge scan" in text
@@ -215,8 +215,8 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     contract surface (contexts, skills, recurring templates, shipped docs)
     against code reality, missing artifacts, and live/packaged copy drift,
     and classifies each finding as `drift` for Phase 6 to route."""
-    text = DREAM_PROMPT.read_text()
-    skill_text = (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
+    skill_text = (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text(encoding="utf-8")
     skill_norm = " ".join(skill_text.split())
 
     assert "### Phase 3 — contract audit" in text
@@ -256,11 +256,11 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
     `human-needed` issues had no route past the blackboard, `extract` findings
     whose source ticket is not Retro-eligible fell through, and nothing stopped
     a shard from refiling a gap an earlier run had already ticketed."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
-    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text(encoding="utf-8")
     scan_norm = " ".join(scan_text.split())
-    drift_text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text()
+    drift_text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text(encoding="utf-8")
     drift_norm = " ".join(drift_text.split())
 
     # Phase 1 tells the reader its buckets are Phase 6 inputs, not results.
@@ -318,12 +318,12 @@ def test_dream_leaves_parked_directories_alone() -> None:
     contents may be stale or contradictory, so Dream neither scans them nor
     files premise findings or adjudication drafts about them."""
     repo_root = Path(__file__).resolve().parents[1]
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
-    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text(encoding="utf-8")
     scan_norm = " ".join(scan_text.split())
-    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
-    readme_text = (repo_root / "coga" / "tasks" / "_v2" / "README.md").read_text()
+    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text(encoding="utf-8")
+    readme_text = (repo_root / "coga" / "tasks" / "_v2" / "README.md").read_text(encoding="utf-8")
     readme_norm = " ".join(readme_text.replace("**", "").split())
 
     assert "A `_`-prefixed directory under `coga/tasks/`" in scan_norm
@@ -342,7 +342,7 @@ def test_dream_leaves_parked_directories_alone() -> None:
 
 
 def test_validate_drift_worker_declares_contract() -> None:
-    text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text()
+    text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "## Known Skill Contract" in text
     assert "- Purpose: deterministic repo-health validation" in text
@@ -357,7 +357,7 @@ def test_validate_drift_worker_declares_contract() -> None:
 
 
 def test_cleanup_orphan_markers_declares_contract() -> None:
-    text = (TEMPLATES / "cleanup-orphan-markers" / "SKILL.md").read_text()
+    text = (TEMPLATES / "cleanup-orphan-markers" / "SKILL.md").read_text(encoding="utf-8")
     norm = " ".join(text.split())
 
     assert "## Known Skill Contract" in text
@@ -378,7 +378,7 @@ def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
     """Both decide-half scans deliver findings through an on-disk file and end
     with an explicit per-shard completion line, so Dream can tell "scan ran,
     found nothing" from "scan never returned"."""
-    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text(encoding="utf-8")
     norm = " ".join(protocol.split())
 
     assert protocol.startswith("---\n")
@@ -435,7 +435,7 @@ def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
 def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     """Dream sizes the corpus, shards it, and reconciles launched shards
     against completion lines before believing a scan's result."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
 
     assert "### Decide-half scan mechanics (Phases 2 and 3)" in text
@@ -471,9 +471,9 @@ def test_dream_roots_scan_directories_in_gitignored_coga_state() -> None:
     """A scan directory under `/tmp` was reaped mid-run, which empties a live
     scan into a false `no-op` and leaves a `partial` result's recorded path
     pointing at nothing. Template and protocol agree it lives under `.coga/`."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
-    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text(encoding="utf-8")
     protocol_norm = " ".join(protocol.split())
 
     assert "`mkdir .coga/dream-scans/<run-id>/<phase>`" in norm
@@ -489,7 +489,7 @@ def test_dream_roots_scan_directories_in_gitignored_coga_state() -> None:
     assert "the directory is kept, not deleted" in protocol_norm
 
     # `.coga/` is the state the packaged gitignore already keeps out of git.
-    gitignore = (RESOURCES / "templates" / "coga" / ".gitignore").read_text()
+    gitignore = (RESOURCES / "templates" / "coga" / ".gitignore").read_text(encoding="utf-8")
     assert ".coga/" in gitignore.splitlines()
 
 
@@ -498,15 +498,15 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     they were the client's own knowledge: identity is decided once, Rule A is
     applied while writing `index.md`, and a Coga-owned conclusion from a
     client file goes upstream instead of becoming a local edit."""
-    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text(encoding="utf-8")
     protocol = " ".join(protocol_text.split())
     knowledge = " ".join(
-        (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text().split()
+        (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text(encoding="utf-8").split()
     )
     audit = " ".join(
-        (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text().split()
+        (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text(encoding="utf-8").split()
     )
-    dream_text = DREAM_PROMPT.read_text()
+    dream_text = DREAM_PROMPT.read_text(encoding="utf-8")
     dream = " ".join(dream_text.replace("**", "").split())
 
     # Repo identity: one test, evaluated once, recorded in the index.
@@ -564,7 +564,7 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     assert "Pass `## Findings` to Retro as it stands, `owner: coga` lines included" in dream
     assert "must not write that fact into a local context or skill" in dream
     assert "contributes the local one and still gets deleted" in dream
-    retro = " ".join(RETRO_SKILL.read_text().split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
     assert "### Coga-owned findings are not local knowledge" in retro
     assert "Do not write that fact into a local context or skill" in retro
     assert "contributes the local fact and is deleted like any other" in retro
@@ -599,7 +599,7 @@ def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
     """A sandboxed agent (codex workspace-write) can read the repo but not
     write `.git`, reach the remote, or call `gh`; Dream checks those first and
     escalates instead of spending the decide half on a run that cannot land."""
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
 
     preflight = text.index("### Agent capability preflight")
@@ -625,7 +625,7 @@ def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
 
 
 def test_dream_delegates_fresh_context_subagents_in_waves() -> None:
-    text = DREAM_PROMPT.read_text()
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
     norm = " ".join(text.replace("**", "").split())
 
     assert "Start every shard subagent with a fresh context" in norm
@@ -658,7 +658,7 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
             / "done-ticket"
             / "SKILL.md"
         )
-        .read_text()
+        .read_text(encoding="utf-8")
         .split()
     )
 
@@ -674,10 +674,10 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
 def test_sandboxes_topic_owns_the_codex_sandbox_grant() -> None:
     testing = " ".join(
         (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "sandboxes" / "SKILL.md")
-        .read_text()
+        .read_text(encoding="utf-8")
         .split()
     )
-    dream_contract = " ".join(DREAM_PROMPT.read_text().split())
+    dream_contract = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").split())
 
     assert '`.codex/config.toml`: ```toml sandbox_mode = "workspace-write"' in testing
     assert "[sandbox_workspace_write] network_access = true" in testing
@@ -695,7 +695,7 @@ def test_sandboxes_topic_owns_the_codex_sandbox_grant() -> None:
 
 
 def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
-    retro = " ".join(RETRO_SKILL.read_text().split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
     assert "### Done is a status, not a receipt" in retro
     assert "against the current files of the isolated checkout" in retro
     assert "do not extract its claimed fix, and do not cite it as delivered" in retro
@@ -706,7 +706,7 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
     assert "never as unshipped scope, a local context edit, or a knowledge PR" in retro
     lifecycle = " ".join(
         (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
-        .read_text()
+        .read_text(encoding="utf-8")
         .split()
     )
     assert "`done` means the work landed; `canceled` means it did not." in lifecycle
@@ -715,7 +715,7 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
 
 def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
     """A preserved Retro checkout ends the run blocked, never `done`."""
-    norm = " ".join(DREAM_PROMPT.read_text().split())
+    norm = " ".join(DREAM_PROMPT.read_text(encoding="utf-8").split())
 
     assert "Dream posts each FYI from its own checkout" in norm
     assert "the isolated checkout holds nothing unlanded, by the check the `retro/done-ticket` skill's **Isolation boundary** defines" in norm
@@ -727,7 +727,7 @@ def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
 
 def test_retro_defines_nothing_unlanded_for_the_caller() -> None:
     """Unpushed commits are unlanded; a landed direct delete's deletion is not."""
-    retro = " ".join(RETRO_SKILL.read_text().split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
 
     assert "`git log <remote>/<control-branch>..HEAD` prints nothing" in retro
     assert "`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints nothing" in retro
@@ -737,7 +737,7 @@ def test_retro_defines_nothing_unlanded_for_the_caller() -> None:
 
 def test_retro_hands_pr_fyis_to_the_caller() -> None:
     """Retro never runs `coga slack` in its isolated checkout."""
-    retro = " ".join(RETRO_SKILL.read_text().split())
+    retro = " ".join(RETRO_SKILL.read_text(encoding="utf-8").split())
 
     assert "**Hand PR FYIs to the caller.** Do not run `coga slack` here" in retro
     assert "hand each PR's one-line Slack FYI to the caller (step 12)" in retro

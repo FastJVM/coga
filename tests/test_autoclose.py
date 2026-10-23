@@ -23,7 +23,7 @@ from coga.ticket import Ticket
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _write_workflow_less_task(
@@ -48,7 +48,7 @@ def _write_workflow_less_task(
         <!-- coga:blackboard -->
 
         # Blackboard
-    """).lstrip())
+    """).lstrip(), encoding="utf-8", newline="\n")
     return slug, task_dir
 
 
@@ -857,7 +857,7 @@ def test_render_retire_report_lists_disposed_and_preserved_with_reasons() -> Non
         "and branch by hand)"
     ) in report
     assert "  - Worktree cleanup: '/w/kept' contains" in report
-    assert "Recorded in the durable worklist `/repo/coga/recurring/autoclose-merged/retires.md`" in report
+    assert f"Recorded in the durable worklist `{Path('/repo/coga/recurring/autoclose-merged/retires.md')}`" in report
 
 
 def test_render_disposed_and_preserved_summaries() -> None:
@@ -901,7 +901,7 @@ def test_manual_command_for_a_path_git_cannot_read() -> None:
     unreadable.worktree_path = Path("/w/plain")
 
     assert unreadable.manual_command == (
-        "`/w/plain` is not a git worktree git can read, which no proof removes — "
+        f"`{Path('/w/plain')}` is not a git worktree git can read, which no proof removes — "
         "inspect and remove it by hand"
     )
 
@@ -1367,7 +1367,7 @@ def test_recipe_appends_the_review_threads_report_to_the_task_blackboard(
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    report = host.read_text()
+    report = host.read_text(encoding="utf-8")
     assert am.REVIEW_THREADS_REPORT_HEADING in report
     assert f'- `{slug}` "Work" — PR #36:' in report
     assert "Task: `autoclose-merged`" in report
@@ -1395,7 +1395,7 @@ def test_recipe_reports_the_retire_followup_on_stdout_and_slack(
     # Reporting the debt is not disposing of it: the ticket closes, the
     # checkout stays recorded and untouched.
     assert Ticket.read(path).status == "done"
-    assert "worktree: /w/coga-feature-x" in path.read_text()
+    assert "worktree: /w/coga-feature-x" in path.read_text(encoding="utf-8")
     # One trailing line for the whole sweep, addressed to the channel rather
     # than to one ticket's owner. (The `[project]` prefix `post()` prepends is
     # covered in test_notification.py, so pin the body with `endswith`.)
@@ -1552,7 +1552,7 @@ def test_recipe_appends_the_report_to_the_task_blackboard(
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    report = host.read_text()
+    report = host.read_text(encoding="utf-8")
     assert am.RETIRE_REPORT_HEADING in report
     assert f"`coga retire {slug}`" in report
     assert "Task: `autoclose-merged`" in report
@@ -1634,7 +1634,8 @@ def test_recipe_preflights_live_summary_before_closing(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/28": "MERGED"})
     config = repo / "coga.toml"
     config.write_text(
-        config.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+        config.read_text(encoding="utf-8").replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"),
+        encoding="utf-8", newline="\n",
     )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
@@ -1683,8 +1684,8 @@ def test_append_report_refuses_to_overwrite_a_concurrent_ticket_change(
     with pytest.raises(TaskFileError, match="ticket changed"):
         am._append_blackboard_report(load_config(repo), host, "## Report\n")
 
-    assert host.read_text().endswith("\nconcurrent update\n")
-    assert "## Report" not in host.read_text()
+    assert host.read_text(encoding="utf-8").endswith("\nconcurrent update\n")
+    assert "## Report" not in host.read_text(encoding="utf-8")
 
 
 def test_failed_summary_delivery_is_logged_against_the_host_task(
@@ -1742,7 +1743,7 @@ def _make_recurring_sweep(
     )
     template_dir = repo / "recurring" / template
     template_dir.mkdir(parents=True)
-    (template_dir / "ticket.md").write_text("template\n")
+    (template_dir / "ticket.md").write_text("template\n", encoding="utf-8", newline="\n")
     _, period_dir = _write_workflow_less_task(
         repo, slug=f"recurring/{template}", status="in_progress"
     )
@@ -1761,13 +1762,13 @@ def test_recipe_records_the_followup_in_the_durable_worklist(
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert [(e.slug, e.branch, e.worktree) for e in entries] == [
         (slug, "feature-x", "/nowhere/coga-feature-x")
     ]
     # The per-run report still lands on the period task for the run record
     # and the autofix analyst, and it names where the durable copy went.
-    report = period.read_text()
+    report = period.read_text(encoding="utf-8")
     assert am.RETIRE_REPORT_HEADING in report
     assert f"`coga retire {slug}`" in report
     assert str(worklist) in report
@@ -1787,7 +1788,7 @@ def test_the_worklist_survives_deleting_and_recreating_the_period_task(
     # prior-period task, then create a fresh one at the same stable path.
     period.unlink()
     period.parent.rmdir()
-    assert slug in worklist.read_text()
+    assert slug in worklist.read_text(encoding="utf-8")
     _write_workflow_less_task(
         repo, slug="recurring/autoclose-merged", status="in_progress"
     )
@@ -1797,8 +1798,8 @@ def test_the_worklist_survives_deleting_and_recreating_the_period_task(
     # fresh period task gets no report.
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    assert slug in worklist.read_text()
-    assert am.RETIRE_REPORT_HEADING not in period.read_text()
+    assert slug in worklist.read_text(encoding="utf-8")
+    assert am.RETIRE_REPORT_HEADING not in period.read_text(encoding="utf-8")
     assert f"retire worklist {worklist}: 1 open" in capsys.readouterr().out
 
 
@@ -1827,7 +1828,7 @@ def test_a_rerun_that_strands_the_same_slug_keeps_one_entry_and_its_date(
 
     assert not change.written
     assert worklist.read_bytes() == first
-    assert worklist.read_text().count(f"`{slug}`") == 1
+    assert worklist.read_text(encoding="utf-8").count(f"`{slug}`") == 1
 
 
 def test_a_recurring_run_drops_discharged_debt_and_keeps_live_debt(
@@ -1843,12 +1844,13 @@ def test_a_recurring_run_drops_discharged_debt_and_keeps_live_debt(
         + rw.RetireFollowUp("retired", "", str(tmp_path / "absent"), "2026-09-01").render()
         + "\n"
         + rw.RetireFollowUp("stranded", "", str(still_here), "2026-09-01").render()
-        + "\n"
+        + "\n",
+        encoding="utf-8", newline="\n",
     )
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    _, entries = rw.parse_worklist(worklist.read_text())
+    _, entries = rw.parse_worklist(worklist.read_text(encoding="utf-8"))
     assert sorted(e.slug for e in entries) == sorted([slug, "stranded"])
     out = capsys.readouterr().out
     assert "2 open, 1 recorded, 1 discharged (`retired`)" in out
@@ -1864,7 +1866,7 @@ def test_a_non_recurring_task_keeps_the_ordinary_blackboard_surface(
         branch="feature-x",
     )
     (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
-    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n", encoding="utf-8", newline="\n")
     _, host = _make_task(repo, title="Autoclose merged", status="draft")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
     monkeypatch.setenv("COGA_TASK_SLUG", "autoclose-merged")
@@ -1873,7 +1875,7 @@ def test_a_non_recurring_task_keeps_the_ordinary_blackboard_surface(
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 0
 
-    assert f"`coga retire {slug}`" in host.read_text()
+    assert f"`coga retire {slug}`" in host.read_text(encoding="utf-8")
     assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
     assert "retire worklist" not in capsys.readouterr().out
 
@@ -1885,7 +1887,7 @@ def test_a_run_with_no_task_keeps_stdout_and_touches_no_worklist(
         repo, on_final=True, pr_url="https://github.com/o/r/pull/24", branch="feature-x"
     )
     (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
-    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n", encoding="utf-8", newline="\n")
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
     _capture_posts(monkeypatch)
 
@@ -1908,10 +1910,10 @@ def test_a_period_task_inherited_from_another_checkout_selects_no_worklist(
         repo, on_final=True, pr_url="https://github.com/o/r/pull/24", branch="feature-x"
     )
     (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
-    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n", encoding="utf-8", newline="\n")
     other = tmp_path / "other" / "coga" / "tasks" / "recurring" / "autoclose-merged"
     other.mkdir(parents=True)
-    (other / "ticket.md").write_text("outer\n")
+    (other / "ticket.md").write_text("outer\n", encoding="utf-8", newline="\n")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(other / "ticket.md"))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
@@ -1928,13 +1930,13 @@ def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
 ) -> None:
     slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
     posts = _capture_posts(monkeypatch)
-    worklist.write_text("# Someone else's file\n")
+    worklist.write_text("# Someone else's file\n", encoding="utf-8", newline="\n")
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 2
 
     captured = capsys.readouterr()
     assert "retire worklist has no" in captured.err
-    assert worklist.read_text() == "# Someone else's file\n"
+    assert worklist.read_text(encoding="utf-8") == "# Someone else's file\n"
     # The closure itself is not undone by a reporting failure.
     from coga.tasks import resolve_task
 
@@ -1943,7 +1945,7 @@ def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
     # follow-up: the ticket is done on disk, so a refused worklist must not
     # leave the retire recorded nowhere. The report does not claim a durable
     # copy that was never written.
-    report = period.read_text()
+    report = period.read_text(encoding="utf-8")
     assert f"`coga retire {slug}`" in report
     assert str(worklist) not in report
     assert any(f"`coga retire {slug}`" in text for text in posts)
@@ -1954,7 +1956,7 @@ def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
 ) -> None:
     """The worklist failure must not escape the handler reporting a gh error."""
     slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
-    worklist.write_text("# Someone else's file\n")
+    worklist.write_text("# Someone else's file\n", encoding="utf-8", newline="\n")
     real_bump = am.mark_done
 
     def close_then_break(*args, **kwargs):
@@ -1968,7 +1970,7 @@ def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
     captured = capsys.readouterr()
     assert "retire worklist has no" in captured.err
     assert "gh fell over after the close" in captured.err
-    assert f"`coga retire {slug}`" in period.read_text()
+    assert f"`coga retire {slug}`" in period.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("failure", ["read", "write", "decode", "disk-full"])
@@ -1983,7 +1985,7 @@ def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
     slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
     posts = _capture_posts(monkeypatch)
     if failure == "read":
-        worklist.write_text(rw.RETIRE_WORKLIST_HEADER)
+        worklist.write_text(rw.RETIRE_WORKLIST_HEADER, encoding="utf-8", newline="\n")
         read_bytes = Path.read_bytes
 
         def denied_read(path: Path) -> bytes:
@@ -2028,7 +2030,7 @@ def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
     assert diagnostic in captured.err
     if sweep_error is am.GhError:
         assert "original sweep failure" in captured.err
-    report = captured.out if failure == "disk-full" else period.read_text()
+    report = captured.out if failure == "disk-full" else period.read_text(encoding="utf-8")
     assert f"`coga retire {slug}`" in report
     assert "Recorded in the durable worklist" not in report
     assert any(f"`coga retire {slug}`" in text for text in posts)

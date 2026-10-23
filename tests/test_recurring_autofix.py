@@ -424,9 +424,10 @@ def test_the_auth_probe_never_inherits_stdin_either(
 def _with_codex_and_autofix_agent(repo: Path, agent: str) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + f'\n[autofix]\nagent = "{agent}"\n'
+        + f'\n[autofix]\nagent = "{agent}"\n',
+        encoding="utf-8", newline="\n",
     )
 
 
@@ -458,8 +459,9 @@ def test_without_the_autofix_key_the_analyst_follows_the_default_agent_key(
     toml = repo / "coga.toml"
     toml.write_text(
         'default_agent = "codex"\n'
-        + toml.read_text()
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + toml.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(repo)
     assert cfg.autofix_agent is None
@@ -781,8 +783,8 @@ def test_blackboard_is_read_from_the_period_task(cfg_repo) -> None:
         status="draft",
     )
     ref = resolve_task(cfg_repo, created["slug"])
-    ticket = ref.ticket_path.read_text()
-    ref.ticket_path.write_text(ticket + "\nvalidate-drift found 3 broken refs.\n")
+    ticket = ref.ticket_path.read_text(encoding="utf-8")
+    ref.ticket_path.write_text(ticket + "\nvalidate-drift found 3 broken refs.\n", encoding="utf-8", newline="\n")
 
     assert "validate-drift found 3 broken refs." in blackboard_for_ref(ref)
 
@@ -882,7 +884,8 @@ def test_the_outcome_carries_the_run_blackboard(cfg_repo) -> None:
 
     ref = _ref_with_status(cfg_repo, "done")
     ref.ticket_path.write_text(
-        ref.ticket_path.read_text() + "\nvalidate-drift found 3 broken refs.\n"
+        ref.ticket_path.read_text(encoding="utf-8") + "\nvalidate-drift found 3 broken refs.\n",
+        encoding="utf-8", newline="\n",
     )
     outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert "validate-drift found 3 broken refs." in outcome.blackboard
@@ -1073,7 +1076,7 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     from coga.ticket import Ticket
 
     toml = repo / "coga.toml"
-    toml.write_text(toml.read_text() + settings)
+    toml.write_text(toml.read_text(encoding="utf-8") + settings, encoding="utf-8", newline="\n")
     cfg_repo = load_config(repo)
     calls = _fake_agent_reply(
         monkeypatch,
@@ -1091,14 +1094,14 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     task_dir = cfg_repo.repo_root / "tasks" / "autofix"
     created = list(task_dir.iterdir())
     assert len(created) == 1
-    ticket = (created[0] / "ticket.md").read_text()
+    ticket = (created[0] / "ticket.md").read_text(encoding="utf-8")
     assert "status: active" in ticket
     assert "Fix the branch-sweep recipe timezone crash" in ticket
     assert "code/with-self-review" in ticket
     assert Ticket.read(created[0] / "ticket.md").contexts == []
     assert Ticket.read(created[0] / "ticket.md").frontmatter["agent"] == "claude"
     # The run that produced the finding travels with the ticket.
-    assert "ZoneInfoNotFoundError" in (created[0] / "run-log.md").read_text()
+    assert "ZoneInfoNotFoundError" in (created[0] / "run-log.md").read_text(encoding="utf-8")
     assert posts and "autofix created" in posts[0]
 
 
@@ -1110,13 +1113,15 @@ def autofix_contexts_repo(repo: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             f"---\nname: {ref}\ndescription: Repo triage policy.\n---\n"
-            f"Use this repo's {ref} guidance to diagnose the failure.\n"
+            f"Use this repo's {ref} guidance to diagnose the failure.\n",
+            encoding="utf-8", newline="\n",
         )
     toml = repo / "coga.toml"
     toml.write_text(
-        toml.read_text()
+        toml.read_text(encoding="utf-8")
         + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
-        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture", "coga/context-layout"]\n'
+        + '\n[autofix]\ncontexts = ["team/triage", "coga/architecture", "coga/context-layout"]\n',
+        encoding="utf-8", newline="\n",
     )
     return repo
 
@@ -1133,7 +1138,7 @@ def test_run_autofix_attaches_and_composes_repo_default_contexts(
     repo = autofix_contexts_repo
     if analyst is not None:
         toml = repo / "coga.toml"
-        toml.write_text(toml.read_text() + f'agent = "{analyst}"\n')
+        toml.write_text(toml.read_text(encoding="utf-8") + f'agent = "{analyst}"\n', encoding="utf-8", newline="\n")
     cfg = load_config(repo)
     calls = _fake_agent_reply(
         monkeypatch, "VERDICT: problem\nTITLE: Fix the sweep crash\n---\nIt crashed.\n"
@@ -1150,15 +1155,15 @@ def test_run_autofix_attaches_and_composes_repo_default_contexts(
     assert calls[0][0] == (analyst or "claude")
     assert ticket.frontmatter["status"] == "active"
     assert ticket.frontmatter["workflow"]["name"] == "code/with-self-review"
-    assert "ZoneInfoNotFoundError" in (ref.ticket_path.parent / "run-log.md").read_text()
+    assert "ZoneInfoNotFoundError" in (ref.ticket_path.parent / "run-log.md").read_text(encoding="utf-8")
 
     report = compose_prompt_report(cfg, ref, ticket)
     layers = [layer for layer in report.layers if layer.layer == "ticket_context"]
     assert [layer.ref for layer in layers] == refs
     assert [layer.text for layer in layers] == [
-        (repo / "contexts" / "team" / "triage" / "SKILL.md").read_text(),
-        (repo / "contexts" / "coga" / "architecture" / "SKILL.md").read_text(),
-        bootstrap_context_path(cfg, "coga/context-layout").read_text(),
+        (repo / "contexts" / "team" / "triage" / "SKILL.md").read_text(encoding="utf-8"),
+        (repo / "contexts" / "coga" / "architecture" / "SKILL.md").read_text(encoding="utf-8"),
+        bootstrap_context_path(cfg, "coga/context-layout").read_text(encoding="utf-8"),
     ]
 
 
@@ -1171,7 +1176,7 @@ def test_autofix_context_defaults_leave_existing_tickets_unchanged(cfg_repo) -> 
     )
     old_bytes = (old_dir / "ticket.md").read_bytes()
     toml = cfg_repo.repo_root / "coga.toml"
-    toml.write_text(toml.read_text() + '\n[autofix]\ncontexts = ["coga/architecture"]\n')
+    toml.write_text(toml.read_text(encoding="utf-8") + '\n[autofix]\ncontexts = ["coga/architecture"]\n', encoding="utf-8", newline="\n")
 
     _, new_dir = autofix.create_autofix_ticket(
         load_config(cfg_repo.repo_root),
@@ -1288,7 +1293,7 @@ def test_the_run_log_is_written_machine_locally_even_without_a_ticket(
     autofix.run_autofix(cfg_repo, _record())
     logs = list((cfg_repo.repo_root / ".coga" / "recurring-runs").glob("*.md"))
     assert len(logs) == 1
-    assert "ZoneInfoNotFoundError" in logs[0].read_text()
+    assert "ZoneInfoNotFoundError" in logs[0].read_text(encoding="utf-8")
 
 
 # --- the on-demand entry point -------------------------------------------------
@@ -1452,8 +1457,8 @@ def test_recipe_analyzes_the_latest_run_log_by_default(
 ) -> None:
     runs = cfg_repo.repo_root / ".coga" / "recurring-runs"
     runs.mkdir(parents=True)
-    (runs / "20260101T000000.md").write_text("older run\n")
-    (runs / "20260824T090000.md").write_text("branch-sweep exited 1\n")
+    (runs / "20260101T000000.md").write_text("older run\n", encoding="utf-8", newline="\n")
+    (runs / "20260824T090000.md").write_text("branch-sweep exited 1\n", encoding="utf-8", newline="\n")
     calls = _fake_agent_reply(monkeypatch, "VERDICT: ok\n")
 
     from coga.runner import run_recipe
@@ -1467,7 +1472,7 @@ def test_recipe_dry_run_reports_without_creating_a_ticket(
 ) -> None:
     log = cfg_repo.repo_root / ".coga" / "recurring-runs" / "run.md"
     log.parent.mkdir(parents=True)
-    log.write_text("branch-sweep exited 1\n")
+    log.write_text("branch-sweep exited 1\n", encoding="utf-8", newline="\n")
     _fake_agent_reply(
         monkeypatch,
         "VERDICT: problem\nTITLE: Fix branch-sweep\n---\nIt crashed.\n",

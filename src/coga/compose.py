@@ -319,7 +319,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "repo_context",
             "Repo context",
-            pctx.read_text(),
+            pctx.read_text(encoding="utf-8"),
             ref="context.md",
             path=str(pctx),
         ))
@@ -340,7 +340,7 @@ def compose_prompt_report(
         layers.append(PromptLayer(
             "ticket_context",
             f"Context — {ref}",
-            cp.read_text(),
+            cp.read_text(encoding="utf-8"),
             ref=ref,
             path=str(cp),
         ))
@@ -403,7 +403,7 @@ def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = 
     """Exclusively create a UTF-8 prompt file that survives until session cleanup."""
     safe_slug = task_ref.id_slug.replace("/", "-")
     prompt_file = tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", prefix=f"coga-{safe_slug}-", suffix=".md",
+        mode="w", encoding="utf-8", newline="\n", prefix=f"coga-{safe_slug}-", suffix=".md",
         dir=dest_dir, delete=False,
     )
     path = Path(prompt_file.name)
@@ -496,7 +496,7 @@ def _skill_layers(cfg: Config, skill_ref: str, *, slug: str) -> list[PromptLayer
     return [PromptLayer(
         "top_level_skill",
         f"Skill: {skill_ref}",
-        sp.read_text(),
+        sp.read_text(encoding="utf-8"),
         ref=skill_ref,
         path=str(sp),
     )]
@@ -519,7 +519,7 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
             out.append(PromptLayer(
                 "workflow_skill",
                 f"Current step: {name} (skill: {skill_ref})",
-                sp.read_text(),
+                sp.read_text(encoding="utf-8"),
                 ref=skill_ref,
                 path=str(sp),
             ))

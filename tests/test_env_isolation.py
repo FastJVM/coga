@@ -74,8 +74,8 @@ def test_guard_scrubs_metadata_inherited_from_a_supervised_parent(
     """
     outer_ticket = tmp_path / "coga" / "tasks" / "outer-ticket.md"
     outer_ticket.parent.mkdir(parents=True)
-    outer_ticket.write_text("---\ntitle: Outer\n---\n\n<!-- coga:blackboard -->\n")
-    before = outer_ticket.read_text()
+    outer_ticket.write_text("---\ntitle: Outer\n---\n\n<!-- coga:blackboard -->\n", encoding="utf-8", newline="\n")
+    before = outer_ticket.read_text(encoding="utf-8")
 
     env = os.environ.copy()
     env.update({key: str(outer_ticket) for key in _EXPECTED_LAUNCH_OWNED_ENV})
@@ -93,10 +93,10 @@ def test_guard_scrubs_metadata_inherited_from_a_supervised_parent(
         ],
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         cwd=_REPO_ROOT,
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert outer_ticket.read_text() == before
+    assert outer_ticket.read_text(encoding="utf-8") == before

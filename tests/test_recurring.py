@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +13,17 @@ from textwrap import dedent
 from types import SimpleNamespace
 
 import pytest
+
+from conftest import windows_skip
+
+TEST_TREE_ID = 515151 if os.name == "posix" else "Global\\coga-process-" + "a" * 32
+
+
+@pytest.fixture(autouse=True)
+def _supported_mock_agent_platform(monkeypatch):
+    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
+
 from typer.testing import CliRunner
 
 from coga import git as coga_git
@@ -78,7 +90,7 @@ IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dedent(text).lstrip())
+    path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
 
 
 def _write_recurring(company: Path, name: str, text: str) -> None:
@@ -213,8 +225,8 @@ def _seed_global_log(git_repo) -> None:
     The caller stages/commits — this only writes the files.
     """
     coga_os = git_repo.coga_os
-    (coga_os / "log.md").write_text("")
-    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    (coga_os / "log.md").write_text("", encoding="utf-8", newline="\n")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/log.md", "coga/.gitattributes")
 
 
@@ -438,7 +450,8 @@ def test_address_pr_comments_period_inherits_repository_routing(repo: Path) -> N
     """A shipped period must materialize when Claude is not configured."""
     config_path = repo / "coga.toml"
     config_path.write_text(
-        config_path.read_text().replace("claude", "codex").replace("CLAUDE.md", "AGENTS.md")
+        config_path.read_text(encoding="utf-8").replace("claude", "codex").replace("CLAUDE.md", "AGENTS.md"),
+        encoding="utf-8", newline="\n",
     )
     shutil.copytree(
         _TEMPLATES_COGA_OS / "recurring" / "address-pr-comments",
@@ -595,7 +608,7 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
 def _set_owner(company: Path, owner: str) -> None:
     """Name the repo's recurring owner in the committed coga.toml."""
     path = company / "coga.toml"
-    path.write_text(f'owner = "{owner}"\n' + path.read_text())
+    path.write_text(f'owner = "{owner}"\n' + path.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
 
 
 def test_recurring_ungated_when_no_owner_is_configured(repo: Path) -> None:
@@ -884,7 +897,7 @@ def test_recurring_relay_leaves_the_operator_checkout_untouched(
     """No branch switch, no stash, no seeded file in the operator's tree."""
     git_repo.checkout_branch("feature/untouched")
     _add_control_worktree(git_repo)
-    (git_repo.coga_os / "scratch.md").write_text("dirty\n")
+    (git_repo.coga_os / "scratch.md").write_text("dirty\n", encoding="utf-8", newline="\n")
     before_head = git_repo.git("rev-parse", "HEAD")
     before_status = git_repo.git(
         "status", "--porcelain", "--untracked-files=all", "--ignored"
@@ -997,6 +1010,7 @@ def test_recurring_relay_mirrors_the_workspace_position(
     """
     moved = (git_repo.root / workspace_rel).resolve()
     if moved != git_repo.coga_os.resolve():
+        monkeypatch.chdir(git_repo.root)
         moved.mkdir(parents=True, exist_ok=True)
         for entry in list(git_repo.coga_os.iterdir()):
             shutil.move(str(entry), str(moved / entry.name))
@@ -1004,7 +1018,7 @@ def test_recurring_relay_mirrors_the_workspace_position(
     git_repo.coga_os = moved
     # The seeded ignore names the workspace's original path; moving it would
     # otherwise commit the machine-local file the relay exists to hand over.
-    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n")
+    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "move coga workspace")
     git_repo.git("push", "origin", "main")
@@ -1114,7 +1128,8 @@ def test_recurring_branch_gate_skips_git_disabled_checkout(
     """The new local-branch policy does not opt git-disabled repos back in."""
     git_repo.checkout_branch("feature/git-disabled")
     git_repo.coga_os.joinpath("coga.local.toml").write_text(
-        'user = "marc"\n[git]\nenabled = false\n'
+        'user = "marc"\n[git]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(git_repo.coga_os)
     scanned: list[Path] = []
@@ -1167,12 +1182,13 @@ def test_recurring_scan_ignores_uncommitted_owner_takeover(
 ) -> None:
     """Only the committed control owner counts, never a working-tree edit."""
     config = git_repo.coga_os / "coga.toml"
-    config.write_text('owner = "nick"\n' + config.read_text())
+    config.write_text('owner = "nick"\n' + config.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "assign recurring owner")
     git_repo.git("push", "origin", "main")
     config.write_text(
-        config.read_text().replace('owner = "nick"', 'owner = "marc"')
+        config.read_text(encoding="utf-8").replace('owner = "nick"', 'owner = "marc"'),
+        encoding="utf-8", newline="\n",
     )
     dirty_cfg = load_config(git_repo.coga_os)
     assert dirty_cfg.owner == "marc"
@@ -1193,7 +1209,7 @@ def test_recurring_scan_refuses_owner_when_control_owner_cannot_be_confirmed(
 ) -> None:
     """An opted-in owner cannot run offline through a pending transfer."""
     config = git_repo.coga_os / "coga.toml"
-    config.write_text('owner = "marc"\n' + config.read_text())
+    config.write_text('owner = "marc"\n' + config.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "assign recurring owner")
     git_repo.git("push", "origin", "main")
@@ -1227,12 +1243,12 @@ def test_control_tip_owner_reads_command_scoped_fetched_commit(
     """Owner authorization never reads checkout-wide FETCH_HEAD."""
     config = git_repo.coga_os / "coga.toml"
     git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text(encoding="utf-8")
     )
     control_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
     # Poison FETCH_HEAD with an unrelated commit: the owner probe must read the
     # remote-tracking ref it fetched into, never the checkout-wide pseudo-ref.
-    git_repo.git("update-ref", "FETCH_HEAD", git_repo.git("rev-parse", "HEAD~0").strip())
+    git_repo.git("fetch", ".", "HEAD")
     fetches: list[tuple[str, ...]] = []
     real_run_git = recurring_cmd.git.run_git
 
@@ -1264,7 +1280,7 @@ def test_control_tip_owner_reads_the_effective_push_destination(
     config = git_repo.coga_os / "coga.toml"
     # The fetch repository says `marc` may launch...
     git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "marc"\n' + config.read_text()
+        "coga/coga.toml", 'owner = "marc"\n' + config.read_text(encoding="utf-8")
     )
     # ...but pushes land somewhere that names `nick`.
     push_origin = _clone_bare_with_owner(git_repo, "nick")
@@ -1309,7 +1325,7 @@ def test_control_tip_owner_reads_head_without_a_configured_remote(
 ) -> None:
     """A genuinely remote-less checkout has no tip but its own HEAD."""
     config = git_repo.coga_os / "coga.toml"
-    config.write_text('owner = "nick"\n' + config.read_text())
+    config.write_text('owner = "nick"\n' + config.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "assign recurring owner")
     git_repo.git("remote", "remove", "origin")
@@ -1332,9 +1348,9 @@ def test_local_git_disablement_does_not_bypass_the_owner_gate(
     """
     config = git_repo.coga_os / "coga.toml"
     local = git_repo.coga_os / "coga.local.toml"
-    local.write_text(local.read_text() + "\n[git]\nenabled = false\n")
+    local.write_text(local.read_text(encoding="utf-8") + "\n[git]\nenabled = false\n", encoding="utf-8", newline="\n")
     git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text(encoding="utf-8")
     )
     stale_cfg = load_config(git_repo.coga_os)
     assert stale_cfg.git_enabled is False
@@ -1363,10 +1379,10 @@ def _clone_bare_with_owner(git_repo, owner: str) -> Path:
     config = work / "coga" / "coga.toml"
     kept = [
         line
-        for line in config.read_text().splitlines(keepends=True)
+        for line in config.read_text(encoding="utf-8").splitlines(keepends=True)
         if not line.startswith("owner =")
     ]
-    config.write_text(f'owner = "{owner}"\n' + "".join(kept))
+    config.write_text(f'owner = "{owner}"\n' + "".join(kept), encoding="utf-8", newline="\n")
     git_repo.git("add", "--", "coga/coga.toml", cwd=work)
     git_repo.git("commit", "-m", f"push-side owner {owner}", cwd=work)
     git_repo.git("push", "origin", "main", cwd=work)
@@ -1443,12 +1459,12 @@ def test_recurring_all_resolves_owner_from_control_tip_before_prefilter(
 ) -> None:
     """An owner transfer cannot leave the new owner pre-skipped forever."""
     config = git_repo.coga_os / "coga.toml"
-    config.write_text('owner = "nick"\n' + config.read_text())
+    config.write_text('owner = "nick"\n' + config.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
     git_repo.git("commit", "-m", "assign old recurring owner")
     git_repo.git("push", "origin", "main")
     git_repo.push_competing_commit(
-        "coga/coga.toml", config.read_text().replace('owner = "nick"', 'owner = "marc"')
+        "coga/coga.toml", config.read_text(encoding="utf-8").replace('owner = "nick"', 'owner = "marc"')
     )
 
     seen: list[Path] = []
@@ -1499,7 +1515,7 @@ def test_recurring_all_services_one_checkout_per_remote(
         git_repo.git("config", "user.email", "test@example.com", cwd=checkout)
         git_repo.git("config", "user.name", "Coga Test", cwd=checkout)
         git_repo.git("config", "commit.gpgsign", "false", cwd=checkout)
-        (checkout / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+        (checkout / "coga" / "coga.local.toml").write_text('user = "marc"\n', encoding="utf-8", newline="\n")
         if name == "alpha":
             git_repo.git("checkout", "-b", "feature", cwd=checkout)
         checkouts.append(checkout)
@@ -1855,7 +1871,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
-    body = (task.ref.path / "ticket.md").read_text()
+    body = (task.ref.path / "ticket.md").read_text(encoding="utf-8")
     assert "Run the full deliverability diagnostic suite" in body
 
 
@@ -1939,7 +1955,7 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     task = next(t for t in scan.tasks if t.template == "run-config-template")
-    body = (task.ref.path / "ticket.md").read_text()
+    body = (task.ref.path / "ticket.md").read_text(encoding="utf-8")
     assert "## Run config" in body
     assert "mode: watchdog" in body
     assert "## Output" in body
@@ -2085,7 +2101,7 @@ def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
     assert ticket.status == "active"
     assert ticket.step == "1 (execute)"
     assert "old run residue" not in read_blackboard(ref.ticket_path)
-    assert '"cursor": "new"' in (ref.path / ".state-snapshot.json").read_text()
+    assert '"cursor": "new"' in (ref.path / ".state-snapshot.json").read_text(encoding="utf-8")
     assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
@@ -2170,7 +2186,7 @@ def test_scan_due_keeps_stale_done_task_when_template_workflow_is_missing(
     scan = scan_due(load_config(repo), now=datetime(2026, 4, 29, 10, 0, 0))
 
     _assert_stale_done_kept_and_sweep_continued(repo, "a-ghost", ref, scan)
-    assert "does/not-exist" in scan.errors[0][1]
+    assert str(repo / "workflows" / "does" / "not-exist.md") in scan.errors[0][1]
     assert "skipping a-ghost" in capsys.readouterr().err
 
 
@@ -2226,7 +2242,7 @@ def test_scan_due_reports_missing_workflow_on_fresh_create(repo: Path) -> None:
     scan = scan_due(load_config(repo), now=datetime(2026, 4, 22, 10, 0, 0))
 
     assert [name for name, _ in scan.errors] == ["a-ghost"]
-    assert "does/not-exist" in scan.errors[0][1]
+    assert str(Path("does/not-exist")) in scan.errors[0][1]
     assert [t.template for t in scan.tasks] == ["weekly-check"]
 
 
@@ -2346,7 +2362,7 @@ def test_sync_recurring_create_survives_non_git_error(
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = scan.tasks[0].ref
     template_ticket = repo / "recurring" / "weekly-check" / "ticket.md"
-    before = template_ticket.read_text()
+    before = template_ticket.read_text(encoding="utf-8")
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise subprocess.CalledProcessError(128, ["git", "push"])
@@ -2357,7 +2373,7 @@ def test_sync_recurring_create_survives_non_git_error(
 
     assert created is True
     assert "[git] sync failed" in capsys.readouterr().err
-    assert template_ticket.read_text() == before  # restored, not corrupted
+    assert template_ticket.read_text(encoding="utf-8") == before  # restored, not corrupted
 
 
 def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
@@ -2544,7 +2560,7 @@ def test_scan_due_skips_template_with_invalid_context_artifact(
     """An invalid local context (here a symlink) raises `ConfigError` from the
     resolver; that must be reported for its template, not abort the sweep."""
     outside = tmp_path / "outside.md"
-    outside.write_text("# outside\n")
+    outside.write_text("# outside\n", encoding="utf-8", newline="\n")
     artifact = repo / "contexts" / "linked" / "ctx" / "SKILL.md"
     artifact.parent.mkdir(parents=True)
     artifact.symlink_to(outside)
@@ -2854,7 +2870,7 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
     # other sibling stays with the template.
     copied = ref.task_dir / "ticket.py"
     assert copied.is_file()
-    assert copied.read_text() == template_script.read_text()
+    assert copied.read_text(encoding="utf-8") == template_script.read_text(encoding="utf-8")
 
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = starting_status
@@ -2992,7 +3008,8 @@ def test_template_rejects_delegate_combined_with_script(repo: Path) -> None:
         """,
     )
     (repo / "recurring" / "delegate-check" / "ticket.py").write_text(
-        "raise SystemExit(0)\n"
+        "raise SystemExit(0)\n",
+        encoding="utf-8", newline="\n",
     )
 
     with pytest.raises(
@@ -3017,8 +3034,9 @@ def test_recurring_templates_reject_removed_metadata_before_creation(
 
     config_path = repo / "coga.toml"
     config_path.write_text(
-        config_path.read_text()
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        config_path.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     _write_recurring(repo, "weekly-check", f"""
         ---
@@ -3343,9 +3361,10 @@ def test_delegated_completion_reloads_post_session_config(
         kwargs["revalidate_before_spawn"]()
         config_path = repo / "coga.toml"
         config_path.write_text(
-            config_path.read_text().replace(
+            config_path.read_text(encoding="utf-8").replace(
                 'default_status = "draft"', 'default_status = "active"'
-            )
+            ),
+            encoding="utf-8", newline="\n",
         )
         return LaunchResult("done")
 
@@ -3783,7 +3802,7 @@ def test_delegated_completion_refuses_a_concurrent_parent_state_edit(
     remote_period = git_repo.git("show", f"main:{period_rel}", cwd=git_repo.origin)
     assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
     assert Ticket.read(ref.ticket_path).status == "in_progress"
-    assert "cursor: child" in parent_ticket.read_text()
+    assert "cursor: child" in parent_ticket.read_text(encoding="utf-8")
     assert "cursor: concurrent" in remote_parent
     assert "status: in_progress" in remote_period
     assert completion_notifications == []
@@ -4203,9 +4222,10 @@ def test_materialized_delegate_is_frozen_when_template_changes(repo: Path) -> No
 
     template_path = repo / "recurring" / "delegate-check" / "ticket.md"
     template_path.write_text(
-        template_path.read_text().replace(
+        template_path.read_text(encoding="utf-8").replace(
             "delegate: bootstrap/resolve-conflicts\n", ""
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     scan = scan_due(
@@ -4363,9 +4383,10 @@ def test_script_backed_delegate_is_rejected_before_period_creation(
     _write_delegating_template(repo, "delegate-check")
     template_path = repo / "recurring" / "delegate-check" / "ticket.md"
     template_path.write_text(
-        template_path.read_text().replace(
+        template_path.read_text(encoding="utf-8").replace(
             "bootstrap/resolve-conflicts", "bootstrap/scripted"
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     cfg = load_config(repo)
@@ -5046,7 +5067,7 @@ def test_old_watchdog_pause_does_not_override_later_park_or_creation(
     ]
     if reverse_lines:
         lines.reverse()  # merge=union need not preserve timestamp order.
-    log_path(cfg).write_text("".join(lines))
+    log_path(cfg).write_text("".join(lines), encoding="utf-8", newline="\n")
 
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 12))
 
@@ -5068,7 +5089,7 @@ def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
     saved_ticket = ref.ticket_path.read_bytes()
     if another_due:
         _write_recurring(
-            repo, "later-check", (repo / "recurring/weekly-check/ticket.md").read_text()
+            repo, "later-check", (repo / "recurring/weekly-check/ticket.md").read_text(encoding="utf-8")
         )
         if headless_force:
             _write(
@@ -5181,7 +5202,7 @@ def test_failed_forced_watchdog_recovery_fails_sweep_and_continues(
     replace_blackboard(ref.ticket_path, "\nFindings still awaiting recovery.\n")
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
     _write_recurring(
-        repo, "zzz-check", (repo / "recurring/weekly-check/ticket.md").read_text()
+        repo, "zzz-check", (repo / "recurring/weekly-check/ticket.md").read_text(encoding="utf-8")
     )
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
@@ -5209,7 +5230,7 @@ def test_failed_forced_watchdog_recovery_fails_sweep_and_continues(
     assert "- problems: 1" in records[0].render()
     assert "- tasks run: 2" in records[0].render()
     assert Ticket.read(ref.ticket_path).status == "paused"
-    assert "Findings still awaiting recovery." in ref.ticket_path.read_text()
+    assert "Findings still awaiting recovery." in ref.ticket_path.read_text(encoding="utf-8")
 
 
 def test_skipped_forced_watchdog_recovery_still_fails_the_sweep(
@@ -5631,7 +5652,8 @@ def test_recurring_all_scan_refuses_git_disabled_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     git_repo.coga_os.joinpath("coga.local.toml").write_text(
-        'user = "marc"\n[git]\nenabled = false\n'
+        'user = "marc"\n[git]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     cfg = load_config(git_repo.coga_os)
     monkeypatch.setattr(
@@ -5910,8 +5932,8 @@ def test_feature_branch_landing_preserves_remote_ledger_entries(git_repo) -> Non
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
-    log.write_text(seed_line)
-    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    log.write_text(seed_line, encoding="utf-8", newline="\n")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/log.md", "coga/.gitattributes")
     git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
@@ -5924,7 +5946,7 @@ def test_feature_branch_landing_preserves_remote_ledger_entries(git_repo) -> Non
     )
     git_repo.push_competing_commit(
         "coga/log.md",
-        log.read_text() + remote_line,
+        log.read_text(encoding="utf-8") + remote_line,
     )
 
     cfg = load_config(coga_os)
@@ -6031,8 +6053,8 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
-    log.write_text(seed_line)
-    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    log.write_text(seed_line, encoding="utf-8", newline="\n")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/log.md", "coga/.gitattributes")
     git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
@@ -6044,7 +6066,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     )
     git_repo.push_competing_commit(
         "coga/log.md",
-        log.read_text() + remote_line,
+        log.read_text(encoding="utf-8") + remote_line,
     )
 
     monkeypatch.setattr(
@@ -6305,7 +6327,7 @@ def test_recurring_create_sync_reports_the_fallback_outcome(
         ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
         assert git_repo.origin_tracks(ticket_rel)
         assert git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin) == (
-            outcome.ref.ticket_path.read_text()
+            outcome.ref.ticket_path.read_text(encoding="utf-8")
         )
 
 
@@ -6522,15 +6544,15 @@ def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
-    log.write_text(seed_line)
-    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    log.write_text(seed_line, encoding="utf-8", newline="\n")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/log.md", "coga/.gitattributes")
     git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
     local_file = git_repo.root / "LOCAL.txt"
-    local_file.write_text("local\n")
+    local_file.write_text("local\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "LOCAL.txt")
     git_repo.git("commit", "-m", "local unpushed")
     git_repo.push_competing_commit("UNRELATED.txt", "remote\n")
@@ -6540,7 +6562,7 @@ def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
     )
     git_repo.push_competing_commit(
         "coga/log.md",
-        log.read_text() + remote_line,
+        log.read_text(encoding="utf-8") + remote_line,
     )
 
     monkeypatch.setattr(
@@ -6558,7 +6580,7 @@ def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
     assert not git_repo.origin_tracks("LOCAL.txt")
     assert git_repo.origin_tracks("UNRELATED.txt")
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
-    assert local_file.read_text() == "local\n"
+    assert local_file.read_text(encoding="utf-8") == "local\n"
     assert not (git_repo.root / "UNRELATED.txt").exists()
     ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
@@ -6604,15 +6626,15 @@ def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
-    log.write_text(seed_line)
-    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    log.write_text(seed_line, encoding="utf-8", newline="\n")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/log.md", "coga/.gitattributes")
     git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/race")
-    base_log = log.read_text()
+    base_log = log.read_text(encoding="utf-8")
     race_line = (
         "2026-06-08 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W22\n"
@@ -6644,7 +6666,7 @@ def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     # The feature checkout keeps its own working log (no local commit, no
     # refresh): the peer line is on control, the create line is dirty here.
-    local_ledger = log.read_text()
+    local_ledger = log.read_text(encoding="utf-8")
     assert race_line not in local_ledger
     assert f"created {ref.id_slug}" in local_ledger
     dirty = {
@@ -7008,8 +7030,8 @@ def test_recurring_launch_keeps_the_create_dirty_when_control_is_unreachable(
     # Coga never commits locally: the task and its log line stay dirty here,
     # and `main` still points at the seed commit.
     assert git_repo.git("log", "--format=%s", "-1").strip() == "seed recurring template"
-    assert "title: Weekly check" in (git_repo.root / ticket_rel).read_text()
-    assert f"created {ref.id_slug}" in (coga_os / "log.md").read_text()
+    assert "title: Weekly check" in (git_repo.root / ticket_rel).read_text(encoding="utf-8")
+    assert f"created {ref.id_slug}" in (coga_os / "log.md").read_text(encoding="utf-8")
     dirty = {
         line[3:]
         for line in git_repo.git(
@@ -7090,7 +7112,7 @@ def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
     ticket_path = period.tasks[0].ref.path / "ticket.md"
     t = Ticket.read(ticket_path)
     t.frontmatter["status"] = "done"
-    ticket_path.write_text(t.render())
+    ticket_path.write_text(t.render(), encoding="utf-8", newline="\n")
     assert scan_due(cfg, now=now).due == []  # nothing launchable normally
 
     forced = scan_due(cfg, now=now, force=True)
@@ -7775,7 +7797,7 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
     ticket_path = ref.path / "ticket.md"
     t = Ticket.read(ticket_path)
     t.frontmatter["status"] = "done"
-    ticket_path.write_text(t.render())
+    ticket_path.write_text(t.render(), encoding="utf-8", newline="\n")
     # Rewrite the template blackboard region to just the cursor. This used to
     # clobber the W17 high-water the first create wrote; the ledger lives in
     # the repo-global log now, so nothing a blackboard rewrite can reach.
@@ -7790,7 +7812,7 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
         read_serviced_period(repo / "recurring" / "weekly-check" / "ticket.md")
         == "2026-W17"
     )
-    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text()
+    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text(encoding="utf-8")
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
     assert "reused recurring/weekly-check for 2026-W18" not in log
     assert "created recurring/weekly-check for 2026-W18" not in log
@@ -7834,7 +7856,7 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
     ) == "2026-W17"
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
     assert "reused recurring/weekly-check for 2026-W18" not in log
-    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text()
+    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text(encoding="utf-8")
 
 
 def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
@@ -8051,7 +8073,7 @@ def test_recurring_force_restores_clean_stale_existing_task_from_control(
     assert result.exit_code == 0, result.output
     assert launched == [stale.ref.id_slug]
     assert read_blackboard(stale.ref.path / "ticket.md") == "\nremote newer state\n"
-    assert "status: done" in (stale.ref.path / "ticket.md").read_text()
+    assert "status: done" in (stale.ref.path / "ticket.md").read_text(encoding="utf-8")
     remote_ticket = git_repo.git(
         "show",
         f"main:coga/tasks/{stale.ref.id_slug}/ticket.md",
@@ -8059,7 +8081,7 @@ def test_recurring_force_restores_clean_stale_existing_task_from_control(
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer state\n"
     assert _control_serviced_period(git_repo, "weekly-check") == "2026-W18"
-    assert '"cursor": "new"' in (stale.ref.path / ".state-snapshot.json").read_text()
+    assert '"cursor": "new"' in (stale.ref.path / ".state-snapshot.json").read_text(encoding="utf-8")
 
 
 def test_recurring_force_preserves_existing_local_task_state_during_force_sync(
@@ -8189,7 +8211,7 @@ def test_recurring_force_snapshot_does_not_block_control_restore(
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer done state\n"
-    assert '"cursor": "new"' in (first.ref.path / ".state-snapshot.json").read_text()
+    assert '"cursor": "new"' in (first.ref.path / ".state-snapshot.json").read_text(encoding="utf-8")
 
 
 def test_recurring_force_does_not_mark_new_period_for_control_live_task(
@@ -8557,8 +8579,9 @@ def test_recurring_launch_passes_ephemeral_agent_override(
     """A named recurring launch can use another configured agent temporarily."""
     coga_toml = dream_repo / "coga.toml"
     coga_toml.write_text(
-        coga_toml.read_text()
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        coga_toml.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     seen: list[str | None] = []
     monkeypatch.setattr(
@@ -8591,7 +8614,8 @@ def test_recurring_launch_threads_configured_timeout_limits(
     """On-demand recurring launches pass concrete launch-limit values."""
     coga_toml = dream_repo / "coga.toml"
     coga_toml.write_text(
-        coga_toml.read_text() + "\n[launch]\nidle_timeout = 120\nmax_session = 3600\n"
+        coga_toml.read_text(encoding="utf-8") + "\n[launch]\nidle_timeout = 120\nmax_session = 3600\n",
+        encoding="utf-8", newline="\n",
     )
     seen: list[tuple[float | None, float | None, bool]] = []
 
@@ -8718,8 +8742,9 @@ def test_bare_recurring_passes_agent_override_to_agent_tasks(
     """The sweep threads `--agent` into agent-backed period tasks."""
     coga_toml = dream_repo / "coga.toml"
     coga_toml.write_text(
-        coga_toml.read_text()
-        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        coga_toml.read_text(encoding="utf-8")
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+        encoding="utf-8", newline="\n",
     )
     _allow_interactive_recurring(monkeypatch)
     seen: list[str | None] = []
@@ -8741,10 +8766,10 @@ def test_bare_recurring_passes_agent_override_to_agent_tasks(
 def _dream_with_codex(dream_repo: Path, *, default_agent: str | None) -> None:
     """Declare codex after claude; optionally name a `default_agent`."""
     coga_toml = dream_repo / "coga.toml"
-    text = coga_toml.read_text() + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    text = coga_toml.read_text(encoding="utf-8") + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
     if default_agent is not None:
         text = f'default_agent = "{default_agent}"\n' + text
-    coga_toml.write_text(text)
+    coga_toml.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _record_dream_agent(
@@ -8793,7 +8818,7 @@ def test_forced_dream_rerun_keeps_the_frozen_agent_after_the_default_changes(
     assert seen == ["claude"]
 
     coga_toml = dream_repo / "coga.toml"
-    coga_toml.write_text('default_agent = "codex"\n' + coga_toml.read_text())
+    coga_toml.write_text('default_agent = "codex"\n' + coga_toml.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     assert load_config(dream_repo).default_agent().name == "codex"
 
     rerun = CliRunner().invoke(app, ["recurring", "--force"])
@@ -8801,10 +8826,12 @@ def test_forced_dream_rerun_keeps_the_frozen_agent_after_the_default_changes(
     assert seen == ["claude", "claude"]
 
 
+@pytest.mark.parametrize("native_windows", [False, True])
 def test_bare_recurring_skips_interactive_without_tty_and_continues(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, native_windows: bool
 ) -> None:
     """Unattended recurring skips agent work and runs a later script."""
+    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: not native_windows)
     _write_recurring(
         repo,
         "z-script-check",
@@ -8852,7 +8879,11 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert launched == ["recurring/z-script-check"]
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "an agent run requires a TTY" in combined
+    if native_windows:
+        assert "agent sessions are not supported on native Windows yet" in combined
+        assert "windows-native/03-interactive-coga-launch-on-native-windows" in combined
+    else:
+        assert "an agent run requires a TTY" in combined
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs
@@ -9025,7 +9056,7 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
     cfg = load_config(repo)
     ref = list_tasks(cfg)[0]
     assert Ticket.read(ref.ticket_path).status == "active"
-    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert "Replacement generation." in ref.ticket_path.read_text(encoding="utf-8")
     assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
 
 
@@ -9087,7 +9118,7 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ticket_script_exit(
         ref for ref in list_tasks(cfg) if ref.id_slug == "recurring/script-check"
     )
     assert Ticket.read(ref.ticket_path).status == "active"
-    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert "Replacement generation." in ref.ticket_path.read_text(encoding="utf-8")
     assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
 
 
@@ -9343,7 +9374,7 @@ def test_bare_recurring_config_can_disarm_idle_timeout(
 ) -> None:
     """`[launch].idle_timeout = 0` explicitly disables the built-in default."""
     coga_toml = dream_repo / "coga.toml"
-    coga_toml.write_text(coga_toml.read_text() + "\n[launch]\nidle_timeout = 0\n")
+    coga_toml.write_text(coga_toml.read_text(encoding="utf-8") + "\n[launch]\nidle_timeout = 0\n", encoding="utf-8", newline="\n")
 
     assert _capture_idle_timeout(dream_repo, monkeypatch, ["recurring"]) == [None]
 
@@ -9471,7 +9502,7 @@ def test_bare_recurring_nothing_due(
 def test_pre_scan_catch_up_diverged_names_the_fix(git_repo, capsys) -> None:
     """A diverged control checkout yields a distilled reason and the exact
     catch-up command; Coga never rebases the human's commits itself."""
-    (git_repo.root / "notes.md").write_text("local\n")
+    (git_repo.root / "notes.md").write_text("local\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "notes.md")
     git_repo.git("commit", "-m", "local note")
     git_repo.push_competing_commit("notes.md", "remote\n")
@@ -9497,7 +9528,7 @@ def test_pre_scan_catch_up_diverged_names_the_fix(git_repo, capsys) -> None:
     assert "git pull --rebase --autostash origin main" in err
     assert "pre-scan catch-up skipped" not in err
     # Nothing moved: the local commit and its file are untouched.
-    assert (git_repo.root / "notes.md").read_text() == "local\n"
+    assert (git_repo.root / "notes.md").read_text(encoding="utf-8") == "local\n"
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -9512,20 +9543,24 @@ def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change)
     append_log(cfg, "bootstrap/orient", "system", "original session")
     assert coga_git.sync_log(cfg, message="seed log") is True
     log = log_path(cfg)
-    original = log.read_text()
+    original = log.read_text(encoding="utf-8")
     git_repo.push_competing_commit("coga/log.md", original + "remote session\n")
     append_log(cfg, "bootstrap/orient", "system", "stranded session")
     if change == "rewrite":
-        log.write_text(log.read_text().replace("original session", "edited session"))
+        log.write_text(log.read_text(encoding="utf-8").replace("original session", "edited session"), encoding="utf-8", newline="\n")
     elif change == "other-dirt":
-        (git_repo.coga_os / "tasks" / "notes.md").write_text("unfinished work\n")
+        (git_repo.coga_os / "tasks" / "notes.md").write_text("unfinished work\n", encoding="utf-8", newline="\n")
     elif change == "staged":
         git_repo.git("add", "coga/log.md")
     elif change == "mode":
-        git_repo.git("config", "core.fileMode", "true")
-        log.chmod(0o755)
+        if os.name == "posix":
+            git_repo.git("config", "core.fileMode", "true")
+            log.chmod(0o755)
+        else:
+            blob = git_repo.git("rev-parse", ":coga/log.md").strip()
+            git_repo.git("update-index", "--cacheinfo", f"100755,{blob},coga/log.md")
     elif change == "partial-line":
-        log.write_text(log.read_text().rstrip("\n"))
+        log.write_text(log.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8", newline="\n")
     before = log.read_bytes()
     head = git_repo.git("rev-parse", "HEAD")
     remote = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
@@ -9540,7 +9575,7 @@ def test_pre_scan_catch_up_offers_recovery_only_for_a_log_tail(git_repo, change)
         assert "coga run publish-state" not in catchup.reason
         return
     assert "unpublished log tail" in catchup.reason
-    assert f"coga run publish-state {log}" in catchup.reason
+    assert f"coga run publish-state {shlex.quote(str(log))}" in catchup.reason
     assert "all eligible Coga state" in catchup.reason
 
     assert run_publish_state_recipe(cfg, [str(log)]) == 0
@@ -9555,10 +9590,10 @@ def test_pre_scan_catch_up_realigns_a_state_only_divergence(git_repo, capsys) ->
     """A local commit of Coga state control already carries no longer stalls
     the catch-up: control is realigned and the scan starts from its tip."""
     ticket = git_repo.coga_os / "tasks" / "demo.md"
-    ticket.write_text("---\ntitle: demo\n---\nhand edit\n")
+    ticket.write_text("---\ntitle: demo\n---\nhand edit\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/tasks/demo.md")
     git_repo.git("commit", "-m", "hand commit")
-    git_repo.push_competing_commit("coga/tasks/demo.md", ticket.read_text())
+    git_repo.push_competing_commit("coga/tasks/demo.md", ticket.read_text(encoding="utf-8"))
 
     catchup = recurring_cmd._sync_control_checkout_ahead(load_config(git_repo.coga_os))
 
@@ -9876,8 +9911,8 @@ def test_promote_names_template_and_preserves_attachments(
         <!-- coga:blackboard -->
         """,
     )
-    (repo / "tasks" / "old-slug" / "notes.txt").write_text("supporting material\n")
-    (repo / "tasks" / "old-slug" / ".state-snapshot.json").write_text("{}\n")
+    (repo / "tasks" / "old-slug" / "notes.txt").write_text("supporting material\n", encoding="utf-8", newline="\n")
+    (repo / "tasks" / "old-slug" / ".state-snapshot.json").write_text("{}\n", encoding="utf-8", newline="\n")
 
     result = CliRunner().invoke(
         app,
@@ -9925,15 +9960,18 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
         """,
     )
     external_file = repo.parent / "outside.txt"
-    external_file.write_text("outside the repository\n")
+    external_file.write_text("outside the repository\n", encoding="utf-8", newline="\n")
     external_dir = repo.parent / "outside-dir"
     external_dir.mkdir()
-    (external_dir / "payload.txt").write_text("also outside\n")
+    (external_dir / "payload.txt").write_text("also outside\n", encoding="utf-8", newline="\n")
     (source / "file-link").symlink_to(external_file)
     (source / "dir-link").symlink_to(external_dir, target_is_directory=True)
     attachments = source / "attachments"
     attachments.mkdir()
     (attachments / "nested-link").symlink_to(external_file)
+    file_target = (source / "file-link").readlink()
+    dir_target = (source / "dir-link").readlink()
+    nested_target = (attachments / "nested-link").readlink()
 
     result = CliRunner().invoke(
         app, ["recurring", "promote", "linked-task", "--schedule", "0 3 * * *"]
@@ -9942,11 +9980,11 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
     assert result.exit_code == 0, result.output
     dest = repo / "recurring" / "linked-task"
     assert (dest / "file-link").is_symlink()
-    assert (dest / "file-link").readlink() == external_file
+    assert (dest / "file-link").readlink() == file_target
     assert (dest / "dir-link").is_symlink()
-    assert (dest / "dir-link").readlink() == external_dir
+    assert (dest / "dir-link").readlink() == dir_target
     assert (dest / "attachments" / "nested-link").is_symlink()
-    assert (dest / "attachments" / "nested-link").readlink() == external_file
+    assert (dest / "attachments" / "nested-link").readlink() == nested_target
 
 
 def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
@@ -10017,7 +10055,7 @@ def test_promote_refuses_an_existing_template_and_leaves_the_task(
         <!-- coga:blackboard -->
         """,
     )
-    before = (repo / "recurring" / "weekly-check" / "ticket.md").read_text()
+    before = (repo / "recurring" / "weekly-check" / "ticket.md").read_text(encoding="utf-8")
 
     result = CliRunner().invoke(
         app, ["recurring", "promote", "weekly-check", "--schedule", "0 9 * * 1"]
@@ -10026,7 +10064,7 @@ def test_promote_refuses_an_existing_template_and_leaves_the_task(
     assert result.exit_code == 2
     assert "already exists" in result.output
     assert (repo / "tasks" / "weekly-check.md").is_file()
-    assert (repo / "recurring" / "weekly-check" / "ticket.md").read_text() == before
+    assert (repo / "recurring" / "weekly-check" / "ticket.md").read_text(encoding="utf-8") == before
 
 
 @pytest.mark.parametrize(
@@ -10903,10 +10941,11 @@ def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
     log_file.write_text(
         "".join(
             f"{line}\n"
-            for line in log_file.read_text().splitlines()
+            for line in log_file.read_text(encoding="utf-8").splitlines()
             if format_serviced_log("created", "recurring/weekly-check", period_key)
             not in line
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     rolled_back = scan_due(cfg, now=now)
@@ -11383,7 +11422,8 @@ def _seed_recipe_template_on_control(git_repo, name: str = "z-script-check") -> 
     # without that copy `load_config` raises on the missing `user` before the
     # inner scan starts.
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -11447,7 +11487,7 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
     """
     _seed_recipe_template_on_control(git_repo)
     git_repo.checkout_branch("agent/parked-work")
-    (git_repo.root / "uncommitted.md").write_text("work in progress\n")
+    (git_repo.root / "uncommitted.md").write_text("work in progress\n", encoding="utf-8", newline="\n")
     before = _checkout_state(git_repo)
 
     cfg = load_config(git_repo.coga_os)
@@ -11571,7 +11611,7 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
                     ref,
                 ],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8",
                 check=False,
             ).returncode
             == 0
@@ -11602,16 +11642,18 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
 
 
 def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
-    git_repo,
+    git_repo, monkeypatch,
 ) -> None:
     """The child starts in the mirrored workspace, not the monorepo root."""
     _seed_recipe_template_on_control(git_repo)
     original = git_repo.coga_os
     nested = git_repo.root / "tools" / "ops" / "coga"
     nested.parent.mkdir(parents=True)
+    monkeypatch.chdir(git_repo.root)
     shutil.move(str(original), str(nested))
     git_repo.coga_os = nested
-    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n")
+    monkeypatch.chdir(nested)
+    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "nest coga workspace")
     git_repo.git("push", "origin", "main")
@@ -11628,15 +11670,16 @@ def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
     assert "created recurring/z-script-check" in ledger
 
 
-def test_control_worktree_services_a_root_layout_workspace(git_repo) -> None:
+def test_control_worktree_services_a_root_layout_workspace(git_repo, monkeypatch) -> None:
     """A root Coga layout starts inside `checkout`, not its temp parent."""
     _seed_recipe_template_on_control(git_repo)
     nested = git_repo.coga_os
+    monkeypatch.chdir(git_repo.root)
     for child in nested.iterdir():
         shutil.move(str(child), str(git_repo.root / child.name))
     nested.rmdir()
     git_repo.coga_os = git_repo.root
-    (git_repo.root / ".gitignore").write_text("coga.local.toml\n")
+    (git_repo.root / ".gitignore").write_text("coga.local.toml\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "move Coga to the checkout root")
     git_repo.git("push", "origin", "main")
@@ -11765,7 +11808,7 @@ def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
         assert isinstance(current, Path)
         holder = current
         marker = json.loads(
-            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
         )
         assert marker["inner_state"] == "starting"
         assert marker["inner_pgid"] is None
@@ -11794,7 +11837,7 @@ def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
         assert holder is not None
         assert holder.is_dir()
         marker = json.loads(
-            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
         )
         assert marker["inner_state"] == "starting"
         assert marker["inner_pgid"] is None
@@ -11852,13 +11895,13 @@ def test_control_worktree_cleanup_retains_a_published_live_child_group(
         "main",
         workspace_rel,
         inner_state="running",
-        inner_pgid=515151,
+        inner_pgid=TEST_TREE_ID,
     )
     git_repo.git("worktree", "add", str(holder), "main")
     monkeypatch.setattr(
         recurring_cmd,
         "_process_group_is_running",
-        lambda pgid: pgid == 515151,
+        lambda pgid: pgid == TEST_TREE_ID,
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -11880,7 +11923,7 @@ def test_control_worktree_cleanup_retains_a_published_live_child_group(
         assert holder.is_dir()
         error = capsys.readouterr().err
         assert "control worktree retained" in error
-        assert "child process group 515151 may still be running" in error
+        assert f"child process group {TEST_TREE_ID} may still be running" in error
     finally:
         git_repo.git("worktree", "remove", "--force", str(holder))
         shutil.rmtree(parent, ignore_errors=True)
@@ -11907,8 +11950,11 @@ def test_control_worktree_preserves_machine_local_run_logs_before_removal(
     assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
 
     durable = git_repo.coga_os / ".coga" / "recurring-runs" / run_name
-    assert durable.read_text() == run_body
-    assert durable.stat().st_mode & 0o777 == 0o600
+    assert durable.read_text(encoding="utf-8") == run_body
+    if os.name == "posix":
+        assert durable.stat().st_mode & 0o777 == 0o600
+    else:
+        assert os.access(durable, os.W_OK)
     assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
@@ -11929,9 +11975,9 @@ def test_control_worktree_run_log_copy_keeps_colliding_records(
     recurring_cmd._persist_control_worktree_run_logs(source, destination)
 
     runs = destination / ".coga" / "recurring-runs"
-    assert (runs / name).read_text() == "durable\n"
+    assert (runs / name).read_text(encoding="utf-8") == "durable\n"
     recovered = runs / "20260903T120000.worktree-001.md"
-    assert recovered.read_text() == "temp\n"
+    assert recovered.read_text(encoding="utf-8") == "temp\n"
     assert sorted(path.name for path in runs.glob("*.md")) == [
         name,
         recovered.name,
@@ -11977,7 +12023,7 @@ def test_control_worktree_is_retained_when_run_logs_cannot_be_preserved(
             / ".coga"
             / "recurring-runs"
             / run_name
-        ).read_text() == "only copy\n"
+        ).read_text(encoding="utf-8") == "only copy\n"
         error = capsys.readouterr().err
         assert "control worktree retained" in error
         assert "simulated durable-storage failure" in error
@@ -11987,6 +12033,7 @@ def test_control_worktree_is_retained_when_run_logs_cannot_be_preserved(
             shutil.rmtree(holder.parent, ignore_errors=True)
 
 
+@windows_skip("POSIX process groups and graceful signals; native Windows Job Object tests cover termination")
 def test_control_worktree_reaps_cancelled_child_before_removal(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -11996,6 +12043,14 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
 
     class InterruptedProcess:
         pid = 4242
+        identity = TEST_TREE_ID
+
+        @property
+        def process(self):
+            return self
+
+        def close(self):
+            pass
         terminated = False
         reaped = False
 
@@ -12077,7 +12132,7 @@ def test_control_worktree_reaps_a_present_checkout_stranded_by_sigkill(
         workspace_rel,
         pid=424242,
         inner_state="running",
-        inner_pgid=515151,
+        inner_pgid=TEST_TREE_ID,
     )
     git_repo.git("worktree", "add", str(stranded), "main")
     stranded_log = (
@@ -12101,7 +12156,7 @@ def test_control_worktree_reaps_a_present_checkout_stranded_by_sigkill(
         / ".coga"
         / "recurring-runs"
         / stranded_log.name
-    ).read_text() == "# Recovered after SIGKILL\n"
+    ).read_text(encoding="utf-8") == "# Recovered after SIGKILL\n"
     assert not parent.exists()
 
 
@@ -12127,12 +12182,12 @@ def test_control_worktree_does_not_reap_a_live_inner_group_after_wrapper_sigkill
         git_repo.coga_os.relative_to(git_repo.root),
         pid=424242,
         inner_state="running",
-        inner_pgid=515151,
+        inner_pgid=TEST_TREE_ID,
     )
     git_repo.git("worktree", "add", str(holder), "main")
     monkeypatch.setattr(recurring_cmd, "_process_is_running", lambda _pid: False)
     monkeypatch.setattr(
-        recurring_cmd, "_process_group_is_running", lambda pgid: pgid == 515151
+        recurring_cmd, "_process_group_is_running", lambda pgid: pgid == TEST_TREE_ID
     )
 
     try:
@@ -12308,7 +12363,8 @@ def test_control_worktree_run_names_agent_templates_and_the_real_reason(
     """
     coga_os = git_repo.coga_os
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     _seed_period_task_context(coga_os)
     _seed_agent_workflow(coga_os)
@@ -12363,7 +12419,8 @@ def test_control_worktree_parks_hybrid_before_its_agent_handoff(
     """A frozen ticket.py is not proof that the whole period is script-only."""
     coga_os = git_repo.coga_os
     (coga_os / "coga.local.toml").write_text(
-        'user = "marc"\n[notification.slack]\nenabled = false\n'
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
     )
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -12420,7 +12477,7 @@ def test_control_worktree_parks_hybrid_before_its_agent_handoff(
     )
     assert Ticket.read(ref.ticket_path).status == "paused"
     assert ref.task_dir is not None
-    assert (ref.task_dir / "deterministic.txt").read_text() == "script ran\n"
+    assert (ref.task_dir / "deterministic.txt").read_text(encoding="utf-8") == "script ran\n"
     reported = capsys.readouterr()
     combined = reported.out + reported.err
     assert "ticket.py left" in combined
@@ -12498,6 +12555,14 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
 
     class CompletedProcess:
         pid = 4242
+        identity = TEST_TREE_ID
+
+        @property
+        def process(self):
+            return self
+
+        def close(self):
+            pass
 
         def wait(self, timeout=None):  # type: ignore[no-untyped-def]
             assert timeout is None
@@ -12505,7 +12570,7 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
 
     def fake_start(command, cwd, env):  # type: ignore[no-untyped-def]
         marker = json.loads(
-            (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+            (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
         )
         captured["state_at_spawn"] = marker["inner_state"]
         captured["command"] = command
@@ -12540,12 +12605,13 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
     assert captured["cwd"] == tmp_path / "elsewhere"
     assert captured["state_at_spawn"] == "starting"
     marker = json.loads(
-        (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+        (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text(encoding="utf-8")
     )
     assert marker["inner_state"] == "running"
-    assert marker["inner_pgid"] == 4242
+    assert marker["inner_pgid"] == TEST_TREE_ID
 
 
+@windows_skip("POSIX process groups and graceful signals; native Windows Job Object tests cover termination")
 def test_control_worktree_child_starts_in_an_isolated_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -12564,7 +12630,7 @@ def test_control_worktree_child_starts_in_an_isolated_session(
         ["coga", "run", "recurring-scan"], tmp_path, {"PATH": "/bin"}
     )
 
-    assert actual is expected
+    assert actual.process is expected
     assert captured["cwd"] == tmp_path
     assert captured["start_new_session"] is True
 
@@ -12585,8 +12651,8 @@ def test_recurring_all_summary_names_repos_serviced_from_a_control_worktree(
     assert "deterministic phases only, agent handoffs parked" in result.output
     # The on-control repo is an ordinary sweep and must not be listed.
     listed = result.output.split("agent handoffs parked")[-1]
-    assert "parked/repo" in listed
-    assert "ordinary/repo" not in listed
+    assert str(Path("parked/repo")) in listed
+    assert str(Path("ordinary/repo")) not in listed
 
 
 def test_recurring_all_summary_omits_a_failed_off_control_repo(
@@ -12627,7 +12693,8 @@ def _write_delegated_shape_workflow(company: Path, steps: list[str]) -> None:
     (company / "workflows" / "delegated-shape.md").write_text(
         "---\nname: delegated-shape\n"
         "description: A candidate workflow for a delegated period.\n"
-        f"steps:\n{lines}\n---\n{sections}"
+        f"steps:\n{lines}\n---\n{sections}",
+        encoding="utf-8", newline="\n",
     )
 
 
@@ -12680,10 +12747,11 @@ def test_delegated_template_refuses_an_unbounded_workflow_before_creation(
     _write_delegating_template(repo, "delegate-check")
     template_path = repo / "recurring" / "delegate-check" / "ticket.md"
     template_path.write_text(
-        template_path.read_text().replace(
+        template_path.read_text(encoding="utf-8").replace(
             "delegate: bootstrap/resolve-conflicts",
             "delegate: bootstrap/resolve-conflicts\nworkflow: delegated-shape",
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     cfg = load_config(repo)
@@ -12706,10 +12774,11 @@ def test_delegated_template_accepts_a_custom_one_step_agent_workflow(
     _write_delegating_template(repo, "delegate-check")
     template_path = repo / "recurring" / "delegate-check" / "ticket.md"
     template_path.write_text(
-        template_path.read_text().replace(
+        template_path.read_text(encoding="utf-8").replace(
             "delegate: bootstrap/resolve-conflicts",
             "delegate: bootstrap/resolve-conflicts\nworkflow: delegated-shape",
-        )
+        ),
+        encoding="utf-8", newline="\n",
     )
 
     cfg = load_config(repo)
@@ -12793,11 +12862,12 @@ def test_recurring_cli_relay_preserves_dirty_operator_and_publishes_control(
     monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"))
     (git_repo.coga_os / "coga.toml").write_text(
         'version = 1\ndefault_status = "draft"\n'
-        '[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
+        '[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n',
+        encoding="utf-8", newline="\n",
     )
     # Ordinary initialized workspaces already have a tracked audit log. An
     # untracked first log would exercise a separate control rebase limitation.
-    (git_repo.coga_os / "log.md").write_text("# Log\n")
+    (git_repo.coga_os / "log.md").write_text("# Log\n", encoding="utf-8", newline="\n")
     _write_recurring(git_repo.coga_os, "dream", """
         ---
         title: Relay integration probe
@@ -12822,10 +12892,10 @@ def test_recurring_cli_relay_preserves_dirty_operator_and_publishes_control(
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/dirty-relay")
     control = _add_control_worktree(git_repo)
-    script.write_text("raise RuntimeError('operator template must not run')\n")
-    (git_repo.coga_os / "scratch.md").write_text("untracked operator work\n")
+    script.write_text("raise RuntimeError('operator template must not run')\n", encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "scratch.md").write_text("untracked operator work\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/recurring/dream/ticket.py")
-    script.write_text(script.read_text() + "# unstaged edit too\n")
+    script.write_text(script.read_text(encoding="utf-8") + "# unstaged edit too\n", encoding="utf-8", newline="\n")
 
     def snapshot():
         return (
@@ -12840,14 +12910,14 @@ def test_recurring_cli_relay_preserves_dirty_operator_and_publishes_control(
     before = snapshot()
     result = subprocess.run(
         [sys.executable, "-m", "coga.cli", *argv],
-        cwd=git_repo.coga_os, capture_output=True, text=True, check=False,
+        cwd=git_repo.coga_os, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     assert result.returncode == script_exit, result.stdout + result.stderr
     assert snapshot() == before
     assert "created recurring/dream for " in git_repo.git(
         "show", "main:coga/log.md", cwd=git_repo.origin
     )
-    ticket = (control / "coga/tasks/recurring/dream/ticket.md").read_text()
+    ticket = (control / "coga/tasks/recurring/dream/ticket.md").read_text(encoding="utf-8")
     assert ("status: done" in ticket) == (script_exit == 0)
     assert "Launch: task recurring/dream" in result.stdout
 
@@ -12889,6 +12959,7 @@ def test_control_relay_forwards_sigterm_and_restores_handler(
 
 
 @pytest.mark.parametrize("terminal_interrupt", [False, True], ids=["pid-sigterm", "terminal-sigint"])
+@windows_skip("POSIX process groups and graceful signals; native Windows Job Object tests cover termination")
 def test_control_relay_waits_for_real_child_shutdown(
     tmp_path: Path, terminal_interrupt: bool
 ) -> None:
@@ -12914,7 +12985,7 @@ def test_control_relay_waits_for_real_child_shutdown(
         Path('ready').write_text('ready')
         while True:
             time.sleep(0.05)
-    """))
+    """), encoding="utf-8", newline="\n")
     parent = tmp_path / "parent.py"
     parent.write_text(dedent("""\
         import sys
@@ -12930,12 +13001,12 @@ def test_control_relay_waits_for_real_child_shutdown(
         except KeyboardInterrupt:
             code = 130
         raise SystemExit(code)
-    """))
+    """), encoding="utf-8", newline="\n")
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
     process = subprocess.Popen(
         [sys.executable, str(parent)], cwd=tmp_path, env=env,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
         start_new_session=True,
     )
     try:
@@ -12949,9 +13020,9 @@ def test_control_relay_waits_for_real_child_shutdown(
             process.send_signal(signal.SIGTERM)
         stdout, stderr = process.communicate(timeout=10)
         assert process.returncode == (130 if terminal_interrupt else 143), stdout + stderr
-        assert stopped.read_text() == "shutdown complete"
+        assert stopped.read_text(encoding="utf-8") == "shutdown complete"
         expected_signal = signal.SIGINT if terminal_interrupt else signal.SIGTERM
-        assert (tmp_path / "signals").read_text().splitlines() == [str(expected_signal)]
+        assert (tmp_path / "signals").read_text(encoding="utf-8").splitlines() == [str(expected_signal)]
     finally:
         # Clean up the fixture group even when an assertion detects an orphan.
         try:
@@ -12961,7 +13032,7 @@ def test_control_relay_waits_for_real_child_shutdown(
         process.wait()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX signal forwarding")
+@windows_skip("POSIX signal forwarding")
 def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path):
     import signal
     import sys
@@ -12979,7 +13050,8 @@ def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path
         "    raise SystemExit(0)\n"
         "signal.signal(signal.SIGTERM, stop)\n"
         f"Path({str(ready)!r}).write_text(str(os.getpid()))\n"
-        "while True: time.sleep(0.1)\n"
+        "while True: time.sleep(0.1)\n",
+        encoding="utf-8", newline="\n",
     )
     child.chmod(0o755)
     parent_code = (
@@ -12997,7 +13069,7 @@ def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path
     env["SLACK_WEBHOOK_URL"] = "https://example.invalid/unused"
     process = subprocess.Popen(
         [sys.executable, "-c", parent_code, str(git_repo.coga_os), str(child)],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
     )
     child_pid = None
     try:
@@ -13005,11 +13077,11 @@ def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path
         while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
             time.sleep(0.02)
         assert ready.exists(), process.communicate(timeout=1)
-        child_pid = int(ready.read_text())
+        child_pid = int(ready.read_text(encoding="utf-8"))
         process.send_signal(signal.SIGTERM)
         stdout, stderr = process.communicate(timeout=10)
         assert process.returncode == 143, stdout + stderr
-        assert stopped.read_text() == "stopped"
+        assert stopped.read_text(encoding="utf-8") == "stopped"
         with pytest.raises(ProcessLookupError):
             os.kill(child_pid, 0)
     finally:
@@ -13323,7 +13395,7 @@ def test_adopted_period_stays_handled_when_its_log_publication_fails(
     assert "[git] sync failed: simulated log outage" in captured.err
     assert "failed create sync left" not in captured.out + captured.err
     ticket_path = coga_os / "tasks/recurring/weekly-check/ticket.md"
-    assert ticket_path.read_text() == peer_ticket
+    assert ticket_path.read_text(encoding="utf-8") == peer_ticket
     text = records[-1].render()
     assert "skip (already handled on control)" in text
     assert "failed create sync left" not in text
@@ -13340,7 +13412,7 @@ def test_run_when_inactive_must_be_boolean(repo: Path, value: str) -> None:
     from coga.validate import run
 
     path = repo / "recurring/weekly-check/ticket.md"
-    path.write_text(path.read_text().replace('schedule:', f'run_when_inactive: {value}\nschedule:', 1))
+    path.write_text(path.read_text(encoding="utf-8").replace('schedule:', f'run_when_inactive: {value}\nschedule:', 1), encoding="utf-8", newline="\n")
     with pytest.raises(RecurringError, match="run_when_inactive"):
         Template.load(path.parent)
     scan = scan_due(load_config(repo), inactive_since="2026-09-04")
@@ -13363,7 +13435,7 @@ def test_inactive_sweep_skips_broken_template_without_strict_load(
 
     path = repo / "recurring/weekly-check/ticket.md"
     extra = "assignee: agent\n" + ("run_when_inactive: true\n" if exempt else "")
-    path.write_text(path.read_text().replace("schedule:", f"{extra}schedule:", 1))
+    path.write_text(path.read_text(encoding="utf-8").replace("schedule:", f"{extra}schedule:", 1), encoding="utf-8", newline="\n")
     if skipped:
         monkeypatch.setattr(
             Template, "load", lambda *a, **kw: pytest.fail("strict template load ran")
@@ -13390,7 +13462,7 @@ def test_inactive_sweep_skips_broken_template_without_strict_load(
 
 @pytest.mark.parametrize("frontmatter", ["- a list", "[]", "false", "0", "null"])
 def test_inactive_sweep_reports_unreadable_frontmatter(repo: Path, frontmatter: str) -> None:
-    (repo / "recurring/weekly-check/ticket.md").write_text(f"---\n{frontmatter}\n---\nbody\n")
+    (repo / "recurring/weekly-check/ticket.md").write_text(f"---\n{frontmatter}\n---\nbody\n", encoding="utf-8", newline="\n")
     scan = scan_due(load_config(repo), inactive_since="2026-09-04")
     assert scan.inactivity_skips == []
     assert "mapping" in scan.errors[0][1]
@@ -13415,8 +13487,8 @@ def test_inactive_sweep_skips_template_with_bad_schedule(repo: Path) -> None:
     from coga.recurring_autofix import scan_lines_for_record
 
     path = repo / "recurring/weekly-check/ticket.md"
-    text = path.read_text()
-    path.write_text(re.sub(r"^schedule:.*$", 'schedule: "not a cron"', text, count=1, flags=re.M))
+    text = path.read_text(encoding="utf-8")
+    path.write_text(re.sub(r"^schedule:.*$", 'schedule: "not a cron"', text, count=1, flags=re.M), encoding="utf-8", newline="\n")
     scan = scan_due(load_config(repo), inactive_since="never")
     assert scan.errors == []
     assert scan.inactivity_skips == [("weekly-check", None)]
@@ -13426,7 +13498,7 @@ def test_inactive_sweep_skips_template_with_bad_schedule(repo: Path) -> None:
 def test_inactive_template_exemption_does_not_pass_to_period(repo: Path) -> None:
     path = repo / "recurring/weekly-check/ticket.md"
     assert not Template.load(path.parent).runs_when_inactive
-    path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+    path.write_text(path.read_text(encoding="utf-8").replace('schedule:', 'run_when_inactive: true\nschedule:', 1), encoding="utf-8", newline="\n")
     assert Template.load(path.parent).runs_when_inactive
     scan = scan_due(load_config(repo), inactive_since="never")
     assert len(scan.due) == 1
@@ -13475,7 +13547,7 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
 
     path = repo / "recurring/weekly-check/ticket.md"
     if override == "exempt":
-        path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+        path.write_text(path.read_text(encoding="utf-8").replace('schedule:', 'run_when_inactive: true\nschedule:', 1), encoding="utf-8", newline="\n")
     if override == "disabled":
         with (repo / "coga.toml").open("a") as stream:
             stream.write("\n[recurring]\nidle_days = 0\n")
@@ -13525,7 +13597,7 @@ def test_inactive_watchdog_exemption_escalates_without_autofix(
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
     if exempt:
         path = repo / "recurring/weekly-check/ticket.md"
-        path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+        path.write_text(path.read_text(encoding="utf-8").replace('schedule:', 'run_when_inactive: true\nschedule:', 1), encoding="utf-8", newline="\n")
     saved = ref.ticket_path.read_bytes()
     notifications = []
     monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(date(2026, 9, 4), True))
@@ -13608,7 +13680,7 @@ def test_scan_bad_blackboard_keeps_existing_period_and_allows_retry(repo: Path) 
     assert [task.template for task in failed.due] == ['weekly-check']
     assert not (repo / 'tasks' / 'recurring' / 'new-job').exists()
 
-    override.write_text('Fresh notes.\n')
+    override.write_text('Fresh notes.\n', encoding="utf-8", newline="\n")
     retried = scan_due(cfg, now=now)
     assert retried.errors == []
     assert {task.template for task in retried.due} == {'new-job', 'weekly-check'}
@@ -13623,7 +13695,8 @@ def test_watchdog_pause_reader_accepts_both_header_formats(repo: Path, marker: s
         f"2026-06-01 10:00 {marker}[alpha] [system:watchdog] paused (timeout)\n"
         "legacy continuation\n"
         "2026-06-01 10:01 [beta] [system:watchdog] paused (timeout)\n"
-        "2026-06-01 10:02 v1 [beta] [human:marc] created anew\n"
+        "2026-06-01 10:02 v1 [beta] [human:marc] created anew\n",
+        encoding="utf-8", newline="\n",
     )
     pauses = _watchdog_pauses(cfg, {"alpha", "beta"})
     assert set(pauses) == {"alpha"}
