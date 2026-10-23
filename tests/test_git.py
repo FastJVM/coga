@@ -1819,7 +1819,11 @@ def test_best_effort_task_sync_separates_saved_state_from_failed_publication(
     assert "Local task state was saved; Git publication failed." in err
     assert "Do not rerun `coga bump` to recover." in err
     assert "If Git could not write to the object storage shown above" in err
-    assert f"`coga run publish-state tasks/demo.md log.md` from {git_repo.coga_os}" in err
+    required = shlex.quote(str(Path("tasks") / "demo.md"))
+    assert (
+        f"`coga run publish-state {required} log.md` "
+        f"from {shlex.quote(str(git_repo.coga_os))}"
+    ) in err
     assert ticket.read_bytes() == written
     # The audit line stays concise: the failure, not the remedy.
     log = _global_log(cfg)
@@ -1854,8 +1858,9 @@ def test_failure_report_quotes_recovery_paths_and_drops_missing_ones(tmp_path):
         recovery_paths=(task, root / "log.md"),
     )
 
-    assert "coga run publish-state 'tasks/with space/ticket.md'`" in text
-    assert f"from '{root}'" in text
+    required = shlex.quote(str(Path("tasks") / "with space" / "ticket.md"))
+    assert f"coga run publish-state {required}`" in text
+    assert f"from {shlex.quote(str(root))}" in text
     assert "Do not rerun the command to recover." in text
     # A transport failure gets no storage-access diagnosis.
     assert "object storage" not in text

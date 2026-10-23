@@ -161,7 +161,7 @@ _HELD_LOCKS: dict[tuple[str, int], list[int]] = {}
 def state_lock(cfg: Config) -> Iterator[None]:
     """Serialize this checkout's Coga writers and publishers.
 
-    A short, kernel-released advisory `flock` around a ticket's
+    A short, kernel-released advisory lock around a ticket's
     read-modify-write and its publication. Reentrant within one thread, so
     a caller that holds it across a longer window (megalaunch's admission)
     can still call `publish`; every other thread and process waits. Its file

@@ -20,7 +20,7 @@ import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
-from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow
+from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow, windows_interactive_skip
 from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
@@ -7598,6 +7598,7 @@ def test_orientation_returns_to_control_after_session_changes_branch(
     assert git_repo.git("show", "feature/from-chat:work.py") == "committed work\n"
 
 
+@windows_interactive_skip
 def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

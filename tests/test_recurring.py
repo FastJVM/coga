@@ -1009,6 +1009,7 @@ def test_recurring_relay_mirrors_the_workspace_position(
     """
     moved = (git_repo.root / workspace_rel).resolve()
     if moved != git_repo.coga_os.resolve():
+        monkeypatch.chdir(git_repo.root)
         moved.mkdir(parents=True, exist_ok=True)
         for entry in list(git_repo.coga_os.iterdir()):
             shutil.move(str(entry), str(moved / entry.name))
@@ -1246,7 +1247,7 @@ def test_control_tip_owner_reads_command_scoped_fetched_commit(
     control_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
     # Poison FETCH_HEAD with an unrelated commit: the owner probe must read the
     # remote-tracking ref it fetched into, never the checkout-wide pseudo-ref.
-    git_repo.git("update-ref", "FETCH_HEAD", git_repo.git("rev-parse", "HEAD~0").strip())
+    git_repo.git("fetch", ".", "HEAD")
     fetches: list[tuple[str, ...]] = []
     real_run_git = recurring_cmd.git.run_git
 
@@ -2184,7 +2185,7 @@ def test_scan_due_keeps_stale_done_task_when_template_workflow_is_missing(
     scan = scan_due(load_config(repo), now=datetime(2026, 4, 29, 10, 0, 0))
 
     _assert_stale_done_kept_and_sweep_continued(repo, "a-ghost", ref, scan)
-    assert "does/not-exist" in scan.errors[0][1]
+    assert str(repo / "workflows" / "does" / "not-exist.md") in scan.errors[0][1]
     assert "skipping a-ghost" in capsys.readouterr().err
 
 
