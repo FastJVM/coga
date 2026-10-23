@@ -87,3 +87,9 @@ that run in the PR.
 ## Blockers
 
 - [ ] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/01-core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
+
+---
+
+## Blocker reminders
+
+- 9f1f52929c3a last_reminded: 2026-10-23 10:25
