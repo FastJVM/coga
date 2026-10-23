@@ -102,12 +102,15 @@ with oscompat.ProcessTree([sys.executable, '-c', child_code], stdout=-1, text=Tr
         assert supervisor.poll() is None  # inspection must not kill the owner
         supervisor.kill()
         supervisor.wait(timeout=10)
-        # Acquiring a process handle is non-destructive, and completion of
-        # job cleanup is observed with a bounded wait before the assertion.
+        # The owner and its descendants finish terminating independently.
+        # Wait for both the process probe and conservative recovery proof.
         import time
 
         deadline = time.monotonic() + 10
-        while oscompat.process_is_running(evidence["grandchild"]) and time.monotonic() < deadline:
+        while (
+            oscompat.process_is_running(evidence["grandchild"])
+            or runner._stale_owned_control_worktree(root, "main", checkout) is None
+        ) and time.monotonic() < deadline:
             time.sleep(0.01)
         assert not oscompat.process_is_running(evidence["grandchild"])
         assert runner._stale_owned_control_worktree(root, "main", checkout) is not None
