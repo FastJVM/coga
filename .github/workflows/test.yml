@@ -13,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: test-${{ github.ref }}
+  # Coalesce PR updates, but give every main push its own run.
+  group: test-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
