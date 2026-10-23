@@ -1,6 +1,6 @@
 ---
 title: Test SpecKit
-status: in_progress
+status: done
 owner: zach
 contexts:
 - coga-dev/principles
@@ -16,7 +16,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -183,19 +182,30 @@ doc link and that the section is done — not what the trial found.
 
 <!-- coga:blackboard -->
 
-## State
+## Report
 
-Findings live in the doc, not here (this repo is public):
+The SpecKit section of "Coga Competitor Tests" is written and Zach considers it
+finished:
 https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
 
-The trial ran end to end on the VM: install, the full spec-driven loop through
-`/speckit-implement`, whether the command order is enforced, and what the
-extension point allows. Zach wrote the SpecKit section as we went, so the doc
-is current. `/speckit-converge` was not run.
+It is a numbered running log with his screenshots inline, covering install, the
+spec-driven loop through `/speckit-implement`, whether the command order is
+enforced, and what the extension point allows. `/speckit-converge` was not run.
+Findings stay in the doc, not here, because this repo is public.
 
-## Next
+Zach ran Spec Kit on the VM and wrote the section as the trial went; the agent
+discussed findings and drafted text for it. Trial output and the `tiny-ticket`
+source stayed in the VM under `speckit-tiny-ticket` and were not committed here.
+Installer observations are in the doc as input to
+`marketing/fix-installer/make-the-readme-install-section-the-only-install-p`.
 
-Zach finishes the section and shares the doc with Nico by named account. He is
-holding the share until the BMAD and Compound Engineering trials are also
-written up, so this step stays open until then — it is not stalled.
-Then `report-to-coga` records the link and that the section is done.
+## Outstanding: the Nico share
+
+The share did not happen. Doc permissions on 2026-10-23 list zach only.
+
+Zach deferred it on purpose — one share once all three sections exist — and
+BMAD and Compound Engineering are still drafts. Rather than hold this ticket
+open on two unstarted trials, he closed it and moved the obligation to
+`### Where findings go` on `competition-testing/test-bmad-method` and
+`competition-testing/test-compound-engineering`. The last of those two to
+finish carries the share.
