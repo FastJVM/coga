@@ -9216,3 +9216,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 14:38 v1 [where-have-code-review-disappeared] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-23 14:38 v1 [where-have-code-review-disappeared] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-23 14:38 v1 [where-have-code-review-disappeared] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-23 14:40 v1 [where-have-code-review-disappeared] [agent:claude] advanced to step 2 (human-owns-and-finishes) → nicktoper — Audit table on blackboard: 3/12 not peer-reviewed, all codex-override implements on claude-main tickets (rule gap, not routing bug); chain stop not reproduced

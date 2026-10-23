@@ -15,7 +15,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 ---
 
 ## Description
@@ -82,6 +82,92 @@ from the table.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Peer-review audit (2026-10-23, agent-produces, claude)
+
+**Verdict: 3 of 12 completed reviews were not peer-reviewed (1 more is still
+running). Pattern: every one is a ticket whose main agent is `claude` but
+whose `implement` ran as `codex` under an override, so `other-agent` routed
+review back to `codex`. Every Claude-implemented ticket got a real Codex
+review. The routing rule worked as written. The gap is in the rule, which
+ignores the override. It is not a routing bug.**
+
+Scope: the 10 most recent `→ peer-review` handoffs in `coga/log.md` (lines
+9024–9212) included only 2 implemented by codex, so the window extends back
+through line 8907 to reach 3. That gives 13 rows. All are `code/with-review`.
+No `docs/with-review` handoff fell in the window. Every ticket has
+`agent: claude` (main agent), so the routing rule always picks `codex` as the
+peer. "Impl" comes from the `implement` run record's `cli`, and "Reviewer"
+from the `peer-review` run record's `cli`.
+
+| # | Ticket | Workflow | Impl | Main | Reviewer | Peer review | Real notes | Chain → peer-review | Evidence (log.md lines) |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | windows-native/02-pr-ci-with-linux-and-windows-test-jobs | code/with-review | claude | claude | codex (launched) | **pending** | n/a, review not finished | auto (chain spawn 9214, same minute) | 9212 handoff, 9213 impl run, 9214 |
+| 2 | surface-a-chat-end-log-line-that-was-written-but-n | code/with-review | codex | claude | codex | **no** | yes, codex found and fixed 1 must-fix. Blackboard says "recorded as **self-review**" | auto (megalaunch resume 9151–9152) | 9143, 9149, 9150, 9154, 9153 (bump notes "Direct Codex self-review"), 9157 (PR #1090 "disclosed Codex self-review only") |
+| 3 | blocks/08-trim-launch-prompt-and-workflow-topics | code/with-review | claude | claude | codex | yes | yes, 2 findings fixed | auto (9134) | 9132, 9133, 9134, 9145, 9144 |
+| 4 | keep-the-file-list-when-a-control-fast-forward-ref | code/with-review | codex | claude | codex | **no** | yes, 1 correctness fix. Blackboard says "recorded as **self-review**" | auto (megalaunch 9126–9127) | 9118, 9124, 9125, 9136, 9135 |
+| 5 | blocks/09-trim-setup-and-extension-topics | code/with-review | claude | claude | codex | yes | yes, twin/orphan finding fixed | auto (megalaunch 9026–9027) | 9024, 9025, 9029, 9028 |
+| 6 | blocks/07-trim-the-tickets-family-and-secrets | code/with-review | claude | claude | codex | yes | yes. Receipt labeled "self-review" because codex also wrote corrections | blocked + manual relaunch (2 runs) | 9007, 9008, 9011 block, 9012, 9109 relaunch, 9120, 9119 |
+| 7 | blocks/06-collapse-state-publication-into-one-user-topic | code/with-review | claude | claude | codex | yes | yes. Receipt `kind: self` (same reason) | blocked + manual relaunch (2 runs) | 8998, 8999, 9002 block, 9003, 9067 relaunch, 9098, 9097 |
+| 8 | blocks/05-trim-the-notifications-family | code/with-review | claude | claude | codex | yes | yes. Receipt "self-review" (same reason) | blocked + manual relaunch (2 runs) | 8989, 8990, 8993 block, 8994, 9058 relaunch, 9061, 9060 |
+| 9 | blocks/04-trim-and-consolidate-the-recurring-family | code/with-review | claude | claude | codex | yes | yes. Receipt "self-review" (same reason) | blocked + manual relaunch (2 runs) | 8980, 8981, 8984 block, 8985, 9049 relaunch, 9052, 9051 |
+| 10 | blocks/03-trim-the-checkouts-and-checkout-cleanup-family | code/with-review | claude | claude | codex | yes | yes, "independent review" | blocked + manual relaunch (2 runs) | 8971, 8972, 8975 block, 8976, 9038 relaunch, 9041, 9040 |
+| 11 | blocks/02-delete-the-code-topic-and-remove-coga-repo-only | code/with-review | claude | claude | codex | yes | yes, "direct, independent Codex review" | auto (8961) | 8959, 8960, 8961, 8963, 8962 |
+| 12 | blocks/01-self-document-coga-toml-and-split-the-agents-to | code/with-review | claude | claude | codex | yes | yes, 1 doc error fixed | auto (8945) | 8943, 8944, 8945, 8947, 8946 |
+| 13 | let-the-autofix-generator-attach-repo-default-contexts | code/with-review | codex | claude | codex | **no** | yes, 1 contract gap fixed. Bump says "Self-review complete" | auto (8909) | **8896 `launched (operator=claude, launch_agent=codex, agent=codex)`**, 8907, 8908, 8909, 8912, 8911, PR #1079 |
+
+### Findings
+
+- **Override gap, not a routing bug.** Line 8896 is direct evidence:
+  `operator=claude, launch_agent=codex`. Implement ran as a `--agent codex`
+  override on a claude-main ticket. As `coga/launch` specifies, the override
+  ends at the `other-agent` step, and `other-agent` resolves to claude's peer,
+  which is `codex`. The same `operator=claude, launch_agent=codex` →
+  `peer-review → codex` shape appears further back, outside the window:
+  8847/8859 (context-audiences/02), 8828/8830 (fix-parser-bugs…), and
+  8675/8683 (report-of-usage…). The control case is 7908
+  (autofix-write-ups…). There, codex implemented and review went to
+  `claude`, which is consistent with a codex-main ticket.
+- **Megalaunch hides the override.** Rows 2 and 4 were implemented by codex
+  through megalaunch, but the log line is only `launched via coga
+  megalaunch` (9118, 9143), with no `launch_agent=`. `coga/launch` tells
+  readers to get the real CLI from the `launch_agent=` field. These rows have
+  none, so the run record's `cli` is the only attribution. I did not
+  determine how megalaunch picked codex (a `megalaunch.py` `agent_override`
+  or a selection setting).
+- **The codex reviewer is honest about it.** All three "no" rows label their
+  receipt as self-review on the blackboard. Row 2's PR text also discloses
+  it. The PR bodies for rows 4 and 13 were not checked with `gh`.
+- **Chain health.** In this window, none of the reviews needed a manual
+  relaunch because the chain stopped after `implement`. Each peer-review
+  session started in the same minute as the handoff. That was either a
+  `coga launch` chain spawn (logged as `[human:…] launched (operator=codex…)`)
+  or a megalaunch resume. Rows 6–10 have two run records and a manual
+  relaunch, but they come from deliberate `coga block` calls on PR #1081 (a
+  cross-ticket dependency), not from a chain stop. The owner's earlier
+  "chain stops after implement" report is **not reproduced** in this sample.
+- **Receipt label vs. the ticket's rule.** Rows 6–9 count as peer review by
+  this ticket's rule because the CLIs differ. Their PR receipts still say
+  `self` because codex also authored fixes and rebase resolutions. A reader
+  of a PR could undercount peer review.
+
+### Weak spots / assumptions
+
+- "Chain spawn" vs. "manual launch": both write the identical
+  `[human:<owner>] launched (operator=…)` line (`launch.py`
+  `_launch_log_message`). I classified a launch as a chain spawn when it fell
+  in the same minute as the bump, with no preceding `started … via coga
+  launch` / `activated` lines. A human relaunch shows those lines (e.g.
+  9036–9038).
+- `coga/launch` says the `[agent:<name>]` on a lifecycle line credits the
+  configured operator under an override. Line 8907 instead shows
+  `[agent:codex]` while the operator was claude. The doc and the behavior
+  disagree, so the attribution in `advanced` lines is not reliable for
+  telling override from main. I used the run-record `cli` instead.
+- Row 1 is still in flight (peer-review launched 9214). Its result is not
+  in the log yet.
+- "Real notes" was judged from each ticket's `## Peer review` blackboard
+  section. Every row has concrete findings with commit SHAs.
 
 ## Superseded designs
 
