@@ -55,11 +55,9 @@ command's behavior. Attach that topic when a task depends on it.
 
 ## Aliases and recipes
 
-This section owns both lists. Default aliases are argv rewrites, not
-commands with logic, and dispatch even when `coga.toml` omits them; each
-alias row above shows its expansion. A repo adds or overrides aliases in
-`[aliases]`; the shipped `coga.toml` comments its entries and optional
-examples there.
+This section owns both lists. Default aliases (the `→` rows above) are argv
+rewrites that dispatch even when `coga.toml` omits them; a repo adds or
+overrides them in `[aliases]`.
 
 `coga run` accepts only these fixed recipe names: `autoclose`,
 `blocker-reminders`, `branch-sweep`, `validate-drift`,
@@ -67,13 +65,3 @@ examples there.
 `skill-update`, `open-pr`, `delete-task`, `publish-state`, and
 `prepare-checkout`. How both mechanisms behave, and why a new command usually
 belongs at the edge, is in [coga/extension-model](../extension-model/SKILL.md).
-
-## Picking a command
-
-- Start or resume ticket work: `coga launch <slug>`; ad-hoc session with no
-  ticket: `coga chat`.
-- Draft work: `coga ticket` (guided) or `coga create` (raw draft).
-- Finish a step: `coga bump`; finish a workflow-less ticket:
-  `coga mark done`; need a human answer: `coga block`.
-- Drain the queue: `coga megalaunch`; choose tasks first: `coga pick`.
-- Triage: `coga status`; structure check: `coga validate --json`.

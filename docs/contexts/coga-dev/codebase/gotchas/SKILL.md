@@ -102,7 +102,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   this one's, so a rule about Coga's own source tree (`src/coga/`, the
   microkernel boundary) belongs in the `coga-dev/microkernel` topic, which
   owns it; this repo's root `AGENTS.md` carries only a summary and pointer
-  (`coga/context.md` is now a generated copy of `coga-dev/principles`);
+  (`coga/context.md` only describes the repo and names `coga-dev/principles`);
   `test_packaged_prompt_layers_carry_no_coga_source_rules` pins that.
 - **Every `files("coga.<pkg>")` anchor must be a regular package.** On a
   directory without `__init__.py`, `importlib.resources.files` returns a
