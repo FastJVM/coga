@@ -362,7 +362,7 @@ def test_parent_publication_reaches_second_checkout_without_dirty_files(git_repo
     assert (git_repo.root/"tracked.txt").read_text(encoding="utf-8") == "tracked dirty"
     assert git_repo.git("show", "main:tracked.txt", cwd=git_repo.origin) == "committed"
     clone = tmp_path/"second"
-    git_repo.git("clone", "-b", "main", str(git_repo.origin), str(clone))
+    git_repo.git("clone", "-c", "core.autocrlf=false", "-b", "main", str(git_repo.origin), str(clone))
     assert (clone/"coga/recurring/phone-home/ticket.md").read_bytes() == parent.read_bytes()
     _write(clone/"coga/coga.local.toml", 'user = "marc"\n')
     assert _state(clone/"coga")["repo_id"] == REPO_ID

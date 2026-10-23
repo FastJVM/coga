@@ -2242,7 +2242,7 @@ def test_scan_due_reports_missing_workflow_on_fresh_create(repo: Path) -> None:
     scan = scan_due(load_config(repo), now=datetime(2026, 4, 22, 10, 0, 0))
 
     assert [name for name, _ in scan.errors] == ["a-ghost"]
-    assert "does/not-exist" in scan.errors[0][1]
+    assert str(Path("does/not-exist")) in scan.errors[0][1]
     assert [t.template for t in scan.tasks] == ["weekly-check"]
 
 

@@ -324,7 +324,7 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
     _write(
         new,
         f"""
-        {{"type":"session_meta","payload":{{"id":"codex-session","timestamp":"2026-06-23T12:01:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","payload":{{"id":"codex-session","timestamp":"2026-06-23T12:01:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"turn_context","payload":{{"model":"gpt-5.4"}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3,"reasoning_output_tokens":1,"total_tokens":13}}}}}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":50,"cached_input_tokens":12,"output_tokens":13,"reasoning_output_tokens":5,"total_tokens":63}}}}}}}}
@@ -376,7 +376,7 @@ def test_parse_codex_activity_uses_messages_after_turn_context_only(
     _write(
         rollout,
         f"""
-        {{"type":"session_meta","timestamp":"2026-06-23T12:00:00Z","payload":{{"id":"codex-activity","timestamp":"2026-06-23T12:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","timestamp":"2026-06-23T12:00:00Z","payload":{{"id":"codex-activity","timestamp":"2026-06-23T12:00:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"response_item","timestamp":"2026-06-23T12:00:01Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"injected environment"}}]}}}}
         {{"type":"turn_context","timestamp":"2026-06-23T12:00:02Z","payload":{{"model":"gpt-5.4"}}}}
         {{"type":"response_item","timestamp":"2026-06-23T12:00:03Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"# composed prompt"}}]}}}}
@@ -425,7 +425,7 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
         _write(
             path,
             f"""
-            {{"type":"session_meta","payload":{{"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+            {{"type":"session_meta","payload":{{"id":"{session_id}","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
             {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
             """,
         )
@@ -455,7 +455,7 @@ _SUBAGENT_MARKERS = (
 def _write_codex_rollout(
     path: Path, *, session_id: str, cwd: Path, extra_meta: str, total: int
 ) -> None:
-    meta = f'"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"'
+    meta = f'"id":"{session_id}","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"'
     if extra_meta:
         meta += "," + extra_meta
     _write(
@@ -557,7 +557,7 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
     _write(
         rollout,
         f"""
-        {{"type":"session_meta","payload":{{"id":"stale","timestamp":"2026-06-23T11:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","payload":{{"id":"stale","timestamp":"2026-06-23T11:00:00Z","cwd":{json.dumps(str(cwd.resolve()))},"model_provider":"openai"}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
         """,
     )

@@ -29,7 +29,7 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import remove_test_checkout, windows_skip
+from conftest import remove_test_checkout, windows_skip, write_executable
 from typer.testing import CliRunner
 
 from coga import git
@@ -1166,7 +1166,7 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
 
 @pytest.mark.parametrize("failure", ["committed_context", "push"])
 def test_ticket_command_withholds_sweep_after_failed_authoring(
-    git_repo, monkeypatch, capsys, failure,
+    git_repo, monkeypatch, capsys, failure, tmp_path,
 ):
     import importlib
     import sys
@@ -1174,6 +1174,10 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
     from coga import cli
 
     command = importlib.import_module("coga.commands.ticket")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_executable(bin_dir / "true", "pass\n")
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     task = _seed_ticket(git_repo)
     config = git_repo.coga_os / "coga.toml"
     config.write_text(config.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "true"'), encoding="utf-8", newline="\n")

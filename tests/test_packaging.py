@@ -1095,7 +1095,7 @@ def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
     subprocess.run([sys.executable,"-m","pip","install","--no-deps","--target",str(installed),str(wheel)],capture_output=True,check=True)
     target = tmp_path/"company"
     target.mkdir()
-    env = {**os.environ, "PYTHONPATH":str(installed), "CI":"true"}
+    env = {**os.environ, "PYTHONPATH":str(installed), "PYTHONIOENCODING":"utf-8", "CI":"true"}
     script = r'''
 import json
 from pathlib import Path

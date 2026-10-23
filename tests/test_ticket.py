@@ -487,7 +487,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     combined = result.output + (result.stderr or "")
     assert "email/ghost" in combined
     assert "broken-context" in combined
-    assert "email/ghost/SKILL.md" in combined
+    assert str(Path("email/ghost/SKILL.md")) in combined
     assert not called
 
 

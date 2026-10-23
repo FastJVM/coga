@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -88,7 +89,7 @@ def test_uninstall_removes_relocated_contexts_directory(
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
 
     assert result.exit_code == 0, result.output
-    assert "remove docs/contexts/ (configured contexts directory)" in result.output
+    assert f"remove {Path('docs/contexts')}/ (configured contexts directory)" in result.output
     assert not (target / "docs" / "contexts").exists()
     assert not (target / "coga").exists()
 
@@ -226,7 +227,7 @@ def test_uninstall_purge_runs_uv_tool_for_uv_install(
     assert result.exit_code == 0, result.output
     assert calls == [["/usr/bin/uv", "tool", "uninstall", "coga"]]
     assert envs[0] is not None
-    assert envs[0]["UV_TOOL_DIR"] == "/opt/uv tools"
+    assert envs[0]["UV_TOOL_DIR"] == str(Path("/opt/uv tools"))
     assert "Uninstalled `coga` via uv" in result.output
     assert "-m pip" not in result.output
 
@@ -250,7 +251,7 @@ def test_uninstall_purge_uv_failure_prints_command_with_tool_dir(
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
     assert result.exit_code == 0, result.output
     assert "uv uninstall failed" in result.output
-    assert "UV_TOOL_DIR='/opt/uv tools' uv tool uninstall coga" in result.output
+    assert f"UV_TOOL_DIR={shlex.quote(str(Path('/opt/uv tools')))} uv tool uninstall coga" in result.output
 
 
 def test_uninstall_purge_uv_install_without_uv_prints_uv_hint(
@@ -270,7 +271,7 @@ def test_uninstall_purge_uv_install_without_uv_prints_uv_hint(
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
     assert result.exit_code == 0, result.output
     assert "Couldn't find uv on PATH" in result.output
-    assert "UV_TOOL_DIR=/ uv tool uninstall coga" in result.output
+    assert f"UV_TOOL_DIR={shlex.quote(str(Path('/')))} uv tool uninstall coga" in result.output
     assert "pip uninstall" not in result.output
 
 

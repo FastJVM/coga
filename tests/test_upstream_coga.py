@@ -7,6 +7,7 @@ than imported from the package.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from textwrap import dedent
@@ -89,7 +90,7 @@ def _company(tmp_path: Path, checkouts: list[Path]) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    listed = ", ".join(f'"{c}"' for c in checkouts)
+    listed = ", ".join(json.dumps(str(c)) for c in checkouts)
     _write(
         company / "coga.local.toml",
         f"""
