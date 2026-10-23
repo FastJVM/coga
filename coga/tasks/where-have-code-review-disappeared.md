@@ -3,12 +3,84 @@ title: where have code review disappeared?
 status: draft
 owner: nicktoper
 agent: claude
-workflow: code/with-review
-contexts:
-  - coga/launch
+workflow: draft-for-human
+contexts: []
 ---
 
 ## Description
+
+Check that peer code review by the other agent is still happening. The owner
+expects no problem but wants evidence. Take the 10 most recent handoffs into
+a `peer-review` step (`code/with-review` or `docs/with-review`), ordered by the
+handoff line in `coga/log.md`. If fewer than 3 of those 10 were implemented by
+`codex`, extend further back until at least 3 are, and say so. For each,
+record the implementing agent, the main agent, the agent that ran
+`peer-review`, and whether the review produced real review notes from that
+agent. Also note whether the chain reached `peer-review` on its own or needed
+a manual relaunch: two or more peer-review run records, or a manual `launch`
+line, between the handoff and the next bump.
+
+Write the result to this ticket's blackboard as a table (ticket, workflow,
+implementer, reviewer, peer review yes/no, evidence line refs) plus a one-line
+verdict: "all peer-reviewed by the other agent" or "N were not, and here is
+the pattern". A review counts as peer review only when the reviewing CLI
+differs from the implementing CLI. If that disagrees with the routing rule
+below, say which one is broken. Do not fix anything. The owner decides the next step
+from the table.
+
+## Context
+
+- **Routing rule** (from `coga/launch`, "The step chain", cited not
+  attached): a step with `assignee: other-agent` runs the *main agent's*
+  configured peer. `coga.toml` defines exactly two agents, `claude` and
+  `codex`. This differs from "opposite of the implementer" when `implement`
+  ran under a `--agent` override: if the main agent is `claude` but `codex`
+  implemented, the routing rule still sends review to `codex`. Record both so
+  the owner can tell a routing bug from an override gap.
+- `code/design-then-implement` is out: its `other-agent` step is
+  `evaluate-design`, a design review, and its code goes straight to `open-pr`.
+- **Evidence sources:** `coga/log.md` lines of the form
+  `[<slug>] [agent:<x>] advanced to step N (peer-review) → <y>` (the
+  handoff), the following `[system] {...}` JSON run record for
+  `"step":"peer-review"` (`cli`, `outcome`), the ticket blackboard (done
+  tickets may be retired; `coga/tickets/discovery` has the recovery recipe),
+  and the PR body. `code/with-self-review` tickets never involve the other
+  agent by design, so leave them out of the 10.
+- **Lead to check, not a conclusion:** while authoring, two recent log lines
+  showed the reviewer equal to the implementer:
+  `[keep-the-file-list-when-a-control-fast-forward-ref] [agent:codex] advanced to step 2 (peer-review) → codex`
+  and the same for `surface-a-chat-end-log-line-that-was-written-but-n`.
+  Their run outcomes say "self-review". In `surface-a-chat-end-…` the later
+  `open-pr` step went to `claude`, which suggests `claude` was the main agent
+  and `codex` implemented under an override. The cold review found more
+  codex→codex handoffs further back in the log. Claude-implemented tickets
+  (`blocks/0x-*`) went to `codex` as expected. Expect at least some "not
+  peer-reviewed" rows.
+- The owner also reported earlier that the chain sometimes stops after the
+  `implement` bump (and, from Zach, that a Codex window stays open). If the
+  table shows a manual relaunch on the review step, flag it. The earlier
+  fix-oriented scope for that is archived under the blackboard's
+  "Superseded designs" for reuse.
+- Related tickets: `make-every-code-workflow-review-with-the-other-age`
+  (workflow coverage) and `lifecycle-writes-read-control-s-ticket-before-modi`
+  (stale-state publication). Retired tickets' blackboards need the recovery
+  recipe in `coga/tickets/discovery`; PR bodies need `gh`.
+- 2026-09-30: the owner folded the empty stub
+  `codex-doesn-t-exist-properly-for-agent-restart` into this ticket.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Superseded designs
+
+### 2026-10-23 — fix-the-chain scope replaced by an audit
+
+The owner reframed the ticket as an audit of the last 10 peer reviews and
+expects no problem. The original investigation-and-fix scope is kept below in
+case the audit finds one.
+
+### Description (superseded)
 
 The peer code review by the other agent has stopped happening. The owner saw
 this under both `coga launch` and `coga megalaunch`. When the implementing
@@ -33,7 +105,7 @@ from that experiment has been reported. This is a second observed failure
 shape alongside the exiting session above; establish which occurs in each
 reproduction rather than assuming they have the same cause.
 
-## Context
+### Context (superseded)
 
 **Consolidated `codex-doesn-t-exist-properly-for-agent-restart`
 (2026-09-30, owner approved).** That title-only stub carried no additional
@@ -124,13 +196,3 @@ chain still breaks.
 
 **Topic update:** If the chain contract itself changes, update
 `docs/contexts/coga/launch/SKILL.md` in the same PR.
-
-<!-- coga:blackboard -->
-
-## Consolidation — 2026-09-30
-
-Owner authorized folding `codex-doesn-t-exist-properly-for-agent-restart`
-into this ticket and canceling that source as superseded. The source was an
-empty stub; the composing Context records its scope without inventing new
-evidence. Existing acceptance criteria cover the handoff. No implementation
-or workflow advance occurred.
