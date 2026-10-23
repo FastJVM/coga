@@ -1,10 +1,23 @@
 ---
 title: Test SpecKit
-status: draft
+status: active
 owner: zach
 contexts:
-  - coga-dev/principles
-workflow: draft-for-human
+- coga-dev/principles
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
