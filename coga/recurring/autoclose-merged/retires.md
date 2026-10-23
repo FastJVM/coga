@@ -24,3 +24,5 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 ## Follow-ups (open)
 
+- `blocks/06-collapse-state-publication-into-one-user-topic` — branch `blocks-06-collapse-state-publication`, worktree ``, recorded `2026-10-23`
+- `blocks/08-trim-launch-prompt-and-workflow-topics` — branch `coga/blocks-08-trim-launch-prompt-workflow`, worktree ``, recorded `2026-10-23`
