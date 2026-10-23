@@ -90,7 +90,8 @@ branch: coga/windows-native-02-pr-ci-with-linux-and-windows-t-6501cb
 
 ## Blockers
 
-- [ ] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/01-core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
+- [x] [2026-10-22 11:50] [agent:claude] id=20261022T115057 Merge windows-native/01-core-port-cli-and-test-suite-pass-on-native-window before starting this CI ticket. It is still at owner-held review-design, and main retains unconditional POSIX-only imports that prevent the Windows test job from passing.
+  resolved: [2026-10-23 13:55] [human:nicktoper] Predecessor windows-native/01 merged via PR #1093 (merge commit 5132aa6ac) after conflict resolution; origin/main no longer has module-level fcntl/termios/tty imports, so the CI ticket can proceed.
 
 ---
 
