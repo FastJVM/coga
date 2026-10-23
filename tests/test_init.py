@@ -1931,6 +1931,42 @@ def test_agent_skill_view_prefers_local_skill_over_bootstrap(
     assert link.resolve() == local.resolve()
 
 
+def test_agent_skill_view_links_bundled_skills_on_another_drive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coga_os = tmp_path / "company" / "coga"
+    bundled_root = tmp_path / "package-skills"
+    bundled = bundled_root / "tools" / "bundled"
+    local = coga_os / "skills" / "team" / "local"
+    for skill, content in ((bundled, "bundled\n"), (local, "local\n")):
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(content, encoding="utf-8", newline="\n")
+    _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
+    original_relpath = os.path.relpath
+
+    def cross_drive_relpath(
+        path: str | os.PathLike[str], start: str | os.PathLike[str] = os.curdir
+    ) -> str:
+        if Path(path).is_relative_to(bundled_root):
+            raise ValueError("path is on mount 'D:', start on mount 'C:'")
+        return original_relpath(path, start)
+
+    monkeypatch.setattr(agent_skills.os.path, "relpath", cross_drive_relpath)
+
+    for _ in range(2):
+        result = agent_skills.refresh_agent_skill_view(coga_os)
+        assert result.linked == ["team/local", "tools/bundled"]
+        assert result.skipped == []
+        bundled_link = result.view_dir / "tools" / "bundled"
+        local_link = result.view_dir / "team" / "local"
+        assert bundled_link.is_symlink()
+        assert Path(os.readlink(bundled_link)).is_absolute()
+        assert (bundled_link / "SKILL.md").read_text(encoding="utf-8") == "bundled\n"
+        assert local_link.is_symlink()
+        assert not Path(os.readlink(local_link)).is_absolute()
+        assert (local_link / "SKILL.md").read_text(encoding="utf-8") == "local\n"
+
+
 def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> None:
     target = tmp_path / "company"
     coga_os = target / "coga"

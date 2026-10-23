@@ -45,8 +45,12 @@ def refresh_agent_skill_view(coga_os: Path) -> AgentSkillViewResult:
             continue
         try:
             link.parent.mkdir(parents=True, exist_ok=True)
-            rel_target = Path(os.path.relpath(source, link.parent))
-            link.symlink_to(rel_target, target_is_directory=True)
+            try:
+                link_target = Path(os.path.relpath(source, link.parent))
+            except ValueError:
+                # Windows cannot express a relative path across drives.
+                link_target = source.resolve()
+            link.symlink_to(link_target, target_is_directory=True)
         except OSError:
             skipped.append(ref)
             continue

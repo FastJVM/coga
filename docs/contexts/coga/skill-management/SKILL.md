@@ -10,6 +10,10 @@ Coga resolves a skill ref from the directory path: project-local
 the effective set through the generated `coga/.agent-skills/` view. Every
 install is explicit: `coga init` installs no skills and makes no `gh` call.
 
+The generated view uses relative symlinks where possible. On Windows, links
+to skills on another drive use absolute targets. This machine-local view
+is rebuilt by init and launch and is not committed to the repository.
+
 ## Skill shapes
 
 - **Repo-authored, namespaced**: `coga/skills/<ns>/<name>/`, copied from
