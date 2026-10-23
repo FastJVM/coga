@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fcntl  # Deliberate Windows CI failure; scratch PR only.
+
 import importlib
 import os
 import shlex
