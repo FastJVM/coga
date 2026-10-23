@@ -362,7 +362,7 @@ def test_failure_respects_cwd_blackboard_containment(
 ) -> None:
     # Outside the invoking repository: a bare sibling of its coga/ directory
     # still discovers that repository when walking its ancestors.
-    target = tmp_path_factory.mktemp("recipe-target")
+    target = tmp_path_factory.mktemp("recipe-target").resolve()
     if known_root:
         _write(target / "coga.toml", 'version = "invalid"\n')
     before = period_blackboard.read_bytes()

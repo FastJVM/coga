@@ -41,7 +41,7 @@ def test_kernel_does_not_load_edge_implementations():
 # stays identical: a version-string assertion cannot accidentally prove this.
 @pytest.fixture(scope="module")
 def edge_wheels(tmp_path_factory):
-    root = tmp_path_factory.mktemp("edge-wheels")
+    root = tmp_path_factory.mktemp("edge-wheels").resolve()
     wheels = {}
     for label in ("A", "B"):
         source = root / label

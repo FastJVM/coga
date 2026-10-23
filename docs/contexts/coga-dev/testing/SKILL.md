@@ -120,9 +120,12 @@ Server.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
 - **Native Windows fixtures use UTF-8 and LF explicitly.** `conftest` isolates
-  HOME, USERPROFILE, APPDATA, LOCALAPPDATA and the temp variables, and
-  `init_git_repo` disables `core.autocrlf` for ordinary fixtures. Dedicated
-  Git tests still exercise CRLF clean filters. `write_executable` supplies a
+  HOME, USERPROFILE, APPDATA, LOCALAPPDATA and the temp variables. Fixture
+  paths are resolved to their canonical spelling, including HOME and TEMP,
+  so a reused directory with different username casing matches Git's path
+  reports on Windows. `init_git_repo` disables `core.autocrlf` for ordinary
+  fixtures. Dedicated Git tests still exercise CRLF clean filters.
+  `write_executable` supplies a
   Python shebang on POSIX and a `.cmd` launcher on Windows. Use
   `remove_test_checkout` when a fixture deliberately removes a Git clone;
   Git for Windows marks object files read-only.

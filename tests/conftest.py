@@ -113,13 +113,20 @@ def seed_direct_body_workflow(coga_os: Path) -> None:
     shutil.copy(_TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md", wf_dst)
 
 
+@pytest.fixture
+def tmp_path(tmp_path: Path) -> Path:
+    # Windows may reuse pytest-of-Administrator as pytest-of-administrator.
+    # Compare fixture paths using the same canonical spelling Git reports.
+    return tmp_path.resolve()
+
+
 @pytest.fixture(autouse=True)
 def _isolate_home(tmp_path_factory, monkeypatch):
     # Pointing HOME at a tmp dir is enough — `_try_install_shim` resolves
     # `Path.home() / ".local" / "bin"` against entries on $PATH, and the fake
     # home dir won't be on the host's real PATH. We deliberately leave PATH
     # alone so subprocess calls (git, etc.) still work in tests.
-    fake_home = tmp_path_factory.mktemp("home")
+    fake_home = tmp_path_factory.mktemp("home").resolve()
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("USERPROFILE", str(fake_home))
     monkeypatch.setenv("APPDATA", str(fake_home / "AppData" / "Roaming"))
@@ -135,7 +142,7 @@ def _isolate_tmpdir(tmp_path_factory, monkeypatch):
     # them instead; `TMPDIR` carries it to `coga` subprocesses so they lock
     # in the same place. It stays apart from the tests' own repos so a temp
     # scan cannot rediscover them.
-    tmp = tmp_path_factory.mktemp("tmp")
+    tmp = tmp_path_factory.mktemp("tmp").resolve()
     monkeypatch.setattr(tempfile, "tempdir", str(tmp))
     monkeypatch.setenv("TMPDIR", str(tmp))
     monkeypatch.setenv("TMP", str(tmp))
