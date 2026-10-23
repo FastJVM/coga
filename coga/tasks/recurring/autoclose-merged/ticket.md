@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -86,3 +85,34 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-23T17:25:18+00:00
+Task: `recurring/autoclose-merged`
+
+6 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `blocks/03-trim-the-checkouts-and-checkout-cleanup-family` "03 Trim the checkouts and checkout-cleanup family": branch `coga/blocks-03-trim-the-checkouts-and-checkout-cleanup-fcd4a4`
+- `blocks/04-trim-and-consolidate-the-recurring-family` "04 Trim and consolidate the recurring family": branch `coga/blocks-04-recurring-trim`
+- `blocks/05-trim-the-notifications-family` "05 Trim the notifications family": branch `coga/blocks-05-trim-the-notifications-family`
+- `blocks/07-trim-the-tickets-family-and-secrets` "07 Trim the tickets family and secrets": branch `blocks/07-trim-tickets-secrets`
+- `keep-the-file-list-when-a-control-fast-forward-ref` "Keep the file list when a control fast-forward refuses over local changes": branch `coga/keep-control-fast-forward-paths`
+- `surface-a-chat-end-log-line-that-was-written-but-n` "Surface a chat-end log line that was written but never published": branch `codex/chat-end-log-publication`
+
+2 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `blocks/06-collapse-state-publication-into-one-user-topic` "06 Collapse state publication into one user topic": branch `blocks-06-collapse-state-publication` — local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/06-collapse-state-publication-into-one-user-topic`)
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' advanced past the merged PR head 55c24d2fe48f — preserving it.
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/blocks-06-collapse-state-publication because the local branch remains.
+  - Branch sweep: 'blocks-06-collapse-state-publication' has merged PR #1086 at 55c24d2fe48f, but the ref carries commits touching coga/skills/coga/ticket/finalize/SKILL.md, docs/README.md, docs/contexts/coga-dev/codebase/SKILL.md (+29 more) — left in place.
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place.
+- `blocks/08-trim-launch-prompt-and-workflow-topics` "08 Trim launch, prompt and workflow topics": branch `coga/blocks-08-trim-launch-prompt-workflow` — local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/08-trim-launch-prompt-and-workflow-topics`)
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' advanced past the merged PR head 61537ef1eed8 — preserving it.
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/coga/blocks-08-trim-launch-prompt-workflow because the local branch remains.
+  - Branch sweep: 'coga/blocks-08-trim-launch-prompt-workflow' has merged PR #1089 at 61537ef1eed8, but the ref carries commits touching coga/skills/code/open-pr/SKILL.md, docs/README.md, docs/contexts/coga-dev/codebase/gotchas/SKILL.md (+36 more) — left in place.
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place.
+
+Recorded in the durable worklist `/tmp/coga-recurring-coga-oiqeap5a/checkout/coga/recurring/autoclose-merged/retires.md`; this period task is deleted at the next period boundary.
