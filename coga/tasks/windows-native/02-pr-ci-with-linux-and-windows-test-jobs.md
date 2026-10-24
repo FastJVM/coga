@@ -58,6 +58,7 @@ that run in the PR.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1097
 branch: coga/windows-native-02-pr-ci-with-linux-and-windows-t-6501cb
 
 
@@ -114,7 +115,8 @@ branch: coga/windows-native-02-pr-ci-with-linux-and-windows-t-6501cb
   `tools/coga/bin/python`; a venv interpreter symlinked outside its venv
   starts as the base interpreter, which lacks the venv's site-packages. It
   passes in `.venv` only because that base 3.12 has PyYAML. CI is unaffected
-  (setup-python installs into the base interpreter). No follow-up ticket yet.
+  (setup-python installs into the base interpreter). Filed as draft
+  `fix-release-env-fixture-interpreter-symlink-in-fre` (open-pr step, owner-approved).
 
 ## Peer review
 
