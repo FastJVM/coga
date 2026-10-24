@@ -2,12 +2,40 @@
 title: Test BMAD Method
 status: draft
 owner: zach
-workflow: null
+contexts:
+- coga-dev/principles
+workflow: draft-for-human
+agent: claude
 ---
 
 ## Description
 
-Install BMAD Method (https://github.com/bmad-code-org/bmad-method) and run a real task through it end to end, then write up how it compares to Coga. BMAD sits at roughly 54k stars; stable v6.12 installs with `npx bmad-method install` and needs Node 20.12+ and Python 3.10+, while the v7 preview alpha installs as skills or via the plugin marketplace for Claude Code and Codex. Its delivery loop is four phases — clarify, plan, build and verify, learn and adjust — and it layers product, architecture, UX, development and testing perspectives over multi-agent workflows, scaling process weight to the size of the change. Cover four things in the write-up: the installation experience end to end, whether the role-and-phase structure earns its keep on a small change or is mostly ceremony, how its learn-and-adjust phase compares with what Coga does through contexts and skills, and what it does that Coga does not.
+Zach installs BMAD Method (https://github.com/bmad-code-org/bmad-method) and
+runs a real task through it end to end in a VM; the agent drafts the write-up of
+how it compares to Coga. As of October 2026 BMAD sits at roughly 54k stars. The
+trial installs the stable v6 line with `npx bmad-method install`, which needs
+Node 20.12+, Python 3.10+ and uv; the v7 preview alpha, which installs as skills
+or via the plugin marketplace for Claude Code and Codex, is out of scope. Its delivery loop is four phases —
+clarify, plan, build and verify, learn and adjust — and it layers product,
+architecture, UX, development and testing perspectives over multi-agent
+workflows, scaling process weight to the size of the change.
+
+The write-up covers four things:
+
+- The installation experience end to end.
+- Whether the role-and-phase structure earns its keep on a small change, or is
+  mostly ceremony.
+- How its learn-and-adjust phase compares with what Coga does through contexts,
+  skills, and the retro and dream passes.
+- What it does that Coga does not.
+
+The trial runs on a fresh VM with nothing installed. Install coverage therefore
+starts at the prerequisites — Node, Python, uv, and Claude Code itself — not at
+`npx bmad-method install`. Record what the bare machine demanded, in order.
+
+Done when the BMAD section of the "Coga Competitor Tests" Google Doc reflects a
+trial Zach considers finished. The doc as a whole stays unfinished until
+Compound Engineering is tested, and sharing it is not this ticket's job.
 
 Why now: BMAD is the closest competitor on positioning. Its tagline — agile AI driven development, turn an idea or change request into working software without giving up the thinking — is nearly the sentence we would write for Coga, so we need first-hand evidence of where the two actually diverge rather than guessing from feature lists.
 
@@ -97,18 +125,94 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
+### How this runs
+
+Zach runs BMAD hands-on in a VM, pastes screenshots into the session, and notes
+what he sees. The agent discusses findings with him and drafts write-up text for
+the doc. The agent does not run BMAD. This is information gathering, not a
+staged project — follow Zach's lead on what to look at next.
+
+The VM is one of the spare `cogatest` UTM machines, retitled for this trial;
+Zach confirms which at launch. It starts bare. The SpecKit VM was deleted, so
+nothing carries over from that trial except what is already in the doc and in
+this ticket.
+
+Do not draft findings for a step Zach has not run yet. Write-up text comes from
+his screenshots and notes, not from BMAD's docs — a plausible paragraph he did
+not observe is a failure, not a head start.
+
+`coga-dev/principles` is attached because the write-up's Coga-side claims feed
+README positioning and have to stay aligned with it.
+
 ### Where findings go
 
 The doc is "Coga Competitor Tests" —
 https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
-It is a numbered running log per tool, and the BMAD section is the deliverable.
+(its Drive filename is still "Untitled document"). It is a numbered running log
+per tool, with Zach's screenshots inline. Its BMAD section is the deliverable.
 `FastJVM/coga` is public, so findings stay in the doc and the blackboard stays a
-pointer.
+pointer. The doc itself is owner-only, so its URL here is safe.
 
-Zach shares the doc with Nico by named account once all three sections exist.
-The SpecKit section is written and that share is still outstanding, so the last
-of this ticket and `competition-testing/test-compound-engineering` to finish
-carries it.
+The Drive tools can read that doc but cannot write to it: `update_file` changes
+metadata only, and there is no content-edit tool for an existing Doc. So the
+agent drafts markdown and Zach pastes it in — Docs converts pasted markdown to
+real headings and lists. Do not create a replacement Doc; the screenshots live
+in this one.
+
+`competition-testing/test-compound-engineering` carries the share with Nico,
+because it is the last of the three trials. Nothing about the share belongs to
+this ticket.
+
+### The trial task
+
+Build `tiny-ticket`: a command-line tool that stores tasks as markdown files
+with YAML frontmatter, with three commands — create a task, list tasks, and
+validate the files. Validation enforces that `status` is one of a fixed set and
+that any non-draft task has a workflow.
+
+Zach picked it because he knows the correct design cold, so a bad spec or plan
+is obvious on sight. Keep the product name `tiny-ticket`, matching the SpecKit
+and Compound Engineering trials, and use the project directory
+`bmad-tiny-ticket`.
+
+### Install starting point
+
+The trial runs the stable v6 line via `npx bmad-method install`, because the
+comparison target is what a user installs today and the install findings feed
+the installer ticket. Record the exact version that ran — v6 takes patch
+releases weekly, so the line moves.
+
+The v7 preview alpha is a separate pass if Zach wants one, never a mid-install
+switch. It restructures the role personas into skills, so it changes the answer
+to the role-and-phase question rather than confirming it, and its install story
+is not what a user meets today. As of 2026-10-23 it has also slipped past its
+estimated release date without shipping.
+
+Prerequisites on a bare machine are Node 20.12+, Python 3.10+, and uv, which
+BMAD's README names for its own setup and Python scripts. BMAD itself has no uv,
+uvx, pip, or pipx install path — no `bmad-method` package exists on PyPI, and
+both lines install through npx. What else a bare machine needs is part of what
+this trial establishes.
+
+Read the SpecKit section of the doc before the install starts. Its numbered log
+is the baseline for what a bare `cogatest` VM needs, including how Claude Code
+got onto it — Claude Code is not present on a fresh machine and has to be
+installed before any agent-driven step.
+
+Installer findings are also input to
+`marketing/fix-installer/make-the-readme-install-section-the-only-install-p`,
+which owns the copy-pasteable install commands.
+
+### Out of scope
+
+Only BMAD's main delivery loop gets trialled.
+
+What is worth comparing across the three tools gets decided once the docs exist,
+not up front. Do not start a three-way matrix mid-trial.
+
+Do not commit trial output, competitor notes, or the `tiny-ticket` source into
+this repo. The scratch project stays in the VM. At `report-to-coga`, record the
+doc link and that the section is done — not what the trial found.
 
 <!-- coga:blackboard -->
 
