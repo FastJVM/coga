@@ -54,7 +54,7 @@ checkout. It is a closed table, not a step-name heuristic:
 | --- | --- | --- |
 | `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
 | all four shipped code/docs workflows | `implement` | create or reuse the recorded branch |
-| `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
+| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
 | `code/with-self-review` | `self-qa` | reuse the recorded branch |
 | `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
 | `code/with-self-review` | `pr` | control |

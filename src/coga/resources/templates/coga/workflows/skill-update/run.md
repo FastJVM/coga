@@ -28,3 +28,8 @@ marked done. `ticket.py` also returns `coga bump`'s exit code once the update
 succeeds, and that is 2 on most of its own refusals: an exit 2 carrying
 per-skill buckets and no `### Failed` block is a failed bump, not a failed
 update.
+
+## No other-agent code review
+
+This is the one-step lifecycle of a recurring task's deterministic
+half. It produces no code, so no `other-agent` step reviews it.

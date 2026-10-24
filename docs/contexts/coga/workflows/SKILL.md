@@ -134,6 +134,13 @@ Workflow definitions and frozen snapshots carry no checkout field.
 
 ## Code review gate
 
+Every shipped code-producing workflow has the other agent review the code:
+`code/with-review` and `code/design-then-implement` freeze an `other-agent`
+`peer-review` step running `code/peer-review` (`docs/with-review` has its own
+prose review). `code/with-self-review` is the deliberate single-agent
+fallback for installs where `other-agent` cannot resolve. A workflow that
+produces no code says so under `## No other-agent code review` in its body.
+
 `code/with-review` and its siblings freeze `code/address-pr-comments` on an
 owner-assigned `review` step: the owner merges and resolves threads, and the
 skill is an on-demand assist that never resolves or bumps. Coga does not own

@@ -54,6 +54,7 @@ SHIPPED_ROWS = [
     ("code/design-then-implement", "evaluate-design", "control"),
     ("code/design-then-implement", "review-design", "control"),
     ("code/design-then-implement", "implement", "create-or-reuse"),
+    ("code/design-then-implement", "peer-review", "reuse-required"),
     ("code/design-then-implement", "open-pr", "control"),
     ("code/design-then-implement", "review", "reuse-required"),
     ("code/with-review", "implement", "create-or-reuse"),
@@ -85,6 +86,8 @@ def test_policy_supports_older_frozen_snapshots(git_repo) -> None:  # type: igno
     assert select_checkout_policy(cfg, old).kind == "create-or-reuse"
     legacy_review = _frozen("code/with-review", "review", skills=[])
     assert select_checkout_policy(cfg, legacy_review).kind == "reuse-required"
+    legacy_peer = _frozen("code/with-review", "peer-review", skills=[])
+    assert select_checkout_policy(cfg, legacy_peer).kind == "reuse-required"
 
 
 @pytest.mark.parametrize(
@@ -134,7 +137,10 @@ def test_policy_reads_only_the_consumed_inline_section(git_repo) -> None:  # typ
     peer = _frozen("code/with-review", "peer-review")
     assert select_checkout_policy(cfg, peer).kind == "reuse-required"
     local.write_text(shipped.replace("## peer-review\n", "## peer-review\n\nChanged.\n"), encoding="utf-8", newline="\n")
-    policy = select_checkout_policy(cfg, peer)
+    # The current shape consumes `code/peer-review`, so the section is framing;
+    # an older skill-less snapshot still consumes it.
+    assert select_checkout_policy(cfg, peer).kind == "reuse-required"
+    policy = select_checkout_policy(cfg, _frozen("code/with-review", "peer-review", skills=[]))
     assert policy.kind == "manual"
     assert "`## peer-review` section differs" in policy.reason
 

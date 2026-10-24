@@ -199,7 +199,8 @@ def done(
             f"{listed}\n"
             f"That code will strand off the control branch if this checkout "
             f"or its branch is removed. Move the ticket to a code/* workflow "
-            f"(code/with-self-review or code/with-review) so it opens a PR, or "
+            f"(code/with-review, or code/with-self-review without a peer agent) "
+            f"so it opens a PR, or "
             f"re-run with --force to finish anyway and keep the code stranded."
         )
     except TaskValidationError as exc:

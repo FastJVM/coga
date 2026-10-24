@@ -232,7 +232,8 @@ def bump(
                 f"{listed}\n"
                 f"That code will strand off the control branch if this checkout "
                 f"or its branch is removed. Move the ticket to a code/* workflow "
-                f"(code/with-self-review or code/with-review) so it opens a PR, "
+                f"(code/with-review, or code/with-self-review without a peer agent) "
+                f"so it opens a PR, "
                 f"or re-run `coga bump {ref.id_slug} --force` to finish anyway "
                 f"and keep the code stranded."
             )

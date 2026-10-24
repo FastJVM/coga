@@ -15,3 +15,10 @@ out in order, honoring its own stop/skip rules, keep the blackboard current,
 and finish with `coga mark done <slug>` (the body may specify its own
 completion command — that command is the instruction). This is the only
 step, so there is nothing to bump into.
+
+## No other-agent code review
+
+This workflow has no push or PR step, so it lands only Coga state on the
+control branch. `coga mark done` and `coga bump` refuse to finish it when
+the checkout committed product code that control lacks. Code changes
+belong on a `code/*` workflow, which has the other agent review them.

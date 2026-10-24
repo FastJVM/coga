@@ -17,3 +17,8 @@ the four token categories, a per-model split, the unknown-session floor — and
 posts it once to the important Slack route with `fatal=False`, so a delivery
 miss is reported without leaving the period `in_progress`. The same text is
 printed ad hoc by `python coga/recurring/usage-report/report.py`.
+
+## No other-agent code review
+
+This is the one-step lifecycle of a recurring task's deterministic
+half. It produces no code, so no `other-agent` step reviews it.

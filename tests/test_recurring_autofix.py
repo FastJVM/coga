@@ -1071,7 +1071,8 @@ def _fake_agent_reply(
 
 @pytest.mark.parametrize("settings", ["", "\n[autofix]\ncontexts = []\n"])
 def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
-    repo: Path, settings: str, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+    repo: Path, settings: str, monkeypatch: pytest.MonkeyPatch, autofix_enabled,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     from coga.ticket import Ticket
 
@@ -1097,7 +1098,10 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     ticket = (created[0] / "ticket.md").read_text(encoding="utf-8")
     assert "status: active" in ticket
     assert "Fix the branch-sweep recipe timezone crash" in ticket
+    # A single-agent repo has no `other-agent` peer, so the ticket falls back
+    # to self-review rather than stalling at `unresolvable-step-assignee`.
     assert "code/with-self-review" in ticket
+    assert "no peer agent resolves" in capsys.readouterr().err
     assert Ticket.read(created[0] / "ticket.md").contexts == []
     assert Ticket.read(created[0] / "ticket.md").frontmatter["agent"] == "claude"
     # The run that produced the finding travels with the ticket.
@@ -1154,7 +1158,7 @@ def test_run_autofix_attaches_and_composes_repo_default_contexts(
     assert ticket.frontmatter["agent"] == "claude"
     assert calls[0][0] == (analyst or "claude")
     assert ticket.frontmatter["status"] == "active"
-    assert ticket.frontmatter["workflow"]["name"] == "code/with-self-review"
+    assert ticket.frontmatter["workflow"]["name"] == "code/with-review"
     assert "ZoneInfoNotFoundError" in (ref.ticket_path.parent / "run-log.md").read_text(encoding="utf-8")
 
     report = compose_prompt_report(cfg, ref, ticket)

@@ -51,7 +51,14 @@ _ROWS: dict[tuple[str, str], tuple[tuple[tuple[str, ...], ...], CheckoutPolicyKi
     ("code/design-then-implement", "review-design"): ((_INLINE,), "control"),
     **{(wf, "implement"): ((("code/implement",),), "create-or-reuse") for wf in _CODE},
     ("docs/with-review", "implement"): ((_INLINE,), "create-or-reuse"),
-    ("code/with-review", "peer-review"): ((_INLINE,), "reuse-required"),
+    # Older `code/with-review` snapshots carry empty skills and consume the
+    # live inline `## peer-review`, which points at the same skill.
+    ("code/design-then-implement", "peer-review"): (
+        (("code/peer-review",),), "reuse-required"
+    ),
+    ("code/with-review", "peer-review"): (
+        (("code/peer-review",), _INLINE), "reuse-required"
+    ),
     ("docs/with-review", "peer-review"): ((_INLINE,), "reuse-required"),
     ("code/with-self-review", "self-qa"): ((("code/self-qa",),), "reuse-required"),
     ("code/design-then-implement", "open-pr"): ((("code/open-pr",),), "control"),
