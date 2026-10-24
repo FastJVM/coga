@@ -1,6 +1,6 @@
 ---
 name: coga-dev/testing
-description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the no-CI test posture, and the exact verification receipts reviewers expect.
+description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the PR CI posture, and the exact verification receipts reviewers expect.
 ---
 
 # Testing Coga
@@ -149,21 +149,29 @@ Server.
 
 ## CI posture and receipts
 
-The only GitHub Actions workflow is the publish-only
-`.github/workflows/release.yml` ([coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md)).
-Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
-`coga validate` on any branch, PR, push, or tag, so the local suite plus
-validation are the release gate, and the pristine-tree wheel collision is
-caught only at release or by hand.
+PR CI exists (owner decision, 2026-10-23, reversing the 2026-09-24 no-CI
+decision): `.github/workflows/test.yml` runs `python -m pip install -e
+".[test]"` then `python -m pytest` on Python 3.11 on `ubuntu-latest` and
+`windows-latest` for every pull request and push to `main`. Superseded PR
+runs are canceled; each main push has a separate concurrency group so queued
+main runs are preserved. The POSIX migration-runbook test requires ripgrep
+(`rg`) on PATH; CI installs it in the Linux job. The test step uses
+`TERM=dumb` so Typer's forced terminal formatting in Actions does not insert
+ANSI codes into plain-text assertions. It does not run
+`coga validate`, interactive launch (checked on EC2), or anything needing a
+real agent CLI, network, or AWS; such tests must skip cleanly rather than be
+excluded from CI. The publish-only `.github/workflows/release.yml`
+([coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md))
+still inspects only metadata with `twine check`.
 
-There is no pytest CI gate (owner decision, 2026-09-24): test verification
-belongs to Coga's implement / self-QA / review workflow steps; the history is
-in `docs/archive/superseded-decisions.md`. Reusable workflows cannot assume Python 3.11 is installed
-in a user's environment. Evidence for Coga's declared 3.11 floor requires a
-run on a real Python 3.11 interpreter; a green 3.12 run is not evidence for
-it. When 3.11 is unavailable, report that verification gap with the actual
-interpreter and results. Reopening test CI or raising `requires-python`
-requires an owner decision.
+CI does not replace step-level verification: implement / self-QA / review
+still run the suite themselves, and a green CI run is evidence for exactly
+its interpreter and platforms. Reusable workflows cannot assume Python 3.11
+is installed in a user's environment. Evidence for Coga's declared 3.11
+floor requires a run on a real Python 3.11 interpreter; a green 3.12 run is
+not evidence for it. When 3.11 is unavailable locally, report that
+verification gap with the actual interpreter and results, or cite the CI
+run. Raising `requires-python` requires an owner decision.
 
 Therefore every verifier (self-QA, review, release) states the exact commands
 and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
