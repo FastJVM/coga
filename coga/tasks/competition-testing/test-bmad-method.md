@@ -230,52 +230,53 @@ doc link and that the section is done — not what the trial found.
 
 ## Status
 
-Install phase done and written up. Paused 2026-10-23 at Zach's request, to
-resume tomorrow. No BMAD workflow has been run yet.
+Hands-on trial complete 2026-10-24. Zach has what he needs and is writing the
+BMAD section summary in a separate session, as he did for SpecKit. Step 1
+`agent-produces` is finished; the ticket sits at `paused`, so `coga bump`
+needs a `coga launch` first.
 
 Findings live in the doc, not here — this repo is public.
 "Coga Competitor Tests":
 https://docs.google.com/document/d/19qnSHqN2eH5e66peQ7X-R6NPIg6IPHc0wsS3cBxUEuM/edit
-The BMAD section's install write-up (13 numbered entries, prerequisites through
-`npx bmad-method install`) is pasted in and saved as of 2026-10-23.
 
-## Where the trial stands
+## What was produced
 
-- VM `cogatest-BMAD`, macOS 26.6.2 (25G83) arm64. Started bare.
-- Installed, in this order: Xcode Command Line Tools, Node v24.22.x / npm
-  11.19.1 via nvm, uv 0.13.5, then BMad Method.
-- **Version of record: BMad Method v6.12.4**, at
-  `/Users/cogatest/bmad-tiny-ticket/_bmad`, with 29 skills in
-  `.claude/skills`. Express Setup, Claude Code integration, output dir
-  `_bmad-output`.
-- `python3` is still Apple's 3.9.6. Left that way deliberately: the installer
-  checks uv, not the Python floor.
+28 numbered entries drafted from Zach's screenshots, prerequisites through
+verification, rendered for copy-paste (rich text, so Docs keeps the
+formatting):
+https://claude.ai/code/artifact/57af68b7-2f66-42d0-a9e4-8d88bf802444
 
-## Next, in order
+Command relay used to work around the VM's broken host-to-guest clipboard:
+https://claude.ai/code/artifact/a28914e1-59e2-4872-88d1-1dcc87c1f3b2
 
-1. Install Claude Code on the VM — it is not there, and nothing BMAD can do
-   works without it.
-2. From `~/bmad-tiny-ticket`, launch Claude Code and invoke the `bmad-help`
-   skill, per BMAD's own getting-started text.
-3. Run `tiny-ticket` through the four-phase loop. Trial task and scope are in
-   `## Context` above.
+Entries 1-13 (install) are pasted into the doc. 14-28 are not yet; Zach is
+summarizing rather than pasting them verbatim.
 
-## Open questions to answer from observation
+## What the trial exercised
 
-- Whether learn-and-adjust lives in core BMad Method or partly in the separate
-  "BMad Loop" module (v0.13.2, not installed). Bears on write-up question 3.
-  If core does not cover it, the absence is itself the finding; the installer
-  can be re-run to add the module.
-- What Express Setup actually chose. BMAD wrote its config to disk under
-  `_bmad`, so read it there rather than re-running the installer.
-- How many documents land in `_bmad-output` for a three-command CLI. That
-  count answers write-up question 2.
+- Prerequisites on a bare macOS 26.6.2 arm64 VM through to a working install.
+  **Version of record: BMad Method v6.12.4.**
+- `bmad-help`, then the light path: `bmad-spec` → review → `bmad-build`,
+  including a reviewer pass and BMAD's own review triage.
+- Independent verification by Zach of the two rules the trial task exists to
+  test. Both hold, plus the negative case (a draft without a workflow passes).
+- `uv tool install .` after the fact, which is what revealed the built CLI was
+  never actually installed.
+
+Not exercised: the full PRD → Architecture → Epics → Sprint Planning chain,
+and the three remaining relay tests (nonexistent workflow reference, the
+positive workflow case, the `--workflow` flag).
+
+## Known gap in the deliverable
+
+Write-up question 3 — learn-and-adjust versus Coga's contexts, skills, retro
+and dream — was never probed. The day-one open question stands: whether it
+lives in core BMad Method or in the uninstalled BMad Loop module (v0.13.2).
+Asking `bmad-help` what follows build would settle it cheaply. Flagged to
+Zach 2026-10-24; his call whether the section ships without it.
 
 ## Session logistics
 
 Host-to-guest clipboard does not work in this VM, so Zach hand-types anything
-sent as chat text. Commands go on a private relay page he opens in the VM's own
-Safari and copies from (in-VM copy works):
-https://claude.ai/code/artifact/a28914e1-59e2-4872-88d1-1dcc87c1f3b2
-Republish to that same URL rather than minting a new one. Keep trial findings
-off this blackboard.
+sent as chat text. Use the relay page above; republish to that same URL rather
+than minting a new one. Keep trial findings off this blackboard.
