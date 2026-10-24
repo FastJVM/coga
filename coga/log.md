@@ -9252,3 +9252,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-23 21:37 v1 [fix-the-commit-git-journal] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-23 22:00 v1 [commit-journal/coalesce-coga-state-commits] [human:nicktoper] created (status=draft)
 2026-10-23 22:00 v1 [commit-journal/publish-log-lines-left-uncommitted] [human:nicktoper] created (status=draft)
+2026-10-23 22:00 v1 [commit-journal/trim-the-audit-log] [human:nicktoper] created (status=draft)
