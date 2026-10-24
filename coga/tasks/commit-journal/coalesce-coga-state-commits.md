@@ -1,15 +1,97 @@
 ---
-title: coalesce-coga-state-commits
+title: Coalesce Coga state commits to one per lifecycle event
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
 
+Coga's own state publication buries real work in `git log`. Of the last 300
+commits on `main` (as of 2026-10-23), 233 are bookkeeping: `Ticket: …`,
+`Log: …`, and `Sync coga state …`. A single launched step routinely lands 3–5
+of them; for example, `make-every-code-workflow-review-with-the-other-age`
+step 2→3 produced `Log`, `Log`, `Ticket … step 3`, `Log`, `Log`, `Sync coga
+state`, `Ticket … step 4`, `Log`. Design and implement a publication scheme
+that cuts the bookkeeping commits per launched step to the minimum the
+publication contract allows, then implement it.
 
+The design step sets the target bound and argues it. Three publishes are
+inherent today: the launch-audit `Log:` written before the agent runs, the
+`Ticket: … step N` bump the next operator needs at once, and the usage-record
+`Log:` written after the agent's final answer, after the bump. The launch line
+can likely ride the bump commit (`git.sync_task_state` already publishes the
+ticket and `log.md` together). Folding the usage record in means delaying the
+bump's publish, rewriting shared `main`, or leaving the line dirty, and each of
+those breaks a constraint below. So expect a bound like "one lifecycle commit
+plus at most one teardown log commit", not one commit.
+
+Done when the owner has approved the design's bound, a test asserts that
+bound for a seeded launch-and-bump, `recurring_activity` keeps today's
+classification (see Context), `coga/state-publication` is updated in the same
+PR, and `python -m pytest` passes.
 
 ## Context
+
+Split from `fix-the-commit-git-journal` (deleted); siblings
+`commit-journal/publish-log-lines-left-uncommitted` and
+`commit-journal/trim-the-audit-log`.
+
+### Sequencing
+
+Land `commit-journal/publish-log-lines-left-uncommitted` first: its inventory
+of every log write and its publish path is an input to this design. Coalescing
+deliberately defers some log lines (for example the launch line until the
+bump), so this ticket must re-run that classification and update the
+deliberate-deferral list in `coga/state-publication` so no deferred line ends
+up stranded at an owner hand-off.
+
+### Where commits come from
+
+- `git.sync_log` publishes `coga/log.md` alone as `Log: <slug>`. Callers:
+  `LaunchSession` publishes the launch-audit line ("launched (operator=…)")
+  immediately, which is the easiest commit to fold away;
+  `spawn_agent_session.record_and_publish_launch_audit` publishes it only when
+  `commit_log` is set (bootstrap targets); the launch teardown publishes the
+  usage record; `launch_script` covers the script phase; `recurring_runner`
+  publishes recurring launches.
+- `git.sync_task_state` publishes one ticket write and `log.md` together as
+  `Ticket: <slug> — <event>` (`bump`, `checkouts`, `megalaunch`,
+  `commands/create`, `commands/owner`, `commands/unblock`, …).
+- `git.sync_coga_state` is the catch-all sweep. A plain `Sync coga state`
+  comes from the CLI end-of-command sweep (`cli._should_sweep_coga_state`):
+  in the example above, `a2388fbe0` carried the agent's own `pr:`
+  blackboard edit, swept by a coga command the agent ran before bumping.
+  Launch adds `… before launch` and `… before checkout return`. A sweep
+  with nothing dirty already no-ops.
+- The teardown ordering is explained in a `launch.py` comment: the usage
+  record lands in `log.md` *after* the agent's final `bump`/`mark` sync.
+
+### Inactivity classification
+
+`recurring_activity._MACHINE_SUBJECT` treats as machine (non-activity)
+commits: `Log:` except `Log: bootstrap/`, `Sync coga state`,
+`Ticket: recurring/`, `Ticket: autofix/`, and a few others. Ordinary
+`Ticket: <slug> — …` lifecycle commits count as human activity. Preserve
+exactly that: if a coalesced commit carries a lifecycle event, it must still
+count as activity, and log-only/sweep commits must not. Do not widen the
+regex to make the repo look idle.
+
+### Constraints and topics (cited, not attached; read first)
+
+- `coga/state-publication` (`docs/contexts/coga/state-publication/SKILL.md`,
+  "When Coga publishes") owns the user contract: lifecycle commands publish as
+  soon as write, log line, and notification are final; teardown publishes the
+  log after usage capture. Coalescing must not delay a lifecycle publication
+  another checkout needs, must not rewrite or force-push `main`, and must not
+  make a failed publish silent. Edited by this ticket.
+- `coga-dev/internals/state-publication` owns the sweep's selection, skips,
+  and publish primitive; `coga-dev/internals/spool-merge` owns the
+  union-safe log publish.
+- Keep commit subjects informative: a coalesced commit still names the
+  ticket and the event (for example `Ticket: <slug> — step 4 (review)`).
+- Out of scope: log size (sibling trim ticket) and the read-only-sandbox
+  sync failures owned by `fix-coga-git-sync-failures-that-leave-main-diverge`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

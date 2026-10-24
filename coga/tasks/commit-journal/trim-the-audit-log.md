@@ -1,15 +1,115 @@
 ---
-title: trim-the-audit-log
+title: Trim coga/log.md to a configurable age with a weekly recurring job
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
 
+`coga/log.md` only ever grows: on 2026-10-23 it was about 9,250 lines and
+2.46 MB in this repo. Add an age-based retention setting to `coga.toml` and a
+shipped weekly recurring template that deletes log lines older than the
+retention window (git history keeps them; no archive file). Trimming is on by
+default in every adopting repo; a repo can change the window or turn trimming
+off in `coga.toml`. The design proposes the default window from measured
+sizes (see Context) and the owner approves it at the design gate.
 
+Done when the setting is documented in `coga/configuration`; the recurring
+template and its workflow ship in both the live and packaged trees (twins
+byte-identical per `tests/test_packaging.py`); a run against a seeded log
+removes lines older than the window while keeping every line a reader still
+needs (see "Lines that must survive"); recurring jobs do not re-fire after a
+trim; the union-merge invariant is resolved and `coga-dev/internals/spool-merge`
+updated; existing adopters get the template and default (not only new `init`
+seeds); and `python -m pytest` passes.
 
 ## Context
+
+Split from `fix-the-commit-git-journal` (deleted); siblings
+`commit-journal/coalesce-coga-state-commits` and
+`commit-journal/publish-log-lines-left-uncommitted`. Not blocked on either:
+a trim is one publish from its `ticket.py`.
+
+### Owner decisions (2026-10-23)
+
+- Retention is bounded by **age in days**, not size or line count.
+- Trimmed lines are **deleted**; git history is the archive.
+- The template runs **weekly** and is **on by default** for adopting repos.
+  This is a behavior change for adopters: the PR and release notes say so.
+- The **default window is the design's call**, with the numbers below.
+
+### Size facts (2026-10-23, this repo)
+
+A 90-day cutoff keeps about 6,886 of 9,255 lines and 1.94 MB of 2.46 MB
+(about 79%). Usage `[system]` JSON records are 1,329 lines but about 1.36 MB
+(about 55% of bytes). At current volume an age window alone settles in the
+megabytes; the design should say what window meets the goal and whether that
+is acceptable, and note record size as a possible follow-up rather than
+widening this ticket.
+
+### The append-only invariant (most important)
+
+`coga/log.md` carries `merge=union` (`coga/.gitattributes`, packaged twin
+under `src/coga/resources/templates/coga/`), and `logfile`'s module docstring
+calls it an append-only audit trail. `coga-dev/internals/spool-merge` says the
+log is union-safe *because every writer only appends*, and that "a file that is
+compacted, trimmed, or rewritten without such a healing reader must never
+carry the attribute: union would resurrect deletions." Coga's own `publish`
+three-way merge lands deletions when the base had the line, but git-native
+merges of stale branches or clones, and working copies that lack the line, need
+explicit analysis. The design must either amend the invariant (and the
+attribute) or argue why trimming is safe, and update that topic in the same PR.
+It must also handle the roughly 500 legacy lines that have no timestamp
+(multi-line git errors such as `hint:`, `CONFLICT`, `fatal:`; see spool-merge's
+legacy-line policy).
+
+### Lines that must survive
+
+Inventory readers through the `logfile` reader API (`log_lines`,
+`iter_log_messages`, `task_log_lines`, `last_activity_map`,
+`first_activity_map`) plus a whole-tree search, including `commands/`,
+`resources/`, and `src/coga_edge/`. Known readers include `recurring`,
+`recurring_runner`, `recurring_clone`, `service_order`, `usage`, `views`,
+`validate`, `megalaunch`, `mark`, `authoring`, `repl_supervisor`,
+`commands/{delete,owner,recurring}`, `bootstrap/retire/ticket.py`, and
+`coga_edge/phone_home`. Known hazards:
+
+- **Recurring serviced-period ledger.** The high-water mark is a
+  `created|reused <task-ref> for <period>` line tagged `recurring/<name>`
+  (`coga/recurring/scheduling`, "Periods and the serviced-period ledger").
+  If a template's newest record is trimmed, that period re-fires. Keep at
+  least the newest valid record per template regardless of age.
+- **Usage records.** `usage` parses `[system]` JSON lines; `coga usage
+  --since` is unbounded, so state the tradeoff for reports reaching past the
+  window.
+- **Task history.** Retro, retire, `coga show`, and activity maps read
+  per-task lines; decide whether lines of still-open tasks survive the window.
+- **Phone-home cursor.** `coga_edge/phone_home` keeps an offset+digest cursor
+  on `log.md`; a rewrite logs "audit log rewritten or truncated; movement
+  baselined to zero", which would lose telemetry movement every week. Fix or
+  accept it explicitly.
+
+### Placement and shipping
+
+Follow `coga-dev/microkernel` (cited, not attached): deterministic trim work
+belongs in the template's reserved `ticket.py` beside
+`coga/recurring/<name>/ticket.md` using shared core infra, as
+`blocker-reminders` does (template plus `coga/workflows/blocker-reminders/run`
+workflow, both with packaged twins), unless the design shows it needs a
+`runner.RECIPES` contract. Template frontmatter (`schedule:`,
+`schedule_comment:`, `scope:`, `run_when_inactive`) is owned by
+`coga/recurring/templates`; decide `run_when_inactive`. Say how existing
+adopters receive the shipped template and default.
+
+### Config
+
+The key's schema, default, and docs go in `config.py` and the
+`coga/configuration` topic. Because trimming is on by default, this repo's
+`coga/coga.toml` needs no edit; agents must not edit `coga.toml`.
+
+The trim commit is bookkeeping: subject it so `recurring_activity` classifies
+it as non-activity (`Log: recurring/…` and `Ticket: recurring/…` already are).
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
