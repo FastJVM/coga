@@ -70,6 +70,10 @@ completion gates, and roles never select entry behavior. If the ticket's
 workflow or step changes on control while launch prepares, launch refuses
 before spawning; retry it.
 
+Older `code/with-review` snapshots consume an inline `peer-review` section
+that delegates to `code/peer-review`. Both that section and the resolved
+skill must match the packaged copies for launch to reuse the branch.
+
 ### In a launched session
 
 An ordinary `coga launch` of an agent-held step (or an explicit assist on an

@@ -129,6 +129,10 @@ def _changed_section(cfg: Config, wf_name: str, step_name: str) -> str | None:
         return f"the live workflow has no `## {step_name}` instructions"
     if section != shipped.inline_instructions.get(step_name):
         return f"its `## {step_name}` section differs from the shipped copy"
+    if (wf_name, step_name) == ("code/with-review", "peer-review"):
+        # Legacy snapshots consume an inline pointer to this live skill;
+        # both instruction sources must still match the shipped contract.
+        return _changed_skill(cfg, ("code/peer-review",))
     return None
 
 

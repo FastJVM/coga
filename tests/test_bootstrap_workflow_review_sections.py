@@ -86,7 +86,15 @@ def _all_workflow_files() -> list[Path]:
 )
 def test_every_workflow_has_other_agent_review_or_says_why_not(path: Path) -> None:
     workflow = Workflow.load(path)
-    if any(step.assignee == "other-agent" for step in workflow.steps):
+    reviews = [
+        index for index, step in enumerate(workflow.steps)
+        if step.name == "peer-review" and step.assignee == "other-agent"
+    ]
+    if reviews:
+        # Design evaluation alone is not code review: the peer must inspect
+        # the implementation before publication.
+        names = [step.name for step in workflow.steps]
+        assert names.index("implement") < reviews[0] < names.index("open-pr")
         return
     # The rationale lives in a real H2 that names no step, so it is framing
     # only and never composes into a launched prompt.
