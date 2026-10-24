@@ -36,3 +36,10 @@ remaining items, failures, and any measurements required by the ticket.
 Resolve failures or obtain the owner's acceptance of explicitly recorded
 partial completion before finishing. When the agreed work is complete, run
 `coga bump <slug>` and stop.
+
+## No other-agent code review
+
+This workflow executes owner-approved operational cleanup, not code
+changes, and opens no PR, so no `other-agent` step reviews it. A change to
+product code belongs on a `code/*` workflow, which has the other agent
+review it.

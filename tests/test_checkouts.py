@@ -54,6 +54,7 @@ SHIPPED_ROWS = [
     ("code/design-then-implement", "evaluate-design", "control"),
     ("code/design-then-implement", "review-design", "control"),
     ("code/design-then-implement", "implement", "create-or-reuse"),
+    ("code/design-then-implement", "peer-review", "reuse-required"),
     ("code/design-then-implement", "open-pr", "control"),
     ("code/design-then-implement", "review", "reuse-required"),
     ("code/with-review", "implement", "create-or-reuse"),
@@ -85,6 +86,8 @@ def test_policy_supports_older_frozen_snapshots(git_repo) -> None:  # type: igno
     assert select_checkout_policy(cfg, old).kind == "create-or-reuse"
     legacy_review = _frozen("code/with-review", "review", skills=[])
     assert select_checkout_policy(cfg, legacy_review).kind == "reuse-required"
+    legacy_peer = _frozen("code/with-review", "peer-review", skills=[])
+    assert select_checkout_policy(cfg, legacy_peer).kind == "reuse-required"
 
 
 @pytest.mark.parametrize(
@@ -125,6 +128,34 @@ def test_policy_accepts_identical_local_twins_and_refuses_changed_ones(git_repo)
     assert "differs from the shipped copy" in policy.reason
 
 
+@pytest.mark.parametrize(
+    ("workflow", "legacy"),
+    [
+        ("code/with-review", False),
+        ("code/with-review", True),
+        ("code/design-then-implement", False),
+    ],
+)
+def test_policy_checks_peer_review_skill_for_current_and_legacy_steps(
+    git_repo, workflow: str, legacy: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    ticket = _frozen(workflow, "peer-review", skills=[] if legacy else None)
+    local = git_repo.coga_os / "skills" / "code" / "peer-review" / "SKILL.md"
+    local.parent.mkdir(parents=True)
+    shipped = bootstrap_skill_path(cfg, "code/peer-review").read_text(encoding="utf-8")
+    local.write_text(shipped, encoding="utf-8", newline="\n")
+    assert select_checkout_policy(cfg, ticket).kind == "reuse-required"
+
+    # The legacy inline section delegates to this skill too: custom review
+    # instructions must select manual checkout preparation in either shape.
+    local.write_text(shipped + "\nUse a custom checkout.\n", encoding="utf-8", newline="\n")
+    policy = select_checkout_policy(cfg, ticket)
+    assert policy.kind == "manual"
+    assert "code/peer-review" in policy.reason
+    assert "differs from the shipped copy" in policy.reason
+
+
 def test_policy_reads_only_the_consumed_inline_section(git_repo) -> None:  # type: ignore[no-untyped-def]
     cfg = load_config(git_repo.coga_os)
     shipped = bootstrap_workflow_path(cfg, "code/with-review").read_text(encoding="utf-8")
@@ -134,7 +165,10 @@ def test_policy_reads_only_the_consumed_inline_section(git_repo) -> None:  # typ
     peer = _frozen("code/with-review", "peer-review")
     assert select_checkout_policy(cfg, peer).kind == "reuse-required"
     local.write_text(shipped.replace("## peer-review\n", "## peer-review\n\nChanged.\n"), encoding="utf-8", newline="\n")
-    policy = select_checkout_policy(cfg, peer)
+    # The current shape consumes `code/peer-review`, so the section is framing;
+    # an older skill-less snapshot still consumes it.
+    assert select_checkout_policy(cfg, peer).kind == "reuse-required"
+    policy = select_checkout_policy(cfg, _frozen("code/with-review", "peer-review", skills=[]))
     assert policy.kind == "manual"
     assert "`## peer-review` section differs" in policy.reason
 

@@ -1,6 +1,6 @@
 ---
 name: code/design-then-implement
-description: A thin ticket is designed into a spec, cold-reviewed by another agent, approved by the owner, then implemented and opened as a PR for final owner review.
+description: A thin ticket is designed into a spec, cold-reviewed by another agent, approved by the owner, then implemented, code-reviewed by the other agent, and opened as a PR for final owner review.
 steps:
   - name: design
     assignee: agent
@@ -17,6 +17,10 @@ steps:
     requires: branch
     skills:
       - code/implement
+  - name: peer-review
+    assignee: other-agent
+    skills:
+      - code/peer-review
   - name: open-pr
     assignee: agent
     requires: pr
@@ -57,18 +61,27 @@ recorded branch before the agent starts (`coga/checkouts`). The step declares
 `requires: branch`, so `coga bump` refuses to advance until `branch:` is
 recorded under `## Dev` in the ticket copy of the checkout the bump runs from.
 
+## peer-review
+
+Other-agent step, owned by the `code/peer-review` skill. The `evaluate-design`
+peer reviewed the spec; this step has the main agent's configured peer review
+the code `implement` committed, apply must-fix findings, freshen the branch,
+and prepare `## PR`. Launch reuses the recorded branch. Like
+`evaluate-design`, it fails loud (`unresolvable-step-assignee`) when no peer
+resolves; a single-agent install uses `code/with-self-review` instead.
+Tickets frozen before this step existed go straight from `implement` to
+`open-pr` and report that no code review ran.
+
 ## open-pr
 
 Agent step, owned by the `code/open-pr` skill: `coga open-pr <slug>` pushes the
 recorded branch, opens the PR, and writes `pr:` back under `## Dev`. It declares
 `requires: pr`, so `coga bump` holds the step until that line exists.
 
-There is no peer/self-review step in this workflow. The implement step prepares
-`## PR` using the [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md)
-rubric/schema and explicitly reports that code review was not performed.
-Owner approval of the design is not implementation review. The publication
-command renders that evidence and a verbatim ticket snapshot; missing evidence
-is visible in its conservative fallback, never inferred from design approval.
+The command is deterministic and has no judgment of its own, which is why the
+preceding `peer-review` step authors the PR body and rebases the branch.
+Owner approval of the design is not implementation review; the code review is
+the `peer-review` step's.
 
 ## review
 

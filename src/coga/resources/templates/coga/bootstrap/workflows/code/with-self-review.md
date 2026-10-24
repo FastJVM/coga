@@ -85,3 +85,14 @@ agent: its learning already landed with the merged PR. The packaged
 `bootstrap/retire/ticket.md` owns that procedure, and the
 `coga/checkout-cleanup` context owns what the shared proofs prove, preserve,
 and record for later sweeps.
+
+## No other-agent code review
+
+This workflow is intentionally reviewed by the same agent that wrote the
+code (`self-qa`). It is the single-agent fallback: on an install where
+`other-agent` cannot resolve a peer (one configured agent type, or three or
+more with no `peer =`), `code/with-review` would fail loud with
+`unresolvable-step-assignee`. A repo with a resolvable peer should use
+`code/with-review` or `code/design-then-implement`, whose `peer-review` step
+has the other agent review the code. Recurring autofix falls back to this
+workflow only when no peer resolves (`coga/recurring/autofix`).

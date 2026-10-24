@@ -54,7 +54,7 @@ checkout. It is a closed table, not a step-name heuristic:
 | --- | --- | --- |
 | `code/design-then-implement` | `design`, `evaluate-design`, `review-design` | control |
 | all four shipped code/docs workflows | `implement` | create or reuse the recorded branch |
-| `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
+| `code/design-then-implement`, `code/with-review`, `docs/with-review` | `peer-review` | reuse the recorded branch |
 | `code/with-self-review` | `self-qa` | reuse the recorded branch |
 | `code/design-then-implement`, `code/with-review`, `docs/with-review` | `open-pr` | control |
 | `code/with-self-review` | `pr` | control |
@@ -69,6 +69,10 @@ control, but sets up no branch and says so. Ticket-wide `skills:`,
 completion gates, and roles never select entry behavior. If the ticket's
 workflow or step changes on control while launch prepares, launch refuses
 before spawning; retry it.
+
+Older `code/with-review` snapshots consume an inline `peer-review` section
+that delegates to `code/peer-review`. Both that section and the resolved
+skill must match the packaged copies for launch to reuse the branch.
 
 ### In a launched session
 
