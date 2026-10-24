@@ -206,6 +206,6 @@ The share did not happen. Doc permissions on 2026-10-23 list zach only.
 Zach deferred it on purpose — one share once all three sections exist — and
 BMAD and Compound Engineering are still drafts. Rather than hold this ticket
 open on two unstarted trials, he closed it and moved the obligation to
-`### Where findings go` on `competition-testing/test-bmad-method` and
-`competition-testing/test-compound-engineering`. The last of those two to
-finish carries the share.
+`### Where findings go` on `competition-testing/test-compound-engineering`,
+which runs last and carries the share. `competition-testing/test-bmad-method`
+does not hold it.

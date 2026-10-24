@@ -106,8 +106,10 @@ the deliverable. `FastJVM/coga` is public, so findings stay in the doc and the
 blackboard stays a pointer.
 
 Zach shares the doc with Nico by named account once all three sections exist.
-The SpecKit section is written and that share is still outstanding, so the last
-of this ticket and `competition-testing/test-bmad-method` to finish carries it.
+This ticket carries that share: it is the last of the three trials, and neither
+`competition-testing/test-speckit` nor `competition-testing/test-bmad-method`
+holds the obligation any more. Share by named account rather than switching on
+link-sharing.
 
 <!-- coga:blackboard -->
 
