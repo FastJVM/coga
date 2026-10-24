@@ -26,7 +26,7 @@ contexts:
 - coga/checkouts
 - coga/workflows
 - coga/recurring/autofix
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
