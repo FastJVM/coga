@@ -1,11 +1,23 @@
 ---
 title: Test Compound Engineering
-status: draft
+status: active
 owner: zach
 contexts:
 - coga-dev/principles
-workflow: draft-for-human
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
 agent: claude
+step: 1 (agent-produces)
 ---
 
 ## Description
