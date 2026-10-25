@@ -1,6 +1,6 @@
 ---
 title: Test Compound Engineering
-status: active
+status: in_progress
 owner: zach
 contexts:
 - coga-dev/principles
