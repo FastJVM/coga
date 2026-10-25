@@ -230,10 +230,12 @@ doc link and that the section is done — not what the trial found.
 
 ## Status
 
-Hands-on trial complete 2026-10-24. Zach has what he needs and is writing the
-BMAD section summary in a separate session, as he did for SpecKit. Step 1
-`agent-produces` is finished; the ticket sits at `paused`, so `coga bump`
-needs a `coga launch` first.
+Hands-on trial complete 2026-10-24, and marked `done` at Zach's direction from
+step 1. Steps 2 (`human-owns-and-finishes`) and 3 (`report-to-coga`) were
+skipped deliberately: Zach judged the trial finished and is writing the BMAD
+section summary in a separate session, as he did for SpecKit. The doc link and
+completion state that `report-to-coga` would have recorded are below, so
+closing early loses nothing — but no step tracks the summary itself.
 
 Findings live in the doc, not here — this repo is public.
 "Coga Competitor Tests":
