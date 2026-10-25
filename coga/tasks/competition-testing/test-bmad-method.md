@@ -1,6 +1,6 @@
 ---
 title: Test BMAD Method
-status: paused
+status: active
 owner: zach
 contexts:
 - coga-dev/principles
