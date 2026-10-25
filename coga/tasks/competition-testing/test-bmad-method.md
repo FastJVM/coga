@@ -1,6 +1,6 @@
 ---
 title: Test BMAD Method
-status: active
+status: done
 owner: zach
 contexts:
 - coga-dev/principles
@@ -17,7 +17,6 @@ workflow:
     skills: []
     assignee: agent
 agent: claude
-step: 1 (agent-produces)
 ---
 
 ## Description
