@@ -1,6 +1,6 @@
 ---
 title: Recurring sweep resumes non-human-paused periods
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
