@@ -1,6 +1,6 @@
 ---
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - bootstrap/skill-update
     assignee: agent
-step: 1 (update)
 ---
 
 ## Description
@@ -135,3 +134,40 @@ template rather than living with it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Skill Update
+
+Generated: 2026-10-26T17:20:59+00:00
+Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.cli skill update --all --json --pr --pr-title 'Update Coga-managed skills'`
+Task: `recurring/skill-update`
+
+Result: 22 skill(s): 7 updated, 0 need follow-up, 15 skipped.
+PR: https://github.com/FastJVM/coga/pull/1098
+
+### Updated
+
+- `google-agents-cli-adk-code`: `updated` (github) - updated by gh skill (google/agents-cli) aef7255c > 876b67f4 [v1.11.0]
+- `google-agents-cli-deploy`: `updated` (github) - updated by gh skill (google/agents-cli) 3b814a38 > 3fd11023 [v1.11.0]
+- `google-agents-cli-eval`: `updated` (github) - updated by gh skill (google/agents-cli) d8f4ffbb > 0f739661 [v1.11.0]
+- `google-agents-cli-observability`: `updated` (github) - updated by gh skill (google/agents-cli) b6a9a90f > 15758239 [v1.11.0]
+- `google-agents-cli-publish`: `updated` (github) - updated by gh skill (google/agents-cli) 5c2dd447 > 1f0af76b [v1.11.0]
+- `google-agents-cli-scaffold`: `updated` (github) - updated by gh skill (google/agents-cli) 545a9274 > ccb2058b [v1.11.0]
+- `google-agents-cli-workflow`: `updated` (github) - updated by gh skill (google/agents-cli) c0cd4975 > ee9e6b5b [v1.11.0]
+
+### Skipped
+
+- `code/address-pr-comments`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `code/design`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `code/implement`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `code/open-pr`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `code/review-design`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `code/self-qa`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/autoclose/sweep`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/blockers/remind`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/branch-sweep/sweep`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/recurring/verify`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/releasing`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/show`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/testing/clean-install`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `coga/ticket/finalize`: `skipped-bundled` (bundled) - repo copy of a package-bundled skill; it shadows the packaged copy and is maintained in this repo, so `coga skill update` leaves it alone
+- `clarity`: `unchanged` (url) - upstream digest unchanged
