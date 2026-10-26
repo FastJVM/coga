@@ -42,7 +42,9 @@ inside `refresh`.
 - Ancestry is checked first. Local control that already contains `new` and
   is itself contained in the remote-tracking ref was moved forward by a
   concurrent publish (another process, or a sibling worktree sharing the
-  ref): it counts as level, returns `True`, and is left alone.
+  ref): it counts as level, returns `True`, and is left alone. Accepted
+  limitation: the caller's just-published files may then stay dirty in its
+  working tree until the next sweep.
 - When local control is otherwise ahead or diverged, the
   invoking checkout is first checked for an in-progress merge, rebase,
   cherry-pick, revert, or bisect (the same markers preparation uses); one
@@ -113,7 +115,10 @@ and re-planning (up to `PREPARATION_ATTEMPTS`) when the remote-tracking ref
 moves past the pin before the plan or its re-observation completes. A sibling's
 local-control fast-forward may lag its push; the same loop retries that move
 between observations when it is already contained in the pin and all other
-evidence matches (HEAD follows local control when checked out). It proves
+evidence matches (HEAD follows local control when checked out). Accepted
+limitation: a sibling move after the last re-read and before the apply is not
+retried; the guarded `update-ref` or the post-apply verification reports
+`failed`, never silently. It proves
 every change is already published Coga state, then restores or removes those
 paths, switches HEAD to the control branch, and fast-forwards it with
 `merge --ff-only`. When local control is

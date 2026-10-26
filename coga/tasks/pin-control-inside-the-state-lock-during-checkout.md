@@ -225,3 +225,10 @@ checks:
   detail: ok=True, state-only-drift. Main advanced only through non-overlapping recurring tickets and
     log changes through 30d006850; the branch is safe to publish.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Control preparation's residual sibling race and level-shortcut dirt
