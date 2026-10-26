@@ -81,8 +81,9 @@ variable only for its own read of the scaffolded config, restores it, and
 prints a notifications tip saying Coga runs without them and naming the two
 `coga.toml` settings that opt in. Known gap: the very next command that loads config, such as
 `coga status`, still exits 2 with the guard message until the variable is
-unset or the `webhook` key is declared, and the tip does not say so. Unset it
-(`env -u SLACK_WEBHOOK_URL`) for a scratch repo you do not want on Slack.
+unset or the `webhook` key is declared, and the tip does not say so. For a
+scratch repo you do not want on Slack, run `unset SLACK_WEBHOOK_URL` in that
+shell, or prefix a single command (`env -u SLACK_WEBHOOK_URL coga status`).
 
 Init installs no Coga software. It builds no virtualenv, installs no Python
 package or skill and writes no `PATH` shim, so an editable checkout can
