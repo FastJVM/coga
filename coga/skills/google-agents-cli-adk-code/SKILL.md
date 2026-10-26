@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.10.0
+    github-ref: refs/tags/v1.11.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: aef7255c22f2c5a4de82ca7c068473c03b2b1ffb
+    github-tree-sha: 876b67f46f0846d8b5c03c1d4571732b76372a84
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.10.0
+    version: 1.11.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
@@ -34,7 +34,7 @@ clone the repo and read the one matching the capability you need before implemen
 Do NOT write agent code until a project is scaffolded.
 
 1. Verify project: run `agents-cli info` (proceed if config exists).
-2. New project: run `agents-cli scaffold create <name>` — add `--agent adk_go` for Go.
+2. New project: run `agents-cli scaffold create <name> --agent adk --deployment-target <target>` — use `--agent adk_go` for Go.
 3. Existing code: run `agents-cli scaffold enhance .`.
 
 ## Quick Reference — Most Common Patterns

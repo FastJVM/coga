@@ -130,7 +130,7 @@ To query Agent Runtime programmatically:
 import agentplatform
 
 client = agentplatform.Client(location="us-east1")
-agent = client.agent_engines.get(name="projects/PROJECT/locations/LOCATION/reasoningEngines/ENGINE_ID")
+agent = client.runtimes.get(name="projects/PROJECT/locations/LOCATION/reasoningEngines/ENGINE_ID")
 
 async for event in agent.async_stream_query(message="Hello!", user_id="test"):
     print(event)

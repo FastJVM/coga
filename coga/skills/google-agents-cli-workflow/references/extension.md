@@ -91,7 +91,7 @@ agents-cli info                                # shows active extensions + sourc
 
 A URL is cloned with your ambient git configuration, so whatever already authenticates you to that host (credential helper, ssh agent) applies — agents-cli neither asks for nor stores credentials.
 
-An extension changes commands. To run a different agent framework, scaffold from that framework's template instead (`agents-cli create my-agent --agent <org>/<repo>@<tag>`); the template carries its own `agents-cli-extension.yaml`, so nothing is installed machine-wide.
+An extension changes commands. To run a different agent framework, scaffold from that framework's template instead (`agents-cli create my-agent --agent <org>/<repo>@<tag> --deployment-target <target>`); the template carries its own `agents-cli-extension.yaml`, so nothing is installed machine-wide.
 
 ### Scopes
 

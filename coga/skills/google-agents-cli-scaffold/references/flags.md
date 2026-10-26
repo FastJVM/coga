@@ -4,8 +4,8 @@
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--agent` | `-a` | `adk` | Agent template — local name (`adk` for Python, `adk_go` for Go), local path (`local@/path`), or remote Git URL |
-| `--deployment-target` | `-d` | `agent_runtime` | Deployment target (`agent_runtime`, `cloud_run`, `gke`, `none`) |
+| `--agent` | `-a` | `adk` with `-y`; otherwise required | Agent template — local name (`adk` for Python, `adk_go` for Go), local path (`local@/path`), or remote Git URL |
+| `--deployment-target` | `-d` | `agent_runtime` with `-y`; otherwise required unless `--prototype` | Deployment target (`agent_runtime`, `cloud_run`, `gke`, `none`) |
 | `--region` | | `us-east1` | GCP region |
 | `--prototype` | `-p` | off | Skip CI/CD and Terraform (recommended for first pass) |
 | `--session-type` | | — | Session storage (`in_memory`, `cloud_sql`, `agent_platform_sessions`). Use with `cloud_run` or `gke` targets (Agent Runtime in Gemini platform manages sessions itself). |
