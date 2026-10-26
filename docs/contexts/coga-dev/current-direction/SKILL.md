@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-21.
+Last updated: 2026-10-26.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -41,6 +41,15 @@ is `coga status` and the ticket bodies; stage posture is
   briefs and remaining publication decisions. Do not recreate a permanent
   campaign context library. Revisit only if recurring work needs shared
   guidance beyond those deliverables.
+- **README demo accuracy (2026-10-26).** The July 18, 2026
+  [demo](https://www.youtube.com/watch?v=iwnewxJvRPc) is removed from the
+  README's onboarding path: its visible top-level `assignee` edits and
+  linked-worktree recovery instructions no longer match the current ticket
+  and checkout contracts. A generic command-name caveat did not explain
+  those differences. Reconsider the link after those scenes are corrected;
+  a new recording is not a launch prerequisite. Current reader path:
+  [README](https://github.com/FastJVM/coga/blob/main/README.md) and
+  [first task](../../coga/first-task/SKILL.md).
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
@@ -138,12 +147,10 @@ is `coga status` and the ticket bodies; stage posture is
   leaving the macOS walk without a build passthrough. Retro W43 proposed
   them as known gaps, but only PR #1046 (macOS harness) merged; #1058 and
   #1059 closed unmerged. 0.4.1 has since published, with its attended gate
-  skipped by owner decision (`coga/releasing`). `marketing/readme-top`'s
-  checks remain unowned unshipped scope: the megalaunch carry-forward proof
-  in the README Example, `## First steps` against the installer's final
-  clean-install matrix, a verdict on the linked 95-second demo video, and
-  PyPI-safe absolute README links (relative links 404 on the PyPI page).
-  File a draft owning them rather than routing work to the done ticket.
+  skipped by owner decision (`coga/releasing`). The remaining README checks
+  were assigned to a follow-up on 2026-10-26; retiring `marketing/readme-top`
+  did not discharge them. First-task claims still need the authenticated
+  install evidence, not just an install/init smoke.
   When measuring this queue, a ticket still on `review` with a merged PR is not backlog
   (autoclose closes it next run); count only open PRs as the live queue, and
   gate a measurement over retired tickets and merged PRs on a closed time
