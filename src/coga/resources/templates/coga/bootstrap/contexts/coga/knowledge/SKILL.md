@@ -124,4 +124,8 @@ one-sentence `description` stating its scope. Targets: 60 to 160 lines and
 500 to 1,500 tokens (ceil(chars/4), frontmatter included); overview topics at
 most 1,000 tokens. A topic over 200 lines, 10,000 bytes, or 2,500 tokens is
 reviewed for a split into narrower leaves in its namespace, so tickets can
-attach only the contract they need. An exception needs a recorded reason.
+attach only the contract they need. An exception needs a recorded reason,
+written in the oversized topic itself as one closing `Size exception:`
+sentence saying why it stays whole. A reason kept only on a ticket
+blackboard or in a PR leaves with them, and the next reader who measures the
+topic cannot tell a decision from drift.

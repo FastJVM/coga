@@ -196,3 +196,8 @@ stays `skip (already handled on control)` even when publishing its log line
 fails; that failure is still named in `problems:`. All of this is the sweep
 path. The [autofix](../autofix/SKILL.md) loop runs afterwards without changing
 the exit code.
+
+Size exception: this topic stays over the size review thresholds, as
+accepted when the recurring family was consolidated. It absorbed the former
+serviced-period ledger and failures leaves; splitting it again would recreate
+them, so only repo inactivity stays a separate leaf.
