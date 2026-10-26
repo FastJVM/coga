@@ -43,7 +43,8 @@ in the idea-piece ticket or README.
 
 ### Execution checklist
 
-- Track `marketing/readme-top`, the `marketing/fix-installer/` tickets
+- Track `finish-the-readme-launch-checks-left-open-by-readm` (the remaining
+  checks from retired `marketing/readme-top`), the `marketing/fix-installer/` tickets
   (clean-install harnesses, then the run that files each issue; including
   one-task onboarding). The authenticated Linux/macOS × PyPI/main rerun is
   owned by `marketing/fix-installer/complete-the-authenticated-clean-install-audit`;
@@ -121,6 +122,12 @@ and marketing contexts own the V1 plan. Existing human step is preserved.
   still drafts and have not been launched.
 
 ## Authoring handoff
+
+Current README follow-up (2026-10-26):
+`finish-the-readme-launch-checks-left-open-by-readm` owns the remaining
+README links, first-steps reconciliation, demo verdict, and carry-forward
+example. The September readiness snapshot above is historical; do not route
+new work to the retired `marketing/readme-top`.
 
 This revision consolidates the marketing queue and moves public audit evidence
 to the launch-history references. No product implementation or external

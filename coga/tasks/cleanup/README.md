@@ -24,8 +24,10 @@ the release. That fix is `done`, so nothing here still gates the release.
 
 ## Not here
 
-- `marketing/readme-top` owns the README and the existing demo's accuracy
-  check. It absorbed `cleanup/check-the-demo-video-against-current-cli-names`;
+- `finish-the-readme-launch-checks-left-open-by-readm` owns the remaining
+  README checks, including the existing demo's accuracy. It succeeds retired
+  `marketing/readme-top`, which absorbed
+  `cleanup/check-the-demo-video-against-current-cli-names`;
   a new video is not a V1 launch prerequisite.
 - Community setup is outside the approved V1 campaign. The superseded
   `marketing/discord` ticket was removed; repository hygiene does not create

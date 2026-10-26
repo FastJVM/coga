@@ -45,7 +45,8 @@ Release: https://github.com/FastJVM/coga/releases/tag/v0.4.0 .
   `1.0.0` version bump for the owner to review.
 - Include the final README from `main` as the PyPI project description via
   `pyproject.toml` (`[project] readme = "README.md"`). Coordinate the rewrite
-  with `marketing/readme-top`; keep one source rather than separate PyPI copy.
+  with `finish-the-readme-launch-checks-left-open-by-readm`; keep one source
+  rather than separate PyPI copy.
   Check the built metadata and the published PyPI description against the
   release commit's README, including Markdown rendering and documentation
   links. The 0.4.0 description was verified byte-identical to the current
@@ -125,7 +126,8 @@ Hashes (0.4.0-versioned dry build, for reference only): wheel
    (documented) or downgrade to a warning before 1.0.
 3. **README relative links won't resolve on PyPI.** ~11 links like
    `docs/contexts/coga/install/SKILL.md`, `CONTRIBUTING.md` render as
-   pypi.org-relative 404s. Fix in `readme-top` with absolute
+   pypi.org-relative 404s. Fix in
+   `finish-the-readme-launch-checks-left-open-by-readm` with absolute
    `https://github.com/FastJVM/coga/blob/main/...` links (one source, still
    works on GitHub). This was true for 0.4.0 too.
 4. **Runbook note (no product bug):** bare `uvx twine check` on this host
@@ -136,6 +138,11 @@ Hashes (0.4.0-versioned dry build, for reference only): wheel
    639 SPDX string `license = "Apache-2.0"` is preferred. Optional.
 
 ### Proposed version bump (do not land until owner approves candidate)
+
+README routing update (2026-10-26): `marketing/readme-top` is retired. Its
+remaining checks belong to `finish-the-readme-launch-checks-left-open-by-readm`;
+the dated October 6 readiness list above is not the current README status.
+
 `pyproject.toml`: `version = "0.4.0"` → `version = "1.0.0"`. Consider adding
 `"Development Status :: 5 - Production/Stable"` classifier. Check for other
 version strings (`coga --version` reads package metadata).

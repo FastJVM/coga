@@ -24,6 +24,8 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+contexts:
+  - coga-dev/principles
 launch_generation: 64b54f34-0ccc-44cd-97e9-52bb3fb1cf42
 ---
 
@@ -37,6 +39,12 @@ Filed by Dream 2026-W44 (Phase 6; knowledge-scan ks-08 gap). marketing/readme-to
 Also repoint the routing references in marketing/publish-coga-1-0-as-the-final-v1-step (~L128), marketing/build-the-launch-plan (~L46) and marketing/fix-installer/complete-the-authenticated-clean-install-audit (~L45) to this ticket. Retro's earlier attempt (PR #1059) closed unmerged.
 
 ## Context
+
+Read `coga/install`, `coga/init`, `coga/first-task`, and `coga/megalaunch`
+under `docs/contexts/coga/` for the current commands and platform boundaries;
+these are cited rather than attached. The authenticated final install matrix
+is owned by `marketing/fix-installer/complete-the-authenticated-clean-install-audit`.
+An install/init smoke or source comparison does not replace that matrix.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -124,4 +132,26 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: codex/readme-launch-checks
+
+## Implement — 2026-10-26
+
+Actual agent: Codex (GPT-6), overriding the ticket's configured Claude.
+Manual checkout start: clean `main`, fetched and fast-forward checked at
+`3b57a4d0d`; no prior branch or PR belongs to this ticket. PR #1059 is closed,
+unmerged (GitHub metadata checked); its proposed knowledge change is not a
+completed README check.
+
+Plan: make README links absolute, reconcile its onboarding summary with the
+live contracts and available installer evidence, inspect the linked demo,
+and substantiate the Example with public thinkpick carry-forward evidence.
+Publish routing corrections as ticket state; keep README/context changes on
+the feature branch. Run the required suite and metadata/link checks, push,
+return to main, then hand off or block on any evidence still unavailable.
+
+The authenticated Linux/macOS × PyPI/main matrix is still blocked on the
+owned-Mac SSH route. Its owner requires all four environments together and
+both agents in each (eight actual completed tasks). No final matrix exists
+yet; source checks and earlier smoke results will not be described as passes.
