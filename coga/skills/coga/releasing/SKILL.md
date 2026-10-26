@@ -25,7 +25,7 @@ API token is created, stored, or pasted anywhere.
 ## One-time setup per index
 
 Both indexes already have trusted publishers for this repository; releases
-through 0.4.0 published with them. Repeat this only for a new index, or after
+through 0.4.1 published with them. Repeat this only for a new index, or after
 renaming the repository, workflow or environment. The form depends on whether
 the project already exists on that index:
 
@@ -74,14 +74,21 @@ no-cost way to catch a packaging problem.
    - install the built wheel into a fresh Python 3.11 venv (the
      `requires-python` floor), then run `coga --version`,
      `coga init --user tester`, and `coga validate --json` in a scratch Git
-     repository.
+     repository. Run the scratch-repo commands under
+     `env -u SLACK_WEBHOOK_URL` when your shell exports it: a fresh repo has
+     no `[notification.slack] webhook` key, so the config-load guard rejects
+     the bare variable and every config-loading command after init exits 2.
+     Unset it only for the scratch repo; this repo's own `coga.toml` reads
+     it.
 3. Releases -> Draft a new release -> tag `v<version>`, target `main`,
    Publish release.
 4. The workflow publishes to PyPI.
 5. Verify from a fresh environment that bypasses caches:
    `python3.11 -m venv <dir>` then
    `<dir>/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple coga`
-   (or pin `coga==<version>`), then `coga --version`. Right after the upload,
+   (or pin `coga==<version>`), then `coga --version`; any scratch-repo
+   `coga init`/`coga validate` here needs the same `env -u SLACK_WEBHOOK_URL`
+   as step 2. Right after the upload,
    an unpinned install can still resolve the previous version from a stale
    index or cache: the 0.4.0 release's first check got 0.2.0, and a new fresh
    venv after the index refreshed got 0.4.0. Retry before treating an old
@@ -98,3 +105,12 @@ with the exact published version. It combines a fresh install with an attended,
 authenticated agent launch and verifies that the task finished with durable
 state and a clean repository. Keep the resulting receipts with the release
 verification. Install/init success alone does not satisfy this gate.
+
+The gate is an owner step. The harness continuation and an attended
+`coga build` both start an interactive, authenticated agent, which an agent
+session must not nest, so a launched agent can prepare the commands and run
+the non-interactive checks (wheel contents, fresh-venv install, init,
+validate) but cannot pass the gate itself. For 0.4.1 the owner skipped it:
+the ticket closed on the agent-run checks with "Attended checks skipped by
+owner decision", and no TestPyPI dry run or pre-tag gate receipt exists for
+that release.
