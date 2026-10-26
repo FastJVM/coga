@@ -22,11 +22,10 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 contexts:
-  - coga-dev/principles
-launch_generation: 64b54f34-0ccc-44cd-97e9-52bb3fb1cf42
+- coga-dev/principles
 ---
 
 ## Description
