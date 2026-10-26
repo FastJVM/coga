@@ -61,10 +61,12 @@ reviewed PR.
   reported on stderr, the files stay as written, and the next command retries.
   A command that deliberately leaves retryable state dirty, or a launch whose
   checkout preparation or return refused, withholds its sweep so that state
-  is not published. Whenever the sweep does not run, the command's exit names
-  each log line it wrote that control does not hold, with the recovery
-  command; it reports those lines rather than publishing them beside the
-  withheld state.
+  is not published. At exit, a changed log is checked for lines control does
+  not hold, even after a sweep (which may have excluded an ignored log).
+  The warning names up to 10 retained lines, counts any others, and gives the
+  recovery command; it reports those lines rather than publishing them beside
+  withheld state. After a checkout rewrite, the check can also name older
+  retained lines. An unchanged log or explicitly disabled Git stays silent.
 - **Launch** publishes routine state at entry and before returning the
   checkout ([coga/checkouts](../checkouts/SKILL.md)).
 - **Session teardown**, including `coga chat`, publishes the log after usage
@@ -94,6 +96,9 @@ failed`, `post failed`) are written because a publication or delivery failed;
 the failure report covers them, and no command retries them in a loop. The
 deliberate deferrals are:
 
+- **Initialization** commits the onboarding creation line with the new
+  scaffold; the first push is deliberately left to the human
+  ([init](../init/SKILL.md)).
 - **Session usage records** land after the agent's last lifecycle sync and
   publish at session teardown (above).
 - **Lines in a writer's own later publish.** A recurring run's serviced-period

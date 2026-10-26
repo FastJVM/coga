@@ -7,6 +7,7 @@ import os
 import shlex
 import signal
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -170,7 +171,7 @@ _SWEEPING_MARK_SUBCOMMANDS = frozenset(
 )
 
 
-def _sweep_coga_state(cfg: Config | None) -> bool:
+def _sweep_coga_state(cfg: Config | None) -> None:
     """Catch-all: publish any file still dirty under the Coga and contexts
     roots after a mutating command, so machine side-effects, authored
     knowledge, and earlier offline misses converge on control at the next
@@ -180,12 +181,11 @@ def _sweep_coga_state(cfg: Config | None) -> bool:
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
     state change and must not commit. No repo (`cfg is None`) → nothing to sweep.
     The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
-    so it never masks the command's own exit. Returns whether the sweep ran;
-    a skipped sweep leaves `_warn_unpublished_log_lines` to name any log line
-    this invocation wrote that control still lacks.
+    so it never masks the command's own exit. The exit diagnostic separately
+    checks for retained log lines, including ones the sweep excluded.
     """
     if git.control_relay_started.get():
-        return False
+        return
     if git.state_sweep_withheld.get():
         typer.secho(
             "[git] state sweep withheld: the command preserved local changes "
@@ -193,16 +193,16 @@ def _sweep_coga_state(cfg: Config | None) -> bool:
             fg=typer.colors.YELLOW,
             err=True,
         )
-        return False
+        return
     if cfg is None or not _should_sweep_coga_state(sys.argv):
-        return False
+        return
     if _is_recurring_all_child(sys.argv) and _checkout_is_off_control(cfg):
         # An off-control `recurring --all` child serviced this repo from a
         # temporary control-branch worktree, whose inner CLI already ran the
         # real sweep there. Sweeping again here would publish the untouched
         # host feature checkout's dirty `coga/` state on control. On control
         # this is the inner CLI (or an ordinary direct child) and sweeps.
-        return False
+        return
     try:
         # A launched agent may edit coga.toml and move the context tree while
         # the command is running. The eager config fed aliases at dispatch;
@@ -215,56 +215,80 @@ def _sweep_coga_state(cfg: Config | None) -> bool:
             fg=typer.colors.YELLOW,
             err=True,
         )
-        return False
+        return
     git.sync_coga_state(live_cfg)
-    return True
 
 
-# How many unpublished log lines a skipped-sweep warning prints before it
+# How many unpublished log lines an exit warning prints before it
 # summarizes the rest as a count.
 _UNPUBLISHED_LOG_LINE_LIMIT = 10
 
 
-def _log_mark(cfg: Config | None) -> int | None:
-    """The log's size at command entry, so the exit can find this run's lines.
+@dataclass(frozen=True)
+class _LogMark:
+    size: int
+    file_id: tuple[int, int] | None
+    times_ns: tuple[int, int] | None
+    tail: bytes
 
-    `log.md` is append-only, so bytes past this offset at exit are what this
-    invocation (or a child it ran) appended. `None` means nothing to compare.
+
+def _log_mark(cfg: Config | None) -> _LogMark | None:
+    """Remember file identity and a bounded tail without reading the whole log.
+
+    The exit can cheaply skip an unchanged file, or read just the appended
+    bytes when the old tail remains at the same offset. A checkout rewrite
+    invalidates that offset. `None` means the probe was unavailable.
     """
-    if cfg is None:
+    if cfg is None or not cfg.git_enabled:
         return None
     try:
-        return log_path(cfg).stat().st_size
+        with log_path(cfg).open("rb") as handle:
+            info = os.fstat(handle.fileno())
+            start = max(0, info.st_size - 256)
+            handle.seek(start)
+            tail = handle.read(info.st_size - start)
+        return _LogMark(
+            info.st_size,
+            (info.st_dev, info.st_ino),
+            (info.st_mtime_ns, info.st_ctime_ns),
+            tail,
+        )
     except FileNotFoundError:
-        return 0
+        return _LogMark(0, None, None, b"")
     except OSError:
         return None
 
 
-def _warn_unpublished_log_lines(cfg: Config | None, mark: int | None) -> None:
-    """Name the log lines this invocation wrote that control does not hold.
+def _warn_unpublished_log_lines(cfg: Config | None, mark: _LogMark | None) -> None:
+    """Name retained lines in a log changed during this invocation.
 
-    Called only when the end-of-command sweep did not run (withheld, a
-    retained-state exit, or a command outside the sweep), which is exactly
-    when an audit line could otherwise sit unpublished with no report. It
-    reports rather than publishes: a withheld sweep preserved state on
-    purpose, and the log alone would record transitions control lacks.
+    A sweep can exclude the log, so this also runs after a completed sweep.
+    It reports rather than publishes: a withheld sweep preserved state on
+    purpose, and the log alone would record transitions control lacks. After
+    a rewrite the whole log is compared, so older retained lines may be named.
     Disabled Git keeps its own informational note; every failed probe is
     silent, since this is a diagnostic and never the command's result.
     """
     if cfg is None or mark is None or not cfg.git_enabled:
         return
     path = log_path(cfg)
+    current = _log_mark(cfg)
+    if current is None or current == mark or current.size == 0:
+        return
     try:
-        if path.stat().st_size <= mark:
-            return
         with path.open("rb") as handle:
-            # A checkout switch can replace the log under this offset; only
-            # an offset still on a line boundary marks this run's appends.
-            if mark:
-                handle.seek(mark - 1)
-                if handle.read(1) != b"\n":
-                    return
+            start = 0
+            if (
+                current.file_id == mark.file_id
+                and current.size > mark.size
+                and mark.tail.endswith(b"\n")
+            ):
+                handle.seek(mark.size - len(mark.tail))
+                if handle.read(len(mark.tail)) == mark.tail:
+                    start = mark.size
+            # Git may have replaced the log with a shorter or differently
+            # ordered copy. A stale offset must not hide subsequent writes.
+            handle.seek(start)
             appended = handle.read()
     except OSError:
         return
@@ -294,7 +318,7 @@ def _warn_unpublished_log_lines(cfg: Config | None, mark: int | None) -> None:
         shown += f"    ... and {omitted} more\n"
     rel = shlex.quote(os.path.relpath(path, cfg.repo_root))
     typer.secho(
-        f"[git] {len(retained)} log line(s) this command wrote are not on "
+        f"[git] {len(retained)} log line(s) are not on "
         f"control and remain in {path}:\n{shown}"
         "[git] Resolve any state the command preserved first, then run "
         f"`coga run publish-state {rel}` from "
@@ -595,12 +619,11 @@ def main() -> None:
             # retryable local state (a stale control checkout in the recurring
             # gate), where the sweep would publish exactly the bytes the command
             # intentionally left dirty.
-            if exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE or not _sweep_coga_state(cfg):
-                _warn_unpublished_log_lines(cfg, log_mark)
+            if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                _sweep_coga_state(cfg)
             raise
         except BaseException:
-            if not _sweep_coga_state(cfg):
-                _warn_unpublished_log_lines(cfg, log_mark)
+            _sweep_coga_state(cfg)
             raise
         else:
             # End-of-command boundary: publish any dirty task/log/recurring state
@@ -608,11 +631,13 @@ def main() -> None:
             # offline miss). The on-disk markdown is the source of truth, and
             # atomic writes mean a mid-command crash never leaves a half-written
             # file to publish.
-            if not _sweep_coga_state(cfg):
-                _warn_unpublished_log_lines(cfg, log_mark)
+            _sweep_coga_state(cfg)
         finally:
-            git.state_sweep_withheld.reset(withheld_token)
-            git.control_relay_started.reset(relay_token)
+            try:
+                _warn_unpublished_log_lines(cfg, log_mark)
+            finally:
+                git.state_sweep_withheld.reset(withheld_token)
+                git.control_relay_started.reset(relay_token)
 
 
 if __name__ == "__main__":

@@ -1691,15 +1691,33 @@ def test_bootstrap_script_retained_state_exit_skips_refresh_and_sweep(
     assert "script ran successfully" not in result.stderr
 
 
+@pytest.mark.parametrize("switch_to_older_branch", [False, True])
 def test_task_script_retained_state_exit_names_its_unpublished_log_line(
     git_repo, monkeypatch: pytest.MonkeyPatch,
+    switch_to_older_branch: bool,
 ) -> None:
     """Without a remote no checkout boundary settles the phase, so the exit
     line was left dirty with no report; the CLI boundary now names it."""
     monkeypatch.chdir(git_repo.coga_os)
-    ref = _create_script_task(git_repo.coga_os, "raise SystemExit(75)\n")
+    script = "raise SystemExit(75)\n"
+    if switch_to_older_branch:
+        script = (
+            "import subprocess\n"
+            "subprocess.run(['git', 'switch', 'older'], check=True)\n"
+            + script
+        )
+    ref = _create_script_task(git_repo.coga_os, script)
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed retaining script task")
+    if switch_to_older_branch:
+        from coga.logfile import append_log
+
+        git_repo.git("branch", "older")
+        cfg = load_config(git_repo.coga_os)
+        for index in range(20):
+            append_log(cfg, "peer", "system", f"Later control event {index}")
+        git_repo.git("add", "coga/log.md")
+        git_repo.git("commit", "-m", "advance control log beyond the older branch")
     git_repo.git("remote", "remove", "origin")
     env = os.environ.copy()
     source_path = str(_SOURCE_ROOT / "src")
@@ -1718,7 +1736,7 @@ def test_task_script_retained_state_exit_names_its_unpublished_log_line(
     )
 
     assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
-    assert "1 log line(s) this command wrote are not on control" in result.stderr
+    assert "1 log line(s) are not on control" in result.stderr
     assert (
         f"[{ref.id_slug}] [system] script exited with code 75" in result.stderr
     )

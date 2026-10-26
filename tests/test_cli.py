@@ -371,7 +371,7 @@ def test_skipped_sweep_names_log_lines_left_off_control(
         main()
 
     err = capsys.readouterr().err
-    assert "1 log line(s) this command wrote are not on control" in err
+    assert "1 log line(s) are not on control" in err
     assert "[fix-retry-logic] [system] script exited with code 75" in err
     assert "coga run publish-state log.md" in err
     # Reported, not published: the retained line is still only local.
@@ -397,6 +397,17 @@ def test_skipped_sweep_does_not_name_log_lines_already_on_control(
     assert "not on control" not in capsys.readouterr().err
 
 
+def test_readonly_command_does_not_warn_about_an_unchanged_log(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_log_line("previous command retained this line")
+    monkeypatch.setattr("sys.argv", ["coga", "status"])
+    monkeypatch.setattr("coga.cli.app", lambda: None)
+    main()
+
+    assert "not on control" not in capsys.readouterr().err
+
+
 def test_completed_sweep_leaves_no_unpublished_log_warning(
     published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -406,6 +417,28 @@ def test_completed_sweep_leaves_no_unpublished_log_warning(
 
     assert "not on control" not in capsys.readouterr().err
     assert "slack: hi" in _control_log(published_repo)
+
+
+def test_completed_sweep_names_a_new_log_excluded_by_gitignore(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    ignore = published_repo.root / ".gitignore"
+    with ignore.open("a", encoding="utf-8") as handle:
+        handle.write("coga/log.md\n")
+    published_repo.git("add", ".gitignore")
+    published_repo.git("commit", "-m", "ignore the audit log")
+    published_repo.git("push", "origin", "main")
+    monkeypatch.setattr("sys.argv", ["coga", "create", "Review ignored log"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 0
+    err = capsys.readouterr().err
+    assert "1 log line(s) are not on control" in err
+    assert "[review-ignored-log] [human:marc] created (status=draft)" in err
+    assert "coga run publish-state log.md" in err
+    assert "created (status=draft)" not in _control_log(published_repo)
 
 
 def test_skipped_sweep_with_git_disabled_keeps_its_own_note(
