@@ -21,3 +21,8 @@ the `scope: clone` branch-sweep template; see
 
 The `coga/autoclose/sweep` skill
 owns the closure, disposal, reporting, and worklist rules.
+
+## No other-agent code review
+
+This is the one-step lifecycle of a recurring task's deterministic
+half. It produces no code, so no `other-agent` step reviews it.

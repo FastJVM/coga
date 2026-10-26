@@ -122,3 +122,9 @@ but exits 0 only when every named file is confirmed on the control branch.
   appends its own `## Recipe Failure` section there). Stay in the chat so the
   user can fix it and you can retry; only an exit 0 lets you hand over and
   bump.
+
+## No other-agent code review
+
+Onboarding writes a vision and draft tickets, not code, so no
+`other-agent` step reviews it. The tickets it generates carry their own
+`code/*` workflow, and that workflow has the other agent review the code.

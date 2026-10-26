@@ -24,3 +24,8 @@ retirement-tag publication gate in
 [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep). A failed archive keeps
 the refs and worktree and makes the recipe fail with a recorded reason. The
 run's report lands on this period task's blackboard.
+
+## No other-agent code review
+
+This is the one-step lifecycle of a recurring task's deterministic
+half. It produces no code, so no `other-agent` step reviews it.

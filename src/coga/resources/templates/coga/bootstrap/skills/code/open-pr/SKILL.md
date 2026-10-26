@@ -105,16 +105,17 @@ must-fix findings are addressed, or explicitly deferred by the owner. A green
 **The wait itself belongs to the preceding step, not here.** By the time this
 step's agent is composed, the `self-qa` / `peer-review` session that ordered the
 review has already bumped and exited, so this step cannot hold a review open —
-it can only refuse to publish. `code/self-qa` and the `with-review`
-`peer-review` section therefore carry the wait-before-bump rule at the point it
-can still be obeyed. What reaches this step is their durable evidence: a
+it can only refuse to publish. `code/self-qa` and `code/peer-review` (with the
+older inline `peer-review` sections) therefore carry the wait-before-bump rule
+at the point it can still be obeyed. What reaches this step is their durable evidence: a
 `## Self-QA` or `## Peer review` blackboard note stating which review form ran,
 that it **completed** (direct) or **returned** (tool), and what it found.
 Direct review by the launched reviewer is a valid review form; a second CLI
 process is not required. Read that note before running
-`coga open-pr` when the workflow ordered a code review. A workflow without
-such a step (for example design-then-implement) instead reports that no code
-review was performed; design review is not a substitute. If a required code
+`coga open-pr` when the workflow ordered a code review. A frozen workflow
+without such a step (for example a design-then-implement ticket frozen before
+that workflow gained `peer-review`) instead reports that no code review was
+performed; design review is not a substitute. If a required code
 review note is absent, or records a review as started without
 recording completion or return, treat the review as still in flight and escalate per
 your launch mode instead of publishing.

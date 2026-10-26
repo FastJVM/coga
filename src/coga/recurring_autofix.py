@@ -53,6 +53,7 @@ from pathlib import Path
 import typer
 
 from coga import git
+from coga.bump import OperatorResolutionError, resolve_other_agent
 from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
 from coga.create import create_task
 from coga.lifecycle import TERMINAL_STATUSES
@@ -67,11 +68,15 @@ from coga.ticket import TicketError
 AUTOFIX_DIRECTORY = "autofix"
 
 # Autofix tickets are created `active`, so they need a frozen workflow (the
-# activation gate refuses a workflow-less non-draft ticket). `with-self-review`
-# ends at an owner PR review, which is where the human judgment belongs, and it
-# carries the `already-satisfied` path — an autofix ticket whose problem turns
-# out to be transient closes itself with evidence instead of inventing a change.
-AUTOFIX_WORKFLOW = "code/with-self-review"
+# activation gate refuses a workflow-less non-draft ticket). `with-review` has
+# the code reviewed by the main agent's peer and ends at an owner PR review,
+# which is where the human judgment belongs; its `code/implement` step carries
+# the already-satisfied path, so a transient problem closes itself with
+# evidence instead of inventing a change. An unattended repo with no
+# resolvable peer falls back to `with-self-review` rather than minting a ticket
+# that would stall at `unresolvable-step-assignee`.
+AUTOFIX_WORKFLOW = "code/with-review"
+AUTOFIX_NO_PEER_WORKFLOW = "code/with-self-review"
 
 RUN_LOG_FILENAME = "run-log.md"
 
@@ -753,14 +758,34 @@ def demote_headings(body: str) -> str:
 # --- ticketing the finding ----------------------------------------------------
 
 
+def autofix_workflow(cfg: Config) -> str:
+    """`AUTOFIX_WORKFLOW` when the default agent's peer resolves, else the
+    single-agent `AUTOFIX_NO_PEER_WORKFLOW`. Peers are live config, so this is
+    decided once, at creation, against this machine's `[agents.*]`."""
+    try:
+        resolve_other_agent(cfg, None, allow_prospective_default=True)
+    except OperatorResolutionError:
+        return AUTOFIX_NO_PEER_WORKFLOW
+    return AUTOFIX_WORKFLOW
+
+
 def create_autofix_ticket(
     cfg: Config, analysis: Analysis, *, run_log: str
 ) -> tuple[str, Path]:
     """Create the `active` autofix ticket and drop the run log beside it."""
+    workflow_name = autofix_workflow(cfg)
+    if workflow_name != AUTOFIX_WORKFLOW:
+        typer.secho(
+            f"Autofix: no peer agent resolves for the default agent; using "
+            f"{workflow_name} instead of {AUTOFIX_WORKFLOW} (no other-agent "
+            "code review).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
     result = create_task(
         cfg=cfg,
         title=analysis.title,
-        workflow_name=AUTOFIX_WORKFLOW,
+        workflow_name=workflow_name,
         contexts=list(cfg.autofix_contexts),
         owner=cfg.current_user,
         status="active",

@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from coga.workflow import _parse_inline_sections
+from coga.workflow import Workflow, _parse_inline_sections
 
-BOOTSTRAP_WORKFLOWS = (
-    Path(__file__).resolve().parents[1]
-    / "src/coga/resources/templates/coga/bootstrap/workflows"
-)
+REPO = Path(__file__).resolve().parents[1]
+TEMPLATES = REPO / "src/coga/resources/templates/coga"
+BOOTSTRAP_WORKFLOWS = TEMPLATES / "bootstrap/workflows"
+PEER_REVIEW_SKILL = TEMPLATES / "bootstrap/skills/code/peer-review/SKILL.md"
 
 # Every packaged workflow whose implement step records `branch:` under
 # `## Dev`; its `done` ticket leaves a branch (or legacy worktree) behind.
@@ -58,3 +58,44 @@ def test_peer_review_section_carries_the_authorship_caveat(name: str) -> None:
     # step body itself, not in the workflow preamble the reviewer never sees.
     peer_review = " ".join(sections["peer-review"].split())
     assert "does not prove independent authorship" in peer_review
+
+
+def test_peer_review_skill_carries_the_authorship_caveat() -> None:
+    text = " ".join(PEER_REVIEW_SKILL.read_text(encoding="utf-8").split())
+    assert "does not prove independent authorship" in text
+    # A shared step skill refers to the next frozen step, never a step by name.
+    assert "`open-pr` step" not in text
+
+
+def _all_workflow_files() -> list[Path]:
+    roots = (
+        BOOTSTRAP_WORKFLOWS,
+        TEMPLATES / "workflows",
+        REPO / "coga/workflows",
+    )
+    return sorted(
+        path
+        for root in roots
+        for path in root.rglob("*.md")
+        if path.name != "_template.md"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", _all_workflow_files(), ids=lambda path: str(path.relative_to(REPO))
+)
+def test_every_workflow_has_other_agent_review_or_says_why_not(path: Path) -> None:
+    workflow = Workflow.load(path)
+    reviews = [
+        index for index, step in enumerate(workflow.steps)
+        if step.name == "peer-review" and step.assignee == "other-agent"
+    ]
+    if reviews:
+        # Design evaluation alone is not code review: the peer must inspect
+        # the implementation before publication.
+        names = [step.name for step in workflow.steps]
+        assert names.index("implement") < reviews[0] < names.index("open-pr")
+        return
+    # The rationale lives in a real H2 that names no step, so it is framing
+    # only and never composes into a launched prompt.
+    assert "\n## No other-agent code review\n" in path.read_text(encoding="utf-8")

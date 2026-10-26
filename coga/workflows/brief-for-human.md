@@ -24,3 +24,9 @@ not act.
 
 Read the result back and confirm it matches the initial task, or flag the gap.
 No action. If the result can't be observed, the human's report stands.
+
+## No other-agent code review
+
+The agent briefs and verifies read-only while the human performs the work,
+so the agent produces no code for another agent to review. Code changes
+belong on a `code/*` workflow.

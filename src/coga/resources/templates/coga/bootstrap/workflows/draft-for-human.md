@@ -27,3 +27,9 @@ the delivered work.
 Record what was produced, what the human changed or decided, and where the final
 artifact landed. If the result is compact, include it inline; if it is large,
 record the path or link.
+
+## No other-agent code review
+
+The agent drafts support material that the human finishes and owns; it
+ships no code, so no `other-agent` step reviews it. Code changes belong on
+a `code/*` workflow.

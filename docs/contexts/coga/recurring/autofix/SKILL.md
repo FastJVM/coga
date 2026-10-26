@@ -37,10 +37,14 @@ The console output is unchanged.
    the prompt so a nightly failure answers `duplicate` instead of minting a
    ticket a night.
 3. **A `problem` becomes an `active` ticket** under `coga/tasks/autofix/` on the
-   `code/with-self-review` workflow, with the run record committed beside it as
-   `run-log.md` and the repo's configured default contexts attached (see
-   Operating it below). Coga supplies this metadata; the analyst supplies the
-   finding. The analyst's body becomes the ticket's `## Description`, with
+   `code/with-review` workflow, so the main agent's peer reviews the code,
+   with the run record committed beside it as `run-log.md` and the repo's
+   configured default contexts attached (see Operating it below). When no
+   `other-agent` peer resolves for the default agent at creation (a
+   single-agent install), the ticket uses `code/with-self-review` instead and
+   the sweep says so on stderr, rather than minting a ticket that would stall
+   at `unresolvable-step-assignee`. Coga supplies this metadata; the analyst
+   supplies the finding. The analyst's body becomes the ticket's `## Description`, with
    headings demoted so the shallowest is `###`, because a `##` would end that
    section and drop the rest of the write-up from every launch prompt
    ([coga/tickets](../../tickets/SKILL.md), Body regions). The next

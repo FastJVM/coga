@@ -51,7 +51,14 @@ _ROWS: dict[tuple[str, str], tuple[tuple[tuple[str, ...], ...], CheckoutPolicyKi
     ("code/design-then-implement", "review-design"): ((_INLINE,), "control"),
     **{(wf, "implement"): ((("code/implement",),), "create-or-reuse") for wf in _CODE},
     ("docs/with-review", "implement"): ((_INLINE,), "create-or-reuse"),
-    ("code/with-review", "peer-review"): ((_INLINE,), "reuse-required"),
+    # Older `code/with-review` snapshots carry empty skills and consume the
+    # live inline `## peer-review`, which points at the same skill.
+    ("code/design-then-implement", "peer-review"): (
+        (("code/peer-review",),), "reuse-required"
+    ),
+    ("code/with-review", "peer-review"): (
+        (("code/peer-review",), _INLINE), "reuse-required"
+    ),
     ("docs/with-review", "peer-review"): ((_INLINE,), "reuse-required"),
     ("code/with-self-review", "self-qa"): ((("code/self-qa",),), "reuse-required"),
     ("code/design-then-implement", "open-pr"): ((("code/open-pr",),), "control"),
@@ -122,6 +129,10 @@ def _changed_section(cfg: Config, wf_name: str, step_name: str) -> str | None:
         return f"the live workflow has no `## {step_name}` instructions"
     if section != shipped.inline_instructions.get(step_name):
         return f"its `## {step_name}` section differs from the shipped copy"
+    if (wf_name, step_name) == ("code/with-review", "peer-review"):
+        # Legacy snapshots consume an inline pointer to this live skill;
+        # both instruction sources must still match the shipped contract.
+        return _changed_skill(cfg, ("code/peer-review",))
     return None
 
 
