@@ -317,6 +317,8 @@ def _stub_git(monkeypatch, request):
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: False)
     monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
+    # The exit diagnostic also reads Git; its real-git tests opt in above.
+    monkeypatch.setattr("coga.cli._warn_unpublished_log_lines", lambda *a, **k: None)
     # The `direct/body` stranding guard (`mark done`) also shells out to git;
     # default it to "nothing stranded" off the real-git harness.
     monkeypatch.setattr("coga.mark.stranded_product_paths", lambda *a, **k: [])

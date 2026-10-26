@@ -351,8 +351,13 @@ def test_publish_state_recovers_a_bump_whose_object_writes_were_denied(
 
         assert bumped.returncode == 0, bumped.stdout + bumped.stderr
         assert "review" in bumped.stdout
-        # Task sync and the exit sweep each fail once, naming the destination.
-        assert bumped.stderr.count("[git] sync failed: `git hash-object -w` failed") == 2
+        # Task sync and the exit sweep each fail once. The retained-log warning
+        # also echoes their audit lines; those are not additional attempts.
+        assert sum(
+            line.startswith("[git] sync failed: `git hash-object -w` failed")
+            for line in bumped.stderr.splitlines()
+        ) == 2
+        assert "advanced to step 2" in bumped.stderr
         assert f"object directory {store}" in bumped.stderr
         assert "Message was: Sync coga state" in bumped.stderr
         assert "Local task state was saved; Git publication failed." in bumped.stderr

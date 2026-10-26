@@ -7,6 +7,8 @@ import os
 import shlex
 import signal
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 
 import typer
 from typer.core import TyperCommand, TyperGroup
@@ -18,6 +20,7 @@ from coga.aliases import (
     validate_aliases as _validate_aliases,
 )
 from coga.config import Config, ConfigError, find_repo_root, load_config
+from coga.logfile import log_lines, log_path
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -178,7 +181,8 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
     state change and must not commit. No repo (`cfg is None`) → nothing to sweep.
     The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
-    so it never masks the command's own exit.
+    so it never masks the command's own exit. The exit diagnostic separately
+    checks for retained log lines, including ones the sweep excluded.
     """
     if git.control_relay_started.get():
         return
@@ -213,6 +217,135 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         )
         return
     git.sync_coga_state(live_cfg)
+
+
+# How many unpublished log lines an exit warning prints before it
+# summarizes the rest as a count.
+_UNPUBLISHED_LOG_LINE_LIMIT = 10
+
+
+@dataclass(frozen=True)
+class _LogMark:
+    size: int
+    file_id: tuple[int, int] | None
+    times_ns: tuple[int, int] | None
+    tail: bytes
+
+
+def _log_mark(cfg: Config | None) -> _LogMark | None:
+    """Remember file identity and a bounded tail without reading the whole log.
+
+    The exit can cheaply skip an unchanged file, or read just the appended
+    bytes when the old tail remains at the same offset. A checkout rewrite
+    invalidates that offset. `None` means the probe was unavailable.
+    """
+    if cfg is None or not cfg.git_enabled:
+        return None
+    try:
+        with log_path(cfg).open("rb") as handle:
+            info = os.fstat(handle.fileno())
+            start = max(0, info.st_size - 256)
+            handle.seek(start)
+            tail = handle.read(info.st_size - start)
+        return _LogMark(
+            info.st_size,
+            (info.st_dev, info.st_ino),
+            (info.st_mtime_ns, info.st_ctime_ns),
+            tail,
+        )
+    except FileNotFoundError:
+        return _LogMark(0, None, None, b"")
+    except OSError:
+        return None
+
+
+def _warn_unpublished_log_lines(cfg: Config | None, mark: _LogMark | None) -> None:
+    """Name retained lines in a log changed during this invocation.
+
+    A sweep can exclude the log, so this also runs after a completed sweep.
+    It reports rather than publishes: a withheld sweep preserved state on
+    purpose, and the log alone would record transitions control lacks. After
+    a rewrite the whole log is compared, so older retained lines may be named.
+    Disabled Git keeps its own informational note; every failed probe is
+    silent, since this is a diagnostic and never the command's result.
+    """
+    if cfg is None or mark is None or not cfg.git_enabled:
+        return
+    path = log_path(cfg)
+    current = _log_mark(cfg)
+    if current is None or current == mark or current.size == 0:
+        return
+    try:
+        with path.open("rb") as handle:
+            start = 0
+            if (
+                current.file_id == mark.file_id
+                and current.size > mark.size
+                and mark.tail.endswith(b"\n")
+            ):
+                handle.seek(mark.size - len(mark.tail))
+                if handle.read(len(mark.tail)) == mark.tail:
+                    start = mark.size
+            # Git may have replaced the log with a shorter or differently
+            # ordered copy. A stale offset must not hide subsequent writes.
+            handle.seek(start)
+            appended = handle.read()
+    except OSError:
+        return
+    # Readers accept CRLF; a checkout's own Git attributes may produce it.
+    lines = [
+        line.removesuffix("\r")
+        for line in log_lines(appended.decode("utf-8", errors="replace"))
+        if line.strip()
+    ]
+    if not lines:
+        return
+    try:
+        root = git.toplevel(cfg.repo_root)
+        if root is None:
+            return
+        held = _control_log_lines(cfg, root, git.relative_to_root(root, path))
+    except git.GitError:
+        return
+    retained = [line for line in lines if line not in held]
+    if not retained:
+        return
+    shown = "".join(
+        f"    {line}\n" for line in retained[:_UNPUBLISHED_LOG_LINE_LIMIT]
+    )
+    omitted = len(retained) - _UNPUBLISHED_LOG_LINE_LIMIT
+    if omitted > 0:
+        shown += f"    ... and {omitted} more\n"
+    rel = shlex.quote(os.path.relpath(path, cfg.repo_root))
+    typer.secho(
+        f"[git] {len(retained)} log line(s) are not on "
+        f"control and remain in {path}:\n{shown}"
+        "[git] Resolve any state the command preserved first, then run "
+        f"`coga run publish-state {rel}` from "
+        f"{shlex.quote(str(cfg.repo_root))}; it publishes all eligible Coga state.",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+
+
+def _control_log_lines(cfg: Config, root: Path, rel: str) -> set[str]:
+    """The log lines control holds: the remote-tracking ref when a remote is
+    configured, else local control. An absent ref or log holds nothing."""
+    if git.remote_configured(root, cfg.git_remote):
+        ref = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}"
+    else:
+        ref = f"refs/heads/{cfg.git_control_branch}"
+    try:
+        git.run_git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+    except git.GitError:
+        return set()
+    data = git.tree_bytes(root, ref, rel)
+    if data is None:
+        return set()
+    return {
+        line.removesuffix("\r")
+        for line in log_lines(data.decode("utf-8", errors="replace"))
+    }
 
 
 def _is_recurring_all_child(argv: list[str]) -> bool:
@@ -477,6 +610,7 @@ def main() -> None:
     with checkout_guard_scope():
         relay_token = git.control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
+        log_mark = _log_mark(cfg)
         try:
             app()
         except SystemExit as exc:
@@ -499,8 +633,11 @@ def main() -> None:
             # file to publish.
             _sweep_coga_state(cfg)
         finally:
-            git.state_sweep_withheld.reset(withheld_token)
-            git.control_relay_started.reset(relay_token)
+            try:
+                _warn_unpublished_log_lines(cfg, log_mark)
+            finally:
+                git.state_sweep_withheld.reset(withheld_token)
+                git.control_relay_started.reset(relay_token)
 
 
 if __name__ == "__main__":
