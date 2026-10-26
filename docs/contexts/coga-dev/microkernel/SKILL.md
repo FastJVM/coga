@@ -53,6 +53,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
+| `recurring promote` | Placement of the task-to-template move | none yet |
 
 These tickets live under `coga/tasks/microkernel/` and are v1
 scope: v1 ships with this table empty. Commands stay where they are until a
@@ -120,7 +121,8 @@ stable spelling; never create a task per invocation.
 The kernel is launch/compose and what launch calls mid-flight (`mark`, `bump`,
 secret injection, notify dispatch), what must exist before any launch
 (`create`, fresh `init`), the `block`/`unblock` state transitions, the fixed
-`runner.RECIPES`, and proven co-versioned commands.
+`runner.RECIPES`, thin heads over a fixed recipe (`delete` over `delete-task`,
+bare `recurring` over `recurring-scan`), and proven co-versioned commands.
 [coga/extension-model](../../coga/extension-model/SKILL.md) owns the tiers a
 repo chooses from.
 
@@ -137,9 +139,10 @@ repo chooses from.
   skills against a provenance digest; that launch-time trust hook would be
   kernel when built.
 - **Keep the bad-alias escape hatch.** `aliases.validate_aliases` failing
-  makes `cli.main` exit 2 before ordinary commands; `init`, `uninstall` and
-  the `recurring --all` parent dispatch on `aliases.BUILTIN_COMMANDS`
-  defaults and survive it. Keep that when tightening validation.
+  makes `cli.main` exit 2 before ordinary commands. `uninstall` dispatches
+  before alias validation runs; `init` and the `recurring --all` parent catch
+  the error, warn, and fall back to `aliases.DEFAULT_ALIASES`. Keep both seams
+  when tightening validation.
 
 ## Edge packaging invariants
 
