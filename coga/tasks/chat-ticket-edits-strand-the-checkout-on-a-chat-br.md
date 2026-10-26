@@ -1,6 +1,6 @@
 ---
 title: Chat ticket edits strand the checkout on a chat branch
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,6 +32,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:edaf902b-1ae2-4a7d-94eb-c405c9a27627
 ---
 
 ## Description
