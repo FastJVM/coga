@@ -9317,3 +9317,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 10:21 v1 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-26 10:21 v1 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-23 21:37 v1 [recurring-unblock-launch] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-10-26 10:27 v1 [recurring-unblock-launch] [human:nicktoper] activated (draft → active) — auto on launch
