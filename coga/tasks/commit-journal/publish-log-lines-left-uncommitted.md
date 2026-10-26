@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -196,10 +196,10 @@ Commit 359aa7fbf on the branch, rebased onto origin/main 0b52bee2b, pushed. No P
 - (a) Published by the writing command: `create` (create sync), `bump` advance and
   every `mark_*` (lifecycle `sync_task_state`), `owner` (strict sync; on failure it
   retracts its line), `unblock`, `slack` (sweep), `recurring promote` (its own
-  `git.publish` of task+template+log), `init` (initial commit), launch launch lines
+  `git.publish` of task+template+log), launch launch lines
   and `launch_script` "launched as a script" (`sync_log`), recurring delegated
-  launch line (`sync_log`), usage record and the `coga ticket` line (teardown
-  `sync_log`), autofix and retire creates (`sync_task_state`), recurring
+  launch line (`sync_log`), usage record (teardown `sync_log`), the `coga ticket`
+  start line (immediate `sync_log`), autofix and retire creates (`sync_task_state`), recurring
   serviced/reused ledger lines (recurring publication or sweep), `launch_script`
   "script exited with code N" (checkout settlement or sweep).
 - Failure records (the failure report covers them): `git.record_sync_failure`,
@@ -207,21 +207,27 @@ Commit 359aa7fbf on the branch, rebased onto origin/main 0b52bee2b, pushed. No P
   phone-home "sync failed", Slack "post failed".
 - (b) Deliberate retention: exit 75, `state_sweep_withheld`, `bump --to/--backward`.
   Before this change the only report was the generic "state sweep withheld" note.
-- (c) Stranded, reproduced: a task `ticket.py` exiting 75 in a repo with Git enabled
+  Init commits its onboarding line locally and leaves the first push to the
+  human, now explicitly listed in the publication topic.
+- (c) Formerly stranded, reproduced: a task `ticket.py` exiting 75 in a repo with Git enabled
   but no remote. The checkout boundary is exempt, so it never armed and nothing
   settled between phases. Launch exits 75 and the CLI skips the sweep, which left
-  "script exited with code 75" dirty with no report.
+  "script exited with code 75" dirty with no report. Review also reproduced
+  an ignored creation log after a successful sweep and a script exit line
+  below the saved offset after switching to an older branch; both are fixed.
 
 ### Decisions (approved by the human in session)
 
-- Fix at the CLI boundary, not per site. `cli.main` records the log's size at
-  entry. When the sweep does not run, `_warn_unpublished_log_lines` names each
-  appended line control lacks (remote-tracking ref, else local control),
-  prints at most 10, and gives the `coga run publish-state <log>` command.
+- Fix at the CLI boundary, not per site. `cli.main` records the log's identity,
+  timestamps, and bounded tail at entry. After every exit,
+  `_warn_unpublished_log_lines` names retained lines control lacks
+  (remote-tracking ref, else local control), prints at most 10, and gives the
+  `coga run publish-state <log>` command.
   It reports rather than publishes, because publishing the log alone during a
   withheld exit would record transitions control lacks (`owner` retracts for
   the same reason). It stays silent when Git is disabled, a probe fails, or the
-  entry offset is no longer on a line boundary (the checkout was switched).
+  log is unchanged. An ordinary append uses the tail; a rewrite falls back
+  to the whole changed log, which may also name older retained lines.
 - Attended sessions: `coga ticket` now passes `commit_log=True`, so its start
   line publishes before the session, matching `coga chat` (= `launch
   bootstrap/orient`, already immediate). Reason: a dirty log for the whole
@@ -239,53 +245,162 @@ Commit 359aa7fbf on the branch, rebased onto origin/main 0b52bee2b, pushed. No P
 - Megalaunch still writes its line at spawn (`record_launch_on_spawn`, which cannot be
   combined with `commit_log`); teardown `sync_log` publishes it. Left as is.
 
+## Peer review
+
+Direct Codex review **completed** on final head
+`ffdfb5e4efff4e3056da71676884064f7e769ebf`, base
+`92d7e60ac0906cdb904bc56e15d1daea3d871121` (2026-10-26).
+The original implementation was Claude's; Codex independently reviewed it,
+then implemented the two fixes below with the attending human's explicit
+approval. The final review includes self-review of those Codex fixes; it is
+not an independent review of the entire final diff.
+
+Both must-fix findings are resolved:
+
+- A successful `coga create` with an ignored, untracked log silently excluded
+  its creation line from both publication and the new warning. The warning
+  now runs after every exit, including after a sweep.
+- A task script switching to an older branch and exiting 75 left an
+  unpublished exit line below the saved byte offset. The check now records
+  file identity, timestamps, and a bounded tail; rewrites trigger a whole-log
+  comparison. Its wording does not attribute older retained lines to the
+  current command. Unchanged logs remain silent.
+
+The new regression tests both failed against the pre-fix code and pass with
+these fixes. The focused command
+`PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest tests/test_cli.py tests/test_launch_script.py tests/test_ticket.py`
+passed **143 tests** before the final rebase (fix tree committed as
+`397694b1e01fff3b9c1e47ad92809b4646c14b82`, base `020e0d1577137c1f1f1f08797a1d725f49d7056a`).
+A real PTY at 80x24 and 120x40 showed the retained creation line and recovery
+command in readable yellow stderr; exit remained 0 and earlier ignored lines
+were not attributed to either new command. No raw-terminal interaction changed.
+
+Fetched main and rebased through the handoff checkpoint, preserving and
+byte-comparing the projected ticket each time. This includes PR #1097's
+Windows skill-link fix and CI configuration plus subsequent knowledge PRs. The final source review covers every diff path,
+all `append_log` callers under `src/`, sweep skips, the explicit publishers,
+and both state-publication twins. Init's human-owned first push is now an
+explicit documented deferral. No remaining finding in this branch's changes.
+
+The full command
+`PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest`
+completed on head `10460e26ad3dcd3a398d8dd299432ae9d6c36c51`, base
+`33cb4c613012491b2fed36d9ee1e6f6c45778c52`, with **4058 passed, 10 skipped,
+1 failed** (Python 3.12.12, Linux). The sole failure is
+`test_live_and_packaged_copies_stay_identical`: the live
+`coga/recurring/blocker-reminders/ticket.md` differs from its packaged twin.
+Both files match main byte-for-byte; the live-only change entered main in
+`e2d1c33620489db0aefcd2e1de276956322d2f0b` and belongs to the separate
+`recurring-unblock-launch` work. Retrying that exact packaging test after the
+human said "retry" produced the same failure (1 failed in 0.77s).
+
+The final rebase adds only an unrelated completed-ticket deletion and a local
+log-grammar topic note. `git diff 10460e26ad3dcd3a398d8dd299432ae9d6c36c51..HEAD -- src tests pyproject.toml`
+is empty: the code, tests, packaged files, and build configuration match the
+full-suite revision exactly. That full-suite receipt remains historical,
+not restamped. The final focused command
+`PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest tests/test_cli.py tests/test_launch.py tests/test_launch_script.py tests/test_publish_state.py tests/test_ticket.py`
+passed **403 tests in 46.95s** on final head `ffdfb5e4efff4e3056da71676884064f7e769ebf`,
+base `92d7e60ac0906cdb904bc56e15d1daea3d871121`.
+
+The full suite exposed two test-harness assumptions, also corrected: the
+shared non-Git fixture now stubs the new Git-reading diagnostic, and recovery
+counts top-level sync diagnostics rather than echoed retained audit lines.
+The recovery test still proves two failed publication attempts, one lifecycle
+transition, and idempotent recovery. The tests themselves remain active in
+real-Git fixtures.
+
+The human explicitly selected **"Record failure and hand off"**, authorizing
+the known unrelated full-suite failure with a `deep` recommendation. No
+unrelated template was changed or test excluded. This approval remains the
+handoff decision after the retry reproduced the same failure. Final head `ffdfb5e4efff4e3056da71676884064f7e769ebf` is committed and pushed
+with `--force-with-lease`; it has three commits ahead of main. All review work
+and PR preparation are complete. This projected ticket stays unstaged for the
+single bump to publish and hand off to `open-pr`.
+
 ## PR
 
 ```yaml
-title: Name unpublished log lines when the exit sweep is skipped
-author: claude
-author_evidence: Implement session ran as Claude Code on claude-opus-5-5 (attended, coga launch ac646fb4).
-head: 359aa7fbffcd272262097e0c7eb4bd9b7ba2ba40
-base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
+title: Report unpublished log lines at command exit
+author: claude/codex
+author_evidence: >-
+  Claude Code on claude-opus-5-5 implemented the original change (attended
+  launch ac646fb4). Codex reviewed it and implemented the two human-approved
+  review fixes in launch 0d0236f0-ef0f-4a25-b8ad-2715f074eac1.
+head: ffdfb5e4efff4e3056da71676884064f7e769ebf
+base: 92d7e60ac0906cdb904bc56e15d1daea3d871121
 depth: deep
-rationale: Changes CLI end-of-command publication reporting for every command and when `coga ticket` publishes; no review has run yet.
+rationale: >-
+  Shared CLI exit diagnostics and authoring publication timing change. Review
+  fixes received self-review. The full suite has one unrelated packaging
+  mismatch inherited from main; the human explicitly approved handing off
+  with that failed receipt recorded.
 implementation: >-
-  cli.main records the log size at entry. When the sweep is skipped (withheld,
-  exit 75, rewind, non-sweeping subcommand), it names the appended log lines
-  control lacks, with the publish-state recovery. `coga ticket` publishes its
-  launch line at spawn. coga/state-publication documents each log writer's
-  publisher and the deliberate deferrals.
-deviations: None from the ticket. The approach (report, not publish) was chosen with the human in session.
+  CLI entry records log identity, timestamps, and a bounded tail. Every exit
+  checks changed log lines against control, including after a sweep; a
+  checkout rewrite triggers a whole-log comparison. Warnings name retained
+  lines and the publish-state recovery without publishing withheld state.
+  coga ticket publishes its launch line before spawning the authoring agent.
+  The publication topic inventories the publishers and deliberate deferrals.
+deviations: >-
+  The human approved handing off despite the one pre-existing packaging
+  failure instead of requiring an entirely green suite for this step. The
+  reporting policy, immediate authoring-start publication, and both review
+  fixes were also explicitly approved.
 limitations: >-
-  Reports only, never publishes. Lines appended by a child process in the same
-  window are attributed to "this command". The warning is skipped if a checkout
-  switch moves the entry offset off a line boundary.
+  Read-only diagnostics do not fetch control or retry publication; failed
+  probes remain nonfatal. A rewritten log can cause older retained lines to
+  be named too. Warnings show ten lines plus an omitted count. Verification
+  ran on Linux/Python 3.12.12; no local Windows or Python 3.11 run. The known
+  blocker-reminders template mismatch is outside this branch's diff.
 files:
-  docs/contexts/coga/state-publication/SKILL.md: Skipped-sweep warning, coga ticket start publication, the log-writer and deferral list.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Byte-identical packaged twin of the topic.
-  src/coga/cli.py: Log offset at entry; _warn_unpublished_log_lines and _control_log_lines; _sweep_coga_state reports whether it ran.
-  src/coga/commands/ticket.py: Publish the authoring launch line before the session (commit_log=True).
-  src/coga/launch.py: spawn_agent_session docstring notes coga ticket sets commit_log.
-  tests/test_cli.py: Boundary tests covering exit-75/withheld naming, lines already on control, a completed sweep, and disabled Git.
-  tests/test_launch_script.py: End-to-end regression for the stranded task ticket.py exit 75 without a remote.
-  tests/test_ticket.py: coga ticket publishes its launch line before the agent spawns.
+  docs/contexts/coga/state-publication/SKILL.md: Exit diagnostics, authoring start publication, publishers, and deliberate deferrals including init's first push.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Byte-identical packaged twin of the publication topic.
+  src/coga/cli.py: Snapshot changed logs and report lines control lacks after every exit, including ignored logs and checkout rewrites.
+  src/coga/commands/ticket.py: Publish the authoring launch line before the session with commit_log=True.
+  src/coga/launch.py: Document the authoring caller's immediate log publication.
+  tests/test_cli.py: Cover withheld/exit-75 warnings, ignored logs after successful sweeps, published lines, unchanged logs, and disabled Git.
+  tests/test_launch_script.py: Real CLI regression for exit 75 without a remote, including switching to a branch with a shorter log.
+  tests/test_ticket.py: Prove the authoring launch line is published before the agent spawns.
+  tests/conftest.py: Keep Git access stubbed in non-Git tests, including the new exit diagnostic; real-Git fixtures exercise it.
+  tests/test_publish_state.py: Count actual sync failure reports separately from echoed audit lines and verify the retained transition is named.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: The implement step does not review; code/self-qa and later review steps follow.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: ffdfb5e4efff4e3056da71676884064f7e769ebf
+  base: 92d7e60ac0906cdb904bc56e15d1daea3d871121
+  detail: >-
+    Direct review completed on the final rebased diff. Codex independently
+    reviewed Claude's original implementation, found two gaps, and fixed them
+    with human approval. Final review includes self-review of those fixes;
+    no remaining finding in the changed code or contracts.
 checks:
-  - command: python -m pytest
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest
+    status: failed
+    head: 10460e26ad3dcd3a398d8dd299432ae9d6c36c51
+    base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+    detail: >-
+      4058 passed, 10 skipped, 1 failed in 359.28s. The sole failure is the
+      pre-existing blocker-reminders live/packaged mismatch, unchanged by
+      this branch. The human approved handoff with this failure recorded.
+      Historical receipt before the final documentation-only rebase.
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest tests/test_cli.py tests/test_launch.py tests/test_launch_script.py tests/test_publish_state.py tests/test_ticket.py
     status: passed
-    head: 359aa7fbffcd272262097e0c7eb4bd9b7ba2ba40
-    base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
-    detail: 4055 passed, 10 skipped, run on the rebased commit (the only other dirt was the unrelated Dream ticket and this projected ticket).
-  - command: python -m pytest tests/test_launch_script.py -k names_its_unpublished; python -m pytest tests/test_ticket.py -k publishes_its_launch_line
+    head: ffdfb5e4efff4e3056da71676884064f7e769ebf
+    base: 92d7e60ac0906cdb904bc56e15d1daea3d871121
+    detail: 403 passed in 46.95s on the final rebased head.
+  - command: git diff 10460e26ad3dcd3a398d8dd299432ae9d6c36c51..HEAD -- src tests pyproject.toml
     status: passed
-    detail: Both new regression tests fail with the fix reverted (cli.py at HEAD; ticket.py stashed) and pass with it, checked before commit.
-    head: 359aa7fbffcd272262097e0c7eb4bd9b7ba2ba40
-    base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
+    head: ffdfb5e4efff4e3056da71676884064f7e769ebf
+    base: 92d7e60ac0906cdb904bc56e15d1daea3d871121
+    detail: Empty; final code, tests, packaged files, and build configuration exactly match the full-suite revision.
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest tests/test_packaging.py::test_live_and_packaged_copies_stay_identical -q
+    status: failed
+    head: 10460e26ad3dcd3a398d8dd299432ae9d6c36c51
+    base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+    detail: User-requested retry reproduced the same unrelated mismatch; 1 failed in 0.77s.
   - command: coga validate --json
     status: not-run
-    detail: No validation, task-layout or workflow behavior changed.
+    detail: No config, workflow, validation, or task-model behavior changed.
 ```
