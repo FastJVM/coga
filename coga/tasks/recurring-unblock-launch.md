@@ -458,3 +458,12 @@ checks:
   detail: The available Python 3.11 interpreter has no pytest; verification used the repository
     Python 3.12.12 venv.
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `recurring-unblock-launch`
+Recorded: 2026-10-26T21:13:21+00:00
+
+    Branch 'coga/recurring-unblock-launch-9cca77' is not safe to publish. refs/heads/coga/recurring-unblock-launch-9cca77 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task recurring-unblock-launch`.
