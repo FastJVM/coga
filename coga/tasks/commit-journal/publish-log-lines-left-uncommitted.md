@@ -185,6 +185,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1117
 branch: coga/commit-journal-publish-log-lines-left-uncommitte-eee9dd
 
 ## Implement handoff (2026-10-26)
