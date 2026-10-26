@@ -1,6 +1,6 @@
 ---
 title: State sync published unmerged recurring templates from a feature branch
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,13 +32,14 @@ workflow:
     assignee: owner
 step: 1 (design)
 contexts:
-  - coga/sync
-  - coga/state-publication
-  - coga-dev/internals/state-publication
-  - coga-dev/internals/git-refresh
-  - coga-dev/packaging
-  - coga-dev/testing
-  - coga/checkouts
+- coga/sync
+- coga/state-publication
+- coga-dev/internals/state-publication
+- coga-dev/internals/git-refresh
+- coga-dev/packaging
+- coga-dev/testing
+- coga/checkouts
+agent: claude
 ---
 
 ## Description
