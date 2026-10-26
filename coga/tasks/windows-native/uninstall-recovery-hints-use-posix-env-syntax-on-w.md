@@ -30,9 +30,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: b60dcc56-ab7c-4634-90b5-270747ad6f11
 ---
 
 ## Description
@@ -287,6 +286,75 @@ ordinary ticket.
   execution were run during this design step.
 - Next handoff is the frozen `evaluate-design` step; no open design decision
   requires blocking this queue entry.
+
+## Evaluator review
+
+Reviewed cold on 2026-10-26 against current `origin/main` at
+`fe91e1d27bfc530a5c9b015c3a33f350114fe77a`.
+
+**Verdict: ready for owner review and approval.** No must-fix design findings;
+the owner still decides whether to approve the spec.
+
+### Must-fix findings
+
+None. The body supplies implementable scope and objective acceptance criteria
+without needing the design handoff. All three specification subsections are
+under `## Description`, with supporting references under `## Context`, as
+required by `coga/tickets`, **Body regions**.
+
+- `src/coga/commands/uninstall.py`, `_uninstall_via_tool()` and
+  `_handle_package()`, confirm the three shared display sites, fixed command
+  tokens, uv-only override, and independent subprocess environment handling.
+  The local formatter fits this existing command; `coga-dev/microkernel`,
+  **Open command placements**, leaves uninstall in place pending its separate
+  boundary review.
+- The three named uv tests in `tests/test_uninstall.py` exist and have the
+  asserted behavior. The proposed exact-output and harmless native execution
+  coverage address the display defect while preserving execution contracts.
+  Microsoft's linked **Including quote characters in a string** section
+  confirms the smart-quote hazard already addressed in the spec.
+- The uninstall topic and packaged twin exist and currently match byte for
+  byte. The cited packaging test discovers this pair. The frozen workflow
+  matches the bundled `code/design-then-implement` workflow, and
+  `.github/workflows/test.yml`, job `pytest`, supplies the stated Python 3.11
+  Linux/Windows matrix. No new infrastructure or shared shell framework is
+  needed.
+
+### Optional recommendation
+
+Make the native probe's result encoding explicit so Unicode comparison tests
+the hint faithfully. `tests/test_windows_clean_install.py`,
+`test_windows_walk_records_first_failure()`, demonstrates encoded script input
+but checks ASCII log lines; it does not establish a Unicode stdout round trip.
+An explicitly UTF-8 JSON result file read with `utf-8-sig`, or a Base64 result,
+would avoid dependence on console encoding. Microsoft documents the differing
+Windows PowerShell output defaults in
+[about_Character_Encoding](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding?view=powershell-5.1).
+This is an implementation recommendation, not a missing design decision.
+
+### Verification and handoff
+
+- On Linux, Python 3.12.12:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_uninstall.py tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  returned **16 passed, 1 failed**. All uninstall tests passed. The twin check
+  failed on the existing mismatch between
+  `coga/recurring/blocker-reminders/ticket.md` and
+  `src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md`.
+  This was reproduced on clean main before any review edits; recheck that
+  baseline during implementation rather than treating it as a new regression.
+- `cmp docs/contexts/coga/uninstall/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md`
+  returned exit 0. No full-suite, Python 3.11, or native Windows execution was
+  performed in this design review; those implementation receipts remain due.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w --json`
+  returned exit 0, one task checked, no fixes or issues. `git diff --check`
+  passed. A byte comparison with HEAD confirmed the frontmatter, ticket body,
+  and unrelated blackboard content are unchanged. The final
+  `git fetch origin main` found no newer commits; HEAD and `origin/main` still
+  match the reviewed revision above.
+- The checkout started clean on `main`; no branch or PR is recorded for this
+  ticket. Only this evaluator section was added. No ticket-body, implementation,
+  branch, or PR changes were made. Hand off once to the owner `review-design`
+  gate; do not begin implementation.
 
 ## Open Questions
 
