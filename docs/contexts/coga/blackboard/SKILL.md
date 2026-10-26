@@ -42,6 +42,10 @@ Match the section's regime; do not invent a fourth.
   only an archive pointer composes). `## Blockers` takes one checkbox per ask;
   `coga unblock` marks it `- [x]` and appends `resolved:`. Blocker readers
   ignore fenced examples and superseded sections.
+  The writer does not (known limitation, unfixed): when a real ask is open,
+  `coga unblock` (`blackboard.resolve_open_blockers`) also flips `- [ ]`
+  examples in fences and superseded sections and appends `resolved:` to
+  them, so keep example blockers out of a blackboard that may be unblocked.
 - **Authoring scratch: synthesize before launch.** `## Evaluator review`,
   `## Ticket authoring notes`, `## Proposals`. The `bootstrap/ticket` cleanup
   folds durable substance into the body; for a draft it keeps
