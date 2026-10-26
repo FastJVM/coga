@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga/sync
 - coga/state-publication
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: bf55db84-d2bf-4f22-aaf8-2c9af9e66266
 ---
 
 ## Description
@@ -298,3 +297,97 @@ implementation and this ticket were unchanged, so the design still applies.
 None requiring unavailable input to finish design. The proposed boundary and
 its hand-committed-runtime-state tradeoff await the workflow's independent
 evaluation and owner design review; this step does not approve its own spec.
+
+## Evaluator review
+
+2026-10-26: **Ready for owner design review; no must-fix findings.** The
+Description and Context are sufficient to implement this as one focused PR
+once the owner accepts the boundary. Acceptance criteria, Proposed shape,
+and Out of scope are correctly nested under Description. The frozen
+`code/design-then-implement` workflow and attached contexts fit the work;
+the next step remains the owner's approval gate.
+
+### Evidence and assessment
+
+- `src/coga/git.py`, `_publish_locked()` and `_routine_state_areas()`, match
+  the diagnosis. The helper has one caller and `recurring_dir` has no other
+  use in this module. Removing that directory changes only committed
+  adoption off control: `_candidates()` first selects dirty paths
+  independently, while control still receives `adopt_only=None`. Task
+  attachments, materialized periods, and the log retain their current
+  treatment and guards. `tasks_dir()` and `log_path()` derive from the
+  configured root, including root layout.
+- The fix reaches `cli._sweep_coga_state()`,
+  `launch._CheckoutBoundary.settle()`, and `publish_state._publish_state()`
+  through the same publish primitive. `_publish_locked()` checks excluded
+  required files, including their modes, before building or pushing a
+  publication commit. `cli._should_sweep_coga_state()` separately excludes
+  `run publish-state`, so its refusal cannot fall through to an unguarded
+  sweep. No new CLI surface or architectural exception is needed.
+- The named test seams and local-bare-remote fixture exist. In particular,
+  `test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory()`
+  asserts the offending recurring deletion today; moving its positive case
+  to tasks while adding the recurring negative case preserves its original
+  discovery coverage. The proposed cases distinguish clean committed state,
+  staged/uncommitted writes, provenance, strict handoff, and retained control
+  recovery rather than relying on the incident objects as fixtures.
+- Independently checked both publication commits: all six recurring blobs
+  in `0591ae8bd` equal `5abc520d5` and `c0b9271bc`; both in `cf40ef440` equal
+  `dad626011` and `625a19be3`. Their parent blobs equal the corresponding
+  branch-point blobs at `c8db8ab52` and `4c2f2f887`. Surviving HEAD/main
+  reflogs and `cf40ef440:coga/log.md` support the recorded sequence, and
+  `c0b9271bc:src/coga/git.py` contains the same allowlist. GitHub confirms
+  #1032 and #1033 are merged. None of this reconstructs the original index
+  or working-tree dirt; the design correctly distinguishes that limit.
+- The documentation plan names the current restatements and their owning
+  user topic. The checkout warning and publish leaf need the listed edits;
+  the incident paragraph in git-refresh should become historical. The
+  canonical/package mapping matches the packaging contract. No archive was
+  read.
+
+### Optional recommendation
+
+Make the retained dirty-file hazard concrete in the owning topic: committing
+a template definition does not protect that definition if a later runtime
+blackboard write makes the same `ticket.md` dirty. `_candidates()` then
+publishes the whole file, including its committed definition changes. This
+is consistent with the explicitly retained file-level contract, not a reason
+to expand scope. A mixed regression case with a dirty template and a clean
+committed sibling would make this distinction especially clear.
+
+### Verification and reconciliation
+
+Reviewed unmodified source at `2d3fa0847`, using Python **3.12.12**:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py tests/test_publish_state.py
+```
+
+Result: **253 passed in 50.14s**. These are baseline checks, not evidence of
+an implemented fix. A separate inline probe using `tests/conftest.py`'s
+`init_git_repo()` and generated content independently reproduced the defect
+in **2/2** clean checkouts (feature and detached): template, script, and
+sibling committed changes all published; a committed context and packaged
+stand-in stayed excluded; HEAD, index entries, and working bytes stayed
+unchanged. Reverting the template on control to its branch-point bytes led
+the next sweep to re-adopt it in both cases. The disposable repositories
+were removed.
+
+Fetched and fast-forwarded clean main to `9c844c29c` before writing this
+review. Intervening changes are documentation and template comments; this
+ticket, the selection code, and the exercised tests are unchanged. No
+implementation branch, code change, PR, or ticket-body edit was produced.
+The full suite, native Windows, and Python 3.11 were not run in this design
+evaluation; implementation retains the specified verification obligations.
+
+Review handoff checks:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task state-sync-published-unmerged-recurring-templates --json
+git diff --check
+```
+
+Validation returned **1 OK, no issues**; the diff check passed. A byte
+comparison with HEAD confirmed that frontmatter, ticket body, and all prior
+blackboard content were preserved, with exactly one evaluator review and one
+blackboard fence. Only this ticket's blackboard changed.
