@@ -59,12 +59,16 @@ deliberately left retryable state dirty (stale recurring control, refused
 boundary also calls `sync_coga_state` itself, at entry and before each
 checkout return. The sweep:
 
-- runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
-  bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,
-  `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
-  --all`, `run publish-state`, `run prepare-checkout`, `bump
-  --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands outside
-  their sweeping sets. `prepare-checkout` is skipped on success, failure,
+- runs only when `cli._should_sweep_coga_state(argv)` is true. The predicate
+  is an allowlist: only a command in `_SWEEPING_COMMANDS` (`create`,
+  `ticket`, `launch`, `megalaunch`, `bump`, `block`, `unblock`, `owner`,
+  `delete`, `slack`, `run`), a `skill` subcommand in
+  `_SWEEPING_SKILL_SUBCOMMANDS`, a `mark` subcommand in
+  `_SWEEPING_MARK_SUBCOMMANDS`, and bare `recurring` or `recurring launch`
+  sweep; every other command falls through to no sweep. Within that set it
+  still never sweeps for `--help`/`-h`, `recurring --all`, `run
+  publish-state`, `run prepare-checkout`, `launch --prompt-report`, or `bump
+  --backward`/`--to`. `prepare-checkout` is skipped on success, failure,
   and a configuration refusal before dispatch alike: a chat calls it
   repeatedly over unfinished contexts and skills, which only its launcher's
   return and final sweep publish;

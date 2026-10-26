@@ -51,7 +51,10 @@ layers:
    the write, validation, log append, and notification post have all
    finalized ([publication implementation](../internals/state-publication/publish/SKILL.md)).
    The end-of-command sweep is a backstop with a generic message, not a
-   substitute for the readable, individually attributed publish.
+   substitute for the readable, individually attributed publish. It is
+   opt-in: a new state-changing top-level command gets that backstop only
+   once it is added to the sweeping allowlist
+   ([the end-of-command sweep](../internals/state-publication/SKILL.md#the-end-of-command-sweep)).
 3. Echo the local outcome to stdout before posting, so it stays visible
    above any notification error.
 
