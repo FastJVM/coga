@@ -70,7 +70,7 @@ grammar or the escaping must update them in the same PR, and the list is not
 obvious from `logfile` alone (the v1 change first missed the telemetry
 reader): `usage._LOG_LINE_RE` in `usage.load_records`,
 `recurring_runner._CONTROL_LOG_ENTRY_RE` in `_read_control_ledger` and its
-incremental diff path, the anchored pattern in `recurring._watchdog_pauses`,
+incremental diff path, the anchored pattern in `recurring._pause_origins`,
 and `coga_edge/phone_home.py` `_ENTRY` for movement counting. Grep for
 `v1 )?` before trusting this list. Accepted limitation: a Coga older than
 the v1 header does not parse v1 lines, so an older clone reading a newer log
