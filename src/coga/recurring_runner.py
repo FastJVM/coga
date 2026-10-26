@@ -3732,7 +3732,11 @@ def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
         return None  # `_launch_created` reports the unreadable ticket.
     if ticket.status != "paused":
         return None
-    origin = resumable_pause(cfg, ref)
+    try:
+        origin = resumable_pause(cfg, ref)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
     if not origin:
         return None
     if resolve_script_entry_point(ref) is None:
@@ -5189,6 +5193,8 @@ def _resume_paused_period(cfg: Config, ref: TaskRef, *, watchdog: bool) -> None:
         TicketError,
         WorkflowMissing,
         WorkflowError,
+        MainAgentUnavailable,
+        RepoResourceUnreadable,
         RequiredExtensionMissing,
         TaskValidationError,
     ) as exc:

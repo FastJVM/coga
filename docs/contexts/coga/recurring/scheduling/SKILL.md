@@ -179,6 +179,8 @@ no `--force` and no retry cap. Pause provenance is the latest `paused` or
   resume with the answer on its blackboard. The blocker-reminder job keeps those
   asks visible under its
   [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md).
+  Unreadable asks leave the period paused and report a template error; they
+  are never treated as an empty blocker list.
 - **Watchdog pause** (actor `system:watchdog`) — resumed on every sweep, and
   still an unresolved failure: every sweep that admits the template through the
   inactivity gate shows `needs attention (watchdog timeout; resuming)`, counts
@@ -201,6 +203,8 @@ answer before the period can finish.
 
 One template's failure never cancels the rest: the sweep records it, runs every
 later due template, names all failures, and exits with the first failing code.
+A resume that cannot activate its frozen agent or workflow is a per-period
+refusal; the sweep continues with later templates.
 A template that cannot be scanned (`## Template errors`: unloadable, bad ledger
 record, failed create) is named on stderr, in the Slack alert, and in
 `problems:`; on its own it does not change the exit code. A sweep with any

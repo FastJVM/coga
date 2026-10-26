@@ -5382,6 +5382,79 @@ def test_headless_entry_refuses_agent_backed_sweep_pause_resume(
         assert "requires a TTY" in captured.err
 
 
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+@pytest.mark.parametrize("watchdog", [False, True])
+def test_pause_resume_refuses_missing_agent_without_abandoning_later_tasks(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, entry: str, watchdog: bool
+) -> None:
+    cfg, ref = _parked_period(repo, watchdog=watchdog)
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["agent"] = "removed-agent"
+    ticket.write(ref.ticket_path)
+    parked = ref.ticket_path.read_bytes()
+    _write_recurring(
+        repo, "z-later", (repo / "recurring/weekly-check/ticket.md").read_text(encoding="utf-8")
+    )
+    later = create_named(cfg, "z-later", now=datetime(2026, 4, 29, 10)).ref
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched = _finish_launches(monkeypatch, repo, later)
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+    capsys.readouterr()
+
+    assert _run_entry(cfg, entry) == 2
+
+    assert ref.ticket_path.read_bytes() == parked
+    assert "removed-agent" in capsys.readouterr().err
+    assert launched == ([later.id_slug] if entry == "sweep" else [])
+    if entry == "sweep":
+        refused = next(o for o in records[0].outcomes if o.slug == ref.id_slug)
+        assert refused.result == "refused"
+        assert "not a configured agent type" in refused.detail
+
+
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+@pytest.mark.parametrize("fence_count", [0, 2])
+def test_sweep_pause_with_unreadable_asks_is_reported_without_abandoning_later_tasks(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, entry: str, fence_count: int
+) -> None:
+    cfg, ref = _parked_period(repo, open_ask=True)
+    text = ref.ticket_path.read_text(encoding="utf-8")
+    fence = "<!-- coga:blackboard -->"
+    ref.ticket_path.write_text(
+        text.replace(fence, "\n".join([fence] * fence_count)),
+        encoding="utf-8", newline="\n",
+    )
+    parked = ref.ticket_path.read_bytes()
+    _write_recurring(
+        repo, "z-later", (repo / "recurring/weekly-check/ticket.md").read_text(encoding="utf-8")
+    )
+    later = create_named(cfg, "z-later", now=datetime(2026, 4, 29, 10)).ref
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched = _finish_launches(monkeypatch, repo, later)
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+    capsys.readouterr()
+
+    # Template scan errors are reported but do not change the sweep's exit
+    # code; a named launch returns its refusal directly.
+    assert _run_entry(cfg, entry) == (0 if entry == "sweep" else 2)
+
+    assert ref.ticket_path.read_bytes() == parked
+    assert "cannot read blockers for paused period" in capsys.readouterr().err
+    assert launched == ([later.id_slug] if entry == "sweep" else [])
+    if entry == "sweep":
+        assert len(records[0].scan_errors) == 1
+        assert records[0].scan_errors[0][0] == "weekly-check"
+        assert "- problems: 1" in records[0].render()
+
+
 @pytest.mark.parametrize("force", [False, True])
 def test_explicit_watchdog_recovery_continues_saved_step_and_clears_problem(
     repo: Path, monkeypatch: pytest.MonkeyPatch, force: bool

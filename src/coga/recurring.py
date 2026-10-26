@@ -44,6 +44,7 @@ from coga.recurring_clone import (
     read_clone_ledger,
 )
 from coga.taskfile import (
+    TaskFileError,
     join_task_body,
     split_body,
 )
@@ -937,7 +938,13 @@ def scan_due(
                 task.watchdog_pause = evidence
             elif origin == PAUSE_SWEEP:
                 task.sweep_pause = evidence
-                task.open_asks = bool(open_blockers(task.ref.ticket_path))
+                try:
+                    task.open_asks = _paused_period_has_open_asks(task.ref)
+                except RecurringError as exc:
+                    tasks.remove(task)
+                    sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
+                    errors.append((task.template, str(exc)))
+                    continue
         # A forced or non-human resume reactivates a parked period, so it
         # needs the same agent-capable terminal as any other agent launch.
         if (
@@ -1039,9 +1046,19 @@ def resumable_pause(cfg: Config, ref: TaskRef) -> str:
     open asks left. The named-launch counterpart of `DueTask.resumes_pause`.
     """
     origin, _ = _pause_origins(cfg, {ref.id_slug}).get(ref.id_slug, ("", ""))
-    if origin == PAUSE_SWEEP and open_blockers(ref.ticket_path):
+    if origin == PAUSE_SWEEP and _paused_period_has_open_asks(ref):
         return ""
     return origin
+
+
+def _paused_period_has_open_asks(ref: TaskRef) -> bool:
+    """Refuse unreadable asks without mistaking them for an empty blocker list."""
+    try:
+        return bool(open_blockers(ref.ticket_path))
+    except (TaskFileError, OSError, UnicodeError) as exc:
+        raise RecurringError(
+            f"cannot read blockers for paused period {ref.id_slug}: {exc}"
+        ) from exc
 
 
 @dataclass
