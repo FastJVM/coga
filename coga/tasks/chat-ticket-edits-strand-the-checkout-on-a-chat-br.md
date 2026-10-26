@@ -32,9 +32,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: a72a8f67-6f3b-4bba-8a8b-71f2aa97ba7d
 ---
 
 ## Description
@@ -484,3 +483,138 @@ Do not widen this into a generic automatic-drop or state-review redesign.
    is independently reproduced, and the proposed prevention/recovery changes
    do not depend on guessing the missing history. This is not a blocker to
    evaluating the design.
+
+## Evaluator review
+
+Reviewed on 2026-10-26, reconciled to `main` at `94d3dad35`.
+**One must-fix before implementation.** The proposed branch policy,
+diagnostics, and direct-chat exit contract otherwise form a coherent change.
+The two explicit owner decisions remain for `review-design`; this review
+does not approve them. Only this blackboard section was authored.
+
+### Must fix before implementation
+
+1. **P1 — Protect the distinct staged version during control publication,
+   before the cleanup planner runs.** Recommended behavior promises that a
+   differing index is preserved until reconciled, and Acceptance criteria
+   require distinct staged drafts to refuse without partial cleanup. Keeping
+   state-only chat on control exposes an earlier mutation that the proposed
+   planner/diagnostic changes do not cover.
+
+   In `src/coga/launch.py`, `_CheckoutBoundary.settle()` publishes before
+   planning. In `src/coga/git.py`, `_publish_locked()` calls
+   `fast_forward_control()` with the working/landed bytes; when this checkout
+   holds control, `_stage_landed()` checks only that the working bytes still
+   equal the bytes read, then runs `git add --all -- <path>`. It never proves
+   the existing index version before replacing it. By the time
+   `_plan_preparation()` runs, the staged draft can already be gone.
+
+   **Reproduced with real Git:** seed a ticket on clean `main`, arm
+   `_CheckoutBoundary.enter()`, stage a blackboard containing `unique staged
+   intent`, then write different `working prose` without staging and call
+   `settle()`. Return succeeds, `main` is clean, and control contains the
+   working prose; the unique staged text is absent from both the index and
+   control. Scratch fixture: `/tmp/coga-chat-evaluator-kf0i33x7`. This is
+   existing control-publication behavior, not evidence about the historical
+   supervisor. The existing
+   `tests/test_git.py::test_prepare_refuses_staged_content_that_is_not_published`
+   tests a feature checkout and calls preparation directly, so it cannot
+   catch this path.
+
+   **Required design correction:** specify how control publication preserves
+   a distinct index before `_stage_landed()` changes it, and account for
+   publication during the chat as well as at return. Retaining the cleanup
+   proof or telling agents not to stage does not establish that protection.
+   Add real-Git acceptance coverage for the complete publish-then-return
+   path on control, with a distinct staged ticket draft and a staged rename
+   whose working version changed. Working state may publish, but the staged
+   version must remain preserved for the refusal/recovery path. Keep the
+   unstaged success case and explicitly account for any effect on ordinary
+   publication callers if this is fixed in shared infrastructure.
+
+### Optional recommendation
+
+- Consider independent implementation review for the Git preservation change.
+  Main advanced during this evaluation and the packaged
+  `bootstrap/workflows/code/design-then-implement.md` now includes
+  `peer-review`, but this ticket's frozen six-step workflow still goes from
+  `implement` to `open-pr`. The current template explicitly preserves that
+  older behavior. Owner design approval will not imply code review; no
+  workflow fields were changed here.
+
+### Verified scope and evidence
+
+- Description subsections and Context are correctly placed and sufficient
+  to expose the proposal to the implementer. The frozen `evaluate-design`
+  step hands off to the owner gate. The cited publication, launch, checkout,
+  strict-recipe, composition, and test symbols exist. The proposed work
+  belongs in the shared checkout/launch infrastructure and existing recipe
+  contract; no new command or recipe is needed.
+- Independently compared `df32b96df` and `6717f3d2e`: three identical-content
+  renames, followed on control by cross-reference changes and ticket 01's
+  step advancement. Source at `1c4ecb1ea` already has publish-before-return,
+  refusal reporting, and sweep withholding. The original stderr/version gap
+  remains appropriately qualified.
+- Repeated the historical three-file experiment using
+  `tests/conftest.py::init_git_repo()`: seed source paths from `df32b96df^`,
+  stage the renames on a fixture branch, and write destinations from
+  `6717f3d2e`. Publication succeeds; preparation refuses all three staged
+  destinations while the working files equal control. HEAD, index entries,
+  refs, and status remain unchanged by preparation. In a separate control
+  fixture, filesystem renames plus the same working edits return successfully
+  with all new paths published, old paths absent, clean `main`, and no chat
+  branch. Fixtures: `/tmp/coga-evaluator-historical-i7deciqk` and
+  `/tmp/coga-evaluator-historical-g7tw_2u7`. These exercise current mechanisms,
+  not an implementation of the proposed guidance or exit code.
+
+### Validation and reconciliation
+
+Python 3.12.12; the following baseline command passed **13 tests** in 5.00s:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q \
+  tests/test_git.py::test_prepare_refuses_staged_content_that_is_not_published \
+  tests/test_git.py::test_prepare_cleans_published_untracked_and_deleted_state \
+  tests/test_git.py::test_prepare_refuses_mixed_state_without_partial_cleanup \
+  tests/test_git.py::test_prepare_refuses_when_evidence_changes_before_mutation \
+  tests/test_git.py::test_prepare_uses_the_configured_remote_and_control_names \
+  tests/test_checkouts.py::test_chat_discusses_on_control_then_prepares_and_reuses_one_branch \
+  tests/test_checkouts.py::test_chat_recipe_refuses_a_dirty_control_checkout \
+  tests/test_checkouts.py::test_chat_launch_notice_carries_the_exact_invocation \
+  tests/test_launch.py::test_launch_teardown_refusal_preserves_work_result_and_stops_chaining \
+  tests/test_launch.py::test_orientation_refusal_preserves_edits_and_explains_investigation \
+  tests/test_launch.py::test_orientation_returns_to_control_after_session_changes_branch \
+  tests/test_launch.py::test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout \
+  tests/test_launch.py::test_delegated_orientation_keeps_callers_checkout
+```
+
+Fetched main again and inspected its advance from `4d63f6826` to `18ec1d76a`.
+The ticket, review skill, Git/launch implementation, and focused leaf
+contracts were unchanged. Read the checkout-policy and workflow changes,
+then ran `git merge --ff-only --no-stat origin/main` from the still-clean
+checkout. Against the reconciled checkout this command passed **4 tests**
+in 1.06s (three repeats plus the legacy-workflow check):
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q \
+  tests/test_checkouts.py::test_policy_supports_older_frozen_snapshots \
+  tests/test_checkouts.py::test_chat_discusses_on_control_then_prepares_and_reuses_one_branch \
+  tests/test_checkouts.py::test_chat_recipe_refuses_a_dirty_control_checkout \
+  tests/test_checkouts.py::test_chat_launch_notice_carries_the_exact_invocation
+```
+
+Final fetch observed another advance to `94d3dad35`, concerning recurring
+and blocker behavior. Inspected the lifecycle/mark changes and verified no
+change to this ticket, the review skill, reviewed Git/launch/checkout code,
+relevant tests, or checkout/publication contracts. Saved and byte-verified
+the edited ticket outside the checkout, restored its HEAD copy,
+fast-forwarded, and reapplied the identical review. No additional source-test
+run was needed for those unrelated changes.
+
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task
+chat-ticket-edits-strand-the-checkout-on-a-chat-br --json` reports one valid
+task and no issues; `git diff --check` passes. Byte checks verify the
+pre-existing ticket is intact, the only added content is this evaluator
+section, there is one blackboard fence, and the index is unchanged. The five
+relevant checkout/publication context pairs remain byte-identical. No
+ticket-body edit, implementation, task branch, manual commit, or PR was made.
