@@ -37,6 +37,9 @@ remain in force; publication adds no universal suite gate.
 
 The last judgment step reads this section and writes one fenced `yaml` mapping
 under `## PR` on the blackboard (ticket-body `## PR` is a legacy location).
+The section holds only that fence up to the next `##` heading; any prose,
+horizontal rule, or second block makes `coga open-pr` refuse with "use one
+complete fenced yaml mapping under ## PR".
 Implement records actual authorship and checks; the final review step refreshes
 it after the final freshness/rebase pass, fixes, and required checks. Prepare
 the record last so its head/base and receipts describe the resulting revision.
