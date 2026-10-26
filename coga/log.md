@@ -9336,3 +9336,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 11:11 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [human:nicktoper] created (status=draft)
 2026-10-26 11:11 v1 [name-where-ticket-checkout-reservation-receipts-li] [human:nicktoper] created (status=draft)
 2026-10-26 11:14 v1 [recurring/dream] [agent:claude] slack: Dream Retro W44: 8 knowledge PRs #1099-#1106 (releasing, init bare webhook, knowledge size exception, usage-report, branch-sweep non-UTF-8, spool-merge readers, readme-top unshipped, git-refresh limitations); 26 no-knowledge tickets deleted.
+2026-10-26 11:14 v1 [recurring/dream] [agent:claude] slack: Dream W44: validate-drift 49 issues (3 classes already ticketed); 46 findings; Retro 8 knowledge PRs + 26 deletes; 10 proposal PRs (#1107-#1116); 8 drafts; 44 retirement-debt tickets; main red since e2d1c3362 (blocker-reminders template synced without twin).
