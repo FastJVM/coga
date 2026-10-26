@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.10.0
+    github-ref: refs/tags/v1.11.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: c0cd49753bcfc21e055974b9a570432a8d32abbd
+    github-tree-sha: ee9e6b5b54c7d8f080e5bd903cf9d4d2097f727e
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.10.0
+    version: 1.11.0
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.10.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.10.0"
+> Requires: google-agents-cli ~= 1.11.0
+> If version is behind, run: uv tool install "google-agents-cli~=1.11.0"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -129,7 +129,7 @@ If no recipe matches, proceed to Phase 2. But first — are you sure? Re-read th
 First check whether a project already exists: run `agents-cli info` from the project root. If one was already created or enhanced by agents-cli, skip this phase.
 
 Otherwise, scaffold **before writing any code**:
-- **No project yet** → `agents-cli scaffold create <name>`
+- **No project yet** → `agents-cli scaffold create <name> --agent <template> --deployment-target <target>`
 - **Existing code to import** → `agents-cli scaffold enhance .` (adds the agents-cli structure)
 
 Use `/google-agents-cli-scaffold` for the full workflow — it covers architecture choices (deployment target, agent type, session storage) and project creation or enhancement.

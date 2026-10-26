@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-publish
-    github-ref: refs/tags/v1.10.0
+    github-ref: refs/tags/v1.11.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 5c2dd44747efbc17cabee0ed6fccf47dc25ac393
+    github-tree-sha: 1f0af76b2448744a7c84976e3465cb7313c3de91
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.10.0
+    version: 1.11.0
 name: google-agents-cli-publish
 ---
 # Gemini Registration

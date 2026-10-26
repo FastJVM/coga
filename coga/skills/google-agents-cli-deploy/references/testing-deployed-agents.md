@@ -41,7 +41,7 @@ with open("deployment_metadata.json") as f:
     engine_id = json.load(f)["remote_agent_runtime_id"]
 
 client = agentplatform.Client(location="us-east1")
-agent = client.agent_engines.get(name=engine_id)
+agent = client.runtimes.get(name=engine_id)
 
 async for event in agent.async_stream_query(message="Hello!", user_id="test"):
     print(event)

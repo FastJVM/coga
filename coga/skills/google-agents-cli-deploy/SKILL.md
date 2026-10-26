@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.10.0
+    github-ref: refs/tags/v1.11.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 3b814a38e97a4ff5765ba23e943f92a579770c9e
+    github-tree-sha: 3fd1102372ce46d7ccbcb1119e9ce054b3d83855
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.10.0
+    version: 1.11.0
 name: google-agents-cli-deploy
 ---
 # Deployment Guide
@@ -394,7 +394,7 @@ so the image must trust the gateway's root CA. That setup is opt-in at scaffold 
 creating a new project, pass `--agent-gateway` flag to `agents-cli create`:
 
 ```bash
-agents-cli create my-agent -d agent_runtime --agent-gateway
+agents-cli create my-agent --agent adk -d agent_runtime --agent-gateway
 ```
 
 Alternatively, you can pass the same flag to `agents-cli scaffold enhance` to upgrade an
