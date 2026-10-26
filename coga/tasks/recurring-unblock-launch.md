@@ -172,6 +172,7 @@ under `bootstrap/contexts/`, plus `recurring/blocker-reminders/ticket.md`).
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1118
 branch: coga/recurring-unblock-launch-9cca77
 
 ## Decisions (confirmed with the human in the implement session)
@@ -382,7 +383,7 @@ files:
     byte-identical.
   src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md: Packaged twin, byte-identical.
   docs/contexts/coga-dev/internals/spool-merge/SKILL.md: The audit-line reader list (added by
-    PR #1104 during open-pr reconciliation) now names the renamed `recurring._pause_origins`.
+    PR 1104 during open-pr reconciliation) now names the renamed `recurring._pause_origins`.
   tests/test_recurring.py: Classification matrix; sweep and named resume of watchdog and sweep
     pauses; open asks wait for unblock; human and assist pauses stay parked; headless refusal;
     watchdog retry stays loud; updated expectations for changed behavior. Eight regression cases
@@ -409,7 +410,7 @@ checks:
   head: 7686375270e02de3d2a0df8c99e3c0a2683ef891
   base: 198facc34d3cfeb059d642e38943ad75818698c1
   detail: 4081 passed, 10 skipped in 322.75s on Python 3.12.12, run during open-pr after rebasing
-    onto main that had moved (PR #1104, knowledge-only) and adding one commit that renames
+    onto main that had moved (PR 1104, knowledge-only) and adding one commit that renames
     the function in the coga-dev spool-merge reader list. The review receipt below covers d7b10ad;
     the only commit added since is that one-line doc rename.
 - command: .venv/bin/python -m pytest -q -p no:cacheprovider
