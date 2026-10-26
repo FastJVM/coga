@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -19,6 +19,7 @@ from coga.blackboard import (
 )
 from coga.config import Config
 from coga.notification import post
+from coga.recurring import _pause_origins
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -45,9 +46,14 @@ class BlockerReminder:
     reminded: bool
     task_path: Path
     ticket_path: Path
+    # A paused period the sweep itself or the watchdog parked, which the next
+    # sweep resumes once its asks are answered. A human pause stays parked.
+    sweep_resumes: bool = False
 
     @property
     def next_command(self) -> str:
+        if self.status == "paused" and not self.sweep_resumes:
+            return f"coga launch {self.slug}"
         return f'coga unblock {self.slug} --answer "..."'
 
 
@@ -58,6 +64,7 @@ def scan_blocker_reminders(
 ) -> list[BlockerReminder]:
     """Scan blocked tasks and paused recurring periods for unresolved asks."""
     out: list[BlockerReminder] = []
+    paused: list[str] = []
     for ref in refs if refs is not None else list_tasks(cfg):
         try:
             ticket = read_ticket(ref)
@@ -78,6 +85,8 @@ def scan_blocker_reminders(
             if blocker.resolved:
                 continue
             fingerprint = _fingerprint(blocker)
+            if ticket.status == "paused":
+                paused.append(ref.id_slug)
             out.append(
                 BlockerReminder(
                     slug=ref.id_slug,
@@ -92,7 +101,15 @@ def scan_blocker_reminders(
                     ticket_path=ref.ticket_path,
                 )
             )
-    return out
+    if not paused:
+        return out
+    machine = _pause_origins(cfg, set(paused))
+    return [
+        replace(reminder, sweep_resumes=True)
+        if reminder.status == "paused" and reminder.slug in machine
+        else reminder
+        for reminder in out
+    ]
 
 
 def reminder_fingerprints(blackboard_text: str) -> set[str]:
@@ -145,11 +162,15 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
         if reminder.reminded:
             continue
         owner = reminder.owner or cfg.current_user
-        action = (
-            "to record the answer; the next recurring sweep resumes the period."
-            if reminder.status == "paused"
-            else "to record the answer and resume."
-        )
+        if reminder.status != "paused":
+            action = "to record the answer and resume."
+        elif reminder.sweep_resumes:
+            action = "to record the answer; the next recurring sweep resumes the period."
+        else:
+            action = (
+                "to review the ask, then record the answer in the resumed session "
+                f'with `coga unblock {reminder.slug} --answer "..."`.'
+            )
         post(
             cfg,
             (
