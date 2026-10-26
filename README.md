@@ -17,8 +17,8 @@ while you're still working out what to build.
 
 Coga is a small overlay on top of what agents already provide, so it gets better when they do.
 
-Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
-the full history in [`coga/log.md`](coga/log.md).
+Coga is built with Coga: see the tickets in [`coga/tasks/`](https://github.com/FastJVM/coga/tree/main/coga/tasks) and
+the full history in [`coga/log.md`](https://github.com/FastJVM/coga/blob/main/coga/log.md).
 
 ## The problem
 
@@ -50,21 +50,21 @@ see what goes in. For intensive use, we find that easier to manage.
 
 - **Ticket**: one piece of work as a Markdown file: what to do, the context
   blocks it needs, the workflow it follows.
-  ([tickets](docs/contexts/coga/tickets/SKILL.md))
+  ([tickets](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/tickets/SKILL.md))
 - **Context block** (context for short): a durable fact about the project,
   such as a behavior, a decision or an intent.
-  ([knowledge](docs/contexts/coga/knowledge/SKILL.md))
+  ([knowledge](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/knowledge/SKILL.md))
 - **Workflow**: the steps for one kind of work, and which of them need you.
-  ([workflows](docs/contexts/coga/workflows/SKILL.md))
+  ([workflows](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/workflows/SKILL.md))
 - **Recurring work**: reusable task templates with a schedule. When you run
   `coga recurring`, due templates become tasks and run through the ordinary
   task lifecycle — for maintenance, reviews, or other work worth repeating.
-  ([recurring](docs/contexts/coga/recurring/SKILL.md))
+  ([recurring](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/recurring/SKILL.md))
 
 ## Philosophy
 
 Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. The [design principles](docs/contexts/coga-dev/principles/SKILL.md)
+into the next task. The [design principles](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/SKILL.md)
 describe the philosophy behind Coga.
 
 ## Example
@@ -75,14 +75,30 @@ reasoning on everything. `coga build` turned ten minutes of conversation
 into a plan of tickets, and the plan treated routing as a solved problem.
 It isn't. The agent had followed my assumption instead of questioning it;
 having the plan written down is what made the assumption visible. So we
-replaced it with a research plan in tickets, written with Claude and run by
-Codex: [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
-[head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
-[Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
-[candidate scoring](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), then the
-[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The decision became a
-context that every later ticket starts from. Browse the whole example in
+replaced it with a research plan in tickets for Codex:
+[state of the art](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/state-of-the-art-review.md),
+[head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/head-to-head-ground-truth.md),
+[Jev](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/evaluate-jev.md),
+[candidate scoring](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/score-candidates.md), then the
+[decision](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/decide-classifier-approach.md).
+The corrected [vision](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/contexts/product/vision/SKILL.md)
+asks whether effort can be predicted at all; the candidate-scoring ticket
+requires measuring our preferred approach against a baseline. The research
+and classifier decision are still drafts in this snapshot. What carried
+forward was the correction to the plan. Browse the whole example in
 [thinkpick's tasks](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks).
+
+For a batch, `coga megalaunch --pick` lets you choose tickets and runs their
+agent steps in sequence. A task needing input records a blocker; the queue
+can continue with other work, leaving that task waiting and human review
+gates with you. In Coga's own
+[October 22 run](https://github.com/FastJVM/coga/blob/3b57a4d0d4eaf3e2fabb4d30fca9adfcba7ff8d5/coga/log.md#L9111-L9127),
+a Windows CI task blocked on the unfinished Windows port at 11:50. The next
+ticket launched at 11:51 and reached peer review at 12:10. Each new step
+starts from the ticket, its attached contexts, and the recorded handoff, so
+corrections in those files carry into later launches.
+[Megalaunch](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/megalaunch/SKILL.md) explains the queue and
+its human gates.
 
 ## Who it is for, and its limits
 
@@ -99,10 +115,15 @@ It runs locally, in your repository's `coga/` directory: no hosted service.
 
 ## Install
 
-Coga runs on Linux, Windows or macOS and needs Python 3.11+, Git, and an authenticated
+Coga's agent sessions run on Linux or macOS and need Python 3.11+, Git,
+and an authenticated
 [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
 offers to install and log in whichever agent CLI you pick.
+
+For a fresh Mac, install the Xcode Command Line Tools first; the
+[install guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-install-the-command-line-tools-first)
+covers that prerequisite and Windows support limits.
 
 ```sh
 uv tool install coga
@@ -114,22 +135,25 @@ coga init --user <your-name>
 With default settings, uv downloads a compatible Python when needed, even
 if your system Python is older than 3.11.
 
-[Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
+[Install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md) covers setup, joining a
 repository that already uses Coga, pip/pipx alternatives, and troubleshooting.
-[First task](docs/contexts/coga/first-task/SKILL.md) walks one ticket from
-draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
-was recorded in July 2026; some command names may have changed since.
+[First task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md) walks one ticket from
+draft to reviewed result.
 
 ## First steps
 
 After `coga init`:
 
-- **Empty repo:** run `coga build`, a guided discussion that turns your
-  project and goals into a short vision context and a batch of starter
-  tickets. A stock README, LICENSE or `.gitattributes` from your hosting
+- **Empty repo:** init seeds the onboarding ticket. Run `coga build`, a
+  guided discussion that turns your project and goals into a short vision
+  context and a batch of starter tickets. A stock README, LICENSE or `.gitattributes` from your hosting
   provider still counts as empty; any other project file does not.
 - **Existing project:** init skips that step. Create your first ticket with
   `coga ticket "<title>"`.
+
+Make sure your chosen agent CLI is signed in before either route; both
+commands start an agent session. See [First task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md)
+for readiness checks and the review and completion steps.
 
 Either way, everything is plain files in your repo: edit them with any text
 editor, or use `coga ticket <slug>` to revise a ticket with an agent. What
@@ -151,14 +175,14 @@ surface it.
 
 ## Learn more
 
-- [Documentation index](docs/README.md): start, understand, operate and
+- [Documentation index](https://github.com/FastJVM/coga/blob/main/docs/README.md): start, understand, operate and
   develop.
-- [Design principles](docs/contexts/coga-dev/principles/SKILL.md): the philosophy and design
+- [Design principles](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/SKILL.md): the philosophy and design
   principles behind Coga.
-- [Contributing](CONTRIBUTING.md).
+- [Contributing](https://github.com/FastJVM/coga/blob/main/CONTRIBUTING.md).
 - Limits: contexts go into the prompt as truth, so a stale one misleads.
   Managing prompts and instructions as files has close precedents; see the
-  [evidence pages](docs/archive/evidence) for dated comparisons.
+  [evidence pages](https://github.com/FastJVM/coga/tree/main/docs/archive/evidence) for dated comparisons.
 
 Coga is free software licensed under
-[Apache-2.0](LICENSE).
+[Apache-2.0](https://github.com/FastJVM/coga/blob/main/LICENSE).
