@@ -167,3 +167,10 @@ now say usage is counted once per message.
 Test plan: `python -m pytest`, including new `tests/test_usage.py` cases for
 duplicated content blocks, streaming output growth, the window boundary, and a
 later line with no usage.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Usage report: the important route is an owner exception; misses never reach log.md

@@ -250,3 +250,10 @@ checks:
   detail: Configuration, workflow semantics, task layout, and validation behavior are unchanged. The full
     suite exercises the seeded repository, generated period, and CLI completion.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Usage report: the important route is an owner exception; misses never reach log.md
