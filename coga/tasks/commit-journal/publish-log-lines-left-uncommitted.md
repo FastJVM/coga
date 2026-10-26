@@ -183,5 +183,9 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/commit-journal-publish-log-lines-left-uncommitte-eee9dd
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
