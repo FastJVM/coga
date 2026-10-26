@@ -3485,7 +3485,9 @@ def spawn_agent_session(
     `sync_log`) instead of leaving it for the end-of-command sweep. The
     ordinary launch path always sets it: stateless bootstrap launches have no
     later task-state sync to carry the log, and a code step's start check
-    requires a clean tree before the agent branches. `assist_branch` and
+    requires a clean tree before the agent branches. `coga ticket` sets it
+    too, so an attended authoring session does not hold a dirty log open.
+    `assist_branch` and
     `assist_agent` name an explicit assist on a human-owned step running in
     the recorded single-checkout PR worktree: the
     child inherits them so its in-session lifecycle commands attribute audit

@@ -325,6 +325,109 @@ def test_launch_entry_refusal_through_main_skips_the_sweep(
     assert sweeps == []
 
 
+@pytest.fixture
+def published_repo(git_repo, monkeypatch: pytest.MonkeyPatch):
+    """The real-git harness, with `clone`'s guard against alias re-registration."""
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    return git_repo
+
+
+def _control_log(repo) -> str:
+    from coga import git
+
+    data = git.tree_bytes(repo.root, "origin/main", "coga/log.md")
+    return "" if data is None else data.decode("utf-8")
+
+
+def _write_log_line(message: str) -> None:
+    from coga.config import load_config
+    from coga.logfile import append_log
+
+    append_log(load_config(), "fix-retry-logic", "system", message)
+
+
+@pytest.mark.parametrize("retained", ["exit", "withheld"])
+def test_skipped_sweep_names_log_lines_left_off_control(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    retained: str,
+) -> None:
+    """A command that keeps its state local still reports the audit line it left."""
+    from coga import git
+
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "x"])
+
+    def command_that_retains_state() -> None:
+        _write_log_line("script exited with code 75")
+        if retained == "withheld":
+            git.state_sweep_withheld.set(True)
+            return
+        raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+
+    monkeypatch.setattr("coga.cli.app", command_that_retains_state)
+    if retained == "exit":
+        with pytest.raises(SystemExit):
+            main()
+    else:
+        main()
+
+    err = capsys.readouterr().err
+    assert "1 log line(s) this command wrote are not on control" in err
+    assert "[fix-retry-logic] [system] script exited with code 75" in err
+    assert "coga run publish-state log.md" in err
+    # Reported, not published: the retained line is still only local.
+    assert "script exited with code 75" not in _control_log(published_repo)
+
+
+def test_skipped_sweep_does_not_name_log_lines_already_on_control(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from coga import git
+    from coga.config import load_config
+
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "x"])
+
+    def command_that_publishes_its_line_then_withholds() -> None:
+        _write_log_line("launched")
+        assert git.sync_log(load_config(), message="Log: fix-retry-logic")
+        git.state_sweep_withheld.set(True)
+
+    monkeypatch.setattr("coga.cli.app", command_that_publishes_its_line_then_withholds)
+    main()
+
+    assert "not on control" not in capsys.readouterr().err
+
+
+def test_completed_sweep_leaves_no_unpublished_log_warning(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["coga", "slack", "x"])
+    monkeypatch.setattr("coga.cli.app", lambda: _write_log_line("slack: hi"))
+    main()
+
+    assert "not on control" not in capsys.readouterr().err
+    assert "slack: hi" in _control_log(published_repo)
+
+
+def test_skipped_sweep_with_git_disabled_keeps_its_own_note(
+    published_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from coga import git
+
+    with (published_repo.coga_os / "coga.toml").open("a", encoding="utf-8") as handle:
+        handle.write("\n[git]\nenabled = false\n")
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "x"])
+
+    def retains() -> None:
+        _write_log_line("script exited with code 75")
+        raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+
+    monkeypatch.setattr("coga.cli.app", retains)
+    with pytest.raises(SystemExit):
+        main()
+
+    assert "not on control" not in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("argv", [
     ["launch", "windows-agent"],
     ["chat"],

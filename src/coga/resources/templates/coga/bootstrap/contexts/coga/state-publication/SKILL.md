@@ -61,7 +61,10 @@ reviewed PR.
   reported on stderr, the files stay as written, and the next command retries.
   A command that deliberately leaves retryable state dirty, or a launch whose
   checkout preparation or return refused, withholds its sweep so that state
-  is not published.
+  is not published. Whenever the sweep does not run, the command's exit names
+  each log line it wrote that control does not hold, with the recovery
+  command; it reports those lines rather than publishing them beside the
+  withheld state.
 - **Launch** publishes routine state at entry and before returning the
   checkout ([coga/checkouts](../checkouts/SKILL.md)).
 - **Session teardown**, including `coga chat`, publishes the log after usage
@@ -72,13 +75,33 @@ reviewed PR.
   publication adds a session-end warning naming the retained log, alongside
   the Git diagnostic. The agent's exit result stands. Explicitly disabled
   Git keeps its usual informational note instead of that warning.
-- **Guided authoring** (`coga ticket`) publishes the authored tickets and
+- **Guided authoring** (`coga ticket`) publishes its launch line before the
+  session starts, as `coga chat` and launch do, so an attended session never
+  holds the log dirty. At the end it publishes the authored tickets and
   every changed context, skill, workflow, or config file under the roots in
   **one** guarded publish. An authored change to the Git destination (`[git]`
   enabled, remote, or control branch) refuses. A refused or failed publish
   keeps every edit on disk and `coga ticket` exits non-zero.
 - **Ordinary manual edits** inside the roots publish through the next
   command's sweep. Local prompt composition still reads local edits.
+
+### Every log line has a publisher
+
+Each `coga/log.md` write is published before its command exits, by the
+lifecycle sync, an explicit log sync, or the end-of-command sweep, or else its
+command reports it. Failure records (`sync failed`, `sync refused`, `refresh
+failed`, `post failed`) are written because a publication or delivery failed;
+the failure report covers them, and no command retries them in a loop. The
+deliberate deferrals are:
+
+- **Session usage records** land after the agent's last lifecycle sync and
+  publish at session teardown (above).
+- **Lines in a writer's own later publish.** A recurring run's serviced-period
+  ledger lines and a launched `ticket.py`'s exit line ride its recurring
+  publication, the next checkout settlement, or the end-of-command sweep.
+- **Retained state.** A retained-state exit (75), a withheld sweep, and a
+  `bump --to`/`--backward` rewind skip the sweep on purpose. Their lines
+  stay local with the state they describe, and the exit names them.
 
 ## Control versus feature checkouts
 

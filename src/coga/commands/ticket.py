@@ -325,6 +325,10 @@ def _run_authoring_session(
             discussion=True,
             kickoff=kickoff,
             label="Ticket",
+            # Publish the start line now, as `coga chat` and launch do, rather
+            # than leave the log dirty for the whole attended session; the
+            # teardown sync still carries the usage record.
+            commit_log=True,
             secrets_are_scoped=False,
             stateless_identity=(AUTHORING_SKILL, bootstrap_title),
             include_blocker_preamble=False,
