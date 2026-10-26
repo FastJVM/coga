@@ -11,9 +11,12 @@ adopt it into. Installing the package never modifies a repo;
 
 ## Prerequisites
 
-- **Linux or macOS (POSIX).** Native Windows is unsupported: every command,
-  even `coga --help`, fails with `No module named 'fcntl'`. WSL is the
-  untested Windows route.
+- **Linux or macOS for agent sessions.** On native Windows the CLI and
+  deterministic work run: non-interactive commands, `ticket.py` phases,
+  recipes and recurring scripts. Agent sessions refuse there until
+  `windows-native/03-interactive-coga-launch-on-native-windows` lands
+  ([coga/launch](../launch/SKILL.md#phases-and-routing)). WSL is the
+  untested Windows route for agent sessions.
 - **Python 3.11+.** The preferred uv install below can download a compatible
   Python for you; pip and pipx need an installed Python 3.11+.
 - **Git.** The only external tool `coga init` enforces. Git is also Coga's
