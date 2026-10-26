@@ -9368,3 +9368,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 15:54 v1 [windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-26 15:55 v1 [windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-26 15:55 v1 [windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w] [megalaunch] launched via coga megalaunch
+2026-10-26 16:00 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
