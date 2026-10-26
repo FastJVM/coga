@@ -9378,3 +9378,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 16:06 v1 [chat-ticket-edits-strand-the-checkout-on-a-chat-br] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-26 16:06 v1 [chat-ticket-edits-strand-the-checkout-on-a-chat-br] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-26 16:06 v1 [chat-ticket-edits-strand-the-checkout-on-a-chat-br] [megalaunch] launched via coga megalaunch
+2026-10-26 16:08 v1 [windows-native/repair-ci-and-resume-with-release-focused-triggers] [human:nicktoper] created (status=draft)
