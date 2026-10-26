@@ -5040,7 +5040,15 @@ def test_scan_due_reports_watchdog_pause_and_preserves_prior_run(
         assert task.watchdog_paused is True
         assert "system:watchdog" in task.watchdog_pause
         assert task.created is False
-        assert scan.due == []
+        # Resumed by a bare sweep with a terminal; refused (but retained for
+        # the needs-attention report) without one. Scanning mutates nothing.
+        assert task.resumes_pause is True
+        if allow_interactive:
+            assert scan.due == [task]
+            assert task.launch_refusal == ""
+        else:
+            assert scan.due == []
+            assert "requires a TTY" in task.launch_refusal
         assert ref.ticket_path.read_bytes() == saved_ticket
         assert log_path(cfg).read_bytes() == saved_log
 
@@ -5076,14 +5084,20 @@ def test_old_watchdog_pause_does_not_override_later_park_or_creation(
 
 
 @pytest.mark.parametrize("another_due", [False, True])
-@pytest.mark.parametrize("headless_force", [False, True])
-def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
+@pytest.mark.parametrize("force", [False, True])
+def test_headless_sweep_repeatedly_escalates_refused_watchdog_resume(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys,
     another_due: bool,
-    headless_force: bool,
+    force: bool,
 ) -> None:
+    """Without a terminal, a watchdog resume is refused but stays loud.
+
+    Bare and forced sweeps share the headless refusal: the period stays
+    paused, every sweep reports it as a problem and notifies, and the sweep
+    exits non-zero.
+    """
     cfg, ref = _in_progress_period(repo)
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
     saved_ticket = ref.ticket_path.read_bytes()
@@ -5091,14 +5105,11 @@ def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
         _write_recurring(
             repo, "later-check", (repo / "recurring/weekly-check/ticket.md").read_text(encoding="utf-8")
         )
-        if headless_force:
-            _write(
+        _write(
                 repo / "recurring/later-check/ticket.py",
                 "# Deterministic phase; the mocked launch below completes it.\n",
             )
-    monkeypatch.setattr(
-        recurring_cmd, "_interactive_stdio_has_tty", lambda: not headless_force
-    )
+    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
     launched: list[str] = []
     records: list[recurring_cmd.RunRecord] = []
@@ -5122,13 +5133,13 @@ def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
     capsys.readouterr()
 
     for _ in range(2):
-        assert recurring_cmd.run_recurring_scan(cfg, force=headless_force) == 2
+        assert recurring_cmd.run_recurring_scan(cfg, force=force) == 2
 
     output = capsys.readouterr().out
     assert "needs attention (watchdog timeout" in output
     assert f"coga launch {ref.id_slug}" in output
     assert "skip (paused)" not in output
-    expected_runs = (2 if headless_force else 1) if another_due else 0
+    expected_runs = (2 if force else 1) if another_due else 0
     assert launched == ["recurring/later-check"] * expected_runs
     assert ref.ticket_path.read_bytes() == saved_ticket
     assert len([text for text in notifications if "watchdog timeout" in text]) == 2
@@ -5136,12 +5147,239 @@ def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
     for i, record in enumerate(records):
         rendered = record.render()
         assert "- problems: 1" in rendered
-        assert f"- tasks run: {int(another_due and (headless_force or i == 0))}" in rendered
+        assert f"- tasks run: {int(another_due and (force or i == 0))}" in rendered
         assert "## Unresolved recurring failures" in rendered
         assert f"coga launch {ref.id_slug}" in rendered
-        if headless_force:
-            assert "Forced recovery refused:" in rendered
-            assert "requires a TTY" in rendered
+        refused = "Forced recovery refused:" if force else "Recovery refused:"
+        assert refused in rendered
+        assert "requires a TTY" in rendered
+
+
+def test_bare_sweep_retries_watchdog_pause_every_sweep_and_stays_loud(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A bare sweep resumes a watchdog pause with no `--force` and no cap.
+
+    The retry continues the saved step, but the timeout that parked it is
+    still reported: the needs-attention row, a `problems:` entry, a
+    notification and a non-zero exit, on every sweep it recurs.
+    """
+    cfg, ref = _in_progress_period(repo)
+    replace_blackboard(ref.ticket_path, "\nFindings from the interrupted run.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+    notifications: list[str] = []
+
+    def time_out_again(slug: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        current = Ticket.read(ref.ticket_path)
+        assert current.status == "active"
+        assert "Findings from the interrupted run." in current.body
+        current.frontmatter["status"] = "in_progress"
+        current.write(ref.ticket_path)
+        return "timeout"
+
+    _patch_recurring_command_launch(monkeypatch, repo, time_out_again)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "notify", lambda cfg, text, **kw: notifications.append(text)
+    )
+    capsys.readouterr()
+
+    for _ in range(2):
+        assert recurring_cmd.run_recurring_scan(cfg) == 2
+
+    output = capsys.readouterr().out
+    assert output.count("needs attention (watchdog timeout; resuming)") == 2
+    assert launched == [ref.id_slug] * 2
+    assert Ticket.read(ref.ticket_path).status == "paused"
+    assert len([text for text in notifications if "watchdog timeout" in text]) == 2
+    for record in records:
+        rendered = record.render()
+        # The inherited timeout, plus this sweep's retry timing out again.
+        assert "- problems: 2" in rendered
+        assert "This sweep retries it" in rendered
+    log = log_path(cfg).read_text(encoding="utf-8")
+    assert log.count(
+        "[system:recurring] activated (paused → active) to resume a "
+        "watchdog-paused run"
+    ) == 2
+
+
+def _parked_period(
+    repo: Path, *, watchdog: bool = False, open_ask: bool = False
+) -> tuple[Config, TaskRef]:
+    """A period the sweep (or watchdog) parked, optionally after it blocked."""
+    from coga.blackboard import append_blocker
+
+    cfg, ref = _in_progress_period(repo)
+    if open_ask:
+        append_blocker(ref.ticket_path, "agent:claude", "which mirror to sync?")
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(ref.ticket_path)
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=watchdog)
+    assert Ticket.read(ref.ticket_path).status == "paused"
+    return cfg, ref
+
+
+def _run_entry(cfg: Config, entry: str) -> int:
+    if entry == "sweep":
+        return recurring_cmd.run_recurring_scan(cfg)
+    return recurring_cmd.run_recurring_named(cfg, "weekly-check")
+
+
+def _finish_launches(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, ref: TaskRef
+) -> list[str]:
+    launched: list[str] = []
+
+    def finish(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        current = Ticket.read(ref.ticket_path)
+        assert current.status == "active"
+        current.frontmatter["status"] = "done"
+        current.frontmatter.pop("step", None)
+        current.write(ref.ticket_path)
+
+    _patch_recurring_command_launch(monkeypatch, repo, finish)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *a, **kw: None)
+    return launched
+
+
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+@pytest.mark.parametrize("watchdog", [False, True])
+def test_non_human_pause_resumes_without_force(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, entry: str, watchdog: bool
+) -> None:
+    """A bare sweep and a named launch both resume a machine pause in place.
+
+    The frozen period is reactivated and resumed, not replaced, even though a
+    newer period is due by the time of the retry.
+    """
+    cfg, ref = _parked_period(repo, watchdog=watchdog)
+    replace_blackboard(ref.ticket_path, "\nFindings from the parked run.\n")
+    period_before = Ticket.read(ref.ticket_path).frontmatter["period_generation"]
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched = _finish_launches(monkeypatch, repo, ref)
+
+    code = _run_entry(cfg, entry)
+
+    # A watchdog retry on a sweep stays loud even when it completes.
+    assert code == (2 if watchdog and entry == "sweep" else 0)
+    assert launched == [ref.id_slug]
+    resumed = Ticket.read(ref.ticket_path)
+    assert resumed.status == "done"
+    assert resumed.frontmatter["period_generation"] == period_before
+    assert "Findings from the parked run." in resumed.body
+    cause = "watchdog-paused" if watchdog else "sweep-paused"
+    assert (
+        f"[system:recurring] activated (paused → active) to resume a {cause} run"
+        in log_path(cfg).read_text(encoding="utf-8")
+    )
+
+
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+def test_sweep_pause_with_open_asks_waits_for_unblock_then_resumes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, entry: str
+) -> None:
+    """A run that blocked stays parked until its asks are answered.
+
+    Relaunching an unanswered ask would only block again, so both entry
+    points leave it alone; `coga unblock` resolves the asks while keeping the
+    period paused, and the next sweep (or named launch) resumes it with the
+    answer on its blackboard.
+    """
+    cfg, ref = _parked_period(repo, open_ask=True)
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10))
+    launched = _finish_launches(monkeypatch, repo, ref)
+    capsys.readouterr()
+
+    assert _run_entry(cfg, entry) == 0
+    assert launched == []
+    assert Ticket.read(ref.ticket_path).status == "paused"
+    if entry == "sweep":
+        output = capsys.readouterr().out
+        assert f"skip (paused; open asks — coga unblock {ref.id_slug})" in output
+
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(
+        app, ["unblock", ref.id_slug, "--answer", "the eu mirror"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "still paused" in result.output
+    unblocked = Ticket.read(ref.ticket_path)
+    assert unblocked.status == "paused"
+    assert "the eu mirror" in unblocked.body
+    assert "unblocked (asks resolved, still paused): the eu mirror" in (
+        log_path(cfg).read_text(encoding="utf-8")
+    )
+
+    assert _run_entry(cfg, entry) == 0
+    assert launched == [ref.id_slug]
+    assert Ticket.read(ref.ticket_path).status == "done"
+
+
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+@pytest.mark.parametrize("assist", [False, True])
+def test_human_pause_stays_parked(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, entry: str, assist: bool
+) -> None:
+    """`coga mark paused` is a human's park, including from an assist session."""
+    cfg, ref = _in_progress_period(repo)
+    if assist:
+        append_log(
+            cfg, ref.id_slug, "agent:claude", "paused (in_progress → paused)"
+        )
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "paused"
+        ticket.write(ref.ticket_path)
+    else:
+        monkeypatch.chdir(repo)
+        result = CliRunner().invoke(app, ["mark", "paused", ref.id_slug])
+        assert result.exit_code == 0, result.output
+    parked = ref.ticket_path.read_bytes()
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched = _finish_launches(monkeypatch, repo, ref)
+
+    assert _run_entry(cfg, entry) == 0
+
+    assert launched == []
+    assert ref.ticket_path.read_bytes() == parked
+
+
+@pytest.mark.parametrize("entry", ["sweep", "named"])
+def test_headless_entry_refuses_agent_backed_sweep_pause_resume(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, entry: str
+) -> None:
+    """A non-forced resume goes through the same no-TTY refusal as `--force`."""
+    cfg, ref = _parked_period(repo)
+    parked = ref.ticket_path.read_bytes()
+    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10))
+    launched = _finish_launches(monkeypatch, repo, ref)
+    capsys.readouterr()
+
+    code = _run_entry(cfg, entry)
+
+    captured = capsys.readouterr()
+    assert launched == []
+    assert ref.ticket_path.read_bytes() == parked
+    if entry == "sweep":
+        assert code == 0  # A headless TTY skip is a documented warning.
+        assert "skip (agent needs a TTY)" in captured.out
+    else:
+        assert code == 2
+        assert "requires a TTY" in captured.err
 
 
 @pytest.mark.parametrize("force", [False, True])
@@ -7325,6 +7563,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
             id_slug="recurring/failing", ticket_path=Path("no-such-ticket.md")
         ),
         delegate=None,
+        resumes_pause=False,
     )
     second = SimpleNamespace(
         template="later",
@@ -7332,6 +7571,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
             id_slug="recurring/later", ticket_path=Path("no-such-ticket.md")
         ),
         delegate=None,
+        resumes_pause=False,
     )
     launched: list[str] = []
 
@@ -7428,6 +7668,7 @@ def test_recurring_scan_records_the_stopping_task(
                 id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
             ),
             delegate=None,
+            resumes_pause=False,
         )
 
     due = [due_task(name) for name in due_names]
@@ -7522,6 +7763,7 @@ def test_recurring_scan_continues_past_an_unclassifiable_period(
                 id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
             ),
             delegate=None,
+            resumes_pause=False,
         )
 
     first, second, third = due_task("alpha"), due_task("beta"), due_task("gamma")
@@ -7626,6 +7868,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
                 id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
             ),
             delegate="bootstrap/dream",
+            resumes_pause=False,
         )
 
     due = [due_task(name) for name in due_names]
@@ -7702,6 +7945,7 @@ def test_recurring_scan_names_every_failed_template_in_the_run_record(
                 id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
             ),
             delegate=None,
+            resumes_pause=False,
         )
 
     first, second, third = due_task("alpha"), due_task("beta"), due_task("gamma")
@@ -8966,9 +9210,9 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
 ) -> None:
     """Interactive templates do not gate the sweep on `status: done`.
 
-    The human is driving — exiting the agent without marking done is a
-    "park this run and move on" signal, not a stuck task. The sweep pauses
-    that task, prints a note, and proceeds to the next due task.
+    Exiting the agent without marking done parks the run, not the sweep: the
+    sweep pauses that task under its own actor, prints a note, and proceeds to
+    the next due task. With no open asks, the next sweep resumes both.
     """
     _write_recurring(
         repo,
@@ -9008,11 +9252,15 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     refs = list_tasks(cfg)
     assert {Ticket.read(ref.path / "ticket.md").status for ref in refs} == {"paused"}
 
+    log = log_path(cfg).read_text(encoding="utf-8")
+    assert log.count("[system:recurring] paused (in_progress → paused)") == 2
+
     calls.clear()
     second = CliRunner().invoke(app, ["recurring"])
     assert second.exit_code == 0, second.output
-    assert calls == []
-    assert "No recurring tasks due." in second.output
+    assert calls == ["recurring/weekly-check", "recurring/z-weekly-check"]
+    assert "→ resume" in second.output
+    assert "resuming sweep-paused run" in second.output
 
 
 def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
@@ -13688,7 +13936,7 @@ def test_scan_bad_blackboard_keeps_existing_period_and_allows_retry(repo: Path) 
 
 @pytest.mark.parametrize("marker", ["", "v1 "])
 def test_watchdog_pause_reader_accepts_both_header_formats(repo: Path, marker: str) -> None:
-    from coga.recurring import _watchdog_pauses
+    from coga.recurring import _pause_origins
 
     cfg = load_config(repo)
     log_path(cfg).write_text(
@@ -13698,6 +13946,73 @@ def test_watchdog_pause_reader_accepts_both_header_formats(repo: Path, marker: s
         "2026-06-01 10:02 v1 [beta] [human:marc] created anew\n",
         encoding="utf-8", newline="\n",
     )
-    pauses = _watchdog_pauses(cfg, {"alpha", "beta"})
+    pauses = _pause_origins(cfg, {"alpha", "beta"})
     assert set(pauses) == {"alpha"}
-    assert "paused (timeout)" in pauses["alpha"]
+    assert pauses["alpha"][0] == "watchdog"
+    assert "paused (timeout)" in pauses["alpha"][1]
+
+
+@pytest.mark.parametrize(
+    ("event", "origin"),
+    [
+        pytest.param(
+            "[system:watchdog] paused (in_progress → paused) — liveness "
+            "watchdog: REPL timed out before signalling done",
+            "watchdog",
+            id="watchdog",
+        ),
+        pytest.param(
+            "[system:recurring] paused (blocked → paused) — Agent recurring "
+            "launch exited unfinished",
+            "sweep",
+            id="sweep",
+        ),
+        pytest.param(
+            "[human:nicktoper] paused (blocked → paused) — Agent recurring "
+            "launch exited unfinished",
+            "sweep",
+            id="legacy-sweep",
+        ),
+        pytest.param("[human:marc] paused (active → paused)", "", id="human"),
+        pytest.param(
+            "[agent:claude] paused (in_progress → paused) — waiting on vendor",
+            "",
+            id="human-in-assist",
+        ),
+        pytest.param(
+            "[agent:claude] paused (blocked → paused) — Agent recurring launch "
+            "exited unfinished",
+            "",
+            id="assist-with-sweep-suffix",
+        ),
+        pytest.param(
+            "[human:marc] paused (in_progress → paused) — later", "", id="unknown-human"
+        ),
+        pytest.param("[system] paused (active → paused)", "", id="unknown-system"),
+    ],
+)
+def test_pause_origin_resumes_only_positively_identified_machine_pauses(
+    repo: Path, event: str, origin: str
+) -> None:
+    """Only a watchdog or sweep pause is resumable; anything else is human.
+
+    An assist session's `coga mark paused` logs `agent:<name>`, and a legacy
+    sweep pause logged `human:<user>`, so the actor prefix alone proves
+    nothing: the legacy form also needs the sweep's exact suffix. A later
+    `unblocked` event leaves the pause's provenance alone.
+    """
+    from coga.recurring import _pause_origins
+
+    cfg = load_config(repo)
+    log_path(cfg).write_text(
+        "2026-06-01 09:00 [recurring/alpha] [system] created (status=active)\n"
+        f"2026-06-01 10:00 [recurring/alpha] {event}\n"
+        "2026-06-01 11:00 [recurring/alpha] [human:marc] unblocked "
+        "(asks resolved, still paused): yes\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    pauses = _pause_origins(cfg, {"recurring/alpha"})
+
+    assert pauses.get("recurring/alpha", ("", ""))[0] == origin

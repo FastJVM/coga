@@ -48,8 +48,6 @@ class BlockerReminder:
 
     @property
     def next_command(self) -> str:
-        if self.status == "paused":
-            return f"coga launch {self.slug}"
         return f'coga unblock {self.slug} --answer "..."'
 
 
@@ -148,8 +146,7 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
             continue
         owner = reminder.owner or cfg.current_user
         action = (
-            "to review the ask, then record the answer in the resumed session "
-            f'with `coga unblock {reminder.slug} --answer "..."`.'
+            "to record the answer; the next recurring sweep resumes the period."
             if reminder.status == "paused"
             else "to record the answer and resume."
         )

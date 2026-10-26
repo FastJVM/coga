@@ -34,7 +34,9 @@ alternatives are recorded in
   from that frozen field, re-read after launch reconciliation, never from the
   mutable template. A period that later acquires `ticket.py` is refused as
   ambiguous. Direct launch activates a paused/draft delegated period inline;
-  scheduled and named scans leave paused periods parked.
+  scheduled and named scans resume only a sweep or watchdog pause
+  ([scheduling](../scheduling/SKILL.md#admission-and-unfinished-runs)) and leave
+  a human pause parked.
 - **One agent step.** The resolved workflow must have exactly one step that
   explicitly declares `assignee: agent` and no `requires:` gate (even one that
   currently passes). `direct/body` qualifies. Delegation completes the whole

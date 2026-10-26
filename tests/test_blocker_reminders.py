@@ -153,11 +153,12 @@ def test_paused_recurring_blocker_is_reminded_once_without_reactivation(
 
     assert len(reminders) == 1
     assert reminders[0].status == "paused"
-    assert reminders[0].next_command == f"coga launch {slug}"
+    assert reminders[0].next_command == f'coga unblock {slug} --answer "..."'
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0)) == 1
     assert "is paused" in posts[0]
     assert "retry ceiling unspecified" in posts[0]
-    assert f"`coga launch {slug}`" in posts[0]
+    assert f'`coga unblock {slug} --answer "..."`' in posts[0]
+    assert "the next recurring sweep resumes the period" in posts[0]
     assert read_ticket(resolve_task(cfg, slug)).status == "paused"
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 11, 0)) == 0
     assert len(posts) == 1

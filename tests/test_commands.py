@@ -1171,6 +1171,56 @@ def test_unblock_refuses_other_statuses(repo: Path) -> None:
     assert "unblock requires" in result.output
 
 
+def _make_paused_task(repo: Path, slug: str) -> tuple[str, Path]:
+    ref = create_task(
+        cfg=load_config(repo),
+        title="Parked work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="paused",
+        slug_override=slug,
+    )
+    return ref["slug"], ref["path"]
+
+
+def test_unblock_paused_recurring_period_resolves_asks_and_stays_paused(
+    repo: Path,
+) -> None:
+    """The sweep parked a recurring run that blocked; answering its asks is
+    what lets the next sweep resume it, so status and step stay put."""
+    slug, task_path = _make_paused_task(repo, "recurring/resolve-conflicts")
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap at 5 minutes"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "paused"
+    assert ticket.step == "1 (implement)"
+    blackboard = read_blackboard(task_path)
+    assert "- [x]" in blackboard
+    assert "cap at 5 minutes" in blackboard
+    assert "asks resolved, still paused" in _log_text(repo, slug)
+
+
+def test_unblock_paused_recurring_period_without_asks_refuses(repo: Path) -> None:
+    slug, _ = _make_paused_task(repo, "recurring/parked")
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "nothing open"])
+    assert result.exit_code == 2
+    assert "no open blockers" in result.output
+
+
+def test_unblock_refuses_ordinary_paused_ticket(repo: Path) -> None:
+    slug, task_path = _make_paused_task(repo, "ordinary")
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap it"])
+    assert result.exit_code == 2
+    assert "unblock requires" in result.output
+    assert Ticket.read(task_path).status == "paused"
+
+
 def _make_named_task(repo: Path, title: str) -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = create_task(
