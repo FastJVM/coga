@@ -34,8 +34,9 @@ files.
 ## The correction loop
 
 An agent errs; the human fixes the owning file and commits; the next launch
-composes the fix. Dream proposes corrections as PRs; nothing changes
-operating rules without a merge.
+composes the fix. Dream proposes its corrections as PRs and never edits
+operating rules on control itself; a human's edit inside the Coga roots
+publishes directly ([coga/state-publication](../state-publication/SKILL.md)).
 
 ## Who Coga acts as
 
