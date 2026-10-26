@@ -40,7 +40,7 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: pending:feb69687-25e2-4dd9-b81a-16d5dccbeb0f
+launch_generation: feb69687-25e2-4dd9-b81a-16d5dccbeb0f
 ---
 
 ## Description
