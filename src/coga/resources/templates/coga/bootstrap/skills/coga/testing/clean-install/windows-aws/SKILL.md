@@ -165,6 +165,22 @@ shell characters such as `&` and `%`. For shell builtins or a compound line,
 pass the line to `cmd /c` as one word (that explicitly requests shell parsing).
 `ssh NAME` alone opens an interactive `cmd` prompt.
 
+### Long native runs
+
+The full native `python -m pytest` takes about two hours, longer than an SSH
+session or agent tool server reliably lives (transport exit 255). Run it as a
+temporary Administrator S4U scheduled task that writes stdout, stderr, JUnit
+XML and the exit code under `C:\coga-clean-install\`, and poll with brief
+reconnects. Stopping the task's PowerShell action leaves its `uv` child
+running: stop the owned process tree, verify no Python, Git or uv process
+remains, and delete the task before teardown. If SSH fails with exit 255
+while instance checks stay healthy, your public IP probably changed: replace
+the security group's single-host `/32` with the new `/32` rather than widening it.
+Windows Defender can dominate Git cost; temporary exclusions (checkout,
+pytest temp, `C:\Program Files\Git`) need owner approval and must be removed
+and verified before teardown. An expired SSO session blocks `teardown`, so
+refresh it before the session ends.
+
 ## RDP
 
 ```sh
