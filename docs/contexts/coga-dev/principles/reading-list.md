@@ -27,5 +27,21 @@ For a related argument about improving both tools and ways of working, read
 human capability as a system of people, tools, language, methods, and
 training, with improvements that can enable further improvements.
 
+## Related contemporary work
+
+These projects share parts of that tradition; they are related work, not
+claims about where Coga's implementation came from.
+
+- **Ink & Switch — [Malleable software (2025)](https://www.inkandswitch.com/essay/malleable-software/).**
+  A research agenda for tools people reshape during ordinary use, with
+  a gradual path from using software to changing it. It explicitly connects
+  this ambition to Alan Kay and earlier work on user-tailorable systems.
+- **[Glamorous Toolkit](https://gtoolkit.com/).** A Smalltalk-derived
+  environment for understanding systems through contextual tools, including
+  a moldable agent harness. Its
+  [Smalltalk history](https://book.gtoolkit.com/smalltalk-history-2oiurgue84cv8xerpds2kphqh)
+  makes that lineage explicit. It is a concrete neighbour for thinking about
+  humans and agents inspecting and shaping their working environment.
+
 The [origins essay](../../../archive/origins.md) preserves Coga's earlier
 founding narrative; it is historical context, not the current design principles.
