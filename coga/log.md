@@ -9328,3 +9328,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 10:49 v1 [reconcile-the-coga-notifications-leaked-webhook-re] [human:nicktoper] created (status=draft)
 2026-10-26 10:49 v1 [route-large-blackboard-validate-issues-as-state-ed] [human:nicktoper] created (status=draft)
 2026-10-26 10:49 v1 [triage-open-tickets-whose-premise-dream-found-sati] [human:nicktoper] created (status=draft)
+2026-10-26 10:49 v1 [finish-the-readme-launch-checks-left-open-by-readm] [human:nicktoper] created (status=draft)
