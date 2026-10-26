@@ -319,8 +319,8 @@ author_evidence: Claude Opus 5.5 authored the original implementation (implement
   original commit Co-Authored-By trailer). Codex independently reviewed that implementation
   in this session, then authored the two error-containment fixes and eight regression cases
   in the peer-review commit.
-head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
-base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+head: 7686375270e02de3d2a0df8c99e3c0a2683ef891
+base: 198facc34d3cfeb059d642e38943ad75818698c1
 depth: deep
 rationale: Changes scheduled execution by using audit provenance to reactivate frozen periods
   and extends unblock to paused recurring periods. Review the pause classification, open-ask
@@ -381,6 +381,8 @@ files:
   src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin,
     byte-identical.
   src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md: Packaged twin, byte-identical.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: The audit-line reader list (added by
+    PR #1104 during open-pr reconciliation) now names the renamed `recurring._pause_origins`.
   tests/test_recurring.py: Classification matrix; sweep and named resume of watchdog and sweep
     pauses; open asks wait for unblock; human and assist pauses stay parked; headless refusal;
     watchdog retry stays loud; updated expectations for changed behavior. Eight regression cases
@@ -402,6 +404,14 @@ review:
     confirms both recurring commits unchanged through the latest rebases. No unresolved must-fix
     findings; no child review command or agent was used.'
 checks:
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider -x
+  status: passed
+  head: 7686375270e02de3d2a0df8c99e3c0a2683ef891
+  base: 198facc34d3cfeb059d642e38943ad75818698c1
+  detail: 4081 passed, 10 skipped in 322.75s on Python 3.12.12, run during open-pr after rebasing
+    onto main that had moved (PR #1104, knowledge-only) and adding one commit that renames
+    the function in the coga-dev spool-merge reader list. The review receipt below covers d7b10ad;
+    the only commit added since is that one-line doc rename.
 - command: .venv/bin/python -m pytest -q -p no:cacheprovider
   status: passed
   head: c5429ef49c63bcd51cfc02afd29d23d3a200454f
@@ -467,3 +477,20 @@ Task: `recurring-unblock-launch`
 Recorded: 2026-10-26T21:13:21+00:00
 
     Branch 'coga/recurring-unblock-launch-9cca77' is not safe to publish. refs/heads/coga/recurring-unblock-launch-9cca77 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task recurring-unblock-launch`.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `recurring-unblock-launch`
+Recorded: 2026-10-26T21:20:00+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid YAML under ## PR: while parsing a block mapping
+      in "<unicode string>", line 92, column 3:
+        - command: .venv/bin/python -m pyt ... 
+          ^
+    expected <block end>, but found '<scalar>'
+      in "<unicode string>", line 98, column 5:
+            the function in the coga-dev spo ... 
+            ^
