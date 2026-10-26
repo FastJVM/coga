@@ -74,6 +74,17 @@ partial `coga/` and any relocated contexts, so a re-run is not wedged. A
 failed commit itself (a hook, odd repo state) does not roll back. It warns
 with the exact `git add`/`git commit` commands to finish.
 
+**A bare exported `SLACK_WEBHOOK_URL`.** Config load refuses it unless
+`[notification.slack] webhook` is declared (the shipped `coga.toml`
+notification comments). Init tolerates it on both paths: it hides the
+variable only for its own read of the scaffolded config, restores it, and
+prints a notifications tip saying Coga runs without them and naming the two
+`coga.toml` settings that opt in. Known gap: the very next command that loads config, such as
+`coga status`, still exits 2 with the guard message until the variable is
+unset or the `webhook` key is declared, and the tip does not say so. For a
+scratch repo you do not want on Slack, run `unset SLACK_WEBHOOK_URL` in that
+shell, or prefix a single command (`env -u SLACK_WEBHOOK_URL coga status`).
+
 Init installs no Coga software. It builds no virtualenv, installs no Python
 package or skill and writes no `PATH` shim, so an editable checkout can
 scaffold a scratch repo without publishing a release. The one exception is
