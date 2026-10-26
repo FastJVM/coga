@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -245,75 +245,216 @@ yet. Self-review was limited to reading the diff once more and adding the
 run; that belongs to the later review step. No adjacent bugs found. Nothing is
 out of scope or left open beyond the ticket's own out-of-scope list.
 
+## Peer review
+
+Direct Codex review **completed** on final head `d7b10ad6d0318905b791dcf3024bd90345ce23ed`
+against base `33cb4c613012491b2fed36d9ee1e6f6c45778c52`. No unresolved must-fix findings.
+Claude authored the original implementation (implement handoff and original
+commit identify Claude Opus 5.5). Codex independently reviewed it here, then
+authored and self-reviewed the corrections below. The final PR receipt is
+therefore labeled self-review rather than claiming complete independence.
+No child review CLI, review tool, or subagent was invoked.
+
+Two must-fix findings were reproduced in both sweep and named launch and fixed:
+
+- **P2 — unavailable frozen agent aborts the sweep.** `MainAgentUnavailable`
+  escaped the resume wrapper and abandoned later templates. Activation errors,
+  including unreadable resources, now become per-period refusals.
+- **P2 — unreadable asks abort the sweep.** Missing or duplicate blackboard
+  fences raised `TaskFileError` outside the per-template error path. The shared
+  ask reader now reports an error, preserves the paused ticket, and lets later
+  templates run; named launch returns a controlled refusal.
+
+Eight added regression cases passed. They verify both entry points,
+sweep/watchdog activation failures, missing/duplicate blocker fences, later
+healthy work, and byte preservation of the refused ticket. The owning
+scheduling topic and packaged twin describe the failure behavior.
+
+Verification:
+
+- `.venv/bin/python -m pytest -q -p no:cacheprovider`: **4081 passed,
+  10 skipped in 414.26s**, Python 3.12.12, on `c5429ef49c63bcd51cfc02afd29d23d3a200454f` against
+  `fe0b7fa198f6b11a3f7015073ea382ccc436aed5`. This receipt is historical after the final knowledge-only
+  rebase and is not re-stamped.
+- Final-head `.venv/bin/python -m pytest -q -p no:cacheprovider
+  tests/test_packaging.py`: **30 passed in 3.11s**. `git diff --exit-code`
+  verified runtime implementation and tests identical to the full-suite-tested
+  revision; `git diff --check origin/main...HEAD` passed. Exact commands and
+  head/base pairs are in the PR record below.
+- Drove scan-table and run-record rows in real PTYs at 80x24 and 120x40 on
+  the final head. Watchdog retries remain loud; resume, open-ask unblock,
+  human-pause and headless-refusal rows are complete, using ordinary wrapping
+  for long rows. Drove the actual `unblock` prompt at 80x24 in an isolated
+  Git-disabled fixture: the ask displayed, the answer persisted, asks cleared,
+  and paused status and current step remained. No external agent session or
+  live Slack message was used in these checks.
+
+Reconciliation preserved the projected ticket byte-for-byte. Main first added
+log events, then PR #1097 (CI and Windows cross-drive skill linking), then
+knowledge-only PRs #1099, #1101, #1102 and #1103. Read the changed testing
+instructions and relevant incoming contracts. The last rebase added a size
+exception to the scheduling topic; it changed no retry policy or runtime code.
+Range-diff confirmed both recurring commits unchanged through the rebases.
+Main already contains the live blocker-reminders template change from state
+publication; its packaged twin remains in this diff. All four requested twin
+pairs match.
+
+## Handoff (peer-review → open-pr)
+
+Branch `coga/recurring-unblock-launch-9cca77` is committed and pushed at
+`d7b10ad6d0318905b791dcf3024bd90345ce23ed` (explicit force-with-lease against the prior remote tip succeeded).
+The only local edit is this projected ticket, which was never staged or
+committed. Review is complete; no design decision or must-fix finding remains.
+No PR exists yet. The prepared PR title recommends **deep** review, discloses
+actual authorship and review independence, explains every current diff path,
+and preserves the historical full-suite receipt alongside current checks.
+Ready for the mechanical `open-pr` step.
+
 ## PR
 
 ```yaml
 title: Resume non-human-paused recurring periods without --force
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5); no agent override.
-head: 0bcf9a38c8acfb74fcc886f1e7ca3379e9272571
-base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
+author: claude/codex
+author_evidence: Claude Opus 5.5 authored the original implementation (implement handoff and
+  original commit Co-Authored-By trailer). Codex independently reviewed that implementation
+  in this session, then authored the two error-containment fixes and eight regression cases
+  in the peer-review commit.
+head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
 depth: deep
-rationale: >-
-  Changes scheduled-run lifecycle behavior: the bare sweep and named launch now
-  reactivate paused periods based on audit-log provenance. The sweep's own pause
-  gets a new audit actor, and `coga unblock` accepts a new status. Read the
-  classification rule and the watchdog problem semantics. Only self-review so far.
-implementation: >-
-  `recurring._pause_origins` (generalized from `_watchdog_pauses`, still a
-  single log pass) classifies a period's latest pause as watchdog
-  (`system:watchdog`) or sweep (`system:recurring`, or the legacy `human:` line
-  with the "Agent recurring launch exited unfinished" suffix). Any other pause
-  is human. `DueTask.resumes_pause` admits watchdog pauses, and sweep pauses
-  with no open `## Blockers` asks, into `DueScan.due`. The launch loop
-  reactivates them (`_resume_paused_period`, actor `system:recurring`) only
-  when it reaches them, then re-leases. The headless TTY refusal now applies to
-  these resumes as well as `--force`. A named launch reuses the classification
-  through `recurring.resumable_pause` and refuses before reactivating when it
-  has no TTY. `coga unblock` resolves the asks on a paused `recurring/` period
-  and leaves it paused. Blocker reminders point to `coga unblock`.
-deviations: >-
-  None from the ticket. Decisions confirmed with the human: on a bare sweep, a
-  watchdog retry stays a problem (row, notification, exit 2) even when it
-  completes, while `--force` keeps clearing the problem on a successful
-  recovery. A named launch resumes watchdog pauses without adding problem or
-  notification reporting.
-limitations: >-
-  The legacy sweep-pause match keys on the exact log suffix. A human
-  `mark paused --message` whose reason ends with that exact suffix under a
-  `human:` actor would be classified as a sweep pause.
+rationale: Changes scheduled execution by using audit provenance to reactivate frozen periods
+  and extends unblock to paused recurring periods. Review the pause classification, open-ask
+  gate and watchdog failure reporting. Direct review completed with both findings fixed. The
+  final diff includes reviewer-authored corrections, so the final receipt is self-review. The
+  full-suite receipt predates the final knowledge-only rebase; current runtime/test identity
+  verification and packaging checks cover that reconciliation.
+implementation: '`recurring._pause_origins` (generalized from `_watchdog_pauses`, still a single
+  log pass) classifies a period''s latest pause as watchdog (`system:watchdog`) or sweep (`system:recurring`,
+  or the legacy `human:` line with the "Agent recurring launch exited unfinished" suffix). Any
+  other pause is human. `DueTask.resumes_pause` admits watchdog pauses, and sweep pauses with
+  no open `## Blockers` asks, into `DueScan.due`. The launch loop reactivates them (`_resume_paused_period`,
+  actor `system:recurring`) only when it reaches them, then re-leases. The headless TTY refusal
+  now applies to these resumes as well as `--force`. A named launch reuses the classification
+  through `recurring.resumable_pause` and refuses before reactivating when it has no TTY. `coga
+  unblock` resolves the asks on a paused `recurring/` period and leaves it paused. Blocker reminders
+  point to `coga unblock`. Unreadable sweep-pause blocker state now becomes a per-template scan
+  error (or a named-launch refusal), preserving the paused ticket and continuing the sweep.
+  Missing frozen-agent configuration and unreadable activation resources become per-period resume
+  refusals instead of escaping and abandoning later templates.'
+deviations: No deviation from the confirmed retry policy. Bare sweeps retain watchdog failure
+  reporting even after a successful retry; forced recovery retains its existing clearing behavior;
+  named launch adds no watchdog reporting. The live coga/recurring/blocker-reminders/ticket.md
+  edit was already adopted onto main by state publication, so the current diff contains only
+  its matching packaged twin. Template scan errors keep their documented report-only exit semantics.
+limitations: The exact legacy human-actor suffix can also match a human pause deliberately given
+  that same message. The full suite passed on c5429ef49c63bcd51cfc02afd29d23d3a200454f before
+  the final docs/retired-state rebase; its receipt is intentionally historical. Runtime implementation
+  and tests are unchanged, and packaging plus terminal checks passed on the final head. Verification
+  used Python 3.12.12 on Linux; the available Python 3.11 interpreter lacks pytest. External
+  agent sessions and live Slack delivery were not exercised. Codex independently reviewed the
+  original Claude implementation and self-reviewed its own corrections.
 files:
-  src/coga/recurring.py: Pause-origin classification, DueTask resume properties, due-set admission, headless refusal for resumes, resumable_pause for named launch.
-  src/coga/recurring_runner.py: system:recurring pause actor, non-forced resume in the launch loop and named launch, watchdog report wording, scan-row text.
-  src/coga/recurring_autofix.py: Run-record scan rows mirror the console rows for watchdog retries and sweep pauses waiting on asks.
-  src/coga/commands/unblock.py: Accept a paused recurring period with open asks; resolve only, stay paused.
-  src/coga/blocker_reminders.py: Paused-period reminders point to coga unblock and say the next sweep resumes.
+  src/coga/recurring.py: Pause-origin classification, DueTask resume properties, due-set admission,
+    headless refusal for resumes, resumable_pause for named launch. Isolate unreadable blocker
+    state per period without treating it as an empty ask list.
+  src/coga/recurring_runner.py: system:recurring pause actor, non-forced resume in the launch
+    loop and named launch, watchdog report wording, scan-row text. Contain missing-agent and
+    unreadable-resource activation errors; render named blocker-read refusals.
+  src/coga/recurring_autofix.py: Run-record scan rows mirror the console rows for watchdog retries
+    and sweep pauses waiting on asks.
+  src/coga/commands/unblock.py: Accept a paused recurring period with open asks; resolve only,
+    stay paused.
+  src/coga/blocker_reminders.py: Paused-period reminders point to coga unblock and say the next
+    sweep resumes.
   src/coga/mark.py: Fix the stale mark_paused docstring caller list.
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Owner doc for sweep/named resume rules, pause provenance, watchdog loudness, admission.
-  docs/contexts/coga/recurring/delegation/SKILL.md: Scans now resume non-human pauses of delegated periods.
-  docs/contexts/coga/lifecycle/SKILL.md: unblock transition row and Blocking and resume text for paused recurring periods.
-  coga/recurring/blocker-reminders/ticket.md: Reminder wording and the unblock eligibility statement.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md: Packaged twin, byte-identical.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin, byte-identical.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Owner doc for sweep/named resume rules,
+    pause provenance, watchdog loudness, admission. Document isolated blocker-read and activation
+    failures.
+  docs/contexts/coga/recurring/delegation/SKILL.md: Scans now resume non-human pauses of delegated
+    periods.
+  docs/contexts/coga/lifecycle/SKILL.md: unblock transition row and Blocking and resume text
+    for paused recurring periods.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Packaged
+    twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md: Packaged
+    twin, byte-identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin,
+    byte-identical.
   src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md: Packaged twin, byte-identical.
-  tests/test_recurring.py: Classification matrix; sweep and named resume of watchdog and sweep pauses; open asks wait for unblock; human and assist pauses stay parked; headless refusal; watchdog retry stays loud; updated expectations for changed behavior.
-  tests/test_commands.py: Unblock on a paused recurring period (with and without asks) and refusal of an ordinary paused ticket.
+  tests/test_recurring.py: Classification matrix; sweep and named resume of watchdog and sweep
+    pauses; open asks wait for unblock; human and assist pauses stay parked; headless refusal;
+    watchdog retry stays loud; updated expectations for changed behavior. Eight regression cases
+    exercise unavailable frozen agents and malformed blocker fences across both entry points,
+    including later-template continuation and byte-preserved paused tickets.
+  tests/test_commands.py: Unblock on a paused recurring period (with and without asks) and refusal
+    of an ordinary paused ticket.
   tests/test_blocker_reminders.py: Paused-period reminder points to coga unblock.
 review:
-  reviewer: claude
+  reviewer: codex
   kind: self
   status: passed
-  head: 0bcf9a38c8acfb74fcc886f1e7ca3379e9272571
-  base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
-  detail: Author re-read the runner diff and fixed the unguarded mark_active in resume. No independent review yet; the later workflow step owns it.
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: 'Direct review completed on the final diff. Independent review of the Claude implementation
+    found two must-fix sweep-abort paths: MainAgentUnavailable during resume and TaskFileError
+    while reading paused asks. Codex fixed both, added eight regression cases, and re-reviewed
+    the resulting diff, including its own corrections and the final reconciliation. Range-diff
+    confirms both recurring commits unchanged through the latest rebases. No unresolved must-fix
+    findings; no child review command or agent was used.'
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: 0bcf9a38c8acfb74fcc886f1e7ca3379e9272571
-    base: 0b52bee2b63315d3afc8375a2df74a8b1197729b
-    detail: 4072 passed, 10 skipped in 414.86s, run on the clean committed tree after the rebase.
-  - command: coga validate --json
-    status: not-run
-    detail: No validation, config, workflow or task-model behavior changed.
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: c5429ef49c63bcd51cfc02afd29d23d3a200454f
+  base: fe0b7fa198f6b11a3f7015073ea382ccc436aed5
+  detail: 4081 passed, 10 skipped in 414.26s on Python 3.12.12. Historical after the final rebase,
+    which brought only documentation, packaged Markdown and retired task records. The current-head
+    identity check below confirms unchanged runtime implementation and tests; this result is
+    not re-stamped onto the new revision.
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+  status: passed
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: 30 passed in 3.11s on Python 3.12.12 after the final knowledge-only rebase; includes
+    packaged twins and wheel contents.
+- command: git diff --exit-code c5429ef49c63bcd51cfc02afd29d23d3a200454f HEAD -- src/coga src/coga_edge
+    tests pyproject.toml .github/workflows/test.yml ':!src/coga/resources/**'
+  status: passed
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: 'Exit 0: non-resource implementation, tests, project metadata and CI configuration
+    match the full-suite-tested revision. Inspected the incoming diff: packaged changes are
+    Markdown; other changes are knowledge and retired task records. Final-head packaging verification
+    covers the changed resource surface.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: No whitespace errors.
+- command: 'PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/recurring-unblock-launch-peer-rem7qrxt/render_scan.py
+    80 24
+
+    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/recurring-unblock-launch-peer-rem7qrxt/render_scan.py
+    120 40'
+  status: passed
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: Real PTYs at 80x24 and 120x40, stdin/stdout TTY-checked. Exercised watchdog retry,
+    unfinished retry, open asks with unblock command, human pause and headless refusals. Complete
+    colored console rows and matching plain run-record rows were emitted; long rows use normal
+    terminal wrapping and no cursor-control loop.
+- command: PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/tests .venv/bin/python /tmp/recurring-unblock-launch-peer-rem7qrxt/exercise_unblock_tty.py
+  status: passed
+  head: d7b10ad6d0318905b791dcf3024bd90345ce23ed
+  base: 33cb4c613012491b2fed36d9ee1e6f6c45778c52
+  detail: Real 80x24 PTY; entered the eu mirror at the live unblock prompt in an isolated Git-disabled
+    fixture. Ask displayed, answer persisted, asks resolved, paused status and current step
+    preserved. Repeated successfully after the latest rebase.
+- command: coga validate --json
+  status: not-run
+  detail: No config schema, workflow definition or ticket-model schema changed; the full suite
+    includes lifecycle behavior and packaged-twin verification.
+- command: python3.11 -m pytest
+  status: not-run
+  detail: The available Python 3.11 interpreter has no pytest; verification used the repository
+    Python 3.12.12 venv.
 ```
