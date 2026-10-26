@@ -143,3 +143,10 @@ Add regression coverage for empty and filled repositories and document the
 exception in the live and packaged `coga/sync` contexts.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga-init-bare-slack-env/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2563 passed; real-terminal init checks for both repository paths at 80x24 and 120x40 passed.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: coga/init: a bare SLACK_WEBHOOK_URL still breaks the command after init
