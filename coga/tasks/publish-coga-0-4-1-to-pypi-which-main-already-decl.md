@@ -133,3 +133,10 @@ Agent-run checks (2026-10-21, at owner's request; scratchpad only):
 - Items 2 and 3 not run: both launch an interactive, authenticated agent (`coga build` = `coga launch coga-build`), which an agent launch must not nest.
 
 Done check (verify-read-only): fresh-install output shows 0.4.1; release-passed.txt and receipts exist; vision-file check outcome recorded here.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Releasing: unset a bare SLACK_WEBHOOK_URL for scratch-repo checks; the attended gate is owner-only
