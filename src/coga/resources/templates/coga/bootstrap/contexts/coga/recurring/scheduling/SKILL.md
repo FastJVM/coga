@@ -71,8 +71,11 @@ One stable task per template:
 
 - **Live** (`active`, or orphaned `in_progress` from a dead supervisor) — resumed
   from its frozen period ticket; no duplicate. A stuck run defers new periods.
-- **Current-period `done`** and **`paused`** — skipped. A paused run is never
-  replaced because another period is due.
+- **Current-period `done`** — skipped.
+- **`paused`** — resumed from its frozen period ticket when the pause was not a
+  human's (see [Admission and unfinished runs](#admission-and-unfinished-runs));
+  a human pause is skipped. A paused run is never replaced because another
+  period is due.
 - **Prior-period `done`** (not reaped by Dream) — deleted, then a fresh `active`
   task is created at step 1 with a new blackboard, state snapshot and ledger
   record. The delete runs only after proving the replacement can be created
@@ -80,7 +83,7 @@ One stable task per template:
   old task stays.
 - **`canceled`** — terminal; see `--force`. Delete it to run again.
 
-**Launch order is phased**: orphan resumes, then fresh launches, each
+**Launch order is phased**: resumes (orphans and resumed pauses), then fresh launches, each
 most-overdue first — and the cleanup template, Dream, always **last**, even as
 an orphan, so its retro pass sees the period tasks this sweep just finished.
 Launches are sequential. The sweep prints a scan table before launching.
@@ -98,8 +101,9 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
 - `coga recurring launch <name>` (and default aliases such as `coga dream`)
   creates or reuses one template's task ignoring schedule and dedup (an explicit
   override when the period's task was reaped); a live run is resumed, a
-  prior-period `done` replaced, a current-period `done` or any `paused` run
-  left alone. It passes the sweep's concrete idle/max-session limits unless
+  prior-period `done` replaced, a non-human `paused` run resumed exactly as a
+  sweep would (an agent-backed one refuses without a TTY), and a
+  current-period `done` or a human-`paused` run left alone. It passes the sweep's concrete idle/max-session limits unless
   `--interactive`.
 - `--interactive` needs an attended TTY, uses attended conduct and leaves the
   liveness limits unarmed. Every other automatic launch composes the recurring
@@ -161,21 +165,46 @@ paused, keeping the deterministic output; see
 
 A scheduled agent run must reach `done` in one launch. When an agent launch
 returns unfinished — including a human/unassigned handoff or a `coga block` —
-the sweep pauses it before continuing. The blocker-reminder job keeps open
-asks on paused periods visible under its
-[eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md);
-it does not resume them. Keep human gates and expected blockers out of scheduled
-workflows. A **watchdog** pause (latest pause audit actor `system:watchdog`, not
-superseded by a later human pause or creation) stays an unresolved failure:
-every sweep that admits the template through the inactivity gate shows
-`needs attention (watchdog timeout)` with the resume command, counts it in
-`problems:`, notifies, and exits non-zero after other work. Resume with
-`coga launch recurring/<name>` or `coga mark active recurring/<name>`.
+the sweep pauses it before continuing, under its own audit actor
+`system:recurring`. The next bare sweep or named launch resumes each paused
+period that a human did not pause, from its recorded step and blackboard, with
+no `--force` and no retry cap. Pause provenance is the latest `paused` or
+`created` audit line for the period:
+
+- **Sweep pause** (actor `system:recurring`, or a legacy `human:` pause carrying
+  the "Agent recurring launch exited unfinished" suffix) — resumed once it has
+  no open `## Blockers` asks. Until then it stays parked: resuming would only
+  block again. Answer with `coga unblock recurring/<name> --answer "..."`,
+  which resolves the asks and leaves the period `paused` for the next sweep to
+  resume with the answer on its blackboard. The blocker-reminder job keeps those
+  asks visible under its
+  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md).
+  Unreadable asks leave the period paused and report a template error; they
+  are never treated as an empty blocker list.
+- **Watchdog pause** (actor `system:watchdog`) — resumed on every sweep, and
+  still an unresolved failure: every sweep that admits the template through the
+  inactivity gate shows `needs attention (watchdog timeout; resuming)`, counts
+  it in `problems:`, notifies, and exits non-zero after other work, so a
+  timeout that keeps recurring stays loud while it is retried.
+- **Anything else** — a human `coga mark paused` (an assist session's logs
+  `agent:<name>`) or a pause whose origin is not positively identified — stays
+  parked. Resume it with `coga launch recurring/<name>` or
+  `coga mark active recurring/<name>`.
+
+A resume passes the same admission as any launch: the control-branch and
+`owner` gates, and the TTY gate for agent-backed periods. Headless, a sweep
+pause gets the ordinary `skip (agent needs a TTY)` row; a watchdog pause shows
+`needs attention (watchdog timeout; coga launch recurring/<name>)` with the
+refusal and stays a problem. Keep human gates and expected blockers out of
+scheduled workflows anyway: each one costs a session, a pause and a human
+answer before the period can finish.
 
 ## Failures and exit code
 
 One template's failure never cancels the rest: the sweep records it, runs every
 later due template, names all failures, and exits with the first failing code.
+A resume that cannot activate its frozen agent or workflow is a per-period
+refusal; the sweep continues with later templates.
 A template that cannot be scanned (`## Template errors`: unloadable, bad ledger
 record, failed create) is named on stderr, in the Slack alert, and in
 `problems:`; on its own it does not change the exit code. A sweep with any

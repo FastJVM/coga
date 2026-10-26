@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import yaml
 
+from coga.blackboard import open_blockers
 from coga.create import create_task
 from coga.config import Config, ConfigError
 from coga.delete_task import DeleteTaskError, run_delete_task
@@ -43,6 +44,7 @@ from coga.recurring_clone import (
     read_clone_ledger,
 )
 from coga.taskfile import (
+    TaskFileError,
     join_task_body,
     split_body,
 )
@@ -560,6 +562,11 @@ class DueTask:
     replaced_done: bool = False
     replaced_done_ticket_bytes: bytes | None = None
     watchdog_pause: str = ""
+    # The audit line of a sweep's own pause after an unfinished run, and
+    # whether that period still has open `## Blockers` asks. See
+    # `_pause_origins` for how a pause is attributed.
+    sweep_pause: str = ""
+    open_asks: bool = False
     launch_refusal: str = ""
     # Set when this sweep created (or replaced) the period and then read back a
     # ticket that cannot be that create: it is already closed, or its failed
@@ -571,6 +578,21 @@ class DueTask:
     def watchdog_paused(self) -> bool:
         """A still-paused run whose latest pause was written by the watchdog."""
         return self.status == "paused" and bool(self.watchdog_pause)
+
+    @property
+    def sweep_paused(self) -> bool:
+        """A still-paused run the sweep parked after it returned unfinished."""
+        return self.status == "paused" and bool(self.sweep_pause)
+
+    @property
+    def resumes_pause(self) -> bool:
+        """A paused period a sweep resumes without `--force`.
+
+        A watchdog pause is always retried. A sweep pause is retried once its
+        open asks are resolved (`coga unblock`): relaunching an unanswered ask
+        would only block again. Any other pause is a human's and stays parked.
+        """
+        return self.watchdog_paused or (self.sweep_paused and not self.open_asks)
 
     @property
     def launchable(self) -> bool:
@@ -590,18 +612,22 @@ class DueTask:
         # template).
         # `done` → finished work, never re-run normally. `canceled` →
         # intentionally abandoned and never reactivated. `paused` → parked;
-        # watchdog pauses stay parked too, but the sweep escalates them.
+        # the sweep reactivates the non-human ones (`resumes_pause`) only when
+        # its launch loop reaches them, so they are not launchable here.
         return self.status in {"active", "in_progress"}
 
     @property
     def resuming(self) -> bool:
-        """A launchable orphan being resumed, not a fresh launch.
+        """A period being resumed from its recorded step, not a fresh launch.
 
-        True only for an `in_progress` period task — a dead sweep's orphan
-        that `coga launch` will re-compose from its current `step:`. Drives
-        the "→ resume" vs "→ launch" distinction in the scan table.
+        True for an `in_progress` period task — a dead sweep's orphan that
+        `coga launch` will re-compose from its current `step:` — and for a
+        non-human pause the sweep resumes. Drives the "→ resume" vs "→ launch"
+        distinction in the scan table and the resume-first launch order.
         """
-        return self.launchable and self.status == "in_progress"
+        return (
+            self.launchable and self.status == "in_progress"
+        ) or self.resumes_pause
 
     @property
     def is_cleanup(self) -> bool:
@@ -655,8 +681,10 @@ class DueScan:
     @property
     def due(self) -> list[DueTask]:
         """Launchable tasks in launch order: non-cleanup templates first, the
-        cleanup template (Dream) last; within each group, orphaned `in_progress`
-        resumes first, then fresh launches, each most-overdue first.
+        cleanup template (Dream) last; within each group, resumes (orphaned
+        `in_progress` runs and non-human pauses) first, then fresh launches,
+        each most-overdue first. A resumable pause refused at admission (no
+        agent-capable terminal) is retained only for reporting.
 
         The sort key is layered. `is_cleanup` leads so Dream lands at the end of
         the sweep — its retro pass then reaps the period tickets the *same*
@@ -668,7 +696,10 @@ class DueScan:
         over resume-first for the janitor itself, which is what we want.)
         """
         return _order_for_launch(
-            t for t in self.tasks if t.launchable and not t.period_contradiction
+            t
+            for t in self.tasks
+            if (t.launchable or (t.resumes_pause and not t.launch_refusal))
+            and not t.period_contradiction
         )
 
     @property
@@ -896,15 +927,28 @@ def scan_due(
                 replaced_done_ticket_bytes=outcome.replaced_done_ticket_bytes,
             )
         )
-    pauses = _watchdog_pauses(
+    pauses = _pause_origins(
         cfg,
         {t.ref.id_slug for t in tasks if t.ref is not None and t.status == "paused"},
     )
     for task in list(tasks):
         if task.ref is not None:
-            task.watchdog_pause = pauses.get(task.ref.id_slug, "")
+            origin, evidence = pauses.get(task.ref.id_slug, ("", ""))
+            if origin == PAUSE_WATCHDOG:
+                task.watchdog_pause = evidence
+            elif origin == PAUSE_SWEEP:
+                task.sweep_pause = evidence
+                try:
+                    task.open_asks = _paused_period_has_open_asks(task.ref)
+                except RecurringError as exc:
+                    tasks.remove(task)
+                    sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
+                    errors.append((task.template, str(exc)))
+                    continue
+        # A forced or non-human resume reactivates a parked period, so it
+        # needs the same agent-capable terminal as any other agent launch.
         if (
-            force
+            (force or task.resumes_pause)
             and not allow_interactive
             and task.status == "paused"
             and task.ref is not None
@@ -930,15 +974,46 @@ def scan_due(
     )
 
 
-def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
+PAUSE_WATCHDOG = "watchdog"
+PAUSE_SWEEP = "sweep"
+# Audit actor for the sweep's own pause after an unfinished run, and for the
+# reactivation that resumes it. Distinct from `human:` so a sweep pause is
+# never mistaken for a human `coga mark paused` (or vice versa).
+SWEEP_ACTOR = "system:recurring"
+WATCHDOG_ACTOR = "system:watchdog"
+# Suffix the sweep logged on its pause before it had a dedicated actor.
+SWEEP_PAUSE_SUFFIX = "Agent recurring launch exited unfinished"
+
+
+def _pause_origin(actor: str, line: str) -> str:
+    """Classify one `paused` audit line; "" means a human (or unknown) pause.
+
+    Only positively identified machine pauses are resumable. An assist
+    session's `coga mark paused` logs `agent:<name>`, and a pre-`system:
+    recurring` sweep logged `human:<user>`, so neither actor prefix alone
+    proves anything: the legacy sweep form also needs its exact suffix.
+    """
+    if actor == WATCHDOG_ACTOR:
+        return PAUSE_WATCHDOG
+    if actor == SWEEP_ACTOR:
+        return PAUSE_SWEEP
+    if actor.startswith("human:") and line.rstrip().endswith(f"— {SWEEP_PAUSE_SUFFIX}"):
+        return PAUSE_SWEEP
+    return ""
+
+
+def _pause_origins(cfg: Config, refs: set[str]) -> dict[str, tuple[str, str]]:
     """Read pause provenance for the few parked periods in one log pass.
 
-    The watchdog already writes a distinct system actor, including in legacy
-    runs. Reuse that durable signal instead of inventing another status or
-    duplicating lifecycle state in the blackboard. Audit timestamps win over
-    file order because merge=union may append older events after newer ones;
-    same-minute ties follow append order. A newer creation clears old-period
-    provenance at the stable task path. No paused periods means no log read.
+    Returns `{ref: (origin, audit line)}` for each ref whose latest pause was
+    written by the watchdog (`PAUSE_WATCHDOG`) or by the sweep itself
+    (`PAUSE_SWEEP`); a human or unidentifiable pause is absent. Reuse the
+    durable audit actor instead of inventing another status or duplicating
+    lifecycle state in the blackboard. Audit timestamps win over file order
+    because merge=union may append older events after newer ones; same-minute
+    ties follow append order. A newer creation clears old-period provenance at
+    the stable task path. Other events (an `unblocked` that leaves the period
+    paused) do not change who paused it. No paused periods means no log read.
     """
     if not refs or not log_path(cfg).exists():
         return {}
@@ -946,20 +1021,44 @@ def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
         r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?:v1 )?\[([^\]]+)\] "
         r"\[([^\]]+)\] (paused|created) .*$"
     )
-    latest: dict[str, tuple[str, str]] = {}
+    latest: dict[str, tuple[str, str, str]] = {}
     with log_path(cfg).open(encoding="utf-8") as stream:
         for line in stream:
             match = event_re.match(line)
             if match is None:
                 continue
             stamp, ref, actor, event = match.groups()
-            if ref not in refs or stamp < latest.get(ref, ("", ""))[0]:
+            if ref not in refs or stamp < latest.get(ref, ("", "", ""))[0]:
                 continue
-            evidence = (
-                line.strip() if event == "paused" and actor == "system:watchdog" else ""
-            )
-            latest[ref] = (stamp, evidence)
-    return {ref: evidence for ref, (_, evidence) in latest.items() if evidence}
+            origin = _pause_origin(actor, line) if event == "paused" else ""
+            latest[ref] = (stamp, origin, line.strip() if origin else "")
+    return {
+        ref: (origin, evidence)
+        for ref, (_, origin, evidence) in latest.items()
+        if origin
+    }
+
+
+def resumable_pause(cfg: Config, ref: TaskRef) -> str:
+    """Why a paused period may be resumed without a human, or "" if not.
+
+    Returns `PAUSE_WATCHDOG`, or `PAUSE_SWEEP` when the sweep's pause has no
+    open asks left. The named-launch counterpart of `DueTask.resumes_pause`.
+    """
+    origin, _ = _pause_origins(cfg, {ref.id_slug}).get(ref.id_slug, ("", ""))
+    if origin == PAUSE_SWEEP and _paused_period_has_open_asks(ref):
+        return ""
+    return origin
+
+
+def _paused_period_has_open_asks(ref: TaskRef) -> bool:
+    """Refuse unreadable asks without mistaking them for an empty blocker list."""
+    try:
+        return bool(open_blockers(ref.ticket_path))
+    except (TaskFileError, OSError, UnicodeError) as exc:
+        raise RecurringError(
+            f"cannot read blockers for paused period {ref.id_slug}: {exc}"
+        ) from exc
 
 
 @dataclass
@@ -2211,6 +2310,10 @@ __all__ = [
     "scan_due",
     "create_named",
     "create_template",
+    "resumable_pause",
+    "PAUSE_SWEEP",
+    "PAUSE_WATCHDOG",
+    "SWEEP_ACTOR",
     "PromoteOutcome",
     "promote_task",
     "serviced_periods",

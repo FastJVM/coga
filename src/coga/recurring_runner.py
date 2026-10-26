@@ -25,6 +25,7 @@ import typer
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.launch import LaunchBail, _interactive_stdio_has_tty, settle_delegated_period
+from coga.launch_script import script_entry_point as resolve_script_entry_point
 from coga import oscompat
 from coga import launch as launch_module
 from coga.oscompat import ProcessTree
@@ -55,7 +56,11 @@ from coga.recurring import (
     _declares_clone_scope,
     DueTask,
     DueScan,
+    PAUSE_WATCHDOG,
     PeriodLease as _PeriodLease,
+    SWEEP_ACTOR,
+    SWEEP_PAUSE_SUFFIX,
+    WATCHDOG_ACTOR,
     RecurringError,
     Template,
     frozen_task_delegate,
@@ -72,6 +77,7 @@ from coga.recurring import (
     same_period_lease as _same_period_lease,
     same_ticket_bytes as _same_ticket_bytes,
     create_named,
+    resumable_pause,
     scan_clone_due,
     scan_due,
 )
@@ -1779,8 +1785,11 @@ def run_recurring_scan(
     sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
     from its current step on the next sweep. If an interactive launch returns
     unfinished, the sweep pauses it before continuing, so a frozen
-    `in_progress` can still mean "dead run's orphan". `done`, `canceled`, and
-    `paused` tasks are skipped. Current period only: running this once a month for a weekly
+    `in_progress` can still mean "dead run's orphan". A period the sweep or
+    the liveness watchdog paused is resumed from its recorded step on the next
+    sweep — a sweep pause only once its open asks are resolved (`coga
+    unblock`). `done`, `canceled`, and human-`paused` tasks are skipped.
+    Current period only: running this once a month for a weekly
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
@@ -1975,6 +1984,8 @@ def run_recurring_scan(
         )
     # Forced preparation mutates each DueTask's status. Remember admitted
     # watchdog recoveries so an unsuccessful retry cannot report success.
+    # A bare sweep also retries every watchdog pause, but keeps reporting it as
+    # a problem: a timeout that recurs each sweep must stay loud.
     watchdog_recoveries: set[str] = set()
     for task in scan.tasks:
         if not task.watchdog_paused or task.ref is None:
@@ -1983,10 +1994,16 @@ def run_recurring_scan(
             watchdog_recoveries.add(task.ref.id_slug)
             continue
         paused_ticket = read_ticket(task.ref)
+        if task.launch_refusal:
+            resume = (
+                f"Resume with `coga launch {task.ref.id_slug}` or a sweep "
+                "from a terminal"
+            )
+        else:
+            resume = "This sweep retries it"
         detail = (
             "watchdog timeout left this run paused. "
-            f"Resume with `coga launch {task.ref.id_slug}`; "
-            "its recorded step and blackboard are retained. "
+            f"{resume}; its recorded step and blackboard are retained. "
             f"Audit: {task.watchdog_pause}"
         )
         if task.launch_refusal:
@@ -1995,7 +2012,8 @@ def run_recurring_scan(
                 fg=typer.colors.YELLOW,
                 err=True,
             )
-            detail = f"Forced recovery refused: {task.launch_refusal} {detail}"
+            kind = "Forced recovery" if force else "Recovery"
+            detail = f"{kind} refused: {task.launch_refusal} {detail}"
         record.scan_problems.append((task.ref.id_slug, detail))
         notify(
             cfg,
@@ -2007,8 +2025,9 @@ def run_recurring_scan(
             fatal=False,
         )
 
-    # `force` launches every materialized task regardless of status;
-    # the bare sweep launches only the launchable (active/in_progress) ones.
+    # `force` launches every materialized task regardless of status; the bare
+    # sweep launches the launchable (active/in_progress) ones plus the
+    # non-human pauses it resumes (`DueTask.resumes_pause`).
     due = scan.forced if force else scan.due
     if not due:
         if force:
@@ -2276,6 +2295,37 @@ def _launch_due_tasks(
                 # Forced preparation may deliberately activate or rematerialize the
                 # admitted generation. The resulting lease, not its pre-mutation
                 # snapshot, is what the child is allowed to launch.
+                admitted_period_lease = _local_period_lease(cfg, task.ref)
+            elif task.resumes_pause:
+                if not _same_period_lease(
+                    _local_period_lease(cfg, task.ref), admitted_period_lease
+                ):
+                    detail = (
+                        f"{task.ref.id_slug} changed after sweep admission; skipped"
+                    )
+                    typer.secho(detail, fg=typer.colors.YELLOW)
+                    record.note(detail)
+                    continue
+                try:
+                    _resume_paused_period(
+                        cfg, task.ref, watchdog=task.watchdog_paused
+                    )
+                except RecurringError as exc:
+                    refusals += 1
+                    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                    _record_outcome(
+                        record,
+                        TaskOutcome(
+                            template=task.template,
+                            slug=task.ref.id_slug,
+                            result="refused",
+                            detail=str(exc),
+                        )
+                    )
+                    continue
+                task.status = "active"
+                # Same as forced preparation: the reactivated generation is
+                # what the child is allowed to launch.
                 admitted_period_lease = _local_period_lease(cfg, task.ref)
             current_period_lease = _local_period_lease(cfg, task.ref)
             if not _same_period_lease(current_period_lease, admitted_period_lease):
@@ -3634,6 +3684,9 @@ def run_recurring_named(
             typer.echo(f"Created {ref.id_slug}")
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
+        resumed = _resume_named_pause(cfg, ref)
+        if resumed is not None:
+            return resumed
 
     # An on-demand `coga recurring launch <name>` (the `coga dream`,
     # `coga autoclose`, and `coga skill-update` aliases) is a real run of a real
@@ -3661,6 +3714,50 @@ def run_recurring_named(
         # a closed or human-parked template, or one already handled on control.
         if record.outcomes:
             run_autofix(cfg, record, agent_override=agent_override)
+
+
+def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
+    """Reactivate a non-human-paused period before a named launch.
+
+    The named counterpart of the sweep's `DueTask.resumes_pause`: a watchdog
+    pause, or a sweep pause whose asks are resolved, is resumed from its
+    recorded step. A human pause is left for `_launch_created` to report. An
+    agent-backed resume needs an agent-capable terminal, so refuse before
+    reactivating rather than leave the period active with nothing to run it.
+    Returns an exit code to stop with, or None to continue to the launch.
+    """
+    try:
+        ticket = read_ticket(ref)
+    except TicketError:
+        return None  # `_launch_created` reports the unreadable ticket.
+    if ticket.status != "paused":
+        return None
+    try:
+        origin = resumable_pause(cfg, ref)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    if not origin:
+        return None
+    if resolve_script_entry_point(ref) is None:
+        refusal = None
+        if not launch_module.agent_sessions_supported():
+            refusal = launch_module.WINDOWS_AGENT_SESSION_MESSAGE
+        elif not _interactive_stdio_has_tty():
+            refusal = _AGENT_NEEDS_TTY
+        if refusal is not None:
+            typer.secho(
+                f"cannot resume {ref.id_slug}: {refusal}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            return 2
+    try:
+        _resume_paused_period(cfg, ref, watchdog=origin == PAUSE_WATCHDOG)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    return None
 
 
 @dataclass(frozen=True)
@@ -3805,6 +3902,8 @@ def _launch_created(
     and `coga launch` re-composes it from its current `step:`.
     `done`/`canceled`/`paused` are left alone — re-launching closed or
     human-parked work would be wrong, and saying so beats silently doing nothing.
+    (A sweep- or watchdog-paused period was already reactivated by the caller;
+    see `_resume_named_pause`.)
 
     `record`, when given, collects this run's outcome for the autofix loop. It
     is filled in here rather than by the caller because this is where the two
@@ -4936,15 +5035,17 @@ def _stop_if_unfinished_after_launch(
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"
-        actor = "system:watchdog"
+        actor = WATCHDOG_ACTOR
         slack_text = f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
         outcome = (
             f"{ref.id_slug}: timed out (status={ticket.status!r}); paused as a "
             "watchdog timeout and continuing to next due task."
         )
     else:
-        suffix = "Agent recurring launch exited unfinished"
-        actor = f"human:{cfg.current_user}"
+        suffix = SWEEP_PAUSE_SUFFIX
+        # The sweep's own pause, not a human's: the next sweep resumes it once
+        # its open asks (if any) are resolved. See `recurring._pause_origins`.
+        actor = SWEEP_ACTOR
         slack_text = None
         outcome = (
             f"{ref.id_slug}: ended with status={ticket.status!r}; "
@@ -5069,6 +5170,37 @@ def _recurring_max_session(cfg) -> float | None:
     if present:
         return value
     return cfg.launch_max_session
+
+
+def _resume_paused_period(cfg: Config, ref: TaskRef, *, watchdog: bool) -> None:
+    """Reactivate a non-human-paused period so launch resumes its saved step.
+
+    Only for a pause `recurring._pause_origins` attributed to the sweep or the
+    watchdog; a human pause is never reactivated here. `coga launch` then
+    re-composes the period from its retained `step:` and blackboard.
+    """
+    cause = "watchdog-paused" if watchdog else "sweep-paused"
+    try:
+        mark_active(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor=SWEEP_ACTOR,
+            log_message=f"activated (paused → active) to resume a {cause} run",
+            echo=f"{ref.id_slug}: active (resuming {cause} run)",
+        )
+    except (
+        TicketError,
+        WorkflowMissing,
+        WorkflowError,
+        MainAgentUnavailable,
+        RepoResourceUnreadable,
+        RequiredExtensionMissing,
+        TaskValidationError,
+    ) as exc:
+        raise RecurringError(
+            f"cannot resume {cause} period {ref.id_slug}: {exc}"
+        ) from exc
 
 
 def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
@@ -5432,17 +5564,23 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             action = typer.style(
                 f"error ({task.period_contradiction})", fg=typer.colors.RED
             )
+        elif task.watchdog_paused and (task.launch_refusal or not force):
+            # A watchdog pause stays loud even while a bare sweep retries it.
+            action = typer.style(
+                f"needs attention ({_watchdog_row_detail(task)})",
+                fg=typer.colors.RED,
+            )
         elif task.resuming:
-            # An orphaned `in_progress` period task from a dead sweep — relaunch
-            # resumes its current step rather than starting a fresh run.
+            # An orphaned `in_progress` period task from a dead sweep, or a
+            # sweep-paused run — relaunch resumes its current step rather than
+            # starting a fresh run.
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
         elif task.launchable or (force and not task.launch_refusal):
             action = typer.style("→ launch", fg=typer.colors.GREEN)
-        elif task.watchdog_paused:
+        elif task.sweep_paused:
             action = typer.style(
-                "needs attention (watchdog timeout; "
-                f"coga launch {task.ref.id_slug})",
-                fg=typer.colors.RED,
+                f"skip ({_open_asks_row_detail(task)})",
+                fg=typer.colors.BRIGHT_BLACK,
             )
         else:
             action = typer.style(
@@ -5470,6 +5608,20 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
     for name, msg in scan.errors:
         bad = typer.style(f"skip (error: {msg})", fg=typer.colors.RED)
         typer.echo(f"  {name:<20} {'':<26} {bad}")
+
+
+def _watchdog_row_detail(task: DueTask) -> str:
+    """Scan-row text for a watchdog-paused period (console and run record)."""
+    assert task.ref is not None
+    if task.launch_refusal:
+        return f"watchdog timeout; coga launch {task.ref.id_slug}"
+    return "watchdog timeout; resuming"
+
+
+def _open_asks_row_detail(task: DueTask) -> str:
+    """Scan-row text for a sweep-paused period still waiting on its asks."""
+    assert task.ref is not None
+    return f"paused; open asks — coga unblock {task.ref.id_slug}"
 
 
 def _firing_label(last_fire: datetime, now: datetime) -> str:

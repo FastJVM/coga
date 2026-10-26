@@ -16,6 +16,8 @@ from coga.blocker_reminders import (
 )
 from coga.config import load_config
 from coga.create import create_task
+from coga.logfile import append_log
+from coga.recurring import SWEEP_ACTOR, SWEEP_PAUSE_SUFFIX
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket, resolve_task
 
@@ -147,20 +149,41 @@ def test_paused_recurring_blocker_is_reminded_once_without_reactivation(
 ) -> None:
     slug = _task_with_blocker(repo, status="paused", slug="recurring/resolve-conflicts")
     cfg = load_config(repo)
+    append_log(cfg, slug, SWEEP_ACTOR, f"paused — {SWEEP_PAUSE_SUFFIX}")
     posts = _capture_posts(monkeypatch)
 
     reminders = scan_blocker_reminders(cfg)
 
     assert len(reminders) == 1
     assert reminders[0].status == "paused"
-    assert reminders[0].next_command == f"coga launch {slug}"
+    assert reminders[0].next_command == f'coga unblock {slug} --answer "..."'
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0)) == 1
     assert "is paused" in posts[0]
     assert "retry ceiling unspecified" in posts[0]
-    assert f"`coga launch {slug}`" in posts[0]
+    assert f'`coga unblock {slug} --answer "..."`' in posts[0]
+    assert "the next recurring sweep resumes the period" in posts[0]
     assert read_ticket(resolve_task(cfg, slug)).status == "paused"
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 11, 0)) == 0
     assert len(posts) == 1
+
+
+def test_human_paused_recurring_blocker_keeps_launch_guidance(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug = _task_with_blocker(repo, status="paused", slug="recurring/resolve-conflicts")
+    cfg = load_config(repo)
+    append_log(cfg, slug, "human:alice", "paused — holding for review")
+    posts = _capture_posts(monkeypatch)
+
+    reminders = scan_blocker_reminders(cfg)
+
+    assert reminders[0].sweep_resumes is False
+    assert reminders[0].next_command == f"coga launch {slug}"
+    assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0)) == 1
+    assert f"`coga launch {slug}`" in posts[0]
+    assert f'`coga unblock {slug} --answer "..."`' in posts[0]
+    assert "next recurring sweep" not in posts[0]
+    assert read_ticket(resolve_task(cfg, slug)).status == "paused"
 
 
 @pytest.mark.parametrize(

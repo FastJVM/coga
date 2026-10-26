@@ -997,7 +997,11 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
     color and the record gets stable, greppable text. The record is read by an
     agent, so ANSI in it is noise at best.
     """
-    from coga.recurring_runner import _firing_label
+    from coga.recurring_runner import (
+        _firing_label,
+        _open_asks_row_detail,
+        _watchdog_row_detail,
+    )
 
     now = datetime.now()
     lines: list[str] = []
@@ -1007,15 +1011,14 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
             action = "skip (ran this period)"
         elif task.period_contradiction:
             action = f"error ({task.period_contradiction})"
+        elif task.watchdog_paused and (task.launch_refusal or not force):
+            action = f"needs attention ({_watchdog_row_detail(task)})"
         elif task.resuming:
             action = "resume"
         elif task.launchable or (force and not task.launch_refusal):
             action = "launch"
-        elif task.watchdog_paused:
-            action = (
-                "needs attention (watchdog timeout; "
-                f"coga launch {task.ref.id_slug})"
-            )
+        elif task.sweep_paused:
+            action = f"skip ({_open_asks_row_detail(task)})"
         else:
             action = f"skip ({task.status})"
         lines.append(f"{task.template:<20} {when:<26} {action}")

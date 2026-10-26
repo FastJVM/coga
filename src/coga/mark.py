@@ -679,9 +679,9 @@ def mark_paused(
 ) -> None:
     """Flip a ticket to `paused`: write frontmatter and log.
 
-    Most pauses are silent on Slack (a human `mark paused`, the interactive
-    recurring-cleanup path): they pass no `slack_text` and nothing is
-    broadcast. The one broadcasting caller is the recurring liveness watchdog,
+    Most pauses are silent on Slack (a human `mark paused`, the sweep parking
+    a recurring run that returned unfinished): they pass no `slack_text` and
+    nothing is broadcast. The one broadcasting caller is the recurring liveness watchdog,
     which pauses a wedged run and needs the team to see it — a recurring run
     that timed out is a `recurring-error`, so when `slack_text` is given the
     pause routes through `notification.notify`, posted live to important.

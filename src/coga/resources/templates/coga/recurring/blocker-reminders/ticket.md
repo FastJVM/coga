@@ -23,7 +23,8 @@ blocked tasks and paused recurring periods, posts an owner reminder, and
 records a watermark on the affected task's blackboard before syncing it.
 
 The reminder does not launch or reactivate work. A paused period remains
-paused until the owner resumes it.
+paused until its ask is answered; the next sweep then resumes a period the
+sweep or the watchdog parked. A human pause waits for `coga launch`.
 
 ### One attempt per blocker
 
@@ -36,10 +37,15 @@ period with an open ask also qualifies: the ask remains visible, while the
 reminder leaves status and scheduling untouched.
 
 Blocked-task reminders point to `coga unblock <slug> --answer "..."`. Paused
-period reminders name the paused status and point to `coga launch <slug>` to
-review the ask, then `coga unblock <slug> --answer "..."` inside the resumed
-session to record its answer. Direct unblock requires a blocked or
-in-progress ticket ([lifecycle](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/lifecycle/SKILL.md)).
+period reminders name the paused status and read the period's pause provenance
+([scheduling](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
+A period the sweep or the watchdog paused points to the same unblock and says
+the next recurring sweep resumes it: unblock resolves a paused period's asks
+without changing its status
+([lifecycle](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/lifecycle/SKILL.md)).
+A human-paused period stays paused after its asks are answered, so its
+reminder points to `coga launch <slug>` to resume and review the ask, then
+`coga unblock <slug> --answer "..."` inside the resumed session.
 
 `remind_blocked_tasks` posts one reminder per unresolved blocker, then
 `record_reminder` appends a `- <fingerprint> last_reminded: <stamp>` line

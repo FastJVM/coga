@@ -37,7 +37,11 @@ def unblock(
         "answer per ticket (blank to skip).",
     ),
 ) -> None:
-    """Resolve open blockers; move `blocked -> active` (in_progress stays put)."""
+    """Resolve open blockers; move `blocked -> active` (in_progress stays put).
+
+    A paused recurring period with open asks has them resolved and stays
+    `paused`; the next sweep or named launch resumes it.
+    """
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -66,12 +70,17 @@ def unblock(
     # `in_progress` ticket with open asks is the interactive-launch-of-blocked
     # session recording its resolution mid-step: launch already reactivated the
     # ticket, so unblock resolves the asks only and leaves status and step
-    # untouched.
+    # untouched. A `paused` recurring period with open asks was parked by the
+    # sweep after its run blocked; resolving the asks is what lets the next
+    # sweep resume it, so it too stays put.
     ticket = read_ticket(ref)
-    if ticket.status not in {"blocked", "in_progress"}:
+    if ticket.status not in {"blocked", "in_progress"} and not _paused_period(
+        ref, ticket.status
+    ):
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}; unblock requires "
-            "'blocked' (or 'in_progress' with open asks)."
+            "'blocked' (or 'in_progress' or a paused recurring period with "
+            "open asks)."
         )
 
     blockers = open_blockers(ref.ticket_path)
@@ -141,13 +150,19 @@ def _unblock_all(cfg: Config) -> None:
     typer.echo(f"Unblocked {unblocked}, skipped {skipped}.")
 
 
+def _paused_period(ref: TaskRef, status: str) -> bool:
+    """A paused `recurring/` period — the one paused status unblock accepts."""
+    return status == "paused" and ref.id_slug.startswith("recurring/")
+
+
 def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     """Resolve open blockers on one ticket; reactivate it unless mid-step.
 
     A `blocked` ticket is marked active. An `in_progress` ticket (interactive
-    launch already reactivated it) gets its asks resolved with status and
-    `step:` untouched. Raises `_UnblockError` (never exits) so `--all` can
-    report and continue.
+    launch already reactivated it) or a paused recurring period (the next
+    sweep resumes it) gets its asks resolved with status and `step:`
+    untouched. Raises `_UnblockError` (never exits) so `--all` can report and
+    continue.
     """
     actor = f"human:{cfg.current_user}"
     try:
@@ -169,6 +184,24 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
             )
             typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
+            return
+
+        if _paused_period(ref, ticket.status):
+            # Pause provenance stays on the earlier `paused` audit line, so the
+            # sweep still recognizes its own pause and now resumes it.
+            append_log(
+                cfg,
+                ref.id_slug,
+                actor,
+                f"unblocked (asks resolved, still paused): {answer}",
+            )
+            git.sync_task_state(
+                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
+            )
+            typer.echo(
+                f"{ref.id_slug}: open asks resolved (still paused; the next "
+                "recurring sweep resumes it)"
+            )
             return
 
         mark_active(

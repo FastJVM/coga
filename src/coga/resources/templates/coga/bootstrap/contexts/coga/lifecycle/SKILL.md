@@ -23,7 +23,7 @@ terminal outcomes `done` and `canceled`.
 | `done` | `coga mark done`, or final-step `coga bump` (clears `step:`) | `active`, `in_progress` |
 | `canceled` | `coga mark canceled --message <reason>` (clears `step:`) | any non-terminal |
 | `blocked` | `coga block --task <ref> --reason ...` (keeps `step:`) | `active`, `in_progress`, `blocked` |
-| `blocked → active` | `coga unblock` (keeps `step:`) | `blocked` |
+| `blocked → active` | `coga unblock` (keeps `step:`; on `in_progress` or a paused `recurring/` period it only resolves asks) | `blocked` |
 
 Launching is itself the
 readiness signal: `coga launch` performs `mark active` inline on a `draft` or
@@ -77,7 +77,11 @@ should be answerable from `coga status --blocked` alone.
 `coga unblock <ref> --answer "..."` marks each open ask `- [x]` with a
 `resolved:` line and returns the task to `active` at the same step; without
 `--answer` it prompts after showing the asks. On an `in_progress` ticket with
-open asks it only resolves them. `coga unblock --all` walks every blocked task,
+open asks it only resolves them. On a `paused` recurring period with open asks
+it also only resolves them: the period stays `paused`, and the next sweep or
+named launch resumes it with the answer on its blackboard
+([recurring scheduling](../recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
+Any other paused ticket is refused. `coga unblock --all` walks every blocked task,
 prompting per task (blank skips; `--answer` is rejected) and ends with an
 `Unblocked N, skipped M` summary.
 
