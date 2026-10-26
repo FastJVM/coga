@@ -718,6 +718,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Phase 1: 49 issues (0 direct-fix, 2 pr-proposal, 47 human-needed).
 - Scan run id `20261026T172253Z`, dir `coga/.coga/dream-scans/20261026T172253Z/`; repo-identity coga-source. Knowledge-scan 26 area shards, contract-audit 8 shards.
 - Phase 4 candidates (computed pre-scan): 41 eligible done tickets; done+checkout debt: blocks/06, blocks/08, blocks/09 (local branch live), document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba (worktree dirs live); 32 canceled = retirement debt. No open PR touches coga/tasks/.
+- 10:30: human launched `commit-journal/publish-log-lines-left-uncommitted` in this same primary checkout (now on its feature branch with uncommitted product edits by a live session). Dream does not touch that tree's branch/files; all Dream PR work and Retro run in isolated worktrees. Scratchpad under /tmp was reaped mid-run; Dream work files now live in `.coga/dream-scans/20261026T172253Z/work/`.
+- Phase 2 knowledge-scan: 26/26 leaves complete, 51 raw findings, 0 incomplete.
+- Phase 4 eligibility revised: 5 done tickets keep their `## Dev` branch in a sibling clone (no `worktree:` recorded) → treated as done+checkout debt, conservatively: fix-parser-bugs-documented-in-pr-1055 (codex/fix-parser-boundaries @ /home/n/Code/codex/coga), automate-checkout-setup-and-deduplicate-instructio (checkout-prep-automation @ codex clone), context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set (context-audiences-split @ codex clone), launch-moves-the-checkout-to-main-before-and-after (launch-normalizes-checkout @ /home/n/Code/coga), windows-native/01-core-port-cli-and-test-suite-pass-on-native-window (@ /home/n/Code/coga). Phase 4 set = 36.
 
 ## Dream Skill: validate-drift
 
@@ -830,3 +833,48 @@ Result: 49 issue(s): 0 direct fix, 2 PR proposal, 47 human-needed.
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
 - `webhook-for-slack-is-public`: `stuck-in-progress` (warn) - in_progress but idle for 431.5h
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+
+## Findings
+
+Merged from knowledge-scan (ks, 51 raw) and contract-audit (ca, 9 raw); 60 raw → 46 after de-duplication. Full paragraphs: Retro evidence snapshot `findings.md` copies.
+
+### extract (by area)
+- X1 `publish-coga-0-4-1-to-pypi-which-main-already-decl` → coga/releasing skill: unset bare SLACK_WEBHOOK_URL for scratch-repo gates; attended gate is owner-only; 0.4.1 via Trusted Publishing. source: done (ks-07)
+- X2 `blocks/04-trim-and-consolidate-the-recurring-family` → coga/knowledge (where a size-exception reason is recorded) + coga/recurring/scheduling's recorded exception reason. source: done (ks-01)
+- X3 `decide-whether-the-weekly-usage-report-belongs-on` → coga/recurring/usage-report template: owner exception keeps report on important; flow move (#944) rejected. source: done (ks-17)
+- X4 `keep-multiline-audit-messages-on-one-log-line` → coga-dev/internals/spool-merge: readers outside logfile + mixed-version limitation. source: done (ks-14)
+- X5 `blocks/06-collapse-state-publication-into-one-user-topic` → coga/pr-publication/preparation: `## PR` holds exactly one fenced yaml mapping. source: done+checkout (ks-02)
+- X6 `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` → windows-aws skill "Long native runs" gotchas. source: done+checkout (sibling-clone branch) (ks-04)
+- X7 `automate-checkout-setup-and-deduplicate-instructio` → coga-dev/internals/git-refresh: reservation receipts in per-worktree git dir, not `.coga/`. source: done+checkout (ks-03)
+- X8 `launch-moves-the-checkout-to-main-before-and-after` → coga/pr-publication: accepted drift is only tasks/** + log.md; recurring/** forces rebase. source: done+checkout (ks-16)
+- X9 `fix-parser-bugs-documented-in-pr-1055` → coga/blackboard: `resolve_open_blockers` writer still rewrites fenced/superseded examples. source: done+checkout (ks-19)
+- X10 `define-the-api-equivalent-cost-proxy-and-price-tab` → coga-dev/internals/usage-pricing declined-status note. source: canceled (ks-17)
+- X11 `nightly-auto-drain-run-for-ready-tickets` → coga/megalaunch declined unattended budget drain. source: canceled (ks-26)
+
+### stale / drift
+- D1 coga/install says native Windows fails every command (fcntl); interim reality: deterministic work runs, agent sessions refuse (ks-04, ks-06, ca-01)
+- D2 coga-dev/current-direction Windows entry describes removed fcntl code; also its readme-top PR list (#1058/#1059 closed unmerged) overstates (ks-06, ks-08, ca-03, ks-08 gap)
+- D3 coga/prompt-composition says `--prompt-report` sweeps; it skips (ks-16)
+- D4 coga-dev/internals/state-publication describes sweep predicate as denylist; it is an allowlist, omits `--prompt-report`; patterns "Sync for new commands" lacks opt-in (ks-14, ca-04)
+- D5 usage-report post skill + ticket.py comment claim a log.md failure audit never written; parenthetical treats canceled cost proxy as pending (ks-17 ×2)
+- D6 coga-dev/microkernel: wrong fallback symbol (BUILTIN_COMMANDS vs DEFAULT_ALIASES; uninstall dispatches before validation); `delete`/`recurring promote` unclassified (ks-13 ×2, ca-04)
+- D7 code/self-qa cites nonexistent "Pre-review state publication hazard" section and narrows hazard (ks-19, ca-06)
+- D8 code/implement cites absent CLAUDE.md; hard-codes origin/main vs configured [git] remote/control (ca-05 ×2)
+- D9 coga/checkout-cleanup/terminal-owners "weekly retry" — branch sweep is daily (ca-01)
+- D10 branch-sweep skill restates outdated ignored-state carve-out (ks-22)
+- D11 coga/architecture "nothing changes operating rules without a merge" — only Dream is PR-bound (ks-02)
+- D12 coga/extension-model attributes alias collision checks to config load; it's CLI entry (ks-02)
+- D13 coga/launch says `--agent` override lifecycle lines credit configured operator; code credits spawned agent (ks-18)
+- D14 coga/tickets/discovery: `tasks/_template/` holds canonical shape — gone; it's src/coga/resources/ticket.md (ca-02)
+- D15 shipped coga.toml template: important post "still crashes" — automatic alerts are fatal=False (ks-20)
+- D16 skill-creator ATTRIBUTION: install-url doesn't write include/notes (ks-25)
+- D17 coga-dev/testing holds the only `non-executable-script` contract (local-only audience) — overlaps open PR #1097 (ks-05)
+- D18 coga/notifications leaked-webhook response prescribes redacting append-only log; needs owner decision (ks-20)
+- D19 dream_validate_drift classifies large-blackboard (and unsynthesized-draft-blackboard) as pr-proposal, but remedy is Coga state that can't ride a PR (ks-23)
+- D20 tickets with stale/satisfied premises: repoint-the-launch-topic-chat-occupancy-guard-owne (satisfied, dce68cd22), autofix/name-cross-repo-retire-follow-ups-with-the-repo-th (satisfied by #873), marketing/1st-users (cites deleted coga/agents), marketing/verify-posthog-telemetry-with-the-live-clean-wheel + marketing/build-the-launch-plan (cite deleted coga/telemetry), launch-locks/checkout-exclusivity-lock design.md (predates chat guard) (ks-01, ks-03, ks-08 ×2, ks-15, ks-21)
+- Owned: windows-aws attended ssh -tt (owner: windows-native/03-interactive-coga-launch-on-native-windows, ks-05); recurring/templates run_reported floor (owner: gigantic-refactor-move-recurring-recipes-out-of-co, ks-09); coga-dev/testing CI decision reversed (owner: windows-native/02-pr-ci-with-linux-and-windows-test-jobs, PR #1097, ks-05); workflows lost `validate-drift: unfrozen-workflow` tag (owner: validate-drift-unfrozen-workflow-11-hand-authored, ks-11); state-publication "commit it" doesn't shield recurring templates (owner: state-sync-published-unmerged-recurring-templates, ks-14); checkout-cleanup foreign-linked wording (owner: guard-foreign-linked-worktree-branch-cleanup, ks-22)
+
+### gap
+- G1 readme-top done with 3 unowned launch obligations (PyPI-safe links, First-steps matrix check, demo video, megalaunch proof) still routed to it by open tickets (ks-08) — unowned
+- Owned: sweep publishes canonical twins without packaged halves (owner: stop-the-contexts-root-sweep-from-publishing-canon; ks-01, ks-02, ks-14); ticket-prose PRs satisfying `requires: pr` (owner: add-an-applying-a-batch-of-verdicts-section-to-the, PR #912 closed); knowledge sync rule step (owner: carry-the-apply-the-register-amendment-step-in-a-w; draft branch only in /home/n/Code/coga); recurring-control declined-checkout decision (owner: run-recurring-agent-templates-off-the-control-bran); `--agent` override turns peer review into self-review (owner: where-have-code-review-disappeared)
+
