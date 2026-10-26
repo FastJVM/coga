@@ -26,6 +26,7 @@ step: 2 (peer-review)
 agent: claude
 contexts:
 - coga-dev/principles
+launch_generation: pending:996ce5f8-152c-4a97-93c6-4ce5baa21434
 ---
 
 ## Description
