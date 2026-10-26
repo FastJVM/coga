@@ -8,8 +8,8 @@ description: When a branch whose PR closed without merging may be deleted — te
 Part of [coga/checkout-cleanup](../SKILL.md).
 
 A branch whose PR was closed without merging may be deleted, but only when
-its ticket finished. Every branch-sweep pass applies
-the rule: the daily autoclose pass, the weekly retry, and the restricted pass
+its ticket finished. Every branch-sweep pass applies the rule: the daily
+autoclose pass, the daily clone-scoped branch sweep, and the restricted pass
 retire and autoclose run for a disposed ticket.
 
 **Ownership.** A ticket owns a branch only through a `## Dev` `branch:` line

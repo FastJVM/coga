@@ -77,9 +77,9 @@ without going through retire or a session dies mid-flight.
    linked worktree of the checkout the sweep runs from — an independent clone
    or another repository's worktree is preserved, so each clone GCs only its
    own worktrees; it is not the checkout running the sweep; it holds that
-   branch; and it carries no tracked or untracked local state (ignored
-   regenerable caches — `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`,
-   `.mypy_cache/` — go with it; any other ignored file preserves it). A
+   branch; and it carries no tracked or untracked local state (which ignored
+   entries go with it and which preserve it is owned by
+   [coga/checkout-cleanup](context:coga/checkout-cleanup), *Ignored state*). A
    worktree that fails any proof keeps both refs `skipped-worktree-pinned`,
    with the reason in the run record,
 6. publish the retirement tag under
