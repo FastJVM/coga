@@ -888,3 +888,43 @@ Generated: 2026-10-26T18:12:43+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Phase 4 Retro outcome
+
+Verified against fetched origin/main: 36/36 tickets classified (`complete — 8 PRs, 26 direct deletes, 36 tickets`); all 8 PR branches pushed; all 26 direct deletes absent from main; isolated checkout held nothing unlanded. Worktree, temp branch, copied coga.local.toml removed.
+- Knowledge PRs: #1099 releasing (publish-coga-0-4-1…), #1100 init bare webhook (cleanup/handle-a-bare-slack-webhook-url…), #1101 knowledge size exception (blocks/04…), #1102 usage-report (decide-whether-the-weekly…, report-of-usage-incoga…, dedupe-claude-transcript…), #1103 branch-sweep non-UTF-8 (recurring/autoclose-merged), #1104 spool-merge readers (keep-multiline-audit…), #1105 readme-top unshipped (marketing/readme-top), #1106 git-refresh limitations (pin-control-inside…).
+- Direct deletes (26): a-slack-repo-without-important…, autofix-write-ups-lose…, blocks/01, 02, 03, 05, 07, competition-testing/test-bmad-method, test-speckit, confirm-why-branch-sweep…, context-audiences/01, exclude-superseded-designs…, file-post-merge-obligations…, keep-the-file-list…, let-the-autofix-generator…, match-concurrent-codex…, microkernel/move-retire…, name-the-current-script-assist…, recurring/{address-pr-comments, blocker-reminders, phone-home, resolve-conflicts, skill-update, usage-report}, slim-the-40-9-kib…, surface-a-chat-end-log-line….
+
+## Dream Run Summary
+
+Generated 2026-10-26T18:15Z (period 2026-W44).
+
+| Phase | Result |
+|---|---|
+| preflight | ok (git-common-dir, remote, gh) |
+| 1 validate-drift | reported — 49 issues: 0 direct-fix, 2 pr-proposal, 47 human-needed |
+| 2 knowledge scan | reported — 26/26 shards, 51 raw findings |
+| 3 contract audit | reported — 8/8 shards, 9 raw findings (60 raw → 46 merged) |
+| 4 retro/done-ticket | pr-opened — 8 knowledge PRs, 26 direct deletes, 36 tickets |
+| 5 cleanup-orphan-markers | no-op |
+| 6 disposition | proposed — 10 proposal PRs, 8 draft tickets; upstream-captured 0 (Coga source repo) |
+
+Proposal PRs: #1107 coga/install interim Windows posture (D1); #1108 sweep predicate docs (D3, D4); #1109 architecture/extension-model/launch/tickets-discovery claims (D11–D14); #1110 shipped coga.toml + skill-creator ATTRIBUTION comments (D15, D16); #1111 coga-dev/microkernel seams + placements (D6; human must name a `recurring promote` owner; also lists bare `recurring` as settled kernel head); #1112 code/self-qa + code/implement citations and configured remote (D7, D8); #1113 terminal-owners cadence + branch-sweep skill pointer (D9, D10); #1114 pr-publication `## PR` shape + accepted drift (X5, X8); #1115 windows-aws long native runs (X6); #1116 coga/blackboard unblock-writer limitation (X9). All pr-required; none auto-merged.
+
+Draft tickets created: rewrite-the-coga-dev-current-direction-native-wind (D2; overlaps open #1096/#1105), move-the-non-executable-script-validate-contract-i (D17; overlaps #1097), reconcile-the-coga-notifications-leaked-webhook-re (D18; owner decision), route-large-blackboard-validate-issues-as-state-ed (D19 + Phase 1 large-blackboard proposals for context-audiences/02 and windows-native/01), triage-open-tickets-whose-premise-dream-found-sati (D20), finish-the-readme-launch-checks-left-open-by-readm (G1), fix-the-usage-report-cost-proxy-parenthetical-and (D5 remainder; #1102 carries the log.md claim fix), name-where-ticket-checkout-reservation-receipts-li (X7; overlaps #1106).
+
+Already ticketed:
+- validate-drift: stuck-in-progress → validate-drift-stuck-in-progress-11-in-progress-ti (21 members; 14 new since filed: add-a-failed-terminal-status, dream-s-own-blackboard-trips-large-blackboard-ever, launch-locks/checkout-exclusivity-lock, marketing/fix-installer/test-and-fix-install-on-macos-and-windows, marketing/publish-coga-1-0-as-the-final-v1-step, marketing/why-i-would-keep-using-coga, prevent-duplicate-session-usage-records-from-infla, record-the-two-self-qa-hazards-from-done-ticket-bl, repair-ticket-referents-when-a-referent-is-renamed, the three validate-drift-* owners themselves, verify-dream-under-codex-on-the-real-repo-w40, webhook-for-slack-is-public).
+- validate-drift: unfrozen-workflow → validate-drift-unfrozen-workflow-11-hand-authored (20 members; 18 new since filed, incl. the commit-journal/*, microkernel/* and marketing drafts; see validate-drift section). Its recorded decision tag was dropped from coga/workflows by 4792e20df (owned by the same ticket), so no context-recorded decision applies this run.
+- validate-drift: empty-description → validate-drift-empty-description-23-title-only-tic (6 members; 4 new: coga-chat-without-context-and-isolation-for-pure-j, in-init-add-a-telemetry-true-message, make-coga-init-initizalizess-also-already-filled-r, review-all-doc).
+- Findings: windows-aws attended ssh -tt → windows-native/03-interactive-coga-launch-on-native-windows; recurring/templates run_reported → gigantic-refactor-move-recurring-recipes-out-of-co; coga-dev/testing CI reversal → windows-native/02-pr-ci-with-linux-and-windows-test-jobs (PR #1097); workflows decision tag → validate-drift-unfrozen-workflow-11-hand-authored; state-publication "commit it" → state-sync-published-unmerged-recurring-templates; checkout-cleanup foreign-linked wording → guard-foreign-linked-worktree-branch-cleanup; twin-splitting sweeps → stop-the-contexts-root-sweep-from-publishing-canon; ticket-prose PRs and `requires: pr` → add-an-applying-a-batch-of-verdicts-section-to-the (its PR #912 closed unmerged; stalled); knowledge sync step → carry-the-apply-the-register-amendment-step-in-a-w (draft branch carry-knowledge-amendments exists only in /home/n/Code/coga, unpushed); recurring-control declined checkout → run-recurring-agent-templates-off-the-control-bran; `--agent` self-review → where-have-code-review-disappeared.
+
+Retirement debt (left on disk; `coga retire <slug>`):
+- done+checkout (12): blocks/06-collapse-state-publication-into-one-user-topic (unlocks X5 → #1114), blocks/08-trim-launch-prompt-and-workflow-topics, blocks/09-trim-setup-and-extension-topics, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba, fix-parser-bugs-documented-in-pr-1055 (X9 → #1116), automate-checkout-setup-and-deduplicate-instructio (X7 → draft), context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set, launch-moves-the-checkout-to-main-before-and-after (X8 → #1114), windows-native/01-core-port-cli-and-test-suite-pass-on-native-window (X6 → #1115). The last five keep their `## Dev` branch only in a sibling clone (/home/n/Code/codex/coga or /home/n/Code/coga).
+- canceled (32): retiring define-the-api-equivalent-cost-proxy-and-price-tab unlocks X10 (coga-dev/internals/usage-pricing declined-status note); nightly-auto-drain-run-for-ready-tickets unlocks X11 (coga/megalaunch declined unattended budget drain).
+
+Human-needed:
+- origin/main fails tests/test_packaging.py since e2d1c3362 ("Sync coga state", 10:53): a sweep from another session published an uncommitted coga/recurring/blocker-reminders/ticket.md edit without its packaged twin. That is the hazard owned by state-sync-published-unmerged-recurring-templates and stop-the-contexts-root-sweep-from-publishing-canon. Retro PRs #1099–#1106 report 29 passed / 1 failed for this reason only.
+- Leftover Dream ops worktree (needed to run the closing commands outside the occupied primary): `git -C /home/n/Code/claude/coga worktree remove /home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops && git -C /home/n/Code/claude/coga branch -D dream/ops-20261026T172253Z && rmdir /home/n/Code/claude/.dream-retro-20261026T172253Z` (also remove `coga/coga.local.toml` copy first if the worktree refuses).
+- Machine-local validator issues: none.
+
