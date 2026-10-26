@@ -83,9 +83,11 @@ Guardrails:
 
 - **No worse Typer.** Aliases stay fixed rewrites; no conditionals, computed
   args, or validation in TOML.
-- **Structural validation fails loud.** Config load raises `ConfigError`
-  when an alias name collides with a built-in, expands to nothing, or targets
-  a first token that is not a built-in command. The CLI exits 2 before running
+- **Structural validation fails loud.** The `coga` entry point rejects an
+  alias whose name collides with a built-in, that expands to nothing, or
+  whose first token is not a built-in command (config load itself checks
+  only that each entry is a non-empty string). The CLI exits 2 before running
   any ordinary command, so a bad alias takes down the CLI in that checkout.
   Only `coga init`, `coga uninstall`, and the cross-repo
-  `coga recurring --all` parent dispatch on built-in defaults and survive it.
+  `coga recurring --all` parent dispatch on built-in defaults and survive it;
+  that parent skips the broken repo rather than dispatching it.

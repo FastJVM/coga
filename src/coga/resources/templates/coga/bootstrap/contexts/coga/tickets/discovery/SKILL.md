@@ -15,8 +15,8 @@ Discovery walks `coga/tasks/` at any depth:
   siblings. Promote with `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md`.
 - `<slug>.md` and `<slug>/` must not both exist.
 - `README.md` is never a task; it documents its directory. Names starting
-  with `_` are skipped at every level: `_template/` holds the canonical
-  ticket shape, and any other `_`-prefixed directory is **parked**.
+  with `_` are skipped at every level: `_template` is reserved (below), and
+  any other `_`-prefixed directory is **parked**.
 - A **parked** directory (such as `_v2/`) keeps files Coga never lists,
   launches, validates, or scans for Dream, while state sync still publishes
   them. It holds captures and wishes that need not be current or consistent.
