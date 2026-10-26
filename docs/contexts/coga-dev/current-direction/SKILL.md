@@ -134,9 +134,16 @@ is `coga status` and the ticket bodies; stage posture is
   clean-install checks owed, `marketing/readme-top` marked done with a "Still
   open" list, and
   `marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta`
-  leaving the macOS walk without a build passthrough; Retro W43 kept them
-  only as known gaps in PRs #1058, #1059, and #1046. When measuring this
-  queue, a ticket still on `review` with a merged PR is not backlog
+  leaving the macOS walk without a build passthrough. Retro W43 proposed
+  them as known gaps, but only PR #1046 (macOS harness) merged; #1058 and
+  #1059 closed unmerged. 0.4.1 has since published, with its attended gate
+  skipped by owner decision (`coga/releasing`). `marketing/readme-top`'s
+  checks remain unowned unshipped scope: the megalaunch carry-forward proof
+  in the README Example, `## First steps` against the installer's final
+  clean-install matrix, a verdict on the linked 95-second demo video, and
+  PyPI-safe absolute README links (relative links 404 on the PyPI page).
+  File a draft owning them rather than routing work to the done ticket.
+  When measuring this queue, a ticket still on `review` with a merged PR is not backlog
   (autoclose closes it next run); count only open PRs as the live queue, and
   gate a measurement over retired tickets and merged PRs on a closed time
   window, never on an empty live queue.

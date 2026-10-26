@@ -119,3 +119,10 @@ Still open for this ticket:
 - Commands: `## First steps` is not yet checked against the `fix-installer`
   final matrix.
 - Demo video: not watched; the README link and its caveat are unchanged.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: README launch checks from marketing/readme-top remain unowned
