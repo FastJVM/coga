@@ -138,9 +138,10 @@ position.
 bytes, `approx_tokens` = ceil(chars/4)) and the total; the `session_conduct`
 line names the selected resource, the ticket's regions stay separate lines so
 an oversized blackboard is visible, and layers read from a repo override are
-listed under `Repo resource overrides:`. It works on drafts but runs the
-normal state sweep ([coga/checkouts](../checkouts/SKILL.md)). A prompt too
-large for one argv argument is delivered as a pointer to the prompt file;
+listed under `Repo resource overrides:`. It works on drafts and skips the
+end-of-command state sweep
+([coga/launch](../launch/SKILL.md#options-and-exits)). A prompt too large for
+one argv argument is delivered as a pointer to the prompt file;
 such a size usually means context bloat.
 
 Implementation detail (prompt files, the launch marker's cache rationale,
