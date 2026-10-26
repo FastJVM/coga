@@ -1,6 +1,6 @@
 ---
 title: Chat ticket edits strand the checkout on a chat branch
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -31,6 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
