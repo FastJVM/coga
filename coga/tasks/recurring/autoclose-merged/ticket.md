@@ -119,3 +119,10 @@ Task: `recurring/autoclose-merged`
 
 - `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` "Core port: CLI and test suite pass on native Windows" — PR #1093:
   - `src/coga/branchsweep.py:1443` by @chatgpt-codex-connector: "P2 Badge Preserve non-UTF-8 Git ref and worktree names" — https://github.com/FastJVM/coga/pull/1093#discussion_r4362623990
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Branch sweep aborts on non-UTF-8 ref or worktree names

@@ -106,3 +106,17 @@ Before discharge, reconciliation backfills a legacy `retires.md` entry's
 `branches` list from its surviving ticket's exact slug; an unreadable ticket
 refuses reconciliation. A union-merged older line cannot erase an existing
 additional branch list. Field syntax is in the `coga/autoclose/sweep` skill.
+
+## Known failure mode: non-UTF-8 ref and worktree names
+
+`branchsweep._git` decodes Git output as strict UTF-8 (`encoding="utf-8"`,
+no `errors=`), while `branchcleanup._git` adds `errors="surrogateescape"`.
+On a POSIX host whose locale admits bytes UTF-8 rejects, a ref or worktree
+path holding such bytes makes the sweep's `for-each-ref` or
+`worktree list --porcelain` read raise `UnicodeDecodeError`, which aborts the
+whole branch sweep for that repository; before the Windows port forced UTF-8
+(PR #1093) the locale encoding decoded it. Unresolved: raised as an
+unanswered P2 review thread on PR #1093 (`src/coga/branchsweep.py`), reported
+by autoclose on 2026-10-26; no ticket owns it. The suggested fix is
+`errors="surrogateescape"` as `branchcleanup._git` does, or limiting the
+encoding override to Windows. Not yet reproduced in a test.
