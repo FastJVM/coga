@@ -152,7 +152,6 @@ this step just makes sure the diff they see is already clean.
 - If `/code-review` and `/simplify` disagree on a specific edit, the
   human reviewer is one step away — leave the code in the safer state
   and note the disagreement on the blackboard.
-- Commit edits to recurring templates and `ticket.py` under
-  `coga/recurring/` *before* running a `coga` command on the feature branch.
-  See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md),
-  "Pre-review state publication hazard".
+- Commit edits you want reviewed *before* running a `coga` command on the
+  feature branch. See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md),
+  "Control versus feature checkouts" ("Pre-review publication hazard").

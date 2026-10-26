@@ -97,18 +97,21 @@ after review and fixes.
      network, or filesystem nondeterminism; no sprawling mocks where a
      fixture or a plain call would do.
 6. **Update the example fixture** when behavior affects task layout,
-   prompt composition, or workflow semantics (per CLAUDE.md).
+   prompt composition, or workflow semantics (per the repo's agent
+   instruction file, `AGENTS.md` or `CLAUDE.md`).
 7. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-8. **Freshen against `main`.** `git fetch origin main && git rebase
+8. **Freshen against the control branch.** With `<remote>` and `<control>`
+   from `[git].remote` and `[git].control_branch` in `coga.toml` (defaults
+   `origin` and `main`), run `git fetch <remote> <control> && git rebase
    FETCH_HEAD` on the feature branch, preserving the projected ticket as
    `coga/checkouts` describes; if commits came in, re-run the tests and fix
    what broke. Apply `coga/checkouts/reconciliation` when reconciling changes
    or deciding what needs human input. The later `coga open-pr` refuses a
-   branch missing material commits from `origin/main`, and as a script it
-   has no judgment to rebase with — freshness lands in the agent steps,
+   branch missing material commits from `<remote>/<control>`, and as a
+   script it has no judgment to rebase with — freshness lands in the agent steps,
    while judgment is available.
-9. **Push.** `git push -u origin <branch-name>` (add `--force-with-lease`
+9. **Push.** `git push -u <remote> <branch-name>` (add `--force-with-lease`
    when a rebase rewrote an already-pushed branch). Stay on the branch when
    launch returns the checkout; a manual session performs the
    `coga/checkouts` end-of-step return instead. In the sandbox clone layout,
