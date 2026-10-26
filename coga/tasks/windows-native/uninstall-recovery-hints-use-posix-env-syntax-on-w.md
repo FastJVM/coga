@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
-launch_generation: pending:796f19ac-63e5-4392-b394-81a869576e31
+launch_generation: 796f19ac-63e5-4392-b394-81a869576e31
 ---
 
 ## Description
