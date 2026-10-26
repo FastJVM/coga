@@ -12,8 +12,10 @@ and future work starts from the updated instructions.
 and decisions. Code implements that understanding and can be rewritten as
 we learn.
 
-Think of it as a workbench, not an assembly line: it's what you build with
-while you're still working out what to build. 
+Start with `coga chat` or a rough ticket. You can explore before deciding
+what to build or how to organize the work. What you learn might become
+code, a context, a small tool, or a procedure. Plans and specifications are
+useful when the work calls for them.
 
 Coga is a small overlay on top of what agents already provide, so it gets better when they do.
 
@@ -37,13 +39,16 @@ assembles that material into its opening prompt. It's like writing SQL
 instead of going through an ORM: more of the work is in your hands, and you
 see what goes in. For intensive use, we find that easier to manage.
 
-- **The unit is the task, not the session.** Each launch builds a fresh
-  prompt from what that task needs: the ticket, the contexts it attaches, the
-  current workflow step.
+- **Work can outlive a session.** A ticket carries work between sessions.
+  Each launch builds a fresh prompt from the ticket, its selected contexts,
+  and the current workflow step.
 
 - **Knowledge moves out of code and chat, into files.** Coga treats the text as a first-class citizen. It creates PRs to update the documentation and takes great care to be right. The code is the agent's job. Coga's job is to make sure the text reflects your work and your learning.
 
-- **Hackable and automated.** You want a feature in Coga? Start `coga chat` and build it from there. It's built on known agent conventions, so it can build itself and you can understand what's being built.
+- **Shape the tools as you work.** You and your agents can revise contexts,
+  procedures, and workflows, or build a small tool when a task needs one.
+  The files that guide future work are ordinary project material you can
+  inspect, question, and change. Use `coga chat` to work on Coga itself, too.
 
 
 ## Key concepts
@@ -63,9 +68,19 @@ see what goes in. For intensive use, we find that easier to manage.
 
 ## Philosophy
 
-Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. The [design principles](docs/contexts/coga-dev/principles/SKILL.md)
-describe the philosophy behind Coga.
+Coga applies the personal-computing tradition of augmenting human capability
+to work with agents. The aim is to help people understand, explore, and
+create, including by changing their own tools and ways of working.
+
+Agents can help build those tools and procedures while doing the work.
+Coga keeps the material they work from explicit and inspectable, so people
+can see what needs correcting and carry useful learning into later work.
+
+The [design principles](docs/contexts/coga-dev/principles/SKILL.md) guide these
+choices. The [influences and related readings](docs/contexts/coga-dev/principles/reading-list.md)
+connect them to Alan Kay's computing as a medium for thought, Douglas
+Engelbart's augmentation of human intellect, and Robert Pirsig's care for
+and understanding of the tools we use.
 
 ## Example
 
