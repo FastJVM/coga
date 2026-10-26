@@ -32,9 +32,13 @@ versatility or a campaign pitch.
 Use `coga/skills/marketing/write-post/SKILL.md` for production and claim/craft
 checks. This is the only V1 idea piece. The proof is the README's thinkpick
 example: writing the plan down in tickets exposed a wrong assumption, the
-replacement research plan ran as tickets, and the resulting decision became
-a context every later ticket starts from. Link the public thinkpick tickets
-the README cites; do not substitute an authored illustration for them.
+correction became an evidence-first vision and research tickets, and the
+candidate-scoring brief now requires measuring the preferred approach against
+a baseline. In the public snapshot the README cites, the research and
+classifier-decision tickets are still drafts; do not claim a completed
+experiment or decision without its published evidence. Link those pinned
+thinkpick sources and the README's observed megalaunch run; do not substitute
+an authored illustration for them.
 Use public Coga evidence only and no productivity multiplier.
 
 The opening candidate is the README's: “Most tools are building
