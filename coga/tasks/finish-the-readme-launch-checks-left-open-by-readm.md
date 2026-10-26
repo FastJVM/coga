@@ -1,6 +1,6 @@
 ---
 title: Finish the README launch checks left open by readme-top
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:64b54f34-0ccc-44cd-97e9-52bb3fb1cf42
 ---
 
 ## Description
