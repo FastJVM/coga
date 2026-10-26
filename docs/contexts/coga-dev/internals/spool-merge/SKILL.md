@@ -65,6 +65,17 @@ than a substring, so a peer event that mentions the tag stays. That
 whole-event guarantee covers events written under this encoding; an
 already-malformed historical event need not retract cleanly.
 
+**Readers outside `logfile` parse the same grammar.** A change to the line
+grammar or the escaping must update them in the same PR, and the list is not
+obvious from `logfile` alone (the v1 change first missed the telemetry
+reader): `usage._LOG_LINE_RE` in `usage.load_records`,
+`recurring_runner._CONTROL_LOG_ENTRY_RE` in `_read_control_ledger` and its
+incremental diff path, the anchored pattern in `recurring._watchdog_pauses`,
+and `coga_edge/phone_home.py` `_ENTRY` for movement counting. Grep for
+`v1 )?` before trusting this list. Accepted limitation: a Coga older than
+the v1 header does not parse v1 lines, so an older clone reading a newer log
+silently skips the new events rather than failing.
+
 ## How `publish` lands a union path
 
 - No provenance check: union paths merge rather than overlay.

@@ -275,3 +275,10 @@ Recorded: 2026-10-10T01:17:40+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: author must be a compact identity (1–32 letters, digits, ./_-).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Audit-line grammar readers outside logfile must change with it
