@@ -1,6 +1,6 @@
 ---
 title: Uninstall recovery hints use POSIX env syntax on Windows
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,6 +32,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:796f19ac-63e5-4392-b394-81a869576e31
 ---
 
 ## Description
