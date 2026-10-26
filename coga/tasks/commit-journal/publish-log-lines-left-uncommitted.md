@@ -1,6 +1,6 @@
 ---
 title: Publish log lines that commands leave uncommitted
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
