@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -86,3 +85,37 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-26T17:18:33+00:00
+Task: `recurring/autoclose-merged`
+
+1 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` "Core port: CLI and test suite pass on native Windows": branch `coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f`
+
+2 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `blocks/06-collapse-state-publication-into-one-user-topic` (worklist backlog): branch `blocks-06-collapse-state-publication` — local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/06-collapse-state-publication-into-one-user-topic`)
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' advanced past the merged PR head 55c24d2fe48f — preserving it.
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/blocks-06-collapse-state-publication because the local branch remains.
+  - Branch sweep: 'blocks-06-collapse-state-publication' has merged PR #1086 at 55c24d2fe48f, but the ref carries commits touching coga/skills/coga/ticket/finalize/SKILL.md, docs/README.md, docs/contexts/coga-dev/codebase/SKILL.md (+29 more) — left in place.
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place.
+- `blocks/08-trim-launch-prompt-and-workflow-topics` (worklist backlog): branch `coga/blocks-08-trim-launch-prompt-workflow` — local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/08-trim-launch-prompt-and-workflow-topics`)
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' advanced past the merged PR head 61537ef1eed8 — preserving it.
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/coga/blocks-08-trim-launch-prompt-workflow because the local branch remains.
+  - Branch sweep: 'coga/blocks-08-trim-launch-prompt-workflow' has merged PR #1089 at 61537ef1eed8, but the ref carries commits touching coga/skills/code/open-pr/SKILL.md, docs/README.md, docs/contexts/coga-dev/codebase/gotchas/SKILL.md (+36 more) — left in place.
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place.
+
+## Autoclose Sweep: unanswered review threads
+
+Generated: 2026-10-26T17:18:34+00:00
+Task: `recurring/autoclose-merged`
+
+1 auto-closed ticket(s) merged with a review thread that is unresolved, not outdated, and got no reply. Autoclose only names them — reading, resolving, or replying stays with a human:
+
+- `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` "Core port: CLI and test suite pass on native Windows" — PR #1093:
+  - `src/coga/branchsweep.py:1443` by @chatgpt-codex-connector: "P2 Badge Preserve non-UTF-8 Git ref and worktree names" — https://github.com/FastJVM/coga/pull/1093#discussion_r4362623990
