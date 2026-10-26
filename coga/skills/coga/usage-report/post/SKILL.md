@@ -29,13 +29,22 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
    (`coga launch` copies only `ticket.py` into the period task), renders the
    default window, and supplies the period ticket's owner (or
    `cfg.current_user` when absent) to `coga.notification.post` with
-   `important=True, fatal=False` — one attempt, on the important route the
-   owner chose. The notification backend adds the repo name and mapped owner
-   mention, retaining plain text for an unmapped owner
+   `important=True, fatal=False` — one attempt, on the important route by
+   owner exception. The report is an FYI, and `coga/important`'s
+   action-needed bar binds the producers Coga ships; the owner keeps this
+   repo-local report on important because token consumption is something
+   they want treated as needing attention (2026-10-01). Moving it to flow
+   was tried in PR #944 and closed unmerged: do not refile that move. The
+   notification backend adds the repo name and mapped owner mention,
+   retaining plain text for an unmapped owner
    ([owner mapping](../../../../../docs/contexts/coga/notifications/SKILL.md#pinging-the-owner)).
-   `fatal=False` means a delivery miss is reported on stderr and
-   in `log.md` but the shim still closes its step with `coga bump`, so the
-   period never sticks `in_progress` over a webhook problem.
+   `fatal=False` means a delivery miss is reported on stderr but the shim
+   still closes its step with `coga bump`, so the period never sticks
+   `in_progress` over a webhook problem. Known gap: the miss is **not**
+   recorded in `log.md`. `SlackChannel.send` writes its failure audit line
+   only when the post passes `task_path`, and `ticket.py` passes none, so the
+   `ticket.py` comment claiming the miss is loud "in `log.md`" is wrong.
+   Check the period's stderr, not the log, for a missed week.
 4. **No cursor.** The template declares no `state_keys:`. Given the same
    `coga/log.md`, the same window renders the same text, so a missed or
    undelivered week is recovered by hand:

@@ -79,3 +79,9 @@ which estimates the prompt side before a run.
 - `human_turns` / `agent_turns` count explicit messages only.
 - Sessions observed in the same window are workstreams, not proof of
   simultaneous processes or a productivity multiplier.
+- Claude records captured before the 2026-10-01 fix (first released in
+  0.4.0) overcount tokens, about 1.6× overall and up to about 1.9× for one
+  session: they summed every transcript line, and Claude Code repeats a
+  response's full `usage` on each content-block line. Capture now counts each
+  `message.id` once. Records are never recounted, so a total or trend spanning
+  that change is not comparable.
