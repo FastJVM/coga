@@ -167,9 +167,10 @@ channels = []
 # This includes `coga slack --important` and automatic recurring-job failures,
 # so this key becomes required once recurring jobs run with Slack enabled.
 # `coga validate` warns when that enabled destination is unresolved. An
-# important post still crashes rather than rerouting to `webhook`, since a
-# human-action alert in the wrong channel is worse than a crash that gets the
-# config fixed. Same `env:` indirection, same reason:
+# important post is refused, never rerouted to `webhook`, since a human-action
+# alert in the wrong channel is worse than a missing one: an explicit
+# `coga slack --important` exits 1, and automatic recurring alerts are
+# reported on stderr and dropped. Same `env:` indirection, same reason:
 #   [notification.slack]
 #   important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
 #

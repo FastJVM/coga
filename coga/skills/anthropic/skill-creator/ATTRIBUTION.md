@@ -21,7 +21,8 @@ run leaves it alone and this file is its attribution home (decision recorded
 by ticket `vendored-skills-carry-no-coga-source-json-so-coga`). Refresh is the
 manual re-copy above. The managed routes now exist for other skills —
 `coga skill install` (GitHub-backed via `gh skill`), `coga skill install-url`
-(writes `.coga-source.json` with an `include` allowlist and
-`local_adaptation_notes`; `coga/skills/clarity/` is a live instance) and
+(writes `.coga-source.json` provenance; an `include` allowlist and notes are
+hand-added afterwards, see `coga/skill-management`; `coga/skills/clarity/` is
+a live instance) and
 `coga skill update` — and `install-url` is the route to take if this skill
 should ever become managed.
