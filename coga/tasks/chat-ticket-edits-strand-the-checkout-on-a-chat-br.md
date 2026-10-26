@@ -2,6 +2,8 @@
 title: Chat ticket edits strand the checkout on a chat branch
 status: in_progress
 owner: nicktoper
+contexts:
+  - coga-dev/principles
 workflow:
   name: code/design-then-implement
   steps:
@@ -39,19 +41,282 @@ launch_generation: edaf902b-1ae2-4a7d-94eb-c405c9a27627
 
 Diagnose and propose a plan; implement only after the owner approves the design.
 
-Incident (2026-10-22): an earlier `coga chat` ran `prepare-checkout` and staged renames of the three `coga/tasks/windows-native/` tickets on its branch `coga/chat-2a1ab1e4c2ff` without committing. The same renames, plus later edits (renamed cross-references, ticket 01 at step 4), reached `main` through a state sync. When the chat ended, the checkout was not returned to `main`. Every later `coga launch <ticket>` and `coga chat` then refused with "staged content is not the published version". `git pull` failed because the branch had no upstream. The owner recovered by committing and pushing the stale copies (`df32b96df`, now redundant with `origin/main`).
+On 2026-10-22, a `coga chat` prepared `coga/chat-2a1ab1e4c2ff` and staged
+renames of the three `coga/tasks/windows-native/` tickets without committing.
+Later working-file edits and lifecycle state reached control, but the index
+still contained the original renamed copies. The checkout remained on the
+chat branch, and subsequent chat and ticket launches refused with "staged
+content is not the published version". A plain `git pull` had no upstream to
+use. The owner committed and pushed the stale copies as `df32b96df` to recover.
 
-Questions to diagnose:
-- Why did the chat end with staged work and no return or loud handoff? Should chat end commit, refuse visibly, or guide recovery?
-- Should edits to Coga state under `coga/` (tickets, log) made in a chat skip the chat branch and be published to `main` the way launch publishes state? Code and docs edits would still go through the branch and a PR. What does that cost in review?
-- When leftover changes already match or are superseded by `main`, should the refusal say so or offer a safe drop?
-- Should the refusal message give concrete recovery steps instead of only pointing to `coga/checkouts/launch-boundary`?
+Routine ticket work should not require a code branch or a redundant commit
+to leave the checkout usable. A failed return must make both the retained
+work and the next safe action apparent. The design below separates the
+reproduced refusal mechanism from the still-unverified original teardown.
 
-Read first: `coga/checkouts/chat`, `coga/checkouts/launch-boundary`, `coga/state-publication`, `coga/sync`.
+### Diagnosis and evidence
 
-Deliverable for the design step: the root cause with evidence, the options with their tradeoffs, and a recommended plan.
+1. **The index was a third version.** `df32b96df` has parent `1c4ecb1ea`
+   (the 15:17:24 PDT chat launch-log commit) and contains three 100%-identical
+   renames, with no content edits. Before that recovery commit at 15:21:35,
+   control had `4d9e9a85b` at 15:20:47 (ticket 01 under its new name, at step 4)
+   and `6717f3d2e` at 15:20:50 (the remaining renames and old-path deletion).
+   Comparing the three new paths at `df32b96df` with `6717f3d2e` shows only
+   control's newer cross-references and ticket 01's step advancement. The
+   recovery commit was not missing implementation that needed a PR.
+2. **Publication already goes to control, independently of the chat branch.**
+   In `src/coga/git.py`, `sync_coga_state()` calls `publish()` over
+   `coga_root_paths()`. `publish()` uses working-file contents and a temporary
+   index; it does not commit the chat's index. A feature checkout therefore
+   keeps both its working dirt and its independently staged version after a
+   successful publish. The branch requirement comes from
+   `src/coga/compose.py`, `CheckoutNotice.render()`, which currently instructs
+   chat to prepare before editing **any** file; it is not a publication
+   requirement.
+3. **Return correctly refuses an unproved staged version.** In
+   `src/coga/git.py`, `prepare_control_checkout()` calls `_plan_preparation()`.
+   That planner requires each staged entry to equal the same path at HEAD
+   or pinned control before calling `_published_proof()` on the working
+   file. A renamed destination is absent at HEAD, and its staged bytes
+   predate control's edits, so neither comparison passes. It does not infer
+   that the destination is harmless because its blob existed at a different
+   source path. Repeating publication cannot repair this index mismatch.
+   An isolated reproduction using the incident's actual three file versions
+   produces all three refusals while every working file equals control.
+4. **Missing warning code is not established.** Both the source at
+   `1c4ecb1ea` and current `src/coga/launch.py`, `_CheckoutBoundary.settle()`,
+   publish before returning, print a prominent refusal, stop further
+   settlement/chaining, and withhold the final sweep. Current
+   `_LaunchInvocation._supervise_steps()` nevertheless returns success after
+   a successful agent whose checkout return refused. Its generic warning
+   also says remaining changes were "not published", which is misleading
+   when working files landed but the index blocked cleanup. The durable
+   `coga/log.md` usage record for session
+   `756df393-1c1e-4dee-b05e-47ab8d002ede` says natural exit 0 at 15:20:22;
+   the ticket publications above occurred later. That record describes the
+   agent, not proof that the supervisor completed teardown. Original stderr
+   and the running installation/version were not found in local `.coga/`
+   records. An interrupted, different-version, or otherwise failed initial
+   finalizer remains unverified; do not claim the staged check alone explains
+   why that first chat failed to publish or display a warning.
+
+### Options and tradeoffs
+
+| Option | Benefit | Cost / decision |
+| --- | --- | --- |
+| Keep a branch for every chat edit; add instructions not to stage state and improve refusal text | Smallest policy change; preserves today's first-edit rule | Routine ticket work still allocates an unnecessary branch; an accidental `git mv` can still strand it. Viable fallback if the owner rejects the recommended branch policy. |
+| Keep routine state-only edits on control; prepare a branch when work needs a PR; keep strict cleanup and add actionable failure reporting | Matches the existing publication boundary, prevents the common staged-ticket workflow, and preserves unknown work | Requires clear handling of a chat that moves from ticket edits to code. Direct state edits receive no pre-merge review, as already specified today. **Recommended.** |
+| Automatically commit/push leftovers at chat end, or require all state to go through PRs | Makes branch dirt durable, or introduces pre-merge review | Commits can capture stale lifecycle fields or unwanted partial code; state-only commits are redundant with publication. PR-only state would redesign lifecycle/publication and delay shared task state. Do not adopt here. |
+| Automatically drop anything that appears older, or treat historical blob presence as sufficient proof | Could recover more old checkouts without intervention | An older staged draft can still contain intentional, unique work. Publication provenance is not a semantic subsumption proof. Keep this out of the initial fix; any future relaxation needs a separately reviewed exact proof. |
+
+### Recommended behavior
+
+Use the second option, subject to owner review:
+
+- A discussion or routine Coga-state-only chat stays on current control.
+  Agents leave state unstaged, including renames: use a filesystem move and
+  let publication detect deletion/addition, rather than `git mv` or `git add`.
+  Publication remains through lifecycle commands, the existing sweep, or
+  strict `coga run publish-state`; agents never hand-edit the log.
+- The boundary is the **configured Coga and contexts roots**, not filename
+  extensions and not a hard-coded `coga/` prefix. Code and docs outside those
+  roots use the chat branch and a PR. Contexts, skills, and workflows inside
+  the roots already publish directly. Implementation or deliberately reviewed
+  knowledge prepares the branch before editing and commits the intended PR
+  files, together with packaged twins where applicable, before a sweeping
+  command. Placement inside a root does not exempt code from that procedure;
+  committed routine task/log/recurring paths still follow today's adoption
+  rules and are not promised PR isolation by this change. This preserves the
+  existing publication/review tradeoff rather than silently redefining it.
+- Before the first edit that needs the branch, strictly publish any pending
+  routine state, require success and a clean checkout, then run the notice's
+  exact `prepare-checkout --session ...` command. The no-path publish recipe
+  covers deletions; named paths require surviving files but do not restrict
+  the sweep. Failure stops this transition. The prepare recipe itself remains
+  non-sweeping. Once on the branch, state can still publish from there; do not
+  hop between branches for each kind of edit or promise a return after each
+  conversation turn. Explicit knowledge review must be chosen before writing
+  that knowledge on control.
+- Keep the current cleanup proof. Exact published working/index copies and
+  the existing union-log proof can already be cleaned automatically. A
+  differing index or working version is preserved until reconciled. Label
+  observations precisely: "working file matches control; staged copy differs"
+  is a fact; "superseded" needs history/content review, not merely a newer
+  control commit or a merged PR. No automatic commit, stash, reset, drop,
+  branch deletion, or push of source work.
+- A direct chat whose agent succeeds but whose armed checkout return refuses
+  or fails exits **75**, with an actionable stderr handoff naming the branch,
+  control target, and blockers. Keep the actual agent result in usage records;
+  preserve a pre-existing nonzero agent/timeout/signal result. Ordinary task
+  launch and delegated/recurring result contracts are unchanged. The direct
+  `launch bootstrap/orient` spelling follows the same policy as `chat`.
+
+### Acceptance criteria
+
+- [ ] A state-only direct chat can edit and rename tickets without creating a
+  chat branch. Successful finalization publishes the new paths and prose,
+  removes the old paths on control, and leaves a clean checkout on current
+  control, including the usage log. Discussion-only behavior remains valid.
+- [ ] A chat that starts with routine state edits and then needs code or a
+  reviewed knowledge edit publishes the former before preparing its reserved
+  branch. Tests verify state reaches control, source stays on the branch,
+  repeated preparation remains safe, and failed publication never causes a
+  switch. Root-layout and relocated-context examples use configured roots.
+- [ ] Entry and return diagnostics distinguish an index-only mismatch from
+  a working-file mismatch. The staged-rename reproduction reports that the
+  working files are already on control while the staged copies differ; it
+  preserves HEAD, index, files, and branch refs on refusal, apart from the
+  documented fetch/publication preceding the cleanup planner.
+- [ ] Refusals provide configured, copyable inspection commands, backup and
+  conditional recovery instructions, and the original invocation to retry.
+  They do not require a chat branch to have an upstream or imply it has a
+  ticket/PR. Paths containing spaces or Git pathspec metacharacters are
+  handled literally; command rendering follows the platform's shell rules.
+- [ ] A fresh direct-chat return refusal after agent exit 0 exits 75 and
+  names the checkout left behind; a nonzero agent result retains its code.
+  Tests cover normal exit, failure/interrupt cleanup, refusal first observed
+  at final teardown, and the Python launch boundary. Usage retains the real
+  agent outcome, the guard releases, and the exit sweep stays withheld.
+- [ ] Exact published renames/deletions still return successfully. Distinct
+  staged drafts, differing working files, staged union-log versions without
+  sufficient proof, dirty source, unsupported modes/symlinks/submodules,
+  ignored collisions, and changed evidence during planning still refuse
+  without partial cleanup. No historical-content or semantic-drop heuristic
+  is introduced.
+- [ ] A failed entry starts no agent; a refused return stops chaining. A
+  second chat cannot take an active chat's checkout. Ordinary task-launch,
+  recurring/delegated, prompt-report, and Git-disabled/remote-less exemptions
+  retain their contracts. Recovery never replays a lifecycle transition.
+- [ ] Owning contexts, chat instructions, generated notices, and packaged
+  twins agree. Relevant real-Git and CLI tests, composition checks, and the
+  packaging twin checks pass; record exact validation commands and results.
+
+### Proposed shape
+
+1. **Chat guidance and mixed-work ordering.** In `src/coga/checkouts.py`,
+   `chat_notice()` supplies the root-aware policy to
+   `src/coga/compose.py`, `CheckoutNotice.render()`. Replace the unconditional
+   first-edit instruction for chat without weakening ticket projection
+   notices. Update the `## Context` instructions of
+   `src/coga/resources/templates/coga/bootstrap/orient/ticket.md`. Keep
+   `src/coga/checkouts.py`, `prepare_chat_checkout()` and
+   `run_prepare_checkout_recipe()`, strict about their live session, clean
+   control entry, reservation, and idempotent reuse; do not turn preparation
+   into an implicit sweep or introduce a filesystem watcher.
+2. **Explain the proof failure.** Extend `src/coga/git.py`,
+   `CheckoutPreparation` / `_plan_preparation()`, with enough structured
+   observations for `src/coga/launch.py`, `_checkout_refusal_message()`, to
+   distinguish the index and working tree without parsing English error
+   strings. Use the same pinned revision, Git clean-filter semantics, mode
+   checks, and literal paths as `_published_proof()`. A diagnostic probe must
+   not weaken the planner or turn an unknown result into permission to clean.
+   Keep these changes in shared checkout/publication infrastructure; no new
+   command or `runner.RECIPES` entry is needed.
+3. **Concrete recovery guidance.** `_checkout_refusal_message()` prints
+   `git status --short --branch`, `git diff --cached --binary`,
+   `git diff --binary`, and `git fetch <remote> <control>` inspection steps,
+   with a pinned-control comparison for each blocking path (and explicit
+   handling for untracked files). The linked launch-boundary recovery section
+   explains saving HEAD, separate staged/unstaged patches, and copies of
+   untracked files outside the checkout and verifying them. For a reviewed
+   index-only duplicate whose working copy is published, give the conditional
+   `git --literal-pathspecs restore --staged --source=HEAD -- <old> <new>`
+   remedy, including both sides of a rename. This changes only the index;
+   retry the original chat/launch so the boundary re-fetches and re-proves
+   before cleanup. If working files differ, reconcile unique intent onto
+   current control first under `coga/checkouts/reconciliation`; no blanket
+   restore from control and no repeated bump. Never execute the suggested
+   recovery merely because it was printed. Tailor wording for state versus
+   source, and replace the blanket "remaining changes ... not published"
+   claim with separate publication and checkout-return outcomes.
+4. **Direct chat's command result.** In `src/coga/launch.py`, propagate an
+   armed return's failure from `_CheckoutBoundary.settle()` and
+   `_LaunchInvocation.return_checkout()` / `_supervise_steps()` to the direct
+   `launch()` result boundary, including the final `finally` settlement.
+   Base this on the current invocation's armed boundary outcome, not an
+   ambient withheld-sweep flag left by an earlier Python API call.
+   Use `LaunchBail(75)` for an otherwise successful direct chat; leave
+   `LaunchResult`'s child-result meaning and nonzero exceptions intact.
+   `src/coga/commands/launch.py`, `launch()`, already translates launch errors
+   for the CLI. Keep `src/coga/cli.py`, `_should_sweep_coga_state()` and the
+   withheld-sweep behavior consistent. Scope this to the direct entry route,
+   not every delegated target whose slug happens to be `bootstrap/orient`.
+5. **Tests and durable instructions.** Extend
+   `tests/test_git.py`, around
+   `test_prepare_refuses_staged_content_that_is_not_published()`, with the
+   three-file staged-rename/edited-working-copy regression and its unstaged
+   successful counterpart. Extend `tests/test_checkouts.py`, around
+   `test_chat_discusses_on_control_then_prepares_and_reuses_one_branch()`,
+   for state-only and state-then-code flows. Extend `tests/test_launch.py`,
+   around `test_orientation_refusal_preserves_edits_and_explains_investigation()`
+   and `test_orientation_returns_to_control_after_session_changes_branch()`,
+   for chat teardown results and diagnostics. Keep the ordinary-launch
+   result assertion in
+   `test_launch_teardown_refusal_preserves_work_result_and_stops_chaining()`.
+   Update composition/CLI coverage as needed. Change the owning
+   `coga/checkouts/chat` and `coga/checkouts/launch-boundary` topics, reconcile
+   references in `coga/checkouts` and `coga/state-publication`, and update
+   packaged twins in the implementation PR. Do not rewrite current contracts
+   as though this unapproved proposal already shipped.
+
+### Out of scope
+
+- Implementing before the owner approves this design, reopening or recovering
+  the already-resolved incident branch, or changing the Windows tickets.
+- A new state publication lane, broad PR requirements for Coga roots,
+  automatic source commits/pushes, a recovery command, or a GitHub lookup in
+  checkout preparation.
+- Guessing whether old content is semantically superseded, relaxing index
+  preservation, changing ordinary ticket-launch exit semantics, or expanding
+  the chat occupancy guard to other launch types/manual Git.
+- Retaining a new database of full session transcripts or proving which
+  historical supervisor binary ran without evidence.
 
 ## Context
+
+The diagnosis was checked against `main` at
+`5cacaf7a88c8614a346e0a86153a0deec86e8911` on 2026-10-26. Verify symbols again
+after reconciliation; commit IDs above identify historical evidence, not
+runtime configuration.
+
+- `coga/checkouts/chat` (`docs/contexts/coga/checkouts/chat/SKILL.md`) is cited
+  rather than attached: read **Direct chat occupancy** and **Preparing the
+  chat's branch**, which this ticket proposes changing. In
+  `src/coga/launch.py`, `launch()` acquires `_orientation_checkout_guard()`
+  for direct `bootstrap/orient`; `src/coga/checkouts.py`,
+  `install_chat_session()`, reserves the identity used by
+  `prepare_chat_checkout()`. Preserve that ownership chain.
+- `coga/checkouts/launch-boundary`
+  (`docs/contexts/coga/checkouts/launch-boundary/SKILL.md`) is cited rather
+  than attached: read **Preparation and return** and **Checkout recovery**.
+  `src/coga/launch.py`, `_CheckoutBoundary.enter()` and `settle()`, call
+  publication before `src/coga/git.py`, `prepare_control_checkout()`;
+  `_apply_preparation()` mutates only after `_plan_preparation()` and its
+  evidence recheck pass. A refusal is not authorization to discard work.
+- `coga/state-publication`
+  (`docs/contexts/coga/state-publication/SKILL.md`) is cited rather than
+  attached: read **The Coga roots**, **When Coga publishes**, **Control versus
+  feature checkouts**, and **Strict publication on demand**. In
+  `src/coga/git.py`, `publish()` selects via `_candidates()` and reads working
+  bytes; `fast_forward_control()` updates control but leaves feature dirt.
+  `src/coga/publish_state.py`, `run_publish_state_recipe()`, requires named
+  files while publishing eligible changes from the full root set.
+- `coga/sync` (`docs/contexts/coga/sync/SKILL.md`) is cited rather than
+  attached: read **Sync layers — notifications and git** for the distinction
+  between durable file writes, publication, and notifications; detailed Git
+  behavior belongs to the preceding topic.
+- `coga/checkouts/reconciliation`
+  (`docs/contexts/coga/checkouts/reconciliation/SKILL.md`) is cited rather
+  than attached: read **Preserve both sides** before designing or executing
+  recovery. `src/coga/git.py`, `_provenance()` / `_guard()`, protect publication
+  against a newer control copy; this proposal must not bypass them to clear
+  the cleanup refusal.
+- `coga-dev/testing` (`docs/contexts/coga-dev/testing/SKILL.md`) and
+  `coga-dev/packaging` (`docs/contexts/coga-dev/packaging/SKILL.md`) are cited
+  rather than attached: read **Which code you are actually testing** and
+  **Canonical copies and twins**. The orient ticket is package-owned with no
+  live override here. Canonical checkout topics have fallback twins under
+  `src/coga/resources/templates/coga/bootstrap/contexts/`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -139,4 +404,83 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design handoff — 2026-10-26
+
+The spec, evidence, options, acceptance criteria, and proposed changes are under
+Description; required reads and symbol relationships are under Context. Only
+this ticket was edited. No implementation, task branch, manual Git commit, or
+PR was made. Current contracts remain unchanged pending owner review.
+
+Recommended: state-only chat edits stay on control and unstaged; mixed work
+publishes routine state before branch preparation; retain the existing cleanup
+proof; explain index versus working-file blockers with conditional recovery;
+return 75 when an otherwise successful direct chat cannot return its checkout.
+Do not widen this into a generic automatic-drop or state-review redesign.
+
+## Evidence and verification
+
+- Started on clean `main`; `git fetch origin main` and
+  `git merge --ff-only origin/main` succeeded. Investigation baseline:
+  `5cacaf7a88c8614a346e0a86153a0deec86e8911`.
+- Historical comparisons: `git show --find-renames df32b96df --
+  coga/tasks/windows-native` proves three content-identical renames. Compare
+  the three destination blobs at that commit with `6717f3d2e`; their differences
+  are newer control cross-references and ticket 01's step. These comparisons
+  do not depend on the retired branch ref still existing.
+- Isolated real-Git reproduction (no live checkout mutation): using
+  `tests/conftest.py`, `init_git_repo()`, seed the old paths from
+  `df32b96df^`, create a fixture branch, `git mv` all three to their new names,
+  write each working destination from `6717f3d2e`, then call
+  `src/coga/git.py`, `publish()` followed by `prepare_control_checkout()`.
+  Publication succeeded; all three working files equaled control; all three
+  staged destinations refused; status was unchanged by the refusal. In that
+  reviewed fixture only, restoring the index from HEAD for both rename sides
+  made the next preparation succeed on clean `main`. Scratch data is at
+  `/tmp/coga-chat-rename-design-9v0fl4um`; the procedure and historical blobs
+  above are sufficient to reproduce it without that local artifact.
+- This command passed **6 tests** in 2.16s against current source:
+
+  ```sh
+  PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q \
+    tests/test_git.py::test_prepare_refuses_staged_content_that_is_not_published \
+    tests/test_git.py::test_prepare_cleans_published_untracked_and_deleted_state \
+    tests/test_git.py::test_prepare_refuses_mixed_state_without_partial_cleanup \
+    tests/test_launch.py::test_launch_teardown_refusal_preserves_work_result_and_stops_chaining \
+    tests/test_launch.py::test_orientation_refusal_preserves_edits_and_explains_investigation \
+    tests/test_launch.py::test_orientation_returns_to_control_after_session_changes_branch
+  ```
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate
+  --task chat-ticket-edits-strand-the-checkout-on-a-chat-br --json` passed
+  (one task, no issues). `git diff --check` passed. These validate the design
+  artifact and existing behavior, not an implementation of this proposal.
+- Read-only `src/coga/compose.py`, `compose_prompt_report()` with
+  `launch_context="megalaunch"`, confirmed all six Description subsections and
+  Open Questions compose. Structural assertions confirmed unchanged CLI-owned
+  frontmatter, one blackboard fence, and the preserved ticket guide. An initial
+  probe used the invalid label `queue`; rerunning with the actual supported
+  context passed without changing launch state.
+- Before handoff, fetched and inspected main's advance to `5cff2b912`, including
+  the updated testing topic (CI paused; local step verification still required).
+  No investigated source or this ticket changed upstream. Preserved and verified
+  the edited ticket outside the checkout, restored its HEAD copy, fast-forwarded
+  main, and reapplied identical saved bytes. No code-test rerun was needed for
+  the unrelated state/documentation changes.
+
+## Open Questions
+
+1. Owner decision: approve keeping routine state-only chat edits on control
+   and preparing a branch only for implementation or deliberately reviewed
+   knowledge? Recommended yes; publication scope and its existing review
+   tradeoff stay unchanged. The smaller fallback is retaining today's branch
+   policy while adding unstaged-state instructions and recovery diagnostics.
+2. Owner decision: approve exit 75 for a successful direct chat whose checkout
+   return fails, while retaining actual agent usage results and all existing
+   nonzero results? Recommended yes, scoped to direct chat; ordinary task
+   transitions must not look undone or be replayed.
+3. Historical evidence gap: original supervisor stderr and installed version
+   are unavailable locally. Recover those only if an exact explanation of
+   the first chat's missing finalization is required. The staged-index refusal
+   is independently reproduced, and the proposed prevention/recovery changes
+   do not depend on guessing the missing history. This is not a blocker to
+   evaluating the design.
