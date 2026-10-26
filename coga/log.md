@@ -9323,3 +9323,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 10:30 v1 [commit-journal/publish-log-lines-left-uncommitted] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-26 10:30 v1 [commit-journal/publish-log-lines-left-uncommitted] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-26 10:31 v1 [commit-journal/publish-log-lines-left-uncommitted] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-26 10:49 v1 [rewrite-the-coga-dev-current-direction-native-wind] [human:nicktoper] created (status=draft)
