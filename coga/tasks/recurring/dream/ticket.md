@@ -712,6 +712,13 @@ Git history preserves the completed run.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Run notes (2026-W44)
+
+- preflight: git-common-dir ok, remote ok, gh ok.
+- Phase 1: 49 issues (0 direct-fix, 2 pr-proposal, 47 human-needed).
+- Scan run id `20261026T172253Z`, dir `coga/.coga/dream-scans/20261026T172253Z/`; repo-identity coga-source. Knowledge-scan 26 area shards, contract-audit 8 shards.
+- Phase 4 candidates (computed pre-scan): 41 eligible done tickets; done+checkout debt: blocks/06, blocks/08, blocks/09 (local branch live), document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba (worktree dirs live); 32 canceled = retirement debt. No open PR touches coga/tasks/.
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-10-26T17:22:12+00:00
