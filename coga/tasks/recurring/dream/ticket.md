@@ -882,3 +882,9 @@ Merged from knowledge-scan (ks, 51 raw) and contract-audit (ca, 9 raw); 60 raw â
 - G1 readme-top done with 3 unowned launch obligations (PyPI-safe links, First-steps matrix check, demo video, megalaunch proof) still routed to it by open tickets (ks-08) â€” unowned
 - Owned: sweep publishes canonical twins without packaged halves (owner: stop-the-contexts-root-sweep-from-publishing-canon; ks-01, ks-02, ks-14); ticket-prose PRs satisfying `requires: pr` (owner: add-an-applying-a-batch-of-verdicts-section-to-the, PR #912 closed); knowledge sync rule step (owner: carry-the-apply-the-register-amendment-step-in-a-w; draft branch only in /home/n/Code/coga); recurring-control declined-checkout decision (owner: run-recurring-agent-templates-off-the-control-bran); `--agent` override turns peer review into self-review (owner: where-have-code-review-disappeared)
 
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-10-26T18:12:43+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
