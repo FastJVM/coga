@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 contexts:
 - coga/sync
 - coga/state-publication
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: feb69687-25e2-4dd9-b81a-16d5dccbeb0f
 ---
 
 ## Description
