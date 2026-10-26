@@ -149,8 +149,19 @@ Server.
 
 ## CI posture and receipts
 
-PR CI exists (owner decision, 2026-10-23, reversing the 2026-09-24 no-CI
-decision): `.github/workflows/test.yml` runs `python -m pip install -e
+**Test CI is paused** (owner decision, 2026-10-26). The `Test` workflow is
+disabled in GitHub (`disabled_manually`); its YAML remains in the repo.
+Repeated packaging-twin failures, multiplied by automatic ticket/log pushes,
+made the all-PR/all-main cadence too noisy. Repair the failures and settle the
+trigger policy before resuming it; do not restore the existing cadence just
+because the tests pass. The owner suggested the full matrix only for releases;
+a gate before publication plus manual platform checks is the proposed direction,
+with the final cadence still to be decided. Step-level verification remains
+required while CI is paused.
+
+The retained `.github/workflows/test.yml` definition (introduced by the
+2026-10-23 decision reversing the 2026-09-24 no-CI policy) runs
+`python -m pip install -e
 ".[test]"` then `python -m pytest` on Python 3.11 on `ubuntu-latest` and
 `windows-latest` for every pull request and push to `main`. Superseded PR
 runs are canceled; each main push has a separate concurrency group so queued

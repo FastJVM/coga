@@ -2,6 +2,8 @@
 title: Repair CI and resume with release-focused triggers
 status: draft
 owner: nicktoper
+contexts:
+  - coga-dev/principles
 workflow:
   name: code/design-then-implement
   steps:
@@ -42,6 +44,7 @@ The observed failure is tests/test_packaging.py::test_live_and_packaged_copies_s
 Evidence: https://github.com/FastJVM/coga/actions/runs/40403547211 failed on both platforms with one failing test (Linux: 4048 passed, 10 skipped; Windows: 3956 passed, 102 skipped). CI was introduced by https://github.com/FastJVM/coga/pull/1097. The all-push trigger and preserved main runs amplify one failure into repeated alerts.
 
 Done when:
+
 - The packaging mismatch and any remaining CI failures are repaired, with green hosted Linux and Windows results tied to the exact tested commit.
 - The trigger policy is settled and documented in coga-dev/testing. Prefer the full matrix before release publication plus explicit manual validation; avoid rerunning it for every task/log-only push. If selective PR coverage is retained, define which changes require it and justify the feedback versus runtime tradeoff.
 - If release gating is selected, both PyPI and TestPyPI publication paths wait for the required tests; manual test runs do not publish a package.
@@ -137,6 +140,24 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Immediate mitigation — 2026-10-26
+
+- The owner asked to turn off CI, create a repair/resumption ticket, and consider
+  release-only runs. This is a draft for the design workflow; no repair or new
+  trigger policy has been implemented.
+- Disabled GitHub workflow `Test` (`test.yml`, ID `394591152`) with
+  `gh workflow disable test.yml --repo FastJVM/coga`. The API confirmed
+  `state: disabled_manually`.
+- Canceled all six active test runs: `40414860631`, `40414505496`,
+  `40414500365`, `40414494051`, `40414474870`, and `40414471060`.
+  A subsequent run listing showed no unfinished test runs.
+- Updated `coga-dev/testing` to own the paused CI posture and the conditions
+  for resumption. The workflow definition is retained for the future repair.
+- Repository metadata confirmed public visibility. GitHub's billing policy
+  makes standard hosted compute free here; the immediate concerns are feedback
+  delay, duplicated work, and notifications. The release-focused cadence is a
+  proposal, not a completed design decision.
 
 <!-- coga:blackboard -->
 
