@@ -36,8 +36,10 @@ updated.
    duplicate.
 2. At least one commit ahead of the base (local ref, else `<remote>/<base>`).
 3. Freshness: the branch must contain the freshly fetched control branch.
-   Only non-overlapping generated Coga state is accepted as drift, reported
-   on stderr.
+   Only non-overlapping generated Coga state, exactly `tasks/**` and `log.md`
+   under the Coga root, is accepted as drift, reported on stderr. Any other
+   control change, including `recurring/**`, contexts, skills, or config,
+   requires rebasing or merging control first.
 4. An unsafe overlap on the live ticket's own file is reported as a stranded
    ticket write, not ordinary staleness, and the remediation restores the
    merge base's copy on the branch and merges control, never a rebase
