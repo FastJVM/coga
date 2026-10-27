@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: 6f69a6a8-13ad-4e76-8d14-5161ca961a3a
+step: 3 (pr)
 ---
 
 ## Description
@@ -180,47 +179,71 @@ branch: fix/launched-session-terminal-backstop
 - No config, task-model, workflow, prompt composition or validation behavior changed; no seeded fixture changes or separate `coga validate` run were needed. No unrelated bugs or new follow-up obligations identified. Python 3.11/native Windows and real vendor-agent sessions were not exercised; the suite includes POSIX PTY and real linked-worktree command regressions.
 - Actual implementer: Codex (GPT-6), no model override; the ticket's configured Claude identity is not the implementer. No code review performed in implement; self-qa owns the next judgment and must refresh preparation after any fixes/rebase.
 
+## Self-QA
+
+- Reviewer: Claude (Opus 5.5) ran `/code-review` (default effort) against `origin/main...5d51138e4`. The review **returned** with 9 findings and nothing is still in flight. The code was authored by Codex, so this review is independent of the implementation. The fixes below were written by this same Claude session and have only been self-reviewed since.
+- Applied (`49fafb066`):
+  - The unset-sentinel warning gave false alarms in no-PTY launches and strict-assist ticket scripts. Both now export an explicit empty `COGA_DONE_SENTINEL`, which means "no channel" and stays quiet. Unset still warns when a supervised witness is present.
+  - A terminal state the probe sees at its first observation is now ignored, so a stale published blob cannot tear down a fresh session.
+  - The probe's git setup now resolves once. A ticket outside the git root, or a failed lookup, disables the probe instead of retrying a failing git call every second.
+  - The duplicated warning text is now one helper.
+- `/simplify` ran with reuse, simplification, efficiency and altitude agents; fixes in `e89dcb265`:
+  - The probe now reuses `git._blob_oid`, `git._blob_bytes` and `git._parse_ticket`, and keeps its lazy source in one value.
+  - The late-teardown outcome is folded into the terminal-status arm of `_task_outcome`.
+  - Efficiency found nothing.
+- Skipped, left for the human reviewer:
+  - `/code-review` #3/#4: a human canceling the ticket from another terminal now ends the session within about 5 s, and a timeout that finds the ticket terminal reports `completed`, even when the session did not make the transition itself. The ticket asked for exactly this ("treat the ticket's terminal status as done").
+  - `/code-review` #5: one `git rev-parse` per second inside the PTY loop. Accepted as cheap.
+  - `/code-review` #8: `getattr(cfg, "git_enabled", False)` stays because many spawn tests pass `SimpleNamespace` configs.
+  - Altitude: "fix the root cause instead of adding a probe", and "warn only on write failure". The investigation could not prove how the historical signal was lost, and the ticket explicitly requires both the backstop and the unset-variable warning.
+- No raw-terminal or TUI surface changed visibly. The probe runs inside the PTY loop, but only through a callable that the PTY tests already exercise. No manual terminal sweep was needed.
+- Tests at `e89dcb265`: full suite 4145 passed, 10 skipped. `git diff --check` is clean. Pushed; no rebase was needed because `origin/main` moved only by Coga state commits.
+
 ## PR
 
 ```yaml
 title: Tear down terminal task sessions when completion signaling is lost
 author: codex
-author_evidence: This implement session ran as Codex (GPT-6), with no model override. The ticket's configured claude agent is not the implementing agent.
+author_evidence: The implement session ran as Codex (GPT-6) and wrote 5d51138e4. The self-qa fixes in 49fafb066 and e89dcb265 were written by Claude (Opus 5.5) in this self-qa session.
 depth: deep
-rationale: Changes process teardown and recurring outcome classification. Focused regressions and the full suite verify the implementation; code review is deferred to the next self-qa step, and the original swallowed signal failure cannot be diagnosed conclusively.
-implementation: Warn on missing supervised completion channels and atomic write failures. Poll the exact launched ticket once per second, using published control state when Git publication is configured, and release the REPL after five seconds of terminal-state evidence without claiming a sentinel was seen. Report terminal tasks completed with a late-teardown note when liveness fired first. Keep bootstrap and authoring sessions sentinel-only.
-deviations: The historical transcript confirms an inherited sentinel and a successful task transition, but does not record the final sentinel write/content. Repointing task variables is not itself a reproducible cause; added diagnostics cover the silent failure paths.
-limitations: Verified on Linux with Python 3.12.12. No Python 3.11, native Windows, or live vendor-agent launch verification. The probe does not fetch; completion from an independent clone is visible only after the launching repository's tracking ref updates. With a configured remote, unpublished completion is intentionally left to the sentinel/liveness channels.
+rationale: Changes process teardown and how recurring outcomes are classified. Claude's independent review applies to 5d51138e4 only; the self-qa fixes after it have been self-reviewed but not independently re-reviewed. The original swallowed-signal failure cannot be diagnosed conclusively.
+implementation: Warn on stderr when a supervised session has no completion channel, or when the atomic sentinel write fails. An explicit empty sentinel marks launches where no supervisor polls. Poll the exact launched ticket once a second, from published control state when Git publication is configured, and release the REPL after five seconds of terminal state that first appeared during the session. This does not claim a sentinel was seen. When liveness fired first, report terminal tasks as completed with a late-teardown note. Bootstrap and authoring sessions stay sentinel-only.
+deviations: The historical transcript confirms an inherited sentinel and a successful task transition, but does not record the final sentinel write or its content. Repointing task variables is not by itself a reproducible cause, so the new diagnostics cover the silent failure paths. A human canceling the ticket from another terminal also ends the session; this was left as intended and flagged in Self-QA.
+limitations: Verified on Linux with Python 3.12.12. Not verified on Python 3.11, native Windows, or a live vendor-agent launch. The probe does not fetch, so completion from an independent clone is visible only after the launching repository's tracking ref updates. With a configured remote, unpublished completion is intentionally left to the sentinel and liveness channels. A ticket outside the git root gets no backstop.
 files:
-  src/coga/launch.py: Wire the stateful-session backstop; throttle and cache exact-ticket state, preserve recurring generation scope and exclude stateless authoring.
-  src/coga/repl_supervisor.py: Release terminal sessions without claiming sentinel observation and warn on completion channel failures.
-  src/coga/recurring_runner.py: Distinguish completed late teardown from unfinished watchdog timeout while preserving explicit failure/template-damage overrides.
-  tests/test_done_marker_emission.py: Exercise real linked-worktree completion with repointed COGA variables, working/missing/unwritable markers, and stale launching files.
-  tests/test_launch.py: Cover terminal-state settling, generation and exact-ticket scope, invalid/missing state, stateless exclusions, publication safety and cached polling.
-  tests/test_repl_supervisor.py: Cover terminal-state teardown and stderr diagnostics while retaining sentinel observation and exit-classification coverage.
-  tests/test_recurring_autofix.py: Cover done/canceled late teardown and preserve missing-ticket timeout classification.
-  docs/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Own the completion/liveness backstop and late-teardown reporting contract.
+  src/coga/launch.py: Wire the stateful-session backstop. Resolve the git source once, throttle and cache exact-ticket state, require an open observation before a terminal one counts, keep recurring generation scope, and exclude stateless authoring.
+  src/coga/launch_script.py: Export an explicit empty sentinel to ticket scripts so lifecycle calls in a strict assist do not warn falsely.
+  src/coga/repl_supervisor.py: Release terminal sessions without claiming a sentinel was observed. Warn when a supervised completion channel is missing or the write fails. Export an empty sentinel on the no-PTY path.
+  src/coga/recurring_runner.py: Distinguish completed late teardown from an unfinished watchdog timeout, keeping the explicit failure and template-damage overrides.
+  tests/test_done_marker_emission.py: Exercise real linked-worktree completion with repointed COGA variables, working, missing and unwritable markers, and stale launching files.
+  tests/test_launch.py: Cover terminal-state settling, terminal-at-launch rejection, the out-of-repo disable, generation and exact-ticket scope, invalid or missing state, stateless exclusions, publication safety and cached polling.
+  tests/test_launch_script.py: Expect the explicit empty sentinel in the ticket-script environment.
+  tests/test_repl_supervisor.py: Cover terminal-state teardown, stderr diagnostics, the quiet empty channel and the no-PTY empty export, while keeping sentinel observation and exit-classification coverage.
+  tests/test_recurring_autofix.py: Cover done and canceled late teardown, and keep a missing ticket classified as a timeout.
+  docs/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Own the completion/liveness backstop, empty-channel and late-teardown reporting contract.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Keep the packaged user-topic fallback byte-identical to its canonical owner.
   docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Correct the shared spawn/supervisor map and link to the owning user contract.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: The implement step stops before self-qa; no code review was performed in this session.
-head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  reviewer: claude
+  kind: independent
+  status: failed
+  head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  base: 18e4da8484581688c50e10a0acf20fc2271fbb31
+  detail: Claude /code-review (default effort) returned 9 findings on the Codex-authored head. Fixes are in 49fafb066 and e89dcb265, and /simplify ran on the branch. The applied fixes have only been self-reviewed by the same Claude session, not independently re-reviewed; the skipped findings and their reasons are in Self-QA.
+head: e89dcb265293379c06543e06bc1a4046ed6349dc
 base: 18e4da8484581688c50e10a0acf20fc2271fbb31
 checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
   status: passed
-  head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  head: e89dcb265293379c06543e06bc1a4046ed6349dc
   base: 18e4da8484581688c50e10a0acf20fc2271fbb31
-  detail: 4141 passed, 10 skipped in 377.10s on Linux, Python 3.12.12. Ran on the committed, reconciled tree; the working tree remained clean and the final freshness check left the head/base unchanged.
+  detail: 4145 passed, 10 skipped in 335.01s on Linux, Python 3.12.12, on a clean committed tree.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  head: e89dcb265293379c06543e06bc1a4046ed6349dc
   base: 18e4da8484581688c50e10a0acf20fc2271fbb31
-  detail: No whitespace errors on the final reconciled diff.
+  detail: No whitespace errors.
 - command: coga validate --json
   status: not-run
-  detail: No config, task-model, workflow or validation behavior changed. No seeded-fixture change was needed; the full suite includes the fixture smoke and packaging-twin checks.
+  detail: No config, task-model, workflow or validation behavior changed. The full suite includes the fixture smoke and packaging-twin checks.
 ```
