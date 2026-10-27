@@ -127,6 +127,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1124
 branch: coga/fix-usage-report-cost-proxy-comment
 
 ## Implementation handoff
