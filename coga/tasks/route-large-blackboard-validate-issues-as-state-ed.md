@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 3c5e63e1-3797-4545-b82c-65e5ef6b0e1d
 ---
 
 ## Description
@@ -159,55 +158,100 @@ above. This session used Codex, not the ticket's configured Claude agent.
   classify as human-needed: the two cited completed tickets and recurring/dream.
 - Final fetch/rebase found no main drift; the tested commit stayed unchanged.
   The branch is pushed, and this manual checkout returned to clean, current
-  main before writing this handoff. No PR has been opened. Independent review
-  is the next workflow step; it must refresh preparation after any changes.
+  main before writing this handoff. No PR was opened during implementation.
+  See Peer review below for the rebased revision and current review receipts.
+
+## Peer review
+
+Direct Codex review **completed** on head `b79f4b241d788add1aa1177ae14666ecdda93d94` against
+base `194204fdc2b154530e402e5e8c81f0d896c0cae2`. No must-fix findings and no implementation
+changes. Both implementation and this fresh review used Codex; this is
+recorded as **self-review**, with no independent authorship claimed.
+
+- Reviewed all eight diff paths, both validator branches and rendered report
+  buckets, Dream's older-recipe compatibility and grouping rules, the done-ticket
+  Retro/retirement exception, recurring-writer ownership, and state publication.
+- Confirmed `brief-for-human` has no branch/PR gates and both packaged twins
+  are byte-identical. No interactive terminal surface changed.
+- Full suite: 4,123 passed, 10 skipped in 382.81 seconds on Linux/Python 3.12.12.
+  Seeded validation: 5 OK, no issues. Live read-only validation: 149 OK,
+  49 warnings, no errors; all three large-blackboard issues route to
+  `human-needed` (the two cited done tickets and `recurring/dream`).
+- Rebased onto current main and pushed with an explicit force-with-lease.
+  The final fetch/rebase was a no-op; review and checks cover the pushed head.
+  Returned this manual checkout to clean, current main before the handoff.
+- Recommendation: skim. Limitations: same-agent review, no live Dream run,
+  and no Python 3.11 or native Windows verification in this step.
+  No PR has been opened; the next step can use the refreshed preparation below.
 
 ## PR
 
 ```yaml
 title: Route blackboard validation cleanup through owner state edits
 author: codex
-author_evidence: This implement session ran Codex; the configured ticket agent was not used as authorship evidence.
-head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
-base: 13f9847a11bf340225bd5f9afbc661655665f4bf
-depth: deep
-rationale: Bounded routing correction with passing checks; independent code review is pending the next workflow step.
-implementation: Route both blackboard warning kinds to human-needed, retain owner and retirement decisions, document state publication, and cover the classifier, report buckets, template, and seeded workflow.
-deviations: None. Reused the existing human-needed bucket and brief-for-human workflow.
-limitations: No live Dream agent run. Linux verification passed; native Windows checks were skipped by their platform guards.
+author_evidence: This implement session ran Codex; the configured ticket agent was not used as authorship
+  evidence.
+head: b79f4b241d788add1aa1177ae14666ecdda93d94
+base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+depth: skim
+rationale: Bounded routing correction with a completed direct self-review, a passing full suite, and validators
+  reporting no errors. Read the description for owner-directed cleanup and the preserved retirement/writer
+  exceptions.
+implementation: Route both blackboard warning kinds to human-needed, retain owner and retirement decisions,
+  document state publication, and cover the classifier, report buckets, template, and seeded workflow.
+deviations: No implementation deviations or review fixes. Review used Codex, as did implementation, so
+  it is recorded as self-review.
+limitations: No independent cross-agent review and no live Dream agent run. Verified on Linux/Python 3.12.12;
+  Python 3.11 and native Windows were not run in this step.
 files:
-  src/coga/dream_validate_drift.py: Classify blackboard cleanup as owner-directed state work and describe its publication route.
-  coga/recurring/dream/ticket.md: Route cleanup through owner drafts and handle old recipe output before the PR-proposal rule.
+  src/coga/dream_validate_drift.py: Classify blackboard cleanup as owner-directed state work and describe
+    its publication route.
+  coga/recurring/dream/ticket.md: Route cleanup through owner drafts and handle old recipe output before
+    the PR-proposal rule.
   src/coga/resources/templates/coga/recurring/dream/ticket.md: Ship the matching Dream routing instructions.
   docs/contexts/coga/blackboard/SKILL.md: Document state publication for draft synthesis and size cleanup.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Ship the matching blackboard publication guidance.
-  tests/test_dream_validate_drift.py: Regress both classifications and prevent blackboard issues from entering the report's PR bucket.
-  tests/test_dream_worker_templates.py: Verify the owner route, retirement/writer exceptions, and compatibility with older recipe output.
-  tests/fixtures/seeded-repo/coga/tasks/blackboard-state-cleanup.md: Represent an owner cleanup draft with a frozen workflow and no branch or PR gates.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Ship the matching blackboard
+    publication guidance.
+  tests/test_dream_validate_drift.py: Regress both classifications and prevent blackboard issues from
+    entering the report's PR bucket.
+  tests/test_dream_worker_templates.py: Verify the owner route, retirement/writer exceptions, and compatibility
+    with older recipe output.
+  tests/fixtures/seeded-repo/coga/tasks/blackboard-state-cleanup.md: Represent an owner cleanup draft
+    with a frozen workflow and no branch or PR gates.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement ends before the workflow's independent peer-review step; no code review was claimed.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: b79f4b241d788add1aa1177ae14666ecdda93d94
+  base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+  detail: Direct review completed in a fresh Codex peer-review session with no must-fix findings. Reviewed
+    all eight diff paths, classifier and report behavior, owner workflow and state publication, done-ticket
+    and recurring-writer exceptions, older-recipe compatibility, and packaged twins. Implementation also
+    used Codex; independence is not claimed.
 checks:
-  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-blackboard-state-edits-pytest.log 2>&1
-    status: passed
-    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
-    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
-    detail: 4123 passed, 10 skipped in 416.03 seconds; skips require native Windows Job Objects or PowerShell. Ran on the committed tree; final rebase was a no-op.
-  - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/coga validate --json
-    status: passed
-    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
-    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
-    detail: From tests/fixtures/seeded-repo/coga; exit 0, 5 OK, no issues or fixes.
-  - command: PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/coga validate --json > /tmp/coga-blackboard-state-edits-live-validation.json
-    status: passed
-    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
-    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
-    detail: Live repo read-only validation exited 0; 149 OK and 49 warnings, including three large blackboards; no validation errors.
-  - command: git diff --check origin/main...HEAD
-    status: passed
-    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
-    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
-    detail: Ran on the feature branch after final fetch/rebase; no whitespace errors.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-blackboard-peer-review-pytest.log
+    2>&1
+  status: passed
+  head: b79f4b241d788add1aa1177ae14666ecdda93d94
+  base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+  detail: 4123 passed, 10 skipped in 382.81 seconds on Linux/Python 3.12.12. Native Windows tests are
+    guarded on this platform. Ran on the committed rebased tree; final rebase was a no-op.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/coga
+    validate --json
+  status: passed
+  head: b79f4b241d788add1aa1177ae14666ecdda93d94
+  base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+  detail: From tests/fixtures/seeded-repo/coga; exit 0, 5 OK, no issues or fixes.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/coga validate --json > /tmp/coga-blackboard-peer-review-validation.json
+  status: passed
+  head: b79f4b241d788add1aa1177ae14666ecdda93d94
+  base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+  detail: Live read-only validation exited 0; 149 OK, 49 warnings (22 stuck-in-progress, 19 unfrozen-workflow,
+    5 empty-description, 3 large-blackboard), no errors. All three large-blackboard issues classify as
+    human-needed.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: b79f4b241d788add1aa1177ae14666ecdda93d94
+  base: 194204fdc2b154530e402e5e8c81f0d896c0cae2
+  detail: No whitespace errors on the feature branch after final fetch/rebase.
 ```
