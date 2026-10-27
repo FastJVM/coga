@@ -125,4 +125,24 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/rewrite-current-direction-native-windows
+
+## Implementation plan
+
+- Started on clean, current `main`; this session must perform the manual
+  checkout return before bumping. Actual implementing agent: Codex, despite
+  the ticket's configured `agent: claude`.
+- PR #1096 merged as `5ccecf9d8f8b49c20c5baebd1baf4107c00f575d`
+  and is already an ancestor of this checkout, satisfying the ordering ask.
+- Update only the local `coga-dev/current-direction` Windows summary and its
+  update date. Keep the user-facing support contracts in `coga/install` and
+  `coga/launch`; run the required full pytest suite, commit, reconcile and push.
+- Item 2 is already satisfied by `5738ca6468de56540b060f8ef86656575a9c19b0`
+  (`Retro marker: marketing/readme-top`): the current sentence says only
+  PR #1046 merged and #1058/#1059 closed unmerged. GitHub metadata confirmed
+  all three outcomes; preserve that correction without a redundant edit.
+- PR #1093 merged on 2026-10-23. The current install and launch topics already
+  describe native deterministic work and refusal of agent sessions pending
+  `windows-native/03-interactive-coga-launch-on-native-windows`.
