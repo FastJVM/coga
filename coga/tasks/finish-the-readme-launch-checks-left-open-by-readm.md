@@ -134,6 +134,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1119
 branch: codex/readme-launch-checks
 
 ## Implement handoff — 2026-10-26
