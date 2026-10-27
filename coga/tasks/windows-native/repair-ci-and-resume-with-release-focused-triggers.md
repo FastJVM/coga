@@ -1,6 +1,6 @@
 ---
 title: Repair CI and resume with release-focused triggers
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -34,6 +34,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:2a600154-82a6-46c3-9e2e-1eda1febbeb2
 ---
 
 ## Description
