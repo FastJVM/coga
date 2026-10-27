@@ -1,7 +1,7 @@
 ---
 title: Rewrite the coga-dev current-direction native Windows entry after the core
   port
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
