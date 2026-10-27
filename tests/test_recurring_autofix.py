@@ -859,6 +859,30 @@ def test_a_wedged_run_is_recorded_as_timed_out(cfg_repo) -> None:
     assert outcome.is_problem
 
 
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_terminal_run_with_late_teardown_is_completed(cfg_repo, status: str) -> None:
+    from coga.recurring_runner import _task_outcome
+
+    ref = _ref_with_status(cfg_repo, status)
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="timeout", exit_code=124)
+    assert outcome.result == "completed"
+    assert outcome.final_status == status
+    assert outcome.exit_code == 124  # Preserve the actual process result.
+    assert "late teardown" in outcome.detail
+    assert "done signal not observed" in outcome.detail
+    assert not outcome.is_problem
+
+
+def test_missing_ticket_after_timeout_is_still_a_timeout(cfg_repo) -> None:
+    from coga.recurring_runner import _task_outcome
+
+    ref = _ref_with_status(cfg_repo, "done")
+    ref.ticket_path.unlink()
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="timeout")
+    assert outcome.result == "timed-out"
+    assert outcome.is_problem
+
+
 def test_a_blocked_script_phase_names_the_script(cfg_repo) -> None:
     from coga.recurring_runner import _task_outcome
 

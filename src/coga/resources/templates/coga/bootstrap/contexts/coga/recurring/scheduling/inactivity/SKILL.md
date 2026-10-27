@@ -1,6 +1,6 @@
 ---
 name: coga/recurring/scheduling/inactivity
-description: The repo-inactivity gate on scheduled sweeps — the `idle_days` window, the human-commit signal and machine-subject classification, how non-exempt templates are skipped, and what `--force` and named launches bypass.
+description: Repo inactivity and session liveness — the human-commit gate on sweeps, completion signaling and terminal-ticket recovery, and how late teardown differs from unfinished timeouts.
 ---
 
 # Repo inactivity
@@ -70,3 +70,50 @@ writes no autofix run log, makes no analyst call and creates no ticket.
 `--force` bypasses the check entirely, including every `--all` child. Named
 launches (`coga recurring launch <name>` and aliases such as `coga dream`)
 never consult it. `idle_days = 0` disables it.
+
+## Session completion and liveness
+
+Repo inactivity decides whether to start scheduled work. Once an agent is
+running, the supervisor watches its completion separately; timeout settings
+and their precedence are in [scheduling](../SKILL.md#variants).
+
+Session-ending commands atomically write the task's qualified slug to
+`COGA_DONE_SENTINEL`. The supervisor accepts only its launched slug, so
+repointing `COGA_REPO_ROOT`, `COGA_TASK_*`, and the expected task to another
+worktree does not change the signal's identity. Preserve the inherited
+sentinel path when doing so. A failed write warns on stderr with the path and
+error. An absent variable also warns when `COGA_EXPECTED_TASK` or
+`COGA_SUPERVISED` witnesses a supervised launch. The lifecycle transition
+remains successful; the warning explains that teardown may need a backstop.
+Unsupervised commands with no sentinel stay quiet.
+
+For ordinary ticket launches, an independent backstop checks the exact
+launched ticket at most once a second. With Git publication and a configured
+remote, it reads that ticket's blob in the local remote-tracking control ref,
+so completion published from a linked worktree is visible even when the
+launching working copy stays stale. It never fetches or scans other tasks,
+and caches unchanged blobs. Repositories without publication or a configured
+remote use the local ticket, caching its file metadata. A configured remote
+with unavailable control state does not fall back to an unpublished local
+transition: publication may still be running.
+
+The backstop accepts only `done` or `canceled` from the launched recurring
+generation, when present. It allows five seconds of continuously observed
+terminal state for the normal signal to arrive, then tears down the REPL
+with a `ticket-terminal` reason and a clean completion result. It does not
+claim a sentinel was observed. Missing, unreadable or malformed tickets,
+another recurring generation, blocked/paused tickets and nonfinal workflow
+bumps do not prove completion. Stateless bootstrap targets and ticket-authoring
+interviews still require their sentinel; this does not change
+[delegated completion](../../delegation/SKILL.md).
+An independent clone's remote changes become visible only when the launching
+repository's tracking ref is updated.
+
+If an idle or wall-clock limit starts teardown first, the process result
+remains timeout/124. The recurring report nevertheless records `completed`
+with a `late teardown: done signal not observed before liveness stop` note
+when the final ticket is provably terminal, including its final status.
+Missing tickets and unfinished runs remain `timed-out`; a real crash or a
+damaged template keeps its failure classification. This separates completed
+work with a lost signal from a wedged agent without rewriting process-exit
+evidence.
