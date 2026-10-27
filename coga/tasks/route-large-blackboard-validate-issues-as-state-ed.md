@@ -1,6 +1,6 @@
 ---
 title: Route large-blackboard validate issues as state edits, not PR proposals
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:ad68be05-3a51-4acf-9ee7-34ebdf15ad2b
 ---
 
 ## Description
