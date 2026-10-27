@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: ebed6640-af37-4954-9339-5d8aa42157f1
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -167,17 +166,60 @@ branch: fix/launched-session-terminal-backstop
 
 ## Investigation
 
-- Start: clean `main` at `0573c39da`, fetched and fast-forward check passed; no recorded branch/PR or unfinished prior implementation.
-- `run-log.md` confirms `recurring/dream` reported timed-out with final status done. The historical Claude transcript exists locally: at 18:12:14Z Bash output included `COGA_DONE_SENTINEL=/tmp/coga-done-zpnnitkm/sentinel`; the 18:14:35Z closing command repointed the task/repo variables but did not remove or replace the sentinel, then printed `recurring/dream: done` at 18:14:42Z. This disproves an always-missing launch variable, but does not prove the final write succeeded; the old writer swallowed failures and retained no diagnostic.
-- Current code already scopes markers by checkout-independent slug. Repointing repo/task paths alone should not break signaling; regression will exercise the actual command from another checkout, including missing/unwritable channels.
-- Plan: warn when supervised completion cannot signal, add a cheap exact-ticket terminal-state backstop, distinguish completed late teardown from unfinished timeouts, and update the owning context with its packaged twin. Preserve real crashes and stateless bootstrap behavior.
-- Implementing agent: Codex (GPT-6); ticket-configured `claude` is not this session's operator. Review belongs to the later self-qa step.
+- Verified the attached run log and historical Claude transcript. At 18:12:14Z Bash output included `COGA_DONE_SENTINEL=/tmp/coga-done-zpnnitkm/sentinel`; the 18:14:35Z closing command repointed task/repo variables without replacing the sentinel and printed `recurring/dream: done` at 18:14:42Z. The audit recorded completion before the later timeout.
+- Repointing the checkout alone is not a reproducible signaling failure: slug scoping already landed in `7f222d934` (2026-07-04). The old writer swallowed all write errors and retained no sentinel-content diagnostic, so the precise historical failure remains unproven. This is an evidence limitation, not a claim that the incident is fixed already.
 
+## Implement handoff
 
-## Implementation progress
+- Implemented and pushed `5d51138e458e6ad9cfe04e953d153947b8d5ce83`; reconciled with `origin/main` at `18e4da8484581688c50e10a0acf20fc2271fbb31`. Returned this checkout to clean, fast-forwarded `main` before writing this handoff. No PR opened; next step is self-qa.
+- `repl_supervisor.emit_done_marker` now warns on missing supervised channels or failed writes. `launch._terminal_status_probe` supplies a cached exact-ticket backstop to `repl_supervisor.run_with_done_marker`, preserving sentinel observation separately from teardown. `recurring_runner._task_outcome` distinguishes completed late teardown from an unfinished timeout.
+- The backstop reads published control state when publication is configured, protecting in-flight lifecycle publication and observing completion from linked worktrees. It excludes bootstrap and ticket-authoring sessions. The owning liveness topic and packaged twin document the contract and limits; the development spawn topic links there.
+- Added the regressions before implementation (21 failed / 1 passed); fixed them, then passed the affected modules (403 passed). The initial broad run passed 4140 / skipped 10 while the final authoring/cache guards were being finished; the fresh full run below supersedes that preliminary evidence.
+- Final full suite: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` -> **4141 passed, 10 skipped** in 377.10s, exit 0, Linux Python 3.12.12. This ran on the committed/reconciled head above, with a clean tree before and after. A final fetch/rebase left the tested head/base unchanged. `git diff --check origin/main...HEAD` passed.
+- No config, task-model, workflow, prompt composition or validation behavior changed; no seeded fixture changes or separate `coga validate` run were needed. No unrelated bugs or new follow-up obligations identified. Python 3.11/native Windows and real vendor-agent sessions were not exercised; the suite includes POSIX PTY and real linked-worktree command regressions.
+- Actual implementer: Codex (GPT-6), no model override; the ticket's configured Claude identity is not the implementer. No code review performed in implement; self-qa owns the next judgment and must refresh preparation after any fixes/rebase.
 
-- Added the regressions before the fix: focused red run was 21 failed / 1 passed (missing terminal-state seam, silent writer and timeout-first classification). After implementation, 22 passed; the four affected test modules then passed in full (402 passed).
-- `launch._terminal_status_probe` watches the exact launched ticket, at most once per second, and requires five seconds of stable done/canceled state. With publication configured, it reads the local remote-tracking control blob (no fetch), so ops-worktree completion is visible without killing an unpublished local lifecycle write. Other repos use cached local file metadata. Period generation must match; unreadable/missing/invalid state and nonterminal transitions do not close a session.
-- `repl_supervisor.run_with_done_marker` preserves sentinel observation separately from terminal-state teardown; missing/unwritable markers now warn. `recurring_runner._task_outcome` reports completed late teardown while preserving process exit evidence. Bootstrap/delegated completion remains sentinel-only.
-- Canonical liveness topic and packaged twin updated; development spawn topic links to the new owning contract. No prompt, task-layout, validation or workflow change, so no seeded fixture change is needed.
-- Initial full suite: 4140 passed / 10 skipped on Linux Python 3.12.12. While that run was active, excluded stateless ticket-authoring interviews from the task probe and added a publication/cache guard; final focused modules passed 403 tests, and the new guard selection passed 12. A fresh full run on the committed/reconciled revision follows. Historical root cause remains unproven because the old write swallowed failures; the transcript confirms a present inherited variable and a successful task transition, not sentinel contents or write success.
+## PR
+
+```yaml
+title: Tear down terminal task sessions when completion signaling is lost
+author: codex
+author_evidence: This implement session ran as Codex (GPT-6), with no model override. The ticket's configured claude agent is not the implementing agent.
+depth: deep
+rationale: Changes process teardown and recurring outcome classification. Focused regressions and the full suite verify the implementation; code review is deferred to the next self-qa step, and the original swallowed signal failure cannot be diagnosed conclusively.
+implementation: Warn on missing supervised completion channels and atomic write failures. Poll the exact launched ticket once per second, using published control state when Git publication is configured, and release the REPL after five seconds of terminal-state evidence without claiming a sentinel was seen. Report terminal tasks completed with a late-teardown note when liveness fired first. Keep bootstrap and authoring sessions sentinel-only.
+deviations: The historical transcript confirms an inherited sentinel and a successful task transition, but does not record the final sentinel write/content. Repointing task variables is not itself a reproducible cause; added diagnostics cover the silent failure paths.
+limitations: Verified on Linux with Python 3.12.12. No Python 3.11, native Windows, or live vendor-agent launch verification. The probe does not fetch; completion from an independent clone is visible only after the launching repository's tracking ref updates. With a configured remote, unpublished completion is intentionally left to the sentinel/liveness channels.
+files:
+  src/coga/launch.py: Wire the stateful-session backstop; throttle and cache exact-ticket state, preserve recurring generation scope and exclude stateless authoring.
+  src/coga/repl_supervisor.py: Release terminal sessions without claiming sentinel observation and warn on completion channel failures.
+  src/coga/recurring_runner.py: Distinguish completed late teardown from unfinished watchdog timeout while preserving explicit failure/template-damage overrides.
+  tests/test_done_marker_emission.py: Exercise real linked-worktree completion with repointed COGA variables, working/missing/unwritable markers, and stale launching files.
+  tests/test_launch.py: Cover terminal-state settling, generation and exact-ticket scope, invalid/missing state, stateless exclusions, publication safety and cached polling.
+  tests/test_repl_supervisor.py: Cover terminal-state teardown and stderr diagnostics while retaining sentinel observation and exit-classification coverage.
+  tests/test_recurring_autofix.py: Cover done/canceled late teardown and preserve missing-ticket timeout classification.
+  docs/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Own the completion/liveness backstop and late-teardown reporting contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Keep the packaged user-topic fallback byte-identical to its canonical owner.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Correct the shared spawn/supervisor map and link to the owning user contract.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: The implement step stops before self-qa; no code review was performed in this session.
+head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+base: 18e4da8484581688c50e10a0acf20fc2271fbb31
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  status: passed
+  head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  base: 18e4da8484581688c50e10a0acf20fc2271fbb31
+  detail: 4141 passed, 10 skipped in 377.10s on Linux, Python 3.12.12. Ran on the committed, reconciled tree; the working tree remained clean and the final freshness check left the head/base unchanged.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 5d51138e458e6ad9cfe04e953d153947b8d5ce83
+  base: 18e4da8484581688c50e10a0acf20fc2271fbb31
+  detail: No whitespace errors on the final reconciled diff.
+- command: coga validate --json
+  status: not-run
+  detail: No config, task-model, workflow or validation behavior changed. No seeded-fixture change was needed; the full suite includes the fixture smoke and packaging-twin checks.
+```
