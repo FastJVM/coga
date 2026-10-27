@@ -1,9 +1,9 @@
 ---
 title: Repair CI and resume with release-focused triggers
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga-dev/principles
+- coga-dev/principles
 workflow:
   name: code/design-then-implement
   steps:
@@ -33,6 +33,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
