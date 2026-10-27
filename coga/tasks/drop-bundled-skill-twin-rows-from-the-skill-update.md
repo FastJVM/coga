@@ -119,4 +119,17 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/drop-bundled-skill-twin-rows
+
+## Implementation plan
+
+- Started on clean `main`, fetched and fast-forward checked `origin/main`.
+  No prior branch or PR is recorded; the control ticket is still on implement.
+- Omit unmanaged bundled twins from `update --all` planning. Keep explicit
+  single-skill bundled diagnostics and `status` inventory behavior; therefore
+  `skipped-bundled` remains a used status, but disappears from weekly results.
+- Add regression coverage before changing the planner; update the skill-management
+  context and recurring ticket twins, run the suite, commit, reconcile, and push.
+- Actual implementer: Codex (GPT-6), not the ticket's configured Claude agent.
