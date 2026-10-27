@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 3ed57e1d-1830-4374-8c91-bb1e587262b2
 ---
 
 ## Description
@@ -136,20 +135,51 @@ branch: docs/ticket-checkout-receipt-location
 - PR #1106 merged on 2026-10-26 as
   `cfe7d33988a49f56d7ba59a261b9245bb2b552b3`, an ancestor of the implementation
   base; the ordering dependency is satisfied.
-- Committed and pushed `88693816c4de07334feb649b116b2eef7f5992d0`.
-  `git fetch origin main` followed by `git rebase FETCH_HEAD` reported the
-  branch already up to date. A second fetch before returning to `main`
-  confirmed control remained at `963c515ca3d6723bd56bbd111ce2af94b49adf54`.
-  The manual checkout procedure returned this checkout to clean, current
-  `main` before writing this handoff.
-- The full suite passed on Linux/Python 3.12.12: 4121 passed, 10 skipped.
-  It ran with only the topic dirty; the tested blob
-  `04fed2e77c22ac421f554d102b6169451b970957` matches the committed blob,
-  the commit's parent matches the tested starting HEAD, and
-  `git diff --exit-code HEAD` confirmed the committed tree was identical.
-  No rebase or edit changed the tested tree.
-- No unresolved implementation issues or adjacent bugs found. Independent
-  review and PR creation remain later workflow steps; no PR was opened.
+- Original implementation commit: `88693816c4de07334feb649b116b2eef7f5992d0`.
+  The implementation suite passed (4121 passed, 10 skipped); the review below
+  records the rebased revision and fresh verification.
+
+## Peer review
+
+- Direct Codex review **completed** in launch
+  `ba49c89b-2461-4a12-96fc-179ae11e3ab3`, covering head
+  `471f992dc28e00d80489556c515010a9ff193e80` against base
+  `f432db35b974aa17aee3c3ec2d8c031f38d200ec`. No must-fix findings or source
+  edits. Checked the complete one-file diff against `_RECEIPT_DIR`,
+  `_receipt_path`, `_reserve_and_create`, `_discard_receipt`, and existing
+  reservation regression tests. The local-only topic has no packaged twin;
+  the change adds no interactive surface needing a terminal check.
+- Actual author and reviewer are both Codex, so this is **self-review** under
+  the PR preparation identity rule. The fresh review session and the ticket's
+  configured Claude agent do not establish independent authorship.
+- Rebased onto current main before reviewing, then pushed with an explicit
+  `--force-with-lease` against the original implementation commit. Final
+  fetches confirmed main still at the base above. Returned this checkout to
+  clean, current `main` before writing the handoff. The topic blob remains
+  `04fed2e77c22ac421f554d102b6169451b970957`; no fixes changed the reviewed tree.
+- The full suite passed on that exact head/base: **4121 passed, 10 skipped in
+  390.89s**, Linux/Python 3.12.12, pytest 9.1.1. The command is in `## PR`.
+  Final whitespace and clean-tree checks passed. PR creation remains the next
+  mechanical step; no PR has been opened. The read-only PR formatter accepted
+  the preparation as `[skim · A:codex R:codex(self)]` with no evidence gaps;
+  frontmatter and ticket intent remain byte-identical to control.
+- Earlier verification attempts on the same head/base encountered environment
+  problems, now superseded by the full passing run:
+  - `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` exhausted
+    `/tmp`'s 1,048,576 inodes: 1 failed, 1395 passed, 10 skipped, 2725 errors
+    in 202.81s. Moved only this session's generated `pytest-76` tree onto the
+    repository filesystem, preserving the failure log.
+  - Retrying with
+    `TMPDIR=/home/n/Code/coga/.venv/receipt-peer-review-vmbladan/tmp` exposed
+    fixture failures because the temporary contexts inherited the host
+    checkout's `.venv` ignore rule; interrupted that run. The focused command
+    `TMPDIR=/home/n/Code/coga/.venv/receipt-peer-review-vmbladan/tmp PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --tb=short tests/test_compose.py::test_compose_includes_all_sections`
+    confirmed this with 1 failed in 0.25s and the explicit ignored-context
+    diagnostic. The final run used an on-disk temporary directory outside any
+    Git checkout. No product change was needed.
+  Logs are retained in `.venv/receipt-peer-review-vmbladan/`:
+  `failed-pytest.log`, `pytest.log` (interrupted), and `pytest-isolated.log`
+  (complete passing run).
 
 ## PR
 
@@ -157,15 +187,16 @@ branch: docs/ticket-checkout-receipt-location
 title: Document ticket checkout reservation receipt storage
 author: codex
 author_evidence: >-
-  Actual implementing agent was this Codex session, coga-launch
+  Actual implementing agent was Codex, coga-launch
   3a462e95-def8-4763-870e-7d3ea5751f18. The ticket's configured agent is claude;
   authorship records the actual session identity.
-head: 88693816c4de07334feb649b116b2eef7f5992d0
-base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
-depth: deep
+head: 471f992dc28e00d80489556c515010a9ff193e80
+base: f432db35b974aa17aee3c3ec2d8c031f38d200ec
+depth: skim
 rationale: >-
-  The change is a bounded documentation clarification with the full suite
-  passing, but independent review has not run yet.
+  Bounded documentation clarification matching the existing implementation.
+  Direct review completed without findings and the full suite passed on the
+  final rebased revision. Read the self-review and platform limitations.
 implementation: >-
   Names checkouts._RECEIPT_DIR and the git rev-parse command in the Branch
   creation bullet, explains the risk of publishing unignored .coga/ files,
@@ -173,37 +204,51 @@ implementation: >-
   a branch.
 deviations: None; the requested explanation is in the specified local-only topic.
 limitations: >-
-  Verification used Linux and Python 3.12.12; no Python 3.11 or native Windows
-  run was performed. Independent review awaits the next workflow step.
+  Verification used Linux/Python 3.12.12; no Python 3.11 or native Windows run
+  was performed. Both author and reviewer were Codex, so no independent review
+  is claimed. Earlier test attempts hit /tmp inode exhaustion and then ignore
+  rules inherited by fixtures under .venv; the final complete run passed with
+  an on-disk TMPDIR outside any Git checkout. Peer-review notes retain the
+  failed/interrupted attempts and their evidence.
 files:
   docs/contexts/coga-dev/internals/git-refresh/SKILL.md: >-
     Owns the launch branch-preparation details and now documents the receipt
     location and publication rationale. The coga-dev namespace has no packaged twin.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent review is the next peer-review step; implement does not run self-QA.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 471f992dc28e00d80489556c515010a9ff193e80
+  base: f432db35b974aa17aee3c3ec2d8c031f38d200ec
+  detail: >-
+    Direct review completed in coga-launch ba49c89b-2461-4a12-96fc-179ae11e3ab3
+    after the final rebase. Checked the full diff, receipt implementation,
+    regression tests, packaging classification, and PR #1106 ancestry.
+    No must-fix findings; no fixes were needed. Actual author and reviewer
+    identities are both Codex, so this is self-review.
 checks:
-  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  - command: TMPDIR=/home/n/Code/coga-review-hwuipnvu PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
     status: passed
-    head: 88693816c4de07334feb649b116b2eef7f5992d0
-    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
+    head: 471f992dc28e00d80489556c515010a9ff193e80
+    base: f432db35b974aa17aee3c3ec2d8c031f38d200ec
     detail: >-
-      4121 passed, 10 skipped in 572.88s on Linux/Python 3.12.12, pytest 9.1.1.
-      The handoff records proof that the tested working tree equals this commit.
+      4121 passed, 10 skipped in 390.89s on Linux/Python 3.12.12, pytest 9.1.1.
+      Ran on the clean rebased branch; no subsequent source edit or rebase.
+      Used an isolated temporary directory after the environmental failures
+      recorded under Peer review. The complete log is
+      .venv/receipt-peer-review-vmbladan/pytest-isolated.log.
   - command: |
       git diff --check
       git diff --check origin/main...HEAD
     status: passed
-    head: 88693816c4de07334feb649b116b2eef7f5992d0
-    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
-    detail: Both the working change and committed one-file diff had no whitespace errors.
+    head: 471f992dc28e00d80489556c515010a9ff193e80
+    base: f432db35b974aa17aee3c3ec2d8c031f38d200ec
+    detail: Working tree and final one-file branch diff had no whitespace errors.
   - command: git diff --exit-code HEAD
     status: passed
-    head: 88693816c4de07334feb649b116b2eef7f5992d0
-    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
-    detail: Clean tree after commit; tested and committed topic blobs matched exactly.
+    head: 471f992dc28e00d80489556c515010a9ff193e80
+    base: f432db35b974aa17aee3c3ec2d8c031f38d200ec
+    detail: Clean tested tree after the suite, before pushing and returning to main.
   - command: coga validate --json
     status: not-run
     detail: No configuration, workflow, task-model, or validation behavior changed.
