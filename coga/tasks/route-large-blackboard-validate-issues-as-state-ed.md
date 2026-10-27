@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: ad68be05-3a51-4acf-9ee7-34ebdf15ad2b
 ---
 
 ## Description
@@ -134,14 +133,80 @@ ordinary ticket.
 
 branch: coga/route-large-blackboard-state-edits-20261027
 
-## Implementation plan
+## Implement handoff
 
-- Start verified on clean, current `main`; no prior branch or PR is recorded.
-- Route `large-blackboard` and `unsynthesized-draft-blackboard` through the
-  existing `human-needed` bucket. Owners choose and publish state cleanup;
-  Dream files/reuses `brief-for-human` drafts without branch/PR requirements.
-- Preserve the existing done-ticket retirement and recurring-writer ownership
-  rules. Do not slim or retire the example tickets in this implementation.
-- Add regression coverage before changing the classifier, update Dream and
-  the blackboard topic with their packaged twins, run the full suite and
-  seeded validation, reconcile, commit/push, then return to main and bump.
+Implemented and pushed `33db39ff3af79eb23e77eab2b915ef2cc8f328df` on the branch
+above. This session used Codex, not the ticket's configured Claude agent.
+
+- `src/coga/dream_validate_drift.py` — `classify_issue` routes both
+  `large-blackboard` and `unsynthesized-draft-blackboard` to `human-needed`.
+  Remediation preserves owner judgment, historical evidence, and intentional
+  production notes, and directs publication through Coga state sync.
+- Dream files/reuses `brief-for-human` drafts without branch/PR requirements.
+  Its template also reroutes these kinds when an older recipe still reports
+  them as PR proposals, so the instruction remains compatible with control's
+  old classifier if recurring-state publication reaches it before the code.
+- Done tickets keep the existing Retro/retirement route; a recurring writer's
+  state goes to that writer's owner. The example tickets were not modified.
+- The blackboard topic owns cleanup publication guidance. Both changed
+  canonical files match their packaged twins. A seeded owner-workflow draft
+  represents the intended route without adding an oversized blackboard.
+- Four regression tests failed before the fix. Final committed-tree results:
+  4,123 passed, 10 native-Windows skips; seeded validation: 5 OK, no issues.
+  Live validation: 149 OK, 49 warnings (22 stuck, 19 unfrozen workflow,
+  5 empty description, 3 large blackboard). All three large-blackboard issues
+  classify as human-needed: the two cited completed tickets and recurring/dream.
+- Final fetch/rebase found no main drift; the tested commit stayed unchanged.
+  The branch is pushed, and this manual checkout returned to clean, current
+  main before writing this handoff. No PR has been opened. Independent review
+  is the next workflow step; it must refresh preparation after any changes.
+
+## PR
+
+```yaml
+title: Route blackboard validation cleanup through owner state edits
+author: codex
+author_evidence: This implement session ran Codex; the configured ticket agent was not used as authorship evidence.
+head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
+base: 13f9847a11bf340225bd5f9afbc661655665f4bf
+depth: deep
+rationale: Bounded routing correction with passing checks; independent code review is pending the next workflow step.
+implementation: Route both blackboard warning kinds to human-needed, retain owner and retirement decisions, document state publication, and cover the classifier, report buckets, template, and seeded workflow.
+deviations: None. Reused the existing human-needed bucket and brief-for-human workflow.
+limitations: No live Dream agent run. Linux verification passed; native Windows checks were skipped by their platform guards.
+files:
+  src/coga/dream_validate_drift.py: Classify blackboard cleanup as owner-directed state work and describe its publication route.
+  coga/recurring/dream/ticket.md: Route cleanup through owner drafts and handle old recipe output before the PR-proposal rule.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Ship the matching Dream routing instructions.
+  docs/contexts/coga/blackboard/SKILL.md: Document state publication for draft synthesis and size cleanup.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Ship the matching blackboard publication guidance.
+  tests/test_dream_validate_drift.py: Regress both classifications and prevent blackboard issues from entering the report's PR bucket.
+  tests/test_dream_worker_templates.py: Verify the owner route, retirement/writer exceptions, and compatibility with older recipe output.
+  tests/fixtures/seeded-repo/coga/tasks/blackboard-state-cleanup.md: Represent an owner cleanup draft with a frozen workflow and no branch or PR gates.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement ends before the workflow's independent peer-review step; no code review was claimed.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-blackboard-state-edits-pytest.log 2>&1
+    status: passed
+    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
+    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
+    detail: 4123 passed, 10 skipped in 416.03 seconds; skips require native Windows Job Objects or PowerShell. Ran on the committed tree; final rebase was a no-op.
+  - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/coga validate --json
+    status: passed
+    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
+    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
+    detail: From tests/fixtures/seeded-repo/coga; exit 0, 5 OK, no issues or fixes.
+  - command: PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/coga validate --json > /tmp/coga-blackboard-state-edits-live-validation.json
+    status: passed
+    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
+    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
+    detail: Live repo read-only validation exited 0; 149 OK and 49 warnings, including three large blackboards; no validation errors.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 33db39ff3af79eb23e77eab2b915ef2cc8f328df
+    base: 13f9847a11bf340225bd5f9afbc661655665f4bf
+    detail: Ran on the feature branch after final fetch/rebase; no whitespace errors.
+```
