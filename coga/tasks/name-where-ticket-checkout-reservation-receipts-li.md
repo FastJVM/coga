@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 9973639c-e0fd-4f00-9332-d15ada7fa60a
 ---
 
 ## Description
@@ -126,19 +125,85 @@ ordinary ticket.
 
 branch: docs/ticket-checkout-receipt-location
 
-## Implementation plan
+## Implementation handoff
 
-- Started on clean, current `main` at `80d8b5cdfb9e8bb5de5c92c487d36b66a4abff61`;
-  no checkout-return witness was supplied, so this session follows the manual
-  checkout procedure and returns to `main` before bumping.
+- Added the receipt's private Git location, the reason to avoid `.coga/`, and
+  its retry-only/removal semantics to the Branch creation bullet in the
+  local-only git-refresh topic. Verified against `src/coga/checkouts.py`
+  (`_RECEIPT_DIR`, `_receipt_path`, and `_discard_receipt`). No runtime,
+  fixture, or packaged-context change was needed.
 - PR #1106 merged on 2026-10-26 as
-  `cfe7d33988a49f56d7ba59a261b9245bb2b552b3`, already an ancestor of current
-  `origin/main`; the ordering dependency is satisfied.
-- Add the missing receipt location, publication rationale, and removal semantics
-  to the Branch creation bullet in the local-only git-refresh topic.
-  `src/coga/checkouts.py` (`_RECEIPT_DIR`, `_receipt_path`, and
-  `_discard_receipt`) confirms the existing behavior. No runtime, fixture, or
-  packaged-context change is needed.
-- Run the full suite with the checkout's Python 3.12 environment, commit only
-  the topic, reconcile with current main, and push. Code review and PR creation
-  remain later workflow steps.
+  `cfe7d33988a49f56d7ba59a261b9245bb2b552b3`, an ancestor of the implementation
+  base; the ordering dependency is satisfied.
+- Committed and pushed `88693816c4de07334feb649b116b2eef7f5992d0`.
+  `git fetch origin main` followed by `git rebase FETCH_HEAD` reported the
+  branch already up to date. A second fetch before returning to `main`
+  confirmed control remained at `963c515ca3d6723bd56bbd111ce2af94b49adf54`.
+  The manual checkout procedure returned this checkout to clean, current
+  `main` before writing this handoff.
+- The full suite passed on Linux/Python 3.12.12: 4121 passed, 10 skipped.
+  It ran with only the topic dirty; the tested blob
+  `04fed2e77c22ac421f554d102b6169451b970957` matches the committed blob,
+  the commit's parent matches the tested starting HEAD, and
+  `git diff --exit-code HEAD` confirmed the committed tree was identical.
+  No rebase or edit changed the tested tree.
+- No unresolved implementation issues or adjacent bugs found. Independent
+  review and PR creation remain later workflow steps; no PR was opened.
+
+## PR
+
+```yaml
+title: Document ticket checkout reservation receipt storage
+author: codex
+author_evidence: >-
+  Actual implementing agent was this Codex session, coga-launch
+  3a462e95-def8-4763-870e-7d3ea5751f18. The ticket's configured agent is claude;
+  authorship records the actual session identity.
+head: 88693816c4de07334feb649b116b2eef7f5992d0
+base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
+depth: deep
+rationale: >-
+  The change is a bounded documentation clarification with the full suite
+  passing, but independent review has not run yet.
+implementation: >-
+  Names checkouts._RECEIPT_DIR and the git rev-parse command in the Branch
+  creation bullet, explains the risk of publishing unignored .coga/ files,
+  and states that receipts are retry evidence whose removal never deletes
+  a branch.
+deviations: None; the requested explanation is in the specified local-only topic.
+limitations: >-
+  Verification used Linux and Python 3.12.12; no Python 3.11 or native Windows
+  run was performed. Independent review awaits the next workflow step.
+files:
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: >-
+    Owns the launch branch-preparation details and now documents the receipt
+    location and publication rationale. The coga-dev namespace has no packaged twin.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Independent review is the next peer-review step; implement does not run self-QA.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+    status: passed
+    head: 88693816c4de07334feb649b116b2eef7f5992d0
+    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
+    detail: >-
+      4121 passed, 10 skipped in 572.88s on Linux/Python 3.12.12, pytest 9.1.1.
+      The handoff records proof that the tested working tree equals this commit.
+  - command: |
+      git diff --check
+      git diff --check origin/main...HEAD
+    status: passed
+    head: 88693816c4de07334feb649b116b2eef7f5992d0
+    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
+    detail: Both the working change and committed one-file diff had no whitespace errors.
+  - command: git diff --exit-code HEAD
+    status: passed
+    head: 88693816c4de07334feb649b116b2eef7f5992d0
+    base: 963c515ca3d6723bd56bbd111ce2af94b49adf54
+    detail: Clean tree after commit; tested and committed topic blobs matched exactly.
+  - command: coga validate --json
+    status: not-run
+    detail: No configuration, workflow, task-model, or validation behavior changed.
+```

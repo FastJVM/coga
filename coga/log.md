@@ -9488,3 +9488,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 12:20 v1 [name-where-ticket-checkout-reservation-receipts-li] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-27 12:21 v1 [name-where-ticket-checkout-reservation-receipts-li] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 12:21 v1 [name-where-ticket-checkout-reservation-receipts-li] [megalaunch] launched via coga megalaunch
+2026-10-27 12:34 v1 [name-where-ticket-checkout-reservation-receipts-li] [agent:codex] advanced to step 2 (peer-review) → codex
