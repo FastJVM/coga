@@ -162,4 +162,14 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: fix/launched-session-terminal-backstop
+
+## Investigation
+
+- Start: clean `main` at `0573c39da`, fetched and fast-forward check passed; no recorded branch/PR or unfinished prior implementation.
+- `run-log.md` confirms `recurring/dream` reported timed-out with final status done. The historical Claude transcript exists locally: at 18:12:14Z Bash output included `COGA_DONE_SENTINEL=/tmp/coga-done-zpnnitkm/sentinel`; the 18:14:35Z closing command repointed the task/repo variables but did not remove or replace the sentinel, then printed `recurring/dream: done` at 18:14:42Z. This disproves an always-missing launch variable, but does not prove the final write succeeded; the old writer swallowed failures and retained no diagnostic.
+- Current code already scopes markers by checkout-independent slug. Repointing repo/task paths alone should not break signaling; regression will exercise the actual command from another checkout, including missing/unwritable channels.
+- Plan: warn when supervised completion cannot signal, add a cheap exact-ticket terminal-state backstop, distinguish completed late teardown from unfinished timeouts, and update the owning context with its packaged twin. Preserve real crashes and stateless bootstrap behavior.
+- Implementing agent: Codex (GPT-6); ticket-configured `claude` is not this session's operator. Review belongs to the later self-qa step.
+
