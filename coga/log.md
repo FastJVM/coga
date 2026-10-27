@@ -9522,3 +9522,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 15:08 v1 [drop-bundled-skill-twin-rows-from-the-skill-update] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-27 15:08 v1 [drop-bundled-skill-twin-rows-from-the-skill-update] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 15:08 v1 [drop-bundled-skill-twin-rows-from-the-skill-update] [megalaunch] launched via coga megalaunch
+2026-10-27 15:21 v1 [drop-bundled-skill-twin-rows-from-the-skill-update] [agent:codex] advanced to step 2 (peer-review) → codex

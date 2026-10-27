@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: a8e7f4cf-64c8-4466-a37a-e1356a687e83
 ---
 
 ## Description
@@ -123,13 +122,78 @@ ordinary ticket.
 
 branch: coga/drop-bundled-skill-twin-rows
 
-## Implementation plan
+## Implement handoff
 
-- Started on clean `main`, fetched and fast-forward checked `origin/main`.
-  No prior branch or PR is recorded; the control ticket is still on implement.
-- Omit unmanaged bundled twins from `update --all` planning. Keep explicit
-  single-skill bundled diagnostics and `status` inventory behavior; therefore
-  `skipped-bundled` remains a used status, but disappears from weekly results.
-- Add regression coverage before changing the planner; update the skill-management
-  context and recurring ticket twins, run the suite, commit, reconcile, and push.
-- Actual implementer: Codex (GPT-6), not the ticket's configured Claude agent.
+- Implemented and pushed `ff410829dae6918d65d515efffadd7bc069de62b`.
+  The bulk planner in `src/coga/skill_manager.py` (`update_skills`) selects
+  only GitHub and URL sources, so unmanaged bundled twins emit no update row.
+  Managed provenance still takes precedence when a ref overlaps a bundled skill.
+- Explicit single-skill bundled updates keep their maintenance guidance, so
+  `skipped-bundled` remains a used status. `status_skills` still reports
+  `local-override` and `package-backed`. Updated the owning skill-management
+  context and recurring ticket twins; both pairs are byte-identical.
+- Regression first: the bundled-only planner, mixed managed/bundled report,
+  and real recurring recipe with a twin failed as expected (3 failed, 1 passed)
+  before the fix. Command: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_skill_manager.py::test_update_all_emits_no_rows_for_bundled_skills tests/test_skill_manager.py::test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one tests/test_skill_update.py::test_skill_update_runs_through_generic_recipe_and_reports_no_op -q`.
+- Focused verification after the fix: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_skill_manager.py tests/test_skill_update.py -q`
+  — 118 passed. Full suite on the final implementation: 4,123 passed,
+  10 skipped, Python 3.12.12. The full-suite receipt is below.
+- The staged implementation tree before the full suite and the committed tree
+  both equal `af95f75733706f2bbf2f9e23b6b5ee6f70c96919`. The only unstaged
+  change was this ticket's working notes; no implementation bytes changed
+  during testing or commit. Fetched `origin/main`, ran `git rebase FETCH_HEAD`
+  (already up to date, no OID change), pushed, fetched again, and returned to
+  clean current `main` before writing this handoff. Unique ticket notes were
+  verified in `/tmp/coga-drop-bundled-skill-twins-ticket-before-reconcile.md`
+  before clearing them for the rebase and reconciling them here.
+- Actual implementer: Codex (GPT-6), without a model override, irrespective of
+  the ticket's configured Claude agent. No PR opened. Next step is peer review;
+  no implementation blockers or adjacent bugs found.
+
+## PR
+
+```yaml
+title: Omit bundled skill twins from bulk update reports
+author: codex
+author_evidence: This implement session ran in Codex (GPT-6), with no model override; the configured ticket agent was not the implementer.
+head: ff410829dae6918d65d515efffadd7bc069de62b
+base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
+depth: deep
+rationale: Bounded report-selection change with a passing full suite; independent review is still pending in the next workflow step.
+implementation: The bulk updater plans only GitHub and URL sources, omitting unmanaged bundled twins from JSON counts and weekly reports. Updates preserve managed-source precedence and the existing status inventory. The owning context and recurring template twins describe the change.
+deviations: None. The skipped-bundled status remains because explicit single-skill updates still use it to explain repository maintenance or package upgrades.
+limitations: Verified locally on Linux with Python 3.12.12; Python 3.11 and native Windows were not run. Upstream/network actions use deterministic test fixtures.
+files:
+  coga/recurring/skill-update/ticket.md: Describe the omission of unmanaged bundled twins from the weekly report and link the owning topic.
+  docs/contexts/coga/skill-management/SKILL.md: Specify bulk omission, managed-source precedence, and explicit single-skill diagnostics.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Keep the shipped skill-management topic identical to its canonical copy.
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.md: Keep the shipped recurring ticket identical to its live copy.
+  src/coga/skill_manager.py: Plan bulk updates only for GitHub and URL sources.
+  src/coga/skill_update.py: Describe the bulk report's omission of unmanaged bundled skill twins.
+  tests/test_skill_manager.py: Cover omitted rows and counts, untouched twins, managed-source precedence, and retained explicit diagnostics.
+  tests/test_skill_update.py: Cover the recurring no-op report with an installed twin and use managed-skill statuses in report fixtures.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This is the implement step; the next peer-review step owns code review.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-drop-bundled-skill-twins-pytest.log 2>&1
+    status: passed
+    head: ff410829dae6918d65d515efffadd7bc069de62b
+    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
+    detail: 4123 passed, 10 skipped in 364.98s on Python 3.12.12. Includes packaging and twin checks. Tested staged tree and committed tree both equal af95f75733706f2bbf2f9e23b6b5ee6f70c96919; reconciliation was a no-op.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: ff410829dae6918d65d515efffadd7bc069de62b
+    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
+    detail: No whitespace errors after commit and reconciliation.
+  - command: cmp docs/contexts/coga/skill-management/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md; cmp coga/recurring/skill-update/ticket.md src/coga/resources/templates/coga/recurring/skill-update/ticket.md
+    status: passed
+    head: ff410829dae6918d65d515efffadd7bc069de62b
+    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
+    detail: Both changed canonical/package pairs are byte-identical after reconciliation.
+  - command: coga validate --json
+    status: not-run
+    detail: Validation, configuration, task layout, prompt composition, and workflow semantics are unchanged; no seeded fixture update is required.
+```
