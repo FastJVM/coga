@@ -32,7 +32,7 @@ launch_generation: 18462d61-3b9c-4e5a-9b55-1702776fea34
 
 Filed by Dream 2026-W44 (Phase 6; knowledge-scan ks-20). Target: docs/contexts/coga/notifications/SKILL.md lines ~64-71 and its packaged twin.
 
-The topic says a webhook URL seen in a diagnostic must be revoked or rotated, the tracked coga/log.md redacted, and every reachable commit inspected. The live incident webhook-for-slack-is-public (in_progress) leaves 24 leaked lines in coga/log.md and its owner-authored Description lists redacting them as out of scope (append-only; the URL is dead once revoked). coga/architecture and coga-dev/internals/spool-merge define log.md as append-only union-merged state, and a redaction commit leaves the secret in history anyway. Owner decision needed: is redaction optional once the webhook is revoked (likely), never done, or required? Then edit both twins to state the rule. Revocation/rotation stays the remedy that matters.
+The topic says a webhook URL seen in a diagnostic must be revoked or rotated, the tracked coga/log.md redacted, and every reachable commit inspected. The live incident webhook-for-slack-is-public (in_progress) leaves 24 leaked lines in coga/log.md and its owner-authored Description lists redacting them as out of scope (append-only; the URL is dead once revoked). coga/architecture and coga-dev/internals/spool-merge define log.md as append-only union-merged state, and a redaction commit leaves the secret in history anyway. The owner approved optional, explicitly owner-directed cleanup after confirmed revocation on 2026-10-26. Edit both twins to preserve the append-only log during ordinary incident response and require an explicit owner-approved exception for redacting it. Revocation/rotation stays the remedy that matters; preserve the existing exposure-inspection and coordinated history-rewrite requirements.
 
 ## Context
 
@@ -124,10 +124,11 @@ ordinary ticket.
 
 ## Investigation (2026-10-26)
 
-- Operator: Codex. Manual checkout start succeeded: clean `main`, fetched
-  `origin/main`, and `git merge --ff-only origin/main` reported already current
-  at `71cb300954ba67e3239cb9716a83ddca9feefc05`. No feature branch or PR exists
-  for this attempt; implementation is waiting on the policy decision below.
+- Operator: Codex (GPT-6). On resume, fetched `origin/main` and confirmed
+  `main` current at `e106878b3ad3b7294829809e2234e0f0874448f8`. The only
+  tracked entry dirt was this session's preserved ticket notes. Relevant
+  governing instructions and the notification topic did not change since
+  the first investigation at `71cb300954ba67e3239cb9716a83ddca9feefc05`.
 - `docs/contexts/coga/notifications/SKILL.md`, "When a post fails", and its
   packaged twin at
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md`
@@ -150,33 +151,32 @@ ordinary ticket.
   versions intact. Dream's live report labels this finding D18, "owner
   decision"; no resolution was found in the referenced live records.
 
-## Policy proposal awaiting owner decision
+## Owner decision and configuration recovery (2026-10-26)
 
-Recommend optional, explicitly owner-directed cleanup after confirmed
-revocation. Ordinary incident response preserves the append-only log;
-revocation remains required. The owner must choose optional, prohibited, or
-required historical-log redaction before either notification copy is edited.
-This is a policy blocker, not a dependency on the incident ticket finishing.
+The owner approved the proposed optional-cleanup policy in this conversation
+("ok for me") and explicitly authorized configuring their local Coga user.
+Historical-copy redaction is optional after confirmed revocation; routine
+response preserves `coga/log.md`, and redacting it needs an explicit
+owner-approved exception. Revocation remains required. Exposure inspection
+and the coordinated-approval requirement for history rewriting stay intact.
+The notification topic and packaged twin will own the durable rule.
 
-Proposed replacement for the leaked-webhook paragraph (not adopted):
+The earlier `coga block` exited 2 before any transition because the local
+`user` was unset. The connected GitHub profile identifies the owner as
+`nicktoper`, matching this ticket. Created the gitignored
+`coga/coga.local.toml` with only `user = "nicktoper"` under the owner's new
+authorization, and verified `config.load_config` resolves that actor. No open
+blocker was recorded, so no `coga unblock` transition is needed. The task
+continues at implement.
 
-> Coga never prints a raw Slack error, since it would contain the webhook URL.
-> If a webhook URL or `/services/…` path ever appears in a diagnostic, treat it
-> as compromised: revoke or rotate it in Slack, confirming the leaked URL is
-> revoked, and inspect every reachable commit and other copies (forks,
-> clones, CI logs, caches). Revocation is the required remedy. Once it is
-> confirmed, redacting historical copies is optional cleanup at the owner's
-> direction. Preserve the append-only `coga/log.md` during ordinary incident
-> response; redacting it requires an explicit owner-approved exception.
-> A redaction commit does not erase history; rewriting and force-pushing
-> published history is a separate destructive step that needs explicit,
-> coordinated approval and still cannot recall existing copies.
+## Dev
 
-After the owner resolves the policy, record the answer with `coga unblock`,
-follow the manual feature-branch procedure, update both notification copies
-identically, and complete the implement workflow's checks and handoff. The
-draft preserves the existing exposure-inspection requirement; the decision
-here concerns historical-log redaction only. No documentation, configuration,
-log, or credentials were edited by hand. Tests were not run because no
-implementation change was made; investigation verified twin equality and
-counted existing exposure without exposing values.
+branch: coga/reconcile-webhook-log-policy
+
+## Implementation plan
+
+Publish this decision and branch linkage from `main`, then edit both
+notification copies on the feature branch. Run the full pytest suite,
+reconcile with current main, push, return to main, write the PR preparation
+and handoff, and bump once. No runtime code, fixture, credential, or historical
+log changes are needed.
