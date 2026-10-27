@@ -422,6 +422,10 @@ def run_with_done_marker(
     if not sys.stdout.isatty():
         import subprocess
 
+        # No PTY loop polls a sentinel here; an explicit empty channel tells
+        # lifecycle writers that its absence is by design, not a lost signal.
+        env = {**env, SENTINEL_ENV: ""}
+
         if after_spawn is None:
             try:
                 code = subprocess.run(
@@ -839,7 +843,8 @@ def emit_done_marker(session_id: str | None = None) -> None:
     output back to its display the bytes can cross-talk into a *parent*
     supervisor's PTY and tear the parent down. Failed writes warn on stderr;
     the terminal-ticket and idle/max-session backstops can still release the
-    session. A missing variable warns only with a supervised-launch witness.
+    session. An unset variable warns only with a supervised-launch witness;
+    an empty one is the explicit no-channel value and stays quiet.
 
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
@@ -852,29 +857,31 @@ def emit_done_marker(session_id: str | None = None) -> None:
     matched what the supervisor polled and the REPL hung. A bare call writes
     the legacy `"done"` sentinel.
     """
+    marker = session_id or "done"
     sentinel = os.environ.get(SENTINEL_ENV)
-    if not sentinel:
+    if sentinel is None:
         if os.environ.get(EXPECTED_TASK_ENV) or os.environ.get("COGA_SUPERVISED"):
-            print(
-                f"Warning: could not signal session completion for {session_id or 'done'}: "
-                f"{SENTINEL_ENV} is unset. The REPL may remain open until a "
-                "supervisor backstop runs.",
-                file=sys.stderr,
-            )
+            _warn_unsignalled(marker, f"{SENTINEL_ENV} is unset")
+        return
+    if not sentinel:
+        # An empty value is the explicit "no supervisor polls here" channel
+        # (non-PTY launches, ticket scripts). Nothing to signal or warn about.
         return
     try:
         # Atomic so the supervisor's poll never observes a half-written
         # sentinel — the bare-touch path treats any non-empty file as
         # "done" (see `_sentinel_signals_done`).
-        atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
+        atomic_write_text(Path(sentinel), f"{marker}\n")
     except OSError as exc:
-        print(
-            f"Warning: could not signal session completion for {session_id or 'done'}: "
-            f"cannot write {SENTINEL_ENV}={sentinel}: {exc}. The REPL may remain "
-            "open until a supervisor backstop runs.",
-            file=sys.stderr,
-        )
+        _warn_unsignalled(marker, f"cannot write {SENTINEL_ENV}={sentinel}: {exc}")
 
+
+def _warn_unsignalled(marker: str, cause: str) -> None:
+    print(
+        f"Warning: could not signal session completion for {marker}: {cause}. "
+        "The REPL may remain open until a supervisor backstop runs.",
+        file=sys.stderr,
+    )
 
 __all__ = [
     "ASSIST_AGENT_ENV",

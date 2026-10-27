@@ -410,6 +410,9 @@ def test_mark_done_from_repointed_worktree(
     now = [10.0]
     monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
     probe = _terminal_status_probe(cfg, launched, Ticket.read(launched.ticket_path))
+    assert probe is not None
+    assert probe() is None  # Session start: the published ticket is open.
+    now[0] += 1
 
     ops = git_repo.root.parent / "ops"
     git_repo.git("worktree", "add", "-b", "dream-ops", str(ops), "main")
@@ -444,7 +447,6 @@ def test_mark_done_from_repointed_worktree(
         assert "could not signal" in result.stderr
         assert SENTINEL_ENV in result.stderr
         assert not sentinel.exists()
-    assert probe is not None
     assert probe() is None  # Allow the ordinary command to finish signaling.
     now[0] += 5
     assert probe() == "done"

@@ -249,9 +249,11 @@ def run_script_phase(
     # agent session. A strict human assist re-mints only the narrow task and PR
     # capability needed by in-script lifecycle operations. Clear the sentinel
     # itself too: lifecycle writers signal it even outside supervised sessions.
+    # Its empty value says no supervisor polls here, so a strict assist's
+    # re-minted task witness does not trigger a lost-signal warning.
     # Script attribution is separate from both ownership and publication.
     env.pop("COGA_SUPERVISED", None)
-    env.pop(SENTINEL_ENV, None)
+    env[SENTINEL_ENV] = ""
     env.pop(EXPECTED_TASK_ENV, None)
     env.pop(EXPECTED_STEP_ENV, None)
     env.pop(EXPECTED_AGENT_ENV, None)

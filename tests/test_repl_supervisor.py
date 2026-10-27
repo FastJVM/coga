@@ -101,6 +101,23 @@ def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @windows_interactive_skip
+def test_no_tty_fallback_exports_explicit_empty_sentinel(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """No PTY loop polls here, so lifecycle writers get the explicit empty
+    channel instead of reading a supervised session's missing variable as a
+    lost signal."""
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    out = tmp_path / "env"
+    outcome = run_with_done_marker(
+        ["bash", "-c", f'printf "%s" "${{{SENTINEL_ENV}-unset}}" > "{out}"'],
+        env={"PATH": os.environ["PATH"], SENTINEL_ENV: "/stale/sentinel"},
+    )
+    assert outcome.exit_code == 0
+    assert out.read_text(encoding="utf-8") == ""
+
+
+@windows_interactive_skip
 def test_no_tty_missing_binary_raises_agent_cli_not_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -878,6 +895,18 @@ def test_emit_done_marker_missing_supervised_channel_warns(
     assert captured.out == ""
     assert "COGA_DONE_SENTINEL is unset" in captured.err
     assert "recurring/dream" in captured.err
+
+
+def test_emit_done_marker_explicit_empty_channel_is_silent(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An empty sentinel is the no-PTY/ticket-script value: no supervisor
+    polls it, so even a supervised witness must not raise a false alarm."""
+    monkeypatch.setenv(SENTINEL_ENV, "")
+    monkeypatch.setenv("COGA_EXPECTED_TASK", "/repo/coga/tasks/x.md")
+    monkeypatch.setenv("COGA_SUPERVISED", "1")
+    emit_done_marker("recurring/dream")
+    assert capsys.readouterr() == ("", "")
 
 
 def test_bare_touch_ignores_empty_sentinel(tmp_path) -> None:

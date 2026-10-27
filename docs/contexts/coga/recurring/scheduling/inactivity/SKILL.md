@@ -85,7 +85,9 @@ sentinel path when doing so. A failed write warns on stderr with the path and
 error. An absent variable also warns when `COGA_EXPECTED_TASK` or
 `COGA_SUPERVISED` witnesses a supervised launch. The lifecycle transition
 remains successful; the warning explains that teardown may need a backstop.
-Unsupervised commands with no sentinel stay quiet.
+Unsupervised commands with no sentinel stay quiet, as do commands that see the
+explicit empty value launch exports where no supervisor polls: non-terminal
+(no-PTY) agent launches and ticket scripts.
 
 For ordinary ticket launches, an independent backstop checks the exact
 launched ticket at most once a second. With Git publication and a configured
@@ -95,10 +97,15 @@ launching working copy stays stale. It never fetches or scans other tasks,
 and caches unchanged blobs. Repositories without publication or a configured
 remote use the local ticket, caching its file metadata. A configured remote
 with unavailable control state does not fall back to an unpublished local
-transition: publication may still be running.
+transition: publication may still be running. A ticket outside the Git
+repository, or a failed one-time Git lookup, disables the backstop for that
+session.
 
 The backstop accepts only `done` or `canceled` from the launched recurring
-generation, when present. It allows five seconds of continuously observed
+generation, when present, and only after it has seen that ticket open or
+absent during the session, so a stale terminal copy (for example a published
+blob from an earlier life of the path) never ends a fresh launch. It allows
+five seconds of continuously observed
 terminal state for the normal signal to arrive, then tears down the REPL
 with a `ticket-terminal` reason and a clean completion result. It does not
 claim a sentinel was observed. Missing, unreadable or malformed tickets,

@@ -3823,37 +3823,56 @@ def _terminal_status_probe(
     and publishing, and another worktree may hold the completed copy. Without
     a configured remote, watch the exact local file. Cache unchanged blobs /
     file stats, poll at most once a second, and allow five seconds of stable
-    terminal state for the ordinary sentinel path to finish first.
+    terminal state for the ordinary sentinel path to finish first. A terminal
+    state counts only after the probe has seen this ticket open or absent, so
+    a stale published copy from an earlier life of the path never ends a
+    fresh session.
     """
     if isinstance(ref, BootstrapRef):
         return None
 
     generation = ticket.frontmatter.get("period_generation")
     initialized = False
+    disabled = False
     root: Path | None = None
     control_path: str | None = None
     cached_key: object = None
     cached_status: str | None = None
+    armed = False
     next_poll = 0.0
     terminal_since: float | None = None
 
+    def setup() -> None:
+        # Resolved once, on the first poll: a failure or a ticket outside the
+        # repository disables the backstop rather than retrying git each poll.
+        nonlocal initialized, disabled, root, control_path
+        initialized = True
+        if not getattr(cfg, "git_enabled", False):
+            return
+        try:
+            root = git.toplevel(cfg.repo_root)
+            if root is None or not git.remote_configured(root, cfg.git_remote):
+                return
+            rel = git.relative_to_root(root, ref.ticket_path)
+        except git.GitError:
+            disabled = True
+            return
+        if Path(rel).is_absolute():
+            disabled = True  # Outside the repository: no published proof.
+            return
+        control_path = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}:{rel}"
+
     def probe() -> str | None:
-        nonlocal initialized, root, control_path, cached_key, cached_status
-        nonlocal next_poll, terminal_since
+        nonlocal cached_key, cached_status, armed, next_poll, terminal_since
         now = time.monotonic()
         if now < next_poll:
             return None
         next_poll = now + 1.0
+        if not initialized:
+            setup()
+        if disabled:
+            return None
         try:
-            if not initialized:
-                if getattr(cfg, "git_enabled", False):
-                    root = git.toplevel(cfg.repo_root)
-                    if root is not None and git.remote_configured(root, cfg.git_remote):
-                        rel = git.relative_to_root(root, ref.ticket_path)
-                        control_path = (
-                            f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}:{rel}"
-                        )
-                initialized = True
             if control_path is not None and root is not None:
                 key = git.run_git(root, "rev-parse", "--verify", control_path).strip()
                 text = (
@@ -3882,7 +3901,10 @@ def _terminal_status_probe(
             cached_key = None
             cached_status = None
         if cached_status is None:
+            armed = True
             terminal_since = None
+        elif not armed:
+            pass  # Terminal since launch: not this session's transition.
         elif terminal_since is None:
             terminal_since = now
         elif now - terminal_since >= 5.0:
