@@ -1,6 +1,6 @@
 ---
 title: Make every code workflow review with the other agent
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -26,7 +26,6 @@ contexts:
 - coga/checkouts
 - coga/workflows
 - coga/recurring/autofix
-step: 4 (review)
 agent: claude
 ---
 
