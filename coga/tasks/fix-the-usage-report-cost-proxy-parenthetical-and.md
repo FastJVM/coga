@@ -1,7 +1,7 @@
 ---
 title: Fix the usage-report cost-proxy parenthetical and delivery-miss comment after
   PR 1102
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
