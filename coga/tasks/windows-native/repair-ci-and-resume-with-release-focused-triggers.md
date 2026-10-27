@@ -32,9 +32,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 9156bb15-e92f-4658-9e6a-4764e26bcefa
 ---
 
 ## Description
@@ -484,3 +483,111 @@ Verification:
   proposal adds an explicit pre-tag manual Test procedure and a mandatory
   upload gate. If the GitHub page itself must be technically gated, settle
   that release-orchestration requirement before implementation.
+
+## Evaluator review
+
+2026-10-27. Cold review of Description and Context against fetched `main`
+`4cdc72995b5896733bfcd359abe0f9fde2b439ec`. The checkout started clean on
+that revision. This ticket has no implementation branch or PR. The body
+sections compose under the correct headings; the frozen workflow places
+this evaluation before the owner's `review-design` gate.
+
+**Verdict: revise before implementation for the rollout-ownership finding
+below.** The proposed reusable matrix, upload dependencies, permissions, and
+commit identity are otherwise implementable as one coherent PR. The owner's
+two policy decisions under Open Questions remain decisions for that gate;
+this review does not approve either policy.
+
+### Must fix before implementation
+
+1. **P1 — Give the post-merge rollout an owner that survives merge.**
+   Proposed shape item 7 leaves enablement and hosted verification on this
+   ticket at owner review, while the final acceptance criterion requires
+   those operations after merge. This ticket's frozen workflow ends at
+   `review`. `src/coga/autoclose.py`, `OPEN_STATUSES`, `_on_final_step()`,
+   `_candidate()`, and `_try_bump_one()`, mark an active/in-progress final-step
+   ticket done once its recorded PR is merged, without reading acceptance
+   criteria or the blackboard. An unchecked rollout list therefore cannot
+   keep this ticket open. The existing
+   `tests/test_autoclose.py::test_sweep_merged_bumps_final_step_with_merged_pr`
+   confirms that behavior.
+
+   Resolve this in the spec before implementation: require a separately
+   tracked rollout task, filed with `coga create` and linked before
+   `coga open-pr`, owning controlled enablement, both hosted receipts, the
+   inert gate/cancellation probes, observation of a real state push, and
+   failed-rollout recovery. Its completion must not depend solely on this
+   implementation PR merging. Alternatively the owner must choose a
+   lifecycle that does not close the outstanding obligation on merge.
+   `docs/contexts/coga/workflows/SKILL.md`, "Obligations the merge does not
+   discharge", and `coga/skills/code/open-pr/SKILL.md`, order-of-operations
+   item 2, explicitly require this handoff. Leaving only a checklist on the
+   current blackboard contradicts that contract and can report completion
+   while Test remains disabled or unverified. No lifecycle or ticket-body
+   change was made by the evaluator.
+
+### Optional recommendations
+
+- Make the initial cutover exception explicit when writing the testing
+  policy. The general pre-merge rule includes either CI workflow, while
+  Rollout and verification deliberately requires local/static verification
+  and merging before controlled enablement. Label that initial repair path
+  (and repairs while Test is disabled) so later readers can distinguish it
+  from the ordinary manual pre-merge requirement. The present rollout
+  ordering already expresses the intended exception.
+- When updating the releasing skill, replace "Real release" step 3's
+  moving `target main` instruction with tagging the captured, tested full
+  SHA and verifying the tag resolves to it before publishing the page.
+  The spec already requires the intended tag commit to be tested; making
+  the procedure concrete prevents a long hosted run plus intervening state
+  pushes from silently selecting a different commit. Apply the same edit
+  to the packaged twin.
+
+### Evidence and verification
+
+- Rechecked both workflow files, the releasing skill and its packaged twin,
+  the testing/packaging/state-publication topics, the packaging discovery
+  and identity checks, and the resolved packaged workflow. The current
+  Release jobs have no `needs`; Test retains its PR/main triggers and
+  `fail-fast: false`. This frozen ticket omits the newer `peer-review` step;
+  design evaluation is not a future implementation-review receipt.
+- GitHub's [reusable-workflow contract](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#calling-a-reusable-workflow)
+  confirms same-commit local calls. Its [dependency contract](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds)
+  supports the proposed normal-success prerequisite. The [event reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+  confirms release/dispatch commit identity and the caller payload in the
+  reusable workflow; [manual dispatch](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+  and [concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
+  support the proposed rollout order and independent runs. This is contract
+  verification, not an executed release-gate probe.
+- GitHub reconfirmed [PR #1118](https://github.com/FastJVM/coga/pull/1118)
+  merged as `94d3dad35bce156081ed6c02f15935355075091d`. Both reminder copies
+  include the human-pause guidance and match byte-for-byte. The separate
+  state-publication ticket remains at owner `review-design` with no PR
+  recorded; `_routine_state_areas()` still includes recurring templates.
+- Re-read both [incident run](https://github.com/FastJVM/coga/actions/runs/40403547211)
+  job logs: checkout `c9fa73a0e24abb42e726931e043cf6a09a70f64c`, the single
+  reminder-twin failure, and the reported Python versions, counts, and
+  runtimes all match the design's historical receipts.
+- Read-only GitHub checks on 2026-10-27:
+  `gh api repos/FastJVM/coga/actions/workflows/test.yml` reports
+  `394591152`, `disabled_manually`;
+  `gh api repos/FastJVM/coga/branches/main/protection` returns HTTP 404
+  "Branch not protected";
+  `gh api repos/FastJVM/coga/rules/branches/main` returns `[]`.
+  No workflow or repository setting was changed.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py`
+  -> **30 passed in 4.63s**, Python **3.12.12**, importing this checkout.
+  Direct `git diff --no-index` comparisons of both blocker-reminders copies
+  and both releasing-skill copies each exited 0.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_autoclose.py::test_sweep_merged_bumps_final_step_with_merged_pr tests/test_autoclose.py::test_sweep_merged_skips_non_final_step`
+  -> **2 passed in 3.51s**, Python **3.12.12**.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task windows-native/repair-ci-and-resume-with-release-focused-triggers --json`
+  -> exit 0, `ok_count: 1`, no fixes or issues. `git diff --check` passed.
+  A byte comparison against HEAD confirmed the entire pre-existing ticket
+  is preserved and exactly one evaluator section was appended below the
+  single blackboard fence. The final freshness fetch still found
+  `origin/main` at the reviewed revision, with no intervening changes.
+- No implementation, branch, PR, hosted run, package upload, or release was
+  created. Full-suite, Python 3.11/Windows, actionlint, and rollout evidence
+  remain implementation/rollout work. Only this evaluator section was added;
+  the authored spec, frontmatter, and prior blackboard were preserved.
