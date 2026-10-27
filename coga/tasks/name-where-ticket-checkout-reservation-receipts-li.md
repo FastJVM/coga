@@ -1,6 +1,6 @@
 ---
 title: Name where ticket checkout reservation receipts live in git-refresh
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:9973639c-e0fd-4f00-9332-d15ada7fa60a
 ---
 
 ## Description
