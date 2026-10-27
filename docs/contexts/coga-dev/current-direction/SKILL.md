@@ -22,14 +22,16 @@ is `coga status` and the ticket bodies; stage posture is
   Retro runs while the operator keeps working in the main tree. Revisit if
   those worktrees leak or become operator-visible noise. Contract:
   [`coga/checkouts`](../../coga/checkouts/SKILL.md).
-- **The microkernel cleanup is v1 scope (2026-10-16).** The six
-  `microkernel/*` tickets came back from `_v2/`; v1 ships with
-  `coga-dev/microkernel`'s "Open command placements" table empty. The target is the
-  current kernel line (launch closure including `mark`/`bump`,
-  `block`/`unblock`, `create`, fresh `init`, fixed recipes), not the July
-  "only `create` is core" direction. A recorded demo of adding a command at
-  the edge follows it (`marketing/demo-hackability-ask-claude-to-add-a-command-live`).
-  Contract: [`coga-dev/microkernel`](../microkernel/SKILL.md).
+- **V1 prioritizes first users; architectural cleanup is parked (2026-10-27).**
+  The owner requires easy installation and working first-task paths on macOS
+  and native Windows, a finished README with matching user documentation, and
+  the existing release and PostHog evidence. Usage reporting and commit/log
+  work remain in scope. The [numbered execution queue](../../../../coga/tasks/v1/README.md)
+  owns the retained tickets and order. Microkernel cleanup, its hackability
+  demo, further context restructuring, and Dream fixes are parked under
+  `coga/tasks/_v2/`. This supersedes the October 16 requirement to empty the
+  open-command-placements table before v1. The kernel boundary itself remains
+  unchanged; [`coga-dev/microkernel`](../microkernel/SKILL.md) owns it.
 - **Documentation is one library under `docs/` (2026-09-22).** Reusable
   knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
   into prompts; dated evidence, proposals and history sit outside the
@@ -118,7 +120,7 @@ is `coga status` and the ticket bodies; stage posture is
   [`coga/install`](../../coga/install/SKILL.md).
 - **Native Windows core port landed (2026-10-23).** Non-interactive commands
   and deterministic work run natively. Interactive agent sessions still
-  refuse until `windows-native/03-interactive-coga-launch-on-native-windows`
+  refuse until `v1/14-interactive-coga-launch-on-native-windows`
   lands; WSL remains the untested Windows route for those sessions.
   User-facing contracts: [`coga/install`](../../coga/install/SKILL.md),
   [`coga/launch`](../../coga/launch/SKILL.md#phases-and-routing).

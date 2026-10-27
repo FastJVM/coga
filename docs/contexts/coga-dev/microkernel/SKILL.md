@@ -55,9 +55,11 @@ effects, or calling shared infrastructure does not settle their placement.
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
 | `recurring promote` | Placement of the task-to-template move | none yet |
 
-These tickets live under `coga/tasks/microkernel/` and are v1
-scope: v1 ships with this table empty. Commands stay where they are until a
-reviewed change settles their placement, and the tickets work toward the
+These tickets are parked under `coga/tasks/_v2/microkernel/`; the owner's
+2026-10-27 scope decision in [current direction](../current-direction/SKILL.md)
+defers this cleanup beyond v1. Emptying this table is no longer a v1 gate.
+Commands stay where they are until a reviewed change settles their placement,
+and the parked tickets retain the target
 kernel boundary below rather than replacing it. Shared helpers and launch-time
 trust hooks retain their own kernel justification independently of the
 user-facing heads that call them.

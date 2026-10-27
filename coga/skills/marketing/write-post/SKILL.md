@@ -8,8 +8,8 @@ description: Produce one selected Coga post from an approved brief — objection
 This skill produces one owner-selected post. Read its ticket for the reader,
 argument, evidence, wording constraints, venue and publication boundary, and
 the README for Coga's public presentation. For the V1 idea piece those
-choices live in `marketing/idea-piece`; publication sequencing lives in
-`marketing/build-the-launch-plan`.
+choices live in `v1/42-idea-piece`; publication sequencing lives in
+`v1/44-build-the-launch-plan`.
 
 Archives require an explicit human request under
 [the archive access rule](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/archive-access/SKILL.md#archive-access).

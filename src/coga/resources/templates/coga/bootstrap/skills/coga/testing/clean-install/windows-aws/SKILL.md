@@ -137,7 +137,7 @@ and the first `FAIL (exit N)`), and `init-passed.txt` when init succeeds.
 Native commands retain their exit code; cmdlet errors fail with code 1,
 including non-terminating errors. Native stderr alone is not a failure.
 The core port verifies this entire walk. Agent-session checks are separate:
-until `windows-native/03-interactive-coga-launch-on-native-windows` lands,
+until `v1/14-interactive-coga-launch-on-native-windows` lands,
 those commands refuse before starting an agent.
 
 To continue as the walk user, the driver prints an

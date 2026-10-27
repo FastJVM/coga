@@ -9198,7 +9198,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert "skipping weekly-check" in combined
     if native_windows:
         assert "agent sessions are not supported on native Windows yet" in combined
-        assert "windows-native/03-interactive-coga-launch-on-native-windows" in combined
+        assert "v1/14-interactive-coga-launch-on-native-windows" in combined
     else:
         assert "an agent run requires a TTY" in combined
     assert any(

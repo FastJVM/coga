@@ -70,7 +70,7 @@ is not. Megalaunch's claim and the local state lock are not ownership locks
 
 Native Windows currently runs deterministic work only. Agent sessions refuse
 with a message naming
-`windows-native/03-interactive-coga-launch-on-native-windows`. A read-only
+`v1/14-interactive-coga-launch-on-native-windows`. A read-only
 target classification precedes checkout preparation, chat receipts, recurring
 catch-up and lifecycle writes. Only a locally visible `ticket.py` admits work;
 an absent target cannot authorize a checkout change to discover it. Agent-only

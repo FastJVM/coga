@@ -14,7 +14,7 @@ adopt it into. Installing the package never modifies a repo;
 - **Linux or macOS for agent sessions.** On native Windows the CLI and
   deterministic work run: non-interactive commands, `ticket.py` phases,
   recipes and recurring scripts. Agent sessions refuse there until
-  `windows-native/03-interactive-coga-launch-on-native-windows` lands
+  `v1/14-interactive-coga-launch-on-native-windows` lands
   ([coga/launch](../launch/SKILL.md#phases-and-routing)). WSL is the
   untested Windows route for agent sessions.
 - **Python 3.11+.** The preferred uv install below can download a compatible

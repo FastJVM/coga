@@ -42,7 +42,7 @@ agent: claude
 
 Activate audit retention in this repository after the compatible implementation
 from PR #1129 reaches current main; that PR closes
-`commit-journal/trim-the-audit-log`, while this ticket owns the operational
+`v1/39-trim-the-audit-log`, while this ticket owns the operational
 rollout and its cleanup. After owner review of the rollout plan, quiesce and
 upgrade every participating writer, run the documented interpreter-resolved
 `python -m coga_edge.trim_log --install`, review and publish its five repo

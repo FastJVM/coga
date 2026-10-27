@@ -1,5 +1,10 @@
 # blocks/
 
+Further context cleanup is deferred to v2 by owner decision on 2026-10-27.
+The completed tickets and audit below are historical. Outstanding follow-ups
+are in [the parked queue](../_v2/README.md); only README and first-user
+documentation acceptance remains in [the v1 queue](../v1/README.md).
+
 Slim the shipped context library (`docs/contexts/coga/*`, 60 topics) so that
 each topic carries only knowledge a repo *using* Coga needs. Facts that a
 template or config file can state for itself move there; knowledge only

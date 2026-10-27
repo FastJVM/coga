@@ -138,7 +138,7 @@ stock shim to rejoin upstream implementation updates.
 
 ### Instruction reconciliation for the later recipe-removal release
 
-`gigantic-refactor-move-recurring-recipes-out-of-co` must use this same adoption
+`_v2/gigantic-refactor-move-recurring-recipes-out-of-co` must use this same adoption
 policy for old shims **and** old Dream Phase 1/5 instructions before deleting
 registry targets. That release supplies reviewed old/new passages from its
 artifacts; use `OLD_PASSAGE` and `NEW_PASSAGE` text files for each exact passage,
