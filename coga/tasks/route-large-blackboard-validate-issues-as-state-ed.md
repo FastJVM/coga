@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 57f110a6-1012-4de7-ba1a-1b6c4ebd6c65
 ---
 
 ## Description
@@ -162,6 +161,13 @@ above. This session used Codex, not the ticket's configured Claude agent.
   The branch is pushed, and this manual checkout returned to clean, current
   main before writing this handoff. No PR was opened during implementation.
   See Peer review below for the rebased revision and current review receipts.
+
+## Open-PR handoff
+
+Opened PR #1123 from clean, current main at head `b79f4b24`; the completed
+peer-review note was the gate. No unfiled obligations: the two cited done
+tickets' disposal is Dream's existing Retro/retirement route, not owed by
+this merge.
 
 ## Peer review
 
