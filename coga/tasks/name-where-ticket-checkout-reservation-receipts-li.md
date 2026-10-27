@@ -122,4 +122,23 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: docs/ticket-checkout-receipt-location
+
+## Implementation plan
+
+- Started on clean, current `main` at `80d8b5cdfb9e8bb5de5c92c487d36b66a4abff61`;
+  no checkout-return witness was supplied, so this session follows the manual
+  checkout procedure and returns to `main` before bumping.
+- PR #1106 merged on 2026-10-26 as
+  `cfe7d33988a49f56d7ba59a261b9245bb2b552b3`, already an ancestor of current
+  `origin/main`; the ordering dependency is satisfied.
+- Add the missing receipt location, publication rationale, and removal semantics
+  to the Branch creation bullet in the local-only git-refresh topic.
+  `src/coga/checkouts.py` (`_RECEIPT_DIR`, `_receipt_path`, and
+  `_discard_receipt`) confirms the existing behavior. No runtime, fixture, or
+  packaged-context change is needed.
+- Run the full suite with the checkout's Python 3.12 environment, commit only
+  the topic, reconcile with current main, and push. Code review and PR creation
+  remain later workflow steps.
