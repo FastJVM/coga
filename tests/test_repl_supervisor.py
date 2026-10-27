@@ -334,6 +334,7 @@ def _run_through_pty(
     cmd: list[str],
     *,
     session_id: str | None = None,
+    terminal_status=None,  # type: ignore[no-untyped-def]
     after_spawn=None,  # type: ignore[no-untyped-def]
 ) -> ReplOutcome:
     """Force the PTY path with /dev/null fds for output and input."""
@@ -345,6 +346,7 @@ def _run_through_pty(
             cmd,
             env={"PATH": os.environ.get("PATH", "")},
             session_id=session_id,
+            terminal_status=terminal_status,
             output_fd=devnull_out,
             input_fd=devnull_in,
             after_spawn=after_spawn,
@@ -609,6 +611,19 @@ def test_no_done_signal_reports_no_observation(
 
 
 @windows_interactive_skip
+def test_terminal_ticket_stops_repl_without_claiming_a_sentinel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcome = _run_through_pty(
+        monkeypatch, ["bash", "-c", "sleep 30"],
+        session_id="recurring/dream", terminal_status=lambda: "done",
+    )
+    assert (outcome.exit_code, outcome.kind) == (0, "done")
+    assert outcome.done_signalled is False
+    assert outcome.reason == "ticket-terminal (done; done signal not observed)"
+
+
+@windows_interactive_skip
 def test_no_tty_fallback_has_no_done_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -838,18 +853,31 @@ def test_emit_done_marker_writes_sentinel(
     assert capsys.readouterr().out == ""
 
 
-def test_emit_done_marker_write_failure_is_silent(
+def test_emit_done_marker_write_failure_warns_on_stderr(
     tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The sentinel file is the only channel: if its write raises there is
-    nothing to fall back to, so the call swallows the error and prints
-    nothing rather than emitting an in-band signal."""
+    """A failed atomic write is visible without emitting an in-band signal."""
     # Parent directory does not exist → the atomic write's `mkstemp` raises.
     sentinel = tmp_path / "missing-dir" / "done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     emit_done_marker()  # must not raise
     assert not sentinel.exists()
-    assert capsys.readouterr().out == ""
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "could not signal" in captured.err
+    assert str(sentinel) in captured.err
+
+
+@pytest.mark.parametrize("witness", ["COGA_EXPECTED_TASK", "COGA_SUPERVISED"])
+def test_emit_done_marker_missing_supervised_channel_warns(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], witness: str
+) -> None:
+    monkeypatch.setenv(witness, "1")
+    emit_done_marker("recurring/dream")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "COGA_DONE_SENTINEL is unset" in captured.err
+    assert "recurring/dream" in captured.err
 
 
 def test_bare_touch_ignores_empty_sentinel(tmp_path) -> None:

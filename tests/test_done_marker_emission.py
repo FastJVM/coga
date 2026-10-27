@@ -23,7 +23,7 @@ from typer.testing import CliRunner
 
 from coga.cli import app
 from coga.config import load_config
-from coga.repl_supervisor import SENTINEL_ENV
+from coga.repl_supervisor import EXPECTED_TASK_ENV, SENTINEL_ENV, _sentinel_signals_done
 from coga.create import create_task
 from coga.ticket import Ticket
 
@@ -390,3 +390,61 @@ def test_sentinel_scope_is_checkout_independent(repo: Path) -> None:
     # divergence is exactly the mismatch that used to hang the REPL.
     assert primary_ref.path.resolve() != worktree_ref.path.resolve()
     assert primary_ref.path.resolve() == primary_path.resolve()
+
+
+@pytest.mark.parametrize("channel", ["working", "missing", "unwritable"])
+def test_mark_done_from_repointed_worktree(
+    git_repo, sentinel: Path, monkeypatch: pytest.MonkeyPatch, channel: str
+) -> None:
+    """Dream closes from an ops worktree while the launching copy stays stale."""
+    from coga.launch import _terminal_status_probe
+    from coga.tasks import resolve_target
+
+    slug, _ = _make_task(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks")
+    git_repo.git("commit", "-m", "Seed launched task")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("occupied")
+    cfg = load_config(git_repo.coga_os)
+    launched = resolve_target(cfg, slug)
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = _terminal_status_probe(cfg, launched, Ticket.read(launched.ticket_path))
+
+    ops = git_repo.root.parent / "ops"
+    git_repo.git("worktree", "add", "-b", "dream-ops", str(ops), "main")
+    _write(ops / "coga/coga.local.toml", 'user = "marc"\n')
+    other = resolve_target(load_config(ops / "coga"), slug)
+    monkeypatch.chdir(ops / "coga")
+    for key, value in {
+        "COGA_REPO_ROOT": ops,
+        "COGA_COGA_OS_ROOT": ops / "coga",
+        "COGA_TASK_TICKET": other.ticket_path,
+        "COGA_TASK_BLACKBOARD": other.ticket_path,
+        "COGA_TASK_DIR": other.path,
+        EXPECTED_TASK_ENV: other.path,
+    }.items():
+        monkeypatch.setenv(key, str(value))
+    monkeypatch.setenv("COGA_TASK_SLUG", slug)
+    monkeypatch.setenv("COGA_SUPERVISED", "1")
+    if channel == "missing":
+        monkeypatch.delenv(SENTINEL_ENV)
+    elif channel == "unwritable":
+        monkeypatch.setenv(SENTINEL_ENV, str(sentinel / "missing" / "sentinel"))
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(other.ticket_path).status == "done"
+    assert Ticket.read(launched.ticket_path).status == "in_progress"
+    if channel == "working":
+        assert _sentinel_signals_done(str(sentinel), launched.id_slug)
+        assert "could not signal" not in result.stderr
+    else:
+        assert "could not signal" in result.stderr
+        assert SENTINEL_ENV in result.stderr
+        assert not sentinel.exists()
+    assert probe is not None
+    assert probe() is None  # Allow the ordinary command to finish signaling.
+    now[0] += 5
+    assert probe() == "done"

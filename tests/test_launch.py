@@ -855,6 +855,7 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
 
     def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
         captured_env.update(env)
+        assert callable(kwargs["terminal_status"])
         return ReplOutcome(exit_code=0, kind="natural")
 
     monkeypatch.setattr(
@@ -920,6 +921,7 @@ def test_spawn_agent_session_gives_bootstrap_target_no_blackboard(
 
     def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
         captured_env.update(env)
+        assert kwargs["terminal_status"] is None
         return ReplOutcome(exit_code=0, kind="natural")
 
     monkeypatch.setattr(
@@ -1401,10 +1403,11 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
         "coga.launch.compose_prompt",
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
-    monkeypatch.setattr(
-        "coga.launch.run_with_done_marker",
-        lambda *a, **k: ReplOutcome(exit_code=0, kind="natural"),
-    )
+    def author_session(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        assert kwargs["terminal_status"] is None
+        return ReplOutcome(exit_code=0, kind="natural")
+
+    monkeypatch.setattr("coga.launch.run_with_done_marker", author_session)
     monkeypatch.setattr(
         "coga.launch.usage_tracking.capture_session",
         lambda **kwargs: captured.append(kwargs),
@@ -7753,3 +7756,102 @@ def test_launch_without_a_remote_keeps_its_checkout(
     assert result.exit_code == 0, result.output
     assert session.seen[0][:2] == ("feature/x", None)
     assert _branch_and_tip(git_repo)[0] == "feature/x"
+
+
+@pytest.mark.parametrize("file_form", [False, True])
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_terminal_status_probe_waits_for_stable_exact_ticket(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, file_form: bool, status: str
+) -> None:
+    ref = TaskRef("dream", tmp_path / ("dream.md" if file_form else "dream"), file_form=file_form)
+    _write(ref.ticket_path, "---\nstatus: in_progress\nperiod_generation: current\n---\n")
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = launch_module._terminal_status_probe(
+        SimpleNamespace(repo_root=tmp_path, git_enabled=False), ref, Ticket.read(ref.ticket_path)
+    )
+    assert probe is not None
+    _write(tmp_path / "other.md", "---\nstatus: done\n---\n")
+    assert probe() is None
+    _write(ref.ticket_path, f"---\nstatus: {status}\nperiod_generation: current\n---\n")
+    assert probe() is None  # Cached until the one-second poll.
+    now[0] += 1
+    assert probe() is None
+    now[0] += 4
+    assert probe() is None
+    now[0] += 1
+    assert probe() == status
+
+
+@pytest.mark.parametrize("replacement", [
+    None,
+    "not a ticket",
+    "---\nstatus: [done]\n---\n",
+    "---\nstatus: blocked\nperiod_generation: current\n---\n",
+    "---\nstatus: in_progress\nstep: 2 (next)\nperiod_generation: current\n---\n",
+    "---\nstatus: done\nperiod_generation: another-period\n---\n",
+])
+def test_terminal_status_probe_ignores_unproven_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement: str | None
+) -> None:
+    ref = TaskRef("dream", tmp_path / "dream")
+    _write(ref.ticket_path, "---\nstatus: in_progress\nperiod_generation: current\n---\n")
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = launch_module._terminal_status_probe(
+        SimpleNamespace(repo_root=tmp_path, git_enabled=False), ref, Ticket.read(ref.ticket_path)
+    )
+    assert probe is not None
+    _write(ref.ticket_path, "---\nstatus: done\nperiod_generation: current\n---\n")
+    assert probe() is None
+    if replacement is None:
+        ref.ticket_path.unlink()
+    else:
+        _write(ref.ticket_path, replacement)
+    now[0] += 5
+    assert probe() is None
+    _write(ref.ticket_path, "---\nstatus: done\nperiod_generation: current\n---\n")
+    now[0] += 1
+    assert probe() is None  # Lost proof resets the settling period.
+    now[0] += 5
+    assert probe() == "done"
+
+
+def test_terminal_status_probe_waits_for_publication_and_caches_blobs(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef("dream", git_repo.coga_os / "tasks/dream")
+    _write(ref.ticket_path, "---\nstatus: in_progress\nperiod_generation: current\n---\n")
+    git_repo.git("add", "coga/tasks")
+    git_repo.git("commit", "-m", "Seed launched task")
+    git_repo.git("push", "origin", "main")
+    cfg = load_config(git_repo.coga_os)
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = launch_module._terminal_status_probe(cfg, ref, Ticket.read(ref.ticket_path))
+    assert probe is not None
+    _write(ref.ticket_path, "---\nstatus: done\nperiod_generation: current\n---\n")
+    assert probe() is None
+    now[0] += 6
+    assert probe() is None  # The local write precedes publication.
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    now[0] += 6
+    assert probe() is None  # Missing published state cannot promote local dirt.
+    git_repo.git("add", "coga/tasks")
+    git_repo.git("commit", "-m", "Finish task")
+    git_repo.git("push", "origin", "main")
+
+    calls: list[tuple[str, ...]] = []
+    real_run = coga_git.run_git
+
+    def capture(root: Path, *args: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        calls.append(args)
+        return real_run(root, *args, **kwargs)
+
+    monkeypatch.setattr(coga_git, "run_git", capture)
+    now[0] += 1
+    assert probe() is None
+    assert probe() is None  # Throttled; no extra git call.
+    now[0] += 5
+    assert probe() == "done"
+    assert [args[0] for args in calls] == ["rev-parse", "cat-file", "rev-parse"]

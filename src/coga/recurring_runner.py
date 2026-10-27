@@ -2690,7 +2690,13 @@ def _task_outcome(
         # deterministic phase ended the launch — including the ordinary success
         # where it closed the step itself — so reading it as a failure would
         # report every healthy `ticket.py` template as unfinished.
-        if kind == "timeout":
+        if kind == "timeout" and status in TERMINAL_STATUSES:
+            result = "completed"
+            detail = (
+                "late teardown: done signal not observed before liveness stop; "
+                f"ticket is {status}"
+            )
+        elif kind == "timeout":
             result = "timed-out"
             detail = (
                 "liveness watchdog tore the session down before it signalled done"

@@ -5,13 +5,15 @@ For `coga recurring --interactive` (and any other unattended caller of an
 agent launch) we want the agent itself to be able to
 signal completion so the next task can start without manual intervention.
 
-The signal travels over a single **sentinel file**. The supervisor creates a
+The explicit signal travels over a **sentinel file**. The supervisor creates a
 tempfile path and exports it as `COGA_DONE_SENTINEL` in the child's env;
 `emit_done_marker` writes the launched session's id into it and the supervisor
 polls for that match. The file channel is robust against TUI agents (Claude
 Code, Codex) that capture bash subprocess stdout into a private pipe rather
 than echoing it to the PTY, and — because its content names the session — it
 never tears down a *different* session that merely inherited the env var.
+Ticket launches can also supply a terminal-status probe as a backstop when
+the explicit signal is lost.
 """
 
 from __future__ import annotations
@@ -215,7 +217,8 @@ class ReplOutcome:
     ended so a caller can branch without re-deriving it from the number:
 
     - `"natural"` — the child exited on its own; we never signalled it.
-    - `"done"` — we tore it down after a sentinel-file done signal.
+    - `"done"` — we tore it down after a sentinel-file done signal or a
+      terminal-ticket backstop (distinguished by `reason`).
     - `"timeout"` — we tore it down on a liveness limit (idle / max-session)
       before any done signal. This is the wedge the watchdog catches; a
       signal arriving during that teardown is reported by `done_signalled`
@@ -304,6 +307,7 @@ def run_with_done_marker(
     env: Mapping[str, str],
     *,
     session_id: str | None = None,
+    terminal_status: Callable[[], str | None] | None = None,
     idle_timeout: float | None = None,
     max_session: float | None = None,
     output_fd: int | None = None,
@@ -328,6 +332,11 @@ def run_with_done_marker(
     `emit_done_marker` writes this string into the file and the supervisor
     only tears down on a match. Leave it None for the legacy "any touch ends
     the session" behavior.
+
+    `terminal_status` optionally probes the launched ticket. A terminal result
+    releases the REPL as `done`, without claiming a sentinel was observed.
+    The caller owns IO, throttling and proof that the state belongs to this
+    launch; stateless targets leave it unset.
 
     `idle_timeout`, when set, is a backstop for a REPL that never signals done
     — an agent that stalls or crashes before reaching `coga bump` / `mark
@@ -665,6 +674,14 @@ def run_with_done_marker(
                             kind="done",
                         )
 
+                if not sent_term and terminal_status is not None:
+                    status = terminal_status()
+                    if status is not None:
+                        _trigger_term(
+                            f"ticket-terminal ({status}; done signal not observed)",
+                            kind="done",
+                        )
+
                 if (
                     idle_timeout is not None
                     and not sent_term
@@ -773,7 +790,7 @@ def _classify_exit(
         teardown_label = "timeout — liveness limit, agent never signalled done"
     else:
         teardown_code = 0
-        teardown_label = "done-signal received"
+        teardown_label = "completion observed"
 
     if os.WIFSIGNALED(status):
         sig = os.WTERMSIG(status)
@@ -820,9 +837,9 @@ def emit_done_marker(session_id: str | None = None) -> None:
     harmful — a TUI captures the print into visible tool output (the human
     sees the raw teardown marker), and when a TUI renders that captured
     output back to its display the bytes can cross-talk into a *parent*
-    supervisor's PTY and tear the parent down. If the file write fails there
-    is nothing left to fall back to; the supervisor's idle/max-session
-    backstop catches a session that never signalled done.
+    supervisor's PTY and tear the parent down. Failed writes warn on stderr;
+    the terminal-ticket and idle/max-session backstops can still release the
+    session. A missing variable warns only with a supervised-launch witness.
 
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
@@ -837,21 +854,26 @@ def emit_done_marker(session_id: str | None = None) -> None:
     """
     sentinel = os.environ.get(SENTINEL_ENV)
     if not sentinel:
-        # No supervisor is watching (e.g. a bare `claude`/`codex` session, or
-        # a debug run outside `coga launch`). Emitting the marker here would
-        # only print the internal teardown string into the human's visible
-        # transcript with nothing to consume it. Stay silent.
+        if os.environ.get(EXPECTED_TASK_ENV) or os.environ.get("COGA_SUPERVISED"):
+            print(
+                f"Warning: could not signal session completion for {session_id or 'done'}: "
+                f"{SENTINEL_ENV} is unset. The REPL may remain open until a "
+                "supervisor backstop runs.",
+                file=sys.stderr,
+            )
         return
     try:
         # Atomic so the supervisor's poll never observes a half-written
         # sentinel — the bare-touch path treats any non-empty file as
         # "done" (see `_sentinel_signals_done`).
         atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
-    except OSError:
-        # The sentinel file is the only channel; if its write fails there is
-        # nothing to fall back to. The session degrades to the supervisor's
-        # idle/max-session backstop rather than signalling done in-band.
-        pass
+    except OSError as exc:
+        print(
+            f"Warning: could not signal session completion for {session_id or 'done'}: "
+            f"cannot write {SENTINEL_ENV}={sentinel}: {exc}. The REPL may remain "
+            "open until a supervisor backstop runs.",
+            file=sys.stderr,
+        )
 
 
 __all__ = [
