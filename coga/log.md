@@ -9474,3 +9474,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 11:58 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-27 11:58 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 11:58 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [megalaunch] launched via coga megalaunch
+2026-10-27 12:09 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [agent:codex] advanced to step 2 (peer-review) → codex
