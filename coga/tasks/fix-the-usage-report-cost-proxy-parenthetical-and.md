@@ -125,4 +125,19 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/fix-usage-report-cost-proxy-comment
+
+## Implementation plan
+
+- Manual checkout procedure: started on clean, current `main` at
+  `2652b5bf91ef37dfdf69a95af6600608c9dc69e0`; launch supplied no branch.
+- Prerequisite PR #1102 merged 2026-10-26; its merge commit
+  `1de719527856d99b8f15cf22717998a4f5cae5a1` is an ancestor of this checkout.
+- Correct the cost-proxy parenthetical to describe the set-aside work and link
+  `coga-dev/internals/usage-pricing`. Correct the shim comment to describe
+  stderr-only delivery failures, and remove the skill's stale claim that the
+  comment is wrong. Keep the existing notification and bump behavior.
+- Both edited surfaces are repo-local with no packaged twins. Run the existing
+  full pytest suite; no new tests or fixture changes for prose/comment edits.
