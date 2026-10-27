@@ -22,11 +22,10 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 contexts:
 - coga-dev/principles
-launch_generation: 996ce5f8-152c-4a97-93c6-4ce5baa21434
 ---
 
 ## Description
@@ -228,81 +227,138 @@ scenes, metadata summary, HTML and link receipts); downloaded video remains
 No docs/archive content was read; its pre-existing README link was checked
 by Git path metadata and HTTP HEAD only.
 
+## Peer review — 2026-10-26
+
+Completed direct Codex review. No must-fix findings and no implementation
+edits. The actual implementer was also Codex, despite the ticket's Claude
+configuration; this fresh session is therefore recorded as **self-review**.
+Exact model ID and reasoning override were not exposed.
+
+Reviewed head: `c9faf920dcacf09c222cce3b694b2d529dfb7943`.
+Reviewed base: `60a0e956d4ca8bc07f274bf80a12913a089bef5c`.
+The unconditional fetch/rebase incorporated control's ticket/log and
+idea-piece updates; `git range-diff` shows the implementation patch unchanged.
+The branch is pushed with an explicit force-with-lease; this manual checkout
+is back on current `main`. No PR was opened in this step.
+
+- Confirmed all three routing changes on control and PR #1059 closed/unmerged.
+- Compared the README to the current install/init/first-task/megalaunch
+  contracts and relevant source, and independently read the final October 1
+  install matrix and its October 2 closure from Git history. Authenticated
+  completion remains the existing audit's work, blocked on owned-Mac access;
+  no end-to-end pass is claimed or newly required by this README review.
+- Verified the pinned October 22 queue entries and thinkpick vision, scoring
+  brief and draft decision. The text distinguishes continued queue work
+  from completion of the blocked ticket, and a corrected research plan from
+  a completed research decision.
+- Inspected the assignment and checkout video scenes and verified the saved
+  video hash. Both obsolete behaviors substantiate removal of the demo link.
+- Visually checked local Chromium previews at 1280×1000 and 390×1100:
+  Example, Install and First steps are legible, links wrap, and code blocks
+  stay within their scroll areas. No document horizontal overflow. This
+  supplements the Markdown/wheel checks; it is not live PyPI visual QA.
+
+Final-head suite: **4121 passed, 10 skipped in 345.15s**, Linux/Python
+3.12.12. Wheel, HTTP link, README metadata, scoped validation and whitespace
+checks passed; exact receipts are in `## PR`. Local evidence is under
+`.coga/readme-launch-checks/peer-review/`. No docs/archive contents were read.
+
+Next: the mechanical `open-pr` step. Advisory depth **skim**; retain the
+self-review disclosure and the authenticated-install limitation in the PR.
+The read-only PR formatter accepted this preparation as
+`[skim · A:codex R:codex(self)]`, with every diff path covered and no stale
+receipts.
+
 ## PR
 
 ```yaml
 title: Make README links PyPI-safe and substantiate launch examples
 author: codex
-author_evidence: This implement session ran as Codex, although the ticket is configured for
-  Claude. Exact model ID and reasoning override were not exposed by this session; no identity
-  is inferred from the ticket assignment.
-head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-depth: deep
-rationale: Documentation changes have passing final-head checks, but peer review has not run.
-  Review the narrowed thinkpick claim, recorded queue evidence and demo removal. Authenticated
-  clean-install completion remains a separate open release gate; it is not claimed here.
-implementation: Makes every README link absolute, pins historical examples, shows a recorded
-  megalaunch blocker followed by another ticket reaching review, corrects the unsupported
-  completed-thinkpick-decision claim, clarifies login/Mac/platform prerequisites, and removes
-  the obsolete July demo from onboarding. Current-direction retains the demo decision and
-  recognizes follow-up ownership.
-deviations: The public thinkpick records showed draft research/decision tickets, so the example
-  was narrowed to the documented correction. Related ticket routing and the idea-piece copy
-  were reconciled as control-branch state, not included in the feature diff.
-limitations: 'Linux Python 3.12.12 suite only; no new Python 3.11, macOS or native Windows
-  platform run. No authenticated first-task install rerun: the completed October audit stopped
-  at login, and its successor remains blocked on owned-Mac access. Demo review used frames
-  across the clip and a full silent-audio check, not continuous playback. Markdown was rendered
-  and links checked, but no browser visual QA or live PyPI publication was performed.'
+author_evidence: The implement handoff records Codex as the actual implementer, although the ticket
+  is configured for Claude. Exact model ID and reasoning override were not exposed by that session;
+  no identity is inferred from the ticket assignment. Peer review made no implementation edits.
+head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+depth: skim
+rationale: Bounded documentation change with no must-fix findings after completed direct review of
+  the final rebased diff. The full suite, wheel/README checks, live link checks, and local desktop/mobile
+  rendering passed. Read the description for the narrowed thinkpick proof, demo removal, and separate
+  authenticated-install release gate. Both implementing and reviewing sessions were Codex, so this
+  is self-review, not independent review.
+implementation: Makes every README link absolute, pins historical examples, shows a recorded megalaunch
+  blocker followed by another ticket reaching review, corrects the unsupported completed-thinkpick-decision
+  claim, clarifies login/Mac/platform prerequisites, and removes the obsolete July demo from onboarding.
+  Current-direction retains the demo decision and recognizes follow-up ownership.
+deviations: The public thinkpick records showed draft research/decision tickets, so the example was
+  narrowed to the documented correction. Related ticket routing and the idea-piece copy were reconciled
+  as control-branch state, not included in the feature diff.
+limitations: 'Linux Python 3.12.12 verification only; no Python 3.11, macOS or native Windows run.
+  No new authenticated first-task install audit: the dated October audit stopped at login, and its
+  successor remains blocked on owned-Mac access and owns eight first-task completions. Demo disposition
+  relies on the implementer''s frame/audio audit and reviewer inspection of the obsolete assignment
+  and checkout scenes, not continuous playback. Browser QA used locally styled Markdown HTML in Chromium
+  at 1280x1000 and 390x1100; no live PyPI rendering or publication. The in-app browser tool was unavailable,
+  so local Chromium was used.'
 files:
-  README.md: PyPI-safe links, evidence-backed Example and onboarding summary, and removal
-    of the obsolete demo link.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Own the demo removal rationale and replace
-    the obsolete assertion that README checks are unowned. Local-only Coga-dev context; no
-    packaged twin.
+  README.md: PyPI-safe links, evidence-backed Example and onboarding summary, and removal of the obsolete
+    demo link.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Own the demo removal rationale and replace the
+    obsolete assertion that README checks are unowned. Local-only Coga-dev context; no packaged twin.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step only. The next frozen step is peer-review; no independent or self-review
-    receipt is claimed. Actual implementer is Codex, so a later Codex review must be classified
-    honestly under the preparation rubric.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: Completed direct review in a fresh Codex peer-review session; no must-fix findings and no
+    implementation edits. Actual implementer was also Codex, so no independence is claimed; exact
+    model ID and reasoning override are unavailable. Verified current install/init/first-task/megalaunch
+    contracts and source, historical final install matrix, pinned queue log, pinned thinkpick vision/scoring/decision
+    briefs, obsolete demo scenes, the three routing updates on control, and local desktop/mobile Markdown
+    rendering. Range-diff confirms the rebase preserved the implementation patch unchanged.
 checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-readme-final-pytest.log
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-readme-peer-pytest.log
     2>&1
   status: passed
-  head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-  base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-  detail: 4121 passed, 10 skipped in 344.30s; Linux, Python 3.12.12, pytest 9.1.1. Full run
-    began after commit and rebase on a clean tree. Log retained in .coga/readme-launch-checks/final-pytest.log.
-    No runtime/fixture change required new tests.
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: 4121 passed, 10 skipped in 345.15s; Linux, Python 3.12.12, pytest 9.1.1. Run after rebase
+    on the clean committed branch. Log retained at .coga/readme-launch-checks/peer-review/pytest.log.
+    No runtime or fixture changes required new tests.
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pip wheel --no-deps --no-build-isolation
-    --wheel-dir /tmp/coga-readme-dist .
+    --wheel-dir /tmp/coga-readme-peer-dist .
   status: passed
-  head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-  base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-  detail: Built coga-0.4.1-py3-none-any.whl. SHA256 0370c510ea61a7bd2d1ca969926d6651187c12cf71df4e7645b23faf7e12057f.
-    Local verification artifact only; no upload.
-- command: .venv/bin/python .coga/readme-launch-checks/check_readme.py
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: Built coga-0.4.1-py3-none-any.whl; SHA256 0370c510ea61a7bd2d1ca969926d6651187c12cf71df4e7645b23faf7e12057f.
+    Local artifact; no upload.
+- command: .venv/bin/python .coga/readme-launch-checks/peer-review/check_readme.py
   status: passed
-  head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-  base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-  detail: 27 Markdown link occurrences, all HTTPS; 17 current-repo links resolve in Git; 25
-    distinct URLs return HTTP 200 via HEAD. Wheel description is text/markdown and byte-identical
-    to README.md. README SHA256 c1c5fd62aca6a2d7e4be1bcd85952f98f9eccb055b137f6a5c1987a19a8afb08.
-    HTML and JSON receipt retained beside the local checker; archive link checked without
-    reading archive contents.
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: 27 Markdown link occurrences, all HTTPS; 17 current-repo targets exist in Git; 25 distinct
+    URLs returned HTTP 200 via HEAD. Wheel description is text/markdown and byte-identical to README.md,
+    SHA256 c1c5fd62aca6a2d7e4be1bcd85952f98f9eccb055b137f6a5c1987a19a8afb08. HTML and JSON receipts
+    are retained beside the checker. Archive link checked by object existence and HEAD only; no archive
+    contents read.
+- command: node .coga/readme-launch-checks/peer-review/render_readme.cjs
+  status: passed
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: Inspected Example, Install and First steps in local Chromium at desktop 1280x1000 and mobile
+    390x1100. Prose and links wrap legibly; code blocks scroll within the viewport; no document horizontal
+    overflow. All 27 links remain in the rendered DOM. Screenshots and render-checks.json are retained
+    beside the script; local preview styling is not a live PyPI screenshot.
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task finish-the-readme-launch-checks-left-open-by-readm
     --json
   status: passed
-  head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-  base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-  detail: 1 ok, no issues. Runtime/config/workflow semantics did not change; fixture validation
-    was not required.
-- command: git diff --check 01a1751fb7c99dc54aca31002d4846c4c139c582...codex/readme-launch-checks
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: 1 ok, no issues on the rebased feature checkout. No configuration, workflow or task-model
+    semantics changed, so seeded-fixture validation was not required.
+- command: git diff --check origin/main...HEAD
   status: passed
-  head: 6b7cc3e04a7331016742ddfc32873e08cf9cb5b3
-  base: 01a1751fb7c99dc54aca31002d4846c4c139c582
-  detail: Passed on the committed feature diff after push and return to main.
+  head: c9faf920dcacf09c222cce3b694b2d529dfb7943
+  base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
+  detail: Passed on the clean rebased feature checkout at the recorded head/base.
 ```
