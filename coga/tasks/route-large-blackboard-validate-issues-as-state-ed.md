@@ -132,6 +132,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1123
 branch: coga/route-large-blackboard-state-edits-20261027
 
 ## Implement handoff
