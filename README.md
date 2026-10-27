@@ -148,6 +148,8 @@ Everything Coga manages is visible under `coga/`:
 
 **Agents can manage Coga itself.** They can write tickets, revise contexts, and change workflows without learning a special language.
 
+**Build Coga on base concepts agents are good with.** Coga is by design not original in its primitives. Agents are great at building tickets, plans and workflows. 
+
 ## Learn more
 
 - [Documentation](docs/README.md) — installation, concepts, operation, and development.
