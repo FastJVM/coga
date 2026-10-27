@@ -272,3 +272,9 @@ checks:
 ## Blockers
 
 - [ ] [2026-10-26 21:11] [agent:claude] id=20261026T211110 Restore /home/n/Code/coga/coga/coga.local.toml from a verified backup or confirm its intended settings. My invalid pytest temp root inside the checkout let uninstall tests delete it. All tracked files are restored; the documentation branch is pushed and the valid full suite passed 4121 tests with 10 skipped. Unblock after config recovery, then finish implement with bump.
+
+---
+
+## Blocker reminders
+
+- 5adf299f7d3d last_reminded: 2026-10-27 10:51
