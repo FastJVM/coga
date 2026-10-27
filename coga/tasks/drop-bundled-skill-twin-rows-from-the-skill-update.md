@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 879bd517-292f-4d53-acce-38e85c1ea21a
 ---
 
 ## Description
@@ -138,7 +137,8 @@ branch: coga/drop-bundled-skill-twin-rows
   before the fix. Command: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_skill_manager.py::test_update_all_emits_no_rows_for_bundled_skills tests/test_skill_manager.py::test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one tests/test_skill_update.py::test_skill_update_runs_through_generic_recipe_and_reports_no_op -q`.
 - Focused verification after the fix: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_skill_manager.py tests/test_skill_update.py -q`
   — 118 passed. Full suite on the final implementation: 4,123 passed,
-  10 skipped, Python 3.12.12. The full-suite receipt is below.
+  10 skipped, Python 3.12.12. The peer-review receipt below supersedes that
+  implementation check.
 - The staged implementation tree before the full suite and the committed tree
   both equal `af95f75733706f2bbf2f9e23b6b5ee6f70c96919`. The only unstaged
   change was this ticket's working notes; no implementation bytes changed
@@ -148,8 +148,32 @@ branch: coga/drop-bundled-skill-twin-rows
   verified in `/tmp/coga-drop-bundled-skill-twins-ticket-before-reconcile.md`
   before clearing them for the rebase and reconciling them here.
 - Actual implementer: Codex (GPT-6), without a model override, irrespective of
-  the ticket's configured Claude agent. No PR opened. Next step is peer review;
+  the ticket's configured Claude agent. No PR opened in implementation;
   no implementation blockers or adjacent bugs found.
+
+## Peer review
+
+- Direct Codex (GPT-6) review **completed** on head
+  `219321fc7f3d45973bb8717e44099718f241dda0`, against base
+  `6beb91a464e22206ab1b0a51f1612624f47ca9cd`. Reviewed all eight changed paths
+  and traced bulk selection, managed-source precedence, JSON counts, PR and
+  recurring reports, explicit bundled updates, and status inventory.
+  No must-fix or unresolved findings; no implementation edits were needed.
+- Both the actual implementer and reviewer are Codex, so this is recorded as
+  **self-review**, not independent review. Recommend **skim** for this bounded
+  selection change and its explicit-update compatibility choice.
+- Fetched current main and rebased the branch unconditionally. Main's added
+  commits changed only this ticket and the log; the implementation bytes still
+  match `ff410829dae6918d65d515efffadd7bc069de62b`. Re-ran the full suite on
+  the rebased head: **4,123 passed, 10 skipped in 369.72s**, Python 3.12.12.
+  Whitespace and both canonical/package twin comparisons passed. The exact
+  commands and revision receipts are below. No terminal-driving check was
+  needed: this changes result selection, with CLI/report paths covered by the
+  suite, and does not change an interactive surface.
+- Re-fetched main before and after pushing; it remained at the reviewed base.
+  Pushed the rebased head with an explicit force-with-lease and returned to
+  clean current `main` before writing this handoff. No PR opened; the next
+  step is the mechanical `open-pr` step. No blockers.
 
 ## PR
 
@@ -157,10 +181,10 @@ branch: coga/drop-bundled-skill-twin-rows
 title: Omit bundled skill twins from bulk update reports
 author: codex
 author_evidence: This implement session ran in Codex (GPT-6), with no model override; the configured ticket agent was not the implementer.
-head: ff410829dae6918d65d515efffadd7bc069de62b
-base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
-depth: deep
-rationale: Bounded report-selection change with a passing full suite; independent review is still pending in the next workflow step.
+head: 219321fc7f3d45973bb8717e44099718f241dda0
+base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+depth: skim
+rationale: Bounded bulk-selection change with a passing full suite and completed direct Codex self-review. Read the description for the retained explicit-update diagnostics; independent review was not performed because the actual implementer and reviewer are both Codex.
 implementation: The bulk updater plans only GitHub and URL sources, omitting unmanaged bundled twins from JSON counts and weekly reports. Updates preserve managed-source precedence and the existing status inventory. The owning context and recurring template twins describe the change.
 deviations: None. The skipped-bundled status remains because explicit single-skill updates still use it to explain repository maintenance or package upgrades.
 limitations: Verified locally on Linux with Python 3.12.12; Python 3.11 and native Windows were not run. Upstream/network actions use deterministic test fixtures.
@@ -174,26 +198,33 @@ files:
   tests/test_skill_manager.py: Cover omitted rows and counts, untouched twins, managed-source precedence, and retained explicit diagnostics.
   tests/test_skill_update.py: Cover the recurring no-op report with an installed twin and use managed-skill statuses in report fixtures.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: This is the implement step; the next peer-review step owns code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 219321fc7f3d45973bb8717e44099718f241dda0
+  base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+  detail: Direct Codex review completed after rebase, covering all eight diff paths and the affected selection, provenance, report, explicit-update, and inventory contracts. No must-fix or unresolved findings. The implementation also ran in Codex; peer configuration does not establish independence.
 checks:
-  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-drop-bundled-skill-twins-pytest.log 2>&1
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-drop-bundled-skill-twins-peer-pytest.log 2>&1
     status: passed
-    head: ff410829dae6918d65d515efffadd7bc069de62b
-    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
-    detail: 4123 passed, 10 skipped in 364.98s on Python 3.12.12. Includes packaging and twin checks. Tested staged tree and committed tree both equal af95f75733706f2bbf2f9e23b6b5ee6f70c96919; reconciliation was a no-op.
+    head: 219321fc7f3d45973bb8717e44099718f241dda0
+    base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+    detail: 4123 passed, 10 skipped in 369.72s on Linux with Python 3.12.12. Includes packaging, twin, mixed-source report, bundled-only recurring recipe, explicit-update, and status tests. Run after rebase; no implementation bytes changed afterward.
   - command: git diff --check origin/main...HEAD
     status: passed
-    head: ff410829dae6918d65d515efffadd7bc069de62b
-    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
-    detail: No whitespace errors after commit and reconciliation.
-  - command: cmp docs/contexts/coga/skill-management/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md; cmp coga/recurring/skill-update/ticket.md src/coga/resources/templates/coga/recurring/skill-update/ticket.md
+    head: 219321fc7f3d45973bb8717e44099718f241dda0
+    base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+    detail: No whitespace errors on the final rebased feature diff.
+  - command: cmp docs/contexts/coga/skill-management/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md
     status: passed
-    head: ff410829dae6918d65d515efffadd7bc069de62b
-    base: 79a817068609bda52dbe0f4df16d56e7e5fe8856
-    detail: Both changed canonical/package pairs are byte-identical after reconciliation.
+    head: 219321fc7f3d45973bb8717e44099718f241dda0
+    base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+    detail: Canonical and packaged skill-management contexts are byte-identical after rebase.
+  - command: cmp coga/recurring/skill-update/ticket.md src/coga/resources/templates/coga/recurring/skill-update/ticket.md
+    status: passed
+    head: 219321fc7f3d45973bb8717e44099718f241dda0
+    base: 6beb91a464e22206ab1b0a51f1612624f47ca9cd
+    detail: Live and packaged recurring tickets are byte-identical after rebase.
   - command: coga validate --json
     status: not-run
     detail: Validation, configuration, task layout, prompt composition, and workflow semantics are unchanged; no seeded fixture update is required.
