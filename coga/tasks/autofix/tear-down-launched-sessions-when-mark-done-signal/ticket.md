@@ -163,6 +163,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/1126
 branch: fix/launched-session-terminal-backstop
 
 ## Investigation
