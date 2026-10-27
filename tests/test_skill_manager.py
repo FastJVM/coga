@@ -312,9 +312,21 @@ def test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one
     from coga import skill_update
 
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
     skills = cfg.repo_root / "skills"
     _write(skills / "pack-a" / "SKILL.md", _gh_backed_skill("pack-a"))
     _write(skills / "pack-b" / "SKILL.md", _gh_backed_skill("pack-b"))
+    # Managed provenance still wins for a same-ref package override; an
+    # ordinary bundled twin contributes no row to the mixed report.
+    _write(bundled_root / "pack-a" / "SKILL.md", "---\nname: pack-a\n---\nbundled\n")
+    _write(
+        bundled_root / "code" / "open-pr" / "SKILL.md",
+        "---\nname: code/open-pr\n---\nbundled\n",
+    )
+    _write(
+        skills / "code" / "open-pr" / "SKILL.md",
+        "---\nname: code/open-pr\n---\nlocal copy\n",
+    )
     outcomes = {
         "pack-a": _completed([], stdout="Updated pack-a\n"),
         "pack-b": _completed(
@@ -327,6 +339,7 @@ def test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one
     summary = update_skills(cfg, all_skills=True, runner=_gh_update_runner([], outcomes))
 
     results = {result.name: result for result in summary.results}
+    assert set(results) == {"pack-a", "pack-b"}
     assert results["pack-a"].status == "updated"
     assert results["pack-b"].status == "fetch-failed"
     assert results["pack-b"].changed is False
@@ -960,10 +973,16 @@ def test_url_update_reports_conflict_when_local_and_upstream_changed(
     ]
 
 
+@pytest.mark.parametrize("all_skills", [False, True])
 def test_url_update_replaces_clean_skill_and_refreshes_metadata(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, all_skills: bool
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
+    _write(
+        bundled_root / "tools" / "example" / "SKILL.md",
+        "---\nname: tools/example\n---\nbundled\n",
+    )
     skill_dir = cfg.repo_root / "skills" / "tools" / "example"
     _write(skill_dir / "SKILL.md", "---\nname: tools/example\n---\nold\n")
     digest = hash_skill_tree(skill_dir)
@@ -985,7 +1004,8 @@ def test_url_update_replaces_clean_skill_and_refreshes_metadata(
 
     summary = update_skills(
         cfg,
-        "tools/example",
+        None if all_skills else "tools/example",
+        all_skills=all_skills,
         downloader=lambda url: _skill_zip("tools/example", body="new\n"),
         now=lambda: "2026-05-13T12:30:00Z",
     )
@@ -1158,12 +1178,10 @@ def test_status_marks_local_skill_that_overrides_bundled(
     assert "shadows bundled" in results["tools/example"].message
 
 
-def test_update_all_reports_only_installed_bundled_twins_as_skipped(
+def test_update_all_emits_no_rows_for_bundled_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A bundled ref this repo never installed is not one of its skills and
-    gets no row; an installed twin of a bundled skill is skipped because its
-    updates come with the package."""
+    """Bundled refs have no managed source, with or without a local twin."""
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
@@ -1174,21 +1192,15 @@ def test_update_all_reports_only_installed_bundled_twins_as_skipped(
         bundled_root / "bootstrap" / "import" / "SKILL.md",
         "---\nname: bootstrap/import\n---\nbundled\n",
     )
-    _write(
-        cfg.repo_root / "skills" / "retro" / "done-ticket" / "SKILL.md",
-        "---\nname: retro/done-ticket\n---\nlocal copy\n",
-    )
+    twin = cfg.repo_root / "skills" / "retro" / "done-ticket" / "SKILL.md"
+    _write(twin, "---\nname: retro/done-ticket\n---\nlocal copy\n")
+    before = twin.read_bytes()
 
     summary = update_skills(cfg, all_skills=True, runner=_no_command_runner)
-    results = {result.name: result for result in summary.results}
 
-    assert set(results) == {"retro/done-ticket"}
-    assert results["retro/done-ticket"].source_type == "bundled"
-    assert results["retro/done-ticket"].status == "skipped-bundled"
-    # The repo copy shadows the packaged one, so a package upgrade would not
-    # change the directory this row names; do not point operators at it.
-    assert "shadows the packaged copy" in results["retro/done-ticket"].message
-    assert "pip install" not in results["retro/done-ticket"].message
+    assert summary.results == []
+    assert summary.to_dict()["counts"] == {}
+    assert twin.read_bytes() == before
 
 
 def test_update_all_emits_no_row_for_skills_without_a_managed_source(
@@ -1223,12 +1235,10 @@ def test_update_one_bundled_skill_reports_package_update_path(
     assert "pip install --upgrade coga" in summary.results[0].message
 
 
-def test_update_one_installed_bundled_twin_matches_the_all_report(
+def test_update_one_installed_bundled_twin_reports_repo_maintenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga skill update code/x` on an installed twin of a bundled skill
-    reports the same `skipped-bundled` row `--all` does, not `unmanaged`
-    with a "reinstall" hint for a skill the package already ships."""
+    """An explicit request still explains why the repo twin is not updated."""
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
@@ -1245,6 +1255,7 @@ def test_update_one_installed_bundled_twin_matches_the_all_report(
     assert summary.results[0].status == "skipped-bundled"
     assert summary.results[0].source_type == "bundled"
     assert "shadows the packaged copy" in summary.results[0].message
+    assert "pip install" not in summary.results[0].message
 
 
 def test_remove_requires_exact_installed_skill_path(
@@ -1857,10 +1868,10 @@ def test_dream_pr_summary_skips_pr_when_nothing_changed(
     summary = SkillUpdateSummary(
         results=[
             SkillResult(
-                name="bootstrap/example",
-                source_type="bundled",
-                status="skipped-bundled",
-                message="bundled skill updates come from the coga package",
+                name="tools/example",
+                source_type="url",
+                status="unchanged",
+                message="URL source is unchanged",
                 changed=False,
             )
         ]

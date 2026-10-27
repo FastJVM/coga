@@ -315,13 +315,12 @@ def update_skills(
         # One result per *installed* skill that has a managed update source.
         # First-party repo skills, `install-local` directories and
         # hand-vendored packs have no update source and emit no row. Bundled
-        # refs this repo never installed are not this repo's skills and are
-        # not reported as "skipped" either.
+        # refs without managed provenance also emit no row, even with a twin.
         planned: list[tuple[str, Path, str]] = []
         for skill_dir in list_installed_skill_dirs(root):
             ref = _skill_ref_from_path(root, skill_dir)
             source = _managed_update_source(skill_dir, ref, bundled_refs)
-            if source is not None:
+            if source in {"url", "github"}:
                 planned.append((ref, skill_dir, source))
         summary.results.extend(
             _run_planned_updates(
