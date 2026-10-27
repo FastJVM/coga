@@ -1,6 +1,6 @@
 ---
 title: Move the non-executable-script validate contract into a shipped user topic
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 99b2e0ba-7b1f-499d-9b0a-69176e4a53c7
 ---
 
 ## Description
@@ -127,18 +126,149 @@ ordinary ticket.
 
 branch: coga/non-executable-script-user-topic
 
-## Implementation plan
+## Implementation handoff
 
-- Started on clean `main`, fetched and fast-forwarded to current `origin/main`.
-  PR #1097 merged as `fe0b7fa198f6b11a3f7015073ea382ccc436aed5` and is
-  already an ancestor of this checkout, so its prerequisite is satisfied.
-- Move the contract into `coga/skill-management` under executable skill
-  scripts, keep its packaged twin identical, and point the CLI index's
-  `validate` row and `coga-dev/testing` at that owner. `coga/cli` is now an
-  index; skill management already owns installed and bundled skill behavior.
-- Preserve scope, mode-source selection, exclusions, remediation, and Dream's
+- Implemented and pushed `f07099be6fb0ec7d59267276450c5cadf756b81a` on the
+  recorded branch. No PR opened and no workflow bump performed.
+- Moved the complete contract to `coga/skill-management`, "Executable skill
+  scripts", with its identical packaged twin. The CLI index now links that
+  section, and `coga-dev/testing` has a one-line link. Skill management owns
+  the installed/bundled skill behavior; `coga/cli` remains an index.
+- Preserved scope, mode-source selection, exclusions, remediation, and Dream's
   packaged-finding classification. Runtime behavior and fixtures are unchanged.
-- Run the required full pytest suite, reconcile with current main, commit and
-  push, return to main, then record publication evidence and bump once.
-- Actual implementing agent: Codex (GPT-6), regardless of the ticket's
-  configured `agent: claude`; no agent delegation or model override was used.
+- PR #1097 merged as `fe0b7fa198f6b11a3f7015073ea382ccc436aed5` before this
+  work and is an ancestor of the tested branch.
+- Actual implementing agent: Codex (GPT-6), regardless of the configured
+  `agent: claude`; no agent delegation or model override was used.
+- Fetched and reconciled with `origin/main`; rebase made no changes. The
+  successful test run's staged tree `089dd38f542e593cda9a54436c2a14b1db54ee92`
+  equals the committed tree. Returned to clean, current `main` before writing
+  this handoff.
+- The implementation is ready for peer review after machine-local recovery.
+  Restore the missing local config, unblock, verify the checkout/config, and
+  finish this implement step with `coga bump`; do not repeat the implementation.
+
+## Verification and recovery
+
+- Final valid run: Linux, Python 3.12.12, pytest 9.1.1; **4121 passed,
+  10 skipped** in 381.29 seconds. The temp root was outside every Git checkout.
+  The exact command and revision receipt are in `## PR` below.
+- The first run exhausted `/tmp` inodes: 1413 passed, 10 skipped, 2708 setup
+  errors. Removed only that completed run's `/tmp/pytest-of-n/pytest-92`
+  fixtures after preserving its log. Other pre-existing temp files were left
+  alone; `/tmp` remained near its inode limit. Use an external workspace-disk
+  temp root for subsequent verification, never a directory inside this repo.
+- **Agent-caused recovery incident:** I retried with pytest's temp root under
+  this checkout's `.coga/`. Repo-discovery tests reached the real parent
+  repository, and uninstall tests removed its Coga roots and instructions.
+  That invalid run reported 388 failed, 3721 passed, 10 skipped, 12 errors.
+  I restored every tracked change caused by the run from the unchanged index,
+  preserving the five intended staged documentation edits. The tracked tree
+  then matched the original staged tree exactly and the independent rerun
+  above passed.
+- The ignored `/home/n/Code/coga/coga/coga.local.toml` was also deleted and
+  cannot be restored from Git. No verified backup was found. I did not invent
+  its settings or write a replacement. Generated agent-discovery views may
+  also need the ordinary setup to rebuild them after config recovery.
+- To record the blocker, use the documented `COGA_LOCAL_CONFIG` override with
+  `/home/n/Code/codex/coga/coga/coga.local.toml`. This existing config loads
+  successfully with user `nicktoper`; it is not a verified backup of the
+  deleted file and was not copied over it.
+- Recovery evidence is retained at
+  `/home/n/Code/coga-test-recovery-ijlh24q3/`: `staged.patch`,
+  `unstaged.patch`, `head.txt`, `AGENTS.md.coga-bak`, `pytest-inodes.log`,
+  `pytest-invalid-location.log`, and `pytest-independent.log`.
+- Adjacent harness safety finding: `tests/conftest.py`'s `_isolate_tmpdir`
+  does not reject a temp root inside the source checkout. Tests expecting no
+  containing repo then discover the source repo; the invalid run's
+  `tests/test_aliases.py::test_main_missing_repo_points_to_init` printed real
+  task state, and `src/coga/commands/uninstall.py::_execute_plan` removed the
+  real roots. No harness change is included in this documentation ticket.
+  No follow-up ticket was created during this recovery.
+
+## PR
+
+```yaml
+title: Ship executable-script validation guidance
+author: codex
+author_evidence: >-
+  This implement session used Codex (GPT-6), with no model override or
+  delegation; the configured ticket agent claude was not the implementing agent.
+head: f07099be6fb0ec7d59267276450c5cadf756b81a
+base: 06d0f9f6d9fa572a21a342d76f69303e0b984a4c
+depth: deep
+rationale: >-
+  Bounded documentation relocation with a passing final full-suite run.
+  Independent review has not run, and recovery of the local configuration
+  deleted by an invalid intermediate test setup remains blocked on the owner.
+implementation: >-
+  Makes coga/skill-management the shipped owner of the complete
+  non-executable-script contract, preserves packaged twins, links the contract
+  from the CLI index, and replaces the developer-only explanation with one link.
+deviations: >-
+  Used the existing skill-management topic rather than the ticket's example
+  CLI location because coga/cli is an index. No runtime behavior changed.
+limitations: >-
+  Verified on Linux with Python 3.12.12; no native Windows or Python 3.11 run.
+  The ignored primary-checkout local config needs restoration after the invalid
+  intermediate test setup; tracked files were fully restored before the valid run.
+files:
+  docs/contexts/coga-dev/testing/SKILL.md: Replace the developer-only contract with a link to its shipped owner.
+  docs/contexts/coga/cli/SKILL.md: Make the script-permission contract discoverable from the validate command row.
+  docs/contexts/coga/skill-management/SKILL.md: Own the full user-facing contract and include validation in the topic description.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Ship the identical CLI index link.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Ship the identical contract in the bootstrap fallback.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Independent review belongs to the next workflow step; implementation is blocked pending local-config recovery.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+    status: failed
+    head: f07099be6fb0ec7d59267276450c5cadf756b81a
+    base: 06d0f9f6d9fa572a21a342d76f69303e0b984a4c
+    detail: >-
+      1413 passed, 10 skipped, 2708 errors in 182.47s. /tmp exhausted its
+      inodes and fixture setup failed. Initial staged tree matched the eventual
+      commit; this failed environmental attempt is superseded by the final run.
+  - command: >-
+      TMPDIR=/home/n/Code/coga/.coga/non-executable-script-tests-ctl_r1f0/tmp
+      PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+      --basetemp=/home/n/Code/coga/.coga/non-executable-script-tests-ctl_r1f0/pytest
+    status: failed
+    head: f07099be6fb0ec7d59267276450c5cadf756b81a
+    base: 06d0f9f6d9fa572a21a342d76f69303e0b984a4c
+    detail: >-
+      INVALID TEST SETUP: 388 failed, 3721 passed, 10 skipped, 12 errors in
+      434.18s. Starting staged tree matched this commit, but locating fixtures
+      inside the source checkout let discovery/uninstall tests mutate that
+      checkout during the run. This is not verification of the final tree.
+      Tracked files were restored before the valid independent-temp-root run;
+      the ignored local config remains missing.
+  - command: >-
+      TMPDIR=/home/n/Code/ct-x8b33adk/tmp PYTHONPATH=/home/n/Code/coga/src
+      .venv/bin/python -m pytest --basetemp=/home/n/Code/ct-x8b33adk/pytest
+    status: passed
+    head: f07099be6fb0ec7d59267276450c5cadf756b81a
+    base: 06d0f9f6d9fa572a21a342d76f69303e0b984a4c
+    detail: >-
+      4121 passed, 10 skipped in 381.29s; Linux, Python 3.12.12, pytest 9.1.1.
+      Verified the temp root has no Git ancestor before execution. The tested
+      staged tree equals the committed tree, and the subsequent rebase changed
+      neither head nor tree. Includes packaging twins/links and validator tests.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: f07099be6fb0ec7d59267276450c5cadf756b81a
+    base: 06d0f9f6d9fa572a21a342d76f69303e0b984a4c
+    detail: No whitespace errors after the final fetch and no-op rebase.
+  - command: env -u SLACK_WEBHOOK_URL coga validate --json
+    status: not-run
+    detail: Seeded-fixture validation is not required for this documentation-only move; validation behavior and fixtures are unchanged.
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-10-26 21:11] [agent:claude] id=20261026T211110 Restore /home/n/Code/coga/coga/coga.local.toml from a verified backup or confirm its intended settings. My invalid pytest temp root inside the checkout let uninstall tests delete it. All tracked files are restored; the documentation branch is pushed and the valid full suite passed 4121 tests with 10 skipped. Unblock after config recovery, then finish implement with bump.

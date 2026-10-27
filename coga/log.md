@@ -9405,3 +9405,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 17:05 v1 [move-the-non-executable-script-validate-contract-i] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-26 17:05 v1 [move-the-non-executable-script-validate-contract-i] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-26 17:05 v1 [move-the-non-executable-script-validate-contract-i] [megalaunch] launched via coga megalaunch
+2026-10-26 21:11 v1 [move-the-non-executable-script-validate-contract-i] [agent:claude] blocked: Restore /home/n/Code/coga/coga/coga.local.toml from a verified backup or confirm its intended settings. My invalid pytest temp root inside the checkout let uninstall tests delete it. All tracked files are restored; the documentation branch is pushed and the valid full suite passed 4121 tests with 10 skipped. Unblock after config recovery, then finish implement with bump.
