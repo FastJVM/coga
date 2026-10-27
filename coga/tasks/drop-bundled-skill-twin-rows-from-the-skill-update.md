@@ -121,6 +121,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1127
 branch: coga/drop-bundled-skill-twin-rows
 
 ## Implement handoff
