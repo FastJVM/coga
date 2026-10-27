@@ -7857,8 +7857,8 @@ def test_terminal_status_probe_disabled_outside_git_root(
     probe = launch_module._terminal_status_probe(cfg, ref, Ticket.read(ref.ticket_path))
     assert probe is not None
     assert probe() is None
-    calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(coga_git, "run_git", lambda root, *args, **kw: calls.append(args) or "")
+    calls: list[object] = []
+    monkeypatch.setattr(coga_git, "_run", lambda *args, **kw: calls.append(args))
     _write(outside / "ticket.md", "---\nstatus: done\n---\n")
     for _ in range(8):
         now[0] += 1
@@ -7890,17 +7890,17 @@ def test_terminal_status_probe_waits_for_publication_and_caches_blobs(
     git_repo.git("commit", "-m", "Finish task")
     git_repo.git("push", "origin", "main")
 
-    calls: list[tuple[str, ...]] = []
-    real_run = coga_git.run_git
+    calls: list[str] = []
+    real_run = coga_git._run
 
-    def capture(root: Path, *args: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
-        calls.append(args)
-        return real_run(root, *args, **kwargs)
+    def capture(argv, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(argv[3])
+        return real_run(argv, *args, **kwargs)
 
-    monkeypatch.setattr(coga_git, "run_git", capture)
+    monkeypatch.setattr(coga_git, "_run", capture)
     now[0] += 1
     assert probe() is None
     assert probe() is None  # Throttled; no extra git call.
     now[0] += 5
     assert probe() == "done"
-    assert [args[0] for args in calls] == ["rev-parse", "cat-file", "rev-parse"]
+    assert calls == ["rev-parse", "cat-file", "rev-parse"]

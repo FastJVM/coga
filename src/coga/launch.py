@@ -3832,83 +3832,76 @@ def _terminal_status_probe(
         return None
 
     generation = ticket.frontmatter.get("period_generation")
-    initialized = False
-    disabled = False
-    root: Path | None = None
-    control_path: str | None = None
+    unresolved = object()
+    # `None` disables the backstop; `(root, rev, rel)` reads published control
+    # state; `()` watches the local file.
+    source: object = unresolved
     cached_key: object = None
     cached_status: str | None = None
     armed = False
     next_poll = 0.0
     terminal_since: float | None = None
 
-    def setup() -> None:
+    def resolve_source() -> tuple[Path, str, str] | tuple[()] | None:
         # Resolved once, on the first poll: a failure or a ticket outside the
         # repository disables the backstop rather than retrying git each poll.
-        nonlocal initialized, disabled, root, control_path
-        initialized = True
         if not getattr(cfg, "git_enabled", False):
-            return
+            return ()
         try:
             root = git.toplevel(cfg.repo_root)
             if root is None or not git.remote_configured(root, cfg.git_remote):
-                return
+                return ()
             rel = git.relative_to_root(root, ref.ticket_path)
         except git.GitError:
-            disabled = True
-            return
+            return None
         if Path(rel).is_absolute():
-            disabled = True  # Outside the repository: no published proof.
-            return
-        control_path = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}:{rel}"
+            return None  # Outside the repository: no published proof.
+        return root, f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}", rel
 
     def probe() -> str | None:
-        nonlocal cached_key, cached_status, armed, next_poll, terminal_since
+        nonlocal source, cached_key, cached_status, armed, next_poll, terminal_since
         now = time.monotonic()
         if now < next_poll:
             return None
         next_poll = now + 1.0
-        if not initialized:
-            setup()
-        if disabled:
+        if source is unresolved:
+            source = resolve_source()
+        if source is None:
             return None
         try:
-            if control_path is not None and root is not None:
-                key = git.run_git(root, "rev-parse", "--verify", control_path).strip()
-                text = (
-                    git.run_git(root, "cat-file", "blob", key)
-                    if key != cached_key else None
-                )
+            if source:
+                root, rev, rel = source
+                key: object = git._blob_oid(root, rev, rel)
             else:
                 stat = ref.ticket_path.stat()
                 key = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-                text = (
-                    ref.ticket_path.read_text(encoding="utf-8")
-                    if key != cached_key else None
+            if key is None:
+                cached_key = cached_status = None
+            elif key != cached_key:
+                data = (
+                    git._blob_bytes(root, key) if source
+                    else ref.ticket_path.read_bytes()
                 )
-            if text is not None:
-                current = Ticket.parse(text)
-                status = current.status
+                current = git._parse_ticket(data)
+                status = current.status if current is not None else None
                 cached_status = (
                     status if isinstance(status, str) and status in TERMINAL_STATUSES
                     and current.frontmatter.get("period_generation") == generation
                     else None
                 )
                 cached_key = key
-        except (OSError, UnicodeError, TicketError, git.GitError):
-            # Missing/unreadable/malformed state is not evidence of completion.
-            # Retry next poll; the sentinel and liveness limits remain armed.
-            cached_key = None
-            cached_status = None
+        except (OSError, git.GitError):
+            # Missing/unreadable state is not evidence of completion. Retry
+            # next poll; the sentinel and liveness limits remain armed.
+            cached_key = cached_status = None
         if cached_status is None:
-            armed = True
-            terminal_since = None
-        elif not armed:
-            pass  # Terminal since launch: not this session's transition.
-        elif terminal_since is None:
-            terminal_since = now
-        elif now - terminal_since >= 5.0:
-            return cached_status
+            armed, terminal_since = True, None
+        elif armed:
+            # A ticket terminal since launch is not this session's transition.
+            if terminal_since is None:
+                terminal_since = now
+            elif now - terminal_since >= 5.0:
+                return cached_status
         return None
 
     return probe
