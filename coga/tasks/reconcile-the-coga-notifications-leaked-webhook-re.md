@@ -171,6 +171,7 @@ blocker was recorded, so no `coga unblock` transition is needed.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1120
 branch: coga/reconcile-webhook-log-policy
 
 ## Implement handoff (2026-10-27)
