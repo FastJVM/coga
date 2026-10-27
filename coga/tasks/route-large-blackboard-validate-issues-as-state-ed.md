@@ -37,6 +37,13 @@ This run's members (validate-drift: large-blackboard, PR Proposal bucket): conte
 
 ## Context
 
+`src/coga/dream_validate_drift.py` — `classify_issue` selects the remediation
+bucket consumed by Dream's Phase 6. Cite `coga/blackboard` (read “Size and its
+remedy” and “Draft-activation readiness”) and `coga/state-publication` (read
+“Control versus feature checkouts”) for the cleanup and publication contracts.
+Dream's own routing instructions live in `coga/recurring/dream/ticket.md`;
+keep its packaged twin in sync.
+
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
 ticket. Omit optional fields and sections until needed. Editing rules come
@@ -123,4 +130,18 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/route-large-blackboard-state-edits-20261027
+
+## Implementation plan
+
+- Start verified on clean, current `main`; no prior branch or PR is recorded.
+- Route `large-blackboard` and `unsynthesized-draft-blackboard` through the
+  existing `human-needed` bucket. Owners choose and publish state cleanup;
+  Dream files/reuses `brief-for-human` drafts without branch/PR requirements.
+- Preserve the existing done-ticket retirement and recurring-writer ownership
+  rules. Do not slim or retire the example tickets in this implementation.
+- Add regression coverage before changing the classifier, update Dream and
+  the blackboard topic with their packaged twins, run the full suite and
+  seeded validation, reconcile, commit/push, then return to main and bump.
