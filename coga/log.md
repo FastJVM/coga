@@ -9410,3 +9410,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-26 21:11 v1 [reconcile-the-coga-notifications-leaked-webhook-re] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-26 21:11 v1 [reconcile-the-coga-notifications-leaked-webhook-re] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-26 21:11 v1 [reconcile-the-coga-notifications-leaked-webhook-re] [megalaunch] launched via coga megalaunch
+2026-10-27 10:37 v1 [reconcile-the-coga-notifications-leaked-webhook-re] [agent:codex] advanced to step 2 (peer-review) → codex

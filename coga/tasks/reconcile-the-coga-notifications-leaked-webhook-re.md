@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 18462d61-3b9c-4e5a-9b55-1702776fea34
 ---
 
 ## Description
@@ -132,8 +131,8 @@ ordinary ticket.
 - `docs/contexts/coga/notifications/SKILL.md`, "When a post fails", and its
   packaged twin at
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md`
-  are byte-identical and still require tracked-log redaction. This ticket is
-  not already satisfied.
+  were byte-identical and required tracked-log redaction at entry. This ticket
+  needed an implementation change.
 - `coga/tasks/webhook-for-slack-is-public.md` remains `in_progress` at the
   owner-held `approve` step. Its Context excludes historical-log redaction
   and history rewriting, and its inventory preserves those copies. It
@@ -159,24 +158,133 @@ Historical-copy redaction is optional after confirmed revocation; routine
 response preserves `coga/log.md`, and redacting it needs an explicit
 owner-approved exception. Revocation remains required. Exposure inspection
 and the coordinated-approval requirement for history rewriting stay intact.
-The notification topic and packaged twin will own the durable rule.
+The notification topic and packaged twin own the durable rule in the
+implementation branch.
 
 The earlier `coga block` exited 2 before any transition because the local
 `user` was unset. The connected GitHub profile identifies the owner as
 `nicktoper`, matching this ticket. Created the gitignored
 `coga/coga.local.toml` with only `user = "nicktoper"` under the owner's new
 authorization, and verified `config.load_config` resolves that actor. No open
-blocker was recorded, so no `coga unblock` transition is needed. The task
-continues at implement.
+blocker was recorded, so no `coga unblock` transition is needed.
 
 ## Dev
 
 branch: coga/reconcile-webhook-log-policy
 
-## Implementation plan
+## Implement handoff (2026-10-27)
 
-Publish this decision and branch linkage from `main`, then edit both
-notification copies on the feature branch. Run the full pytest suite,
-reconcile with current main, push, return to main, write the PR preparation
-and handoff, and bump once. No runtime code, fixture, credential, or historical
-log changes are needed.
+Implemented and pushed `3c8f43f44da139d05a4be0a330f52344861c1666` on the
+recorded branch. Both notification copies now require confirming revocation,
+make historical-copy redaction optional at the owner's direction, and
+preserve the append-only log during routine response unless the owner
+explicitly approves a redaction exception. Exposure inspection and the
+coordinated-approval requirement for published-history rewriting remain.
+Only those two documents are in the implementation diff. No new regression
+test or fixture was needed for this prose change; existing packaging tests
+cover twin equality.
+
+The first full-suite attempt exhausted `/tmp`'s inode capacity: 1,413 passed,
+10 skipped, 2,708 errors. Inspection found only 36 free inodes despite ample
+free bytes. Removed only that completed run's temporary fixtures and reran
+the entire suite with `TMPDIR` on the main disk: 4,121 passed, 10 skipped in
+361.16 seconds on Linux/Python 3.12.12. Temporary fixtures from that run were
+also removed. Logs remain at `/tmp/coga-webhook-policy-pytest.log` and
+`/tmp/coga-webhook-policy-pytest-retry.log`.
+
+Tests ran before commit against staged tree
+`63c8a53cd7c6fda621bd3cc43f9c2366f0087c03`. Before committing, verified the
+working tree matched the index with no untracked files; the resulting
+commit's tree has that identical OID. Fresh fetch/rebase left the commit
+unchanged; its merge base with `origin/main` is
+`478bfe5e72ba4e00081bb5a021d94444467f9491`. Pushed the branch, fetched main
+again with no intervening commits, and returned this checkout to `main`
+before writing this handoff.
+
+Ticket validation reported no issues, the notification twins compare
+byte-identically, and the diff whitespace check passed. No implementation
+findings remain. Independent review is the next workflow step; no PR was
+opened. Actual webhook rotation/revocation remains with the separate incident
+ticket and was not performed or verified here.
+
+## PR
+
+```yaml
+title: Make revoked-webhook log redaction optional
+author: codex
+author_evidence: >-
+  Implemented by the actual Codex (GPT-6) session, including the owner-approved
+  policy and local identity recovery. The ticket's configured claude agent was
+  not used as authorship evidence. No subagents were used.
+head: 3c8f43f44da139d05a4be0a330f52344861c1666
+base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+depth: deep
+rationale: >-
+  Bounded documentation change approved by the owner, with all final checks
+  passing. Independent review has not run and belongs to the next workflow
+  step; the initial environment-failed suite attempt is retained below.
+implementation: >-
+  Require confirming the leaked webhook is revoked. Make historical-copy
+  redaction optional afterward at the owner's direction, preserving the
+  append-only log during ordinary response and requiring explicit owner
+  approval for a redaction exception. Preserve exposure inspection and
+  coordinated approval for rewriting published history. Update both twins.
+deviations: >-
+  No scope deviations. The owner separately authorized setting the missing
+  local Coga user to nicktoper; that gitignored setting is outside the diff.
+limitations: >-
+  No live webhook action or probe was performed; operational remediation
+  remains with the incident ticket. Verification ran on Linux/Python 3.12.12;
+  no separate Python 3.11 or Windows run. Independent review is pending.
+files:
+  docs/contexts/coga/notifications/SKILL.md: State the approved leaked-webhook policy in its canonical owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: Ship the byte-identical fallback policy for adopting repositories.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Independent review belongs to the next peer-review step; owner policy approval is not code review.
+checks:
+  - command: >-
+      PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+      > /tmp/coga-webhook-policy-pytest.log 2>&1
+    status: failed
+    head: 3c8f43f44da139d05a4be0a330f52344861c1666
+    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    detail: >-
+      1413 passed, 10 skipped, 2708 errors in 187.38 seconds. Temporary-file
+      allocation exhausted /tmp inodes; only 36 remained. Cleaned this run's
+      fixtures and resolved the environment issue with the full rerun below.
+      The tested staged tree exactly matches this commit's tree.
+  - command: >-
+      TMPDIR=/home/n/Code/.coga-webhook-tests-791izn4_
+      PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+      > /tmp/coga-webhook-policy-pytest-retry.log 2>&1
+    status: passed
+    head: 3c8f43f44da139d05a4be0a330f52344861c1666
+    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    detail: >-
+      4121 passed, 10 skipped in 361.16 seconds, Linux/Python 3.12.12.
+      Used a fresh temporary directory on the main disk; removed fixtures
+      after completion. Tested staged tree and committed tree both equal
+      63c8a53cd7c6fda621bd3cc43f9c2366f0087c03; rebase did not change the commit.
+  - command: >-
+      PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate
+      --task reconcile-the-coga-notifications-leaked-webhook-re --json
+    status: passed
+    head: 3c8f43f44da139d05a4be0a330f52344861c1666
+    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    detail: Exit 0; ok_count 1, no issues or fixes. Executed on the identical precommit tree.
+  - command: >-
+      cmp docs/contexts/coga/notifications/SKILL.md
+      src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md
+    status: passed
+    head: 3c8f43f44da139d05a4be0a330f52344861c1666
+    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    detail: Exit 0; the canonical and packaged copies are byte-identical.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 3c8f43f44da139d05a4be0a330f52344861c1666
+    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    detail: Exit 0; no whitespace errors.
+```
