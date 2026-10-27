@@ -1,6 +1,6 @@
 ---
 title: Drop bundled-skill twin rows from the skill-update report
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:a8e7f4cf-64c8-4466-a37a-e1356a687e83
 ---
 
 ## Description
