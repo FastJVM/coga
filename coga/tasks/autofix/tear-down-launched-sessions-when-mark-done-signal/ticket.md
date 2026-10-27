@@ -173,3 +173,11 @@ branch: fix/launched-session-terminal-backstop
 - Plan: warn when supervised completion cannot signal, add a cheap exact-ticket terminal-state backstop, distinguish completed late teardown from unfinished timeouts, and update the owning context with its packaged twin. Preserve real crashes and stateless bootstrap behavior.
 - Implementing agent: Codex (GPT-6); ticket-configured `claude` is not this session's operator. Review belongs to the later self-qa step.
 
+
+## Implementation progress
+
+- Added the regressions before the fix: focused red run was 21 failed / 1 passed (missing terminal-state seam, silent writer and timeout-first classification). After implementation, 22 passed; the four affected test modules then passed in full (402 passed).
+- `launch._terminal_status_probe` watches the exact launched ticket, at most once per second, and requires five seconds of stable done/canceled state. With publication configured, it reads the local remote-tracking control blob (no fetch), so ops-worktree completion is visible without killing an unpublished local lifecycle write. Other repos use cached local file metadata. Period generation must match; unreadable/missing/invalid state and nonterminal transitions do not close a session.
+- `repl_supervisor.run_with_done_marker` preserves sentinel observation separately from terminal-state teardown; missing/unwritable markers now warn. `recurring_runner._task_outcome` reports completed late teardown while preserving process exit evidence. Bootstrap/delegated completion remains sentinel-only.
+- Canonical liveness topic and packaged twin updated; development spawn topic links to the new owning contract. No prompt, task-layout, validation or workflow change, so no seeded fixture change is needed.
+- Initial full suite: 4140 passed / 10 skipped on Linux Python 3.12.12. While that run was active, excluded stateless ticket-authoring interviews from the task probe and added a publication/cache guard; final focused modules passed 403 tests, and the new guard selection passed 12. A fresh full run on the committed/reconciled revision follows. Historical root cause remains unproven because the old write swallowed failures; the transcript confirms a present inherited variable and a successful task transition, not sentinel contents or write success.
