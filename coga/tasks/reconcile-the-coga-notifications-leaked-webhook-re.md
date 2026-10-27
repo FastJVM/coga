@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 7ef96821-8248-48f2-ba33-49fdd9f1964f
 ---
 
 ## Description
@@ -204,9 +203,47 @@ before writing this handoff.
 
 Ticket validation reported no issues, the notification twins compare
 byte-identically, and the diff whitespace check passed. No implementation
-findings remain. Independent review is the next workflow step; no PR was
-opened. Actual webhook rotation/revocation remains with the separate incident
+findings remained at handoff, and no PR was opened. Actual webhook
+rotation/revocation remains with the separate incident
 ticket and was not performed or verified here.
+
+## Peer review
+
+Completed direct review on 2026-10-27 in a fresh Codex (GPT-6) session,
+covering head `0d56035fd86c1f118a363f3d66e206d71319136a` against base
+`0c672984a9e2497e69102d7acf885ab252df57a7`. The recorded implementer was
+also Codex, so this is **self-review**, not independent review under the
+PR-presentation identity rule. The configured `claude` assignment is not
+authorship evidence. No child agent or nested review CLI was used.
+
+Started on clean, current `main`; verified the control ticket remained
+`in_progress` at peer-review and GitHub had no PR for its recorded branch.
+Followed the manual checkout procedure and rebased that branch onto current
+main. Intervening changes were only ticket/log state; `git range-diff`
+confirmed the implementation patch was unchanged. Reviewed both complete
+notification copies against the owner decision, architecture's append-only
+contract, and spool-merge's union/legacy-line rules. A cross-surface search
+found no other standing historical-log-redaction requirement.
+
+No must-fix findings or implementation edits. The wording requires confirmed
+revocation, preserves the log during routine response, makes later cleanup
+owner-directed with an explicit log-redaction exception, and retains exposure
+inspection and coordinated approval for published-history rewriting. No
+interactive surface changed; direct reading covered the Markdown wording.
+
+The full suite on the rebased head passed: **4,121 passed, 10 skipped** in
+407.92 seconds on Linux/Python 3.12.12. Used a fresh temporary directory on
+the main disk because `/tmp` still had limited free inodes; removed only this
+completed run's fixtures. Output remains at
+`/tmp/coga-webhook-policy-peer-pytest.log`. Task validation, twin equality,
+and whitespace checks also passed. The implementation-run results above are
+historical; the `## PR` check receipts below were run on this rebased head.
+
+A final fetch/rebase left head and base unchanged. Pushed with an explicit
+lease against the previously published head, fetched main again, and returned
+to clean `main` before writing this handoff. No PR was opened. The mechanical
+open-pr step can proceed with a `skim` recommendation and disclosed
+self-review. Live webhook remediation remains with the incident ticket.
 
 ## PR
 
@@ -217,13 +254,14 @@ author_evidence: >-
   Implemented by the actual Codex (GPT-6) session, including the owner-approved
   policy and local identity recovery. The ticket's configured claude agent was
   not used as authorship evidence. No subagents were used.
-head: 3c8f43f44da139d05a4be0a330f52344861c1666
-base: 478bfe5e72ba4e00081bb5a021d94444467f9491
-depth: deep
+head: 0d56035fd86c1f118a363f3d66e206d71319136a
+base: 0c672984a9e2497e69102d7acf885ab252df57a7
+depth: skim
 rationale: >-
-  Bounded documentation change approved by the owner, with all final checks
-  passing. Independent review has not run and belongs to the next workflow
-  step; the initial environment-failed suite attempt is retained below.
+  Bounded two-document policy clarification matching the owner's approved
+  tradeoff. Direct Codex self-review completed with no findings, and the full
+  suite and focused checks passed on the rebased head. Read the description
+  for the owner-directed cleanup exception and the self-review limitation.
 implementation: >-
   Require confirming the leaked webhook is revoked. Make historical-copy
   redaction optional afterward at the owner's direction, preserving the
@@ -236,56 +274,66 @@ deviations: >-
 limitations: >-
   No live webhook action or probe was performed; operational remediation
   remains with the incident ticket. Verification ran on Linux/Python 3.12.12;
-  no separate Python 3.11 or Windows run. Independent review is pending.
+  no separate Python 3.11 or Windows run. This fresh Codex session performed
+  direct self-review because the actual implementer was also Codex; no
+  independent review was performed. The earlier implementation suite's
+  temporary-inode failure and successful retry remain in the implement
+  handoff; the current suite also passed using temporary space on the main disk.
 files:
   docs/contexts/coga/notifications/SKILL.md: State the approved leaked-webhook policy in its canonical owner.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md: Ship the byte-identical fallback policy for adopting repositories.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent review belongs to the next peer-review step; owner policy approval is not code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 0d56035fd86c1f118a363f3d66e206d71319136a
+  base: 0c672984a9e2497e69102d7acf885ab252df57a7
+  detail: >-
+    Direct review completed in this fresh Codex (GPT-6) peer-review session;
+    no must-fix findings. Reviewed both notification copies against the
+    approved policy and append-only/union-merge contracts, and checked other
+    standing surfaces for conflicting redaction instructions. Actual author
+    and reviewer are both Codex, so this is self-review. No nested reviewer
+    or subagent was invoked, and no review remains in flight.
 checks:
   - command: >-
+      TMPDIR=/home/n/Code/.coga-webhook-peer-tests-VUNKKmXY
       PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
-      > /tmp/coga-webhook-policy-pytest.log 2>&1
-    status: failed
-    head: 3c8f43f44da139d05a4be0a330f52344861c1666
-    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
-    detail: >-
-      1413 passed, 10 skipped, 2708 errors in 187.38 seconds. Temporary-file
-      allocation exhausted /tmp inodes; only 36 remained. Cleaned this run's
-      fixtures and resolved the environment issue with the full rerun below.
-      The tested staged tree exactly matches this commit's tree.
-  - command: >-
-      TMPDIR=/home/n/Code/.coga-webhook-tests-791izn4_
-      PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
-      > /tmp/coga-webhook-policy-pytest-retry.log 2>&1
+      > /tmp/coga-webhook-policy-peer-pytest.log 2>&1
     status: passed
-    head: 3c8f43f44da139d05a4be0a330f52344861c1666
-    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    head: 0d56035fd86c1f118a363f3d66e206d71319136a
+    base: 0c672984a9e2497e69102d7acf885ab252df57a7
     detail: >-
-      4121 passed, 10 skipped in 361.16 seconds, Linux/Python 3.12.12.
-      Used a fresh temporary directory on the main disk; removed fixtures
-      after completion. Tested staged tree and committed tree both equal
-      63c8a53cd7c6fda621bd3cc43f9c2366f0087c03; rebase did not change the commit.
+      4121 passed, 10 skipped in 407.92 seconds, Linux/Python 3.12.12.
+      Executed after rebase on clean committed tree
+      73c9a435cdd6ce30b3b4dd89500daa9e71a65e6b. Used a fresh temporary
+      directory on the main disk; removed its fixtures after completion.
+      Final fetch/rebase left the tested commit unchanged.
   - command: >-
       PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate
       --task reconcile-the-coga-notifications-leaked-webhook-re --json
     status: passed
-    head: 3c8f43f44da139d05a4be0a330f52344861c1666
-    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
-    detail: Exit 0; ok_count 1, no issues or fixes. Executed on the identical precommit tree.
+    head: 0d56035fd86c1f118a363f3d66e206d71319136a
+    base: 0c672984a9e2497e69102d7acf885ab252df57a7
+    detail: Exit 0; ok_count 1, no issues or fixes. Executed on the rebased branch.
   - command: >-
       cmp docs/contexts/coga/notifications/SKILL.md
       src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md
     status: passed
-    head: 3c8f43f44da139d05a4be0a330f52344861c1666
-    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    head: 0d56035fd86c1f118a363f3d66e206d71319136a
+    base: 0c672984a9e2497e69102d7acf885ab252df57a7
     detail: Exit 0; the canonical and packaged copies are byte-identical.
   - command: git diff --check origin/main...HEAD
     status: passed
-    head: 3c8f43f44da139d05a4be0a330f52344861c1666
-    base: 478bfe5e72ba4e00081bb5a021d94444467f9491
+    head: 0d56035fd86c1f118a363f3d66e206d71319136a
+    base: 0c672984a9e2497e69102d7acf885ab252df57a7
     detail: Exit 0; no whitespace errors.
+  - command: >-
+      git range-diff
+      478bfe5e72ba4e00081bb5a021d94444467f9491..3c8f43f44da139d05a4be0a330f52344861c1666
+      origin/main..HEAD
+    status: passed
+    head: 0d56035fd86c1f118a363f3d66e206d71319136a
+    base: 0c672984a9e2497e69102d7acf885ab252df57a7
+    detail: Exit 0; the single implementation commit maps with =, preserving its patch through rebase.
 ```
