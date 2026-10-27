@@ -218,8 +218,13 @@ The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
   re-proves a clean control carrying that linkage. A preparation failure
   withholds the sweep and keeps the reservation; once control's ticket
   records the branch the reservation is dropped, so removing that line later
-  never brings back its name or base. After switching, the projected ticket's
-  blob is recorded as this worktree's publication provenance
+  never brings back its name or base. The reservation receipt lives in this
+  worktree's private Git directory (`checkouts._RECEIPT_DIR`, resolved by
+  `git rev-parse --git-path coga/checkout-receipts`), not `.coga/`, because a
+  state sweep could publish `.coga/` in a repo that does not ignore it. It is
+  retry evidence, never task state, and removing it never deletes a branch.
+  After switching, the projected ticket's blob is recorded as this worktree's
+  publication provenance
   ([git-regressions](../git-regressions/SKILL.md#the-provenance-check)).
 - **Contexts-root capture.** The boundary captures the contexts root at
   admission and at each successful return, and keeps the previous root in
