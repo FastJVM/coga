@@ -123,4 +123,22 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/non-executable-script-user-topic
+
+## Implementation plan
+
+- Started on clean `main`, fetched and fast-forwarded to current `origin/main`.
+  PR #1097 merged as `fe0b7fa198f6b11a3f7015073ea382ccc436aed5` and is
+  already an ancestor of this checkout, so its prerequisite is satisfied.
+- Move the contract into `coga/skill-management` under executable skill
+  scripts, keep its packaged twin identical, and point the CLI index's
+  `validate` row and `coga-dev/testing` at that owner. `coga/cli` is now an
+  index; skill management already owns installed and bundled skill behavior.
+- Preserve scope, mode-source selection, exclusions, remediation, and Dream's
+  packaged-finding classification. Runtime behavior and fixtures are unchanged.
+- Run the required full pytest suite, reconcile with current main, commit and
+  push, return to main, then record publication evidence and bump once.
+- Actual implementing agent: Codex (GPT-6), regardless of the ticket's
+  configured `agent: claude`; no agent delegation or model override was used.
