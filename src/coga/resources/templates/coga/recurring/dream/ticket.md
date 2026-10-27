@@ -480,7 +480,19 @@ an owned finding; report it as "already ticketed as `<slug>`" in the run
 summary. Dream does not edit another ticket's body or blackboard to add
 members or evidence.
 
-Route each Phase 1 `human-needed` issue by validator `kind`, one draft ticket
+**Phase 1 blackboard state edits.** `large-blackboard` and
+`unsynthesized-draft-blackboard` are `human-needed` owner-directed state edits,
+even when an older recipe lists them in `PR Proposal`. Reroute those entries
+here before applying the PR-proposal rule. Read `coga/blackboard` for the
+remedy: done tickets follow Phase 4's Retro/retirement split, and a recurring
+writer's own state goes to that writer's owner. Do not create slimming drafts
+for done tickets. For live tickets needing cleanup or an owner decision,
+apply the grouping and ownership rule below to file or reuse a
+`brief-for-human` draft with no branch or PR requirement. The owner can edit
+directly on control; ticket and sibling-attachment changes publish through
+`coga/state-publication`. Dream does not rewrite another ticket's blackboard.
+
+Route the remaining Phase 1 `human-needed` issues by validator `kind`, one draft ticket
 per **systematic class**, never one per issue:
 
 - Machine-local kinds — `missing-user`, `unset-secret-env`, `slack-*`,
@@ -536,7 +548,8 @@ blackboard is not a disposition.
 
 **Phase 1 PR proposals.** Read every issue in the `PR Proposal` bucket of
 `## Dream Skill: validate-drift`, including its validator `kind`, target path,
-message, and suggested remediation. Apply the proposal-ownership rule above to
+message, and suggested remediation. Route blackboard state edits by the rule
+above before handling the remaining proposals. Apply the proposal-ownership rule above to
 each issue before opening anything: report the covering ticket or PR, or
 preserve uncovered overlap in a scoped draft. For an unowned issue with an
 evidenced correction, open a proposal PR applying that correction to the named

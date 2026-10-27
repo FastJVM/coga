@@ -226,7 +226,7 @@ def test_packaged_script_mode_failure_needs_package_remediation() -> None:
     assert "upstream Coga" in classified.remediation
 
 
-def test_classifies_large_blackboard_as_attachment_remedy() -> None:
+def test_classifies_large_blackboard_as_owner_state_edit() -> None:
     classified = classify_issue(
         ValidationIssue(
             kind="large-blackboard",
@@ -236,8 +236,13 @@ def test_classifies_large_blackboard_as_attachment_remedy() -> None:
         )
     )
 
-    assert classified.action == ACTION_PR_PROPOSAL
+    assert classified.action == ACTION_HUMAN_NEEDED
     assert "coga/blackboard" in classified.remediation
+    assert "owner" in classified.remediation.lower()
+    assert "coga/state-publication" in classified.remediation
+    assert "no branch or PR" in classified.remediation
+    assert "done" in classified.remediation
+    assert "retirement" in classified.remediation
     # Directory-form tasks (like this example) already have `<slug>/ticket.md`;
     # the remedy must not tell Dream to promote them again.
     assert "promote a file-form task" in classified.remediation
@@ -245,6 +250,50 @@ def test_classifies_large_blackboard_as_attachment_remedy() -> None:
     assert "unattached context" in classified.remediation
     assert "## Superseded designs" in classified.remediation
     assert "do not delete" in classified.remediation.lower()
+
+
+def test_classifies_unsynthesized_draft_blackboard_as_owner_state_edit() -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind="unsynthesized-draft-blackboard",
+            task="draft-task",
+            message="draft blackboard still contains ## Evaluator review",
+            severity="error",
+        )
+    )
+
+    assert classified.action == ACTION_HUMAN_NEEDED
+    assert "owner" in classified.remediation.lower()
+    assert "ticket body" in classified.remediation
+    assert "## Production notes" in classified.remediation
+    assert "do not discard ambiguous content" in classified.remediation
+    assert "coga/state-publication" in classified.remediation
+    assert "no branch or PR" in classified.remediation
+
+
+def test_blackboard_state_edits_stay_out_of_pr_report_bucket() -> None:
+    classified = validate_drift.classify_issues(
+        [
+            ValidationIssue(kind, "draft-task", "needs cleanup", "warn")
+            for kind in ("large-blackboard", "unsynthesized-draft-blackboard")
+        ]
+        + [ValidationIssue("broken-context", "other-task", "missing context", "error")]
+    )
+
+    report = validate_drift.render_blackboard_report(
+        classified,
+        generated_at="2026-10-27T00:00:00Z",
+        command=build_validate_command(fix=False),
+    )
+    proposal_bucket, human_bucket = report.split("### PR Proposal\n", 1)[1].split(
+        "### Human Needed\n", 1
+    )
+
+    assert "0 direct fix, 1 PR proposal, 2 human-needed" in report
+    assert "`broken-context`" in proposal_bucket
+    for kind in ("large-blackboard", "unsynthesized-draft-blackboard"):
+        assert f"`{kind}`" not in proposal_bucket
+        assert f"`{kind}`" in human_bucket
 
 
 def test_classifies_recurring_state_stuck_as_human_needed() -> None:
@@ -277,7 +326,6 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "non-executable-script",
         "script-backed-delegate-target",
         "unrunnable-script-entry-point",
-        "unsynthesized-draft-blackboard",
     ],
 )
 def test_classifies_file_backed_validator_drift_as_pr_proposal(kind: str) -> None:
