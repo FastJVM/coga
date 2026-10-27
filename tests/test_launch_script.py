@@ -289,7 +289,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
         "COGA_SUPERVISED": None,
         "COGA_EXPECTED_TASK": None,
         "COGA_EXPECTED_STEP": None,
-        "COGA_DONE_SENTINEL": None,
+        "COGA_DONE_SENTINEL": "",
     }
     task_log = (script_repo / "log.md").read_text(encoding="utf-8")
     assert task_log.count("task done") == 1

@@ -7817,6 +7817,55 @@ def test_terminal_status_probe_ignores_unproven_completion(
     assert probe() == "done"
 
 
+def test_terminal_status_probe_ignores_state_terminal_since_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A copy already terminal at the first observation (for example a stale
+    published blob from an earlier life of the path) is not this session's
+    transition; only a terminal state observed after an open one counts."""
+    ref = TaskRef("dream", tmp_path / "dream")
+    _write(ref.ticket_path, "---\nstatus: done\n---\n")
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = launch_module._terminal_status_probe(
+        SimpleNamespace(repo_root=tmp_path, git_enabled=False), ref, Ticket.read(ref.ticket_path)
+    )
+    assert probe is not None
+    for _ in range(8):
+        assert probe() is None
+        now[0] += 1
+    _write(ref.ticket_path, "---\nstatus: in_progress\n---\n")
+    assert probe() is None
+    _write(ref.ticket_path, "---\nstatus: done\n---\n")
+    now[0] += 1
+    assert probe() is None
+    now[0] += 5
+    assert probe() == "done"
+
+
+def test_terminal_status_probe_disabled_outside_git_root(
+    git_repo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ticket outside the repository has no published proof; the probe is
+    off rather than forking a failing git lookup every second."""
+    cfg = load_config(git_repo.coga_os)
+    outside = tmp_path / "elsewhere" / "dream"
+    _write(outside / "ticket.md", "---\nstatus: in_progress\n---\n")
+    ref = TaskRef("dream", outside)
+    now = [10.0]
+    monkeypatch.setattr("coga.launch.time.monotonic", lambda: now[0])
+    probe = launch_module._terminal_status_probe(cfg, ref, Ticket.read(ref.ticket_path))
+    assert probe is not None
+    assert probe() is None
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(coga_git, "run_git", lambda root, *args, **kw: calls.append(args) or "")
+    _write(outside / "ticket.md", "---\nstatus: done\n---\n")
+    for _ in range(8):
+        now[0] += 1
+        assert probe() is None
+    assert calls == []
+
+
 def test_terminal_status_probe_waits_for_publication_and_caches_blobs(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
