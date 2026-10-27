@@ -2,13 +2,15 @@
 title: Trim coga/log.md to a configurable age with a weekly recurring job
 status: draft
 owner: nicktoper
+contexts:
+  - coga-dev/principles
+  - coga/recurring/templates
 workflow: code/design-then-implement
 ---
 
 ## Description
 
-`coga/log.md` only ever grows: on 2026-10-23 it was about 9,250 lines and
-2.46 MB in this repo. Add an age-based retention setting to `coga.toml` and a
+Bound the growth of `coga/log.md` with an age-based retention setting and a
 shipped weekly recurring template that deletes log lines older than the
 retention window (git history keeps them; no archive file). Trimming is on by
 default in every adopting repo; a repo can change the window or turn trimming
@@ -18,18 +20,22 @@ sizes (see Context) and the owner approves it at the design gate.
 Done when the setting is documented in `coga/configuration`; the recurring
 template and its workflow ship in both the live and packaged trees (twins
 byte-identical per `tests/test_packaging.py`); a run against a seeded log
-removes lines older than the window while keeping every line a reader still
-needs (see "Lines that must survive"); recurring jobs do not re-fire after a
-trim; the union-merge invariant is resolved and `coga-dev/internals/spool-merge`
-updated; existing adopters get the template and default (not only new `init`
-seeds); and `python -m pytest` passes.
+removes expired events while preserving required reader state and concurrent
+new events (see "Lines that must survive"); recurring jobs neither re-fire nor
+change pause/resume behavior because of a trim; the union-merge invariant is
+resolved and `coga-dev/internals/spool-merge` updated; a verified adoption path
+delivers the template and default to existing repos as well as fresh `init`
+seeds; and `python -m pytest` passes. Verification must exercise cutoff
+boundaries, disabled and repeated/no-op runs, and concurrent/stale-copy
+publication and merge cases, not just a standalone filtering function.
 
 ## Context
 
 Split from `fix-the-commit-git-journal` (deleted); siblings
 `commit-journal/coalesce-coga-state-commits` and
-`commit-journal/publish-log-lines-left-uncommitted`. Not blocked on either:
-a trim is one publish from its `ticket.py`.
+`commit-journal/publish-log-lines-left-uncommitted`. These are provenance, not
+dependencies: publish the trim through existing state-publication machinery;
+commit coalescing and unrelated publication-warning changes stay out of scope.
 
 ### Owner decisions (2026-10-23)
 
@@ -43,73 +49,108 @@ a trim is one publish from its `ticket.py`.
 
 A 90-day cutoff keeps about 6,886 of 9,255 lines and 1.94 MB of 2.46 MB
 (about 79%). Usage `[system]` JSON records are 1,329 lines but about 1.36 MB
-(about 55% of bytes). At current volume an age window alone settles in the
-megabytes; the design should say what window meets the goal and whether that
-is acceptable, and note record size as a possible follow-up rather than
-widening this ticket.
+(about 55% of bytes). Re-measure during design with the proposed retention
+exceptions included; explain the expected steady-state size and whether it
+meets the goal. Record size is a possible follow-up, outside this ticket.
 
 ### The append-only invariant (most important)
 
-`coga/log.md` carries `merge=union` (`coga/.gitattributes`, packaged twin
-under `src/coga/resources/templates/coga/`), and `logfile`'s module docstring
-calls it an append-only audit trail. `coga-dev/internals/spool-merge` says the
-log is union-safe *because every writer only appends*, and that "a file that is
-compacted, trimmed, or rewritten without such a healing reader must never
-carry the attribute: union would resurrect deletions." Coga's own `publish`
-three-way merge lands deletions when the base had the line, but git-native
-merges of stale branches or clones, and working copies that lack the line, need
-explicit analysis. The design must either amend the invariant (and the
-attribute) or argue why trimming is safe, and update that topic in the same PR.
-It must also handle the roughly 500 legacy lines that have no timestamp
-(multi-line git errors such as `hint:`, `CONFLICT`, `fatal:`; see spool-merge's
-legacy-line policy).
+Read `coga-dev/internals/spool-merge` at
+`docs/contexts/coga-dev/internals/spool-merge/SKILL.md` (cited, not attached),
+sections "`merge=union` files", "One event per log line", "How `publish` lands
+a union path", and "Crash-safe replacement is not a lock"; this is an editing
+target. `coga/.gitattributes` and its packaged twin mark `log.md` as
+`merge=union`; `logfile` describes it as append-only. Trimming breaks that
+justification unless a healing reader makes resurrection harmless.
+
+`git._merge_union_bytes` can land a deletion when the base contained the line;
+this does not prove safety for git-native merges, stale branches/clones, or
+working copies missing peer additions. The design must resolve resurrection
+and concurrent-event loss, amend the invariant and attribute as needed, and
+update the topic and affected public contracts in the same PR. Locally,
+`logfile.append_log` opens the file for append without acquiring
+`git.state_lock`; a trim's atomic read/replace or lock alone is insufficient.
+Include races with local appends as well as cross-checkout publication.
+
+Legacy events may span untimestamped continuation lines (roughly 500 in the
+measurement). Preserve or remove each event with its continuations; specify a
+conservative policy for orphan, malformed, and incomplete lines instead of
+silently assigning them an age. Preserve the v1 encoding of retained events.
 
 ### Lines that must survive
 
-Inventory readers through the `logfile` reader API (`log_lines`,
-`iter_log_messages`, `task_log_lines`, `last_activity_map`,
-`first_activity_map`) plus a whole-tree search, including `commands/`,
-`resources/`, and `src/coga_edge/`. Known readers include `recurring`,
-`recurring_runner`, `recurring_clone`, `service_order`, `usage`, `views`,
-`validate`, `megalaunch`, `mark`, `authoring`, `repl_supervisor`,
-`commands/{delete,owner,recurring}`, `bootstrap/retire/ticket.py`, and
-`coga_edge/phone_home`. Known hazards:
+Inventory the `logfile` reader API (`log_lines`, `iter_log_messages`,
+`iter_log_messages_reverse`, `task_log_lines`, `last_activity_map`,
+`first_activity_map`) and direct readers across `src/coga/`, `src/coga_edge/`,
+and live/packaged scripts and templates. Include the CLI's unpublished-line
+check and rollback writers such as `logfile.retract_log_lines`, not only
+display readers. Known hazards:
 
 - **Recurring serviced-period ledger.** The high-water mark is a
-  `created|reused <task-ref> for <period>` line tagged `recurring/<name>`
-  (`coga/recurring/scheduling`, "Periods and the serviced-period ledger").
-  If a template's newest record is trimmed, that period re-fires. Keep at
-  least the newest valid record per template regardless of age.
+  `created|reused <task-ref> for <period>` line tagged `recurring/<name>`.
+  Keep at least the greatest valid calendar period per template regardless of
+  age, using the ordering of `recurring._LedgerAccumulator` and
+  `recurring.period_key_at_least`, not the last file line or newest event
+  timestamp. `recurring.read_serviced_ledger` has forward and bounded reverse
+  readers; the design must preserve deduplication and explicitly handle
+  malformed-record errors rather than silently repairing them by deletion.
+- **Pause provenance.** `recurring._pause_origins` uses creation and pause
+  events, timestamp order, and same-minute append order to distinguish machine
+  pauses from human pauses. Keep sufficient evidence for existing paused
+  periods to retain the same resume eligibility after trimming.
 - **Usage records.** `usage` parses `[system]` JSON lines; `coga usage
   --since` is unbounded, so state the tradeoff for reports reaching past the
   window.
-- **Task history.** Retro, retire, `coga show`, and activity maps read
-  per-task lines; decide whether lines of still-open tasks survive the window.
-- **Phone-home cursor.** `coga_edge/phone_home` keeps an offset+digest cursor
-  on `log.md`; a rewrite logs "audit log rewritten or truncated; movement
-  baselined to zero", which would lose telemetry movement every week. Fix or
-  accept it explicitly.
+- **Task history.** Retro, retire, `coga show`, activity maps and
+  `service_order.service_order` consume per-task history. Decide whether full
+  histories of still-open tasks survive, and identify the minimum facts
+  needed to preserve lifecycle and scheduling behavior if they do not.
+- **Phone-home cursor.** `coga_edge.phone_home._cursor` stores an offset and
+  prefix digest; rewriting the consumed prefix baselines movement to zero.
+  Fix this or seek explicit acceptance at the design gate. Record any accepted
+  loss in `coga/recurring/phone-home/ticket.md`, sections "State, publication,
+  and loss" and "Scope and approximate movement", and its packaged twin.
+
+Read `coga/recurring/scheduling` at
+`docs/contexts/coga/recurring/scheduling/SKILL.md` (cited, not attached),
+sections "Periods and the serviced-period ledger" and "Admission and
+unfinished runs", for the ledger and pause contracts above. Update affected
+contracts and their packaged twins with the implementation.
 
 ### Placement and shipping
 
-Follow `coga-dev/microkernel` (cited, not attached): deterministic trim work
-belongs in the template's reserved `ticket.py` beside
-`coga/recurring/<name>/ticket.md` using shared core infra, as
-`blocker-reminders` does (template plus `coga/workflows/blocker-reminders/run`
-workflow, both with packaged twins), unless the design shows it needs a
-`runner.RECIPES` contract. Template frontmatter (`schedule:`,
-`schedule_comment:`, `scope:`, `run_when_inactive`) is owned by
-`coga/recurring/templates`; decide `run_when_inactive`. Say how existing
-adopters receive the shipped template and default.
+Read `coga-dev/microkernel` at `docs/contexts/coga-dev/microkernel/SKILL.md`
+(cited, not attached), sections "The microkernel rule" and "The `ticket.py`
+script phase". Deterministic trim work belongs at the edge, entered through
+`coga/recurring/<name>/ticket.py` and using shared core infra, unless the design
+proves a `runner.RECIPES` contract is needed. Use the template/workflow pairing
+at `coga/recurring/blocker-reminders/` and
+`coga/workflows/blocker-reminders/run.md` as a lifecycle example, not a reason
+to add a core recipe. The script must complete disabled and no-op periods too;
+exit 0 with an open step would fall through to an agent. Choose the template
+name, weekly cron, scope and `run_when_inactive` during design.
+
+`recurring.scan_due` discovers local templates;
+`commands.update.copy_fresh_templates` seeds fresh repos only. Name the
+delivery trigger for existing repos and verify it on a pre-feature fixture,
+preserving local customizations and opt-outs. Read `coga/edge-code` at
+`docs/contexts/coga/edge-code/SKILL.md` (cited, not attached), sections
+"Wheel-owned edge implementations" and "Explicit local forks": a wheel can
+update an imported edge implementation, but does not install new repo
+templates, schedules or workflows. Do not expand this into a general updater.
 
 ### Config
 
-The key's schema, default, and docs go in `config.py` and the
-`coga/configuration` topic. Because trimming is on by default, this repo's
-`coga/coga.toml` needs no edit; agents must not edit `coga.toml`.
+Read `coga/configuration` at `docs/contexts/coga/configuration/SKILL.md`
+(cited, not attached), sections "Allowlists" and "Unknown keys fail loud";
+update it and its packaged twin with the schema and default in `config.py`.
+The design selects the key, day-count validation, disable representation,
+cutoff clock/timezone and exact boundary. This repo needs no config edit for
+default-on behavior; agents must not edit `coga.toml` or `coga.local.toml`.
 
-The trim commit is bookkeeping: subject it so `recurring_activity` classifies
-it as non-activity (`Log: recurring/…` and `Ticket: recurring/…` already are).
+The trim commit is bookkeeping: subject it so
+`recurring_activity.is_machine_commit` classifies it as non-activity
+(`Log: recurring/…` and `Ticket: recurring/…` already are).
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
