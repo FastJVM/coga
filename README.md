@@ -1,164 +1,157 @@
 # Coga
 
-> Most tools are building infrastructure for agents. Coga is an instrument
-> for the human using them.
+> **Your agent plans. You decide what happens next.**
 
-Coga is a CLI that runs your coding agent from Markdown files in your Git
-repo. Every launch assembles those files into the agent's opening task
-prompt. When an agent gets something wrong, you correct the relevant file,
-and future work starts from the updated instructions.
+Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. What happens then?
 
-**Text above code.** The text is the source of truth for intent, knowledge,
-and decisions. Code implements that understanding and can be rewritten as
-we learn.
+Coga happens.
 
-Think of it as a workbench, not an assembly line: it's what you build with
-while you're still working out what to build. 
+**Coga turns those plans into Markdown tickets you can inspect, edit, and run with your agent.** Run as many Coga projects in parallel as you want, each in its own Git repo.
 
-Coga is a small overlay on top of what agents already provide, so it gets better when they do.
+Coga is a local CLI, not another coding agent. 
 
-Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
-the full history in [`coga/log.md`](coga/log.md).
+[Browse real project tickets](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks)
 
-## The problem
+## See the workflow
 
-On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent only skims it. There are various techniques to mitigate this problem: auto-memories, scoped `AGENTS.md` files, MCP servers. Coga's solution is to make all this explicit while keeping intact the search capabilities of the agent. Each launch injects what you decided the task needs. In our use, the skimming problem never came up.
+In an existing Git repository, after installing Coga:
 
-## Key ideas
+```sh
+coga init --user <your-name>
+coga ticket "Add a health-check endpoint"                 # discuss and draft a ticket
+coga show add-a-health-check-endpoint                    # inspect the ticket and history
+coga launch add-a-health-check-endpoint --prompt-report  # inspect the prompt layers
+coga launch add-a-health-check-endpoint                  # start the agent in your terminal
+```
 
-Treating an agent as a person who remembers is a convenient abstraction.
-Under heavy use, it can get in the way: you need to know what was kept,
-where it applies, and how to correct it. Even editable memory isn't
-necessarily organized for that work.
+The ticket is an ordinary file under `coga/tasks/`. Here's a shortened excerpt from a [real Thinkpick ticket](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md):
 
-Coga drops that abstraction. You maintain the knowledge and
-instructions explicitly, and choose what each task needs. Each launch
-assembles that material into its opening prompt. It's like writing SQL
-instead of going through an ORM: more of the work is in your hands, and you
-see what goes in. For intensive use, we find that easier to manage.
+```md
+---
+title: State of the art review
+status: draft
+owner: nicktoper
+agent: codex
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
+---
 
-- **The unit is the task, not the session.** Each launch builds a fresh
-  prompt from what that task needs: the ticket, the contexts it attaches, the
-  current workflow step.
+## Description
 
-- **Knowledge moves out of code and chat, into files.** Coga treats the text as a first-class citizen. It creates PRs to update the documentation and takes great care to be right. The code is the agent's job. Coga's job is to make sure the text reflects your work and your learning.
+Survey the state of the art: is predicting how much reasoning effort a model
+needs, from the task description alone, already a solved problem?
 
-- **Hackable and automated.** You want a feature in Coga? Start `coga chat` and build it from there. It's built on known agent conventions, so it can build itself and you can understand what's being built.
+## Context
 
+- **Core unknown:** we have no ground truth.
+- Out of scope: writing code, running experiments, picking providers.
+```
 
-## Key concepts
+Edit a ticket directly or refine it with an agent. At launch, Coga assembles the ticket, its attached contexts, and its current workflow step into a fresh prompt.
 
-- **Ticket**: one piece of work as a Markdown file: what to do, the context
-  blocks it needs, the workflow it follows.
-  ([tickets](docs/contexts/coga/tickets/SKILL.md))
-- **Context block** (context for short): a durable fact about the project,
-  such as a behavior, a decision or an intent.
-  ([knowledge](docs/contexts/coga/knowledge/SKILL.md))
-- **Workflow**: the steps for one kind of work, and which of them need you.
-  ([workflows](docs/contexts/coga/workflows/SKILL.md))
-- **Recurring work**: reusable task templates with a schedule. When you run
-  `coga recurring`, due templates become tasks and run through the ordinary
-  task lifecycle — for maintenance, reviews, or other work worth repeating.
-  ([recurring](docs/contexts/coga/recurring/SKILL.md))
+## Why use Coga instead of just the agent?
 
-## Philosophy
+Actually, **you still use the agent.** but you use Coga to launch the agent. Coga gives the agent a life beyond one conversation that you control:
 
-Coga helps people direct work, question assumptions, and carry what they learn
-into the next task. The [design principles](docs/contexts/coga-dev/principles/SKILL.md)
-describe the philosophy behind Coga.
+- **Change the plan.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
+- **Give each task the right context.** Attach relevant facts, constraints, and decisions instead of making every session rediscover them.
+- **Put reviews where they matter.** Use a lightweight workflow for a simple change or require design, peer review, and human approval for more substantial work.
+- **Keep what you learn.** Record decisions in project contexts so later tasks inherit them, even when a different agent does the work.
 
-## Example
+**Agents work in sessions. Coga works in tasks.**
 
-I wanted a plugin that picks the model and reasoning level for each task, so
-a subscription's usage limits cover more work instead of spending top
-reasoning on everything. `coga build` turned ten minutes of conversation
-into a plan of tickets, and the plan treated routing as a solved problem.
-It isn't. The agent had followed my assumption instead of questioning it;
-having the plan written down is what made the assumption visible. So we
-replaced it with a research plan in tickets, written with Claude and run by
-Codex: [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
-[head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
-[Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
-[candidate scoring](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), then the
-[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The decision became a
-context that every later ticket starts from. Browse the whole example in
-[thinkpick's tasks](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks).
+## Why use Coga instead of another tool?
 
-## Who it is for, and its limits
+These tools overlap. The difference is what each puts at the center:
 
-Coga is for small technical teams who already use CLI agents, are comfortable
-with Git and the shell, and want to understand and correct the material their
-agents work from.
+- **[Spec Kit](https://github.github.com/spec-kit/)** offers processes for spec-driven development, bug fixing, and idea assessment, with customizable workflows. Coga centers on a launchable ticket, with or without a formal spec.
+- **[BMad Method](https://docs.bmad-method.org/)** provides planning and delivery workflows with specialized agent roles. Coga stays a smaller layer around the coding agents you already use.
+- **[BMad Builder](https://bmad-builder-docs.bmad-method.org/)** creates custom agents, skills, workflows, and modules. Coga uses existing agents to work through project tickets.
+- **[OpenSpec](https://openspec.dev/docs/quickstart)** tracks changes through proposals, specs, designs, and task checklists. Coga tracks individual tickets, their contexts, and their workflow steps.
+- **[GSD Core](https://github.com/open-gsd/gsd-core)** structures work into a discuss–plan–execute–verify–ship loop using fresh-context subagents. Coga doesn't require a project-wide phase loop.
 
-It is built for work you learn by doing, where you are still working out
-what to build while you build it. For trivial tasks, the agent's own defaults
-are usually enough. For work you can fully specify up front, or that has
-settled into a routine, tools built for that are a better fit.
+Choose Coga if you like your coding agent but want to inspect and change the work it does across tasks and sessions.
 
-It runs locally, in your repository's `coga/` directory: no hosted service.
+## When the first plan was wrong: Thinkpick
 
-## Install
+We used Coga to build [Thinkpick](https://github.com/FastJVM/thinkpick), a tool for choosing a model's reasoning level for a task. After ten minutes of discussion, `coga build` produced plausible tickets—but the plan assumed we already knew how to choose the right level.
 
-Coga runs on Linux, Windows or macOS and needs Python 3.11+, Git, and an authenticated
-[Claude Code](https://claude.com/claude-code) or
-[Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
-offers to install and log in whichever agent CLI you pick.
+We didn't. Instead of implementing that assumption, we changed the tickets to [review existing approaches](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md), [establish ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md), [evaluate an existing candidate](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md), [compare candidates](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), and finally [make a decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md).
+
+The tickets were written with Claude and worked on with Codex. The decision became project knowledge for later work.
+
+**The win wasn't a flawless initial plan. It was being able to challenge it, change it, and carry the result forward.**
+
+Coga is [built with Coga](coga/tasks/), too. Its task history lives in [`coga/log.md`](coga/log.md).
+
+## Get started
+
+You'll need Git and an authenticated [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) CLI to run agent sessions. Coga requires Python 3.11+, but the recommended `uv` installer can obtain a compatible Python for you.
 
 ```sh
 uv tool install coga
-coga --version                  # check the install
-cd <your git repository>
+coga --version
+cd <your-git-repository>
 coga init --user <your-name>
 ```
 
-With default settings, uv downloads a compatible Python when needed, even
-if your system Python is older than 3.11.
-
-[Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
-repository that already uses Coga, pip/pipx alternatives, and troubleshooting.
-[First task](docs/contexts/coga/first-task/SKILL.md) walks one ticket from
-draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
-was recorded in July 2026; some command names may have changed since.
-
-## First steps
-
-After `coga init`:
-
-- **Empty repo:** run `coga build`, a guided discussion that turns your
-  project and goals into a short vision context and a batch of starter
-  tickets. A stock README, LICENSE or `.gitattributes` from your hosting
-  provider still counts as empty; any other project file does not.
-- **Existing project:** init skips that step. Create your first ticket with
-  `coga ticket "<title>"`.
-
-Either way, everything is plain files in your repo: edit them with any text
-editor, or use `coga ticket <slug>` to revise a ticket with an agent. What
-the agents draft is far from perfect, and that's the point: it shows how
-they understand your project and how they would approach it, and gives you
-something concrete to correct.
+Then choose how to begin:
 
 ```sh
-coga status                 # list the tickets
-coga ticket my-first-ticket # refine a ticket with an agent, or edit it yourself
-coga launch my-first-ticket # launch an agent on it
+# New, otherwise empty Git repo: discuss the idea and draft a first plan
+coga build
+
+# Existing project: discuss what's next
+coga chat
+
+# Check the current work
+coga status
 ```
 
-`coga launch` assembles the prompt from the ticket, its contexts, the workflow
-step and the working state. When the work teaches you something worth
-keeping, decide what should change: edit it yourself, ask an agent to carry
-the new understanding through the project, or let Coga's recurring work
-surface it.
+You can edit any ticket directly in Markdown or run `coga ticket <slug>` to refine it with an agent. For a walkthrough from a draft to a reviewed PR, see [Your first task](docs/contexts/coga/first-task/SKILL.md).
+
+## What lives in your repo?
+
+Everything Coga manages is visible under `coga/`:
+
+- **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](docs/contexts/coga/tickets/SKILL.md).
+- **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](docs/contexts/coga/knowledge/SKILL.md).
+- **Workflows** — agent steps and human review gates. [How workflows work](docs/contexts/coga/workflows/SKILL.md).
+- **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
+
+## Principles
+
+**Text above code.** In most coding repos, code is the source of truth. In a Coga repo, the truth lives in the text. Code is an artifact "compiled" from it—and yes, we can regenerate it.
+
+**Keep everything at human scale.** Coga stays small enough to understand and change. The tool should fit the way you work, not make you fit its process.
+
+**Amplify agents, don't duplicate them.** Don't build another planner, researcher, coder, or reviewer. Use what coding agents already know. As they improve, Coga benefits.
+
+**Coga encoded in Coga.** The same tickets, contexts, and workflows used for other projects should describe and evolve Coga itself.
+
+### Consequences
+
+**Homoiconicity for agents.** The text Coga runs on is also text agents can read and rewrite.
+
+**Everything is disposable except the text.** Code and methods can be replaced. Intent, decisions, and what we learn survive in editable files.
+
+**Agents can manage Coga itself.** They can write tickets, revise contexts, and change workflows without learning a special language.
 
 ## Learn more
 
-- [Documentation index](docs/README.md): start, understand, operate and
-  develop.
-- [Design principles](docs/contexts/coga-dev/principles/SKILL.md): the philosophy and design
-  principles behind Coga.
-- [Contributing](CONTRIBUTING.md).
-- Limits: contexts go into the prompt as truth, so a stale one misleads.
-  Managing prompts and instructions as files has close precedents; see the
-  [evidence pages](docs/archive/evidence) for dated comparisons.
+- [Documentation](docs/README.md) — installation, concepts, operation, and development.
+- [Design principles](docs/contexts/coga-dev/principles/SKILL.md) — the reasoning behind the workbench approach.
+- [Contributing](CONTRIBUTING.md) — how to work on Coga.
 
-Coga is free software licensed under
-[Apache-2.0](LICENSE).
+Licensed under [Apache-2.0](LICENSE).
