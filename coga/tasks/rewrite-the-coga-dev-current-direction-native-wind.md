@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 27820b06-7880-4ef5-9384-b1079883d1e5
 ---
 
 ## Description
@@ -129,20 +128,105 @@ ordinary ticket.
 
 branch: coga/rewrite-current-direction-native-windows
 
-## Implementation plan
+## Implement handoff
 
-- Started on clean, current `main`; this session must perform the manual
-  checkout return before bumping. Actual implementing agent: Codex, despite
-  the ticket's configured `agent: claude`.
+- Actual implementing agent: Codex, despite the ticket's configured
+  `agent: claude`. No code review ran in this implement step; peer review
+  is the next frozen step.
+- Updated the local `coga-dev/current-direction` Windows entry and its
+  update date. The entry now summarizes the landed native core port,
+  non-interactive commands and deterministic work, and the remaining agent
+  session refusal. It links to the owning `coga/install` and `coga/launch`
+  contracts and removes the obsolete `fcntl` rationale. No packaged twin,
+  fixture or runtime change is needed.
 - PR #1096 merged as `5ccecf9d8f8b49c20c5baebd1baf4107c00f575d`
-  and is already an ancestor of this checkout, satisfying the ordering ask.
-- Update only the local `coga-dev/current-direction` Windows summary and its
-  update date. Keep the user-facing support contracts in `coga/install` and
-  `coga/launch`; run the required full pytest suite, commit, reconcile and push.
+  and is an ancestor of the feature branch, satisfying the ordering ask.
 - Item 2 is already satisfied by `5738ca6468de56540b060f8ef86656575a9c19b0`
   (`Retro marker: marketing/readme-top`): the current sentence says only
   PR #1046 merged and #1058/#1059 closed unmerged. GitHub metadata confirmed
-  all three outcomes; preserve that correction without a redundant edit.
+  all three outcomes; that correction is preserved without a redundant edit.
 - PR #1093 merged on 2026-10-23. The current install and launch topics already
   describe native deterministic work and refusal of agent sessions pending
   `windows-native/03-interactive-coga-launch-on-native-windows`.
+- Pushed `663c4f0b0b53b346ea66624785cfd8180ee78faf` to the recorded branch
+  after rebasing onto `fbba20518ac88e4af4f84e184a172d3a92d00270` and rerunning
+  the full suite. Incoming changes were ticket/log updates only. Final fetch
+  found no further movement; the checkout returned to clean, current `main`
+  before writing this handoff. No PR has been opened.
+- No unresolved implementation questions or adjacent product bugs found.
+  Review the one-file documentation diff and refresh the preparation record
+  after the required peer review.
+
+## Verification history
+
+The pre-rebase tested revision was
+`44fcf860cc773b7d74f62e0c89e7216da62a5365`, based on
+`23cea35cd65bdb442cb7cc1f32c7b42dfed7494a`. Tests ran before committing;
+the staged tested tree and that commit's tree were both
+`cf4fb7f282c88c0c840f75c4c468a271c0838f2a`, confirming identical content.
+
+- `env PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`
+  exited 1: **1413 passed, 10 skipped, 2708 errors in 204.09s**. `/tmp`
+  exhausted its inode limit (1,048,543 used of 1,048,576), causing fixture
+  setup errors and preventing new sandbox commands from starting. With
+  approval, removed only this run's `/tmp/pytest-of-n/pytest-92` scratch
+  directory and moved subsequent test scratch space to the main filesystem.
+- `env TMPDIR=/home/n/.codex/coga-current-direction-tests.bwtAo3 PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -x --tb=short`
+  exited 0 on the same pre-rebase content: **4121 passed, 10 skipped in
+  474.35s**. No source change was needed to resolve the environmental failure.
+
+Those are historical results, not receipts for the rebased head. The full
+suite ran again on the final committed head; its current receipt is below.
+
+## PR
+
+```yaml
+title: Update native Windows direction after the core port
+author: codex
+author_evidence: >-
+  Codex implemented this change in the current implement session, overriding
+  the ticket's configured Claude identity; see Implement handoff.
+head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
+base: fbba20518ac88e4af4f84e184a172d3a92d00270
+depth: deep
+rationale: >-
+  Bounded documentation correction with a passing full suite, but the required
+  peer review has not run yet. The review step should reassess this advisory depth.
+implementation: >-
+  Replaces the obsolete unsupported-Windows and fcntl explanation with the
+  landed core-port posture, retains the interactive-session dependency and
+  WSL qualification, links both owning user topics, and updates the topic date.
+deviations: >-
+  Item 2 was already corrected on main by 5738ca6468de56540b060f8ef86656575a9c19b0;
+  its wording is preserved. No runtime, fixture or packaged-copy changes.
+limitations: >-
+  Verification ran on Linux with Python 3.12.12. Native Windows and Python 3.11
+  were not exercised in this session; this change summarizes existing contracts.
+files:
+  docs/contexts/coga-dev/current-direction/SKILL.md: >-
+    Correct the stale native Windows direction and update its date, keeping
+    detailed support contracts owned by coga/install and coga/launch.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Required peer review follows this implement step; no code review claimed.
+checks:
+  - command: env TMPDIR=/home/n/.codex/coga-current-direction-tests.bwtAo3 PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -x --tb=short
+    status: passed
+    head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
+    base: fbba20518ac88e4af4f84e184a172d3a92d00270
+    detail: >-
+      4121 passed, 10 skipped in 489.13s on the final committed head after
+      reconciliation. Linux/Python 3.12.12; working tree remained clean.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
+    base: fbba20518ac88e4af4f84e184a172d3a92d00270
+    detail: Exit 0; no whitespace errors in the one-file feature diff.
+  - command: coga validate --json
+    status: not-run
+    detail: >-
+      Documentation-only correction; no config, workflow, task-model or
+      validation behavior changed, so standalone validation is not required.
+```
