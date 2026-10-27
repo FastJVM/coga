@@ -122,4 +122,61 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Investigation (2026-10-26)
+
+- Operator: Codex. Manual checkout start succeeded: clean `main`, fetched
+  `origin/main`, and `git merge --ff-only origin/main` reported already current
+  at `71cb300954ba67e3239cb9716a83ddca9feefc05`. No feature branch or PR exists
+  for this attempt; implementation is waiting on the policy decision below.
+- `docs/contexts/coga/notifications/SKILL.md`, "When a post fails", and its
+  packaged twin at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md`
+  are byte-identical and still require tracked-log redaction. This ticket is
+  not already satisfied.
+- `coga/tasks/webhook-for-slack-is-public.md` remains `in_progress` at the
+  owner-held `approve` step. Its Context excludes historical-log redaction
+  and history rewriting, and its inventory preserves those copies. It
+  records no completed revocation or general policy choice among optional,
+  prohibited, and required redaction. Its incident-specific scope is evidence
+  for the recommendation, not an answer to this ticket's explicit owner ask.
+- A count-only scan for complete Slack service credential paths found 24
+  affected lines in both the working `coga/log.md` and `origin/main`'s copy.
+  No credential was printed or probed. Full-URL-only matching is insufficient:
+  legacy error text can expose the `/services/` path separately from the host.
+- `coga/architecture`, "Durable files", defines the CLI-written log as
+  append-only. `coga-dev/internals/spool-merge`, "merge=union files" and
+  "Legacy lines stay", explains preservation and the risk of resurrecting
+  deleted lines across writers. A redaction commit also leaves prior Git
+  versions intact. Dream's live report labels this finding D18, "owner
+  decision"; no resolution was found in the referenced live records.
+
+## Policy proposal awaiting owner decision
+
+Recommend optional, explicitly owner-directed cleanup after confirmed
+revocation. Ordinary incident response preserves the append-only log;
+revocation remains required. The owner must choose optional, prohibited, or
+required historical-log redaction before either notification copy is edited.
+This is a policy blocker, not a dependency on the incident ticket finishing.
+
+Proposed replacement for the leaked-webhook paragraph (not adopted):
+
+> Coga never prints a raw Slack error, since it would contain the webhook URL.
+> If a webhook URL or `/services/…` path ever appears in a diagnostic, treat it
+> as compromised: revoke or rotate it in Slack, confirming the leaked URL is
+> revoked, and inspect every reachable commit and other copies (forks,
+> clones, CI logs, caches). Revocation is the required remedy. Once it is
+> confirmed, redacting historical copies is optional cleanup at the owner's
+> direction. Preserve the append-only `coga/log.md` during ordinary incident
+> response; redacting it requires an explicit owner-approved exception.
+> A redaction commit does not erase history; rewriting and force-pushing
+> published history is a separate destructive step that needs explicit,
+> coordinated approval and still cannot recall existing copies.
+
+After the owner resolves the policy, record the answer with `coga unblock`,
+follow the manual feature-branch procedure, update both notification copies
+identically, and complete the implement workflow's checks and handoff. The
+draft preserves the existing exposure-inspection requirement; the decision
+here concerns historical-log redaction only. No documentation, configuration,
+log, or credentials were edited by hand. Tests were not run because no
+implementation change was made; investigation verified twin equality and
+counted existing exposure without exposing values.
