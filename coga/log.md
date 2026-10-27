@@ -9513,3 +9513,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 14:50 v1 [windows-native/repair-ci-and-resume-with-release-focused-triggers] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-27 14:50 v1 [windows-native/repair-ci-and-resume-with-release-focused-triggers] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 14:51 v1 [windows-native/repair-ci-and-resume-with-release-focused-triggers] [megalaunch] launched via coga megalaunch
+2026-10-27 15:00 v1 [windows-native/repair-ci-and-resume-with-release-focused-triggers] [agent:codex] advanced to step 2 (evaluate-design) → codex — Design ready: release and manual matrix, gates for both indexes, and staged resumption. Owner policy decisions are recorded under Open Questions.
