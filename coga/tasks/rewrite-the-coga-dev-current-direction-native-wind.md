@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: a32fda7d-3d35-43de-8e86-97c3168f37f3
 ---
 
 ## Description
@@ -132,8 +131,8 @@ branch: coga/rewrite-current-direction-native-windows
 ## Implement handoff
 
 - Actual implementing agent: Codex, despite the ticket's configured
-  `agent: claude`. No code review ran in this implement step; peer review
-  is the next frozen step.
+  `agent: claude`. No code review ran in the implement step; the completed
+  review is recorded below.
 - Updated the local `coga-dev/current-direction` Windows entry and its
   update date. The entry now summarizes the landed native core port,
   non-interactive commands and deterministic work, and the remaining agent
@@ -155,8 +154,7 @@ branch: coga/rewrite-current-direction-native-windows
   found no further movement; the checkout returned to clean, current `main`
   before writing this handoff. No PR has been opened.
 - No unresolved implementation questions or adjacent product bugs found.
-  Review the one-file documentation diff and refresh the preparation record
-  after the required peer review.
+  The final reviewed revision and refreshed preparation record are below.
 
 ## Verification history
 
@@ -176,8 +174,40 @@ the staged tested tree and that commit's tree were both
   exited 0 on the same pre-rebase content: **4121 passed, 10 skipped in
   474.35s**. No source change was needed to resolve the environmental failure.
 
-Those are historical results, not receipts for the rebased head. The full
-suite ran again on the final committed head; its current receipt is below.
+- The implement step also reran the same full-suite command on
+  `663c4f0b0b53b346ea66624785cfd8180ee78faf`, based on
+  `fbba20518ac88e4af4f84e184a172d3a92d00270`: **4121 passed, 10 skipped in
+  489.13s**. Its whitespace check also passed.
+
+These implementation results are historical. Current review and check receipts
+cover the subsequently rebased head below.
+
+## Peer review
+
+- **Completed, 2026-10-27:** Codex directly reviewed the final one-file diff
+  at head `3053555a6933aa286301828dfd299257acb5998c`, base
+  `492924ed72d2e56f2889b4b134d2c6421c3a9ab4`. This is **self-review**:
+  the actual implementer was also Codex. The fresh review session and the
+  configured Claude identity do not establish independent authorship.
+- **No must-fix findings.** The Windows summary matches the owning install
+  and launch topics and the native platform gates in `launch.py`; `git.py`
+  delegates locking to the guarded imports in `oscompat.py`. Both topic links
+  resolve, including the launch anchor. The obsolete rationale is absent.
+  This local-only context needs no packaged twin, fixture or runtime edit.
+- Rechecked GitHub metadata: #1093 and #1096 merged, and their merge commits
+  are ancestors of this branch. #1046 merged; #1058 and #1059 closed unmerged.
+  The existing Retro correction from `5738ca646` is preserved. The interactive
+  Windows task remains at its owner-held review-design gate.
+- Rebased onto current main before review; incoming changes were this ticket
+  and the log only. `git range-diff` confirms the implementation patch is
+  unchanged. The required full suite passed on the final head: **4121 passed,
+  10 skipped in 472.37s**, Linux/Python 3.12.12. Whitespace checks passed.
+  No interactive surface changed, so no terminal exercise was applicable;
+  native Windows and Python 3.11 were not exercised.
+- Final fetch found no further movement. Pushed the final head with an explicit
+  lease and returned to clean, current `main` before writing this handoff.
+  Recommendation: **skim**, with the self-review and platform limits disclosed.
+  No PR has been opened; the next step can publish from the prepared record.
 
 ## PR
 
@@ -185,14 +215,16 @@ suite ran again on the final committed head; its current receipt is below.
 title: Update native Windows direction after the core port
 author: codex
 author_evidence: >-
-  Codex implemented this change in the current implement session, overriding
+  Codex implemented this change in the earlier implement session, overriding
   the ticket's configured Claude identity; see Implement handoff.
-head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
-base: fbba20518ac88e4af4f84e184a172d3a92d00270
-depth: deep
+head: 3053555a6933aa286301828dfd299257acb5998c
+base: 492924ed72d2e56f2889b4b134d2c6421c3a9ab4
+depth: skim
 rationale: >-
-  Bounded documentation correction with a passing full suite, but the required
-  peer review has not run yet. The review step should reassess this advisory depth.
+  Bounded documentation correction checked against the owning contracts and
+  merged history, with no must-fix findings and a passing full suite after
+  reconciliation. Skim the wording and disclosed limits: review was by Codex,
+  the same actual agent identity as the implementer, so it is self-review.
 implementation: >-
   Replaces the obsolete unsupported-Windows and fcntl explanation with the
   landed core-port posture, retains the interactive-session dependency and
@@ -203,27 +235,35 @@ deviations: >-
 limitations: >-
   Verification ran on Linux with Python 3.12.12. Native Windows and Python 3.11
   were not exercised in this session; this change summarizes existing contracts.
+  No independent review was performed: both the actual implementer and this
+  fresh direct reviewer were Codex. No interactive surface changed.
 files:
   docs/contexts/coga-dev/current-direction/SKILL.md: >-
     Correct the stale native Windows direction and update its date, keeping
     detailed support contracts owned by coga/install and coga/launch.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Required peer review follows this implement step; no code review claimed.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 3053555a6933aa286301828dfd299257acb5998c
+  base: 492924ed72d2e56f2889b4b134d2c6421c3a9ab4
+  detail: >-
+    Direct review completed on the final rebased diff with no must-fix findings.
+    Checked both owning user contracts, their links, native platform guards,
+    the merged prerequisite and the already-landed Retro correction. Actual
+    author and reviewer are both Codex; this is self-review, not independent review.
 checks:
-  - command: env TMPDIR=/home/n/.codex/coga-current-direction-tests.bwtAo3 PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -x --tb=short
+  - command: env TMPDIR=/home/n/.codex/coga-current-direction-peer.7gRAbR PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -x --tb=short
     status: passed
-    head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
-    base: fbba20518ac88e4af4f84e184a172d3a92d00270
+    head: 3053555a6933aa286301828dfd299257acb5998c
+    base: 492924ed72d2e56f2889b4b134d2c6421c3a9ab4
     detail: >-
-      4121 passed, 10 skipped in 489.13s on the final committed head after
+      4121 passed, 10 skipped in 472.37s on the final committed head after
       reconciliation. Linux/Python 3.12.12; working tree remained clean.
   - command: git diff --check origin/main...HEAD
     status: passed
-    head: 663c4f0b0b53b346ea66624785cfd8180ee78faf
-    base: fbba20518ac88e4af4f84e184a172d3a92d00270
+    head: 3053555a6933aa286301828dfd299257acb5998c
+    base: 492924ed72d2e56f2889b4b134d2c6421c3a9ab4
     detail: Exit 0; no whitespace errors in the one-file feature diff.
   - command: coga validate --json
     status: not-run
