@@ -1,7 +1,7 @@
 ---
 title: Reconcile the coga notifications leaked-webhook response with the append-only
   log
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:18462d61-3b9c-4e5a-9b55-1702776fea34
 ---
 
 ## Description
