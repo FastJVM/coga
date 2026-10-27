@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: c24fc87c-d3ec-4914-899e-a4ef552e8373
 ---
 
 ## Description
@@ -131,29 +130,48 @@ branch: coga/fix-usage-report-cost-proxy-comment
 
 ## Implementation handoff
 
-- Prerequisite [PR #1102](https://github.com/FastJVM/coga/pull/1102) merged
-  2026-10-26; its merge commit `1de719527856d99b8f15cf22717998a4f5cae5a1`
-  is included in the branch.
-- Commit `cac80a0bfca33cf5fe422e3404d613b504f00804` corrects the cost-proxy parenthetical,
-  links the standing usage-pricing topic, and corrects the delivery-miss comment.
-  The skill's stale statement that the comment is wrong was removed as part
-  of the same correction.
-- Chose the requested comment correction: no `task_path` was added, and
-  notification or bump behavior did not change. Both edited surfaces are
-  repo-local with no packaged twins. No new regression tests, fixture changes,
-  or context contract edits are needed for this prose/comment-only change.
-- Full suite passed on Linux/Python 3.12.12: 4,121 passed, 10 native-Windows
-  cases skipped. The two edited files' SHA-256 hashes were unchanged across
-  the run; the precommit staged tree and committed tree both equal
-  `5e46827b1b867875678fe12557e9a78092f62710`. The committed shim AST also matches
-  the base, and the new relative pricing link resolves.
-- Reconciled with `origin/main` at `b090307a60c529d614da0f8866df3baf4e15d0af`;
-  `git rebase FETCH_HEAD` was already up to date, so no revision or test
-  receipt changed. Pushed the recorded branch and returned to clean,
-  fast-forwarded `main` before writing this handoff.
-- No unresolved implementation findings. No PR opened or code review performed;
-  the next workflow step owns peer review and should refresh the PR receipts
-  after any changes.
+- Prerequisite [PR #1102](https://github.com/FastJVM/coga/pull/1102) merged;
+  its merge commit `1de719527856d99b8f15cf22717998a4f5cae5a1` is an ancestor
+  of the reviewed branch.
+- Codex (GPT-6) implemented the corrections in `cac80a0bfca33cf5fe422e3404d613b504f00804`,
+  despite the ticket's configured `claude` agent. No work was delegated.
+  Peer review rebased that commit to `0e28c59364d7ea0599759a5dfaa1b5a096044dfa`.
+- Selected the requested wording correction. The skill links the set-aside
+  pricing topic and drops its now-stale claim that the shim comment is wrong.
+  No `task_path` was added; notification and bump behavior are unchanged.
+  Both edited surfaces are repo-local, with no packaged twins.
+- The implementation suite passed with 4,121 tests and 10 native Windows
+  skips. The fresh verification below supersedes that earlier receipt.
+
+## Peer review
+
+- Direct Codex review **completed**, with no must-fix findings or edits, at
+  head `0e28c59364d7ea0599759a5dfaa1b5a096044dfa` against base
+  `a7388098da04aa0683d04a446d8e4b29f6d9f82e`. This is recorded as self-review:
+  the implementing session also used Codex. The configured peer and this
+  fresh session do not establish independent authorship.
+- Reviewed both changed files, the standing usage-pricing topic, the owner's
+  cancellation in `coga/log.md:6209`, the notification contract and backend,
+  and existing usage-report coverage. The link resolves; the shim supplies
+  no `task_path`, so `SlackChannel.send` reports a delivery miss on stderr
+  without a failure audit line. The shim AST is unchanged from the base.
+- No rendered terminal or Slack surface changes: only skill prose and a
+  Python comment changed. No live Slack send or new regression test was
+  needed. Existing usage-report tests, including failed-delivery completion,
+  passed in the full suite.
+- Rebased onto freshly fetched `origin/main`, with no conflicts. Full suite
+  on the rebased head: **4,121 passed, 10 skipped in 381.77s**, on
+  Linux/Python 3.12.12. Skips: 2 Windows job-object integration cases,
+  5 native PowerShell 5.1 cases, and 3 native Windows Job Object recovery
+  cases. Native Windows and Python 3.11 were not exercised.
+- The fetch before push confirmed main unchanged. Pushed the rebased branch
+  with an explicit force-with-lease and returned to `main`. A later handoff
+  fetch added only audit-log commit `fdcc2cc01628e01e4ecc7fcd08bed367c010aa6f`;
+  preserved this handoff, fast-forwarded main, and restored it. The reviewed
+  two-file diff and its merge base are unchanged. No PR exists yet;
+  `open-pr` is the next step.
+- Recommendation: **skim**. The two-file correction is bounded, all required
+  checks passed, and self-review is disclosed. No unresolved findings.
 
 ## PR
 
@@ -161,14 +179,16 @@ branch: coga/fix-usage-report-cost-proxy-comment
 title: Correct usage-report pricing and delivery comments
 author: codex
 author_evidence: >-
-  The actual implementing session used Codex (GPT-6), not the ticket's
-  configured claude agent. No implementation or review was delegated.
-head: cac80a0bfca33cf5fe422e3404d613b504f00804
-base: b090307a60c529d614da0f8866df3baf4e15d0af
-depth: deep
+  The implementing session used Codex (GPT-6), despite the ticket's configured
+  claude agent. No work was delegated. The peer-review session also used Codex.
+head: 0e28c59364d7ea0599759a5dfaa1b5a096044dfa
+base: a7388098da04aa0683d04a446d8e4b29f6d9f82e
+depth: skim
 rationale: >-
-  Two small prose/comment corrections with passing checks. Advisory depth
-  remains deep until the required peer-review step supplies a review receipt.
+  Two bounded prose/comment corrections with no executable change. Direct
+  Codex self-review completed without findings, the full suite passed on the
+  rebased head, and the pricing link and unchanged shim AST were verified.
+  Read the description for the self-review and platform limitations.
 implementation: >-
   Describe an API-equivalent-value line as requiring revival of the set-aside
   cost proxy and link the usage-pricing topic. Explain that delivery misses
@@ -176,8 +196,11 @@ implementation: >-
   now-stale claim that the shim comment says otherwise.
 deviations: None; selected the ticket's wording correction and preserved runtime behavior.
 limitations: >-
-  Independent review has not run in this implement step. Verification used
-  Linux and Python 3.12.12; native Windows and Python 3.11 were not exercised.
+  Review is self-review because both implementation and review used Codex;
+  independent review was not performed. Verification used Linux and Python
+  3.12.12; native Windows and Python 3.11 were not exercised. No live Slack or
+  terminal check was needed because message text and runtime behavior did not
+  change; the full suite covers existing delivery and completion behavior.
 files:
   coga/skills/coga/usage-report/post/SKILL.md: >-
     Correct the cost-proxy status, link its standing topic, and remove the
@@ -186,32 +209,53 @@ files:
     Correct the comment to explain stderr-only failure reporting without
     changing the post call or the subsequent bump.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: The subsequent peer-review workflow step owns code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 0e28c59364d7ea0599759a5dfaa1b5a096044dfa
+  base: a7388098da04aa0683d04a446d8e4b29f6d9f82e
+  detail: >-
+    Direct review completed in this fresh peer-review session with no must-fix
+    findings or edits. Reviewed the complete two-file diff, pricing topic and
+    cancellation evidence, notification implementation and contract, and
+    existing usage-report tests. Codex also implemented the change, so this
+    receipt does not claim independent review.
 checks:
   - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
     status: passed
-    head: cac80a0bfca33cf5fe422e3404d613b504f00804
-    base: b090307a60c529d614da0f8866df3baf4e15d0af
+    head: 0e28c59364d7ea0599759a5dfaa1b5a096044dfa
+    base: a7388098da04aa0683d04a446d8e4b29f6d9f82e
     detail: >-
-      4121 passed, 10 skipped in 373.44s on Linux/Python 3.12.12.
+      4121 passed, 10 skipped in 381.77s on Linux/Python 3.12.12 after rebase.
       Skips: 2 Windows job-object integration cases, 5 native PowerShell 5.1
-      cases, and 3 native Windows Job Object recovery cases.
-      Tests ran before commit; unchanged file hashes and identical staged
-      and committed tree 5e46827b1b867875678fe12557e9a78092f62710 tie this receipt
-      to the committed revision.
+      cases, and 3 native Windows Job Object recovery cases. The working tree
+      remained clean and HEAD unchanged throughout verification.
   - command: git diff --check origin/main...HEAD
     status: passed
-    head: cac80a0bfca33cf5fe422e3404d613b504f00804
-    base: b090307a60c529d614da0f8866df3baf4e15d0af
+    head: 0e28c59364d7ea0599759a5dfaa1b5a096044dfa
+    base: a7388098da04aa0683d04a446d8e4b29f6d9f82e
     detail: No whitespace errors in the committed two-file diff.
-  - command: "python -c 'import ast, subprocess; from pathlib import Path; p = \"coga/recurring/usage-report/ticket.py\"; assert ast.dump(ast.parse(subprocess.check_output([\"git\", \"show\", f\"origin/main:{p}\"], text=True))) == ast.dump(ast.parse(Path(p).read_text())); assert (Path(\"coga/skills/coga/usage-report/post\") / \"../../../../../docs/contexts/coga-dev/internals/usage-pricing/SKILL.md\").resolve().is_file(); print(\"PASS: shim AST unchanged and pricing link resolves\")'"
+  - command: |
+      .venv/bin/python - <<'PY'
+      import ast
+      import subprocess
+      from pathlib import Path
+
+      shim = Path('coga/recurring/usage-report/ticket.py')
+      base = subprocess.check_output(['git', 'show', f'origin/main:{shim}'], text=True)
+      assert ast.dump(ast.parse(base)) == ast.dump(ast.parse(shim.read_text()))
+      skill = Path('coga/skills/coga/usage-report/post/SKILL.md')
+      link = '../../../../../docs/contexts/coga-dev/internals/usage-pricing/SKILL.md'
+      assert f']({link})' in skill.read_text()
+      assert (skill.parent / link).resolve().is_file()
+      for root in ('src/coga/resources/templates/coga',):
+          assert not any('usage-report' in p.parts for p in Path(root).rglob('*'))
+      print('PASS: shim AST unchanged; pricing link resolves; no packaged usage-report twins')
+      PY
     status: passed
-    head: cac80a0bfca33cf5fe422e3404d613b504f00804
-    base: b090307a60c529d614da0f8866df3baf4e15d0af
-    detail: The shim AST is unchanged from the base and the pricing link resolves.
+    head: 0e28c59364d7ea0599759a5dfaa1b5a096044dfa
+    base: a7388098da04aa0683d04a446d8e4b29f6d9f82e
+    detail: The shim AST is unchanged, the pricing link resolves, and neither file has a packaged twin.
   - command: coga validate --json
     status: not-run
     detail: No configuration, workflow, task-model, or validation behavior changed.

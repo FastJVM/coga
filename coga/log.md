@@ -9479,3 +9479,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 12:09 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-27 12:09 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [megalaunch] launched via coga megalaunch
 2026-10-27 12:17 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-27 12:20 v1 [fix-the-usage-report-cost-proxy-parenthetical-and] [agent:codex] advanced to step 3 (open-pr) → claude
