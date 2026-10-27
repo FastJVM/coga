@@ -27,21 +27,7 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key (the shipped `coga.toml` notification comments). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
-**A repo-wide `coga validate` refuses a shebang script that is not
-executable** (`non-executable-script`, an error). `coga validate --task <slug>`
-does not run this check. Every regular file under the installed
-skills root or the packaged bootstrap skills that starts with `#!` must carry
-the executable bit: the shebang is the author's declaration that the file is
-run directly, so import-only modules carry none and stay `100644`. Remedy:
-`chmod +x` and commit mode `100755` (`git add --chmod=+x` where Git ignores
-filesystem modes). A finding under the packaged `bootstrap/skills` belongs to
-the installed distribution: upgrade or reinstall Coga, or fix it upstream;
-Dream routes it as human-needed rather than a local PR. Modes come from the
-working tree on POSIX, and from the git index on Windows or under a
-repo-local `core.fileMode=false`; a root with neither trustworthy source is
-skipped, as are untracked files in index mode. The walk skips symlinks and
-prunes `.git`, `__pycache__`, `node_modules`, and `.venv`
-(`validate._check_shebang_executables`).
+The `non-executable-script` validation contract is in [coga/skill-management](../../coga/skill-management/SKILL.md#executable-skill-scripts).
 
 For artifact-level reproduction, use the
 [Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI

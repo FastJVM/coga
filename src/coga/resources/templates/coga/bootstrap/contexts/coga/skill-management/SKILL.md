@@ -1,6 +1,6 @@
 ---
 name: coga/skill-management
-description: The shapes skills take in a Coga repo (authored, GitHub-installed, URL-installed, hand-vendored, bundled), how `coga skill` installs and updates them, and the provenance rules that decide which updater owns a directory.
+description: The shapes, installation, updates, provenance, and executable-script validation of skills in a Coga repo.
 ---
 
 # Skill management
@@ -43,6 +43,26 @@ is rebuilt by init and launch and is not committed to the repository.
   writes into `coga/bootstrap/`. See [coga/context-layout](../context-layout/SKILL.md).
   A repo copy of a bundled skill shadows it and `coga skill status` reports it
   as `local-override`. Upgrading `coga` refreshes the package copy, not the repo twin.
+
+## Executable skill scripts
+
+A repo-wide `coga validate` reports `non-executable-script` as an error when a
+shebang script is not executable. `coga validate --task <slug>` does not run
+this check. Every regular file under the installed skills root or the
+packaged bootstrap skills that starts with `#!` must carry the executable
+bit: the shebang is the author's declaration that the file is run directly,
+so import-only modules carry none and stay `100644`.
+
+For a repo skill, use `chmod +x` and commit mode `100755`
+(`git add --chmod=+x` where Git ignores filesystem modes). A finding under
+the packaged `bootstrap/skills` belongs to the installed distribution:
+upgrade or reinstall Coga with its owning installer, or fix it upstream.
+Dream routes it as human-needed rather than a local PR.
+
+Modes come from the working tree on POSIX, and from the Git index on Windows
+or under a repo-local `core.fileMode=false`. A root with neither trustworthy
+source is skipped, as are untracked files in index mode. The walk skips
+symlinks and prunes `.git`, `__pycache__`, `node_modules`, and `.venv`.
 
 ## `coga skill` commands
 

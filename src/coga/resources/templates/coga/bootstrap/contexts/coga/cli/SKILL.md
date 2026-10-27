@@ -20,7 +20,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
 | `secret get` | [coga/secrets](../secrets/SKILL.md) |
-| `validate` | [coga/first-task](../first-task/SKILL.md) |
+| `validate` | [coga/first-task](../first-task/SKILL.md); script permissions: [coga/skill-management](../skill-management/SKILL.md#executable-skill-scripts) |
 | `--version` | [coga/install](../install/SKILL.md) |
 
 ## Tickets and state
