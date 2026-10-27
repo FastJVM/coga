@@ -36,9 +36,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
-launch_generation: 67a7d0d4-7eb0-4065-b249-f56d02e3fc10
 ---
 
 ## Description
@@ -57,35 +56,219 @@ launch. The usage record is captured after the agent's final lifecycle sync;
 activation, start, branch linkage, and queue admission can introduce other
 publication deadlines that the design must account for.
 
-### Design requirements
+### Proposed bound and counting interval
 
-Define the counting interval from immediately before launch entry to after
-usage capture, checkout return, and the command's final sweep. Use an isolated
-seeded Git repository with a remote, deterministic agent and usage fixtures,
-and an owner handoff after one bump. Count actual new commits on control and
-inspect their contents, not merely calls to sync helpers. Compare a resumed
-`in_progress` step with an initial `active` launch; account separately for
-draft activation, branch creation versus reuse, and megalaunch admission.
-Explain every retained startup commit rather than silently excluding it from
-a claimed whole-launch bound. A clean sweep must remain a no-op.
+Propose **three commits for a successful ordinary managed agent step**:
+one startup publication, one lifecycle handoff, and one usage publication.
+This is a proposal for `review-design`, not an approved implementation contract.
+Startup is work with its own deadline; a whole-launch limit of two would
+require relaxing that deadline or the later usage contract.
 
-Choose the smallest grouping consistent with publication deadlines. Lifecycle
-state must be visible when the command hands off, before the next operator
-can act. Do not delay a required publication, rewrite or force-push shared
-`main`, weaken publication guards, or hide a failed publish. Verify deferred
-lines when an agent exits without a transition, fails, or is interrupted, and
-preserve retained-state/withheld-sweep diagnostics. Classify bootstrap,
-authoring, script, recurring, and megalaunch paths explicitly; a bound for an
-ordinary task is not automatically their bound. Preserve admission and
-checkout guarantees, and take any necessary contract change to the owner
-design gate.
+Count new commits reachable from the bare remote's control ref from immediately
+before CLI launch entry until after usage capture, checkout return, and the
+outer CLI sweep. Include entry settlement and every startup publication in
+that interval. Seed commits and pre-existing branch linkage precede the start
+OID. Count local control too, and require it to finish at the remote tip.
 
-Done when the owner has approved the bound and its tradeoffs, seeded real-Git
-launch-and-bump tests assert that bound and publication timing, affected
-failure and no-transition exits retain their publish-or-report guarantee,
-`recurring_activity` preserves its current classification, the publication
-topics and packaged twins are updated in the same PR, and `python -m pytest`
-passes.
+The bounded workload starts clean and current with working Git, no competing
+publisher, no `ticket.py`, no resumed blocker or recorded human assist, and
+an agent-held step. It stays on control or uses automatic branch preparation;
+its only session edits are its own handoff/blackboard followed by one CLI bump
+to an owner-held step. Usage capture appends exactly one deterministic record.
+The agent runs no other mutating command and writes nothing after bump.
+
+| Ordinary entry | Measured current commits: control or reuse / create | Proposed maximum, including usage |
+| --- | ---: | ---: |
+| Resumed `in_progress` | 3 / 4 | 3 |
+| Initial `active` | 4 / 5 | 3 |
+| Initial `draft` with activation | 5 / 6 | 3 |
+
+The current measurements used real publication and checkout code; their
+method and limitations are on the blackboard. The proposed counts still need
+implementation tests. With no new usage line, teardown may contribute zero
+commits; it must still attempt publication or report failure. In the fixture
+above, assert exactly three and their contents, not merely `<= 3`.
+
+No fixed total covers arbitrary agent work. An entry settlement of pre-existing
+eligible dirt is an additional publication before the authoritative read;
+another mutating command can publish a blackboard edit before bump; later
+eligible edits can require checkout settlement. Keep those publishers and
+count the additional events explicitly in separate tests. Do not suppress the
+sweep or absorb unrelated dirty roots merely to pass the three-commit case.
+An unchanged sweep, including a repeated sweep after return, adds zero.
+
+### Publication boundaries and path classification
+
+1. **Ordinary managed startup.** Activation, start, new branch linkage, and
+   the launch audit share one pre-spawn boundary. Prepare all of them before
+   writing; publish the final ticket and audit together before switching or
+   exposing an executable agent. Keep activation and start as distinct audit
+   events in their current order. A resumed step with no new linkage still
+   needs its log-only startup commit: the start line must not stay dirty
+   throughout an attended session. No startup line is deferred to bump.
+2. **Handoff.** Bump/mark/block continue publishing the finalized ticket and
+   event log before their command returns or releases the session. The
+   launcher must not hold that publication until it can append usage. An
+   ordinary lifecycle subject stays `Ticket: <slug> — <event>`; a bump keeps
+   its numbered destination step. Its blackboard handoff is in that commit.
+3. **Teardown.** Usage is only available after the agent's final command.
+   Preserve the log-only, union-safe teardown publication and its warning.
+   Checkout return and the final sweep remain independent safety nets and
+   must be no-ops for the bounded workload.
+
+Other paths retain their current publication contracts in this ticket:
+
+| Path | Accounting and retained boundary |
+| --- | --- |
+| Megalaunch, active or unclaimed `in_progress`, one bump on control | 4 commits with usage: pending start claim, admitted generation plus launch audit, bump, usage. The first two straddle held-child release and cannot be combined. |
+| Megalaunch, explicit draft/paused activation | Add 1 activation commit: 5 in the equivalent clean case. Keep the existing independently committed strict activation transaction and its rollback/uncertainty semantics. This is a deliberate scope choice, not a claim that an atomic activation-plus-claim redesign is impossible. Dependency-drain blocker resolution remains durable before claiming. |
+| Megalaunch with agent-created branch or additional commands | Add their actual publications. The queue does not call ordinary managed branch preparation; three is not its bound. |
+| Agent bootstrap, including chat/orientation | Start log plus usage: 2 for a no-write session. State written by the agent adds settlement/sweep publications. No task lifecycle sync can substitute for the start log. |
+| Guided authoring (`coga ticket`) | Keep immediate start-log publication, usage teardown, then the guarded authored-set publication (3 when that set changes), plus any independent agent commands. Never leave the start line dirty during the interview or split refused authored state through a fallback sweep. |
+| Stateful `ticket.py` launch | Keep activation if needed, start if needed, script launch log before user code, any lifecycle commands run by the script, and the script-exit line's settlement/sweep. A clean active script that bumps once has 4 commits; draft adds activation, resumed `in_progress` removes start. A later agent phase has its own audit/usage. Stateless scripts have no task startup audit/lifecycle and are counted by their actual writes. |
+| Recurring period and delegated bootstrap | Keep period creation/adoption, strict start/lease checks, delegated-launch audit, child audit/usage, result publication and serviced-period ledger publishers in their existing order. Count each selected phase; neither the ordinary three nor the queue four is a whole recurring-run bound. |
+| Exempt/unmanaged launch, recorded assist, blocked resume, Git disabled | Preserve their current routes and diagnostics. No three-commit promise; Git-disabled publication produces no commits and claims no remote durability. |
+
+The owner must approve both the ordinary reduction and these exclusions.
+In particular, resumed ordinary reuse already costs three and resumed queue
+work already costs four: this proposal does not promise savings there.
+
+### Acceptance criteria
+
+- [ ] The owner has approved the bound, path exclusions, and changed ordinary
+  startup/failure semantics at `review-design`; implementation records the
+  decision and does not silently substitute a different bound.
+- [ ] Seeded real-Git tests cover the nine ordinary status/checkout combinations
+  above, each with one owner handoff and one usage record. Add a draft with a
+  workflow-name reference to exercise freezing and agent selection, not just
+  an already frozen draft, and cover paused reactivation if it uses grouping.
+  Assert remote commit counts, ordered subjects,
+  changed paths, audit lines, handoff bytes, and final clean/current control.
+- [ ] Before agent execution, remote control holds the final startup ticket,
+  audit, and any new linkage; before a branch switch the invoking control
+  checkout is clean. After the child bump returns but before usage capture,
+  remote control already holds the next step and handoff. The usage record
+  appears only in the later log publication. No startup/usage line is lost
+  or duplicated by repeated publication or concurrent remote log appends.
+- [ ] The ordinary start group emits one commit even when activation and
+  branch creation both occur. The unchanged `bump` publication is one commit;
+  entry, return, and final sweeps contribute zero for this workload. Separate
+  tests show an intervening mutating command/extra eligible edit remains
+  publishable and is honestly counted outside that workload.
+- [ ] Before any startup write, composition, secret, policy, target-branch,
+  occupancy, ignored-path, and source-ticket refusals start no agent and emit
+  no launch audit. A reserved branch/receipt can survive for retry. Startup
+  publication failure/refusal/uncertainty starts no agent, retains written
+  evidence, and withholds return/sweep with exit 75. Failed verification after
+  a push never rolls control backward or publishes a compensating transition.
+- [ ] Natural exit without a transition, nonzero child exit, timeout,
+  SIGINT/SIGTERM cleanup, and spawn failure each retain publish-or-report
+  behavior. A dirty handoff without bump is published by existing settlement
+  or retained with diagnostics; usage failure preserves the child's result.
+  Ignored logs, unavailable control, stale tickets, and return refusal still
+  produce the existing retained-log/session-end/withheld-sweep reports. Test
+  abrupt process death separately as next-entry recovery, not a promise that
+  uncatchable termination executes `finally`.
+- [ ] Queue real-Git cases assert 4/5 as classified above and preserve the
+  pending seal, post-release admission, exact-source guards, compensation,
+  retained `released:` evidence, and concurrent-claim exclusion. Bootstrap,
+  authoring, script, recurring, and exempt-path regression coverage confirms
+  their publishers were not accidentally opted into ordinary grouping.
+- [ ] Commit classification is unchanged: ordinary lifecycle subjects are
+  activity; ordinary `Log:` and `Sync coga state` are machine activity;
+  `Log: bootstrap/...` is activity; recurring/autofix lifecycle subjects and
+  blocker reminders remain machine activity. Test representative generated
+  startup, bump, and teardown subjects against the existing classifier.
+- [ ] Re-inventory every `append_log` call under `src/`. For each changed
+  writer, document its exact later publisher and every exit before it;
+  failure records remain reported without a retry loop. Update the owning
+  publication/launch/checkout topics and shipped twins in the implementation
+  PR, and run `python -m pytest` with exact command/count receipts.
+
+### Proposed shape
+
+Keep grouping local to ordinary managed launch startup. Do not add a global
+publication queue, cross-process accumulator, or a default that disables
+publication in lifecycle helpers. Existing direct commands and strict callers
+must retain their current behavior.
+
+1. In `src/coga/launch.py`, change `_LaunchInvocation`'s ordinary agent-only
+   path so `_commit_auto_activate` and `_start_session` do not independently
+   publish before `_prepare_step_checkout`. Carry the captured authoritative
+   source bytes and a prospective lifecycle view through the first loop
+   iteration: `_supervise_steps` currently re-reads the ticket, which would
+   otherwise discard an in-memory activation. Restrict opt-in to an armed,
+   managed, agent-only launch; scripts, assists, blocked resumes and guarded
+   recurring/queue entry points stay on their existing routes. Later chained
+   managed steps each perform their own startup group and teardown.
+2. In `src/coga/mark.py`, reuse `prepare_active` for validation/freezing/main
+   agent selection and extract a small pure preparation seam from
+   `mark_in_progress` if needed. The durable wrappers continue to own their
+   standalone writes, audit, and failure behavior; launch uses preparation
+   plus one explicit startup finalizer. Preserve event text, actors, prior
+   status, and notification cardinality. Send a successful-start notification
+   only after grouped publication is confirmed; notification failure remains
+   non-fatal and its failure record follows the existing report/sweep rules.
+3. In `src/coga/checkouts.py`, split `plan_ticket_checkout`'s reservation and
+   validation from `_publish_linkage`'s durable write. Planning must prove
+   clean control against the captured **source** ticket, then derive the
+   policy/notice and prospective `branch:` from the prepared final ticket.
+   Reserve/create using `_reserve_and_create`; do not write linkage just to
+   compose. Keep the reserved OID/name and existing branch-occupancy,
+   ignored-file, stranded-ticket, and reuse proofs. Compose from the
+   prospective ticket/notice only after those checks pass.
+4. Finalize startup under `git.state_lock`: recheck local source bytes and
+   the planned contract; write the final ticket only if changed, append
+   applicable activation/start/launch events, and call the existing
+   `src/coga/git.py::publish` once for that task and log. Pin the original
+   ticket with `expect` and require the log, retaining all existing candidate,
+   provenance, regression, union-merge, and push-retry guards. A log-only
+   resume must also revalidate the ticket before entering: `expect` alone
+   does not guard an unchanged, unselected ticket. Require a confirmed
+   publication result, including already-held state where appropriate.
+5. Re-prove fetched control and its ticket after publication; update the
+   reservation receipt to published only when linkage is confirmed. Rebase
+   the checkout plan on that control snapshot via
+   `src/coga/checkouts.py::confirm_ticket_checkout` and retain all of
+   `enter_ticket_checkout`'s cleanliness, switch, projection, and provenance
+   checks. Recompose if compatible owner notes changed; refuse changed
+   lifecycle/routing/policy/branch identity. Pass `record_launch=False` to
+   `src/coga/launch.py::spawn_agent_session` only after the audit is durable.
+   Preserve `spawn_agent_session`'s usage `finally` and log-only publication.
+6. On grouped publication failure, use the existing checkout refusal path:
+   preserve final local ticket/log and reservation, report refused versus
+   failed versus uncertain, withhold sweep/return, and exit 75. A later
+   ordinary entry first reconciles retained state. Never re-run an already
+   recorded lifecycle transition as a publication retry. Before materializing
+   the group, a failed plan leaves the source ticket/log unchanged. This
+   changes the intermediate states left by failed startup and needs the
+   owner decision below.
+
+For startup subjects retain `Ticket: <slug> — in_progress` when starting
+(including activation); otherwise retain the branch-event subject when
+recording a new branch; use `Log: <slug>` when only an audit is new. These
+preserve the activity contributed by the corresponding existing commits.
+Do not relabel a log-only resume as an ordinary lifecycle event.
+
+Add integration coverage beside `tests/test_launch.py` / `tests/test_checkouts.py`
+using `tests/conftest.py::init_git_repo` (or its `git_repo` fixture). Replace
+only the agent/usage/environmental dependencies; exercise real composition,
+startup, lifecycle publication, union merge, checkout return, and
+`src/coga/cli.py::main`'s sweep. A `CliRunner().invoke(app, ...)` alone bypasses
+that outer sweep and is insufficient for the whole-command count. Keep
+cross-checkout and held-child race coverage in `tests/test_megalaunch.py`;
+pin subject classification in `tests/test_recurring_activity.py`.
+
+### Out of scope
+
+Log retention/compaction (the sibling ticket), shared-history rewriting or
+force pushes, removing audit events, broadening inactivity classification,
+sandbox Git-access remedies, delayed lifecycle handoffs, batching across
+agent steps or commands, and a general transaction framework. Also excluded
+are queue ownership/admission redesign, folding strict queue activation into
+its pending claim, broadening a task publication into a root sweep, and
+changing authoring/script/recurring publication contracts. Their existing
+safety tests and explicit accounting remain required.
 
 ## Context
 
@@ -110,38 +293,59 @@ can block fast-forwards and clean-checkout checks. Any proposed deferral must
 address that reason and identify its later publisher, including when the
 agent never bumps. Re-inventory `logfile.append_log` callers across `src/`
 and update the owning topic's deliberate-deferral list for every changed path.
-`checkouts.enter_ticket_checkout` requires clean control before switching;
+`src/coga/checkouts.py::enter_ticket_checkout` requires clean control before switching;
 deferring the managed launch audit must preserve that precondition.
 
 ### Where commits come from
 
-- `git.sync_log` publishes `log.md` alone. Managed ordinary launches use
-  `launch._LaunchInvocation._prepare_step_checkout` before switching; unmanaged
-  launches also pass `commit_log=True` from
-  `launch._LaunchInvocation._supervise_steps` to
-  `launch.spawn_agent_session`. `commands.ticket._run_authoring_session`
-  passes it too. Script and recurring launch writers have their own paths.
-- `git.sync_task_state` publishes a task and the log together. Besides
-  `bump.advance_step`, inspect `mark.mark_active`, `mark.mark_in_progress`,
-  and `checkouts._publish_linkage`: launch startup can publish before the
-  final bump. Commit subjects must still name the ticket and event, such as
+- `src/coga/git.py::sync_log` publishes `log.md` alone. In
+  `src/coga/launch.py`, `_LaunchInvocation._prepare_step_checkout` calls it
+  before switching; unmanaged launches pass `commit_log=True` from
+  `_LaunchInvocation._supervise_steps` to `spawn_agent_session`.
+  `src/coga/commands/ticket.py::_run_authoring_session` passes it too.
+  Script and recurring launch writers have their own paths.
+- `src/coga/git.py::sync_task_state` publishes a task and the log together.
+  Besides `src/coga/bump.py::advance_step`, inspect
+  `src/coga/mark.py::mark_active` / `mark_in_progress` and
+  `src/coga/checkouts.py::_publish_linkage`: launch startup can publish
+  before the final bump. Commit subjects must still name the ticket and event, such as
   `Ticket: <slug> — step 4 (review)`.
-- `megalaunch._launch_until_stop` publishes a strict start claim;
-  `megalaunch._admit_launch_claim_after_release` separately publishes the
+- `src/coga/megalaunch.py::_launch_until_stop` publishes a strict start claim;
+  its `_admit_launch_claim_after_release` separately publishes the
   admitted generation and launch audit after releasing the held child. Their
   ordering protects concurrent launches and cannot be folded away casually.
-- `git.sync_coga_state` covers entry/return settlement and the exit sweep
-  selected by `cli._should_sweep_coga_state`. An agent's blackboard edit can
+- `src/coga/git.py::sync_coga_state` covers entry/return settlement and the
+  exit sweep selected by `src/coga/cli.py::_should_sweep_coga_state`. An agent's blackboard edit can
   be swept by a command before bumping; the historical extra sweep
   `a2388fbe0` carried such a `pr:` edit.
-- `launch.spawn_agent_session` captures usage in `finally` and then calls
-  `git.sync_log`, after the agent's final `bump`/`mark` publication.
-  `cli._warn_unpublished_log_lines` checks changed logs at command exit,
+- `src/coga/launch.py::spawn_agent_session` captures usage in `finally` and
+  then calls `src/coga/git.py::sync_log`, after the agent's final
+  `bump`/`mark` publication. `src/coga/cli.py::_warn_unpublished_log_lines`
+  checks changed logs at command exit,
   including after a sweep; coalescing must preserve this failure reporting.
+
+### Log-writer inventory for implementation
+
+AST inspection of `src/**/*.py` on the design baseline found these direct
+`append_log` call sites (including nested functions). Recheck after edits;
+this ticket snapshot does not replace the publication topic's contract.
+
+| Source and symbols | Publisher class / treatment |
+| --- | --- |
+| `src/coga/launch.py`: `_LaunchInvocation._prepare_step_checkout`, `spawn_agent_session.record_and_publish_launch_audit` | Managed startup changes to the group; all other spawn callers retain immediate or caller-guarded publication. |
+| `src/coga/mark.py`: `mark_active`, `mark_in_progress`, `mark_done`, `mark_canceled`, `mark_blocked`, `mark_paused`; `src/coga/bump.py`: `advance_step` | Lifecycle writers; only managed launch's activation/start call sequence changes. Standalone commands and strict callers stay immediate. |
+| `src/coga/commands/owner.py`: `owner`; `src/coga/commands/unblock.py`: `_apply_unblock` (two calls) | Existing task-plus-log publication. |
+| `src/coga/create.py`: `create_task`; `src/coga/commands/init.py`: `_do_init` | Creation caller owns publication; init's scaffold commit leaves first push to the human. |
+| `src/coga/commands/slack.py`: `slack` | Existing command-exit sweep. |
+| `src/coga/launch_script.py`: `run_script_phase` (launch and exit calls) | Start publishes before user code; exit rides strict-assist result publication, settlement, or sweep. |
+| `src/coga/recurring.py`: `create_template`, `promote_task`, `_record_run`; `src/coga/recurring_runner.py`: `_append_forced_reused_log` | Existing recurring transaction/ledger or command sweep; no new deferral. |
+| `src/coga/recurring_runner.py`: `_run_delegated_task.start_period` | Explicit launch-log publication under the existing period lease checks. |
+| `src/coga/usage.py`: `append_record` | `src/coga/launch.py::spawn_agent_session` captures then publishes at teardown. |
+| `src/coga/git.py`: `record_sync_failure`, `_guard`, `refresh`; `src/coga/notification/slack.py`: `SlackChannel.send.fail`; `src/coga/recurring_runner.py`: `_append_sync_failure`; `src/coga_edge/phone_home.py`: `run_phone_home` | Failure reports cover their audit lines; no recursive publish retry. |
 
 ### Inactivity classification
 
-Preserve `recurring_activity.is_machine_commit` and `_MACHINE_SUBJECT`
+Preserve `src/coga/recurring_activity.py::is_machine_commit` and `_MACHINE_SUBJECT`
 semantics, including the exceptions. Ordinary ticket lifecycle commits
 count as activity; `Ticket: recurring/…`, `Ticket: autofix/…`, and blocker
 reminders remain machine activity. Ordinary `Log:` and `Sync coga state`
@@ -180,6 +384,19 @@ the classifier to make the repository look idle.
   publication", "The pending seal", and "Held child and admission", owns
   the claim ordering summarized above. Account for those boundaries without
   redesigning launch ownership in this ticket.
+- Also read the edit targets `coga/launch` at
+  `docs/contexts/coga/launch/SKILL.md` ("Agent preflight order"),
+  `coga/lifecycle` at `docs/contexts/coga/lifecycle/SKILL.md` ("Status"),
+  `coga/checkouts` at `docs/contexts/coga/checkouts/SKILL.md` ("In a launched
+  session"), and `coga/checkouts/launch-boundary` at
+  `docs/contexts/coga/checkouts/launch-boundary/SKILL.md` ("Preparation and
+  return"). Update their descriptions of grouped startup, intermediate
+  state, and refusal recovery, with each corresponding packaged topic under
+  `src/coga/resources/templates/coga/bootstrap/contexts/`. Link to
+  `coga/state-publication` for the counting contract rather than duplicating it.
+  The local-only source-order account in `coga-dev/internals/agent-spawn` at
+  `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md` ("Launch API and
+  phases", "Order inside one call") must agree with the new call sequence.
 
 Update any cited topic whose behavior changes in the same PR, keeping shipped
 twins identical. Out of scope: log retention/compaction and sandbox Git-access
@@ -271,4 +488,101 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design investigation
+
+2026-10-27: started on clean, fetched `main` at
+`9665e4fb1771d8f13001910be3c525669c22c323`; no implementation branch or PR.
+Read the publication, spool-merge, launch-claims, checkout, and reconciliation
+contracts. Only the ticket is being edited in this design step.
+
+An isolated real-Git probe used `tests/conftest.py::init_git_repo`, bare local
+remotes, real `src/coga/cli.py::main` launch/sweep and a subprocess CLI bump,
+a deterministic replacement for the PTY agent, and one fixed
+`src/coga/usage.py::UsageRecord`. The next
+step was owner-held, so every run stopped after one bump. Inspected the actual
+remote commit diffs, including the handoff and usage, and verified return to
+clean `main`. Nine successful cases measured:
+
+| Entry status | Control step | Reused branch | Created branch |
+| --- | ---: | ---: | ---: |
+| `in_progress` | 3 | 3 | 4 |
+| `active` | 4 | 4 | 5 |
+| `draft` | 5 | 5 | 6 |
+
+Draft probes used an already frozen workflow; implementation coverage must
+also exercise activation from a workflow-name reference. Commit contents were
+activation when needed, start when needed, linkage when created, launch log,
+bump plus handoff, and usage log. Entry, return, and final sweeps added zero
+commits in this clean workload. Temporary local evidence (not a dependency
+for the next step): `/tmp/coga-coalesce-design-ofh0pteg/results.json` and its
+per-case repositories/output. One discarded probe attempt failed because its
+synthetic owner step lacked instructions; the successful runs supplied a
+valid owner step.
+
+The proposed reduction is one pre-spawn publication for ordinary managed
+startup, one immediate handoff, and one usage publication. Deferring the
+launch audit throughout the agent session cannot satisfy the existing clean
+checkout contract. Megalaunch's pending claim and post-release admission
+are distinct boundaries; this proposal must not collapse them.
+
+Three additional real-Git probes exercised the actual megalaunch CLI with a
+fixed selection and a deterministic PTY replacement that invoked the real
+held-child admission callbacks under their release guard. Before simulated
+release, remote control carried `pending:`; afterward it carried the admitted
+generation plus audit. Active and unclaimed `in_progress` entries each made
+4 commits; an explicitly selected draft made 5. Remote diffs showed the
+separate activation (draft only), pending claim, admission, bump, and usage.
+All finished clean on control; repeating `src/coga/git.py::sync_coga_state`
+added no commit. Temporary evidence:
+`/tmp/coga-coalesce-mega-iw7s3_yz/results.json`.
+
+## Verification
+
+Baseline regression command (Python 3.12, unchanged implementation):
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_recurring_activity.py tests/test_launch.py::test_spawn_reports_unpublished_session_log tests/test_checkouts.py::test_resume_projects_newer_control_ticket_and_a_separate_bump_publishes tests/test_checkouts.py::test_refused_preparation_records_no_launch tests/test_megalaunch.py::test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate tests/test_megalaunch.py::test_failed_post_release_admission_retains_released_recovery_witness
+```
+
+Result: **42 passed in 6.28s**. The 12 disposable launch probes above are
+additional design measurements, not tests of an implemented reduction.
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task commit-journal/coalesce-coga-state-commits --json`
+reported one valid ticket and no issues; `git diff --check` passed. The full
+suite and the new commit-bound assertions belong to implementation.
+
+Pre-handoff reconciliation fetched and fast-forwarded to
+`c52fe40c7` (two README-only commits since the investigation baseline).
+The ticket and relevant source/contracts had no intervening changes. Saved
+and verified the ticket plus patch and original HEAD under
+`/tmp/coga-coalesce-design-reconcile-9665e4fb`, restored only this session's
+ticket edit for the fast-forward, and reapplied its bytes unchanged. The
+design measurements and regression results therefore still describe the
+current implementation.
+
+## Open Questions
+
+For the independent evaluator, then the owner at `review-design`:
+
+1. Approve the proposed three-commit ordinary bound and the explicit
+   exclusions, particularly the retained four/five queue commits? This saves
+   one to three commits on startup-heavy ordinary launches, but none on a
+   resumed ordinary reuse or ordinary queue step. Recommendation: accept
+   this bounded improvement without weakening startup, handoff, or admission
+   deadlines; do not present it as a two-commit whole-launch promise.
+2. Approve the changed ordinary startup failure contract? Activation/start
+   and new linkage are prepared together and appear on control only in the
+   final startup transaction; successful-start notification follows confirmed
+   publication. Preparation failure can leave only a reserved branch/receipt;
+   failure after writing the group retains the final local ticket/log, exits
+   75 and starts no agent, including for a control-only step. Recommendation:
+   accept this explicit publication gate, retaining evidence and recovery
+   rather than continuing after an unconfirmed grouped start. If rejected,
+   revise the bound and design before implementation.
+
+## Handoff
+
+The proposed spec and checklist are under `## Description`, with verified
+source relationships, the log-writer inventory, and documentation targets
+under `## Context`. Next is independent `evaluate-design`; owner approval
+remains required before implementation. No production code or topic contract
+has changed in this design step.
