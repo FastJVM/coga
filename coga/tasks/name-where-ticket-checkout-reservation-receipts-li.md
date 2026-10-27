@@ -124,6 +124,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1125
 branch: docs/ticket-checkout-receipt-location
 
 ## Implementation handoff
