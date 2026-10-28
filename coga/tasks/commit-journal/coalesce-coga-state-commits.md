@@ -36,9 +36,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
-launch_generation: 8264c3db-7175-4257-be1e-770b91740696
 ---
 
 ## Description
@@ -498,23 +497,27 @@ branch: coga/coalesce-state-commits
 ```yaml
 title: Coalesce ordinary managed launch startup publication
 author: codex
-author_evidence: Original implementation and resumed verification were performed in Codex sessions, not
-  by the ticket-configured Claude. No delegated implementation or code review ran.
-head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
-base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
+author_evidence: Original implementation and resumed verification were performed in earlier Codex sessions.
+  This fresh peer-review session also used Codex; it is recorded as self-review, with no independent reviewer
+  or delegated implementation claimed.
+head: 17d56ac125faade584ba1e865a672f41d4e2ac2e
+base: 557c05efc43f690061613d298dc1baa2cf3bef76
 depth: deep
-rationale: Changes startup publication and refusal semantics; inspect the guards and real-Git race tests.
-  The full suite now passes after the owner-authorized baseline link repair on control; code review has
-  not run.
+rationale: Changes startup publication and refusal semantics. Direct Codex self-review completed with
+  no must-fix findings, and the full suite passed on this head. The owner should inspect the durability
+  guards, recovery behavior, and real-Git race tests; no independent review is claimed.
 implementation: Prepare activation/start and checkout linkage in memory, publish the final ticket and
   startup audit once before switch/spawn, and confirm every plan against fetched control. Handoff and
   usage remain immediate independent publications. Start notification follows confirmed checkout entry.
   Ordinary count fixtures assert three commits; queue, bootstrap, scripts and extra events retain their
   classified boundaries.
-deviations: No implementation scope deviation. The owner authorized a separate docs/README.md link repair
-  on control in 51e15ec23 to resolve the prior verification blocker; it is included in this branch base.
-limitations: Verification covers Linux/Python 3.12.12. Native Windows cases and a Python 3.11 test run
-  are not covered. Peer review and PR creation remain later workflow steps.
+deviations: No implementation scope deviation or peer-review fix. The owner-authorized docs/README.md
+  link repair on control in 51e15ec23 is in the base. Peer review rebased the implementation onto current
+  main without changing its diff.
+limitations: Verification used Linux/Python 3.12.12; ten native Windows cases were skipped and Python
+  3.11 was not run. The real-Git integration fixtures substitute the agent process and usage inputs. No
+  new terminal UI or Slack rendering layout is changed; no live vendor-agent session or external notification
+  was used for this review.
 files:
   docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Align internal phase order and caller-owned startup
     audit with grouped publication.
@@ -565,36 +568,100 @@ files:
     manifest.
   tests/test_recurring_activity.py: Pin startup, linkage, bump, teardown and exceptional activity classifications.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Code review belongs to the later peer-review step. Design approval and implementation verification
-    are not code review.
-checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  reviewer: codex
+  kind: self
   status: passed
-  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
-  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
-  detail: 'Python 3.12.12 on Linux: 4187 passed, 10 skipped in 483.02s. Skips: 2 native Windows job-object
-    integration cases, 5 native Windows PowerShell 5.1 cases, 3 native Windows Job Object recovery cases.
-    No exclusions were added. Ran on the committed rebased head; checkout remained clean and the final
-    rebase was a no-op.'
+  head: 17d56ac125faade584ba1e865a672f41d4e2ac2e
+  base: 557c05efc43f690061613d298dc1baa2cf3bef76
+  detail: Direct review completed in a fresh Codex peer-review session across all 23 diff paths and their
+    affected contracts/callers. No must-fix findings and no review fixes. Checked source/plan guards,
+    unchanged-ticket push retries, post-push confirmation, retained failure evidence, chaining, notification
+    ordering, excluded publishers, real-Git count/race tests, and the 32-site audit-writer inventory.
+    No child review CLI or subagent was invoked. Both implementation and reviewer identities are Codex,
+    so independence is not claimed.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-coalesce-peer-pytest.log
+    2>&1
+  status: passed
+  head: 17d56ac125faade584ba1e865a672f41d4e2ac2e
+  base: 557c05efc43f690061613d298dc1baa2cf3bef76
+  detail: 'Python 3.12.12 on Linux: 4187 passed, 10 native Windows skips in 481.88s. No exclusions added.
+    Ran on the committed rebased head; the final fetch/rebase was a no-op and the checkout remained clean.'
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
     -m coga.cli validate --json
   status: passed
-  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
-  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
+  head: 17d56ac125faade584ba1e865a672f41d4e2ac2e
+  base: 557c05efc43f690061613d298dc1baa2cf3bef76
   detail: 'Run from tests/fixtures/seeded-repo/coga: 4 valid tasks, no issues.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
-  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
+  head: 17d56ac125faade584ba1e865a672f41d4e2ac2e
+  base: 557c05efc43f690061613d298dc1baa2cf3bef76
   detail: No whitespace errors in the committed implementation diff.
 - command: python3.11 -m pytest
   status: not-run
-  detail: The available test environment used for this resumed verification is Python 3.12.12. No Python
-    3.11 receipt is claimed; the previous attempt found no pytest in that interpreter.
+  detail: This review used the available Python 3.12.12 test environment; no Python 3.11 receipt is claimed.
+    The earlier implementation attempt found no pytest in that interpreter.
 ```
+
+## Peer review
+
+2026-10-27: **Direct review completed; no must-fix findings.** Reviewer:
+Codex, in this fresh peer-review session. Earlier implementation and resumed
+verification also used Codex, so this is recorded as **self-review**; neither
+the configured peer nor the fresh session establishes an independent reviewer.
+No child review CLI or subagent ran, and no review fix was needed.
+
+Reviewed head `17d56ac125faade584ba1e865a672f41d4e2ac2e` against base
+`557c05efc43f690061613d298dc1baa2cf3bef76`, covering all 23 diff paths and the
+affected launch, checkout, lifecycle, and publication contracts. Confirmed the
+owner approval recorded in `fe2bf3293fe32839d00dc61acfee1b303fbf3b22`.
+The approved ordinary three-commit workload and explicit exclusions remain
+intact; no global batching or delayed handoff was introduced.
+
+The review traced prospective activation and source-byte preservation,
+pre-write source/policy/target checks, the guard for an unselected ticket on
+push retry, fetched post-publication confirmation for control-only and branch
+plans, and retained-state failures without rollback. It also checked chained
+steps, notification placement after clean entry, immediate handoff, log-only
+usage, and the queue/script/bootstrap/authoring/recurring/exempt paths.
+The real-Git fixtures exercise the outer CLI sweep and remote contents, not
+only command handlers. Re-inventory with Python AST found **32 direct
+append_log sites**, matching the owning inventory. All **six changed
+canonical/packaged context pairs** match byte-for-byte.
+
+The changed surface is publication order and plain diagnostics; no terminal
+input loop, pager, or rendered Slack layout changed. The suite exercises
+notification failure and launch cleanup with controlled agent/usage inputs;
+no live vendor-agent or external Slack delivery is claimed.
+
+Fresh verification on the reviewed head:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-coalesce-peer-pytest.log 2>&1`
+  — **4187 passed, 10 skipped in 481.88s** on Linux/Python 3.12.12. The skips
+  are native Windows cases; no exclusions were added.
+- `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`
+  from `tests/fixtures/seeded-repo/coga` — **4 valid tasks, no issues**.
+- `git diff --check origin/main...HEAD` — passed.
+
+Rebased onto current main before reviewing; `git range-diff` shows the
+implementation unchanged from `a49db80a415eb4f5562ca75f7e49216ce3f391ce`.
+The final fetch found no new control commits and the final rebase was a no-op.
+Pushed the reviewed head using an explicit force-with-lease against the prior
+published head, then returned to clean, current `main` before editing this
+handoff. Subsequent publication of this receipt is ticket state only.
+
+Handoff validation:
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task commit-journal/coalesce-coga-state-commits --json`
+reported **1 valid task, no issues**. `git diff --check` passed. The local PR
+formatter accepted all 23 path explanations and current receipts, producing
+`[deep · A:codex R:codex(self)] Coalesce ordinary managed launch startup publication`.
+The original frontmatter and task body remain byte-identical.
+
+`## PR` now covers the final head/base, actual authorship, completed review,
+all diff paths, checks and omissions. Recommendation remains **deep** because
+this changes durability and recovery behavior and has no independent review.
+The branch is ready for one bump to `open-pr`; no PR was opened in this step.
 
 ## Resumed implementation
 
