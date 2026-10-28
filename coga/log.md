@@ -9657,3 +9657,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-28 15:55 v1 [stop-the-contexts-root-sweep-from-publishing-canon] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-28 15:55 v1 [stop-the-contexts-root-sweep-from-publishing-canon] [megalaunch] launched via coga megalaunch
 2026-10-28 16:00 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-28 16:14 v1 [v1/04-stop-the-contexts-root-sweep-from-publishing-canon] [human:nicktoper] advanced to step 2 (evaluate-design) → codex — Design spec ready: package-only definitions, recurring state carriers, and staged rollout; owner decisions recorded for review-design.
