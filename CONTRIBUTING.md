@@ -1,31 +1,36 @@
 # Contributing to Coga
 
-Bug reports, documentation fixes, and focused improvements are welcome.
-Search the [issues](https://github.com/FastJVM/coga/issues) and
-[pull requests](https://github.com/FastJVM/coga/pulls) before starting so you can
-join existing work.
+Bug reports, documentation corrections, and focused code improvements are
+welcome. You don't need to install or use Coga to open an issue or submit a
+pull request.
 
 ## Start with the problem
 
-Use an issue to describe a bug or propose a change. A small reproduction or a
-concrete use case is enough to start the conversation.
+Search the existing [issues](https://github.com/FastJVM/coga/issues),
+[pull requests](https://github.com/FastJVM/coga/pulls), and
+[Coga tickets](coga/tasks) before starting. For a bug, describe what you did,
+what happened, and what you expected; a small reproduction is more useful
+than a broad proposed fix.
 
-Substantive work is tracked in [Coga tickets](coga/tasks), following the
-[design principles](docs/contexts/coga-dev/principles/SKILL.md). If no ticket
-covers your change, open an issue first so maintainers can agree on scope and
-create or identify the ticket. You do not need to install Coga to file an
-issue or submit a pull request.
-Small typo fixes can go straight to a pull request.
+For a change in behavior or a new feature, open an issue first if no ticket
+already covers it. Maintainers can help agree on the scope and create or
+identify a Coga ticket. Substantive work is coordinated through these
+Markdown tickets; external contributors are not required to operate Coga.
+Small typo fixes can go directly to a PR.
+
+Coga is deliberately a thin layer on top of existing coding agents. Read
+the [design principles](docs/contexts/coga-dev/principles/SKILL.md)
+before proposing a larger change.
 
 ## Set up and test
 
-Use Git and Python 3.11+ (not an older system Python). Fork and clone the
-repository, then run from its root.
+Fork and clone the repository. You need Git and Python 3.11 or newer;
+verify which Python your terminal uses before creating a virtual environment.
 
 On macOS or Linux:
 
 ```sh
-python3 --version                 # must be 3.11+ before creating the venv
+python3 --version             # must report 3.11+
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e ".[test]"
@@ -40,21 +45,24 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-If `python3` is older, choose a 3.11+ interpreter before creating the
-environment. The [testing guide](docs/contexts/coga-dev/testing/SKILL.md)
-covers `uv` environments without pip, CLI smoke checks, and other testing
-pitfalls.
+If the system Python is older, choose a 3.11+ interpreter before creating
+the environment. The [testing guide](docs/contexts/coga-dev/testing/SKILL.md)
+covers `uv` environments without pip, CLI smoke checks, platform-specific
+tests, and the current CI policy.
 
-The [codebase](docs/contexts/coga-dev/codebase/SKILL.md) topic covers source
-layout, coding style, and commit conventions;
-[configuration](docs/contexts/coga/configuration/SKILL.md) covers `coga.toml`
-and `coga.local.toml`; and [packaging](docs/contexts/coga-dev/packaging/SKILL.md)
-covers keeping the canonical topics and packaged templates in sync. Read the
-owning topic under [`docs/contexts/`](docs/README.md) before changing Coga's
-behavior.
+## Make a focused change
+
+Before editing behavior, read the topic that owns it in the
+[documentation index](docs/README.md). Keep the documentation and code
+consistent. The [codebase guide](docs/contexts/coga-dev/codebase/SKILL.md)
+covers layout and coding conventions; [configuration](docs/contexts/coga/configuration/SKILL.md)
+explains `coga.toml`; and [packaging](docs/contexts/coga-dev/packaging/SKILL.md)
+explains why changes to shipped contexts and templates often need matching
+edits in both the canonical and packaged files.
 
 ## Open a pull request
 
-Keep the change focused. Explain the problem and resulting behavior, link the
-Coga ticket for substantive work and any related issue, and include the exact
-verification commands and results. If a check was not run, say why.
+Explain the problem, what you changed, and how you checked it. Link the
+relevant ticket and issue for substantive work. Include the exact test
+commands and results; if tests were not run, say so and why. Keep the PR
+scoped to one problem so it can be reviewed independently.
