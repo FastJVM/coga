@@ -891,7 +891,11 @@ choices in Open Questions still belong to the owner.
   the reviewed revision. No reconciliation conflict or occupied checkout.
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1129
 branch: coga/trim-the-audit-log
+
+Post-merge obligation (not discharged by the merge): activation in this repo is filed as draft
+`commit-journal/activate-trim-log-in-this-repo-after-retention-mer`.
 
 ## Implementation handoff — 2026-10-27
 
