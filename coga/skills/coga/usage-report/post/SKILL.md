@@ -42,8 +42,7 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
    still closes its step with `coga bump`, so the period never sticks
    `in_progress` over a webhook problem. Known gap: the miss is **not**
    recorded in `log.md`. `SlackChannel.send` writes its failure audit line
-   only when the post passes `task_path`, and `ticket.py` passes none, so the
-   `ticket.py` comment claiming the miss is loud "in `log.md`" is wrong.
+   only when the post passes `task_path`; `ticket.py` passes none.
    Check the period's stderr, not the log, for a missed week.
 4. **No cursor.** The template declares no `state_keys:`. Given the same
    `coga/log.md`, the same window renders the same text, so a missed or
@@ -61,7 +60,8 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
    `coga.local.toml` user can still render a week.
 
 Out of scope, by the owner's decision: dollar figures and plan comparison
-(one API-equivalent-value line is a follow-up once the cost proxy lands),
+(an API-equivalent-value line would need the set-aside cost proxy revived;
+see [coga-dev/internals/usage-pricing](../../../../../docs/contexts/coga-dev/internals/usage-pricing/SKILL.md)),
 per-person attribution, and closing the coverage gaps the floor caveats —
 unrecorded non-Coga sessions, recipe runs that record nothing, and
 `usage_status: unknown` sessions.

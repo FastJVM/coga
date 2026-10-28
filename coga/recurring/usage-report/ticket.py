@@ -26,8 +26,9 @@ ticket = read_ticket(resolve_task(cfg, os.environ["COGA_TASK_SLUG"]))
 since, until = report.default_window(datetime.now(timezone.utc).date())
 text = report.render(report.build_report(report.load_records(cfg), since, until))
 # One post attempt per run, on the important route the owner chose for it.
-# `fatal=False`: a delivery miss is already loud on stderr and in `log.md`, and
-# must not leave the period task `in_progress`; repost by hand with
+# `fatal=False`: a delivery miss is reported on stderr only (no `task_path`,
+# so no `log.md` audit line) and must not leave the period task `in_progress`;
+# repost by hand with
 # `coga slack --task <slug> --message "$(python coga/recurring/usage-report/report.py --since … --until …)"`.
 post(cfg, text, owner=ticket.owner or cfg.current_user, important=True, fatal=False)
 # Complete the step through the CLI: calling a Typer command function
