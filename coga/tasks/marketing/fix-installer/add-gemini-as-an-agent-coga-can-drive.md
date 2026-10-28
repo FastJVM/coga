@@ -1,10 +1,43 @@
 ---
 title: Add Gemini as an agent coga can drive
-status: draft
+status: active
 owner: zach
 contexts:
-  - coga-dev/principles
-workflow: code/design-then-implement
+- coga-dev/principles
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (design)
+agent: claude
 ---
 
 ## Description
