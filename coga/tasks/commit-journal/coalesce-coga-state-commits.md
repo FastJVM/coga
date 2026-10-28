@@ -599,6 +599,23 @@ checks:
     The executed full-suite receipt covers Python 3.12.12 only.
 ```
 
+## Resumed implementation
+
+2026-10-27: The owner selected "Repair the link on control, then rerun
+verification" in this session. Ran `coga unblock` to record that resolution;
+no baseline-test waiver was granted. Codex is performing this resumed
+implement step; no delegated implementation or review has run.
+
+Reproduced the navigation failure on current clean control, then repaired
+`docs/README.md` to link to `README.md#what-lives-in-your-repo`. The separate,
+owner-authorized control commit `51e15ec23` is pushed. Command:
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+reported **1 failed in 0.41s** before the fix and **1 passed in 3.96s** after
+it. `git diff --check` passed. All other main movement since the prior tested
+base is ticket/log state; the feature branch remains at `4e5f4b03c` and has
+no PR. Next: rebase that branch onto current main, refresh the full-suite
+receipt, push, return to control, and bump once to peer-review.
+
 ## Implementation handoff
 
 Implementation is committed and pushed at `4e5f4b03c811f39f3a3721212d48862391fae060` on `coga/coalesce-state-commits`.
