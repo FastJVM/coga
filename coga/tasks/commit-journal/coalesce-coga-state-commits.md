@@ -489,6 +489,27 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/coalesce-state-commits
+
+## Implementation
+
+2026-10-27: Owner approval is recorded by the human `nicktoper` advancing
+`review-design` to `implement` in commit `fe2bf3293fe32839d00dc61acfee1b303fbf3b22`
+and the corresponding audit event. Proceeding with the specified three-commit
+ordinary bound, explicit path exclusions, and retained-state startup failure
+contract. The older design questions below are resolved by that owner gate.
+Actual implementer: Codex (GPT-6); the ticket's configured agent is not this
+session's implementation identity. Started on clean, fetched main at
+`f39663577`; no previous feature branch or PR. Following the manual checkout
+procedure because the runtime supplied no branch preparation.
+
+Plan: separate lifecycle/checkout preparation from the one ordinary startup
+publication; preserve all other publishers; prove counts and refusal behavior
+with the real-Git fixtures; update canonical topics and shipped twins. Review
+and PR creation remain later workflow steps.
+
 ## Evaluator review
 
 2026-10-27: **Ready for owner review; no must-fix design findings.** Reviewed
