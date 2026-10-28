@@ -1,6 +1,6 @@
 ---
 title: Trim coga/log.md to a configurable age with a weekly recurring job
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/principles
