@@ -1,6 +1,6 @@
 ---
 title: Trim coga/log.md to a configurable age with a weekly recurring job
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -39,7 +39,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: fa0d25ea-a0c1-4e97-a1b3-ceec9ff2e2de
 ---
 
 ## Description
@@ -1155,3 +1154,9 @@ checks:
     candidate: 20.503s and 20.415s; exactly one event proved each time. Includes merge diffs and verifies positives
     against full blobs.'
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-10-27 20:41] [agent:claude] id=20261027T204134 Repair the pre-existing docs/README.md link to ../README.md#key-concepts on main, or explicitly waive that baseline test failure for this implement step. The clean baseline reproduces it. Feature branch coga/trim-the-audit-log is pushed at 55759e68f123bb8be3de6d27d39303c2b6fc338f; full verification has 4199 passed, 10 skipped and this one failure. Fresh checks after state-only reconciliation have 174 passed and the same failure. Handoff and PR preparation are published; no PR or bump yet. code/implement requires escalating unrelated failures.
