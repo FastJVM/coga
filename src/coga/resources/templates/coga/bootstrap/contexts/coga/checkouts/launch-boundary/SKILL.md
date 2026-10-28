@@ -90,6 +90,18 @@ delegated sessions, megalaunch picks, exempt launches, and `--prompt-report`
 get no branch setup; a composed prompt then states that no preparation was
 supplied, or what launch observed instead.
 
+Ordinary managed agent-only startup prepares activation/start and new linkage
+without writing the ticket. Before its final publication, refusal leaves the
+source ticket and log unchanged; a created branch and reservation receipt can
+remain for retry. Once startup writes begin, a refused, failed, skipped, or
+uncertain publication retains the final local ticket/log and reservation,
+starts no agent, withholds return and the sweep, and exits 75. This applies
+to control-only steps too. Failed verification after a push never rolls
+control backward or publishes a compensating transition. Reconcile retained
+state at the next entry; never replay a lifecycle transition to retry its
+publication. The [publication contract](../../state-publication/launch-boundaries/SKILL.md)
+owns grouping scope and commit accounting.
+
 ## Checkout recovery
 
 When preparation refuses, or an agent finds an unexpected starting checkout,

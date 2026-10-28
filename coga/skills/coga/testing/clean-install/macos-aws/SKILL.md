@@ -138,7 +138,7 @@ install dialog instead. That stop is the new-user finding. To continue, install
 the CLT: as a new user would, over VNC (below) by clicking **Install** in the
 dialog or accepting `xcode-select --install`; or headless over SSH with the
 `softwareupdate` steps that
-[coga/install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-install-the-command-line-tools-first)
+[coga/install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-check-git-before-init)
 owns.
 
 Then run a walk with a **new** macOS user. The CLT install is machine-wide;

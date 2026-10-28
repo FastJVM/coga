@@ -10,7 +10,8 @@ collisions, and switch normally. Neither commits code, pushes a feature
 branch, rebases, rolls back, transitions a workflow, or deletes a branch.
 
 The ticket path splits into `plan_ticket_checkout` (on control: reserve,
-create, write and strictly publish `branch:` linkage, then re-prove control)
+create and validate a branch, preparing prospective linkage for grouped startup;
+legacy callers still publish linkage here)
 and `enter_ticket_checkout` (switch, project the current ticket unstaged from
 the final control snapshot, and record that blob as strict publication
 provenance), so launch composes its prompt from control state in between.
@@ -49,8 +50,9 @@ from coga.checkout_policy import CheckoutPolicy, select_checkout_policy
 from coga.compose import CheckoutNotice
 from coga.oscompat import lock_dir, lock_fd, unlock_fd, process_is_running
 from coga.config import Config
+from coga.logfile import log_path
 from coga.tasks import TaskRef
-from coga.taskfile import TaskFileError, split_body
+from coga.taskfile import TaskFileError, join_task_body, split_body
 from coga.ticket import Ticket, TicketError
 from coga.open_pr import same_git_checkout
 
@@ -102,20 +104,39 @@ def plan_ticket_checkout(
     ref: TaskRef,
     ticket: Ticket,
     policy: CheckoutPolicy,
+    *,
+    source_bytes: bytes | None = None,
 ) -> TicketCheckoutPlan:
-    """Prove control, then select, create, link and publish the step's branch.
+    """Prove control, then select, create and validate the step's branch.
 
     `ticket` is the authoritative copy launch routed and preflighted. Runs
     only from an armed launch boundary on control. A linkage publication
     that lands advances control, so the ticket's lifecycle, frozen workflow
     and resolved checkout policy are re-checked after each control refresh;
     a changed contract refuses rather than spawning a stale step. Never switches.
+
+    With `source_bytes`, prove that exact source and prepare linkage in memory
+    for launch's startup group. No ticket or audit write occurs here. Without
+    it, retain the independent linkage publication used outside that group.
     """
     root, control_oid = _prove_control(cfg, "entry")
     rel = git.relative_to_root(root, ref.ticket_path)
-    current = _authoritative_ticket(
-        cfg, root, ref, rel, control_oid, ticket, policy, "entry"
-    )
+    if source_bytes is None:
+        current = _authoritative_ticket(
+            cfg, root, ref, rel, control_oid, ticket, policy, "entry"
+        )
+    else:
+        # Ordinary startup preflights a prospective lifecycle without writing
+        # it. Cleanliness and authority must be proved against its source.
+        if (git.tree_bytes(root, control_oid, rel) != source_bytes
+                or ref.ticket_path.read_bytes() != source_bytes):
+            raise CheckoutPreparationError(
+                "entry", f"{rel} changed since startup preflight; retry the launch"
+            )
+        if select_checkout_policy(cfg, ticket) != policy:
+            raise CheckoutPreparationError("entry", "checkout policy changed; retry the launch")
+        source = Ticket.parse(source_bytes.decode("utf-8"))
+        current = source_bytes if ticket == source else ticket.render().encode("utf-8")
     _, blackboard = _split(current, ref)
     branches = parse_branch_names(blackboard)
     worktree = parse_worktree_path(blackboard)
@@ -155,6 +176,16 @@ def plan_ticket_checkout(
                 f"This checkout stayed on {cfg.git_control_branch!r}.",
             )
         branch, oid = _reserve_and_create(cfg, root, ref, rel, control_oid)
+        if source_bytes is not None:
+            prospective = Ticket.parse(current.decode("utf-8"))
+            above, blackboard = _split(current, ref)
+            prospective.body = join_task_body(above, insert_branch_line(blackboard, branch))
+            _check_switch_target(cfg, root, branch, control_oid)
+            _guard_stranded_ticket(cfg, root, branch, control_oid, rel)
+            return replace(
+                base, ticket_bytes=prospective.render().encode("utf-8"), action="switch",
+                branch=branch, branch_oid=oid, outcome="created",
+            )
         current = _publish_linkage(cfg, root, ref, rel, current, branch)
         root, control_oid = _prove_control(cfg, "linkage publication")
         current = _authoritative_ticket(
@@ -194,25 +225,60 @@ def confirm_ticket_checkout(
     publishing it advances control. A switch plan is re-anchored to that
     final control revision, with the ticket's contract, policy and recorded
     branch re-checked, so the projection still comes from control as the
-    agent will see it. A plan that stays on control needs no anchor.
+    agent will see it. Control-only and recorded-clone plans need the same
+    contract proof: a log-only resume must not run stale routing.
     """
-    if plan.action != "switch":
-        return plan
     stage = "launch audit"
     root, control_oid = _prove_control(cfg, stage)
-    if control_oid == plan.control_oid:
-        return plan
     current = _authoritative_ticket(
         cfg, root, ref, plan.rel, control_oid, ticket, plan.policy, stage
     )
     _, blackboard = _split(current, ref)
-    if (parse_branch_names(blackboard) or [None])[0] != plan.branch:
+    _, planned_blackboard = _split(plan.ticket_bytes, ref)
+    if (parse_branch_names(blackboard) != parse_branch_names(planned_blackboard)
+            or parse_worktree_path(blackboard) != parse_worktree_path(planned_blackboard)):
         raise CheckoutPreparationError(
             stage,
             f"control's ticket no longer records branch: {plan.branch} first; "
             "retry the launch",
         )
+    if plan.outcome == "created":
+        _update_receipt(cfg, root, plan.rel, stage="published")
     return replace(plan, root=root, control_oid=control_oid, ticket_bytes=current)
+
+
+def recheck_ticket_checkout(
+    cfg: Config, ref: TaskRef, ticket: Ticket, plan: TicketCheckoutPlan, source: bytes,
+) -> None:
+    """Last source/plan proof before ordinary startup materializes any writes.
+
+    The caller holds the state lock through this proof and publication. Remote
+    races remain the publication guard's responsibility, including log-only starts.
+    """
+    stage = "startup preflight"
+    root, oid = _prove_control(cfg, stage)
+    if (root != plan.root or git.tree_bytes(root, oid, plan.rel) != source
+            or ref.ticket_path.read_bytes() != source):
+        raise CheckoutPreparationError(stage, f"{plan.rel} changed; retry the launch")
+    if select_checkout_policy(cfg, ticket) != plan.policy:
+        raise CheckoutPreparationError(stage, "checkout policy changed; retry the launch")
+    paths = [plan.rel, git.relative_to_root(root, log_path(cfg))]
+    # Tracked paths remain eligible even if an ignore rule now matches them;
+    # check-ignore also detects an ignored log that does not exist yet.
+    for rel in paths:
+        git._working_tree_bytes(root, rel)  # Refuse links before startup writes.
+        if not git.run_git(root, "ls-files", "--", rel).strip():
+            result = git._run(["git", "-C", str(root), "check-ignore", "--", rel])
+            if result.returncode == 0:
+                raise CheckoutPreparationError(stage, f"startup path is ignored: {rel}")
+            if result.returncode != 1:
+                raise git.GitError(f"could not check startup path eligibility: {rel}")
+    if plan.action == "switch":
+        assert plan.branch is not None
+        _check_switch_target(cfg, root, plan.branch, oid)
+        _guard_stranded_ticket(cfg, root, plan.branch, oid, plan.rel)
+        if _ref_oid(root, f"refs/heads/{plan.branch}") != plan.branch_oid:
+            raise CheckoutPreparationError(stage, "target branch moved; retry the launch")
 
 
 def enter_ticket_checkout(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -> None:
@@ -224,9 +290,6 @@ def enter_ticket_checkout(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -
     this ticket is written (unstaged) and its control blob recorded in
     `git.PUBLISHED_REF`; the read-back is verified before returning.
     """
-    if plan.action != "switch":
-        return
-    assert plan.branch is not None
     root, rel = plan.root, plan.rel
     with git.state_lock(cfg):
         if _head(root) != plan.control_oid or git.symbolic_head(root) != cfg.git_control_branch:
@@ -244,6 +307,9 @@ def enter_ticket_checkout(cfg: Config, ref: TaskRef, plan: TicketCheckoutPlan) -
             raise CheckoutPreparationError(
                 "switch", f"{rel} changed after preparation; retry the launch"
             )
+        if plan.action != "switch":
+            return
+        assert plan.branch is not None
         _check_switch_target(cfg, root, plan.branch, plan.control_oid)
         _guard_stranded_ticket(cfg, root, plan.branch, plan.control_oid, rel)
         _update_receipt(cfg, root, rel, stage="switching", missing_ok=True)
@@ -407,6 +473,10 @@ def _authoritative_ticket(
             stage,
             "control's frozen workflow changed during preparation; retry the launch "
             "so routing and preflights use the new step contract",
+        )
+    if observed.frontmatter != expected.frontmatter:
+        raise CheckoutPreparationError(
+            stage, "control's ticket routing or metadata changed; retry the launch"
         )
     # Control can also change the instructions without changing the ticket.
     # Re-select from the refreshed files before any branch mutation or spawn.

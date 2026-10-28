@@ -90,7 +90,7 @@ from coga.mark import (
     mark_in_progress,
     prepare_active,
 )
-from coga.notification import preflight_post
+from coga.notification import post, preflight_post
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
@@ -123,7 +123,7 @@ from coga.ticket import (
     pending_launch_generation,
     released_launch_generation,
 )
-from coga.validate import TaskValidationError
+from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import WorkflowError
 
 
@@ -866,6 +866,8 @@ class _LaunchInvocation:
         self.agent_spawn_refusal = agent_spawn_refusal
         self.script_retained_state = False
         self.kept_checkout_reason: str | None = None
+        self.group_startup = False
+        self.startup_activation: str | None = None
 
     def _prepare_target(self) -> LaunchResult | None:
         """Resolve and admit the current target, including delegated periods."""
@@ -1287,7 +1289,8 @@ class _LaunchInvocation:
                 _report(f"Warning: {warning}", fg='yellow', err=True)
             return LaunchResult()
 
-        self.ticket = self._read(self.ref)
+        self.source_ticket_bytes = self.ref.ticket_path.read_bytes()
+        self.ticket = Ticket.parse(self.source_ticket_bytes.decode("utf-8"))
 
         if (
             isinstance(self.ref, TaskRef)
@@ -1697,6 +1700,13 @@ class _LaunchInvocation:
         # Initialized here because the commit gate is reached on paths where the
         # prepare guard never fires.
         auto_activate_prior: str | None = None
+        self.group_startup = (
+            self._manages_branch_checkout()
+            and self.entry is None
+            and not self.human_assist
+            and not self.blocked_resume
+            and self.record_launch
+        )
 
         try:
             # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
@@ -1807,12 +1817,15 @@ class _LaunchInvocation:
             # broadcast or flips status.
             _preflight_push_auth(self.cfg, self.ref, is_bootstrap=self.is_bootstrap)
 
-            # Every refusing preflight has passed, so the activation staged in
-            # memory above is now safe to write. Nothing between the prepare guard
-            # and here re-reads the ticket from disk, so `ticket` is still the
-            # object that was prepared — keep it that way, or the deferred write
-            # will publish a ticket the preflights never saw.
-            if auto_activate_prior is not None and isinstance(self.ref, TaskRef):
+            # Ordinary managed startup keeps the prospective lifecycle through
+            # checkout planning and its explicit publication gate. Other paths
+            # retain their immediate activation/start wrappers. Neither path
+            # may re-read disk and discard the activation just preflighted.
+            if self.group_startup:
+                self.startup_activation = auto_activate_prior
+                if self.ticket.status == "active":
+                    self.ticket.frontmatter["status"] = "in_progress"
+            elif auto_activate_prior is not None and isinstance(self.ref, TaskRef):
                 _commit_auto_activate(
                     self.cfg, self.ref, self.ticket, prior=auto_activate_prior
                 )
@@ -1859,7 +1872,9 @@ class _LaunchInvocation:
             first_step = True
             consecutive_agent_override = False
             while True:
-                self.ticket = self._read(self.ref)
+                if not (first_step and self.group_startup):
+                    self.source_ticket_bytes = self.ref.ticket_path.read_bytes()
+                    self.ticket = Ticket.parse(self.source_ticket_bytes.decode("utf-8"))
                 is_first_step = first_step
 
                 if self.entry is not None and self.ticket.step not in self.script_steps_run:
@@ -2265,7 +2280,7 @@ class _LaunchInvocation:
     def _prepare_step_checkout(
         self, ticket: Ticket, *, actor: str, log_message: str
     ) -> tuple[Ticket, str]:
-        """Plan and link on control, compose, audit, then switch and project.
+        """Plan on control, compose, publish startup, then switch and project.
 
         The `launched` audit line is appended and published only after
         planning and composition on control succeeded, so a refused
@@ -2283,32 +2298,51 @@ class _LaunchInvocation:
             plan: checkouts.TicketCheckoutPlan,
         ) -> tuple[Ticket, CheckoutNotice, str]:
             assert isinstance(self.ref, TaskRef)
-            current = self._read(self.ref)
+            current = Ticket.parse(plan.ticket_bytes.decode("utf-8"))
             notice = checkouts.ticket_notice(self.cfg, plan)
-            try:
-                prompt = compose_prompt(
-                    self.cfg, self.ref, current,
-                    launch_context=self.launch_context, checkout=notice,
-                )
-            except ComposeError as exc:
-                _bail(str(exc))
+            prompt = compose_prompt(
+                self.cfg, self.ref, current,
+                launch_context=self.launch_context, checkout=notice,
+            )
             return current, notice, prompt
 
         try:
-            plan = checkouts.plan_ticket_checkout(self.cfg, self.ref, ticket, policy)
+            plan = checkouts.plan_ticket_checkout(
+                self.cfg, self.ref, ticket, policy,
+                source_bytes=self.source_ticket_bytes if self.group_startup else None,
+            )
             current, notice, prompt = compose(plan)
-            if self.record_launch:
+            started = False
+            if self.group_startup:
+                started = self._publish_startup(current, plan, actor=actor, log_message=log_message)
+            elif self.record_launch:
                 append_log(self.cfg, self.ref.id_slug, actor, log_message)
                 git.sync_log(self.cfg, message=f"Log: {self.ref.id_slug}")
+            if self.record_launch:
                 confirmed = checkouts.confirm_ticket_checkout(
-                    self.cfg, self.ref, ticket, plan
+                    self.cfg, self.ref, current, plan
                 )
                 if confirmed.ticket_bytes != plan.ticket_bytes:
                     # Control's ticket gained notes meanwhile: compose from it.
                     current, notice, prompt = compose(confirmed)
                 plan = confirmed
             checkouts.enter_ticket_checkout(self.cfg, self.ref, plan)
-        except (checkouts.CheckoutPreparationError, git.GitError, OSError) as exc:
+            if started:
+                # Delivery failures append their own reported audit. Notify only
+                # after the clean-control switch proof, so that non-fatal failure
+                # cannot refuse the launch. Usage/return/sweep can carry its line.
+                _report(f"{self.ref.id_slug}: in_progress")
+                post(
+                    self.cfg,
+                    f"▶️ {self.cfg.current_user} started *{self.ref.id_slug}* "
+                    f'"{current.title}" (agent: {self.launch_agent})',
+                    task_path=self.ref.path, owner=current.owner or self.cfg.current_user,
+                    fatal=False,
+                )
+        except (
+            checkouts.CheckoutPreparationError, git.GitError, OSError,
+            ComposeError, TaskValidationError, TicketError, TaskFileError,
+        ) as exc:
             switched = getattr(exc, "switched", False)
             self.boundary.stopped = True
             git.state_sweep_withheld.set(True)
@@ -2325,6 +2359,82 @@ class _LaunchInvocation:
             )
         _report(f"Launch: checkout {plan.action} — {notice.summary}")
         return current, prompt
+
+    def _publish_startup(
+        self, ticket: Ticket, plan: checkouts.TicketCheckoutPlan,
+        *, actor: str, log_message: str,
+    ) -> bool:
+        """Materialize one ordinary start, with no lifecycle replay on failure.
+
+        The source guard runs even for an unchanged (unselected) ticket. The
+        final ticket and all startup events publish before any switch or spawn;
+        exceptions retain the writes and take the checkout's withheld-sweep exit.
+        """
+        assert isinstance(self.ref, TaskRef)
+        source = self.source_ticket_bytes
+        prior = Ticket.parse(source.decode("utf-8")).status
+        started = prior in {"draft", "paused", "active"}
+        message = (
+            f"Ticket: {self.ref.id_slug} — in_progress" if started
+            else f"Ticket: {self.ref.id_slug} — branch {plan.branch}"
+            if plan.outcome == "created" else f"Log: {self.ref.id_slug}"
+        )
+
+        def guard(control: str) -> None:
+            observed = git.tree_bytes(plan.root, control, plan.rel)
+            # `expect` only checks selected paths. This proof also protects a
+            # log-only start whose unchanged ticket is not a candidate.
+            if observed != source:
+                raise git.StateRegressionError(
+                    f"{plan.rel} changed during startup publication; reconcile and retry"
+                )
+
+        with git.state_lock(self.cfg):
+            checkouts.recheck_ticket_checkout(self.cfg, self.ref, ticket, plan, source)
+            assert_task_valid(self.cfg, self.ref, action="launch startup", ticket_override=ticket)
+            # Any interruption from the first write until confirmation must
+            # preserve evidence, never let finally/sweep publish a partial start.
+            try:
+                if plan.ticket_bytes != source:
+                    git.write_ticket(self.cfg, ticket, self.ref.ticket_path)
+                if self.startup_activation is not None:
+                    append_log(
+                        self.cfg, self.ref.id_slug, actor,
+                        f"activated ({self.startup_activation} → active){_AUTO_ACTIVATE_SUFFIX}",
+                    )
+                if started:
+                    append_log(self.cfg, self.ref.id_slug, actor, "started (active → in_progress) via coga launch")
+                append_log(self.cfg, self.ref.id_slug, actor, log_message)
+                result = git.publish(
+                    self.cfg, [self.ref.ticket_path, log_path(self.cfg)], message,
+                    expect={self.ref.ticket_path: source}, guard=guard,
+                    require_paths=[self.ref.ticket_path, log_path(self.cfg)],
+                )
+                if result is None:
+                    raise git.GitError("startup publication was skipped, not confirmed")
+            except BaseException as exc:
+                self.boundary.stopped = True
+                git.state_sweep_withheld.set(True)
+                if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+                    _bail(
+                        f"Cannot launch {self.ref.id_slug}: startup publication was "
+                        "interrupted; local ticket/log and reservation retained. "
+                        "No agent was started; return and sweep withheld. See "
+                        "coga/checkouts/launch-boundary for recovery.",
+                        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                    )
+                if isinstance(exc, git.GitError):
+                    kind = (
+                        "refused" if isinstance(exc, git.StateRegressionError)
+                        else "uncertain" if isinstance(exc, git.UncertainPublishError)
+                        else "failed"
+                    )
+                    raise checkouts.CheckoutPreparationError(
+                        "startup publication", f"{kind}: {exc}; final local ticket/log and reservation retained"
+                    ) from exc
+                raise
+        self.startup_activation = None
+        return started
 
     def _unmanaged_checkout_notice(self) -> CheckoutNotice | None:
         """A truthful notice for a launch that prepared no branch, or None."""
@@ -2725,13 +2835,15 @@ def _commit_auto_activate(
     status assignment are pure re-reads. Keep it that way — the split relies on
     the second run being free of side effects the first already had.
 
-    This assumes nothing rewrote `ref.ticket_path` while the preflights ran:
+    Outside ordinary grouped startup, this assumes nothing rewrote
+    `ref.ticket_path` while the preflights ran:
     the in-memory ticket is written over whatever is on disk, unguarded. Coga
     is a single-writer, locally operated tool and tickets are not edited
     concurrently with a launch of the same ticket; the blocked-resume gate in
     `_launch` makes the same assumption across the same preflights. The strict
-    assist path is the exception and guards its publication explicitly — see
-    `coga-dev/internals`.
+    assist path guards its publication explicitly. Ordinary managed startup
+    uses `_publish_startup` instead, with captured source bytes and a guarded
+    task-plus-log transaction — see `coga-dev/internals/state-publication`.
     """
     try:
         mark_active(

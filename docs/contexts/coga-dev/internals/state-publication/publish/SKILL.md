@@ -82,13 +82,53 @@ lines (`logfile.retract_log_lines`) on `StateRegressionError` and
 reconciliation. A strict `mark done` publishes before announcing; the
 ordinary path announces, then publishes. Launch-specific strict publication
 is `coga-dev/internals/launch-claims` and `coga/pr-publication`.
-Launch's branch preparation publishes its `branch:` linkage with
+Launch's ordinary managed startup uses the explicit group below. Outside
+that group, branch preparation publishes linkage with
 `sync_task_state(strict=True, expect=...)`, then proves the bytes on fetched
 control; a failure keeps the edit, branch, and reservation for the next
 launch. Recording a projected ticket's provenance
 (`git.record_projected_baseline`) is likewise strict and verified, unlike
 the best-effort `PUBLISHED_REF` update after an ordinary publish: a failure
 refuses the spawn.
+
+## Ordinary managed startup
+
+`launch._LaunchInvocation._publish_startup` is an explicit finalizer, not a
+global queue or a lifecycle-helper option. `_prepare_agent` retains the
+captured source bytes and prospective activation/start across the first
+`_supervise_steps` iteration. Only armed ordinary agent-only launches opt in;
+scripts, blocked resumes, assists, queue and guarded/recurring callers keep
+their existing routes. `prepare_active` still owns freezing and agent
+selection; standalone `mark_active` and `mark_in_progress` are unchanged.
+
+`checkouts.plan_ticket_checkout(source_bytes=...)` proves clean control against
+the source, reserves/creates or validates the branch, and returns prospective
+ticket bytes. It writes no ticket or log. Composition uses that prospective
+ticket and notice. Under `state_lock`, `recheck_ticket_checkout` repeats the
+source, policy, target, occupancy, stranded-ticket and path-eligibility checks,
+and prospective task validation precedes all writes. The finalizer writes
+only a changed ticket, appends applicable activation/start events and the
+launch audit, and calls `publish` once for the ticket and required log.
+`expect` pins the source ticket; a `guard` also checks it on every push retry,
+because an unchanged ticket in a log-only resume is not a candidate.
+`True` or `False` confirms publication; `None` does not.
+
+`confirm_ticket_checkout` re-proves fetched clean control, metadata/routing,
+workflow, policy and branch/worktree identity for every plan, including a
+control-only resume. Compatible body notes trigger recomposition. A created
+reservation becomes published only after linkage is confirmed. Entry retains
+its clean-control and exact-ticket checks, switch/projection and strict
+provenance verification. Only then is the successful-start notification sent;
+its non-fatal failure line has the normal report and later usage/return/sweep
+publishers. Spawn receives the verified prompt and `record_launch=False`.
+
+Before materialization, refusal leaves the source and log unchanged. Once
+writes begin, failures retain evidence and withhold return/sweep. A publication
+refusal, failure, soft-skip or uncertainty exits 75 and starts no agent; no
+transition is rolled back, even when post-push verification fails. The next
+entry settles the already-recorded state rather than replaying activation or
+start. Handoff and teardown stay independent; their accounting is owned by
+[launch publication boundaries](../../../../coga/state-publication/launch-boundaries/SKILL.md).
 
 ## Failure reporting
 
@@ -141,3 +181,5 @@ those suffix events instead of requiring unchanged whole-output bytes. Trim
 and rollback share `logfile.LogMutation` and `replace_log`; details live in
 [spool-merge](../../spool-merge/SKILL.md). Stateful script exit 75 with a pending
 receipt bypasses between-phase settlement and remains a sweep stop signal.
+
+Size exception: the publication primitive, strict caller obligations, and failure diagnostics stay together so a new caller can preserve the entire transaction contract; the writer inventory lives in a separate leaf.

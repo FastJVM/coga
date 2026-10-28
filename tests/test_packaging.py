@@ -392,6 +392,7 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/pr-publication",
         "coga/pr-publication/preparation",
         "coga/state-publication",
+        "coga/state-publication/launch-boundaries",
         "coga/knowledge",
         "coga/launch",
         "coga/lifecycle",

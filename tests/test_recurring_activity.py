@@ -13,6 +13,9 @@ from coga.recurring_activity import check_activity, is_machine_commit
 
 MACHINE_SUBJECTS = [
     "Log: recurring/dream", "Sync coga state", "Dream findings (#10)",
+    "Log: ordinary-task", "Sync coga state before launch",
+    "Ticket: recurring/dream — in_progress", "Ticket: autofix/fix — step 2 (review)",
+    "Ticket: recurring/dream — branch coga/dream-123",
     "Ticket: recurring/digest — recurring create", "Autofix: fix — created",
     "Ticket: autofix/fix — active", "Update Coga-managed skills (#12)",
     "Ticket: human — blocker reminder",
@@ -62,6 +65,8 @@ def test_machine_only_history(repo: Path, subject: str) -> None:
 @pytest.mark.parametrize("subject", [
     "Implement feature", "Ticket: human — active", "Log: bootstrap/orient",
     "Merge pull request #13 from owner/feature", "Ticket: follow-up — created",
+    "Ticket: ordinary-task — in_progress", "Ticket: ordinary-task — step 2 (review)",
+    "Ticket: ordinary-task — branch coga/ordinary-task-123", "Log: bootstrap/ticket",
 ])
 def test_human_history(repo: Path, subject: str) -> None:
     assert not is_machine_commit(subject)
