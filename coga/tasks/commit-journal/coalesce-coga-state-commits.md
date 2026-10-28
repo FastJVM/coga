@@ -1,6 +1,6 @@
 ---
 title: Coalesce Coga state commits to one per lifecycle event
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/principles
