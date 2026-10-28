@@ -37,9 +37,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 9aa67df0-fcab-4938-a971-521f3d1ac595
 ---
 
 ## Description
@@ -769,3 +768,123 @@ the cursor instead. No owner approval has been inferred.
   all reach the prompt; the blackboard fence is unique.
 - `git diff --check` passed. Implementation tests and the full pytest suite
   remain obligations of the implementation step; no feature code exists yet.
+
+## Evaluator review
+
+Reviewed cold on 2026-10-27 against current control
+`c3ecc4540664205749a30d64ce60184126810ebf`. **Not ready for implementation:
+resolve the three must-fix findings below at the owner design gate.** These
+are design findings, not operational blockers and not an owner approval.
+
+The Description/Context heading structure reaches the implementer correctly;
+the frozen `code/design-then-implement` workflow places the owner gate next.
+The config, ledger ordering, pause/reset, edge-entry and machine-commit claims
+match the inspected source. The proposed shared modules have real consumers
+and the job stays at the edge. The breadth of publication and telemetry work
+is relevant to safe retention, rather than unrelated scope. The three product
+choices in Open Questions still belong to the owner.
+
+### Must fix before implementation
+
+1. **P1 — Resolve the conflict between forgotten movement fingerprints and
+   stale-event suppression.** The proposed schema-2 cursor replaces its hash
+   set with the currently retained movement set. Consider a consumed, expired
+   movement event A for a retired ticket: trim removes A; the next phone-home
+   reservation drops its hash; a stale feature checkout whose HEAD predates
+   A's publication still carries A. Publication can therefore consider A an
+   incoming event, and A is provably in reachable control history. However,
+   applying keep-rule 5 to that candidate now calls A *unconsumed*, so the
+   proposed "eligible under the current retention policy" prerequisite
+   prevents suppressing it. The next report counts A again. The design must
+   define which snapshot determines unread protection and how source/archive
+   provenance distinguishes this forgotten, previously consumed event from
+   genuinely unread input. Hash absence alone cannot establish unreadness
+   for an incoming replay candidate. Add the combined
+   consume → trim → reserve → stale publish → report test, asserting no
+   resurrection/recount while a genuinely new backdated movement still counts.
+   Evidence: this ticket's retention keep-rule 5, ordinary-publication rules
+   and schema-2 set-replacement rule; `src/coga_edge/phone_home.py::_movement`
+   and `_cursor`; `tests/test_git.py::test_publish_from_a_far_back_merge_base_lands_no_duplicate`.
+   A read-only model using the existing movement recognizer reproduced the
+   proposal's missing-hash/protected-again/count-1 sequence; this is a design
+   counterexample, not a claim that schema 2 already exists.
+
+2. **P1 — Define recovery across the period-script process boundary.** The
+   ordered transaction retains local output after uncertain publication and
+   prohibits an ordinary sweep from reinterpreting it, but only names an
+   in-memory `log_mutation` argument and a nonzero retryable exit. Name the
+   mechanism that keeps the log/parent transaction recognizable after the
+   child exits or crashes, the exit propagated by an ordinary recurring
+   period, and the exact recovery action for accepted-but-unacknowledged and
+   definitely-unpublished outcomes. A receipt may be reconstructible from
+   retained Git evidence; this finding does not require a second archive.
+   Current machinery cannot be assumed to supply this isolation:
+   `src/coga/launch_script.py::run_script_chain` invokes `between_phases`
+   before returning a stateful script failure; its early exit-75 bypass is
+   bootstrap-only. `src/coga/launch.py::_CheckoutBoundary.settle` explicitly
+   calls `git.sync_coga_state`, and `cli.main` also sweeps ordinary nonzero
+   exits. A mocked stateful exit-75 probe invoked the settlement callback
+   once. The proposed publisher's unreceipted-truncation refusal must cover
+   these paths and later commands, or the lifecycle contract must change;
+   merely returning nonzero is insufficient. Add real launch/sweep tests for
+   a crash after log replacement, uncertain push, teardown, and the next
+   unrelated mutating command. Also account for `git._guard` appending
+   `sync refused` evidence: that changes the planned postimage and defeats a
+   rollback that only recognizes an unchanged whole output.
+
+3. **P2 — Preserve opaque-block attribution in existing history readers.**
+   The parser keeps unexpected continuations after v1 events as opaque blocks
+   while allowing their expired preceding event to be removed. Today
+   `src/coga/logfile.py::task_log_lines` attaches *every* unmatched line to the
+   most recent matching ref, regardless of v1. For physical order
+   `recent [existing] event`, `expired [removed] v1 event`, `opaque line`,
+   deleting only the middle event makes the opaque line appear in
+   `existing`'s history and `views.render_show`. A scratch fixture using the
+   current reader reproduced that change. Specify whether conservative
+   retention also pins the boundary event needed to prevent reattachment,
+   or explicitly extend the reader/parser migration with its compatibility
+   rule. Preserving opaque bytes alone does not meet the promised unchanged
+   existing-task display semantics. Add this case, including a malformed
+   timestamp-looking opaque header, to the before/after reader fixtures.
+
+### Optional recommendations
+
+- Make the adoption file allowlist explicit about
+  `recurring/trim-log/operations.md`: the current wording installs only the
+  ticket/shim pair and workflow, while separately requiring that persistent
+  runbook. Also name the concrete live-repo activation handoff and temporary
+  twin policy. `git._candidates` / `_routine_state_areas` and the checkouts
+  contract confirm that committed recurring files publish ahead of the code
+  PR; the cited alternative "documented compatible two-phase rollout" has
+  no corresponding procedure in the current contexts. A named post-merge
+  operator step would make the proposed staging option reviewable.
+- Include a representative history-scan cost receipt, especially repeated
+  publication from an unmoving stale HEAD. "One transient history scan per
+  publication" bounds the scan count, not its cost as reachable log history
+  grows. This is an implementation feasibility check, not a request for a
+  cache, tombstone store, or broader performance project.
+
+### Evidence and scope
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_logfile.py tests/test_telemetry.py`
+  → **111 passed in 4.08s**. These establish existing reader/cursor behavior;
+  they do not validate the unimplemented retention feature.
+- Read-only `git show` plus Python hashing reproduced the pinned measurement
+  input: 2,550,793 bytes, 9,552 LF lines and SHA-256
+  `1122f575a28c8f74ceb568e6dbba361b36c2b5f382a9d7ffb548fe2853ab32e7`.
+  The retained-size results remain the design prototype's figures, to be
+  rechecked against the implemented selector as the ticket requires.
+- Inspected the attached contexts, cited configuration/microkernel/merge/
+  scheduling/edge contracts, current publisher and checkout proofs, both
+  retraction paths, recurring ledger cache, telemetry and installation tests.
+  The live usage-report attachment delegates to `usage.load_records`; it
+  does not add another independent audit parser.
+- No ticket intent, lifecycle frontmatter, implementation, branch, PR, live
+  log or configuration was edited. Only this blackboard review is authored;
+  the lifecycle command performs the eventual handoff.
+- `.venv/bin/python -m coga.cli validate --task commit-journal/trim-the-audit-log --json`
+  → one valid task, no fixes or issues. `git diff --check` passed; the diff
+  contains only this evaluator review, and above-fence bytes match the saved
+  preimage exactly.
+- Final `git fetch origin main` succeeded; HEAD and `origin/main` remain at
+  the reviewed revision. No reconciliation conflict or occupied checkout.
