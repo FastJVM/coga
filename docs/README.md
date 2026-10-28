@@ -26,7 +26,7 @@ Agent access to archives requires an explicit human request; see
 
 ## Start
 
-1. [Install](contexts/coga/install/SKILL.md) the CLI.
+1. [Get started](../README.md#get-started) — install Coga and check prerequisites.
 2. [Set up a repo](contexts/coga/init/SKILL.md) — fresh, or a clone of one
    already using Coga.
 3. [Take a first task](contexts/coga/first-task/SKILL.md) from draft to PR.
@@ -37,12 +37,11 @@ New tickets include a field guide from the
 
 ## Understand
 
-- The three concepts, as the [project README](../README.md#what-lives-in-your-repo)
-  defines them: a [ticket](contexts/coga/tickets/SKILL.md) (one piece of
-  work, disposable once done), a [context block](contexts/coga/knowledge/SKILL.md)
-  (a durable fact with one owning file), and a
-  [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
-  work).
+- The [project README](../README.md#what-lives-in-your-repo) introduces the
+  working building blocks: [tickets](contexts/coga/tickets/SKILL.md) for units
+  of work, [contexts](contexts/coga/knowledge/SKILL.md) for durable knowledge,
+  and [workflows](contexts/coga/workflows/SKILL.md) for steps and review
+  gates. [History](../coga/log.md) records task transitions separately.
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
   correction loop, and a map of every topic.
 - The work unit: [tickets](contexts/coga/tickets/SKILL.md)
