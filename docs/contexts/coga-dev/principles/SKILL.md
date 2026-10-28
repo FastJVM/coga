@@ -5,9 +5,13 @@ description: Coga's design principles — the shared foundation for developing C
 
 # Coga's design principles
 
-Coga is an instrument for the human using agents: a workbench for work where
-building helps us discover what to build. Its purpose is useful work, clearer
-understanding, and tools we can reshape as we learn.
+Coga is an instrument for people directing agents, not another coding
+agent. Agents work in sessions; people's goals, questions, and decisions
+outlive those sessions. Coga keeps the working plan in text people can
+inspect, challenge, and change — including when the right decision is not
+to build.
+
+## Principles
 
 - **Expand human capacity.** Expand people's ability to think, explore, and
   create. People choose purpose and direction; agents help discover problems,
@@ -38,17 +42,29 @@ understanding, and tools we can reshape as we learn.
 
 ## Consequences
 
-- **Homoiconicity for agents.** The text Coga runs on is also text agents can
-  read and rewrite.
+- **Homoiconicity for agents.** Tickets, contexts, and workflows use the
+  same Markdown that agents read and can edit. There is no separate
+  agent-only version of the plan.
 - **Everything is disposable except the text.** Code and methods can be
   replaced. Intent, decisions, and what we learn survive in editable files.
 - **Agents can manage Coga itself.** They can write tickets, revise contexts,
   and change workflows without learning a special language.
-- **Build Coga on base concepts agents are good with.** Coga is not original
-  in its primitives by design. Agents already know how to work with tickets,
-  plans, and workflows.
+- **Build Coga on base concepts agents are good with.** Use familiar tickets,
+  plans, and workflows rather than inventing a language agents must learn.
+
+## In practice
+
+An agent-generated plan is a proposal, not a commitment to implement it.
+A human can question its assumptions, correct the tickets or context, add
+a review step, or stop the project. Later agent sessions use the revised
+files rather than relying on the original chat. The
+[Thinkpick case study](https://github.com/FastJVM/coga/blob/main/README.md#when-the-first-plan-was-wrong-thinkpick)
+shows a changed plan and a decision not to build yet — not a failed or
+finished implementation.
 
 These principles guide Coga's design. The
-[README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them; edits to the README must stay
-aligned. Behavioral topics own current implementation contracts, including
-Git. The [reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/reading-list.md) records our influences.
+[README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them;
+edits to the README must stay aligned. Behavioral topics own current
+implementation contracts, including Git. The
+[reading list](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/reading-list.md)
+records our influences.

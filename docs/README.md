@@ -1,58 +1,40 @@
 # Coga documentation
 
-One library for people and agents. Every reusable topic is a file under
-[`contexts/`](contexts): you read it here, and a ticket attaches the same
-file by ref (`contexts: [coga/launch]`) to put it in an agent's prompt. A
-link never loads anything — ticket contexts include exactly the refs listed.
-How a fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
-
-The library has two audiences. **User topics** under `coga/`
-are needed to configure, launch, author, recover, or understand refusals in
-any repo using Coga; they ship as bootstrap fallbacks. **Coga-dev topics**
-under `coga-dev/` explain building, testing, releasing, or steering Coga
-itself and stay local. Anything a shipped surface requires must be user
-knowledge. [Context layout](contexts/coga/context-layout/SKILL.md#context-audiences)
-owns the criterion; choose the set for the task before attaching topics.
-
-The [next-release migration note](release-notes/context-audiences.md) lists
-renamed refs and topics removed from the package.
-
-Pages outside `contexts/` are for reading, never composed into prompts:
-[`archive/`](#proposals-and-history) holds history, including dated
-measurements and comparisons in [`archive/evidence/`](archive/evidence)
-and unimplemented proposals in [`archive/design/`](archive/design).
-Agent access to archives requires an explicit human request; see
-[the archive access rule](contexts/coga-dev/archive-access/SKILL.md#archive-access).
+The [project README](../README.md) explains what Coga is and shows the
+workflow. This index is for finding the details: using Coga in a repository,
+understanding its files and commands, or contributing to Coga itself.
 
 ## Start
 
-1. [Install](contexts/coga/install/SKILL.md) the CLI.
-2. [Set up a repo](contexts/coga/init/SKILL.md) — fresh, or a clone of one
-   already using Coga.
+1. [Get started](../README.md#get-started) — install Coga and check prerequisites.
+2. [Set up a repo](contexts/coga/init/SKILL.md) — fresh, or a clone already using Coga.
 3. [Take a first task](contexts/coga/first-task/SKILL.md) from draft to PR.
 4. [Remove Coga](contexts/coga/uninstall/SKILL.md) if you need to.
 
-New tickets include a field guide from the
-[annotated template](../src/coga/resources/ticket.md).
+For installation alternatives, troubleshooting, and platform boundaries, see
+the [installation reference](contexts/coga/install/SKILL.md). The project README
+is the primary first-install path.
 
 ## Understand
 
-- The three concepts, as the [project README](../README.md#what-lives-in-your-repo)
-  defines them: a [ticket](contexts/coga/tickets/SKILL.md) (one piece of
-  work, disposable once done), a [context block](contexts/coga/knowledge/SKILL.md)
-  (a durable fact with one owning file), and a
-  [workflow](contexts/coga/workflows/SKILL.md) (the steps for one kind of
-  work).
-- [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
-  correction loop, and a map of every topic.
-- The work unit: [tickets](contexts/coga/tickets/SKILL.md)
-  ([discovery](contexts/coga/tickets/discovery/SKILL.md),
-  [authoring](contexts/coga/tickets/authoring/SKILL.md)),
-  [lifecycle](contexts/coga/lifecycle/SKILL.md),
-  [workflows](contexts/coga/workflows/SKILL.md),
+Coga keeps work readable and editable across agent sessions. Its
+[building blocks](../README.md#what-lives-in-your-repo) are
+[tickets](contexts/coga/tickets/SKILL.md) for units of work,
+[contexts](contexts/coga/knowledge/SKILL.md) for lasting knowledge,
+[workflows](contexts/coga/workflows/SKILL.md) for steps and review gates,
+and [history](../coga/log.md) for recorded transitions.
+
+- [Architecture](contexts/coga/architecture/SKILL.md) — the model and the
+  correction loop.
+- Working with tickets: [discovery](contexts/coga/tickets/discovery/SKILL.md),
+  [authoring](contexts/coga/tickets/authoring/SKILL.md),
+  [lifecycle](contexts/coga/lifecycle/SKILL.md), and
   [blackboard](contexts/coga/blackboard/SKILL.md).
-- What the agent sees: [prompt composition and session conduct](contexts/coga/prompt-composition/SKILL.md),
-  [knowledge placement](contexts/coga/knowledge/SKILL.md).
+- [Prompt composition](contexts/coga/prompt-composition/SKILL.md) — what an
+  agent receives; [knowledge placement](contexts/coga/knowledge/SKILL.md) —
+  which context belongs with a task.
+- The [annotated ticket template](../src/coga/resources/ticket.md) explains
+  the fields in new tickets.
 
 ## Operate
 
@@ -75,9 +57,8 @@ New tickets include a field guide from the
 - Team sync: [Git state overview](contexts/coga/sync/SKILL.md),
   [notifications](contexts/coga/notifications/SKILL.md)
   ([producers](contexts/coga/notifications/producers/SKILL.md)),
-  [coga-important](contexts/coga/important/SKILL.md),
-  [usage records](contexts/coga/usage/SKILL.md),
-  [state publication](contexts/coga/state-publication/SKILL.md).
+  [coga-important](contexts/coga/important/SKILL.md), and
+  [usage records](contexts/coga/usage/SKILL.md).
 
 - Publication: [PRs](contexts/coga/pr-publication/SKILL.md)
   ([preparation](contexts/coga/pr-publication/preparation/SKILL.md));
@@ -97,7 +78,8 @@ New tickets include a field guide from the
 
 ## Develop Coga
 
-The local-only Coga-dev set and the skills used by Coga maintainers:
+If you want to change Coga, start with [Contributing](../CONTRIBUTING.md).
+The local-only Coga-dev topics and maintainer skills cover implementation:
 
 - [Design principles](contexts/coga-dev/principles/SKILL.md),
   [patterns](contexts/coga-dev/patterns/SKILL.md), and the
@@ -119,47 +101,32 @@ The local-only Coga-dev set and the skills used by Coga maintainers:
   [current direction](contexts/coga-dev/current-direction/SKILL.md),
   [project stage](contexts/coga-dev/project-stage/SKILL.md).
 
-## Product and positioning
+## How this library works
 
-- [Design principles](contexts/coga-dev/principles/SKILL.md) — philosophy and design principles.
-- [README](../README.md) — current public presentation.
+The same Markdown topics are read by people and can be attached to agents'
+prompts. Topics live under [`contexts/`](contexts/). A ticket attaches a
+context by its ref (for example, `contexts: [coga/launch]`); a Markdown
+link is only navigation and does **not** load that topic into the prompt.
+
+There are two audiences. [User topics](contexts/coga/) under `coga/`
+describe what an adopting repository needs to run Coga and ship as packaged
+fallbacks. [Coga-dev topics](contexts/coga-dev/) under `coga-dev/`
+describe Coga's implementation and stay in this source repository.
+[Context layout](contexts/coga/context-layout/SKILL.md#context-audiences)
+defines the boundary; [knowledge placement](contexts/coga/knowledge/SKILL.md)
+defines where facts belong. For older context refs, see the
+[migration note](release-notes/context-audiences.md).
 
 ## Proposals and history
 
-- [Retired marketing contexts](archive/marketing-contexts-2026-10-15/README.md) —
-  planning behind the README, idea piece and launch.
+These are historical documents, **not current instructions**. Dated evidence
+and earlier decisions can be useful, but agents must not read or search the
+archive without an explicit human request
+([archive access rule](contexts/coga-dev/archive-access/SKILL.md#archive-access)).
 
-- Archived evidence (read the date and scope on each page before reusing a
-  claim): [agent memory landscape](archive/evidence/agent-memory-landscape-2026-10-13.md),
-  [velocity](archive/evidence/velocity.md),
-  [admin and patent flexibility](archive/evidence/admin-and-patent-flexibility-2026-09-12.md),
-  [Claude cache TTL survey](archive/evidence/claude-cache-ttl-survey.md),
-  [macOS clean-install runs](archive/evidence/macos-clean-install-runs-2026-10.md),
-  [Dream under codex scratch runs](archive/evidence/dream-under-codex-scratch-runs-2026-09.md).
-- Archived, unimplemented design: [CLI external surface](archive/design/cli-external-surface.md).
-- Archive: [origins](archive/origins.md),
-  [market landscape](archive/market-landscape.md),
-  [superseded decisions](archive/superseded-decisions.md),
-  [launch programs](archive/launch-programs/README.md),
-  [Relay → Coga migration](archive/relay-migration.md),
-  [browser automation](archive/browser-automation.md),
-  [Google Doc workflow](archive/create-google-doc-workflow.md),
-  [roadmap](archive/roadmap.md),
-  [marketing distribution](archive/marketing-distribution.md),
-  [context migration record](archive/context-migration.md),
-  [CLI extension audit](archive/cli-extension-audit.md),
-  [Google Drive MCP observations](archive/gdrive-mcp.md),
-  [positioning before the README reset](archive/positioning-before-readme-2026-10-13.md).
-- Archived evidence from the September pitch and build-versus-adopt research:
-  [usage comparison](archive/evidence/usage-comparison.md),
-  [build vs adopt](archive/evidence/build-vs-adopt.md),
-  [why switch](archive/evidence/why-switch-to-coga.md),
-  [pitch evaluation](archive/evidence/pitch-evaluation.md),
-  [continuity](archive/evidence/continuity-comparison.md),
-  [human-centred comparison](archive/evidence/human-centered-comparison.md),
-  [research-work comparison](archive/evidence/research-work-comparison.md),
-  [research replacement trial](archive/evidence/research-replacement-trial.md),
-  [adoption trial](archive/evidence/adoption-trial.md),
-  [upkeep audit](archive/evidence/upkeep-audit.md),
-  [independent-clone incident](archive/evidence/independent-clone-worklist-2026-09.md),
-  [branch cleanup audit](archive/evidence/branch-cleanup-audit-2026-10-05.md).
+- [Archived evidence](archive/evidence/) — dated investigations, comparisons,
+  and test results.
+- [Archived designs](archive/design/) — proposals that may never have shipped.
+- [Other history](archive/) — origins, prior positioning, migrations, and
+  retired plans; see the [superseded decisions](archive/superseded-decisions.md)
+  and [context migration record](archive/context-migration.md) for those topics.
