@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from textwrap import dedent
@@ -17,7 +18,7 @@ def _supported_mock_agent_platform(monkeypatch):
     monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 
-from conftest import hold_by_agent, hold_by_owner
+from conftest import append_test_usage, hold_by_agent, hold_by_owner
 from coga.cli import app
 from coga.launch import AgentSessionResult
 from coga.compose import compose_prompt
@@ -96,6 +97,73 @@ def test_megalaunch_help_describes_drain_order() -> None:
     assert "oldest-first" in help_text
     assert "naming convention" in help_text
     assert all(prefix in help_text for prefix in ("1-", "2-", "3-"))
+
+
+@pytest.mark.parametrize("status,count", [("active", 4), ("in_progress", 4), ("draft", 5), ("paused", 5)])
+def test_megalaunch_keeps_claim_and_admission_publications(
+    git_repo, monkeypatch: pytest.MonkeyPatch, status: str, count: int,
+) -> None:  # type: ignore[no-untyped-def]
+    from coga import cli, git as git_module
+    from coga.repl_supervisor import ReplOutcome
+    from coga.taskfile import read_blackboard, replace_blackboard
+
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Queue publications", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="active",
+    )
+    path = Path(created["path"])
+    rel = path.relative_to(git_repo.root).as_posix()
+    ticket = Ticket.read(path)
+    ticket.frontmatter["status"] = status
+    ticket.workflow["steps"][1]["assignee"] = "owner"
+    ticket.write(path)
+    git_module.sync_task_state(cfg, path, message="Seed queue task")
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.megalaunch._resolve_selection", lambda *a, **k: [created["slug"]])
+    monkeypatch.setattr("coga.commands.megalaunch._confirm_author_drafts", lambda *a: False)
+    monkeypatch.setattr("coga.launch.usage_tracking.capture_session", append_test_usage)
+
+    def control() -> Ticket:
+        return Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+
+    def child(cmd, env, *, after_spawn, spawn_release_guard, after_spawn_release, **kwargs):  # type: ignore[no-untyped-def]
+        assert control().launch_generation.startswith("pending:")
+        with spawn_release_guard():
+            after_spawn()
+            assert control().launch_generation.startswith("pending:")
+            # The real admission callback runs only after modeled gate delivery.
+            after_spawn_release()
+        assert control().launch_generation and not control().launch_generation.startswith("pending:")
+        assert "launched" in git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+        replace_blackboard(path, read_blackboard(path) + "\nQueue handoff.\n")
+        child_env = {k: v for k, v in os.environ.items() if not k.startswith("COGA_")}
+        child_env["PYTHONPATH"] = str(Path(git_module.__file__).resolve().parents[1])
+        result = subprocess.run([sys.executable, "-m", "coga.cli", "bump", created["slug"]], cwd=git_repo.coga_os, env=child_env, capture_output=True, text=True, encoding="utf-8")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert control().step == "2 (review)" and "Queue handoff." in control().body
+        return ReplOutcome(0, "done", done_signalled=True)
+
+    monkeypatch.setattr("coga.launch.run_with_done_marker", child)
+    monkeypatch.setattr(sys, "argv", ["coga", "megalaunch"])
+    with pytest.raises(SystemExit) as exited:
+        cli.main()
+    assert exited.value.code == 0
+    subjects = git_repo.git("log", "--reverse", "--format=%s", f"{start}..main", cwd=git_repo.origin).splitlines()
+    expected = ([f"Ticket: {created['slug']} — active"] if status in {"draft", "paused"} else []) + [
+        f"Ticket: {created['slug']} — in_progress",
+        f"Ticket: {created['slug']} — launch admitted",
+        f"Ticket: {created['slug']} — step 2 (review)",
+        f"Log: {created['slug']}",
+    ]
+    assert subjects == expected and len(subjects) == count
+    assert git_repo.git("status", "--porcelain") == ""
+    end = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    assert git_repo.git("rev-parse", "HEAD").strip() == end
+    git_module.sync_coga_state(cfg)
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == end
 
 
 def test_megalaunch_runs_active_agent_task(

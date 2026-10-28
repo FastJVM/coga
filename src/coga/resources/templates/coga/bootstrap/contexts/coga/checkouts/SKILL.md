@@ -84,8 +84,11 @@ checkout. The prompt's **Checkout (runtime)** notice states what it observed
 and did.
 
 1. **Entry.** For a create step with no `branch:`, launch creates one
-   (`coga/<task>-<hex>`) at control and publishes it as `branch:` under
-   `## Dev` before switching. Otherwise it reuses the first
+   (`coga/<task>-<hex>`) at control and prepares `branch:` under `## Dev`.
+   An ordinary agent-only startup publishes that linkage with its final
+   lifecycle and launch audit before switching
+   ([publication boundaries](../state-publication/launch-boundaries/SKILL.md)).
+   Other managed paths retain independent linkage publication. Otherwise it reuses the first
    recorded `branch:`: a local ref as is (a behind one fast-forwards to its
    remote; ahead or diverged commits are kept and reported), or one created
    from its remote tip. It refuses — on control, starting nothing — a

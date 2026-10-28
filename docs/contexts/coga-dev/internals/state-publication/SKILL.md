@@ -31,6 +31,12 @@ description: State publication invariants, shared root membership, the end-of-co
 
 ## Shared root machinery
 
+Ordinary startup's explicit task-and-log transaction is owned by
+[the publish leaf](publish/SKILL.md#ordinary-managed-startup). It does not
+change sweep selection or any other writer's defaults. The complete
+[`append_log` writer inventory](log-writers/SKILL.md) identifies each later
+publisher and the exits that retain lines instead.
+
 `git.coga_root_paths(cfg)` is the one membership definition: `Config.repo_root`
 plus `Config.contexts_root` (which `[layout] contexts` may move outside the
 Coga root), a root nested in the other listed once. In the root layout the

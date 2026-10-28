@@ -51,7 +51,9 @@ decision: activation runs inline with the same refusals as `coga mark active`
 (no workflow, unfreezable `workflow:`, empty required extension field,
 unsynthesized authoring notes, unavailable main agent). On the agent path the
 activation is prepared in memory and its durable write is deferred until every
-refusing preflight passes, so a refused launch leaves the ticket unchanged. A
+refusing preflight passes. Ordinary managed startup publishes the final start
+with its linkage and audit; its [retained-state failure contract](../checkouts/launch-boundary/SKILL.md)
+distinguishes preparation refusal from unconfirmed publication. A
 `ticket.py` path activates just before the script runs, because running user
 code is already work starting. `done` and `canceled` are refused untouched.
 
@@ -103,8 +105,18 @@ operator. An assist's attribution is owned by
 Agent type and CLI lookup, a full prompt composition (a missing layer
 refuses), declared secrets, push auth (`git push --dry-run`; skipped for
 bootstrap targets, `[git].enabled = false`, or no resolvable remote).
-Only then is the deferred activation written and `active` flipped to
-`in_progress` (posting `▶️`). Launch never probes `gh` for PR state
+Ordinary managed agent-only launches then plan checkout policy, reserve/create
+or validate the branch, and compose from the prospective final ticket and
+checkout notice. Source-ticket, policy, branch occupancy, ignored-path, and
+stranded-ticket checks precede every startup write. Activation/start, linkage,
+and audit publish together; fetched control must confirm the ticket contract
+before checkout entry and execution. Compatible owner notes are recomposed;
+changed lifecycle, routing, policy, or branch identity refuses. The successful
+start notification (`▶️`) follows confirmed publication and checkout entry,
+so a reported delivery failure does not invalidate the clean-control proof.
+Other paths retain their existing startup sequence, as classified in
+[publication boundaries](../state-publication/launch-boundaries/SKILL.md).
+Launch never probes `gh` for PR state
 (`coga autoclose` handles merged PRs). Git runs non-interactively, so a
 credential-less remote fails fast; this entry gate is fatal, while a later
 mid-session sync miss is reported and non-fatal.

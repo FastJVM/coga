@@ -12,6 +12,8 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import append_test_usage as _usage_record
+
 from coga import checkouts
 from coga import git as coga_git
 from coga import launch as launch_module
@@ -305,6 +307,558 @@ def _handoff(git_repo, ref: TaskRef, text: str) -> None:  # type: ignore[no-unty
     )
 
 
+def _startup_task(git_repo, status: str, checkout: str, *, workflow_ref: bool = False) -> TaskRef:  # type: ignore[no-untyped-def]
+    """One shipped agent step followed by an owner handoff, with real publication."""
+    from coga.taskfile import join_task_body
+    import yaml
+
+    workflow = "code/design-then-implement" if checkout == "control" else "code/with-self-review"
+    if checkout == "control":
+        with (git_repo.coga_os / "coga.local.toml").open("a", encoding="utf-8") as config:
+            config.write('\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n')
+    ref = _task(git_repo, workflow)
+    ticket = read_ticket(ref)
+    steps = ticket.workflow["steps"]
+    ticket.workflow["steps"] = [steps[0], steps[-1]]
+    ticket.workflow["steps"][0].pop("requires", None)
+    ticket.frontmatter["status"] = status
+    if checkout == "reuse":
+        ticket.body = join_task_body("## Description\n\nStartup test.\n", "## Dev\n\nbranch: feature/startup\n")
+    if workflow_ref:
+        path = git_repo.coga_os / "workflows" / f"{workflow}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("---\n" + yaml.safe_dump({"name": workflow, "steps": ticket.workflow["steps"]}) + "---\n", encoding="utf-8", newline="\n")
+        ticket.frontmatter["workflow"] = workflow
+        ticket.frontmatter.pop("step", None)
+        ticket.frontmatter.pop("agent", None)
+    ticket.write(ref.ticket_path)
+    coga_git.sync_coga_state(load_config(git_repo.coga_os))
+    if checkout == "reuse":
+        git_repo.git("branch", "feature/startup")
+    assert _dirty(git_repo) == []
+    return ref
+
+
+def _main(monkeypatch: pytest.MonkeyPatch, *args: str) -> int:
+    """Exercise the console entry point, including its outer sweep."""
+    from coga import cli
+
+    monkeypatch.setattr(sys, "argv", ["coga", *args])
+    try:
+        cli.main()
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    return 0
+
+
+@pytest.mark.parametrize("status", ["in_progress", "active", "draft"])
+@pytest.mark.parametrize("checkout", ["control", "reuse", "create"])
+def test_ordinary_launch_has_three_publications(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, status: str, checkout: str,
+) -> None:  # type: ignore[no-untyped-def]
+    _assert_startup_publications(git_repo, launch_env, monkeypatch, status, checkout)
+
+
+@pytest.mark.parametrize("status,workflow_ref", [("draft", True), ("paused", False)])
+def test_ordinary_activation_freezes_and_reactivates_in_one_publication(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, status: str, workflow_ref: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    _assert_startup_publications(
+        git_repo, launch_env, monkeypatch, status, "create", workflow_ref=workflow_ref,
+    )
+
+
+def _assert_startup_publications(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, status: str, checkout: str,
+    *, workflow_ref: bool = False,
+) -> None:  # type: ignore[no-untyped-def]
+    from coga.recurring_activity import is_machine_commit
+
+    ref = _startup_task(git_repo, status, checkout, workflow_ref=workflow_ref)
+    rel = _rel(git_repo, ref)
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    log_before = _control(git_repo, "coga/log.md")
+    real_switch = checkouts._switch
+
+    def switch(root, branch, stage):  # type: ignore[no-untyped-def]
+        assert _dirty(git_repo) == []
+        assert "launched" in _control(git_repo, "coga/log.md")[len(log_before):]
+        real_switch(root, branch, stage)
+
+    monkeypatch.setattr(checkouts, "_switch", switch)
+
+    def handoff(seen: dict) -> None:
+        startup = Ticket.parse(_control(git_repo, rel))
+        assert startup.status == "in_progress"
+        assert isinstance(startup.workflow, dict) and startup.agent
+        assert ref.ticket_path.read_bytes() == _control(git_repo, rel).encode()
+        assert '"session_id":"startup-usage"' not in _control(git_repo, "coga/log.md")
+        if checkout != "control":
+            assert checkouts.parse_branch_names(read_blackboard(ref.ticket_path)) == [seen["head"]]
+        _handoff(git_repo, ref, "Exact handoff bytes: café → owner.")
+        _bump(git_repo, ref.id_slug, subprocess_run=True)
+        assert "step: 2 (review)" in _control(git_repo, rel)
+        assert "Exact handoff bytes: café → owner." in _control(git_repo, rel)
+        assert '"session_id":"startup-usage"' not in _control(git_repo, "coga/log.md")
+
+    agent = _Agent(git_repo, [handoff])
+    launch_env(agent)
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", _usage_record)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert len(agent.seen) == 1
+    commits = git_repo.git("rev-list", "--reverse", f"{start}..main", cwd=git_repo.origin).splitlines()
+    subjects = [git_repo.git("show", "-s", "--format=%s", oid, cwd=git_repo.origin).strip() for oid in commits]
+    branch = agent.seen[0]["head"]
+    first = (
+        f"Ticket: {ref.id_slug} — in_progress" if status != "in_progress"
+        else f"Ticket: {ref.id_slug} — branch {branch}" if checkout == "create"
+        else f"Log: {ref.id_slug}"
+    )
+    assert subjects == [first, f"Ticket: {ref.id_slug} — step 2 (review)", f"Log: {ref.id_slug}"]
+    for index, oid in enumerate(commits):
+        paths = git_repo.git("diff-tree", "--no-commit-id", "--name-only", "-r", oid, cwd=git_repo.origin).splitlines()
+        expected = ["coga/log.md"] if index == 2 or (index == 0 and first.startswith("Log:")) else ["coga/log.md", rel]
+        assert paths == expected
+        assert is_machine_commit(subjects[index]) == subjects[index].startswith("Log:")
+    startup_log = git_repo.git("show", f"{commits[0]}:coga/log.md", cwd=git_repo.origin)[len(log_before):]
+    assert startup_log.count("launched") == 1
+    assert startup_log.count("started (active → in_progress)") == int(status != "in_progress")
+    assert startup_log.count(f"activated ({status} → active)") == int(status in {"draft", "paused"})
+    if status in {"draft", "paused"}:
+        assert startup_log.index("activated") < startup_log.index("started") < startup_log.index("launched")
+    assert "Exact handoff bytes" not in git_repo.git("show", f"{commits[0]}:{rel}", cwd=git_repo.origin)
+    assert '"session_id":"startup-usage"' not in git_repo.git("show", f"{commits[1]}:coga/log.md", cwd=git_repo.origin)
+    final_log = _control(git_repo, "coga/log.md")
+    assert final_log.count('"session_id":"startup-usage"') == 1
+    end = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    assert _head(git_repo) == "main" and _dirty(git_repo) == []
+    assert git_repo.git("rev-parse", "HEAD").strip() == end
+    coga_git.sync_coga_state(load_config(git_repo.coga_os))
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == end
+
+
+@pytest.mark.parametrize("failure", ["failed", "refused", "uncertain", "skipped", "after-push", "interrupted"])
+@pytest.mark.parametrize("checkout", ["control", "create"])
+def test_grouped_startup_failure_retains_evidence_and_withholds_sweep(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, capsys, failure: str, checkout: str,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "draft", checkout)
+    rel = _rel(git_repo, ref)
+    original = ref.ticket_path.read_bytes()
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    real_publish = coga_git.publish
+
+    def fail(cfg, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("guard") is not None and message.endswith("— in_progress"):
+            if failure == "skipped":
+                return None
+            if failure == "interrupted":
+                raise KeyboardInterrupt()
+            if failure == "after-push":
+                real_publish(cfg, paths, message, **kwargs)
+            error = {
+                "failed": coga_git.GitError, "refused": coga_git.StateRegressionError,
+                "uncertain": coga_git.UncertainPublishError, "after-push": coga_git.UncertainPublishError,
+            }[failure]
+            raise error("injected startup failure")
+        return real_publish(cfg, paths, message, **kwargs)
+
+    monkeypatch.setattr(coga_git, "publish", fail)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 75
+    output = capsys.readouterr()
+    assert "startup publication" in output.err and "retained" in output.err
+    assert agent.seen == [] and _head(git_repo) == "main"
+    assert read_ticket(ref).status == "in_progress"
+    assert "launched" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
+    count = int(git_repo.git("rev-list", "--count", f"{start}..main", cwd=git_repo.origin))
+    assert count == int(failure == "after-push")
+    if failure != "after-push":
+        assert _control(git_repo, rel).encode() == original
+    if checkout == "create":
+        receipt = checkouts._read_receipt(load_config(git_repo.coga_os), git_repo.root, rel)
+        assert receipt is not None and receipt["stage"] == "created"
+        assert receipt["branch"] in git_repo.git("branch", "--list", "coga/*")
+    # A later entry settles the already-recorded transition; it must not
+    # reactivate or start again. No compensating transition moves control back.
+    monkeypatch.setattr(coga_git, "publish", real_publish)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    log = _control(git_repo, "coga/log.md")
+    assert log.count("activated (draft → active)") == 1
+    assert log.count("started (active → in_progress)") == 1
+    assert _dirty(git_repo) == []
+
+
+@pytest.mark.parametrize("change", ["step", "agent", "secrets", "branch", "notes"])
+def test_control_only_resume_rechecks_ticket_after_log_publication(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, change: str,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "in_progress", "control")
+    rel = _rel(git_repo, ref)
+    real_publish = coga_git.publish
+    raced = False
+
+    def race(cfg, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        result = real_publish(cfg, paths, message, **kwargs)
+        if kwargs.get("guard") is not None and not raced:
+            raced = True
+            ticket = Ticket.parse(_control(git_repo, rel))
+            if change == "step":
+                ticket.frontmatter["step"] = "2 (review)"
+            elif change == "agent":
+                ticket.frontmatter["agent"] = "codex"
+            elif change == "secrets":
+                ticket.frontmatter["secrets"] = [{"NEW_SECRET": "env:NEW_SECRET"}]
+            elif change == "branch":
+                ticket.body += "\n## Dev\n\nbranch: feature/changed\n"
+            else:
+                ticket.body += "\nCompatible owner note.\n"
+            git_repo.push_competing_commit(rel, ticket.render())
+        return result
+
+    monkeypatch.setattr(coga_git, "publish", race)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == (0 if change == "notes" else 75)
+    assert raced
+    if change == "notes":
+        assert "Compatible owner note." in agent.seen[0]["prompt"]
+    else:
+        assert agent.seen == []
+    assert _dirty(git_repo) == []
+
+
+def test_log_only_startup_guards_an_unselected_ticket_during_push_retry(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "in_progress", "control")
+    rel = _rel(git_repo, ref)
+    real_push = coga_git._push
+    raced = False
+
+    def push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            ticket = Ticket.parse(_control(git_repo, rel))
+            ticket.frontmatter["agent"] = "codex"
+            git_repo.push_competing_commit(rel, ticket.render())
+        return real_push(root, remote, refspec)
+
+    monkeypatch.setattr(coga_git, "_push", push)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 75
+    assert agent.seen == [] and raced
+    assert Ticket.parse(_control(git_repo, rel)).agent == "codex"
+    assert "launched" not in _control(git_repo, "coga/log.md")
+    assert "launched" in (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
+
+
+def test_startup_and_usage_preserve_concurrent_remote_log_appends(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "draft", "create")
+    real_push = coga_git._push
+    peers: list[str] = []
+
+    def push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        subject = git_repo.git("show", "-s", "--format=%s", refspec.split(":")[0]).strip()
+        if (subject.endswith("— in_progress") and not peers) or (subject.startswith("Log:") and len(peers) == 1):
+            line = f"2026-10-27 00:00 v1 [peer] [system] concurrent {len(peers)}\n"
+            peers.append(line)
+            git_repo.push_competing_commit("coga/log.md", _control(git_repo, "coga/log.md") + line)
+        return real_push(root, remote, refspec)
+
+    monkeypatch.setattr(coga_git, "_push", push)
+    launch_env(_Agent(git_repo, [lambda seen: _bump(git_repo, ref.id_slug, subprocess_run=True)]))
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", _usage_record)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    final = _control(git_repo, "coga/log.md")
+    assert len(peers) == 2
+    for line in peers:
+        assert final.count(line) == 1
+    assert final.count("launched") == 1 and final.count('"session_id":"startup-usage"') == 1
+    before = git_repo.git("rev-parse", "HEAD")
+    coga_git.sync_log(load_config(git_repo.coga_os), message=f"Log: {ref.id_slug}")
+    coga_git.sync_coga_state(load_config(git_repo.coga_os))
+    assert git_repo.git("rev-parse", "HEAD") == before
+
+
+@pytest.mark.parametrize("extra", ["entry", "command", "after-bump"])
+def test_extra_state_publications_are_counted_outside_the_ordinary_bound(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, extra: str,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "draft", "control")
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    knowledge = git_repo.coga_os / "context.md"
+    if extra == "entry":
+        knowledge.write_text("Extra eligible entry state.\n", encoding="utf-8", newline="\n")
+
+    def work(seen: dict) -> None:
+        _handoff(git_repo, ref, "First handoff edit.")
+        if extra == "command":
+            # A separate real mutating command sweeps the early blackboard.
+            env = {k: v for k, v in os.environ.items() if not k.startswith("COGA_")}
+            env["PYTHONPATH"] = str(Path(checkouts.__file__).resolve().parents[1])
+            result = subprocess.run([sys.executable, "-m", "coga.cli", "run", "cleanup-orphan-markers"], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
+            assert result.returncode == 0, result.stdout + result.stderr
+        _handoff(git_repo, ref, "Final handoff edit.")
+        _bump(git_repo, ref.id_slug, subprocess_run=True)
+        if extra == "after-bump":
+            knowledge.write_text("Extra eligible return state.\n", encoding="utf-8", newline="\n")
+
+    launch_env(_Agent(git_repo, [work]))
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", _usage_record)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert int(git_repo.git("rev-list", "--count", f"{start}..main", cwd=git_repo.origin)) == 4
+    assert "Final handoff edit." in _control(git_repo, _rel(git_repo, ref))
+    if extra != "command":
+        assert "Extra eligible" in _control(git_repo, "coga/context.md")
+    assert _dirty(git_repo) == []
+
+
+@pytest.mark.parametrize("failure", ["compose", "secret", "ignored-log", "source", "target"])
+def test_grouped_preflight_refuses_before_any_startup_write(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "draft", "create")
+    cfg = load_config(git_repo.coga_os)
+    if failure in {"compose", "secret"}:
+        ticket = read_ticket(ref)
+        ticket.frontmatter["contexts" if failure == "compose" else "secrets"] = (
+            ["missing/topic"] if failure == "compose" else [{"MISSING": "env:COGA_TEST_MISSING_SECRET"}]
+        )
+        ticket.write(ref.ticket_path)
+        coga_git.sync_task_state(cfg, ref.path, message="Seed refused input")
+    elif failure == "ignored-log":
+        git_repo.git("rm", "-f", "coga/log.md")
+        with (git_repo.root / ".gitignore").open("a", encoding="utf-8") as f:
+            f.write("coga/log.md\n")
+        git_repo.git("add", ".gitignore")
+        git_repo.git("commit", "-m", "Ignore log")
+        git_repo.git("push", "origin", "main")
+    original = ref.ticket_path.read_bytes()
+    log = git_repo.coga_os / "log.md"
+    original_log = log.read_bytes() if log.exists() else None
+    real_compose = launch_module.compose_prompt
+    changed = False
+
+    def compose(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal changed
+        prompt = real_compose(*args, **kwargs)
+        if kwargs.get("checkout") is not None and not changed:
+            changed = True
+            if failure == "source":
+                ref.ticket_path.write_bytes(original + b"\nConcurrent local note.\n")
+            elif failure == "target":
+                branch = git_repo.git("branch", "--list", "coga/*").strip()
+                tree = git_repo.git("rev-parse", "HEAD^{tree}").strip()
+                other = git_repo.git("commit-tree", tree, "-p", "HEAD", "-m", "Target moved").strip()
+                git_repo.git("update-ref", f"refs/heads/{branch}", other)
+        return prompt
+
+    monkeypatch.setattr(launch_module, "compose_prompt", compose)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) in {2, 75}
+    assert agent.seen == []
+    assert read_ticket(ref).status == "draft"
+    assert ref.ticket_path.read_bytes() == original + (b"\nConcurrent local note.\n" if failure == "source" else b"")
+    assert (log.read_bytes() if log.exists() else None) == original_log
+    assert _control(git_repo, _rel(git_repo, ref)).encode() == original
+
+
+def test_failed_start_notification_is_nonfatal_after_clean_branch_entry(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:  # type: ignore[no-untyped-def]
+    import requests
+
+    ref = _startup_task(git_repo, "active", "create")
+    calls: list[str] = []
+
+    def fail_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(_head(git_repo))
+        assert read_ticket(ref).status == "in_progress"
+        assert "launched" in _control(git_repo, "coga/log.md")
+        raise requests.ConnectionError("injected delivery failure")
+
+    monkeypatch.setattr(requests, "post", fail_post)
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert len(agent.seen) == 1 and len(calls) == 1
+    assert calls[0].startswith("coga/")
+    assert "post failed" in _control(git_repo, "coga/log.md")
+    assert "post failed" in capsys.readouterr().err
+    assert _dirty(git_repo) == []
+
+
+@pytest.mark.parametrize("ending,exit_code", [
+    ("natural", 0), ("nonzero", 3), ("timeout", 124), ("sigint", 130), ("sigterm", 143), ("spawn", 2),
+])
+def test_grouped_launch_cleanup_publishes_dirty_handoff_on_every_catchable_exit(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, ending: str, exit_code: int,
+) -> None:  # type: ignore[no-untyped-def]
+    import signal
+    from coga.repl_supervisor import AgentCliNotFound
+
+    ref = _startup_task(git_repo, "active", "create")
+    launch_env(_Agent(git_repo, []))
+    usages: list[str] = []
+
+    def capture(**kwargs):  # type: ignore[no-untyped-def]
+        usages.append(kwargs["outcome_status"])
+        _usage_record(**kwargs)
+
+    def child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if ending == "spawn":
+            raise AgentCliNotFound("missing test CLI")
+        _handoff(git_repo, ref, "Dirty handoff without a transition.")
+        if ending in {"sigint", "sigterm"}:
+            signum = signal.SIGINT if ending == "sigint" else signal.SIGTERM
+            signal.getsignal(signum)(signum, None)
+        return ReplOutcome(exit_code, "timeout" if ending == "timeout" else "natural")
+
+    monkeypatch.setattr(launch_module, "run_with_done_marker", child)
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", capture)
+    assert _main(monkeypatch, "launch", ref.id_slug) == exit_code
+    assert _head(git_repo) == "main" and _dirty(git_repo) == []
+    assert read_ticket(ref).step == "1 (implement)"
+    if ending != "spawn":
+        assert usages and "Dirty handoff without a transition." in _control(git_repo, _rel(git_repo, ref))
+        assert _control(git_repo, "coga/log.md").count('"session_id":"startup-usage"') == 1
+    else:
+        assert not usages
+
+
+def test_abrupt_launch_death_is_recovered_at_the_next_entry(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "active", "create")
+    script = tmp_path / "abrupt.py"
+    script.write_text(dedent(f"""
+        import os
+        from pathlib import Path
+        from coga import cli, launch
+        launch.agent_sessions_supported = lambda: True
+        launch._interactive_stdio_has_tty = lambda: True
+        launch._preflight_push_auth = lambda *a, **k: None
+        launch.shutil.which = lambda name: '/usr/bin/' + name
+        def child(*args, **kwargs):
+            path = Path({str(ref.ticket_path)!r})
+            path.write_bytes(path.read_bytes() + b'\\nHandoff retained after abrupt death.\\n')
+            os._exit(91)
+        launch.run_with_done_marker = child
+        cli.main()
+    """), encoding="utf-8", newline="\n")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("COGA_")}
+    env["PYTHONPATH"] = str(Path(checkouts.__file__).resolve().parents[1])
+    result = subprocess.run([sys.executable, str(script), "launch", ref.id_slug], cwd=git_repo.coga_os, env=env, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 91, result.stdout + result.stderr
+    assert _head(git_repo).startswith("coga/")
+    assert "Handoff retained after abrupt death." not in _control(git_repo, _rel(git_repo, ref))
+    assert '"session_id":"startup-usage"' not in _control(git_repo, "coga/log.md")
+    agent = _Agent(git_repo, [])
+    launch_env(agent)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert "Handoff retained after abrupt death." in agent.seen[0]["prompt"]
+    assert _dirty(git_repo) == [] and _head(git_repo) == "main"
+
+
+def test_grouped_launch_usage_failure_keeps_the_child_result_and_reports_retained_log(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "active", "create")
+    real_publish = coga_git.publish
+
+    def publish(cfg, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        if '"session_id":"startup-usage"' in (cfg.repo_root / "log.md").read_text(encoding="utf-8"):
+            raise coga_git.GitError("usage publication unavailable")
+        return real_publish(cfg, paths, message, **kwargs)
+
+    monkeypatch.setattr(coga_git, "publish", publish)
+    launch_env(_Agent(git_repo, []))
+    monkeypatch.setattr(launch_module, "run_with_done_marker", lambda *a, **k: ReplOutcome(3, "natural"))
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", _usage_record)
+    assert _main(monkeypatch, "launch", ref.id_slug) == 3
+    err = capsys.readouterr().err
+    assert "log publication was not confirmed" in err
+    assert "Checkout return" in err and "preserved" in err
+    assert "not on control" in err
+    assert '"session_id":"startup-usage"' not in _control(git_repo, "coga/log.md")
+    assert _head(git_repo).startswith("coga/")
+
+
+def test_grouped_teardown_without_new_usage_attempts_publication_without_a_commit(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _startup_task(git_repo, "draft", "create")
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    calls: list[bool | None] = []
+    real_sync = coga_git.sync_log
+
+    def sync(cfg, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_sync(cfg, **kwargs)
+        calls.append(result)
+        return result
+
+    monkeypatch.setattr(coga_git, "sync_log", sync)
+    launch_env(_Agent(git_repo, [lambda seen: _bump(git_repo, ref.id_slug, subprocess_run=True)]))
+    assert _main(monkeypatch, "launch", ref.id_slug) == 0
+    assert calls == [False]
+    assert int(git_repo.git("rev-list", "--count", f"{start}..main", cwd=git_repo.origin)) == 2
+
+
+@pytest.mark.parametrize("target", ["bootstrap/orient", "bootstrap/ticket"])
+def test_bootstrap_keeps_its_start_and_usage_publications(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, target: str,
+) -> None:  # type: ignore[no-untyped-def]
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+
+    def inspect(seen: dict) -> None:
+        assert "launched" in _control(git_repo, "coga/log.md")
+        assert _dirty(git_repo) == []
+
+    launch_env(_Agent(git_repo, [inspect]))
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", _usage_record)
+    assert _main(monkeypatch, "launch", target) == 0
+    assert git_repo.git("log", "--reverse", "--format=%s", f"{start}..main", cwd=git_repo.origin).splitlines() == [f"Log: {target}"] * 2
+    assert _dirty(git_repo) == []
+
+
+@pytest.mark.parametrize("status,count", [("active", 4), ("draft", 5), ("in_progress", 3)])
+def test_script_start_and_exit_keep_their_independent_publications(
+    git_repo, monkeypatch: pytest.MonkeyPatch, status: str, count: int,
+) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg, title="Script publications", workflow_name="code", contexts=[],
+        owner="marc", agent="claude", status="active", force_directory=True,
+    )
+    directory = Path(created["path"])
+    ticket_path = directory / "ticket.md"
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = status
+    ticket.workflow["steps"][1]["assignee"] = "owner"
+    ticket.write(ticket_path)
+    (directory / "ticket.py").write_text(
+        "import subprocess, sys\n"
+        f"subprocess.run([sys.executable, '-m', 'coga.cli', 'bump', {created['slug']!r}], check=True)\n",
+        encoding="utf-8", newline="\n",
+    )
+    coga_git.sync_task_state(cfg, directory, message="Seed scripted task")
+    start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    monkeypatch.setenv("PYTHONPATH", str(Path(checkouts.__file__).resolve().parents[1]))
+    assert _main(monkeypatch, "launch", created["slug"]) == 0
+    subjects = git_repo.git("log", "--reverse", "--format=%s", f"{start}..main", cwd=git_repo.origin).splitlines()
+    assert len(subjects) == count
+    assert subjects[-2:] == [f"Ticket: {created['slug']} — step 2 (review)", "Sync coga state before checkout return"]
+    assert _dirty(git_repo) == [] and _head(git_repo) == "main"
+
+
 def test_implementation_starts_on_a_published_branch_and_chains_through_review(
     git_repo, launch_env
 ) -> None:  # type: ignore[no-untyped-def]
@@ -520,23 +1074,23 @@ def test_interrupted_linkage_publication_retries_the_same_reservation(
 ) -> None:  # type: ignore[no-untyped-def]
     ref = _task(git_repo, "code/with-self-review")
     rel = _rel(git_repo, ref)
-    real_sync = coga_git.sync_task_state
+    real_sync = coga_git.publish
     calls = {"n": 0}
 
-    def flaky(cfg, path, *, message, **kwargs):  # type: ignore[no-untyped-def]
-        if "— branch " in message and calls["n"] == 0:
+    def flaky(cfg, path, message, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("guard") is not None and calls["n"] == 0:
             calls["n"] += 1
             raise coga_git.GitError("offline")
         return real_sync(cfg, path, message=message, **kwargs)
 
-    monkeypatch.setattr("coga.git.sync_task_state", flaky)
+    monkeypatch.setattr("coga.git.publish", flaky)
     agent = _Agent(git_repo, [lambda seen: None])
     launch_env(agent)
 
     first = _launch(ref.id_slug)
 
     assert first.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, first.output
-    assert "linkage publication" in first.output
+    assert "startup publication" in first.output
     assert agent.seen == [] and _head(git_repo) == "main"
     reserved = Ticket.read(ref.ticket_path)
     local_branch = checkouts.parse_branch_names(read_blackboard(ref.ticket_path))[0]
@@ -553,7 +1107,7 @@ def test_interrupted_linkage_publication_retries_the_same_reservation(
     assert branches == [local_branch]
 
 
-@pytest.mark.parametrize("stage", ["entry", "linkage publication"])
+@pytest.mark.parametrize("stage", ["entry", "launch audit"])
 @pytest.mark.parametrize(
     "change",
     ["workflow", "step-name", "step-skills", "assignee", "skill-body", "inline-body"],
@@ -622,8 +1176,8 @@ def test_launch_refuses_a_refreshed_step_contract(
         assert branches == checkouts.parse_branch_names(read_blackboard(ref.ticket_path))
 
 
-@pytest.mark.parametrize("stage", ["entry", "linkage publication"])
-def test_launch_accepts_new_notes_with_the_same_step_contract(
+@pytest.mark.parametrize("stage", ["entry", "launch audit"])
+def test_launch_accepts_only_post_publication_notes_with_the_same_step_contract(
     git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, stage: str
 ) -> None:  # type: ignore[no-untyped-def]
     ref = _task(git_repo, "code/with-self-review")
@@ -644,7 +1198,12 @@ def test_launch_accepts_new_notes_with_the_same_step_contract(
 
     result = _launch(ref.id_slug)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == (75 if stage == "entry" else 0), result.output
+    if stage == "entry":
+        assert agent.seen == []
+        assert "changed since startup preflight" in result.output
+        assert "launched" not in _control(git_repo, "coga/log.md")
+        return
     assert len(agent.seen) == 1
     assert "New owner note." in agent.seen[0]["prompt"]
     assert "New owner note." in _control(git_repo, rel)
@@ -1241,21 +1800,21 @@ def test_completed_reservation_receipts_never_resurrect_a_removed_branch(
     rel = _rel(git_repo, ref)
     root = coga_git.toplevel(git_repo.root)
     receipt = checkouts._receipt_path(root, rel)
-    real_sync = coga_git.sync_task_state
+    real_sync = coga_git.publish
     calls = {"n": 0}
 
-    def flaky(cfg, path, *, message, **kwargs):  # type: ignore[no-untyped-def]
-        if "— branch " in message and calls["n"] == 0:
+    def flaky(cfg, path, message, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("guard") is not None and calls["n"] == 0:
             calls["n"] += 1
             raise coga_git.GitError("offline")
         return real_sync(cfg, path, message=message, **kwargs)
 
-    monkeypatch.setattr("coga.git.sync_task_state", flaky)
+    monkeypatch.setattr("coga.git.publish", flaky)
     agent = _Agent(git_repo, [lambda seen: None, lambda seen: None])
     launch_env(agent)
 
     assert _launch(ref.id_slug).exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-    assert json.loads(receipt.read_text(encoding="utf-8"))["stage"] == "linked"
+    assert json.loads(receipt.read_text(encoding="utf-8"))["stage"] == "created"
     assert _launch(ref.id_slug).exit_code == 0
     # The linked reservation landed and was reused: nothing is retained.
     assert not receipt.exists()
