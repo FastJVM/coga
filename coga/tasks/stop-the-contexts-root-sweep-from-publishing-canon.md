@@ -10,45 +10,60 @@ workflow: code/design-then-implement
 
 ## Description
 
-Coga keeps hand-maintained byte-identical twins: packaged resources under `src/coga/resources/templates/coga/` with a live counterpart in this repo (`docs/contexts/<ref>` for contexts; `coga/<path>` for skills, workflows, recurring tickets, scaffolding). Both live trees are Coga roots, so a state sweep on a feature branch (bump, `coga create`, …) publishes the live half straight to control while the packaged half travels only in the PR, and main fails `tests/test_packaging.py` until the PR merges. Observed 2026-10-21: 001aad66f (blocks/02's deletion of `docs/contexts/coga/code/` and architecture edits) and e9a88b970 (blocks/09's topic edits, from a `coga create` sweep).
+Coga keeps hand-maintained twins of shipped resources in the package and in this repo's live Coga roots. A feature-branch state sweep can publish the live half to control before the packaged half merges, leaving main's packaging tests red. Remove that duplication by making `src/coga/resources/` the single committed source of shipped content, read from the installed package at runtime, with deliberate repo overrides taking precedence.
 
-Owner decision: shipped resources live **only in the wheel** and are read from it, read-only. The package tree under `src/coga/resources/` is the single committed source; repos (this one included) hold only their own overrides and real state, never copies of shipped files. That removes the drift and makes upgrades a package bump instead of a re-copy. Recurring tickets must work this way too, which needs a package fallback that does not exist today.
+Owner decision: shipped definitions live **only in the package** and runtime consumers treat them as read-only. An editable install reads the source tree; an installed wheel reads its resources. Repos, including this one, retain their own overrides, real state, and the explicitly justified physical scaffolding described below. Upgrades should update fallback content without re-copying it into each repo. Recurring parents need this fallback too, with their writable state kept in the repo or clone, never in the package.
 
 Rejected alternatives: excluding twin paths from the sweep, or publishing both halves together. Both treat the symptom and keep the duplication that produces drift.
 
-Done when:
-- No shipped resource is committed twice: the live copies under `docs/contexts/coga/**` and `coga/{skills,workflows,recurring}/**` that duplicate the package are deleted, and this repo resolves them from the package. The only remaining pairs are files that differ by design (see Context).
-- Recurring parents shipped by the package (`autoclose-merged`, `branch-sweep`, `blocker-reminders`, `dream`, `phone-home`, `skill-update`, `address-pr-comments`, `resolve-conflicts`) are discovered and run from the wheel when the repo has no local override, and a local override still wins.
-- Both an editable install and a wheel built from a fresh clone serve every fallback context, init scaffold, bundled battery, and recurring parent.
-- `tests/test_packaging.py` asserts single-source (no shipped file duplicated in a live root, except the documented exceptions; `coga-dev/` never ships) instead of byte-identity, plus a regression test showing that a feature-branch sweep which edits a shipped resource cannot leave main's packaging tests red.
-- Docs follow: `docs/README.md`, `AGENTS.md`, and cross-topic links point at the package paths, with `test_context_navigation_has_no_broken_links` green. `coga-dev/packaging`, `coga-dev/testing`, `coga-dev/codebase`, and the twin paragraph in `AGENTS.md` describe the new rule.
+The ticket is done when this repo has no unapproved live copies of shipped content, every removed copy resolves from the package in editable and fresh-wheel installations, and recurring discovery and execution work without local parents while preserving overrides and writable state. Fresh initialization must use fallbacks for reusable shipped definitions while creating the necessary repo-owned scaffolding; existing installations need a documented migration that preserves customization and state. Packaging tests must enforce the single-source rule and local-only `coga-dev/` audience, and a feature-branch sweep regression must prove that editing packaged content cannot publish half of that change to control or break control's packaging checks. The owning topics, agent instructions, indexes, and links must describe and navigate the new layout, with context navigation checks green.
 
 ## Context
 
 ### Background
 
-The twins are historical, not designed. `relay init` once vendored package content into each repo, and this repo dogfooded (e8fac886f). Then 340ef8033 made fallbacks resolve from the wheel. Finally #875 (5c917004d) moved the contexts root to `docs/contexts/` and hand-mirrored every user topic into the package, with byte-identity tests as the drift guard. The owner authorizes the `design` step to read `docs/archive/` for a recorded twin rationale only; if one turns up that conflicts with the decision above, raise it at `review-design` rather than deviating.
+The twins grew from init vendoring (e8fac886f), survived package fallbacks (340ef8033), and became mandatory for user topics in #875 (5c917004d). The owner authorizes the `design` step to read `docs/archive/` for a recorded twin rationale only; raise any conflict with the owner decision at `review-design` rather than deviating.
 
-### Facts the design depends on (verified 2026-10-27)
+Observed failures on 2026-10-21: 001aad66f published topic deletions/architecture edits; e9a88b970 published topic edits during `coga create`. Test the publication boundary, not those historical commits.
 
-- Skills and workflows already resolve local-first and fall back to package `bootstrap/` (`paths.resolve_skill_path`, `paths.resolve_workflow_path`). Contexts fall back to `bootstrap/contexts` when absent from the contexts root (`paths.resolve_context_path`). For these, deleting the live copies is mostly enough.
-- Recurring parents have **no** package fallback: `paths.recurring_dir(cfg)` is just `cfg.repo_root / "recurring"`. Its consumers (state publication in `git`, `logfile`, `retire_worklist`, the recurring scheduler/launch) must learn to merge package parents with local ones. Recurring runs produce period tasks and per-repo state; decide where that state lives when the parent is read-only in the wheel.
-- Resources are read via `files("coga.resources").joinpath("templates", "coga", …)` (`paths.py`). Under `pip install -e` that is `src/coga/` directly, so editable installs work with no build step once the package is the source.
-- Some files must stay physically in a repo: `coga/.gitattributes` (git applies `merge=union` only from a real file), and the `INTENTIONALLY_DIVERGENT_TWINS` entries in `tests/test_packaging.py` (`coga/.gitignore`, `coga/coga.toml`, `coga/context.md`, `coga/log.md`, `coga/recurring/phone-home/ticket.md`), where the live copy is this repo's real state. Keep these as explicit exceptions, or justify a change.
-- `coga-dev/` topics are local-only (`LOCAL_ONLY_CONTEXT_NAMESPACES`) and stay in `docs/contexts/coga-dev/`. Their relative links into `coga/*` topics must be repointed. The audience criterion is owned by `coga/context-layout` (cited; read "Context audiences").
-- `coga-dev/packaging` ("Wheel packaging") warns that hatch walk + force-include collisions show up only on a pristine tree. Verify the built wheel from a fresh `git clone`/`git worktree`.
+### Facts the design depends on (verified 2026-10-28)
+
+- `paths.resolve_skill_path`, `resolve_workflow_path`, and `resolve_context_path` fall back only to package `bootstrap/{skills,workflows,contexts}/`. Init seeds outside `bootstrap/`, including `skills/direct/body/SKILL.md` and recurring workflows, need fallback support before deletion. `commands.update.copy_fresh_templates` currently copies everything except `bootstrap/`.
+- `paths.recurring_dir` is repo-local; `recurring.scan_due`, `scan_clone_due`, `create_named`, and `list_templates` read it directly. Discovery, validation, status, and named launch must agree on effective parents. Separate definition lookup from writable-state paths; never redirect writers or publication into the package.
+- `period_state.parent_ticket_path`, phone-home's `period_state`, and `retire_worklist.template_worklist_path` / `worklist_for_period_task` depend on local parents. Preserve parent blackboard keys, state snapshots, and worklists. Keep the shared serviced-period ledger in `coga/log.md` and clone ledgers local; `branch-sweep` is clone-scoped with no period task.
+- `paths.packaged_template_path` reads `files("coga.resources")`; editable installs read `src/coga/` directly. Runtime read-only behavior does not forbid normal source authoring.
+- Inventory the entire mapping in `tests/test_packaging.py` (`_live_counterparts`, `_discover_live_packaged_twins`): also include `coga/bootstrap/{address-pr-comments,resolve-conflicts}/ticket.md`, scripts/runbooks, starter templates, and `docs/contexts/.gitignore`. Preserve repo-only content.
+- Git needs a physical `coga/.gitattributes` even when identical to its seed. `INTENTIONALLY_DIVERGENT_TWINS` currently exempts `coga/{.gitignore,coga.toml,context.md,log.md}` and `coga/recurring/phone-home/ticket.md`. Preserve their state or approve a state-preserving replacement. Phone-home counters alone should not force a permanently stale definition; every remaining scaffold/override needs an explicit reason.
+- `coga-dev/` stays local. Hatch walk / force-include collisions can appear only on a pristine tree; build and install the verification wheel from a fresh disposable clone, outside the editable source import path.
+
+### Scope and verification
+
+- Exercise all shipped parents: `autoclose-merged`, `branch-sweep`, `blocker-reminders`, `dream`, `phone-home`, `skill-update`, `address-pr-comments`, `resolve-conflicts`. Cover discovery, dependency resolution, period/clone execution, overrides, and repeated state updates without package writes; stub outward effects in isolated repos.
+- Cover fresh init, customized existing repos with saved state, disabled jobs, and existing frozen periods/workflows. A local state-only directory must not shadow a packaged definition.
+- Packaging tests must reject unapproved live counterparts while retaining justified exceptions and required-resource checks. Exercise all resource types in editable and fresh-wheel smoke coverage. The feature-branch regression must prove packaged edits stay off control while ordinary local task/state edits still publish.
+- Update `docs/README.md`, `AGENTS.md`, `coga-dev/{packaging,testing,codebase}`, and affected user contracts/shipped instructions. Fix links, including local development topics' links into moved user topics; extend `test_context_navigation_has_no_broken_links` to the new owning tree.
+
+### Rollout constraint
+
+The first deletion is also subject to the sweep: `tests/test_packaging.py` (`_context_distribution_problems`) currently requires live counterparts, and `git._state_areas` includes their root. Design and verify the transition so intermediate state publications, including live-copy deletions, keep control functional and packaging checks green. A steady-state packaged-edit test alone is insufficient. Land fallback/state support and compatible checks before dependent removals; do not bypass publication guards or reintroduce the rejected sweep exclusions.
 
 ### Open for the `design` step
 
-- Adopting repos: does `coga init` keep seeding copies (e.g. `coga/recurring/*`, `coga/workflows/*`) into new repos, or stop now that they resolve from the wheel? The owner's intent ("read only in wheel files, makes updates easier") points toward stopping. Confirm the migration story for repos that already hold seeded copies (are stale identical copies left as overrides?) at `review-design`.
-- Splitting: contexts, bundled skills/workflows, and recurring/init seeds are largely independent. If the PR gets unwieldy, propose sibling tickets under a plain directory per `coga/tickets/discovery`.
+- Choose recurring-state storage and override granularity, including sibling scripts/supporting files. Malformed overrides must fail visibly, not silently select package defaults.
+- At `review-design`, approve migration of old seeds versus intentional overrides, preservation of state/customizations, `_name` parking and explicit disabling, and defaults for newly bundled jobs. Do not silently re-enable deleted/parked jobs. A documented operator migration is acceptable; automatic migration tooling is not presumed.
+- Classify retained init scaffolds and exceptions. Keep one cohesive design; propose sibling implementation tickets at `review-design` if the dependency/rollout plan needs them, per `coga/tickets/discovery`.
 
 ### Cited, not attached
 
-- `coga-dev/packaging` (`docs/contexts/coga-dev/packaging/SKILL.md`): will be edited. Read "Canonical copies and twins" and "Wheel packaging".
-- `coga/context-layout` (`docs/contexts/coga/context-layout/SKILL.md`): "Context audiences".
-- `coga/recurring` topics (`docs/contexts/coga/recurring/`): how parents, period tasks, and scheduling work today.
-- Sweep mechanics, for the failure only: `git.coga_root_paths` and `git._state_areas` publish the Coga root and `cfg.contexts_root`.
+- `coga-dev/packaging` (`docs/contexts/coga-dev/packaging/SKILL.md`): read "Where bundled resources live", "Distribution states for a context", "Canonical copies and twins", "Wheel packaging".
+- `coga/context-layout` (`docs/contexts/coga/context-layout/SKILL.md`): read "Context audiences" and "Local first, then bundled".
+- `coga/recurring/templates` (`docs/contexts/coga/recurring/templates/SKILL.md`): read "Fields", "The template-to-period transform", "First firing is retroactive", "Cross-run state surfaces". `coga/period-task` (`docs/contexts/coga/period-task/SKILL.md`): read "Persistent state lives in the parent's blackboard".
+- `coga/recurring/scheduling` (`docs/contexts/coga/recurring/scheduling/SKILL.md`): read "Periods and the serviced-period ledger", "Repo scope and clone scope", "What a sweep does per template", "Variants".
+- `coga/init` (`docs/contexts/coga/init/SKILL.md`): read "Fresh repo" and "Clone of a repo that already uses Coga".
+
+These are editing targets, cited rather than attached. Paths above are pre-migration; user-topic owners move to `src/coga/resources/templates/coga/bootstrap/contexts/` and must be updated in the same change.
+
+Sweep mechanics, for the failure only: `git.coga_root_paths` and `git._state_areas` publish the Coga root and `cfg.contexts_root`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
