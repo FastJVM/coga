@@ -36,9 +36,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 37260af7-3f8b-4921-848f-00c24a4d8dc2
 ---
 
 ## Description
@@ -488,6 +487,104 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Evaluator review
+
+2026-10-27: **Ready for owner review; no must-fix design findings.** Reviewed
+the Description and Context as the implementer's specification, then checked
+the current source, owning topics, fixtures, and frozen workflow. This is
+readiness evidence, not owner approval of the bound or failure semantics.
+Both decisions under `## Open Questions` remain for `review-design`.
+
+### Evidence and scope
+
+- The requirements compose correctly: Acceptance criteria, Proposed shape,
+  Out of scope, and the counting contract are `###` subsections under
+  Description. The frozen workflow matches the shipped
+  `src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`:
+  this step hands to owner `review-design` before implementation.
+- The three publication boundaries have concrete source support.
+  `src/coga/launch.py::_LaunchInvocation._prepare_agent` currently publishes
+  activation/start before `_prepare_step_checkout`, which can separately
+  publish linkage and the launch audit. `src/coga/bump.py::advance_step`
+  publishes the ticket and handoff immediately; `spawn_agent_session` captures
+  usage and calls `sync_log` in its later `finally`. Grouping only the startup
+  writes is coherent and does not require delaying the handoff. The explicit
+  prospective-ticket carry across `_supervise_steps` addresses its disk reread.
+- The exclusions match their actual publishers: megalaunch's
+  `_launch_until_stop` and `_admit_launch_claim_after_release` straddle child
+  release; `commands/ticket.py::_run_authoring_session` publishes the start
+  before the interview and finalizes the authored set afterward;
+  `launch_script.py::run_script_phase` separately records script start/exit;
+  `recurring_runner.py::_run_delegated_task.start_period` retains its lease
+  and launch-log boundaries. The proposal correctly makes no savings claim
+  for a resumed ordinary reuse or a queue step.
+- `src/coga/git.py::publish` supplies the required transaction, union merge,
+  and refusal/uncertainty distinctions. Its `expect` applies only to selected
+  paths, as the design notes. `cli.py::main` owns the outer sweep, so requiring
+  that entry point in count tests is necessary. The changes stay within the
+  shared launch/publication machinery permitted by `coga-dev/microkernel`.
+- Re-inventoried `append_log` calls with AST inspection of `src/**/*.py`:
+  **29 direct call sites**, matching the ticket's inventory. The classifier
+  in `src/coga/recurring_activity.py` also matches the stated subject classes.
+  Git history confirms prerequisite PR #1117 merged as `ac899dddc`.
+
+### Optional implementation recommendations
+
+1. Give control-only resumes an explicit concurrent-change regression.
+   `src/coga/checkouts.py::confirm_ticket_checkout` and
+   `enter_ticket_checkout` currently return immediately for non-switch plans;
+   `_authoritative_ticket` checks status, step, workflow and checkout policy,
+   but is not a complete routing comparison. The design already requires a
+   stronger post-publication proof. Pin that requirement with an unchanged
+   `in_progress` ticket whose remote lifecycle/routing changes during the
+   log-only publication, including the retained-state exit and withheld sweep.
+   Branch-switch coverage alone would miss this path.
+2. Specify the notification's placement relative to the cleanliness proof in
+   the implementation, and exercise delivery failure. The proposed successful
+   start notification moves after confirmed publication, while
+   `src/coga/notification/slack.py::SlackChannel.send.fail` appends a failure
+   line. Posting between publication and `enter_ticket_checkout` could make
+   control dirty and turn a non-fatal delivery failure into a launch refusal.
+   Preserve the required non-fatal behavior and report/later-publisher rule
+   without adding a commit to the normal successful-start fixture.
+
+### Verification and handoff
+
+On Python **3.12.12**, the following baseline command passed:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q \
+  tests/test_recurring_activity.py \
+  tests/test_checkouts.py::test_implementation_starts_on_a_published_branch_and_chains_through_review \
+  tests/test_checkouts.py::test_resume_projects_newer_control_ticket_and_a_separate_bump_publishes \
+  tests/test_checkouts.py::test_refused_preparation_records_no_launch \
+  tests/test_checkouts.py::test_completed_reservation_receipts_never_resurrect_a_removed_branch \
+  tests/test_launch.py::test_launch_uses_step_one_role_after_freezing_draft \
+  tests/test_launch.py::test_launch_refusal_leaves_draft_unactivated \
+  tests/test_launch.py::test_spawn_reports_unpublished_session_log \
+  tests/test_launch.py::test_spawn_captures_supervisor_exception_as_failed_without_exit_fields \
+  tests/test_launch.py::test_launch_teardown_refusal_preserves_work_result_and_stops_chaining \
+  tests/test_megalaunch.py::test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate \
+  tests/test_megalaunch.py::test_failed_post_release_admission_retains_released_recovery_witness
+```
+
+Result: **50 passed in 14.90s**. These exercise the current primitives and
+failure contracts; they do not prove the unimplemented three-commit bound.
+The design's disposable count probes were not rerun in this evaluation.
+The full suite and new whole-command count tests remain implementation work.
+
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task commit-journal/coalesce-coga-state-commits --json`
+reported **one valid ticket, no issues**; `git diff --check` passed. A byte
+comparison against HEAD verified that only `## Evaluator review` was added:
+frontmatter, ticket body, and all prior blackboard content were preserved.
+
+Reconciliation fetched `origin` before review and again before this handoff:
+clean `main` and `origin/main` both at
+`5a5ffde9d6c953fa5218bbe96cb77790727aceb3`, with no intervening changes.
+Only this evaluator section was authored; no ticket-body edit, implementation
+branch, code change, or PR was produced. Next action is one bump to owner
+`review-design`.
 
 ## Design investigation
 
