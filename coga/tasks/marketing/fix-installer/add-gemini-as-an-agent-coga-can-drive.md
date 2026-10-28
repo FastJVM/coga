@@ -86,7 +86,7 @@ default-config problem, not a code bug. Decide whether the packaged
 
 ### Scope note
 
-Sibling of `marketing/fix-installer/ask-which-agents-to-enable-during-coga-init`,
+Sibling of `v1/20-ask-which-agents-to-enable-during-coga-init`,
 which makes `coga init` ask which agents to enable. That ticket does not block
 on this one: its picker lists whatever `AGENT_CLIS` holds, so Gemini joins the
 list for free once added here. Nico thinks this is easy; Zach's recorded

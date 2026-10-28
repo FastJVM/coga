@@ -19,12 +19,12 @@ retirement via `coga retire <slug>`.
 
 One hard dependency was recorded in the ticket bodies:
 `fix-coga-init-crash-on-python-3-11-by-adding-the-r` had to land before the
-release ticket, now `marketing/publish-coga-1-0-as-the-final-v1-step`, cuts
+release ticket, now `v1/43-publish-coga-1-0-as-the-final-v1-step`, cuts
 the release. That fix is `done`, so nothing here still gates the release.
 
 ## Not here
 
-- `finish-the-readme-launch-checks-left-open-by-readm` owns the remaining
+- `v1/32-finish-the-readme-launch-checks-left-open-by-readm` owns the remaining
   README checks, including the existing demo's accuracy. It succeeds retired
   `marketing/readme-top`, which absorbed
   `cleanup/check-the-demo-video-against-current-cli-names`;

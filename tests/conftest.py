@@ -59,7 +59,7 @@ def windows_skip(reason: str):
 
 
 windows_interactive_skip = windows_skip(
-    "agent sessions/PTY: windows-native/03-interactive-coga-launch-on-native-windows"
+    "agent sessions/PTY: v1/14-interactive-coga-launch-on-native-windows"
 )
 
 

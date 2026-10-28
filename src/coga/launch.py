@@ -178,7 +178,7 @@ _T = TypeVar("_T")
 
 WINDOWS_AGENT_SESSION_MESSAGE = (
     "agent sessions are not supported on native Windows yet; see "
-    "windows-native/03-interactive-coga-launch-on-native-windows."
+    "v1/14-interactive-coga-launch-on-native-windows."
 )
 
 

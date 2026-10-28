@@ -497,7 +497,7 @@ def test_windows_agent_refusal_keeps_checkout_and_control(
     assert excinfo.value.code != 0
     output = capsys.readouterr()
     assert "agent sessions are not supported on native Windows yet" in output.err
-    assert "windows-native/03-interactive-coga-launch-on-native-windows" in output.err
+    assert "v1/14-interactive-coga-launch-on-native-windows" in output.err
     assert {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()} == before
     assert git_repo.git("branch", "--show-current").strip() == "feature/keep-this-checkout"
     assert git_repo.git("rev-parse", "HEAD") == head

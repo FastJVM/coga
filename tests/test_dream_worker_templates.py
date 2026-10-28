@@ -351,7 +351,11 @@ def test_dream_leaves_parked_directories_alone() -> None:
     assert "contradict each other and `main`" in readme_norm
     assert "Pulling a wish forward" in readme_text
     assert "Four questions, in order:" in readme_text
-    assert "Dream" not in readme_text.split("## Pulling a wish forward")[0]
+    # The parked-ticket index may name Dream work; the policy assigns none.
+    parked_policy = readme_text.split("## What this is", 1)[1].split(
+        "## Pulling a wish forward", 1
+    )[0]
+    assert "Dream" not in parked_policy
 
 
 def test_validate_drift_worker_declares_contract() -> None:
