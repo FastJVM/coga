@@ -138,11 +138,16 @@ The child runs in a PTY with proxied stdio (plain `subprocess.run` when
 stdout is not a TTY). PTY output is never a completion channel. `coga bump`,
 `coga mark done`, `coga mark canceled`, and `coga block` call
 `emit_done_marker`, which atomically writes the task's `id_slug` to
-`$COGA_DONE_SENTINEL`; the supervisor polls every 0.25 s, tears down only on
-a content match (slug, not path, so a bump from another checkout works), and
-sends SIGTERM then SIGKILL after 2 s. Without the variable nothing is written.
+`$COGA_DONE_SENTINEL`; the supervisor polls every 0.25 s and accepts a content
+match (slug, not path, so a bump from another checkout works). Ticket spawns
+also supply `launch._terminal_status_probe` through the supervisor's
+`terminal_status` callback. The completion backstop, signal diagnostics and
+recurring outcome contract live in
+[session liveness](../../../coga/recurring/scheduling/inactivity/SKILL.md#session-completion-and-liveness).
+Both completion paths send SIGTERM then SIGKILL after 2 s.
 
-`ReplOutcome.kind`: `natural` (own exit, own code), `done` (0), `timeout`
+`ReplOutcome.kind`: `natural` (own exit, own code), `done` (0, with sentinel
+or terminal-ticket trigger in `reason`), `timeout`
 (124, idle or max-session with the exact trigger in `reason`), or `crash`
 (`128 + signal` for any signal Coga did not send). `kind` is the *teardown
 cause*: `timeout` means a liveness limit started the teardown, not proof

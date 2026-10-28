@@ -25,6 +25,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -3838,6 +3839,10 @@ def spawn_agent_session(
             cmd,
             env,
             session_id=ref.id_slug,
+            terminal_status=(
+                _terminal_status_probe(cfg, ref, ticket)
+                if stateless_identity is None else None
+            ),
             idle_timeout=idle_timeout,
             max_session=max_session,
             after_spawn=admit_spawned_child if gated_spawn_admission else None,
@@ -3918,6 +3923,100 @@ def spawn_agent_session(
             prompt_file.unlink()
         except FileNotFoundError:
             pass
+
+
+def _terminal_status_probe(
+    cfg: Config, ref: TaskRef | BootstrapRef, ticket: Ticket,
+) -> Callable[[], str | None] | None:
+    """Observe this ticket's terminal state without fetching or scanning tasks.
+
+    With Git publication enabled, only the local remote-tracking control ref
+    is proof: a lifecycle command writes its working copy *before* notifying
+    and publishing, and another worktree may hold the completed copy. Without
+    a configured remote, watch the exact local file. Cache unchanged blobs /
+    file stats, poll at most once a second, and allow five seconds of stable
+    terminal state for the ordinary sentinel path to finish first. A terminal
+    state counts only after the probe has seen this ticket open or absent, so
+    a stale published copy from an earlier life of the path never ends a
+    fresh session.
+    """
+    if isinstance(ref, BootstrapRef):
+        return None
+
+    generation = ticket.frontmatter.get("period_generation")
+    unresolved = object()
+    # `None` disables the backstop; `(root, rev, rel)` reads published control
+    # state; `()` watches the local file.
+    source: object = unresolved
+    cached_key: object = None
+    cached_status: str | None = None
+    armed = False
+    next_poll = 0.0
+    terminal_since: float | None = None
+
+    def resolve_source() -> tuple[Path, str, str] | tuple[()] | None:
+        # Resolved once, on the first poll: a failure or a ticket outside the
+        # repository disables the backstop rather than retrying git each poll.
+        if not getattr(cfg, "git_enabled", False):
+            return ()
+        try:
+            root = git.toplevel(cfg.repo_root)
+            if root is None or not git.remote_configured(root, cfg.git_remote):
+                return ()
+            rel = git.relative_to_root(root, ref.ticket_path)
+        except git.GitError:
+            return None
+        if Path(rel).is_absolute():
+            return None  # Outside the repository: no published proof.
+        return root, f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}", rel
+
+    def probe() -> str | None:
+        nonlocal source, cached_key, cached_status, armed, next_poll, terminal_since
+        now = time.monotonic()
+        if now < next_poll:
+            return None
+        next_poll = now + 1.0
+        if source is unresolved:
+            source = resolve_source()
+        if source is None:
+            return None
+        try:
+            if source:
+                root, rev, rel = source
+                key: object = git._blob_oid(root, rev, rel)
+            else:
+                stat = ref.ticket_path.stat()
+                key = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            if key is None:
+                cached_key = cached_status = None
+            elif key != cached_key:
+                data = (
+                    git._blob_bytes(root, key) if source
+                    else ref.ticket_path.read_bytes()
+                )
+                current = git._parse_ticket(data)
+                status = current.status if current is not None else None
+                cached_status = (
+                    status if isinstance(status, str) and status in TERMINAL_STATUSES
+                    and current.frontmatter.get("period_generation") == generation
+                    else None
+                )
+                cached_key = key
+        except (OSError, git.GitError):
+            # Missing/unreadable state is not evidence of completion. Retry
+            # next poll; the sentinel and liveness limits remain armed.
+            cached_key = cached_status = None
+        if cached_status is None:
+            armed, terminal_since = True, None
+        elif armed:
+            # A ticket terminal since launch is not this session's transition.
+            if terminal_since is None:
+                terminal_since = now
+            elif now - terminal_since >= 5.0:
+                return cached_status
+        return None
+
+    return probe
 
 
 def _retract_log_append(cfg: Config, before: bytes | None, appended: bytes) -> bool:
