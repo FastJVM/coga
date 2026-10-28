@@ -75,9 +75,19 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks),
 
 Agent sessions run on Linux or macOS. You'll need Git and an authenticated [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) CLI to run agent sessions. Coga requires Python 3.11+, but the recommended `uv` installer can obtain a compatible Python for you.
 
-For a fresh Mac, install the Xcode Command Line Tools first; the
-[install guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-install-the-command-line-tools-first)
-covers that prerequisite and Windows support limits.
+On macOS, check that `git --version` works. If it prompts for developer
+tools, run `xcode-select --install`; Git installed another way works too.
+Full Xcode is not required. The [install guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-check-git-before-init)
+covers this and Windows support limits.
+
+If `uv` isn't installed yet, get it first (macOS/Linux):
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+See [other uv installation methods](https://docs.astral.sh/uv/getting-started/installation/).
+Open a new terminal if `uv` isn't on your `PATH` after installation.
 
 ```sh
 uv tool install coga
