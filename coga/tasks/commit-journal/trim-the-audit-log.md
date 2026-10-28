@@ -889,3 +889,26 @@ choices in Open Questions still belong to the owner.
   preimage exactly.
 - Final `git fetch origin main` succeeded; HEAD and `origin/main` remain at
   the reviewed revision. No reconciliation conflict or occupied checkout.
+## Dev
+
+branch: coga/trim-the-audit-log
+
+## Implementation plan
+
+Owner gate advancement is recorded in `coga/log.md` at 2026-10-27 18:27
+(`[human:nicktoper] advanced to step 4 (implement)`); the older Open Questions
+are superseded by that advancement. Actual implementing agent: Codex (GPT-6).
+
+Resolve the evaluator's three technical findings with the implementation:
+use control-snapshot unread protection plus Git provenance for incoming replay;
+persist a checkout-local guarded mutation receipt before replacements and
+refuse unrelated publication until recovery; pin attribution boundaries for
+opaque blocks. Validate the combined replay/report case, process-boundary
+recovery and before/after readers. Keep enabling trim files outside the swept
+Coga roots until compatible core support is on control; document the explicit
+post-merge installation. No live log demonstration or config edit.
+
+Work sequence: shared config/parser/selection and movement cursor; publisher
+and rollback transactions; edge orchestration/install plus templates/docs;
+real-Git, headless and installed-wheel verification; full suite, reconciliation,
+commit/push, publication receipts and one bump.
