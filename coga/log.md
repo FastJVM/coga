@@ -9598,3 +9598,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 21:27 v1 [commit-journal/trim-the-audit-log] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 21:27 v1 [commit-journal/trim-the-audit-log] [megalaunch] launched via coga megalaunch
 2026-10-27 21:33 v1 [commit-journal/trim-the-audit-log] [human:nicktoper] unblocked (asks resolved, still in_progress): The owner authorized clearing this blocker and resuming verification. The separate owner-authorized repair is already on main in 51e15ec238cda9c994f1a1464ce3267d89bbe48b: docs/README.md now links to README.md#what-lives-in-your-repo. The previously failing navigation check passed on current main (1 passed in 0.40s). No test waiver or further link edit is needed; reconcile the feature and rerun verification.
+2026-10-27 21:45 v1 [commit-journal/trim-the-audit-log] [agent:codex] advanced to step 5 (peer-review) → codex
