@@ -9610,3 +9610,12 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 22:08 v1 [commit-journal/trim-the-audit-log] [agent:claude] advanced to step 7 (review) → nicktoper
 2026-10-27 22:08 v1 [commit-journal/trim-the-audit-log] [system] {"agent":"claude","agent_turns":2,"cache_creation_input_tokens":62246,"cache_read_input_tokens":469892,"cli":"claude","content_status":"ok","elapsed_seconds":37.837538,"ended_at":"2026-10-28T05:08:59.500937Z","exit_code":0,"exit_kind":"done","human_turns":0,"input_tokens":12,"model":"claude-opus-5-5","outcome":"`pr:` is recorded, the draft exists, and the checkout is clean on main. Bumping.","outcome_status":"completed","output_tokens":2009,"provider":"anthropic","request":null,"schema":2,"session_id":"a46ac522-5ddf-4e89-a198-7a02a133eb8b","slug":"commit-journal/trim-the-audit-log","started_at":"2026-10-28T05:08:21.663399Z","step":"open-pr","title":"Trim coga/log.md to a configurable age with a weekly recurring job","ts":"2026-10-28T05:08:59.500937Z","usage_reason":null,"usage_status":"ok"}
 2026-10-27 22:10 v1 [stop-the-contexts-root-sweep-from-publishing-canon] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-10-28 11:07 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-28 11:07 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-28
+2026-10-28 11:07 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-28
+2026-10-28 11:07 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-28 11:07 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-28
+2026-10-28 11:07 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-28
+2026-10-28 11:07 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-28 11:07 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-28
+2026-10-28 11:07 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-28
