@@ -502,6 +502,17 @@ ordinary ticket.
 
 ## Open Questions
 
+- Handoff from `show-which-agents-are-available-on-the-machine-dur`
+  (2026-10-28, human approved closing it as a duplicate): decide whether init
+  needs wording about agents outside the built-in list. `dependencies.AGENT_CLIS`
+  owns built-in discovery and installation; `config._parse_agents` permits
+  custom agent names, so absence from that list does not mean Coga cannot
+  drive an agent. PATH presence also does not prove authentication or readiness.
+  The existing detection, selection, and install scope already covers the
+  duplicate's main request. Its Spec Kit trial pointer is retired; the detailed
+  findings stayed in a private document and are not a prerequisite for this
+  decision. This is a handoff for this ticket's owner review, not a change to
+  its approved requirements or a disposition of the evaluator findings below.
 - The empty-selection confirm re-opens the picker when declined, with no retry
   limit — the human can always Esc out. Fine, or should a second decline fall
   through to the Esc behaviour (keep the packaged config)?
