@@ -117,6 +117,13 @@ trimmed by hand either: the next run overwrites the edit, and
 Route it to its owner as a decision (attachment, exemption, or accepted
 warning).
 
+## Publishing cleanup
+
+Draft synthesis and live-ticket size cleanup publish as Coga state through
+[state publication](../state-publication/SKILL.md). The owner can edit directly
+on control or track the cleanup in a workflow without branch or PR gates.
+Ticket bodies, blackboards, and sibling attachments stay out of code PRs.
+
 ## What later passes do to content
 
 - A replaced live value leaves the section; git keeps it.

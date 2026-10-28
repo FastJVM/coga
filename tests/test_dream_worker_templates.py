@@ -313,6 +313,19 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
     assert "the retirement-debt list with the `extract` findings each retirement unlocks" in norm
 
 
+def test_dream_routes_blackboard_cleanup_to_owner_state_edits() -> None:
+    text = DREAM_PROMPT.read_text(encoding="utf-8")
+    norm = " ".join(text.replace("**", "").split())
+
+    assert "`large-blackboard` and `unsynthesized-draft-blackboard`" in norm
+    assert "owner-directed state edits" in norm
+    assert "`brief-for-human` draft with no branch or PR requirement" in norm
+    assert "`coga/state-publication`" in norm
+    assert "done tickets follow Phase 4's Retro/retirement split" in norm
+    assert "a recurring writer's own state goes to that writer's owner" in norm
+    assert "even when an older recipe lists them in `PR Proposal`" in norm
+
+
 def test_dream_leaves_parked_directories_alone() -> None:
     """`_`-prefixed task directories are parked (the `_v2/` wish list): their
     contents may be stale or contradictory, so Dream neither scans them nor

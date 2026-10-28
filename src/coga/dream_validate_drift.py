@@ -321,10 +321,13 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
     if kind == "large-blackboard":
         return ClassifiedIssue(
             issue=issue,
-            action=ACTION_PR_PROPOSAL,
+            action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "Propose the `coga/blackboard` bloated-blackboard remedy: "
-                "promote a file-form task to directory form (a task that "
+                "Ask the owner to choose the `coga/blackboard` remedy. "
+                "For done tickets, use Dream's Retro/retirement route instead "
+                "of slimming; recurring writer state needs its owner's "
+                "decision. For live tickets, promote a file-form task to "
+                "directory form (a task that "
                 "already has `<slug>/ticket.md` keeps its directory), move "
                 "dated evidence into sibling attachments, move abandoned "
                 "designs into the single `## Superseded designs` section "
@@ -334,18 +337,23 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
                 "blackboard with a pointer to each. Keep `## Dev` and "
                 "`## Blockers` in place under the `coga/blackboard` contract; "
                 "CLI readers do not follow attachment links for that state. "
-                "Move, do not delete."
+                "Move, do not delete. Publish ticket and attachment edits "
+                "through `coga/state-publication`; use direct owner editing "
+                "or a `brief-for-human` draft with no branch or PR requirement."
             ),
         )
 
     if kind == "unsynthesized-draft-blackboard":
         return ClassifiedIssue(
             issue=issue,
-            action=ACTION_PR_PROPOSAL,
+            action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "Propose a reviewed synthesis of durable authoring decisions "
-                "into the ticket body. Preserve intentional launch-only notes "
-                "under `## Production notes`; do not discard ambiguous content."
+                "Ask the owner to synthesize durable authoring decisions "
+                "into the ticket body under `coga/blackboard`. Preserve "
+                "intentional launch-only notes under `## Production notes`; "
+                "do not discard ambiguous content. Publish the state edit "
+                "through `coga/state-publication`; use direct owner editing "
+                "or a `brief-for-human` draft with no branch or PR requirement."
             ),
         )
 
