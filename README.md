@@ -2,7 +2,7 @@
 
  **Agents work in sessions. Humans make things. Coga connects the two.**
 
-Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. What happens then?
+Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. That's where Coga comes in.
 
 **Coga turns those plans into Markdown tickets you can inspect, edit, and run with your agent.** Run multiple projects in parallel, each in its own Git repo. Choose how involved you want to be: guide sessions interactively, add human review gates, or queue work to run unattended.
 
