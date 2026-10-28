@@ -2,14 +2,76 @@
 title: Add Gemini as an agent coga can drive
 status: draft
 owner: zach
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
 
+Coga drives `claude` and `codex` today. Nico wants Gemini as a third agent
+type. Find out what Gemini's CLI actually supports, then either add it or say
+why it cannot be added yet.
 
+Done when: a repo can declare `[agents.gemini]` in `coga.toml` and launch it,
+or this ticket records which of the required CLI affordances Gemini lacks.
 
 ## Context
+
+### What "adding an agent" requires
+
+An agent type is a `[agents.*]` table. `cli` and `file` are the only required
+keys, so a minimal Gemini table is trivial. The cost is in the optional keys,
+each of which exists because a specific coga feature needs it:
+
+- `name_flag` — sets the session display name. Claude uses `-n`.
+- `session_id_flag` — lets coga recover transcript usage for the exact session
+  it launched. Claude uses `--session-id`. Without it, `coga usage` cannot
+  attribute that agent's spend.
+- `discussion` — injects the composed prompt as system context so the human's
+  first message titles the session. Claude uses `--append-system-prompt
+  {prompt}`; Codex uses `-c developer_instructions={prompt}`.
+- `launch_args` — per-CLI workarounds. Codex needs `--no-daemon` so the
+  `COGA_*` launch variables reach the agent.
+- `analyze` — the non-interactive one-shot form the recurring autofix loop
+  uses. `recurring_autofix.DEFAULT_ANALYZE_TEMPLATES` hardcodes `claude: "-p
+  {prompt}"` and `codex: "exec {prompt}"`. An unknown CLI with no `analyze`
+  override skips autofix loudly rather than guessing, because a bare prompt to
+  an unknown CLI opens an interactive REPL nobody can drive.
+
+So the scoping work is four questions against `gemini --help`: does it have a
+session-name flag, a deterministic session-id flag, a system-prompt injection
+flag, and a non-interactive one-shot mode? Each missing one degrades a named
+coga feature rather than blocking the agent outright — record which.
+
+### Adding a third agent breaks zero-config peer review
+
+`bump.resolve_other_agent` resolves the `other-agent` workflow role as "the
+single configured type that is not the ticket's main agent", and raises when
+`len(others) != 1`. Two configured agents need no `peer` key. Three means
+every repo that declares all three must hand-write `peer = "<type>"` under
+each `[agents.*]` table or `other-agent` handoffs fail at bump time.
+
+The error message already names the fix, so this is a documentation and
+default-config problem, not a code bug. Decide whether the packaged
+`coga.toml` should ship explicit `peer` values once a third agent exists.
+
+### Also needs
+
+- `dependencies.AGENT_CLIS` is `("claude", "codex")`; a Gemini entry needs
+  `packages` (brew/npm) and `login` so `agent_cli_setup.offer_agent_cli` can
+  install and authenticate it.
+- `init._AGENT_LABELS` maps slugs to display names and needs a Gemini row.
+- `init._AGENT_SKILL_DIRS` and `_AGENT_GUIDE_FILES` decide which skill
+  symlinks and root instruction files init writes. Find out which directory
+  Gemini reads skills from and which instruction file it looks for.
+
+### Scope note
+
+Sibling of `marketing/fix-installer/ask-which-agents-to-enable-during-coga-init`,
+which makes `coga init` ask which agents to enable. That ticket does not block
+on this one: its picker lists whatever `AGENT_CLIS` holds, so Gemini joins the
+list for free once added here. Nico thinks this is easy; Zach's recorded
+caution is that what Nico calls easy usually is not, which is why the
+`gemini --help` survey comes before any commitment to ship it.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
