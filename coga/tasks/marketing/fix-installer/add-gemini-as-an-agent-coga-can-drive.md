@@ -2,6 +2,8 @@
 title: Add Gemini as an agent coga can drive
 status: draft
 owner: zach
+contexts:
+  - coga-dev/principles
 workflow: code/design-then-implement
 ---
 
@@ -11,8 +13,11 @@ Coga drives `claude` and `codex` today. Nico wants Gemini as a third agent
 type. Find out what Gemini's CLI actually supports, then either add it or say
 why it cannot be added yet.
 
-Done when: a repo can declare `[agents.gemini]` in `coga.toml` and launch it,
-or this ticket records which of the required CLI affordances Gemini lacks.
+Done when: a repo can declare `[agents.gemini]` in `coga.toml` and run a Coga
+task through its intended handoff, with unsupported optional features
+documented, or a versioned capability survey identifies a concrete
+incompatibility preventing core task execution and the owner accepts deferral
+at `review-design`.
 
 ## Context
 
@@ -23,9 +28,13 @@ keys, so a minimal Gemini table is trivial. The cost is in the optional keys,
 each of which exists because a specific coga feature needs it:
 
 - `name_flag` — sets the session display name. Claude uses `-n`.
-- `session_id_flag` — lets coga recover transcript usage for the exact session
-  it launched. Claude uses `--session-id`. Without it, `coga usage` cannot
-  attribute that agent's spend.
+- `session_id_flag` — pins a transcript ID; Claude uses `--session-id`.
+  It does not provide usage parsing by itself: `usage.parser_key_for_cli`
+  and `usage.parse_session` support only Claude and Codex, so Gemini usage
+  currently records `unknown` regardless of this flag. Codex's
+  `usage._parse_codex_session` attributes usage without a session-ID flag.
+  Coga reports tokens; decide during design whether Gemini parsing belongs
+  in this ticket or remains a documented limitation.
 - `discussion` — injects the composed prompt as system context so the human's
   first message titles the session. Claude uses `--append-system-prompt
   {prompt}`; Codex uses `-c developer_instructions={prompt}`.
@@ -37,18 +46,26 @@ each of which exists because a specific coga feature needs it:
   override skips autofix loudly rather than guessing, because a bare prompt to
   an unknown CLI opens an interactive REPL nobody can drive.
 
-So the scoping work is four questions against `gemini --help`: does it have a
+First verify core execution: `launch.build_agent_command` appends the composed
+prompt after `launch_args`. Confirm the chosen Gemini invocation enters an
+interactive session, receives the task, and preserves `COGA_*` in agent-run
+commands so the workflow handoff can reach Coga's supervisor.
+
+Then survey four optional capabilities against `gemini --help`: does it have a
 session-name flag, a deterministic session-id flag, a system-prompt injection
-flag, and a non-interactive one-shot mode? Each missing one degrades a named
-coga feature rather than blocking the agent outright — record which.
+flag, and a non-interactive one-shot mode? Record the CLI version and evidence
+for supported behavior and missing features. Missing optional flags alone do
+not justify deferral; distinguish feature degradation from a core execution
+blocker. Gemini was unavailable in the authoring environment, so these
+capabilities still need investigation in the design step.
 
 ### Adding a third agent breaks zero-config peer review
 
 `bump.resolve_other_agent` resolves the `other-agent` workflow role as "the
 single configured type that is not the ticket's main agent", and raises when
-`len(others) != 1`. Two configured agents need no `peer` key. Three means
-every repo that declares all three must hand-write `peer = "<type>"` under
-each `[agents.*]` table or `other-agent` handoffs fail at bump time.
+`len(others) != 1`. Two configured agents need no `peer` key. With three,
+each main-agent type used by a workflow containing `other-agent` needs
+`peer = "<type>"` in its `[agents.*]` table or that handoff fails.
 
 The error message already names the fix, so this is a documentation and
 default-config problem, not a code bug. Decide whether the packaged
@@ -63,6 +80,9 @@ default-config problem, not a code bug. Decide whether the packaged
 - `init._AGENT_SKILL_DIRS` and `_AGENT_GUIDE_FILES` decide which skill
   symlinks and root instruction files init writes. Find out which directory
   Gemini reads skills from and which instruction file it looks for.
+  Inspect the corresponding generated ignore rules and empty-repo detection;
+  `commands.uninstall._AGENT_SKILL_DIRS` independently lists directories to
+  clean up, while uninstall imports init's guide-file list.
 
 ### Scope note
 
@@ -72,6 +92,30 @@ on this one: its picker lists whatever `AGENT_CLIS` holds, so Gemini joins the
 list for free once added here. Nico thinks this is easy; Zach's recorded
 caution is that what Nico calls easy usually is not, which is why the
 `gemini --help` survey comes before any commitment to ship it.
+Coordinate packaged peer defaults with that sibling's agent selections.
+
+### Documentation and design references
+
+These topics are cited rather than attached. Read the named sections and
+update any changed contract in its owner, with packaged twins kept in sync:
+
+- `coga/init`, `docs/contexts/coga/init/SKILL.md`: "Fresh repo" and
+  "Instruction files and skill discovery"; `coga/install`,
+  `docs/contexts/coga/install/SKILL.md`: "Prerequisites". These are editing
+  targets: they describe the existing two-agent setup. Their packaged twins
+  live under `src/coga/resources/templates/coga/bootstrap/contexts/`.
+- `coga-dev/internals/agent-spawn`,
+  `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`: "Per-caller
+  parameters" and "The supervisor" for prompt delivery and `COGA_*` handoffs;
+  `coga-dev/internals/agent-config`,
+  `docs/contexts/coga-dev/internals/agent-config/SKILL.md`: "Shared/local
+  merge" and "`peer` resolution" for agent configuration.
+- `coga-dev/internals/activity-capture`,
+  `docs/contexts/coga-dev/internals/activity-capture/SKILL.md`: "Provider
+  matching — never by file mtime" for the usage limitation above.
+
+If Gemini is deferred, record the reason and what would reopen the decision
+in the standing owning topic as well as this ticket; tickets can be retired.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
