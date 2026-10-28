@@ -1,6 +1,6 @@
 ---
 title: Coalesce Coga state commits to one per lifecycle event
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -38,7 +38,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: 29be35e1-8db6-496e-807a-8c97d152629f
 ---
 
 ## Description
@@ -493,6 +492,129 @@ ordinary ticket.
 
 branch: coga/coalesce-state-commits
 
+## PR
+
+```yaml
+title: Coalesce ordinary managed launch startup publication
+author: codex
+author_evidence: This implement session used Codex, not the ticket-configured Claude. No delegated implementation
+  or code review ran.
+head: 4e5f4b03c811f39f3a3721212d48862391fae060
+base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+depth: deep
+rationale: Changes startup publication and refusal semantics; inspect the guards and real-Git race tests.
+  The full suite has a reproduced unrelated baseline failure and code review has not run.
+implementation: Prepare activation/start and checkout linkage in memory, publish the final ticket and
+  startup audit once before switch/spawn, and confirm every plan against fetched control. Handoff and
+  usage remain immediate independent publications. Start notification follows confirmed checkout entry.
+  Ordinary count fixtures assert three commits; queue, bootstrap, scripts and extra events retain their
+  classified boundaries.
+deviations: No implementation scope deviation. The implement step is blocked instead of advanced because
+  code/implement requires escalation of unrelated test failures.
+limitations: The untouched docs/README.md anchor failure must be repaired or explicitly waived by the
+  owner before this step can complete. Native Windows cases and a Python 3.11 test run are not covered
+  by this Linux/Python 3.12 receipt. Peer review and PR creation remain later workflow steps.
+files:
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Align internal phase order and caller-owned startup
+    audit with grouped publication.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Document grouped startup guards and retained-state
+    semantics within the existing publication machinery.
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: Inventory all 32 direct audit
+    writers, their publishers, and exits that retain evidence.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Document grouped startup guards
+    and retained-state semantics within the existing publication machinery.
+  docs/contexts/coga/checkouts/SKILL.md: Align the owning launch/lifecycle/checkout/publication contract
+    with grouped startup and its failure recovery; keep the shipped twin identical.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Align the owning launch/lifecycle/checkout/publication
+    contract with grouped startup and its failure recovery; keep the shipped twin identical.
+  docs/contexts/coga/launch/SKILL.md: Align the owning launch/lifecycle/checkout/publication contract
+    with grouped startup and its failure recovery; keep the shipped twin identical.
+  docs/contexts/coga/lifecycle/SKILL.md: Align the owning launch/lifecycle/checkout/publication contract
+    with grouped startup and its failure recovery; keep the shipped twin identical.
+  docs/contexts/coga/state-publication/SKILL.md: Align the owning launch/lifecycle/checkout/publication
+    contract with grouped startup and its failure recovery; keep the shipped twin identical.
+  docs/contexts/coga/state-publication/launch-boundaries/SKILL.md: Own the approved commit-count workload,
+    interval, subjects and explicit path exclusions; keep the shipped twin identical.
+  src/coga/checkouts.py: Prepare prospective linkage against captured source bytes, recheck paths/target,
+    and confirm control-only as well as branch plans.
+  src/coga/launch.py: Group only ordinary managed agent startup, preserve the prospective lifecycle across
+    supervision, and retain/report unconfirmed writes before any spawn.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Align the owning launch/lifecycle/checkout/publication
+    contract with grouped startup and its failure recovery; keep the shipped twin identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Align
+    the owning launch/lifecycle/checkout/publication contract with grouped startup and its failure recovery;
+    keep the shipped twin identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Align the owning launch/lifecycle/checkout/publication
+    contract with grouped startup and its failure recovery; keep the shipped twin identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Align the owning launch/lifecycle/checkout/publication
+    contract with grouped startup and its failure recovery; keep the shipped twin identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Align the owning
+    launch/lifecycle/checkout/publication contract with grouped startup and its failure recovery; keep
+    the shipped twin identical.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md: Own
+    the approved commit-count workload, interval, subjects and explicit path exclusions; keep the shipped
+    twin identical.
+  tests/conftest.py: Share deterministic usage capture through the real audit writer for publication-count
+    fixtures.
+  tests/test_checkouts.py: Exercise whole CLI publication counts, exact contents, startup refusals/races,
+    recovery, cleanup, notification failure, and excluded bootstrap/script routes with real Git.
+  tests/test_megalaunch.py: Assert retained four/five-commit queue boundaries around held-child release
+    and admission.
+  tests/test_packaging.py: Register the new shipped launch-boundaries topic in the required distribution
+    manifest.
+  tests/test_recurring_activity.py: Pin startup, linkage, bump, teardown and exceptional activity classifications.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review belongs to the later peer-review step. Design approval is not code review; implement
+    has not bumped because of the baseline test failure.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  status: failed
+  head: 4e5f4b03c811f39f3a3721212d48862391fae060
+  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+  detail: 'Python 3.12.12: 4186 passed, 10 skipped, 1 failed in 479.31s. Only failure: tests/test_packaging.py::test_context_navigation_has_no_broken_links,
+    the pre-existing docs/README.md link to missing ../README.md#key-concepts. Reproduced on baseline
+    36c85653c2ce522882d73e7d9226ff42dc98d1f5. Skips: 2 native Windows job-object integration cases, 5
+    native Windows PowerShell 5.1 cases, 3 native Windows Job Object recovery cases. No exclusions were
+    added. Staged tree 92f1633a4a86f9574cb4cc7947052610394f2135 and all 23 changed-file SHA-256 hashes
+    were verified unchanged before commit; the commit has that exact tree.'
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 4e5f4b03c811f39f3a3721212d48862391fae060
+  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+  detail: 'Run from tests/fixtures/seeded-repo/coga: 4 valid tasks, no issues.'
+- command: git diff --cached --check
+  status: passed
+  head: 4e5f4b03c811f39f3a3721212d48862391fae060
+  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+  detail: No whitespace errors in the staged implementation tree, verified identical to the committed
+    tree.
+- command: python3.11 -m pytest
+  status: not-run
+  detail: Python 3.11.15 is present, but python3.11 -m pytest --version reports No module named pytest.
+    The executed full-suite receipt covers Python 3.12.12 only.
+```
+
+## Implementation handoff
+
+Implementation is committed and pushed at `4e5f4b03c811f39f3a3721212d48862391fae060` on `coga/coalesce-state-commits`.
+Fetched control remained at `36c85653c2ce522882d73e7d9226ff42dc98d1f5` through the tested commit and final
+rebase (a no-op); source and topic bytes match the recorded tested tree. The
+later control movement only publishes this ticket’s notes. Returned to clean,
+current main before writing this handoff. No PR was opened and no workflow
+bump ran.
+
+The full suite completed with **4186 passed, 10 skipped, 1 failed**. The only
+failure is the reproduced pre-existing README anchor; the new topic manifest
+registration is fixed and all distribution/twin checks pass. Do not fix or
+waive that unrelated failure under this ticket without owner direction.
+Repair the link on control, or explicitly authorize a baseline exception;
+then resume implement, reconcile the pushed branch, refresh verification as
+needed, and bump once to peer-review. No implementation bug remains known.
+
 ## Implementation
 
 2026-10-27: Owner approval is recorded by the human `nicktoper` advancing
@@ -525,7 +647,7 @@ and extra entry/intervening-command/return events outside the bound. Targeted
 failure tests cover no-write preflight refusal, failed/refused/skipped/uncertain
 publication, post-push uncertainty, control-only routing races, concurrent log
 appends, cleanup and abrupt-death next-entry recovery. Full verification and
-commit receipts remain pending. AST inventory finds 32 direct append_log sites;
+commit receipts are recorded under `## PR`; the baseline failure prevents advancement. AST inventory finds 32 direct append_log sites;
 the new internal log-writers topic records their publisher and retained exits.
 
 ### Verification blocker discovered during implementation
@@ -751,3 +873,9 @@ source relationships, the log-writer inventory, and documentation targets
 under `## Context`. Next is independent `evaluate-design`; owner approval
 remains required before implementation. No production code or topic contract
 has changed in this design step.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-27 19:05] [agent:claude] id=20261027T190525 Repair the pre-existing docs/README.md link to missing README.md#key-concepts on control, or explicitly approve proceeding with that baseline test failure. The full suite reports 4186 passed, 10 skipped, and only test_context_navigation_has_no_broken_links failed; the same failure reproduces on untouched baseline 36c85653c2ce. Implementation is pushed on coga/coalesce-state-commits at 4e5f4b03c, with complete receipts on the blackboard. code/implement requires escalation of unrelated failures before advancing to peer-review.
