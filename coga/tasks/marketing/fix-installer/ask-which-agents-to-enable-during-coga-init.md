@@ -1,6 +1,6 @@
 ---
 title: Ask which agents to enable during coga init
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: code/design-then-implement
