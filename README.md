@@ -1,6 +1,6 @@
 # Coga
 
- **Agents work in sessions. Humans work on tasks. Coga connects the two.**
+ **Agents work in sessions. Humans make things. Coga connects the two.**
 
 Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. What happens then?
 
