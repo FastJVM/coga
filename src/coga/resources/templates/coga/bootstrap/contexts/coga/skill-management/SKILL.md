@@ -60,9 +60,14 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   Each outcome is `updated`, `unchanged`, `fetch-failed`, or `skipped-pinned`. `gh` is probed once before any write. A
   GitHub-backed skill nested below the root (`ns/<name>`) is `failed` without
   calling `gh`, which would move it to `coga/skills/<name>`.
-- URL-backed skills go through Coga's digest checks. An installed twin of a
-  bundled skill is `skipped-bundled` (the repo copy is maintained in the
-  repo). Unmanaged directories and uninstalled bundled refs get no row.
+- URL-backed skills go through Coga's digest checks. Bundled refs without
+  GitHub or URL provenance emit no row in `update --all`, whether or not a repo
+  twin exists; those repo copies are maintained in the repo. Other unmanaged
+  directories also get no row. Managed provenance still selects its updater
+  when a skill shares a bundled ref.
+- An explicit `update <bundled-ref>` without managed provenance still reports
+  `skipped-bundled`: an installed twin is maintained in the repo, while an
+  uninstalled ref is refreshed by upgrading the Coga package.
 - `--pr` requires `--all` and opens or updates one draft PR after running the
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the

@@ -31,9 +31,9 @@ and its `ticket.py` runs
    `SKILL.md` frontmatter carries `gh skill`'s `metadata.github-repo` is
    GitHub-backed and gets its own `gh skill update --dir coga/skills --all
    <ref>` call; a skill carrying `.coga-source.json` with
-   `source_type = "url"` goes through Coga's own URL updater; an installed
-   twin of a package-bundled skill is reported `skipped-bundled`; local-backed
-   and hand-vendored directories are outside every updater path,
+   `source_type = "url"` goes through Coga's own URL updater. Bundled twins
+   without managed provenance, local-backed installs, and hand-vendored
+   directories are outside every updater path,
 2. for URL-backed skills, rewrites in place only when the upstream digest
    changed and the local copy is unmodified; the GitHub updater follows
    `gh skill`'s own stored-tree-SHA policy, and each of its skills reports
@@ -44,7 +44,8 @@ and its `ticket.py` runs
    sweep under [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep), and
 4. appends a `## Skill Update` report to this period task's blackboard with
    one row per installed managed skill, bucketed by its emitted status.
-   Bundled refs this repo never installed are not its skills and get no row.
+   Bundled refs without managed provenance get no row, whether or not a repo
+   twin exists; see [coga/skill-management](context:coga/skill-management).
 
 Local-edit protection applies to URL-backed skills: a diverged local copy,
 provenance conflict, or fetch failure is left untouched and listed under the
@@ -77,7 +78,8 @@ not `.coga-source.json`. In Coga's own source checkout, the hand-vendored
 at `f458cee3`); that directory is not part of the package, so it exists only
 where an operator vendored it.
 Bundled (package-backed) skills are not touched here — they refresh when the
-coga package is upgraded.
+coga package is upgraded. An unmanaged repo twin shadows the package copy and
+is maintained in the repo; `coga skill status` still inventories it.
 
 Another shape the allowlist protection does not cover is a URL skill whose
 `.coga-source.json` carries **no** `include` key while its

@@ -6,8 +6,8 @@ reported conflicts, URL local adaptations, or fetch failures as follow-up work
 on the task blackboard. Every installed GitHub-backed skill gets its own
 measured row — `coga skill update` asks ``gh skill update`` about each one in
 turn — and GitHub-backed local edits follow ``gh skill`` overwrite semantics.
-Local-backed and hand-vendored directories emit no update result, so this
-recipe neither updates nor inventories them.
+Local-backed and hand-vendored directories, and bundled skill twins without
+managed provenance, emit no update result; this recipe does not inventory them.
 """
 
 from __future__ import annotations

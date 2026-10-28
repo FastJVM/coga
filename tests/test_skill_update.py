@@ -115,7 +115,7 @@ def test_render_buckets_conflict_separately_from_skipped_local_adaptation() -> N
         _result("a/clean", "updated", changed=True),
         _result("b/adapted", "skipped-local-adaptation"),
         _result("c/conflicted", "conflict"),
-        _result("d/bundled", "skipped-bundled", source_type="bundled"),
+        _result("d/pinned", "skipped-pinned", source_type="github"),
     ]
     report = render_blackboard_report(
         results,
@@ -139,12 +139,12 @@ def test_render_buckets_conflict_separately_from_skipped_local_adaptation() -> N
     assert "### Updated" in report
     assert "`a/clean`: `updated`" in report
     assert "### Skipped" in report
-    assert "`d/bundled`: `skipped-bundled`" in report
+    assert "`d/pinned`: `skipped-pinned`" in report
 
 
 def test_render_reports_no_pr_when_no_updates() -> None:
     report = render_blackboard_report(
-        [_result("d/bundled", "skipped-bundled", source_type="bundled")],
+        [_result("d/current", "unchanged")],
         generated_at="2026-06-09T00:00:00+00:00",
         command=["coga", "skill", "update", "--all", "--pr", "--json"],
         pr_url=None,
@@ -173,7 +173,7 @@ def test_render_result_line_is_the_reports_own_result_sentence() -> None:
     results = [
         _result("a/updated", "updated", changed=True),
         _result("b/adapted", "skipped-local-adaptation"),
-        _result("c/bundled", "skipped-bundled", source_type="bundled"),
+        _result("c/current", "unchanged"),
     ]
     line = render_result_line(results)
     assert line == "3 skill(s): 1 updated, 1 need follow-up, 1 skipped."
@@ -517,8 +517,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return coga_os
 
 
+@pytest.mark.parametrize("installed_bundled_twin", [False, True])
 def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so it commits nothing and opens no PR (never
@@ -535,6 +536,11 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
         "PYTHONPATH",
         pythonpath,
     )
+    if installed_bundled_twin:
+        _write(
+            repo / "skills" / "code" / "implement" / "SKILL.md",
+            "---\nname: code/implement\n---\nlocal copy\n",
+        )
     _write(
         repo / "workflows" / "skill-update" / "run.md",
         """
@@ -575,6 +581,8 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     assert "## Skill Update" in blackboard
     assert "Task: `skill-update`" in blackboard
     assert "PR: none opened" in blackboard
+    assert "Result: no managed update results." in blackboard
+    assert "skipped-bundled" not in blackboard
 
 
 def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
