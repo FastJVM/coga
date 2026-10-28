@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -86,3 +85,21 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-28T18:22:35+00:00
+Task: `recurring/autoclose-merged`
+
+2 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `blocks/06-collapse-state-publication-into-one-user-topic` (worklist backlog): branch `blocks-06-collapse-state-publication` — local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/06-collapse-state-publication-into-one-user-topic`)
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' advanced past the merged PR head 55c24d2fe48f — preserving it.
+  - Branch cleanup: local 'blocks-06-collapse-state-publication' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/blocks-06-collapse-state-publication because the local branch remains.
+  - Branch sweep: 'blocks-06-collapse-state-publication' is recorded on a live ticket — left in place.
+- `blocks/08-trim-launch-prompt-and-workflow-topics` (worklist backlog): branch `coga/blocks-08-trim-launch-prompt-workflow` — local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place. (`coga retire blocks/08-trim-launch-prompt-and-workflow-topics`)
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' advanced past the merged PR head 61537ef1eed8 — preserving it.
+  - Branch cleanup: local 'coga/blocks-08-trim-launch-prompt-workflow' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/coga/blocks-08-trim-launch-prompt-workflow because the local branch remains.
+  - Branch sweep: 'coga/blocks-08-trim-launch-prompt-workflow' is recorded on a live ticket — left in place.
