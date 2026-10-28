@@ -63,12 +63,15 @@ important post with no `important_webhook` is never rerouted to flow.
 
 Coga never prints a raw Slack error, since it would contain the webhook URL.
 If a webhook URL or `/services/…` path ever appears in a diagnostic, treat it
-as compromised: revoke or rotate it in Slack, redact the tracked
-`coga/log.md`, and inspect every reachable commit and other copies (forks,
-clones, CI logs, caches). A redaction commit does not erase history;
-rewriting and force-pushing published history is a separate destructive step
-that needs explicit, coordinated approval and still cannot recall existing
-copies.
+as compromised: revoke or rotate it in Slack, confirming the leaked URL is
+revoked, and inspect every reachable commit and other copies (forks,
+clones, CI logs, caches). Revocation is the required remedy. Once revocation
+is confirmed, redacting historical copies is optional cleanup at the owner's
+direction. Preserve the append-only `coga/log.md` during ordinary incident
+response; redacting it requires an explicit owner-approved exception.
+A redaction commit does not erase history; rewriting and force-pushing
+published history is a separate destructive step that needs explicit,
+coordinated approval and still cannot recall existing copies.
 
 ## No retry
 
