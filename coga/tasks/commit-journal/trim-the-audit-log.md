@@ -893,22 +893,265 @@ choices in Open Questions still belong to the owner.
 
 branch: coga/trim-the-audit-log
 
-## Implementation plan
+## Implementation handoff — 2026-10-27
 
-Owner gate advancement is recorded in `coga/log.md` at 2026-10-27 18:27
-(`[human:nicktoper] advanced to step 4 (implement)`); the older Open Questions
-are superseded by that advancement. Actual implementing agent: Codex (GPT-6).
+Feature commits are pushed on `coga/trim-the-audit-log` at
+`55759e68f123bb8be3de6d27d39303c2b6fc338f`, based on current control
+`d97c96a3ced12a6c18184b59899020d5a601ed54`. The manual checkout has returned
+to fast-forwarded main. No PR was opened. The human's audit-recorded advance
+to implement at 2026-10-27 18:27 supersedes the earlier design-gate questions.
+Actual implementing agent: Codex (GPT-6).
 
-Resolve the evaluator's three technical findings with the implementation:
-use control-snapshot unread protection plus Git provenance for incoming replay;
-persist a checkout-local guarded mutation receipt before replacements and
-refuse unrelated publication until recovery; pin attribution boundaries for
-opaque blocks. Validate the combined replay/report case, process-boundary
-recovery and before/after readers. Keep enabling trim files outside the swept
-Coga roots until compatible core support is on control; document the explicit
-post-merge installation. No live log demonstration or config edit.
+The evaluator's three must-fix findings are addressed:
 
-Work sequence: shared config/parser/selection and movement cursor; publisher
-and rollback transactions; edge orchestration/install plus templates/docs;
-real-Git, headless and installed-wheel verification; full suite, reconciliation,
-commit/push, publication receipts and one bump.
+- Replay classification uses unread protection from pinned control, plus
+  exact reachable Git evidence, so consume → trim → forget → stale publish
+  does not recount an old movement; genuinely new backdated movement counts.
+- A per-checkout receipt and pinned Git intent survive child crashes and
+  uncertain pushes. Settlement and later publishers refuse pending deletion;
+  recovery distinguishes accepted/unpublished outcomes and preserves later
+  diagnostic appends. Real stateful launch and later-publication tests cover it.
+- Opaque blocks retain their preceding attribution boundary, preserving
+  existing task history/show semantics. Legacy continuations remain whole.
+
+Other verification includes both append/trim publication orders, merge-only
+archive evidence, native conflict recovery, both rollback writers under the
+state lock, inventory/cursor changes during rejected pushes, trim between
+another sweep's publications, repeated cursor/report alternation, parked
+reporters, and fresh/pre-feature installed-wheel adoption with explicit 0,
+custom/parked files and effective attribute refusal. Protocol corruption
+refuses before deleting history. Retire-worklist union behavior remains intact.
+
+Activation handoff: after the code PR merges, quiesce and upgrade every writer,
+then run the documented interpreter-resolved `python -m coga_edge.trim_log
+--install`, review/publish its five named repo artifacts and remove the temporary
+attribute twin exception once copies match. `rollout/trim-log/coga` keeps the
+new live schedule outside swept roots until then. The persistent runbook and
+`docs/release-notes/audit-retention.md` announce default-on retention, its
+exceptions, historical report limits, native conflicts and explicit adoption.
+This session did not edit live config, manually trim the live log, or adopt
+the feature into another live repository.
+
+Read-only measurement uses the shared selector with local date fixed to
+2026-10-27. At pinned `9bff7b617e5aec1c195bee5e79082c6061771094`, retained bytes
+are exactly **1,053,921 / 2,550,793**, 3,814 LF lines and 5,181 removed events:
+the design prototype is reproduced, with no selection discrepancy. At current
+control `d97c96a3ced12a6c18184b59899020d5a601ed54`, SHA-256
+`412f6955903306b94ddb4d60e369fe3b92e5d3e24eec3997b0633102cd1ad2a3`, the result
+is **1,066,581 / 2,563,453 bytes**, 3,842 / 9,580 lines, 8,992 total events,
+150 tasks and the same 5,181 removals. The extra 12,660 bytes are retained
+recent events, not a change in policy. The scan-cost receipt below is a review
+limitation; there is no permanent history cache or tombstone store.
+
+Remaining gate: the full suite's sole failure is the pre-existing
+`docs/README.md` link to `../README.md#key-concepts`; a clean baseline reproduces
+it. `code/implement` requires escalating unrelated test failures, so the
+implementation step must be blocked for repair or an explicit owner waiver,
+then verification/reconciliation and `coga bump`. No bump was run. The final
+rebase only changed one unrelated task and four log lines; all implementation,
+documentation and test files are byte-identical to the full-suite revision.
+Exact executed commands, revision receipts and file reasons follow.
+
+## PR
+
+```yaml
+title: Add default 30-day audit retention with guarded weekly maintenance
+author: codex
+author_evidence: Implemented by this Codex session (GPT-6), including the fixes and checks recorded here.
+head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+base: d97c96a3ced12a6c18184b59899020d5a601ed54
+depth: deep
+rationale: Changes deletion authority, Git publication/checkout proofs, crash recovery and telemetry cursor identity.
+  Independent code review is pending, and the full-suite gate has a reproduced baseline failure.
+implementation: Shared-only retention_days defaults to 30 (0 disables). Whole-event selection preserves on-disk
+  ticket histories, recurring maxima/pause resets, unread movement and uncertain bytes. Event-aware publication,
+  exact deletion receipts and durable Git-backed intent prevent stale resurrection and isolate uncertain pushes.
+  Schema-2 movement cursors preserve reporting across trim/reorder. Weekly edge maintenance and an allowlisted installer
+  ship with updated contracts, release notes and real-Git/installed-wheel tests.
+deviations: The live enabling files are staged under rollout/trim-log/coga, outside swept roots, using the ticket-authorized
+  two-phase rollout. The live log attribute remains an intentional temporary twin exception until post-merge adoption.
+  The unrelated README anchor is left for its owner; no PR or workflow bump has been made.
+limitations: Requires compatible upgraded writers and a quiesced adoption. Retention is a soft age target; historical
+  usage before the window can be incomplete. Native competing Git log edits conflict. Worst-case stale-input archive
+  proof took about 20.5s on this history. Verification ran on Linux/Python 3.12.12; native Windows/macOS runs were
+  not performed.
+files:
+  coga/recurring/dream/ticket.md: Update the live job contract for retained history or schema-2 reporting; preserve
+    runtime state.
+  coga/recurring/phone-home/ticket.md: Update the live job contract for retained history or schema-2 reporting;
+    preserve runtime state.
+  coga/skills/coga/autoclose/sweep/SKILL.md: Remove obsolete audit-log append-only/union claims while preserving
+    the owning process.
+  coga/skills/coga/show/SKILL.md: Remove obsolete audit-log append-only/union claims while preserving the owning
+    process.
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: Own the revised merge, mutation, recovery or admission
+    implementation contract.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Own the revised merge, mutation, recovery or admission
+    implementation contract.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Own the revised merge, mutation, recovery
+    or admission implementation contract.
+  docs/contexts/coga/architecture/SKILL.md: Summarize retained audit history.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Document pending-mutation checkout refusals.
+  docs/contexts/coga/configuration/SKILL.md: Specify retention settings, validation and the local calendar cutoff.
+  docs/contexts/coga/edge-code/SKILL.md: Link compatible wheel/repo retention adoption.
+  docs/contexts/coga/init/SKILL.md: Describe default-on fresh-init retention and link adoption.
+  docs/contexts/coga/install/SKILL.md: Link the explicit compatible retention adoption procedure.
+  docs/contexts/coga/prompt-composition/SKILL.md: Replace the obsolete append-only audit summary.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Preserve ledger/pause meaning during valid evidence compaction.
+  docs/contexts/coga/recurring/templates/SKILL.md: Name the limited cursor writer and inactivity exemption.
+  docs/contexts/coga/script-tickets/SKILL.md: Explain receipt handling across stateful script teardown.
+  docs/contexts/coga/state-publication/SKILL.md: Own guarded audit publication, deletion and recovery.
+  docs/contexts/coga/usage/SKILL.md: Limit historical queries to retained records.
+  docs/release-notes/audit-retention.md: Announce default-on retention, exceptions, historical reporting limits,
+    native conflicts and adoption.
+  rollout/trim-log/coga/.gitattributes: Stage activation outside swept roots until core lands.
+  rollout/trim-log/coga/recurring/trim-log/operations.md: Stage activation outside swept roots until core lands.
+  rollout/trim-log/coga/recurring/trim-log/ticket.md: Stage activation outside swept roots until core lands.
+  rollout/trim-log/coga/recurring/trim-log/ticket.py: Stage activation outside swept roots until core lands.
+  rollout/trim-log/coga/workflows/trim-log/run.md: Stage activation outside swept roots until core lands.
+  src/coga/atomicio.py: Provide atomic byte replacement shared by log mutation and recovery.
+  src/coga/cli.py: Use the publisher disposition for unpublished-event diagnostics after trimming.
+  src/coga/config.py: Validate shared-only retention_days, default 30 and explicit 0.
+  src/coga/create.py: Remove the obsolete append-only audit summary.
+  src/coga/git.py: Publish log events with provenance and guarded mutations; lock landed writes and checkout proofs.
+  src/coga/launch.py: Retract the exact provisional append through the shared event mutation API.
+  src/coga/launch_script.py: Preserve a pending mutation across stateful exit-75 teardown.
+  src/coga/log_publication.py: Share pinned policy/inventory/cursor reads and exact reachable-history replay proofs.
+  src/coga/log_retention.py: Select original event spans with age and required-state preservation.
+  src/coga/log_transaction.py: Persist temporary Git-backed intent and recover uncertain publication without losing
+    later appends.
+  src/coga/logfile.py: Parse byte-preserving events and serialize append, atomic mutation and whole-event retraction.
+  src/coga/megalaunch.py: Hold rollback transactions from their before-snapshots through retraction.
+  src/coga/movement_cursor.py: Share movement identity, schema validation and lossless prefix migration.
+  src/coga/paths.py: Describe the retained audit path.
+  src/coga/recurring.py: Correct obsolete union/append-only audit explanations.
+  src/coga/recurring_runner.py: Lock rollback transactions and distinguish benign ledger compaction from competitor
+    admission.
+  src/coga/resources/prompt.md: Describe the command-written audit trail as retained history.
+  src/coga/resources/templates/coga/.gitattributes: Package the canonical contract/artifact; preserve runtime-state
+    exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Package the canonical
+    contract/artifact; preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Package the canonical
+    contract/artifact; preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Package the canonical
+    contract/artifact; preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md: Package the canonical
+    contract/artifact; preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md: Package the canonical contract/artifact;
+    preserve runtime-state exceptions.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/resources/templates/coga/recurring/phone-home/ticket.md: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/resources/templates/coga/recurring/trim-log/operations.md: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/resources/templates/coga/recurring/trim-log/ticket.md: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/resources/templates/coga/recurring/trim-log/ticket.py: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/resources/templates/coga/workflows/trim-log/run.md: Package the canonical contract/artifact; preserve
+    runtime-state exceptions.
+  src/coga/retire_worklist.py: Keep the retire worklist union contract distinct from the audit log.
+  src/coga/taskfile.py: Describe the separate retained audit history.
+  src/coga_edge/phone_home.py: Reserve schema-2 movement fingerprints without changing delivery, identity, payload
+    or run policy.
+  src/coga_edge/trim_log.py: Orchestrate guarded weekly retention, cursor migration/recovery and feature-specific
+    adoption.
+  tests/fixtures/seeded-repo/coga/.gitattributes: Seed a representative retention-enabled repository.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/operations.md: Seed a representative retention-enabled repository.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.md: Seed a representative retention-enabled repository.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.py: Seed a representative retention-enabled repository.
+  tests/fixtures/seeded-repo/coga/tasks/declined-dream-finding.md: Seed a representative retention-enabled repository.
+  tests/fixtures/seeded-repo/coga/workflows/trim-log/run.md: Seed a representative retention-enabled repository.
+  tests/test_edge_distribution.py: Exercise actual wheels, documented interpreter adoption, opt-out/fork/parking
+    preservation and headless completion.
+  tests/test_launch_script.py: Exercise stateful exit-75/crash isolation, teardown and later publication with a
+    durable receipt.
+  tests/test_log_retention.py: Verify byte parsing, calendar boundaries, required readers/state, cursor migration
+    and config rejection.
+  tests/test_packaging.py: Enforce staged/package twins, the temporary attribute exception and schema-2 seed.
+  tests/test_recurring.py: Verify the new inactive exemption and a peer trim between sweep publications.
+  tests/test_telemetry.py: Adapt cursor assertions to schema 2 while preserving wire and reporting behavior.
+  tests/test_trim_log.py: Verify real Git races, rollback, archival proofs, cursor alternation, adoption and native
+    conflict recovery.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This is the implement step. Code review belongs to later frozen workflow steps; design evaluation is not
+    code review.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  status: failed
+  head: f13b7692459f89bc84ba8d89138fe5f9509727c2
+  base: 74e14ba063347932fe5ac5a7c8f0d005e9e760ba
+  detail: '4,199 passed, 10 platform-specific skips, 1 pre-existing failure in 390.69s: test_context_navigation_has_no_broken_links
+    reports docs/README.md -> ../README.md#key-concepts. After this run, rebase changed only one unrelated task
+    and coga/log.md; all implementation, documentation and test files are identical.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_trim_log.py tests/test_log_retention.py
+    tests/test_recurring.py::test_recurring_sweep_continues_after_peer_trim_removes_obsolete_ledger tests/test_packaging.py
+    tests/test_edge_distribution.py tests/test_launch_script.py
+  status: failed
+  head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+  base: d97c96a3ced12a6c18184b59899020d5a601ed54
+  detail: 'Fresh verification after rebase: 174 passed, the same single baseline anchor failure, in 61.51s. Covers
+    installed wheels and headless completion, Git races/recovery, cursor alternation/parking, the concurrent sweep,
+    parser/config and packaging.'
+- command: PYTHONPATH=/tmp/coga-trim-baseline/src /home/n/Code/coga/.venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: 74e14ba063347932fe5ac5a7c8f0d005e9e760ba
+  base: 74e14ba063347932fe5ac5a7c8f0d005e9e760ba
+  detail: 'Clean baseline checkout at /tmp/coga-trim-baseline: 1 failed in 4.00s with the identical missing README
+    anchor. The feature did not introduce this failure.'
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli
+    validate --json
+  status: passed
+  head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+  base: d97c96a3ced12a6c18184b59899020d5a601ed54
+  detail: 'Cwd tests/fixtures/seeded-repo/coga: 4 valid tasks, no fixes or issues.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+  base: d97c96a3ced12a6c18184b59899020d5a601ed54
+  detail: 'Live repo: 150 valid tasks, zero errors, 48 existing warnings, no new kind/task/severity findings versus
+    clean control. The baseline additionally warns about its absent machine-local user.'
+- command: git diff --check origin/main...coga/trim-the-audit-log
+  status: passed
+  head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+  base: d97c96a3ced12a6c18184b59899020d5a601ed54
+  detail: No whitespace errors in the committed feature diff.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-trim-measure.py --selection-only
+  status: passed
+  head: 55759e68f123bb8be3de6d27d39303c2b6fc338f
+  base: d97c96a3ced12a6c18184b59899020d5a601ed54
+  detail: 'Read-only shared-selector measurement at fixed local date 2026-10-27: reproduces the pinned design result
+    exactly, and measures current control as recorded below. No live log writes.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-trim-measure.py
+  status: passed
+  head: f13b7692459f89bc84ba8d89138fe5f9509727c2
+  base: 74e14ba063347932fe5ac5a7c8f0d005e9e760ba
+  detail: 'At control 74e14ba0, two repeated scans from an unmoving revision, each with one archived and one unproven
+    candidate: 20.503s and 20.415s; exactly one event proved each time. Includes merge diffs and verifies positives
+    against full blobs.'
+```
