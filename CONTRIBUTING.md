@@ -10,22 +10,38 @@ join existing work.
 Use an issue to describe a bug or propose a change. A small reproduction or a
 concrete use case is enough to start the conversation.
 
-Substantive work belongs in a [Coga ticket](coga/tasks), following the repo's
+For substantive changes, open an issue first so maintainers can agree on
+scope and create or identify a [Coga ticket](coga/tasks), following the
 [design principles](docs/contexts/coga-dev/principles/SKILL.md).
-If there is no ticket for your change, open an issue first so maintainers can
-help agree on scope and create or identify the ticket. You do not need to set
-up Coga to file an issue. Small typo fixes can go straight to a pull request.
+You do not need to install Coga to file an issue or submit a pull request.
+Small typo fixes can go straight to a pull request.
 
 ## Set up and test
 
-Use Python 3.11+ and Git. Fork and clone the repository, then run from its root:
+Use Git and Python 3.11+ (not an older system Python). Fork and clone the
+repository, then run from its root.
+
+On macOS or Linux:
 
 ```sh
+python3 --version                 # must be 3.11+ before creating the venv
 python3 -m venv .venv
-source .venv/bin/activate
+. .venv/bin/activate
 python -m pip install -e ".[test]"
 python -m pytest
 ```
+
+On Windows PowerShell, with Python 3.11 installed:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+If `python3` is older, choose a 3.11+ interpreter before creating the
+environment. For `uv`-created environments (which may not include pip),
+follow the [testing guide](docs/contexts/coga-dev/testing/SKILL.md).
 
 The [testing](docs/contexts/coga-dev/testing/SKILL.md) topic covers the CLI smoke
 check and test commands; [codebase](docs/contexts/coga-dev/codebase/SKILL.md)
