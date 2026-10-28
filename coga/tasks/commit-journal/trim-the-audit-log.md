@@ -37,9 +37,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
-launch_generation: f7d7afa0-c60f-4085-8a7f-a0fe12c94e21
 ---
 
 ## Description
@@ -961,200 +960,243 @@ separator that made the old preparation unparsable. No implementation change
 was needed. Independent code review is still pending; no PR has been opened.
 The final action for this step is `coga bump commit-journal/trim-the-audit-log`.
 
+## Peer review — 2026-10-27
+
+Direct Codex review **completed** on head
+`99c9e1a0f8f3be58afde13fec1bf82cae8267d61`, base
+`9b0103a99c18dcbda36f3941293bdda48859adf1`. Reviewed the complete diff and
+publication/checkout, parsing/selection, recurring, cursor, recovery and
+adoption contracts. Fresh session, but the implementing identity is also
+Codex and this session authored fixes: recorded as **self-review**. No child
+review tool/agent. Recommendation: **deep**. No unresolved feature findings.
+
+Four reproduced findings fixed and re-reviewed in `99c9e1a0f`:
+
+- P1: failed ancestry inspection could restore an accepted trim; now retains
+  outputs and receipt instead of declaring it unpublished.
+- P2: JSON attempt OIDs were unpinned; the receipt ref now retains every attempt.
+- P2: publication/recovery normalized CRLF survivors; exact local log/cursor
+  bytes now survive, with mixed-ending and uncertainty regression tests.
+- P2: a retained failure report blocked retry as dirty inventory; only this
+  period's appended report publishes under an exact guard before replanning.
+  Other inventory edits still refuse.
+
+Full final suite: **4,209 passed, 10 skipped in 413.57s**, Linux/Python 3.12.12.
+Exact commands/receipts are in PR below. Earlier focused trim/launch checks:
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_trim_log.py tests/test_launch_script.py`
+→ 107 passed in 28.38s. Real subprocess and installed-wheel tests cover the
+headless surface; no terminal UI changed. Python 3.11/native Windows/macOS
+were not run. The historical ~20.5s archive-scan receipt was not remeasured.
+
+An initial reordered focused run (log retention, trim, telemetry, launch,
+recurring, Git) had 984 passes/3 sweep failures; those three passed alone.
+This minimal reproduction also fails unchanged main (2 passed, 1 failed):
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree tests/test_git.py::test_recurring_all_child_retains_the_control_worktree_sweep
+```
+
+It identifies an existing `control_relay_started` test-order leak, not a
+retention regression; the standard full-suite order passes. No waiver.
+Baseline validation used `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json > /tmp/coga-trim-peer-control-validation.json`:
+150 valid tasks, zero errors, the same 48 kind/task/severity warnings as the
+feature. Seeded validation has 4 valid tasks and no issues.
+
+Fetched/rebased before review; range-diff proved all three implementation
+commits unchanged. Final fetch showed no main movement. Pushed with
+`--force-with-lease`, returned the manual checkout to current main, and
+prepared all 81 PR paths. No live trim, config edit, activation or PR opening.
+New review/PR prose was condensed from 35.7 to 31.8 KiB; earlier historical
+notes and blocker records remain unchanged. Final scoped validation: one valid
+ticket, no issues.
+
 ## PR
 
 ```yaml
 title: Add default 30-day audit retention with guarded weekly maintenance
 author: codex
-author_evidence: Implementation was recorded by the prior Codex (GPT-6) session. This resumed Codex (GPT-6) session
-  reconciled the same three commits and performed the fresh verification and handoff recorded below.
-head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
+author_evidence: The implementation handoff records Codex (GPT-6). This fresh Codex review session authored
+  the fixes in 99c9e1a0f; shared recorded identity means self-review.
+head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+base: 9b0103a99c18dcbda36f3941293bdda48859adf1
 depth: deep
-rationale: Changes deletion authority, Git publication/checkout proofs, crash recovery and telemetry cursor identity.
-  The full suite now passes after the separate baseline-link repair; independent code review is pending.
-implementation: Shared-only retention_days defaults to 30 (0 disables). Whole-event selection preserves on-disk
-  ticket histories, recurring maxima/pause resets, unread movement and uncertain bytes. Event-aware publication,
-  exact deletion receipts and durable Git-backed intent prevent stale resurrection and isolate uncertain pushes.
-  Schema-2 movement cursors preserve reporting across trim/reorder. Weekly edge maintenance and an allowlisted installer
-  ship with updated contracts, release notes and real-Git/installed-wheel tests.
-deviations: The live enabling files are staged under rollout/trim-log/coga, outside swept roots, using the ticket-authorized
-  two-phase rollout. The live log attribute remains an intentional temporary twin exception until post-merge adoption.
-limitations: Requires compatible upgraded writers and quiesced adoption. Retention is a soft age target; historical
-  usage before the window can be incomplete. Native competing Git log edits conflict. Worst-case stale-input archive
-  proof took about 20.5s in the recorded historical probe. Fresh verification ran on Linux/Python 3.12.12; Python
-  3.11 and native Windows/macOS runs were not performed.
+rationale: Deletion authority, publication/checkout proofs, crash recovery and cursor identity warrant
+  deep owner inspection. Direct self-review completed; all four feature findings are fixed and the full
+  suite passed.
+implementation: Default 30-day shared retention (0 disables), weekly edge maintenance and explicit adoption.
+  Whole events preserve live ticket histories, recurring state, unread movement and opaque bytes. Guarded
+  deletion, Git-backed receipts and fingerprint cursors prevent stale resurrection and isolate failed
+  publication. Review fixes preserve CRLF bytes, pin attempts, keep failed ancestry checks uncertain and
+  unblock report-and-retry.
+deviations: The live enabling files are staged under rollout/trim-log/coga, outside swept roots, using
+  the ticket-authorized two-phase rollout. The live log attribute remains an intentional temporary twin
+  exception until post-merge adoption.
+limitations: Requires quiesced adoption and compatible writers. Retention is a soft age bound; older usage
+  may be incomplete. Native Git edits can conflict. Historical stale-input proof cost ~20.5s, not remeasured
+  here. Verified on Linux/Python 3.12.12 only; no 3.11 or native Windows/macOS run. Self-review.
 files:
-  coga/recurring/dream/ticket.md: Update the live job contract for retained history or schema-2 reporting; preserve
-    runtime state.
-  coga/recurring/phone-home/ticket.md: Update the live job contract for retained history or schema-2 reporting;
-    preserve runtime state.
-  coga/skills/coga/autoclose/sweep/SKILL.md: Remove obsolete audit-log append-only/union claims while preserving
+  coga/recurring/dream/ticket.md: Describe retained audit history.
+  coga/recurring/phone-home/ticket.md: Specify schema-2 cursors; preserve runtime state.
+  coga/skills/coga/autoclose/sweep/SKILL.md: Remove obsolete audit-log append-only/union claims while
+    preserving the owning process.
+  coga/skills/coga/show/SKILL.md: Remove obsolete audit-log append-only/union claims while preserving
     the owning process.
-  coga/skills/coga/show/SKILL.md: Remove obsolete audit-log append-only/union claims while preserving the owning
-    process.
-  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: Own the revised merge, mutation, recovery or admission
-    implementation contract.
-  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Own the revised merge, mutation, recovery or admission
-    implementation contract.
-  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Own the revised merge, mutation, recovery
-    or admission implementation contract.
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: Specify benign ledger compaction during
+    admission.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Specify event merging, mutation, locking and
+    recovery.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Document the guarded mutation publication
+    API.
   docs/contexts/coga/architecture/SKILL.md: Summarize retained audit history.
   docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Document pending-mutation checkout refusals.
-  docs/contexts/coga/configuration/SKILL.md: Specify retention settings, validation and the local calendar cutoff.
+  docs/contexts/coga/configuration/SKILL.md: Specify retention settings, validation and the local calendar
+    cutoff.
   docs/contexts/coga/edge-code/SKILL.md: Link compatible wheel/repo retention adoption.
   docs/contexts/coga/init/SKILL.md: Describe default-on fresh-init retention and link adoption.
   docs/contexts/coga/install/SKILL.md: Link the explicit compatible retention adoption procedure.
   docs/contexts/coga/prompt-composition/SKILL.md: Replace the obsolete append-only audit summary.
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Preserve ledger/pause meaning during valid evidence compaction.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Preserve ledger/pause meaning during valid evidence
+    compaction.
   docs/contexts/coga/recurring/templates/SKILL.md: Name the limited cursor writer and inactivity exemption.
   docs/contexts/coga/script-tickets/SKILL.md: Explain receipt handling across stateful script teardown.
   docs/contexts/coga/state-publication/SKILL.md: Own guarded audit publication, deletion and recovery.
   docs/contexts/coga/usage/SKILL.md: Limit historical queries to retained records.
-  docs/release-notes/audit-retention.md: Announce default-on retention, exceptions, historical reporting limits,
-    native conflicts and adoption.
+  docs/release-notes/audit-retention.md: Announce default-on retention, exceptions, historical reporting
+    limits, native conflicts and adoption.
   rollout/trim-log/coga/.gitattributes: Stage activation outside swept roots until core lands.
-  rollout/trim-log/coga/recurring/trim-log/operations.md: Stage activation outside swept roots until core lands.
-  rollout/trim-log/coga/recurring/trim-log/ticket.md: Stage activation outside swept roots until core lands.
-  rollout/trim-log/coga/recurring/trim-log/ticket.py: Stage activation outside swept roots until core lands.
+  rollout/trim-log/coga/recurring/trim-log/operations.md: Stage activation outside swept roots until core
+    lands.
+  rollout/trim-log/coga/recurring/trim-log/ticket.md: Stage activation outside swept roots until core
+    lands.
+  rollout/trim-log/coga/recurring/trim-log/ticket.py: Stage activation outside swept roots until core
+    lands.
   rollout/trim-log/coga/workflows/trim-log/run.md: Stage activation outside swept roots until core lands.
   src/coga/atomicio.py: Provide atomic byte replacement shared by log mutation and recovery.
   src/coga/cli.py: Use the publisher disposition for unpublished-event diagnostics after trimming.
   src/coga/config.py: Validate shared-only retention_days, default 30 and explicit 0.
   src/coga/create.py: Remove the obsolete append-only audit summary.
-  src/coga/git.py: Publish log events with provenance and guarded mutations; lock landed writes and checkout proofs.
+  src/coga/git.py: Reconcile events, guard deletions and checkout proofs, lock writes, preserve equivalent
+    local CRLF bytes.
   src/coga/launch.py: Retract the exact provisional append through the shared event mutation API.
   src/coga/launch_script.py: Preserve a pending mutation across stateful exit-75 teardown.
-  src/coga/log_publication.py: Share pinned policy/inventory/cursor reads and exact reachable-history replay proofs.
+  src/coga/log_publication.py: Share pinned policy/inventory/cursor reads and exact reachable-history
+    replay proofs.
   src/coga/log_retention.py: Select original event spans with age and required-state preservation.
-  src/coga/log_transaction.py: Persist temporary Git-backed intent and recover uncertain publication without losing
-    later appends.
-  src/coga/logfile.py: Parse byte-preserving events and serialize append, atomic mutation and whole-event retraction.
+  src/coga/log_transaction.py: Pin intent/attempts; preserve uncertainty on inspection failure and exact
+    log/cursor bytes in recovery.
+  src/coga/logfile.py: Parse byte-preserving events and serialize append, atomic mutation and whole-event
+    retraction.
   src/coga/megalaunch.py: Hold rollback transactions from their before-snapshots through retraction.
   src/coga/movement_cursor.py: Share movement identity, schema validation and lossless prefix migration.
   src/coga/paths.py: Describe the retained audit path.
   src/coga/recurring.py: Correct obsolete union/append-only audit explanations.
-  src/coga/recurring_runner.py: Lock rollback transactions and distinguish benign ledger compaction from competitor
-    admission.
+  src/coga/recurring_runner.py: Lock rollback transactions and distinguish benign ledger compaction from
+    competitor admission.
   src/coga/resources/prompt.md: Describe the command-written audit trail as retained history.
-  src/coga/resources/templates/coga/.gitattributes: Package the canonical contract/artifact; preserve runtime-state
-    exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Package the canonical
-    contract/artifact; preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Package the canonical
-    contract/artifact; preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Package the canonical
-    contract/artifact; preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md: Package the canonical
-    contract/artifact; preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md: Package the canonical contract/artifact;
-    preserve runtime-state exceptions.
-  src/coga/resources/templates/coga/recurring/dream/ticket.md: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
-  src/coga/resources/templates/coga/recurring/phone-home/ticket.md: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
-  src/coga/resources/templates/coga/recurring/trim-log/operations.md: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
-  src/coga/resources/templates/coga/recurring/trim-log/ticket.md: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
-  src/coga/resources/templates/coga/recurring/trim-log/ticket.py: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
-  src/coga/resources/templates/coga/workflows/trim-log/run.md: Package the canonical contract/artifact; preserve
-    runtime-state exceptions.
+  src/coga/resources/templates/coga/.gitattributes: Ship the matching canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Ship the matching canonical
+    contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Ship the
+    matching canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Ship the matching canonical
+    contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Ship the matching canonical
+    contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Ship the matching canonical
+    contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Ship the matching canonical
+    contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md: Ship
+    the matching canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md: Ship the matching
+    canonical contract or artifact.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md: Ship the matching canonical contract
+    or artifact.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Ship the matching canonical contract or
+    artifact.
+  src/coga/resources/templates/coga/recurring/phone-home/ticket.md: Ship the matching canonical contract
+    or artifact.
+  src/coga/resources/templates/coga/recurring/trim-log/operations.md: Ship the matching canonical contract
+    or artifact.
+  src/coga/resources/templates/coga/recurring/trim-log/ticket.md: Ship the matching canonical contract
+    or artifact.
+  src/coga/resources/templates/coga/recurring/trim-log/ticket.py: Ship the matching canonical contract
+    or artifact.
+  src/coga/resources/templates/coga/workflows/trim-log/run.md: Ship the matching canonical contract or
+    artifact.
   src/coga/retire_worklist.py: Keep the retire worklist union contract distinct from the audit log.
   src/coga/taskfile.py: Describe the separate retained audit history.
-  src/coga_edge/phone_home.py: Reserve schema-2 movement fingerprints without changing delivery, identity, payload
-    or run policy.
-  src/coga_edge/trim_log.py: Orchestrate guarded weekly retention, cursor migration/recovery and feature-specific
-    adoption.
-  tests/fixtures/seeded-repo/coga/.gitattributes: Seed a representative retention-enabled repository.
-  tests/fixtures/seeded-repo/coga/recurring/trim-log/operations.md: Seed a representative retention-enabled repository.
-  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.md: Seed a representative retention-enabled repository.
-  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.py: Seed a representative retention-enabled repository.
-  tests/fixtures/seeded-repo/coga/tasks/declined-dream-finding.md: Seed a representative retention-enabled repository.
-  tests/fixtures/seeded-repo/coga/workflows/trim-log/run.md: Seed a representative retention-enabled repository.
+  src/coga_edge/phone_home.py: Reserve schema-2 movement fingerprints without changing delivery, identity,
+    payload or run policy.
+  src/coga_edge/trim_log.py: Run retention, cursor migration/recovery and bounded adoption; publish its
+    appended failure report before retry.
+  tests/fixtures/seeded-repo/coga/.gitattributes: Keep the seeded retention fixture representative.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/operations.md: Keep the seeded retention fixture
+    representative.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.md: Keep the seeded retention fixture representative.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/ticket.py: Keep the seeded retention fixture representative.
+  tests/fixtures/seeded-repo/coga/tasks/declined-dream-finding.md: Keep the seeded retention fixture representative.
+  tests/fixtures/seeded-repo/coga/workflows/trim-log/run.md: Keep the seeded retention fixture representative.
   tests/test_edge_distribution.py: Exercise actual wheels, documented interpreter adoption, opt-out/fork/parking
     preservation and headless completion.
-  tests/test_launch_script.py: Exercise stateful exit-75/crash isolation, teardown and later publication with a
-    durable receipt.
-  tests/test_log_retention.py: Verify byte parsing, calendar boundaries, required readers/state, cursor migration
-    and config rejection.
-  tests/test_packaging.py: Enforce staged/package twins, the temporary attribute exception and schema-2 seed.
+  tests/test_launch_script.py: Exercise stateful exit-75/crash isolation, teardown and later publication
+    with a durable receipt.
+  tests/test_log_retention.py: Verify byte parsing, calendar boundaries, required readers/state, cursor
+    migration and config rejection.
+  tests/test_packaging.py: Enforce staged/package twins, the temporary attribute exception and schema-2
+    seed.
   tests/test_recurring.py: Verify the new inactive exemption and a peer trim between sweep publications.
   tests/test_telemetry.py: Adapt cursor assertions to schema 2 while preserving wire and reporting behavior.
-  tests/test_trim_log.py: Verify real Git races, rollback, archival proofs, cursor alternation, adoption and native
-    conflict recovery.
+  tests/test_trim_log.py: Cover Git races, archives, native merges, cursor/CRLF recovery, reachable attempts
+    and report-and-retry.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: This is the implement step. Code review belongs to later frozen workflow steps; design evaluation is not
-    code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+  base: 9b0103a99c18dcbda36f3941293bdda48859adf1
+  detail: 'Direct review completed on this head/base. Four reproduced findings fixed and re-reviewed:
+    failed ancestry inspection, unpinned attempts, CRLF normalization, and failure reports blocking retry.
+    No unresolved feature findings. Same recorded implementing identity and authored fixes: self-review.
+    Real subprocess/wheel tests cover the headless surface; no terminal UI changed.'
 checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-trim-peer-pytest.txt
+    2>&1
   status: passed
-  head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  detail: 4,200 passed, 10 platform-specific skips in 415.63s (6m55s), on Linux/Python 3.12.12. Includes installed
-    wheels, headless maintenance, real-Git races/recovery, cursor alternation, recurring admission, parser/config
-    and packaging. No failures or waivers.
-- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli
-    validate --json
+  head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+  base: 9b0103a99c18dcbda36f3941293bdda48859adf1
+  detail: 4,209 passed, 10 skipped in 413.57s, Linux/Python 3.12.12. Full standard-order suite, including
+    installed wheels, real-Git recovery, cursor alternation and packaging. No failures or waivers.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json > /tmp/coga-trim-peer-fixture-validation.json
   status: passed
-  head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
+  head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+  base: 9b0103a99c18dcbda36f3941293bdda48859adf1
   detail: 'Cwd tests/fixtures/seeded-repo/coga: 4 valid tasks, no fixes or issues.'
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json > /tmp/coga-trim-resume-validation.json
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json > /tmp/coga-trim-peer-validation.json
   status: passed
-  head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  detail: 'Feature checkout: 150 valid tasks, no fixes, zero errors and 48 warnings. Exact kind/task/severity multiset
-    matches the fresh control validation below: no new findings.'
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json > /tmp/coga-trim-resume-control-validation.json
-  status: passed
-  head: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  detail: 'Control checkout after return: 150 valid tasks, no fixes, zero errors and the same 48 warnings as the
-    feature. Comparison ignores changing idle-hour text.'
+  head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+  base: 9b0103a99c18dcbda36f3941293bdda48859adf1
+  detail: 150 valid tasks, no fixes, zero errors and 48 warnings. The exact kind/task/severity multiset
+    matches the fresh control validation at 9b0103a99c18dcbda36f3941293bdda48859adf1; no new findings.
+    Idle-hour text is ignored.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  detail: No whitespace errors in the committed feature diff.
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-trim-measure.py --selection-only
-  status: passed
-  head: 8e1805b146e20cc7de86b5ea900437dbb5b81730
-  base: fa9070d1c3bb742df8491f169c42fad13e16e7a2
-  detail: Read-only selector at fixed local date 2026-10-27 reproduces the pinned design input exactly. Verification
-    control retains 1,074,214 of 2,571,086 bytes, 3,862 of 9,600 LF lines, with 5,181 removed events; all growth
-    from the pinned input is retained recent history. No live log writes.
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-trim-measure.py
-  status: passed
-  head: f13b7692459f89bc84ba8d89138fe5f9509727c2
-  base: 74e14ba063347932fe5ac5a7c8f0d005e9e760ba
-  detail: 'At control 74e14ba0, two repeated scans from an unmoving revision, each with one archived and one unproven
-    candidate: 20.503s and 20.415s; exactly one event proved each time. Includes merge diffs and verifies positives
-    against full blobs.'
+  head: 99c9e1a0f8f3be58afde13fec1bf82cae8267d61
+  base: 9b0103a99c18dcbda36f3941293bdda48859adf1
+  detail: No whitespace errors in the complete committed feature diff.
 ```
 
 ## Blockers
