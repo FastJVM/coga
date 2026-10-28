@@ -22,29 +22,9 @@ coga launch add-a-health-check-endpoint --prompt-report  # inspect the prompt la
 coga launch add-a-health-check-endpoint                  # start the agent in your terminal
 ```
 
-The ticket is an ordinary file under `coga/tasks/`. Here's a shortened excerpt from a [real Thinkpick ticket](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md):
+The ticket is an ordinary Markdown file under `coga/tasks/`. Here's the essential part of a [real Thinkpick ticket](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md):
 
 ```md
----
-title: State of the art review
-status: draft
-owner: nicktoper
-agent: codex
-workflow:
-  name: draft-for-human
-  steps:
-  - name: agent-produces
-    skills: []
-    assignee: agent
-  - name: human-owns-and-finishes
-    skills: []
-    assignee: owner
-  - name: report-to-coga
-    skills: []
-    assignee: agent
-step: 1 (agent-produces)
----
-
 ## Description
 
 Survey the state of the art: is predicting how much reasoning effort a model
@@ -56,18 +36,16 @@ needs, from the task description alone, already a solved problem?
 - Out of scope: writing code, running experiments, picking providers.
 ```
 
-Edit a ticket directly or refine it with an agent. At launch, Coga assembles the ticket, its attached contexts, and its current workflow step into a fresh prompt.
+Its workflow is **agent researches → human reviews and decides which follow-up tasks are needed → agent records the outcome**. You can edit the ticket directly or refine it with an agent. At launch, Coga assembles the ticket, its attached contexts, and its current workflow step into a fresh prompt.
 
 ## Why use Coga instead of just the agent?
 
-Actually, **you still use the agent.** but you use Coga to launch the agent. Coga gives the agent a life beyond one conversation that you control:
+You keep using Claude Code or Codex. Coga gives each task durable context, a workflow, and a history that survives individual agent sessions:
 
 - **Change the plan.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
 - **Give each task the right context.** Attach relevant facts, constraints, and decisions instead of making every session rediscover them.
 - **Put reviews where they matter.** Use a lightweight workflow for a simple change or require design, peer review, and human approval for more substantial work.
 - **Keep what you learn.** Record decisions in project contexts so later tasks inherit them, even when a different agent does the work.
-
-**Agents work in sessions. Coga works in tasks.**
 
 ## When the first plan was wrong: Thinkpick
 
