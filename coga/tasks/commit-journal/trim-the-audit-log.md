@@ -37,9 +37,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
-launch_generation: e45a7127-ad8d-4f0f-bc72-5667b323de46
 ---
 
 ## Description
@@ -51,17 +50,360 @@ default in every adopting repo; a repo can change the window or turn trimming
 off in `coga.toml`. The design proposes the default window from measured
 sizes (see Context) and the owner approves it at the design gate.
 
-Done when the setting is documented in `coga/configuration`; the recurring
-template and its workflow ship in both the live and packaged trees (twins
-byte-identical per `tests/test_packaging.py`); a run against a seeded log
-removes expired events while preserving required reader state and concurrent
-new events (see "Lines that must survive"); recurring jobs neither re-fire nor
-change pause/resume behavior because of a trim; the union-merge invariant is
-resolved and `coga-dev/internals/spool-merge` updated; a verified adoption path
-delivers the template and default to existing repos as well as fresh `init`
-seeds; and `python -m pytest` passes. Verification must exercise cutoff
-boundaries, disabled and repeated/no-op runs, and concurrent/stale-copy
-publication and merge cases, not just a standalone filtering function.
+Propose **30 calendar days**, with the preservation exceptions below. This
+cuts the measured log by about 59%, while keeping complete histories for
+tickets still on disk. This is a retention target, not a hard byte ceiling:
+live histories, unread movement records, required recurring evidence and
+unparseable content can outlive the window. The owner approves this tradeoff
+at `review-design`.
+
+### Acceptance criteria
+
+- [ ] Shared-only `[log].retention_days` defaults to `30`; integer `0`
+  disables trimming. Reject booleans, negative numbers, non-integers,
+  non-table `[log]`, unknown keys and a local `[log]` override. Very large
+  positive integers safely mean a cutoff no earlier than `datetime.min`.
+  Document the setting and default in `coga/configuration` and its twin.
+- [ ] Ship `recurring/trim-log/{ticket.md,ticket.py}` and
+  `workflows/trim-log/run.md`, with byte-identical live/package twins. Use
+  `schedule: "0 4 * * 1"` (Monday 04:00 in the sweeping process's local
+  timezone), `scope: repo`, `run_when_inactive: true`, and one agent-assigned
+  `trim` step. Omit owner/agent overrides. The shim invokes the wheel-owned
+  edge implementation and completes disabled, empty and no-change periods
+  with `python -m coga.cli bump "$COGA_TASK_SLUG"`; no agent fallthrough.
+- [ ] Delete only complete, unprotected events strictly before local midnight
+  on `today - retention_days`, capturing `today` once per attempt. Keep the
+  exact boundary and future timestamps. Preserve surviving bytes, order,
+  duplicate multiplicity and v1 escaping. Legacy continuations travel with
+  their event; uncertain data follows the conservative policy below.
+- [ ] Preserve every discovered on-disk ticket's complete history, including
+  drafts and terminal tickets awaiting Retro/retire; preserve recurring
+  high-water marks and pause/reset evidence even after period deletion.
+  Full and bounded ledger readers, pause eligibility, activity maps for
+  existing tasks and service order retain their pre-trim meaning.
+- [ ] Malformed serviced-period records remain errors; a trim refuses before
+  deleting anything when its full ledger validation finds one. Removal of
+  obsolete valid ledger evidence alone must not trigger the runner's
+  competitor-admission refusal or re-fire a serviced period.
+- [ ] All local append/rewrite/retraction/publication paths coordinate with
+  the same reentrant state lock. Concurrent and stale publishers cannot
+  silently drop control-only events or reintroduce expired, previously
+  trimmed history. Native Git merges fail visibly when they cannot preserve
+  both sides. Retraction still removes exactly refused events, including
+  legacy continuations, without deleting peer events.
+- [ ] Every removed event is already recoverable from reachable Git history.
+  A failed or uncertain publish cannot be reported as a completed trim.
+  A disabled-Git or non-Git run is a reported non-destructive skip and closes
+  its period; a remote-less Git repo may trim after a verified local-control
+  commit. Use `Log: recurring/trim-log — ...` for maintenance publication;
+  verify `recurring_activity.is_machine_commit` excludes it from activity.
+- [ ] Replace phone-home's prefix-dependent cursor as specified below.
+  Repeated trim/report alternation preserves unread movement and does not
+  zero, replay or double-count it. Preserve the wire payload, delivery policy,
+  identity, suppression gates and run counter. No recurring telemetry loss
+  caused by ordinary trimming is accepted by this design.
+- [ ] The documented feature-specific adoption command installs the new
+  template/workflow and log attribute in a pre-feature repo after wheel
+  upgrade. Missing config already selects the default; existing overrides,
+  explicit `0`, parked templates and local forks survive. Installation is
+  idempotent and never becomes a general repo updater.
+- [ ] Update the owning contracts and their twins listed under Context,
+  including the replacement for the append-only/union claim. The PR and
+  release notes explicitly announce default-on retention, its exceptions,
+  historical-report limits, native-merge behavior and the adoption command.
+- [ ] Verify cutoff boundaries, disabled/no-op/repeated runs, parser edge
+  cases, recurring state, cursor migration and alternating writers, real
+  local/remote races, stale/native merges and installed-wheel adoption.
+  Update representative seeded fixtures; `python -m pytest` passes and
+  `coga validate --json` introduces no new findings. Record exact commands
+  and results; a filtering-unit-test-only implementation is insufficient.
+
+### Proposed shape — retention policy and parsing
+
+Add `Config.log_retention_days`, a dedicated parser and the shared schema
+allowlist entry in `src/coga/config.py`. Do not edit this repo's `coga.toml`
+or `coga.local.toml`; the code default enables the job. Days are local calendar
+days, matching `src/coga/logfile.py::append_log`'s timezone-free wall-clock
+timestamps. Do not reinterpret old timestamps as UTC or promise exact elapsed
+24-hour intervals across DST or writers in different zones.
+
+Introduce a byte-preserving event parser in `src/coga/logfile.py`, used by
+retention, publication and retraction. Split only at LF. A complete recognized
+header starts an event; only an unversioned legacy event can own untagged
+continuation lines. A timestamp-looking but malformed header starts an opaque
+block instead of inheriting its predecessor's age. Preserve leading orphans,
+invalid UTF-8, invalid dates, unknown encodings, unexpected continuations after
+v1 events and incomplete EOF data. Preserve the whole event containing a
+partial tail. Do not fix, re-encode, sort or deduplicate retained history.
+Text indistinguishable from a valid legacy header retains the existing
+grammar's interpretation; do not invent a retrospective encoding migration.
+
+Put the shared selector in a focused `src/coga/log_retention.py` (proposed).
+Its real consumers are the edge trim planner and log-publication reconciliation;
+the core placement is shared infrastructure, not a new recipe. Pass it an
+explicit snapshot and cutoff, rather than allowing it to discover arbitrary
+repo state or import edge code. Its keep set is the union of:
+
+1. Recent/future complete events and all opaque blocks.
+2. Every event tagged with an existing task ref from `tasks.list_tasks`, for
+   **all statuses**. This preserves first/minimum activity, physical-last
+   activity, cancellation reasons, show/Retro evidence and pause history.
+   A malformed/duplicate/unreadable inventory aborts planning; it is not an
+   empty task list. Removal of a ticket releases this exemption next time.
+3. For every `recurring/<name>` ever represented, all occurrences of the
+   greatest valid serviced period using `_LedgerAccumulator`'s
+   `(calendar position, period spelling)` ordering. Include absent/parked
+   templates. Validate the whole ledger first and refuse on its errors;
+   never erase a malformed older record to make the bounded reader succeed.
+4. For every recurring ref, the winning `created`/`paused` evidence according
+   to `_pause_origins`: timestamp order, then physical order for same-minute
+   ties. Preserve a human/unknown pause or a creation that clears an old
+   machine pause just as carefully as a resumable pause. Existing periods
+   already keep their full histories through item 2.
+5. Movement events not yet consumed by an installed phone-home cursor, as
+   described below. No cursor exists when the job was never installed;
+   an invalid or incompatible installed cursor is a visible planning refusal.
+
+The selector returns original event spans and counts/bytes by reason, not
+rendered replacement messages. Retention uses envelope timestamps, while
+`usage.load_records` continues filtering reports by the JSON record's `ts`.
+Old usage for removed tasks expires; histories retained for on-disk tasks may
+leave partial older reports. Document that `coga usage --since` is a query over
+retained records, with no completeness guarantee before the window and no
+automatic Git-history read. Full historical reporting remains out of scope.
+
+### Proposed shape — publication and concurrency
+
+Remove the audit log's `merge=union` contract. The stock attribute for the
+root audit log becomes `/log.md -merge`; preserve `retires.md`'s union rule
+and unrelated attributes. `-merge` deliberately makes competing native Git
+edits a visible conflict with both index stages available, rather than a
+silent union resurrection. Ordinary Coga appends must still reconcile without
+manual conflicts through the shared publisher. No custom installed Git merge
+driver or repository hook is required.
+
+In `src/coga/git.py`, give the configured `paths.log_path(cfg)` a distinct
+event-aware publication path through `_candidates`, `_guard`, `_build_tree`
+and the checkout/subsumption proofs. Do not change `_merge_union_bytes`'s
+contract for the retire worklist. Proposed log rules:
+
+- Ordinary publication preserves control's entire event sequence and merges
+  new complete source events in source order. A missing source event is
+  **not** a delete instruction. Use the source's actual merge-base/HEAD
+  provenance to distinguish old history from appended events; never use the
+  landed published-ref blob as a three-way source base. Preserve the existing
+  cap on byte-identical occurrences already on control.
+- A stale source may carry events previously published and then trimmed,
+  including when its merge base predates those publications. Suppress such
+  incoming events only when they are eligible under the current retention
+  policy **and** reachable control history proves those exact canonical event
+  bytes were already archived. Compare the protected state against the pinned
+  control/candidate task tree, not just the stale checkout's inventory. Reuse
+  one transient history scan per publication when that proof is necessary;
+  do not create a tombstone file or a second archive. A genuinely new event,
+  an unproven one, or required state is retained, even if backdated. Fail a
+  needed Git inspection visibly instead of treating it as a positive proof.
+- Explicit deletions use a proposed `logfile.LogMutation` receipt carried by
+  `git.publish(..., log_mutation=...)`: exact preimage plus the selected
+  whole-event occurrences to remove. Require the exact control log preimage
+  and proof that local bytes still equal the planned postimage; reject an
+  ordinary whole-file truncation without
+  this receipt. Apply only the named deletion; never overlay a stale short
+  file. Trim and rollback are the two real consumers of this shared API.
+- `_published_proof` and `_local_control_subsumed` must use the same log
+  reconciliation/disposition rules. Retained new events still prevent a
+  checkout reset. Archived expired source events may be proved subsumed;
+  their absence must not strand a stale feature checkout forever.
+  `cli._warn_unpublished_log_lines` uses that same disposition for old trimmed
+  events while still naming genuinely unpublished events after a rewrite.
+  A weak timestamp-only proof must never authorize discarding an event.
+
+Acquire `git.state_lock(cfg)` **before opening** the append file and hold it
+through writing/closing. Apply the same lock to both retraction implementations
+and every log replacement, including landed-byte installation. Move
+`launch._retract_log_append` onto the shared mutation API; preserve its exact
+returned-append identity. `retract_log_lines` callers must hold the transaction
+from their before-snapshot through refusal/rollback, or carry explicit event
+receipts; a changed prefix cannot silently abandon a required rollback.
+Use atomic replacement for local rewrites under the lock. Check other control
+worktree paths separately: a publisher must acquire that checkout's lock
+before replacing/fast-forwarding its log, or leave it untouched for its own
+locked catch-up. Avoid holding two checkout locks in opposite order.
+This coordinates upgraded Coga processes; manual Git/file writers remain
+subject to Git conflicts and visible local-byte comparison failures.
+
+The edge job's ordered transaction is:
+
+1. Return a successful no-op for a missing/empty log, and a reported skip when
+   retention is `0`, or Git is disabled or absent. Otherwise require the
+   managed control checkout and publish any
+   pending log events first using existing strict publication machinery.
+   Verify that every proposed removal is in reachable control history; local
+   remote-less control is sufficient. No archival proof means no deletion.
+2. Under the state lock, capture the current log, task inventory, shared policy
+   and phone-home parent, and compute the keep spans. Pin those decision inputs
+   with exact log/parent expectations and a `guard` that compares the relevant
+   config/task tree at each attempted control revision. Preserve locally
+   authored task state too; a dirty/ambiguous inventory is a retry/refusal,
+   not permission to classify its refs as deleted.
+3. If needed, migrate the phone cursor first, then atomically replace the log.
+   Publish the log and changed parent together, with the explicit deletion
+   receipt and subject `Log: recurring/trim-log — retained ...`. The committed
+   tree is atomic across both files; the cursor-first local order is also
+   safe after a crash because the new cursor works with an untrimmed log.
+4. On a definite contention refusal, restore only this attempt's unchanged
+   local outputs (log first, then parent), reread current control and recompute;
+   do not reuse the old deletion plan. Bound automatic retries. On uncertain
+   publication retain recoverable state and report failure; do not bump or
+   allow an ordinary sweep to reinterpret pending deletions as appends.
+   Rollback callers use the same guarded-delete path and preserve their
+   existing retained-state/exit-75 recovery contract.
+5. A corrupt ledger/inventory/cursor or incompatible fork needs an actionable
+   `coga block` prerequisite report; transient publication failures remain
+   nonzero retryable runs. Do not continually retry known input corruption
+   without recording the repair ask. Report a compact count/byte summary
+   through `runner.run_reported` and the
+   fence-aware blackboard API, then release the lock and bump via a subprocess.
+   Do not hold the parent lock while invoking the bump subprocess. A successful
+   no-op needs no extra maintenance commit; normal lifecycle audit still occurs.
+
+Update `recurring_runner._control_serviced_period_cached`'s post-publication
+diff path: deletion-only changes to obsolete valid ledger records are benign
+only after proving unchanged semantic high-water/error state at the compared
+revisions. Added ledger records, new malformed evidence, changed maxima or
+ambiguous evidence keep the competitor refusal. Keep the existing bounded
+reverse read's at-least semantics and error reachability; do not replace it
+with a last-line heuristic. Add the trim-during-another-sweep race fixture.
+
+### Proposed shape — phone-home cursor
+
+Replace the byte offset/prefix digest with a schema-2 cursor containing the
+sorted SHA-256 fingerprints of complete movement events observed at the last
+reservation. Preserve `run` and `repo_id` in `period_state`; schema 2 replaces
+`offset`/`digest` with `seen_movements`. Hash canonical LF event bytes (including
+timestamp/ref/actor, excluding the terminator); CRLF checkout conversion must
+not create a new event. Keep exact-event deduplication. Hashes stay local to
+the repository and are never payload properties.
+
+Share the existing movement recognition and cursor calculation as focused
+core infrastructure used by phone-home and the trim planner, with no core
+import of `coga_edge`. In `src/coga_edge/phone_home.py`, `_state` validates both
+schemas during migration; `_cursor` on schema 2 counts current movement hashes
+absent from `seen_movements`, then reserves the current set before transport.
+Disabled/development-suppressed and first-identity runs baseline that set
+with movement zero as today. Invalid inventories still preserve the cursor.
+Trimming, reordering and removal of consumed records do not reset the cursor.
+
+For a valid schema-1 prefix, migration seeds `seen_movements` from exactly the
+consumed prefix, leaving later movement unread. An unused/null-identity cursor
+may baseline the whole snapshot because its first enabled run already promises
+zero movement. Trim performs this non-sending migration before deletion,
+preserving the parent counter, identity, unrelated blackboard content and
+above-fence bytes. Use `read_blackboard`/`replace_blackboard(expected_bytes=...)`
+and the joint guarded publication above. This narrowly authorizes trim to
+migrate cursor fields, not to increment phone-home's run or send a snapshot.
+After migration, the trim job only reads the cursor. Test migration and normal
+phone-home reservations in both orders and repeatedly alternating.
+
+A non-null schema-1 cursor whose prefix is already invalid cannot be migrated
+losslessly from the working file: the trim leaves both files untouched and
+reports that prerequisite. Phone-home retains its existing visible reset
+behavior for such pre-existing rewrites when it next runs; this ticket does
+not silently manufacture consumed history. An incompatible local phone-home
+fork likewise needs explicit adaptation, not an overwritten implementation.
+
+The retention selector pins every unconsumed movement event while the installed
+cursor has an identity. Thus a report delayed beyond 30 days can still count
+its unread movement; long-stopped reporting may retain a small backlog. Once
+phone-home reserves the set, the next trim can delete expired consumed events.
+The stored fingerprint set is replaced, not accumulated forever; its size is
+bounded by the movement events in retained history. With the measured 30-day
+selection it is about 33 KB (494 hashes), versus 96 KB for the untrimmed log.
+Do not claim distributed exactly-once semantics or replay delivery failures.
+
+### Proposed shape — edge implementation and adoption
+
+Use `src/coga_edge/trim_log.py` (proposed), entered by the reserved shim's
+`main()`. Keep selection/publication mechanics in the shared modules above;
+job orchestration, reports and installation choices stay at the edge. Wrap
+execution in `runner.run_reported`, as phone-home does, without registering a
+new `runner.RECIPES` name. Unexpected arguments or missing task environment
+fail visibly. The only separate mode is the bounded adoption operation below.
+
+Fresh init receives the template, shim, workflow and attribute from
+`commands.update.copy_fresh_templates`. Existing repos adopt by upgrading the
+wheel in every participating environment, then explicitly invoking its
+`python -m coga_edge.trim_log --install` from that repo using the upgraded
+CLI's interpreter. Document the exact interpreter-resolution command already
+owned by `coga/edge-code/edge-code-upgrades.md`; test the documented invocation.
+A wheel-only upgrade is **not** delivery of the recurring schedule.
+
+`--install` plans/validates the complete feature-specific change before
+writing: install only the missing trim template pair and workflow, and narrowly
+replace the known stock audit-log union attribute with `/log.md -merge`.
+Preserve all unrelated bytes. Identical installed files are no-ops; an existing
+custom template/workflow, `_trim-log` parking, symlink, or unfamiliar/conflicting
+attribute is left intact and reported for review rather than partially replaced.
+The effective configured log attribute must be checked, not inferred from one
+textual rule. Do not seed config over an existing value; `0` remains an opt-out.
+No other job, schedule, workflow, config, ticket or full local fork is upgraded.
+The operator reviews/publishes the named repo edits through normal repo practice.
+This command never launches a job or sends telemetry.
+
+Ship a persistent `recurring/trim-log/operations.md` and its twin owning this
+adoption/recovery procedure, and link it from installation/release instructions.
+Quiesce affected sessions while installing the compatible wheel/repo pair;
+do not claim safety with an older writer that neither takes the log lock nor
+understands guarded deletion. Rollback requires a compatible pair as well.
+In this repository, committed `coga/recurring` changes can publish ahead of a
+code PR: stage the live enabling files outside the swept roots until the core
+support has landed, or use the repository's documented compatible two-phase
+rollout. Do not activate a shim while control lacks its implementation.
+
+### Verification plan
+
+- Parser/config fixtures: just before/at/after the midnight cutoff, DST and
+  injected local date, future timestamps, huge day counts, `0`, all rejected
+  config shapes, LF/CRLF, escaped v1 messages, legacy continuations, orphan and
+  malformed headers, invalid UTF-8, incomplete EOF, empty/missing log, repeated
+  no-op byte identity. No test should depend on the wall clock.
+- Reader fixtures: compare all six named log APIs, task display and service
+  order before/after for existing tasks; terminal histories and cancellation
+  reasons; high-water marks out of timestamp/file order, ISO week/year and
+  equal-position different period shapes, duplicates, absent/parked templates,
+  malformed ledger records both reachable/unreachable to bounded reverse reads;
+  human, sweep, watchdog, creation-reset and same-minute pause ties.
+- Real-Git fixtures in `tests/test_git.py` and recurring integration tests:
+  two clones append versus trim in both publication orders, append during
+  local read/replace, stale source missing peer additions, repeated publication
+  from an unmoving feature HEAD, empty/distant merge bases, archived expired
+  resurrection versus genuinely new backdated input, an inventory/cursor edit
+  during a rejected push, definite/uncertain push failure, checkout proof and
+  unpublished-line diagnostic, and both rollback writers racing with trim.
+  Native trim-versus-append merges must retain both stages on conflict; test
+  explicit recovery without deleting the peer event. Keep retire union tests.
+- Phone-home tests with fake transport: schema-1 migration with unread suffix,
+  first/disabled runs, incompatible prefix, removed consumed events, delayed
+  unread movement, duplicate/out-of-order events, CRLF, concurrent cursor CAS,
+  crash between parent migration and log replacement, and several alternating
+  trim/report cycles with unchanged wire properties and exact counts.
+- Installed-wheel tests extend `tests/test_edge_distribution.py`: fresh init,
+  pre-feature adoption using the documented command, custom/parked copies,
+  config opt-out, unknown attributes, idempotence and no writes outside the
+  allowlist. Run the reserved script headlessly on a seeded log and verify
+  its completed period, default config, bookkeeping commit and no agent spawn.
+  Extend `tests/test_packaging.py`/`tests/test_recurring_shims.py` as needed;
+  run the full suite and structure validation after focused checks pass.
+
+### Out of scope
+
+No log-format rewrite, compression, archive file, Git-history pruning, hard
+byte quota, shortened usage JSON, full historical reporting, configurable
+cron/timezone framework, generic template updater, new CLI recipe, commit
+coalescing, unrelated publication-warning changes, telemetry payload changes,
+or adoption into other live repositories during implementation. Do not trim
+the live log manually to demonstrate the feature. Product approval of the
+window and preservation exceptions belongs to the owner gate.
 
 ## Context
 
@@ -186,6 +528,103 @@ The trim commit is bookkeeping: subject it so
 `recurring_activity.is_machine_commit` classifies it as non-activity
 (`Log: recurring/…` and `Ticket: recurring/…` already are).
 
+### Design measurement (2026-10-27)
+
+Read-only measurement at control commit
+`9bff7b617e5aec1c195bee5e79082c6061771094`, with cutoff clock fixed to
+`2026-10-27 00:00` local. The log was 2,550,793 bytes, 9,552 LF lines,
+8,964 event blocks and 588 legacy continuation lines. Its SHA-256 was
+`1122f575a28c8f74ceb568e6dbba361b36c2b5f382a9d7ffb548fe2853ab32e7`.
+There were 150 on-disk tasks, 13 serviced-ledger refs, no malformed ledger
+errors or opaque blocks, and 1,962 event blocks pinned before applying age.
+The phone-home identity was null, so baseline migration adds no unread-history
+exception to this measurement. No log bytes were changed.
+
+| Days | Cutoff, local midnight | Retained bytes | Retained LF lines | Old exception bytes |
+| --- | --- | ---: | ---: | ---: |
+| 14 | 2026-10-13 | 685,595 | 2,701 | 242,893 |
+| **30** | **2026-09-27** | **1,053,921** | **3,814** | **145,400** |
+| 60 | 2026-08-28 | 1,693,412 | 5,778 | 42,848 |
+| 90 | 2026-07-29 | 1,967,684 | 6,617 | 17,260 |
+
+These numbers apply the proposed full-existing-history, greatest-ledger and
+pause/reset exceptions, preserving whole legacy events. At 30 days, age alone
+accounts for 908,521 bytes; exceptions add 145,400. The saving is 1,496,872
+bytes (58.7%). Ninety days saves only 22.9%; 14 saves more but gives a shorter
+unconditionally retained reporting window. The 30-day recommendation leaves
+roughly a month of recent investigation/reporting history.
+
+The recent rate is about 30 KB/day over 30 days and 36 KB/day over the last
+week. With weekly sweeps, ordinary recent history covers approximately 30–37
+days. At those rates and today's exception size, expect roughly **1.1–1.5 MB**
+of log, plus about 33 KB of schema-2 movement fingerprints in the parent.
+This is an extrapolation, not a cap or workload forecast. Long-lived tickets,
+stopped phone-home consumption or damaged input increase the exception floor;
+successful retirement/consumption releases it. Record-size reduction remains
+outside this ticket. Re-measure the implemented selector on the pinned blob
+and current main during implementation; explain any difference from this
+prototype rather than adjusting acceptance to match an accidental result.
+
+### Investigated reader/writer map
+
+This is the source snapshot behind the proposal; verify the relationships
+again after main moves. New module/API names in Proposed shape are proposals,
+not claims that those symbols already exist.
+
+| Source and symbols | Relationship relevant to retention |
+| --- | --- |
+| `src/coga/logfile.py`: `log_lines`, `iter_log_messages`, `iter_log_messages_reverse`, `task_log_lines`, `last_activity_map`, `first_activity_map` | LF splitting, decoded forward/reverse messages and legacy continuation grouping are distinct APIs. First activity takes the minimum timestamp; last activity takes the physical last parseable event, not the maximum timestamp. |
+| `src/coga/views.py`: `render_show`, `last_updated_map`, `render_status`; `src/coga/megalaunch.py`: `_tasks_in_service_order`; `src/coga/service_order.py`: `service_order` | Show consumes task history; views consume activity maps, and megalaunch supplies the first-activity map to service ordering. Existing-task history retention preserves these inputs. |
+| `src/coga/validate.py`: `_check_one_task` | Idle diagnosis calls `logfile.last_activity`; it must not be reset merely by pruning another ref's history. |
+| `src/coga/recurring.py`: `_LedgerAccumulator`, `parse_serviced_period_entries`, `parse_serviced_period_entries_reverse`, `read_serviced_ledger`, `_pause_origins` | The shared accumulator defines valid maxima/errors; target-bounded reverse reads stop per ref. Pause parsing reads the file directly and uses timestamp plus same-minute append order, including creation resets. |
+| `src/coga/recurring_runner.py`: `_CONTROL_LOG_ENTRY_RE`, `_read_control_ledger`, `_control_serviced_period_cached` | Control-blob and diff readers bypass ordinary file iterators. The diff reader currently parses both added and removed ledger lines as external competitor changes, which requires the semantic-removal adjustment. |
+| `src/coga/usage.py`: `_LOG_LINE_RE`, `load_records`; `src/coga_edge/phone_home.py`: `_ENTRY`, `_movement`, `_cursor`, `run_phone_home` | Usage reads/decodes the raw log before JSON parsing; phone-home reads raw bytes and validates a consumed prefix. Both bypass task-history helpers. |
+| `src/coga/cli.py`: `_log_mark`, `_warn_unpublished_log_lines`, `_control_log_lines` | The exit diagnostic falls back to a whole-log comparison after a rewrite. An archived-event disposition must be shared with publication so trimming does not cause a false warning or hide a new event. |
+| `src/coga/logfile.py`: `append_log`, `retract_log_lines`; `src/coga/launch.py`: `_retract_log_append`; `src/coga/commands/owner.py`: `owner`; `src/coga/megalaunch.py`: `_restore_ticket_bytes`; `src/coga/recurring_runner.py`: `_restore_period_bytes` | Appending currently opens without the state lock; retractions rewrite bytes, and task/period rollback callers depend on them. The launch path separately retracts a returned provisional append. All must participate in the new transaction. |
+| `src/coga/git.py`: `publish`, `_publish_locked`, `_candidates`, `_guard`, `_build_tree`, `_merge_union_bytes`, `_stage_landed`, `fast_forward_control`, `_published_proof`, `_local_control_subsumed` | Candidate selection, retry guards, landed bytes and checkout proofs all encode today's union semantics. Changing only the filter or attribute leaves those assumptions inconsistent. |
+| `src/coga/commands/update.py`: `copy_fresh_templates`; `src/coga/commands/init.py`: `_setup_initialized_clone`; `src/coga/recurring.py`: `scan_due` | Fresh init copies resources; existing-init setup does not install recurring templates; the scanner discovers local templates. The implementation must add the named adoption trigger rather than assume wheel replacement discovers repos. |
+| `src/coga/runner.py`: `run_reported`; `src/coga/recurring_activity.py`: `is_machine_commit` | The failure-report floor is usable by unregistered edge jobs, and the proposed subject already fits the non-activity classifier. |
+
+Direct prose consumers also matter: the live/package Dream `ticket.md`,
+sections on history and the retro pass, and packaged
+`bootstrap/skills/retro/done-ticket/SKILL.md` (retro evidence, cancellation
+reason and snapshot history) instruct agents to inspect the log. The latter
+has no live override in this checkout. Packaged
+`bootstrap/retire/ticket.py::retire` routes canceled tickets to that Retro
+workflow; `_delete_done_task` publishes task/log changes, rather than parsing
+the log itself. The live `recurring/upstream-coga/ticket.py::main` includes
+`log_path(cfg)` in publication; its findings cursor reads `upstream-coga.md`,
+which is a different file and must not be trimmed. No additional executable
+audit parser was found in live or packaged scripts by the `log.md`, `log_path`,
+reader-API and v1-envelope searches. Run that inventory again during implementation.
+
+### Owning documentation to change with implementation
+
+- `coga/configuration` owns the setting; `recurring/trim-log/ticket.md` owns
+  the job and exceptions; its `operations.md` owns adoption/recovery. Link from
+  `coga/install`/`coga/init` and `coga/edge-code` rather than duplicate the runbook.
+- `coga-dev/internals/spool-merge` owns the revised log merge/mutation invariant;
+  read its cited sections above before replacing the append-only justification.
+  Keep the unrelated retire worklist contract intact. Update
+  `coga-dev/internals/state-publication/publish` for the shared mutation API.
+- `coga/state-publication` and `coga/checkouts` leaves own publication, retained
+  state and checkout-proof/recovery behavior; replace obsolete union-log claims.
+  `coga/recurring/scheduling` owns unchanged ledger/pause semantics and the
+  benign historical-ledger deletion case.
+- `coga/usage` owns retained-history reporting; `recurring/phone-home/ticket.md`
+  owns the new cursor and its migration, including the two sections named in
+  the original task. Update `coga/recurring/templates` if its cross-run-state
+  wording needs to identify the narrowly authorized cursor migration writer.
+- Fix brief append-only/unbounded summaries in `coga/architecture`,
+  `coga/prompt-composition`, Dream and the log module documentation; link to
+  the owners instead of restating the retention algorithm. Keep every
+  shipped topic/template twin identical, preserving the existing phone-home
+  runtime-state exception rather than copying its identity into the package.
+
+Implementation/release handoff must retain the behavioral notice in the
+trim runbook and actual release notes. There is no repository changelog to
+pretend was updated during this design step.
+
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
 ticket. Omit optional fields and sections until needed. Editing rules come
@@ -272,4 +711,60 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design handoff
+
+The implementable proposal, acceptance checklist, verification matrix and
+source inventory are above the fence under Description/Context. Only this
+ticket changed; no branch, implementation, PR or manual log/config edit.
+Main was refreshed during investigation from `676a7b173` to `9bff7b617`;
+the intervening change added an unrelated draft ticket and two log events.
+The final measurement uses the newer log and includes the retention exceptions.
+
+Recommendations: 30 days; complete histories for tickets still on disk;
+Monday 04:00 repo-scoped maintenance even when inactive; shared guarded log
+deletion and append reconciliation, with native Git conflicts replacing log
+union; fingerprint-based phone-home cursor; explicit feature adoption for
+existing repos. Measured retained log: 1,053,921 of 2,550,793 bytes (58.7% saved).
+
+The non-obvious coupling is the runner's ledger-diff cache: it treats removed
+historical ledger entries as competitor activity today. The implementation
+must distinguish benign evidence compaction. Also verify other-checkout
+fast-forward locking, exact rollback deletion and already-published proofs;
+a trim-only lock or isolated filter does not cover these paths.
+
+## Open Questions
+
+For the owner at `review-design`, after the independent evaluator:
+
+1. Approve the proposed **30-day default** and the preservation exceptions,
+   especially retaining complete on-disk task histories and unread phone-home
+   movement. They make this a soft age bound; work never retired or a consumer
+   never run can retain older data. The measured alternatives are in Context.
+2. Approve the native-Git tradeoff: Coga appends reconcile through its publisher,
+   but competing direct Git log edits can require explicit conflict recovery
+   after replacing `merge=union` with `-merge`. The proposal prefers a visible
+   conflict over silent loss/resurrection and includes recovery tests/docs.
+3. Confirm the explicit existing-repo adoption trigger (upgrade all writers,
+   then the feature-specific `--install` operation). Fresh init is default-on;
+   existing repos become default-on when these reviewed repo files are adopted.
+   A wheel-only upgrade cannot truthfully promise delivery of a new schedule.
+
+These are design-gate choices, not missing input needed to finish this step.
+No periodic telemetry undercount is proposed for acceptance: the design fixes
+the cursor instead. No owner approval has been inferred.
+
+## Verification
+
+- Read-only measurement used the log SHA-256 and source revision recorded in
+  Context, the actual task inventory, shared period parser and movement parser.
+- A scratch native-Git trim-versus-append probe with `log.md -merge` returned
+  exit 1 and three unmerged index stages; both the trimmed side and the peer's
+  full append remained recoverable. This verifies the proposed attribute
+  behavior, not the unimplemented Coga reconciliation design.
+- `.venv/bin/python -m coga.cli validate --task
+  commit-journal/trim-the-audit-log --json`: one task valid, no issues.
+- `compose.compose_prompt_report` (read-only Python call) confirmed acceptance,
+  proposed shape, verification, out-of-scope, measurement and reader inventory
+  all reach the prompt; the blackboard fence is unique.
+- `git diff --check` passed. Implementation tests and the full pytest suite
+  remain obligations of the implementation step; no feature code exists yet.

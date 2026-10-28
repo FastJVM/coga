@@ -9550,3 +9550,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 17:07 v1 [commit-journal/trim-the-audit-log] [megalaunch] launched via coga megalaunch
 2026-10-27 14:25 v1 [marketing/fix-installer/ask-which-agents-to-enable-during-coga-init] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-27 17:11 v1 [marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive] [human:zach] created (status=draft)
+2026-10-27 17:32 v1 [commit-journal/trim-the-audit-log] [agent:codex] advanced to step 2 (evaluate-design) → codex
