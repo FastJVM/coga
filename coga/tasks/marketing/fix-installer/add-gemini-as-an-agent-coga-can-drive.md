@@ -1,6 +1,6 @@
 ---
 title: Add Gemini as an agent coga can drive
-status: active
+status: in_progress
 owner: zach
 contexts:
 - coga-dev/principles
@@ -38,6 +38,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:0f15454c-e0e9-449c-bace-0f026113eb61
 ---
 
 ## Description
