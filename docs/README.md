@@ -37,7 +37,7 @@ New tickets include a field guide from the
 
 ## Understand
 
-- The three concepts, as the [project README](../README.md#key-concepts)
+- The three concepts, as the [project README](../README.md#what-lives-in-your-repo)
   defines them: a [ticket](contexts/coga/tickets/SKILL.md) (one piece of
   work, disposable once done), a [context block](contexts/coga/knowledge/SKILL.md)
   (a durable fact with one owning file), and a
