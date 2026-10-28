@@ -229,6 +229,30 @@ def test_unreceipted_truncation_is_refused(git_repo):
         git.publish(cfg, [path], "not a deletion receipt")
 
 
+def test_archive_proof_includes_events_introduced_only_by_a_merge(git_repo):
+    cfg, path = _seed(git_repo)
+    git_repo.git("checkout", "-b", "side")
+    (git_repo.root / "side.txt").write_text("side\n")
+    git_repo.git("add", "side.txt")
+    git_repo.git("commit", "-m", "side")
+    git_repo.git("checkout", "main")
+    (git_repo.root / "main.txt").write_text("main\n")
+    git_repo.git("add", "main.txt")
+    git_repo.git("commit", "-m", "main")
+    git_repo.git("merge", "--no-commit", "--no-ff", "side")
+    event = _line("merge-only")
+    path.write_bytes(path.read_bytes() + event)
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "merge with new audit evidence")
+    git_repo.git("push", "origin", "main")
+    trim_log.trim(cfg, clock=lambda: TODAY)
+    assert event not in path.read_bytes()
+    assert archived_events(git_repo.root, "HEAD", "coga/log.md", {event}) == {event}
+    path.write_bytes(path.read_bytes() + event)
+    assert git.publish(cfg, [path], "Log: stale merge replay") is False
+    assert event not in git.tree_bytes(git_repo.root, "origin/main", "coga/log.md")
+
+
 @pytest.mark.parametrize("obstacle", ["fork", "parked", "attribute", "info-attribute", "symlink"])
 def test_install_validates_all_files_before_writing(git_repo, obstacle):
     cfg = load_config(git_repo.coga_os)

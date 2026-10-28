@@ -114,7 +114,7 @@ def archived_events(root: Path, rev: str, rel: str, wanted: set[bytes]) -> set[b
     patch = git._run([
         "git", "-C", str(root), "log", "--format=@@COGA:%H", "--full-history",
         "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--text",
-        "-p", "--unified=0", rev, "--", rel,
+        "-m", "-p", "--unified=0", rev, "--", rel,
     ])
     if patch.returncode:
         raise git.GitError("cannot inspect reachable audit history: " + patch.stderr.decode(errors="replace"))

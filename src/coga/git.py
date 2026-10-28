@@ -415,7 +415,7 @@ def publish(
     `guard` is called with the control commit each attempt builds on — the
     remote-tracking ref, re-fetched after every rejected push — before any
     tree is built; it may raise to refuse. It exists for a decision `expect`
-    cannot express: a `merge=union` file whose *content* matters (the
+    cannot express: shared audit state whose *content* matters (the
     recurring serviced-period ledger), where pinning the whole blob would
     refuse every unrelated concurrent append. `fast_forward=False` leaves the
     local control checkout untouched after a successful push (Retro's

@@ -92,7 +92,8 @@ and reachable control history proves those exact canonical event bytes were
 archived. Unread movement protection comes from the control snapshot, not
 hash absence on incoming replays: a forgotten consumed fingerprint must not
 resurrect itself. Genuinely new or unproven backdated input survives. One
-transient history traversal locates candidates in patches, then verifies
+transient history traversal includes merge-commit diffs, locates candidates
+in patches, then verifies
 positives against full blobs (legacy continuation boundaries matter). Failed
 inspection never counts as proof. Checkout subsumption and exit diagnostics
 use the same reconciliation rule.
