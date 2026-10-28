@@ -1,6 +1,6 @@
 ---
 title: Trim coga/log.md to a configurable age with a weekly recurring job
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -39,6 +39,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:e45a7127-ad8d-4f0f-bc72-5667b323de46
 ---
 
 ## Description
