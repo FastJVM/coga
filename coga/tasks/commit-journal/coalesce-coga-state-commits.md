@@ -36,9 +36,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
-launch_generation: 0000ba94-dc39-4476-8910-7ccca8ba582c
 ---
 
 ## Description
@@ -498,23 +497,23 @@ branch: coga/coalesce-state-commits
 ```yaml
 title: Coalesce ordinary managed launch startup publication
 author: codex
-author_evidence: This implement session used Codex, not the ticket-configured Claude. No delegated implementation
-  or code review ran.
-head: 4e5f4b03c811f39f3a3721212d48862391fae060
-base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+author_evidence: Original implementation and resumed verification were performed in Codex sessions, not
+  by the ticket-configured Claude. No delegated implementation or code review ran.
+head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
+base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
 depth: deep
 rationale: Changes startup publication and refusal semantics; inspect the guards and real-Git race tests.
-  The full suite has a reproduced unrelated baseline failure and code review has not run.
+  The full suite now passes after the owner-authorized baseline link repair on control; code review has
+  not run.
 implementation: Prepare activation/start and checkout linkage in memory, publish the final ticket and
   startup audit once before switch/spawn, and confirm every plan against fetched control. Handoff and
   usage remain immediate independent publications. Start notification follows confirmed checkout entry.
   Ordinary count fixtures assert three commits; queue, bootstrap, scripts and extra events retain their
   classified boundaries.
-deviations: No implementation scope deviation. The implement step is blocked instead of advanced because
-  code/implement requires escalation of unrelated test failures.
-limitations: The untouched docs/README.md anchor failure must be repaired or explicitly waived by the
-  owner before this step can complete. Native Windows cases and a Python 3.11 test run are not covered
-  by this Linux/Python 3.12 receipt. Peer review and PR creation remain later workflow steps.
+deviations: No implementation scope deviation. The owner authorized a separate docs/README.md link repair
+  on control in 51e15ec23 to resolve the prior verification blocker; it is included in this branch base.
+limitations: Verification covers Linux/Python 3.12.12. Native Windows cases and a Python 3.11 test run
+  are not covered. Peer review and PR creation remain later workflow steps.
 files:
   docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Align internal phase order and caller-owned startup
     audit with grouped publication.
@@ -568,70 +567,71 @@ review:
   reviewer: none
   kind: none
   status: not-run
-  detail: Code review belongs to the later peer-review step. Design approval is not code review; implement
-    has not bumped because of the baseline test failure.
+  detail: Code review belongs to the later peer-review step. Design approval and implementation verification
+    are not code review.
 checks:
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
-  status: failed
-  head: 4e5f4b03c811f39f3a3721212d48862391fae060
-  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
-  detail: 'Python 3.12.12: 4186 passed, 10 skipped, 1 failed in 479.31s. Only failure: tests/test_packaging.py::test_context_navigation_has_no_broken_links,
-    the pre-existing docs/README.md link to missing ../README.md#key-concepts. Reproduced on baseline
-    36c85653c2ce522882d73e7d9226ff42dc98d1f5. Skips: 2 native Windows job-object integration cases, 5
-    native Windows PowerShell 5.1 cases, 3 native Windows Job Object recovery cases. No exclusions were
-    added. Staged tree 92f1633a4a86f9574cb4cc7947052610394f2135 and all 23 changed-file SHA-256 hashes
-    were verified unchanged before commit; the commit has that exact tree.'
+  status: passed
+  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
+  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
+  detail: 'Python 3.12.12 on Linux: 4187 passed, 10 skipped in 483.02s. Skips: 2 native Windows job-object
+    integration cases, 5 native Windows PowerShell 5.1 cases, 3 native Windows Job Object recovery cases.
+    No exclusions were added. Ran on the committed rebased head; checkout remained clean and the final
+    rebase was a no-op.'
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
     -m coga.cli validate --json
   status: passed
-  head: 4e5f4b03c811f39f3a3721212d48862391fae060
-  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
+  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
+  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
   detail: 'Run from tests/fixtures/seeded-repo/coga: 4 valid tasks, no issues.'
-- command: git diff --cached --check
+- command: git diff --check origin/main...HEAD
   status: passed
-  head: 4e5f4b03c811f39f3a3721212d48862391fae060
-  base: 36c85653c2ce522882d73e7d9226ff42dc98d1f5
-  detail: No whitespace errors in the staged implementation tree, verified identical to the committed
-    tree.
+  head: a49db80a415eb4f5562ca75f7e49216ce3f391ce
+  base: fb0d915628bd51d4949ae6bf27d6673cc89c2065
+  detail: No whitespace errors in the committed implementation diff.
 - command: python3.11 -m pytest
   status: not-run
-  detail: Python 3.11.15 is present, but python3.11 -m pytest --version reports No module named pytest.
-    The executed full-suite receipt covers Python 3.12.12 only.
+  detail: The available test environment used for this resumed verification is Python 3.12.12. No Python
+    3.11 receipt is claimed; the previous attempt found no pytest in that interpreter.
 ```
 
 ## Resumed implementation
 
 2026-10-27: The owner selected "Repair the link on control, then rerun
 verification" in this session. Ran `coga unblock` to record that resolution;
-no baseline-test waiver was granted. Codex is performing this resumed
-implement step; no delegated implementation or review has run.
+no baseline-test waiver was granted. Codex performed this resumed implement
+step; no delegated implementation or review ran.
 
 Reproduced the navigation failure on current clean control, then repaired
 `docs/README.md` to link to `README.md#what-lives-in-your-repo`. The separate,
 owner-authorized control commit `51e15ec23` is pushed. Command:
 `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links`
 reported **1 failed in 0.41s** before the fix and **1 passed in 3.96s** after
-it. `git diff --check` passed. All other main movement since the prior tested
-base is ticket/log state; the feature branch remains at `4e5f4b03c` and has
-no PR. Next: rebase that branch onto current main, refresh the full-suite
-receipt, push, return to control, and bump once to peer-review.
+it. `git diff --check` passed.
+
+Rebased the existing implementation onto current control
+`fb0d915628bd51d4949ae6bf27d6673cc89c2065`, which includes the link repair.
+`git range-diff` reports the implementation commit unchanged; all 23 diff
+paths are byte-identical to original `4e5f4b03c`, and all six changed
+canonical/packaged context pairs are byte-identical. The new committed head
+is `a49db80a415eb4f5562ca75f7e49216ce3f391ce`. The fresh full suite passed
+**4187 tests, with 10 native Windows skips, in 483.02s**. Seeded validation
+passed with **4 valid tasks, no issues**. Exact receipts are under `## PR`.
 
 ## Implementation handoff
 
-Implementation is committed and pushed at `4e5f4b03c811f39f3a3721212d48862391fae060` on `coga/coalesce-state-commits`.
-Fetched control remained at `36c85653c2ce522882d73e7d9226ff42dc98d1f5` through the tested commit and final
-rebase (a no-op); source and topic bytes match the recorded tested tree. The
-later control movement only publishes this ticket’s notes. Returned to clean,
-current main before writing this handoff. No PR was opened and no workflow
-bump ran.
+Implementation is pushed on `coga/coalesce-state-commits` at
+`a49db80a415eb4f5562ca75f7e49216ce3f391ce`. Final fetch found no new control
+commits; the final rebase was a no-op, and the verified tree remained clean.
+The push used an explicit lease against the prior published head `4e5f4b03c`.
+Returned to clean, current `main` before writing this handoff. Subsequent
+control movement for this handoff is ticket state only.
 
-The full suite completed with **4186 passed, 10 skipped, 1 failed**. The only
-failure is the reproduced pre-existing README anchor; the new topic manifest
-registration is fixed and all distribution/twin checks pass. Do not fix or
-waive that unrelated failure under this ticket without owner direction.
-Repair the link on control, or explicitly authorize a baseline exception;
-then resume implement, reconcile the pushed branch, refresh verification as
-needed, and bump once to peer-review. No implementation bug remains known.
+The original verification blocker is resolved by the owner-authorized link
+repair on control and a fresh passing full suite. No implementation changes
+were needed on this resume. No PR was opened and no code review was run.
+The implementation is ready for one bump from `implement` to `peer-review`;
+independent review and PR creation remain later workflow steps.
 
 ## Implementation
 
@@ -664,11 +664,15 @@ four/five for queue claim/admission paths; bootstrap and script boundaries;
 and extra entry/intervening-command/return events outside the bound. Targeted
 failure tests cover no-write preflight refusal, failed/refused/skipped/uncertain
 publication, post-push uncertainty, control-only routing races, concurrent log
-appends, cleanup and abrupt-death next-entry recovery. Full verification and
-commit receipts are recorded under `## PR`; the baseline failure prevents advancement. AST inventory finds 32 direct append_log sites;
+appends, cleanup and abrupt-death next-entry recovery. Current verification and
+commit receipts are recorded under `## PR`; the original baseline failure is
+resolved as recorded above. AST inventory finds 32 direct append_log sites;
 the new internal log-writers topic records their publisher and retained exits.
 
 ### Verification blocker discovered during implementation
+
+Historical investigation; resolved on this resume by the owner-authorized
+control repair `51e15ec23` and fresh passing verification above.
 
 The broader regression run found the pre-existing navigation failure
 `tests/test_packaging.py::test_context_navigation_has_no_broken_links`:
@@ -685,9 +689,11 @@ PYTHONPATH=/tmp/coga-coalesce-baseline-36c85653c2ce/src /home/n/Code/coga/.venv/
 Result: **1 failed in 0.63s**, solely the missing README anchor. The initial
 broad branch run had **583 passed, 2 failed**: the second failure was this
 change's missing new-topic manifest entry and has been corrected in
-`tests/test_packaging.py::REQUIRED_BOOTSTRAP_CONTEXT_REFS`. The full suite is
-running without exclusions. Per `code/implement`, unrelated failures are
-reported for owner resolution rather than fixed or waived in this ticket.
+`tests/test_packaging.py::REQUIRED_BOOTSTRAP_CONTEXT_REFS`. That original full
+suite completed without exclusions: **4186 passed, 10 skipped, 1 failed**.
+Per `code/implement`, the unrelated failure was reported
+for owner resolution; the owner has now authorized and received the separate
+control repair recorded above.
 
 Seeded validation passed, **4 valid tasks, no issues**:
 `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`

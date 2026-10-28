@@ -9584,3 +9584,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-27 21:00 v1 [commit-journal/coalesce-coga-state-commits] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-27 21:00 v1 [commit-journal/coalesce-coga-state-commits] [megalaunch] launched via coga megalaunch
 2026-10-27 21:01 v1 [commit-journal/coalesce-coga-state-commits] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner authorized repairing the docs/README.md link on control, then rerunning verification before continuing the implement step. No baseline-test waiver was granted.
+2026-10-27 21:14 v1 [commit-journal/coalesce-coga-state-commits] [agent:codex] advanced to step 5 (peer-review) → codex
