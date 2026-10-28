@@ -1,12 +1,12 @@
 # Coga
 
-> **Agents work in sessions. Coga works in tasks..**
+> **Agents work in sessions. Coga works in tasks.**
 
 Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. What happens then?
 
-**Coga turns those plans into Markdown tickets you can inspect, edit, and run with your agent.** Run as many Coga projects as you want and decide how autonomous the run should be (stop if you have question to merge directly on main)
+**Coga turns those plans into Markdown tickets you can inspect, edit, and run with your agent.** Run multiple projects in parallel, each in its own Git repo. Choose how involved you want to be: guide sessions interactively, add human review gates, or queue work to run unattended.
 
-Also, Coga is a local CLI, not another coding agent. 
+Coga is a local CLI, not another coding agent.
 
 [Browse real project tickets](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks)
 
@@ -117,7 +117,8 @@ Everything Coga manages is visible under `coga/`:
 - **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
 
 ## Principles
-Coga feels different from most other tools out there. It's because I've built it with very different principles than them. 
+
+Coga is built around a few deliberate choices:
 
 **Text above code.** In most coding repos, code is the source of truth. In a Coga repo, the truth lives in the text. Code is an artifact "compiled" from it—and yes, we can regenerate it.
 
@@ -126,16 +127,6 @@ Coga feels different from most other tools out there. It's because I've built it
 **Amplify agents, don't duplicate them.** Don't build another planner, researcher, coder, or reviewer. Use what coding agents already know. As they improve, Coga benefits.
 
 **Coga encoded in Coga.** The same tickets, contexts, and workflows used for other projects should describe and evolve Coga itself.
-
-### Consequences
-
-**Homoiconicity for agents.** The text Coga runs on is also text agents can read and rewrite.
-
-**Everything is disposable except the text.** Code and methods can be replaced. Intent, decisions, and what we learn survive in editable files.
-
-**Agents can manage Coga itself.** They can write tickets, revise contexts, and change workflows without learning a special language.
-
-**Build Coga on base concepts agents are good with.** Coga is by design not original in its primitives. Agents are great at building tickets, plans and workflows. 
 
 ## Learn more
 
