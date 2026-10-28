@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from pathlib import Path
 
@@ -81,6 +82,28 @@ def test_cursor_migration_unread_dedup_crlf_and_repeated_removal():
     assert cursor(b"", state, baseline=False)[1:] == (0, False)
     with pytest.raises(MovementError, match="prefix is invalid"):
         migrate(second, seed)
+
+
+
+def test_inventory_ignores_root_ticket_like_list_tasks():
+    from coga.log_publication import inventory
+    ticket = b"---\nstatus: draft\n---\nbody\n"
+    files = {"ticket.md": b"not a ticket", "a.md": ticket, "b/ticket.md": ticket, "c/d.md": ticket}
+    assert inventory(files) == frozenset({"a", "b", "c/d"})
+
+
+def test_publication_cursor_accepts_legacy_crlf_prefix():
+    import hashlib
+    from coga.log_publication import cursor_state
+    from coga.taskfile import BLACKBOARD_FENCE
+    first, second = _line(ref="a"), _line(ref="b")
+    crlf = first.replace(b"\n", b"\r\n")
+    seed = {"schema": 1, "run": 7, "repo_id": "dd2433c0-7277-4a63-8640-c73089700480",
+            "offset": len(crlf), "digest": hashlib.sha256(crlf).hexdigest()}
+    parent = f"---\nstatus: active\n---\n{BLACKBOARD_FENCE}\nperiod_state: {json.dumps(seed)}\n".encode()
+    assert set(cursor_state(parent, first + second)["seen_movements"]) == movements(first)
+    with pytest.raises(MovementError, match="prefix is invalid"):
+        cursor_state(parent, second + first)
 
 
 def test_all_existing_history_readers_and_service_order_are_unchanged(tmp_path):

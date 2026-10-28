@@ -17,7 +17,7 @@ from coga.config import Config, ConfigError, _parse_log
 from coga.lifecycle import VALID_STATUSES
 from coga.log_retention import RetentionError, RetentionSnapshot, cutoff_at, select
 from coga.logfile import LogMutation, parse_events
-from coga.movement_cursor import _state, migrate, movements
+from coga.movement_cursor import MovementError, _state, migrate, movements
 from coga.paths import log_path, recurring_dir, tasks_dir
 from coga.taskfile import BLACKBOARD_FENCE
 from coga.ticket import Ticket, TicketError
@@ -35,11 +35,15 @@ class Inputs:
 
 def inventory(files: Mapping[str, bytes]) -> frozenset[str]:
     """The list_tasks discovery rules over a pinned tree (no checkout reads)."""
-    directories = {str(PurePosixPath(p).parent) for p in files if PurePosixPath(p).name == "ticket.md"}
+    # The tasks root is never a task: list_tasks skips a root-level ticket.md.
+    directories = {str(PurePosixPath(p).parent) for p in files
+                   if PurePosixPath(p).name == "ticket.md" and PurePosixPath(p).parent != PurePosixPath(".")}
     found: set[str] = set()
     for name, raw in sorted(files.items()):
         p = PurePosixPath(name)
         if any(part.startswith("_") for part in p.parts) or p.suffix != ".md" or p.name == "README.md":
+            continue
+        if p == PurePosixPath("ticket.md"):
             continue
         if any(str(ancestor) in directories for ancestor in p.parents if str(ancestor) != str(p.parent)):
             continue
@@ -99,7 +103,15 @@ def cursor_state(parent: bytes | None, raw: bytes) -> dict | None:
     if text.count(BLACKBOARD_FENCE) != 1:
         raise RetentionError("phone-home parent needs exactly one blackboard fence")
     state, _ = _state(text.split(BLACKBOARD_FENCE, 1)[1])
-    return migrate(raw, state)[0]
+    try:
+        return migrate(raw, state)[0]
+    except MovementError:
+        # A schema-1 offset/digest counts the bytes phone-home read; a CRLF
+        # checkout read this LF blob expanded. Line-ending conversion is not
+        # lost history, so validate that form too. A mixed prefix still fails.
+        if b"\r" in raw:
+            raise
+        return migrate(raw.replace(b"\n", b"\r\n"), state)[0]
 
 
 def snapshot(inputs: Inputs, raw: bytes) -> RetentionSnapshot:
