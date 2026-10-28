@@ -83,6 +83,8 @@ attempted commit landed. Accepted-but-unacknowledged output catches up to
 control while preserving later local appends. Definitely unpublished output
 restores only this attempt's unchanged outputs, log first then cursor, and
 replans. A cursor migrated before a crash remains valid on an untrimmed log.
+The script publishes its retained per-run failure report before replanning;
+other unpublished inventory edits still require reconciliation.
 Changed local outputs or unavailable evidence remain retained and fail visibly;
 reconcile those exact paths with the receipt before retrying. Corrupt input
 records a `coga block` prerequisite; fix the stated input and answer it through

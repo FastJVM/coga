@@ -202,9 +202,23 @@ def test_crash_receipt_blocks_sweep_and_unrelated_command_until_recovery(git_rep
 
 
 @pytest.mark.parametrize("accepted", [False, True])
-def test_uncertain_push_recovers_from_reachable_commit(git_repo, monkeypatch, accepted):
+@pytest.mark.parametrize("crlf", [False, True])
+def test_uncertain_push_recovers_from_reachable_commit(git_repo, monkeypatch, accepted, crlf):
     cfg, path = _seed(git_repo)
+    parent = _phone(git_repo, path.read_bytes())
+    if crlf:
+        git_repo.git("config", "core.autocrlf", "true")
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        parent.write_bytes(parent.read_bytes().replace(b"\n", b"\r\n"))
+        # The old cursor is byte-based; seed a valid CRLF consumed prefix.
+        from coga.movement_cursor import replace_state
+        region = read_blackboard(parent)
+        state = phone_home._state(region)[0]
+        state.update(offset=len(path.read_bytes()), digest=hashlib.sha256(path.read_bytes()).hexdigest())
+        replace_blackboard(parent, replace_state(region, state))
+        assert git.publish(cfg, [parent], "Telemetry: seed CRLF prefix")
     before = path.read_bytes()
+    parent_before = parent.read_bytes()
     push = git._push
     def broken(root, remote, refspec):
         if accepted:
@@ -215,10 +229,12 @@ def test_uncertain_push_recovers_from_reachable_commit(git_repo, monkeypatch, ac
     with pytest.raises(git.UncertainPublishError):
         trim_log.trim(cfg, clock=lambda: TODAY)
     assert log_transaction.pending(cfg)
+    parent_after = parent.read_bytes()
     appended = append_log(cfg, "peer", "git", "retained diagnostic")
     assert log_transaction.recover(cfg) == ("accepted" if accepted else "restored")
-    assert appended in path.read_bytes()
-    assert (_line() not in path.read_bytes()) is accepted
+    retained = parse_events(before)[1].raw
+    assert path.read_bytes() == (retained if accepted else before) + appended
+    assert parent.read_bytes() == (parent_after if accepted else parent_before)
     assert not log_transaction.pending(cfg)
 
 
@@ -227,6 +243,109 @@ def test_unreceipted_truncation_is_refused(git_repo):
     path.write_bytes(_line("recent", "2026-10-26 12:00"))
     with pytest.raises(git.StateRegressionError, match="without a LogMutation"):
         git.publish(cfg, [path], "not a deletion receipt")
+
+
+@pytest.mark.parametrize("probe", ["base", "attempt"])
+def test_recovery_preserves_outputs_when_ancestry_inspection_fails(git_repo, monkeypatch, probe):
+    cfg, path = _seed(git_repo)
+    parent = _phone(git_repo, path.read_bytes())
+    parent_before = parent.read_bytes()
+    mutation = LogMutation(path.read_bytes(), (0,))
+    base = git_repo.git("rev-parse", "HEAD").strip()
+    log_transaction.begin(cfg, base, mutation, {parent: parent_before}, "Log: trim intent")
+    replace_log(cfg, mutation)
+    intent = log_transaction.read(cfg)["intent"]
+    log_transaction.attempted(cfg, intent)
+    git_repo.git("push", "origin", f"{intent}:refs/heads/main")
+    receipt = log_transaction.receipt_path(cfg).read_bytes()
+    run = git._run
+
+    def failed(argv, **kwargs):
+        if (argv[3:5] == ["merge-base", "--is-ancestor"]
+                and argv[5] == (base if probe == "base" else intent)):
+            return subprocess.CompletedProcess(argv, 128, stdout=b"", stderr=b"cannot inspect object")
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(git, "_run", failed)
+    with pytest.raises(git.UncertainPublishError, match="cannot verify audit publication ancestry"):
+        log_transaction.recover(cfg)
+    assert path.read_bytes() == mutation.postimage
+    assert parent.read_bytes() == parent_before
+    assert log_transaction.receipt_path(cfg).read_bytes() == receipt
+    monkeypatch.setattr(git, "_run", run)
+    assert log_transaction.recover(cfg) == "accepted"
+
+
+def test_receipt_keeps_all_publication_attempts_reachable(git_repo):
+    cfg, path = _seed(git_repo)
+    mutation = LogMutation(path.read_bytes(), (0,))
+    base = git_repo.git("rev-parse", "HEAD").strip()
+    log_transaction.begin(cfg, base, mutation, {}, "Log: trim intent")
+    intent = log_transaction.read(cfg)["intent"]
+    tree = git_repo.git("rev-parse", f"{intent}^{{tree}}").strip()
+    attempts = [git_repo.git("commit-tree", tree, "-p", base, "-m", f"Log: attempt {i}").strip()
+                for i in range(2)]
+    for attempt in attempts:
+        log_transaction.attempted(cfg, attempt)
+    for commit in (base, intent, *attempts):
+        assert git_repo.git("merge-base", "--is-ancestor", commit, log_transaction.REF) == ""
+    assert log_transaction.read(cfg)["attempts"] == attempts
+    log_transaction.finish(cfg)
+    assert not git._ref_present(git_repo.root, log_transaction.REF)
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+def test_trim_retry_publishes_its_failure_report_before_inventory_check(git_repo, monkeypatch, accepted):
+    from functools import partial
+    monkeypatch.setattr(trim_log, "trim", partial(trim_log.trim, clock=lambda: TODAY))
+    cfg, path = _seed(git_repo)
+    period = cfg.repo_root / "tasks/trim-report.md"
+    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n")
+    git_repo.git("add", "coga/tasks/trim-report.md")
+    git_repo.git("commit", "-m", "seed trim period")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setenv("COGA_TASK_SLUG", "trim-report")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
+    push = git._push
+
+    def broken(root, remote, refspec):
+        if accepted:
+            assert push(root, remote, refspec) is None
+        return "connection closed"
+
+    with monkeypatch.context() as failure:
+        failure.setattr(git, "_push", broken)
+        failure.setattr(git, "_control_carries", lambda *a: (_ for _ in ()).throw(git.GitError("offline")))
+        assert trim_log.run_trim_log(cfg, []) == 75
+    assert log_transaction.pending(cfg)
+    assert "Publication not complete" in period.read_text()
+    report = period.read_bytes()
+    result = trim_log.trim(cfg, clock=lambda: TODAY)
+    assert ("unchanged" if accepted else "Removed 1 events") in result
+    assert path.read_bytes() == _line("recent", "2026-10-26 12:00")
+    assert git.tree_bytes(git_repo.root, "HEAD", "coga/tasks/trim-report.md") == report
+    assert not log_transaction.pending(cfg)
+
+
+def test_trim_retry_does_not_publish_other_inventory_edits(git_repo, monkeypatch):
+    from coga.blackboard import append_blackboard_report
+    cfg, path = _seed(git_repo)
+    period = cfg.repo_root / "tasks/trim-report.md"
+    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n")
+    git_repo.git("add", "coga/tasks/trim-report.md")
+    git_repo.git("commit", "-m", "seed trim period")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setenv("COGA_TASK_SLUG", "trim-report")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
+    append_blackboard_report(cfg, period, "## Trim log\n\nRetained failure report.\n")
+    other = cfg.repo_root / "tasks/retired.md"
+    other.write_text("---\ntitle: Local draft\nstatus: draft\nowner: marc\nworkflow: null\n---\n")
+    before = path.read_bytes()
+    with pytest.raises(RetentionError, match="unpublished edits"):
+        trim_log.trim(cfg, clock=lambda: TODAY)
+    assert path.read_bytes() == before
+    assert git.tree_bytes(git_repo.root, "HEAD", "coga/tasks/retired.md") is None
+    assert other.exists()
 
 
 def test_archive_proof_includes_events_introduced_only_by_a_merge(git_repo):
@@ -540,12 +659,17 @@ def test_trim_refuses_local_inventory_edit_during_rejected_push(git_repo, monkey
     assert not log_transaction.pending(cfg)
 
 
-def test_trim_honors_crlf_clean_conversion(git_repo):
+@pytest.mark.parametrize("endings", ["crlf", "mixed"])
+def test_trim_honors_crlf_clean_conversion(git_repo, endings):
     cfg, path = _seed(git_repo)
     git_repo.git("config", "core.autocrlf", "true")
-    path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    kept = _line("recent", "2026-10-26 12:00").replace(b"\n", b"\r\n")
+    if endings == "mixed":
+        kept += _line("another", "2026-10-26 12:01")
+    path.write_bytes(_line().replace(b"\n", b"\r\n") + kept)
     assert "Removed 1 events" in trim_log.trim(cfg, clock=lambda: TODAY)
-    assert path.read_bytes().replace(b"\r\n", b"\n") == _line("recent", "2026-10-26 12:00")
+    assert path.read_bytes() == kept
+    assert git.tree_bytes(git_repo.root, "HEAD", "coga/log.md") == kept.replace(b"\r\n", b"\n")
 
 
 def test_ledger_cache_accepts_only_semantically_unchanged_deletions(git_repo):

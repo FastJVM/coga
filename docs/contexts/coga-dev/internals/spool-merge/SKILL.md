@@ -111,6 +111,20 @@ precedes cursor restoration. The receipt is transient transaction evidence,
 not an archive or distributed tombstone; it is removed only on acknowledged
 success or verified restoration. The runbook owns operator recovery.
 
+Before a push, the receipt ref advances to a local merge commit retaining the
+intent and every attempted commit; listing OIDs in JSON alone does not protect
+them from Git garbage collection. Recovery distinguishes ancestry's negative
+result from a failed inspection: an inspection error preserves both outputs
+and the receipt, even if fetching control succeeded.
+
+The trim script may have appended a per-run failure report while publication
+was withheld. After resolving the receipt, its archive-before-planning phase
+can publish that append with the exact control ticket as `expect`. It verifies
+the report environment names the existing period and that control's complete
+ticket remains a prefix through its blackboard fence. Other inventory edits,
+changed lifecycle/body bytes and conflicting reports still refuse; recovery
+does not sweep arbitrary task changes.
+
 ## How `publish` lands a union path
 
 The retire-worklist contract is unchanged: `_merge_union_bytes` three-way
@@ -125,8 +139,10 @@ is never the source base. This generic union contract does not apply to logs.
 Atomic replacement prevents half-written files; it does not serialize writers.
 `append_log` acquires the reentrant state lock before opening and holds it
 through close. Local replacements, both rollback writers, publication and
-landed-byte installation use the same lock and atomic replacement. Rollback
-holds the transaction from before-snapshot through refusal, or carries an exact
+landed-byte installation use the same lock and atomic replacement. A local
+log whose clean-filtered bytes already equal the published blob is staged
+without replacement, preserving the retained spans' original line endings.
+Rollback holds the transaction from before-snapshot through refusal, or carries an exact
 returned-append identity; a changed prefix refuses visibly. Peer events stay.
 A publisher acquires another control checkout's lock non-blockingly before
 fast-forwarding, or leaves it for its own locked catch-up. Two checkout locks

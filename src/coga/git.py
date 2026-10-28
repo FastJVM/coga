@@ -1106,7 +1106,16 @@ def _stage_landed(
         for rel, (read, landed) in (staged or {}).items():
             if _working_tree_bytes(root, rel) != read:
                 continue
-            if landed is not None:
+            # A guarded trim already installed the exact surviving bytes.
+            # The committed log is clean-filtered (usually LF), so preserve
+            # the local postimage when it represents that same blob.
+            equivalent_log = (
+                rel == relative_to_root(root, log_path(cfg))
+                and read is not None
+                and landed is not None
+                and _clean_bytes(root, read, rel) == landed
+            )
+            if landed is not None and not equivalent_log:
                 from coga.atomicio import atomic_write_bytes
                 atomic_write_bytes(root / rel, landed)
             run_git(root, "add", "--all", "--", rel)

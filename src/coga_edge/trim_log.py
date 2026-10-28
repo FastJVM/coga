@@ -20,7 +20,7 @@ from coga.movement_cursor import MovementError, _state, replace_state
 from coga.paths import log_path, packaged_template_path, recurring_dir, tasks_dir
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
-from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
+from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard, split_body
 from coga.tasks import DuplicateTaskSlugError, list_tasks, read_ticket
 from coga.ticket import TicketError
 
@@ -88,6 +88,38 @@ def _check_local_inputs(cfg: Config, root: Path, rev: str, outputs: dict[Path, b
     return inputs
 
 
+def _pending_period_report(cfg: Config, root: Path) -> dict[Path, bytes]:
+    """Publish only an appended report on this invocation's existing period.
+
+    A failed trim reports after preserving its receipt, so the report cannot
+    publish until recovery. Do not mistake that known writer's append for a
+    corrupt inventory, or sweep unrelated ticket edits while recovering it.
+    """
+    path = blackboard_from_env(cfg.repo_root)
+    if path is None:
+        return {}
+    slug = os.environ.get("COGA_TASK_SLUG")
+    if not any(ref.id_slug == slug and ref.ticket_path.resolve() == path.resolve()
+               for ref in list_tasks(cfg)):
+        raise RetentionError("trim-log report environment does not identify its current period")
+    if git.symlink_component(path) is not None:
+        raise RetentionError("symlinked trim-log period needs review before recovery")
+    base = git.known_control_revision(cfg, root)
+    if base is None:
+        raise git.GitError("cannot locate control to publish the retained trim-log report")
+    rel = git.relative_to_root(root, path)
+    control = git.tree_bytes(root, base, rel)
+    local = path.read_bytes()
+    cleaned = git._clean_bytes(root, local, rel)
+    if cleaned == control:
+        return {}
+    read_blackboard(path, expected_bytes=local)
+    if control is None or not cleaned.startswith(control):
+        raise RetentionError("trim-log period changed beyond an appended report; reconcile it before retrying")
+    split_body(control.decode("utf-8"))  # The appended bytes must follow a valid fence.
+    return {path: control}
+
+
 def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
     """One bounded maintenance transaction; no lifecycle subprocess under lock."""
     if not cfg.git_enabled:
@@ -109,7 +141,11 @@ def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
         for attempt in range(3):
             # Pending events must first be recoverable from reachable history.
             try:
-                published = git.publish(cfg, [path], "Log: recurring/trim-log — archive pending events", require_paths=[path])
+                reports = _pending_period_report(cfg, root)
+                published = git.publish(
+                    cfg, [path, *reports], "Log: recurring/trim-log — archive pending events",
+                    expect=reports, require_paths=[path, *reports],
+                )
             except git.StateRegressionError as exc:
                 if isinstance(exc.__cause__, (ValueError, TicketError, ConfigError)):
                     raise RetentionError(str(exc.__cause__)) from exc

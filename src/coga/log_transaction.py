@@ -119,10 +119,38 @@ def begin(cfg: Config, base: str, mutation: LogMutation, outputs: dict[Path, byt
 
 
 def attempted(cfg: Config, commit: str) -> None:
-    record = read(cfg)
-    if record is not None:
+    from coga import git
+    with git.state_lock(cfg):
+        record = read(cfg)
+        if record is None:
+            return
+        root = git.toplevel(cfg.repo_root)
+        assert root is not None
+        previous = git.run_git(root, "rev-parse", REF).strip()
+        if commit != previous:
+            # A JSON OID is not a Git reachability root. Keep the original
+            # intent and every attempted commit reachable before recording
+            # an attempt that the publisher may send to the remote.
+            tree = git.run_git(root, "rev-parse", f"{record['intent']}^{{tree}}").strip()
+            pinned = git.run_git(
+                root, "commit-tree", tree, "-p", previous, "-p", commit,
+                "-m", "Log: recurring/trim-log — pin publication attempt",
+            ).strip()
+            git.run_git(root, "update-ref", REF, pinned, previous)
         record["attempts"].append(commit)
         atomic_write_text(receipt_path(cfg), json.dumps(record) + "\n")
+
+
+def _is_ancestor(root: Path, old: str, new: str) -> bool:
+    """A failed inspection cannot authorize rolling back an accepted trim."""
+    from coga import git
+    result = git._run(["git", "-C", str(root), "merge-base", "--is-ancestor", old, new])
+    if result.returncode not in (0, 1):
+        raise git.UncertainPublishError(
+            "cannot verify audit publication ancestry; preserve the receipt and retry: "
+            + git.summarize_git_failure(result.stderr.decode(errors="replace"))
+        )
+    return result.returncode == 0
 
 
 def finish(cfg: Config) -> None:
@@ -152,9 +180,9 @@ def recover(cfg: Config) -> str | None:
         root = git.toplevel(cfg.repo_root)
         assert root is not None
         control = git.fetch_control(cfg, root)  # failure leaves all evidence
-        if not git._is_ancestor(root, record["base"], control):
+        if not _is_ancestor(root, record["base"], control):
             raise git.UncertainPublishError("control history changed during audit recovery; preserve the receipt and reconcile")
-        accepted = any(git._is_ancestor(root, commit, control) for commit in record["attempts"])
+        accepted = any(_is_ancestor(root, commit, control) for commit in record["attempts"])
         replacements: dict[str, bytes | None] = {}
         for rel in record["paths"]:
             before = git.tree_bytes(root, record["base"], rel)
@@ -178,10 +206,18 @@ def recover(cfg: Config) -> str | None:
                     tail = current[len(after or b""):]
                 else:
                     raise git.UncertainPublishError("audit output changed during recovery; retain receipt and reconcile the local log")
-                replacements[rel] = (reconcile(cfg, root, control, (after or b"") + tail)
-                                     if accepted else (before or b"") + tail)
+                if accepted:
+                    source = (after or b"") + tail
+                    merged = reconcile(cfg, root, control, source)
+                    replacements[rel] = (source if git._clean_bytes(root, source, rel) == merged
+                                         else merged)
+                else:
+                    replacements[rel] = (before or b"") + tail
             elif current == before or current == after:
-                replacements[rel] = git.tree_bytes(root, control, rel) if accepted else before
+                target = git.tree_bytes(root, control, rel) if accepted else before
+                if accepted and after is not None and git._clean_bytes(root, after, rel) == target:
+                    target = after
+                replacements[rel] = target
             else:
                 raise git.UncertainPublishError(f"{rel}: changed during audit recovery; preserve the cursor and reconcile explicitly")
         # Verify every output before changing either file.
