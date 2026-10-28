@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -509,3 +509,43 @@ ordinary ticket.
   never asks them. The ticket treats "asks nothing when more than one is
   installed" as the defect, so this is intended; flagging it because it is the
   one behaviour change an existing user will notice on a new repo.
+
+## Evaluator review
+
+Verdict: not ready for implementation until the two must-fix gaps below are
+resolved.
+
+### Must fix
+
+1. **A Codex-only selection leaves Coga's packaged authoring and chat targets
+   routed to the now-undeclared Claude agent.**
+   `src/coga/resources/templates/coga/bootstrap/ticket/ticket.md` and
+   `bootstrap/orient/ticket.md` both pin `agent: claude`.
+   `authoring.resolve_authoring_agent` considers the bootstrap ticket's agent
+   before `Config.default_agent()`, while `launch._target_operator` resolves a
+   bootstrap ticket's explicit agent through `resolve_main_agent`; both fail
+   when `[agents.claude]` is commented out. The proposed stamping helper only
+   scans scaffolded `coga/tasks/**/*.md`, so it cannot repair either packaged
+   target. This also makes `_do_init`'s filled-repo next step, bare
+   `coga ticket`, fail immediately after a Codex-only init. Specify how these
+   stateless targets follow the enabled/default agent and add coverage for the
+   advertised bare commands in a Codex-only config.
+
+2. **The config edit is not designed as the all-or-nothing transaction the
+   acceptance criteria require.** Proposed Shape 6 writes
+   `_disable_unchosen_agents` first and then independently calls
+   `_write_default_agent`. If disabling fails but the default write succeeds,
+   unchosen agents remain declared; if disabling succeeds but the default
+   write fails, `coga.toml` has already changed. Moreover, the proposed
+   disable helper returns `()` both for a valid all-enabled no-op and for
+   failure, and the test plan has no integrated failure-path assertion or
+   warning check. The existing `_write_default_agent` only preserves the bytes
+   it receives, not the pre-disable template. Define one validated write (or
+   explicit rollback/gating against the original bytes) and test that any
+   failure leaves the complete original `coga.toml` untouched and warns.
+
+### Optional clarification
+
+- Proposed Shape 4 says `_offer_agent_cli` will take no arguments while the
+  clone caller remains "unchanged"; clarify that the clone behavior is
+  unchanged but its call becomes `_offer_agent_cli()`.
