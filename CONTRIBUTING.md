@@ -10,10 +10,11 @@ join existing work.
 Use an issue to describe a bug or propose a change. A small reproduction or a
 concrete use case is enough to start the conversation.
 
-For substantive changes, open an issue first so maintainers can agree on
-scope and create or identify a [Coga ticket](coga/tasks), following the
-[design principles](docs/contexts/coga-dev/principles/SKILL.md).
-You do not need to install Coga to file an issue or submit a pull request.
+Substantive work is tracked in [Coga tickets](coga/tasks), following the
+[design principles](docs/contexts/coga-dev/principles/SKILL.md). If no ticket
+covers your change, open an issue first so maintainers can agree on scope and
+create or identify the ticket. You do not need to install Coga to file an
+issue or submit a pull request.
 Small typo fixes can go straight to a pull request.
 
 ## Set up and test
