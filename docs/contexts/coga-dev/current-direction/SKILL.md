@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-27.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -116,11 +116,12 @@ is `coga status` and the ticket bodies; stage posture is
   Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
   may set or replace the default agent behind an explicit confirm. Contract:
   [`coga/install`](../../coga/install/SKILL.md).
-- **Native Windows stays unsupported; WSL is the untested route.**
-  `src/coga/git.py` imports `fcntl` at module top for the state-publication
-  lock and `cli.py` imports `coga.git` eagerly, so every command fails. A
-  port needs a portable substitute for that lock, not only guarded terminal
-  imports. Contract: [`coga/install`](../../coga/install/SKILL.md).
+- **Native Windows core port landed (2026-10-23).** Non-interactive commands
+  and deterministic work run natively. Interactive agent sessions still
+  refuse until `windows-native/03-interactive-coga-launch-on-native-windows`
+  lands; WSL remains the untested Windows route for those sessions.
+  User-facing contracts: [`coga/install`](../../coga/install/SKILL.md),
+  [`coga/launch`](../../coga/launch/SKILL.md#phases-and-routing).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no
   ticket does ADK work. `anthropic/skill-creator/` is the verbatim
