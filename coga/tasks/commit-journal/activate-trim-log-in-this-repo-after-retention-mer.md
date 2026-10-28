@@ -1,15 +1,127 @@
 ---
 title: Activate trim-log in this repo after retention merges
-status: draft
+status: active
 owner: nicktoper
-workflow: null
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (design)
+agent: claude
 ---
 
 ## Description
 
-Post-merge activation of the audit-retention feature from commit-journal/trim-the-audit-log (merged PR closes that ticket, not this step). After the code PR merges: quiesce and upgrade every writer, run the documented interpreter-resolved `python -m coga_edge.trim_log --install` (runbook: coga/recurring/trim-log/operations.md, staged under rollout/trim-log/coga), review and publish its five named repo artifacts, delete the rollout/trim-log staging copy, and drop the temporary log-attribute entry from INTENTIONALLY_DIVERGENT_TWINS in tests/test_packaging.py once live and packaged copies match. Do not trim the live log manually.
+Activate audit retention in this repository after the compatible implementation
+from PR #1129 reaches current main; that PR closes
+`commit-journal/trim-the-audit-log`, while this ticket owns the operational
+rollout and its cleanup. After owner review of the rollout plan, quiesce and
+upgrade every participating writer, run the documented interpreter-resolved
+`python -m coga_edge.trim_log --install`, review and publish its five repo
+artifacts, and remove the staging copy and temporary packaging exception
+through a reviewed cleanup PR. Done means the compatible writers can resume,
+the intended weekly job is discoverable on control with existing retention
+settings preserved, the effective log merge attribute is unset, all five live
+artifacts match their packaged copies, and the cleanup has merged with the
+required checks passing. Do not trim the live log manually or force a
+production maintenance run to demonstrate activation.
 
 ## Context
+
+### Rollout plan and prerequisite
+
+[PR #1129](https://github.com/FastJVM/coga/pull/1129) was open on 2026-10-28.
+Before merge, inspect its fetched head `coga/trim-the-audit-log` for the
+references below. Recheck merge evidence and control content before adoption.
+
+The design step plans this rollout only. Inventory participating checkouts,
+interpreters, long-running sessions and recurring launchers; ask the owner
+about writers outside local visibility. The `review-design` gate approves
+quiescence, upgrade evidence (wheel artifact/hash and repo revision), checkout
+and publication order, verification, compatible recovery and resumption.
+Enable files only after the core merges and every writer is quiesced and
+upgraded; restart long-running writers before resuming. Task activation queues
+planning. Cleanup goes through the later code-review and PR steps.
+
+### Runbook and installer
+
+Required read: `coga/recurring/trim-log/operations.md`, "Adoption after the
+compatible wheel upgrade" and recovery sections; before adoption it lives at
+`rollout/trim-log/coga/recurring/trim-log/operations.md`. Resolve `COGA_PY` using
+`docs/contexts/coga/edge-code/edge-code-upgrades.md`, `migration:interpreter`,
+preserving the launcher's interpreter environment. On fresh control, run
+`"$COGA_PY" -m coga_edge.trim_log --install`; review these five possible edits:
+
+- `coga/recurring/trim-log/ticket.md`
+- `coga/recurring/trim-log/ticket.py`
+- `coga/recurring/trim-log/operations.md`
+- `coga/workflows/trim-log/run.md`
+- `coga/.gitattributes`
+
+`src/coga_edge/trim_log.py`, `install` and `_attribute_plan`, own the bounded
+installer. Preserve configuration (including retention `0`), unrelated
+attributes, parking, forks and phone-home state; resolve installer refusals
+with the owner. Configuration changes, retention redesign, other repositories
+and manual log/cursor rewrites are outside scope.
+
+### Publication, cleanup and proof
+
+Coordinate adoption with removal of `rollout/trim-log/` and the
+`coga/.gitattributes` exception in `tests/test_packaging.py`,
+`INTENTIONALLY_DIVERGENT_TWINS`: installation makes that exception invalid
+immediately, so publishing adoption first would break packaging checks.
+Design must resolve this ordering before owner approval. Remove obsolete
+staging assertions/fallbacks while retaining live/package coverage, and update
+the runbook's staging paragraph and remaining staging references with their
+packaged twins under `src/coga/resources/templates/coga/`.
+
+Verify installer idempotence before editorial runbook cleanup, or upgrade to
+the matching reviewed wheel before repeating it: `trim_log.install` compares
+against its installed package, not this source tree. Verify the five published
+twins, `git check-attr merge -- coga/log.md` reports `unset`, and the Monday
+04:00 local-time schedule and preserved retention setting are discoverable.
+Record writer/resumption evidence, published revisions, packaging checks,
+scoped Coga validation and workflow-required tests; production trimming is
+not required.
+
+`coga-dev/packaging` (`docs/contexts/coga-dev/packaging/SKILL.md`) is cited
+rather than attached: read "Canonical copies and twins". Its mapping and
+exception rules are enforced by `tests/test_packaging.py`,
+`_discover_live_packaged_twins` and
+`test_intentional_divergences_stay_real_and_explained`.
+`coga/state-publication` (`docs/contexts/coga/state-publication/SKILL.md`) is
+cited rather than attached: read "When Coga publishes", "Control versus
+feature checkouts" and "Strict publication on demand". Dirty Coga files and
+eligible committed recurring state can publish ahead of a PR; a feature
+branch alone does not prevent activation.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
