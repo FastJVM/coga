@@ -15,35 +15,32 @@ cancellation handoff escaped the later sweep. Done means a targeted interview
 that updates a sibling publishes the valid changes together, validates all
 selected tickets before publishing any part of the finalizer's transaction,
 and a cancellation/teardown regression proves the handoff is published or the
-command reports retained state explicitly. Preserve the existing lifecycle,
-checkout, and human-gate rules; this work does not authorize executing the
-sibling ticket's workflow.
+command exits nonzero and identifies retained state and its recovery path.
+Preserve the existing lifecycle, checkout, and human-gate rules; this work
+does not authorize executing the sibling ticket's workflow.
 
 ## Context
 
 ### Incident and recovery
 
-On 2026-10-28, the attended interview for
-`show-which-agents-are-available-on-the-machine-dur` wrote a human-approved
-handoff under `## Open Questions` in
+On 2026-10-28, authoring of
+`show-which-agents-are-available-on-the-machine-dur` added an approved 11-line
+`## Open Questions` handoff to
 `marketing/fix-installer/ask-which-agents-to-enable-during-coga-init`, then ran
-`coga mark canceled` on the duplicate. The successor was at its owner design
-review; the handoff raised wording about agents outside built-in discovery,
-without changing the approved requirements or resolving design findings.
+`coga mark canceled` on the duplicate. The successor remained at owner design
+review; the note concerned agents outside built-in discovery and neither
+changed approved requirements nor resolved design findings.
 
-The cancellation reached control in `3831c8502`, and the session usage record
-in `2b0e4e4d5` reported exit code 0 and exit kind `done`. The next interview
-found the successor's 11-line handoff still dirty on `main` and absent from
-`origin/main`. The prior agent transcript shows the cancellation command
-returning a running tool-session ID rather than a completed exit before
-the agent session ended; this is timing evidence, not proof of the whole
-failure mechanism. Both affected tickets validated after cancellation.
+Cancellation published in `3831c8502`; usage in `2b0e4e4d5` reported exit 0
+and kind `done`, yet the next interview found the handoff dirty on `main`
+and absent from `origin/main`. The transcript returned a running tool-session
+ID for cancellation, without a completed exit before the agent ended: timing
+evidence only. Both tickets validated after cancellation.
 
-The human requested investigation and repair. The handoff was preserved,
-then published with `coga run publish-state` requiring its absolute path.
-Commit `d294c0956` contains the recovered note; the working tree was verified
-clean and the successor matched `origin/main`. Do not replay cancellation
-or modify the successor's workflow to recover this incident.
+Recovery is complete: `coga run publish-state`, requiring the successor's
+absolute path, published the note in `d294c0956`. The tree was verified clean
+and the successor matched `origin/main`. Do not replay cancellation or modify
+the successor's workflow to recover this incident.
 
 ### Confirmed gap and remaining uncertainty
 
@@ -69,7 +66,11 @@ or modify the successor's workflow to recover this incident.
   `repl_supervisor.run_with_done_marker`, and `cli._sweep_coga_state` for the
   cancellation-to-finalization boundary. The done marker is emitted before
   the child CLI's final sweep; supervisor teardown signals the process group.
-  Preserve intentional withholding after validation/publication refusal.
+  The outer `coga ticket` invocation also has an end-of-command sweep after
+  finalization. Interrupting the child sweep alone therefore does not explain
+  the retained handoff: trace the outer finalizer and sweep as well, including
+  refusals and whether either process actually reaches them. Preserve
+  intentional withholding after validation/publication refusal.
 
 ### Scope and verification
 
@@ -81,7 +82,8 @@ edits with a nonzero result. Update this owner and its packaged twin if the
 contract changes. Cite `coga-dev/internals/state-publication`
 (`docs/contexts/coga-dev/internals/state-publication/SKILL.md`), sections
 "The end-of-command sweep" and "Guided-authoring finalization", for the
-implementation explanation and update it with the fix. For teardown, cite
+implementation explanation; this topic is also cited rather than attached
+and must be updated with the fix. For teardown, cite
 `coga-dev/internals/agent-spawn`
 (`docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`), section "The
 supervisor", rather than attach it: a `done` outcome describes how the agent
@@ -96,13 +98,38 @@ precede finalization, without claiming the finalizer prevented earlier
 publication. A broader change to sweep isolation or supervisor design needs
 a separate design decision if the investigation proves it necessary.
 
-Extend `tests/test_authoring.py` and appropriate command/supervisor coverage
-for an unchanged or canceled target plus an edited sibling, an invalid
-authored sibling, and canceled-session teardown. Consider new/deleted tickets,
-attachments, and file-to-directory promotion when adjusting selection.
-Snapshot-based selection must not silently absorb unrelated pre-existing
-edits into the authored transaction. Use isolated local Git remotes and stub
-agents; do not require Slack, real agent credentials, or network services.
+### Regression coverage
+
+Extend `tests/test_authoring.py` and appropriate command/supervisor coverage:
+
+- An unchanged, canceled, or deleted named target must not hide edits to
+  surviving siblings. Continue validating an existing named target even when
+  unchanged; validate every other selected ticket before the finalizer's
+  first publication write. Keep authored ticket and support-file changes in
+  the same guarded transaction.
+- An invalid authored sibling prevents the finalizer from publishing any
+  selected ticket or support file, retains the edits, and produces a nonzero
+  command result with its sweep withheld. Separately cover cancellation
+  before finalization and distinguish writes already published by that
+  lifecycle command from writes attempted by the finalizer.
+- Cover newly created and deleted sibling tickets, attachment-only edits and
+  deletions, and file-to-directory promotion, including both sides of the
+  move. Deleted tickets have no remaining body to validate; their removal
+  must still be accounted for in publication.
+- Exclude paths unchanged since the entry snapshot, even when they were
+  already dirty, including an untouched dirty attachment beside a changed
+  ticket. File fingerprints identify changed paths, not hunk authorship;
+  decide how a pre-dirty path edited again is treated before coding, then
+  document and test that choice.
+- Exercise the PTY done-sentinel teardown path with controlled synchronization
+  around cancellation and its sweep, not only a stub that waits for the
+  cancellation subprocess to finish. Assert the outer command's completed
+  exit, diagnostics, remote ticket bytes, and any retained local edits. A
+  session usage record with outcome `done` alone is insufficient evidence.
+
+Use isolated local Git remotes and stub agents; do not require Slack, real
+agent credentials, or network services. Keep these tests deterministic;
+timing sleeps alone must not establish that the cancellation race occurred.
 Record exact commands and results and keep the fixture-interpreter fix in
 `fix-release-env-fixture-interpreter-symlink-in-fre` separate.
 Shared `code/open-pr` prompt cleanup is also out of scope; its historical
