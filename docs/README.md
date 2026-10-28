@@ -26,9 +26,9 @@ and [history](../coga/log.md) for recorded transitions.
 
 - [Architecture](contexts/coga/architecture/SKILL.md) — the model and the
   correction loop.
-- [Finding tickets](contexts/coga/tickets/discovery/SKILL.md) and
-  [writing them](contexts/coga/tickets/authoring/SKILL.md) —
-  [lifecycle](contexts/coga/lifecycle/SKILL.md) and
+- Working with tickets: [discovery](contexts/coga/tickets/discovery/SKILL.md),
+  [authoring](contexts/coga/tickets/authoring/SKILL.md),
+  [lifecycle](contexts/coga/lifecycle/SKILL.md), and
   [blackboard](contexts/coga/blackboard/SKILL.md).
 - [Prompt composition](contexts/coga/prompt-composition/SKILL.md) — what an
   agent receives; [knowledge placement](contexts/coga/knowledge/SKILL.md) —
@@ -57,9 +57,8 @@ and [history](../coga/log.md) for recorded transitions.
 - Team sync: [Git state overview](contexts/coga/sync/SKILL.md),
   [notifications](contexts/coga/notifications/SKILL.md)
   ([producers](contexts/coga/notifications/producers/SKILL.md)),
-  [coga-important](contexts/coga/important/SKILL.md),
-  [usage records](contexts/coga/usage/SKILL.md),
-  [state publication](contexts/coga/state-publication/SKILL.md).
+  [coga-important](contexts/coga/important/SKILL.md), and
+  [usage records](contexts/coga/usage/SKILL.md).
 
 - Publication: [PRs](contexts/coga/pr-publication/SKILL.md)
   ([preparation](contexts/coga/pr-publication/preparation/SKILL.md));
