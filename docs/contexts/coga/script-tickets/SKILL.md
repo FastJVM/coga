@@ -61,7 +61,13 @@ lookup, skill refresh, or push probe.
    `$(coga <verb>)` sees only its stdout. A bootstrap script that exits 75
    declares it retained local state:
    launch skips its teardown refresh, withholds the end-of-command sweep, and
-   exits 75.
+   exits 75. A stateful script with a pending guarded audit-mutation receipt
+   also exits 75 without the between-phase refresh. After any other crash,
+   that durable receipt makes publication and checkout settlement refuse
+   until recovery; a nonzero exit alone is not a transaction receipt. The
+   [audit mutation contract](../state-publication/SKILL.md) and
+   [trim-log runbook](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+   specify recovery before retrying a later command.
 
 ## Chaining
 

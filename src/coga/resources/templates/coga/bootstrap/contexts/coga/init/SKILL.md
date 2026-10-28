@@ -35,8 +35,8 @@ Then init:
    The result is
    `coga.toml`, `context.md`, `log.md`, `tasks/`, `recurring/`, `skills/`,
    `workflows/`, a `contexts/` holding only the `_template/` scaffold and its
-   `.gitignore`, `coga/.gitattributes` (`merge=union` for `log.md` and
-   `retires.md`), plus `coga/.gitignore` wrapped in a coga-managed block.
+   `.gitignore`, `coga/.gitattributes` (`/log.md -merge` and
+   `merge=union` for `retires.md`), plus `coga/.gitignore` wrapped in a coga-managed block.
    Bundled contexts, skills and workflows are **not** copied. They resolve
    from the installed package after the local roots miss
    ([coga/context-layout](../context-layout/SKILL.md)).
@@ -161,3 +161,13 @@ with `Run coga init --user <name>`.
 Discovery: commands find the repo by walking up for `coga.toml`, also
 checking a sibling `coga/` at each level. A nested Coga repo is only found
 from inside its own subtree.
+
+## Audit retention adoption
+
+Fresh init installs the weekly trim-log job with default-on 30-day retention.
+A wheel upgrade alone installs no new schedule into existing repos. After
+upgrading every writer, use the feature-specific `python -m
+coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+for the exact command, allowlist, customization/parking checks and compatible
+two-phase rollout. The command installs only this feature's repo files.

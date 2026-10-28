@@ -32,13 +32,13 @@ Each record is an ordinary log line written through
 YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 ```
 
-- The log is append-only and `merge=union`, so concurrent sessions never
-  conflict; [merge details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md)
+- Coga reconciles concurrent appends through its publisher; native Git
+  edits can conflict under `/log.md -merge`; [merge details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md)
   explain the implementation.
 - The log is never a prompt-composition layer, so usage records never bloat a
   ticket's later prompts.
 - The log outlives the task: `coga delete` and `coga retire` remove the task
-  directory but not its usage history.
+  directory; the retention job may later expire its usage history.
 
 ## The read API — `coga usage` and `src/coga/usage.py`
 
@@ -85,3 +85,13 @@ which estimates the prompt side before a run.
   response's full `usage` on each content-block line. Capture now counts each
   `message.id` once. Records are never recounted, so a total or trend spanning
   that change is not comparable.
+
+## Retained history
+
+`coga usage --since` queries records still in `coga/log.md`. The default-on
+[retention job](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md)
+uses envelope timestamps for age, while usage continues filtering JSON `ts`.
+Before the retention window there is no completeness guarantee: histories for
+tickets still on disk can survive while removed-ticket records expire. No
+automatic Git-history read or complete historical reporting is provided.
+Git history retains removed records for deliberate investigation.

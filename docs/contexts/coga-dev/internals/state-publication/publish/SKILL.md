@@ -10,7 +10,7 @@ Part of [coga-dev/internals/state-publication](../SKILL.md).
 ## `publish` and its wrappers
 
 `git.publish(cfg, paths, message, *, expect=None, guard=None,
-fast_forward=True, require_paths=())` returns `True` (pushed), `False` (control already held
+fast_forward=True, require_paths=(), log_mutation=None)` returns `True` (pushed), `False` (control already held
 the tree), or `None` (soft-skipped). Soft-skips write one stderr line and
 nothing else: `[git].enabled = false`, not a git repo, git unavailable, or the
 control branch missing locally and on the remote
@@ -39,7 +39,8 @@ control branch missing locally and on the remote
    `_working_tree_bytes` normalizes that case so the tree-mode guard can
    report its submodule refusal and preserve the entry.
 4. **Tree and push**: a temporary `GIT_INDEX_FILE` seeded from base, each
-   candidate overlaid (or removed when deleted), `merge=union` paths
+   candidate overlaid (or removed when deleted), the configured audit log
+   reconciled by whole events (explicit deletion requires `LogMutation`), and `merge=union` paths
    three-way union-merged without re-adding a line control already has
    (the duplicate filter in `coga-dev/internals/spool-merge`); `commit-tree` on base, then
    `push <remote> <new>:refs/heads/<control>`. A non-fast-forward rejection
@@ -132,3 +133,11 @@ lifecycle writers hold around read-modify-write; its contract is
 [`coga-dev/internals/launch-claims`](../../launch-claims/SKILL.md). It serializes one
 checkout only; across checkouts the push compare-and-swap decides. Two
 sessions editing one working tree remain an unserialized hazard.
+
+Pending guarded audit deletion receipts are checked before every publication,
+including an unrelated path-only request. Only the matching mutation can
+publish until recovery. A refusal may append diagnostics; recovery preserves
+those suffix events instead of requiring unchanged whole-output bytes. Trim
+and rollback share `logfile.LogMutation` and `replace_log`; details live in
+[spool-merge](../../spool-merge/SKILL.md). Stateful script exit 75 with a pending
+receipt bypasses between-phase settlement and remains a sweep stop signal.

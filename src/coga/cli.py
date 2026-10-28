@@ -304,10 +304,16 @@ def _warn_unpublished_log_lines(cfg: Config | None, mark: _LogMark | None) -> No
         root = git.toplevel(cfg.repo_root)
         if root is None:
             return
-        held = _control_log_lines(cfg, root, git.relative_to_root(root, path))
-    except git.GitError:
+        from coga.log_publication import reconcile
+        rev = git.known_control_revision(cfg, root)
+        if rev is None:
+            return
+        rel_path = git.relative_to_root(root, path)
+        control_bytes = git.tree_bytes(root, rev, rel_path) or b""
+        merged = reconcile(cfg, root, rev, appended.replace(b"\r\n", b"\n"))
+        retained = [line for line in log_lines(merged[len(control_bytes):].decode("utf-8", errors="replace")) if line.strip()]
+    except (git.GitError, ValueError, OSError, UnicodeError):
         return
-    retained = [line for line in lines if line not in held]
     if not retained:
         return
     shown = "".join(

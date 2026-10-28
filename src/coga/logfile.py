@@ -1,38 +1,20 @@
-"""The repo-global append-only log, written exclusively by CLI commands.
+"""The retained repo-global audit log, written by CLI commands.
 
-Coga keeps one audit log per repo at `coga/log.md` (not one per task). Each
-line is tagged with the task ref it belongs to::
+Events use `YYYY-MM-DD HH:MM v1 [ref] [actor] message` and one LF-terminated
+line; encode/decode preserve literal backslashes, LF and CR. Legacy events can
+own untagged continuation lines. `parse_events` preserves original spans and
+keeps uncertain data opaque. Readers retain their established history semantics.
 
-    YYYY-MM-DD HH:MM v1 [<task-ref>] [<actor>] <message>
-
-so a single task's history is reconstructable by filtering on its ref. `actor`
-is conventionally `agent:<nickname>`, `human:<name>`, `git`, `slack`, or
-`system`.
-
-One event is exactly one LF-terminated physical line. `append_log` encodes the
-message centrally — `\\` becomes `\\\\`, then LF and CR become the literal
-two-character text `\\n` / `\\r` — so multiline Git stderr cannot split an
-event, and `decode_log_message` recovers the original text. Readers split on
-LF only. Only v1-marked messages are decoded; unmarked messages stay raw.
-Lines written before the encoding existed may be followed by
-untagged continuation lines (no timestamp); readers skip them, and
-`task_log_lines` keeps them attached to the event they follow.
-`coga-dev/internals/spool-merge` owns this rule.
-
-Why global rather than per-task: the log is the one thing that grows without
-bound, and it is deliberately **never** a prompt-composition layer. Pulling it
-out of the task directory keeps every per-task `ticket.md` small and bounded
-(frontmatter + body + blackboard), so compose can read the small file and
-ignore the log entirely. `coga/.gitattributes` marks `log.md` `merge=union`
-so concurrent appends across branches merge without conflict — readers sort on
-display, so union's possible duplicate/unsorted lines are harmless for an
-append-only audit trail.
+The log is never a prompt-composition layer. The trim-log ticket owns retention;
+`coga-dev/internals/spool-merge` owns event publication and guarded deletion.
+Native Git uses `/log.md -merge`, while Coga reconciles appends explicitly.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -85,44 +67,159 @@ def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     encoded = encode_log_message(message)
     line = f"{timestamp} v1 [{task_ref}] [{actor}] {encoded}\n".encode("utf-8")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("ab") as f:
-        f.write(line)
+    from coga import git
+
+    with git.state_lock(cfg):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("ab") as f:
+            f.write(line)
     return line
 
 
-def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
-    """Drop this task's audit lines appended since `before`, keeping peers' lines.
+@dataclass(frozen=True)
+class LogEvent:
+    """An original byte span. Opaque/incomplete spans never acquire an age."""
 
-    The undo for a lifecycle write whose publication was definitely refused
-    (`git.StateRegressionError`): the ticket goes back to its pre-write bytes,
-    and the audit lines that write appended would otherwise describe a
-    transition that never happened. Only events whose `[ref]` tag field is
-    `task_ref` after the `before` prefix are removed — a peer event that merely
-    mentions the tag in its message stays — together with any untagged
-    continuation lines that follow a removed event. A log that no longer starts
-    with `before` (rewritten meanwhile) is left alone.
+    start: int
+    end: int
+    raw: bytes
+    timestamp: datetime | None = None
+    ref: str | None = None
+    actor: str | None = None
+    message: str | None = None
+    version: str | None = None
+    complete: bool = True
+
+    @property
+    def canonical(self) -> bytes:
+        # Only CRLF terminators are normalized; bare CR remains content.
+        return self.raw.replace(b"\r\n", b"\n")
+
+
+_EVENT_RE = re.compile(
+    r"^(?P<stamp>[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) "
+    r"(?P<version>v1 )?\[(?P<ref>[^\]\r\n]*)\] "
+    r"\[(?P<actor>[^\]\r\n]*)\] (?P<message>[^\r\n]*)$"
+)
+_TIMESTAMP_LIKE = re.compile(rb"^[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def parse_events(raw: bytes) -> tuple[LogEvent, ...]:
+    """Split at LF, preserving bytes and legacy continuations conservatively.
+
+    Malformed timestamp-looking headers, unknown versions, invalid UTF-8 and
+    continuations after v1 are independent opaque blocks. A partial legacy
+    tail makes its entire event incomplete. No retained byte is repaired.
     """
-    path = log_path(cfg)
-    current = path.read_bytes() if path.is_file() else None
-    if current is None or before is None:
-        return
-    if not current.startswith(before):
-        return
-    tag = task_ref.encode("utf-8")
-    parts = current[len(before):].split(b"\n")
-    lines = [part + b"\n" for part in parts[:-1]]
-    if parts[-1]:
-        lines.append(parts[-1])
-    kept: list[bytes] = []
-    dropping = False
-    for line in lines:
-        match = _LINE_BYTES_RE.match(line)
-        if match:
-            dropping = match.group(1) == tag
-        if not dropping:
-            kept.append(line)
-    path.write_bytes(before + b"".join(kept))
+    events: list[LogEvent] = []
+    offset = 0
+    parts = raw.split(b"\n")
+    for index, part in enumerate(parts):
+        complete = index < len(parts) - 1
+        if not complete and not part:
+            break
+        line = part + (b"\n" if complete else b"")
+        try:
+            text = part.removesuffix(b"\r").decode("utf-8")
+            match = _EVENT_RE.fullmatch(text)
+            stamp = datetime.strptime(match["stamp"], "%Y-%m-%d %H:%M") if match else None
+        except (UnicodeError, ValueError):
+            match, stamp = None, None
+            text = None
+        if match is not None:
+            message = match["message"]
+            version = "v1" if match["version"] else None
+            events.append(LogEvent(
+                offset, offset + len(line), line, stamp, match["ref"],
+                match["actor"], decode_log_message(message) if version else message,
+                version, complete,
+            ))
+        elif (events and events[-1].timestamp is not None
+              and events[-1].version is None and text is not None
+              and not _TIMESTAMP_LIKE.match(part)):
+            prev = events[-1]
+            events[-1] = replace(prev, end=offset + len(line), raw=prev.raw + line,
+                                 complete=complete)
+        else:
+            events.append(LogEvent(offset, offset + len(line), line, complete=complete))
+        offset += len(line)
+    return tuple(events)
+
+
+@dataclass(frozen=True)
+class LogMutation:
+    """Authority to remove exact whole-event occurrences from one preimage.
+
+    Receipts are also used for local rollback. Publication verifies the control
+    preimage and the local postimage independently; a short file is no receipt.
+    """
+
+    preimage: bytes
+    removed: tuple[int, ...]
+
+    @property
+    def postimage(self) -> bytes:
+        events = parse_events(self.preimage)
+        indices = set(self.removed)
+        if len(indices) != len(self.removed) or any(type(i) is not int or i < 0 or i >= len(events) for i in indices):
+            raise ValueError("invalid audit mutation occurrences")
+        return b"".join(event.raw for i, event in enumerate(events) if i not in indices)
+
+
+def replace_log(cfg: Config, mutation: LogMutation) -> None:
+    """Apply a local receipt atomically, refusing any intervening file write."""
+    from coga import git
+    from coga.atomicio import atomic_write_bytes
+
+    with git.state_lock(cfg):
+        path = log_path(cfg)
+        raw = path.read_bytes() if path.exists() else b""
+        if raw != mutation.preimage:
+            raise git.StateRegressionError("audit log changed since the mutation was planned")
+        atomic_write_bytes(path, mutation.postimage)
+
+
+def retract_log_append(cfg: Config, before: bytes | None, appended: bytes) -> bool:
+    """Retract the exact returned append, preserving peer events and duplicates."""
+    from coga import git
+
+    with git.state_lock(cfg):
+        path = log_path(cfg)
+        if not path.exists():
+            return before is None
+        raw = path.read_bytes()
+        # Prefer the appended occurrence after the observed prefix. Never use
+        # a substring match inside another event (including legacy messages).
+        old_count = sum(e.raw == appended for e in parse_events(before or b""))
+        matches = [i for i, e in enumerate(parse_events(raw)) if e.raw == appended]
+        if len(matches) <= old_count:
+            return False
+        replace_log(cfg, LogMutation(raw, (matches[old_count],)))
+        if before is None and not path.read_bytes():
+            path.unlink()
+        return True
+
+
+def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
+    """Undo this ref's post-snapshot events while the caller holds state_lock.
+
+    A changed prefix is a visible refusal, never a silently abandoned rollback.
+    Callers unable to hold the transaction use returned append identities.
+    """
+    from coga import git
+
+    with git.state_lock(cfg):
+        path = log_path(cfg)
+        if not path.exists():
+            return
+        raw = path.read_bytes()
+        prefix = before or b""
+        if not raw.startswith(prefix):
+            raise git.StateRegressionError("audit prefix changed during rollback; retain state for recovery")
+        removed = tuple(i for i, e in enumerate(parse_events(raw))
+                        if e.start >= len(prefix) and e.ref == task_ref)
+        if removed:
+            replace_log(cfg, LogMutation(raw, removed))
 
 
 def ref_tag_for_path(cfg: Config, path: Path) -> str:
@@ -185,8 +282,8 @@ def first_activity_map(cfg: Config) -> dict[str, datetime]:
     The mirror of `last_activity_map`: the earliest parseable line per ref is
     the draft/create entry, so this is "creation time" as committed content —
     it survives clone/checkout, unlike file mtimes. The minimum timestamp is
-    kept rather than the first line seen because `merge=union` can leave the
-    log unsorted. Megalaunch's oldest-first drain order and
+    kept rather than the first line seen because cross-checkout publication
+    can leave the log unsorted. Megalaunch's oldest-first drain order and
     `coga status --order-by created` both read it.
     """
     path = log_path(cfg)
@@ -221,8 +318,7 @@ def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
     """Yield `(task_ref, decoded message)` for every parseable line, in order.
 
     One pass over the whole log for callers that need to reconstruct state for
-    *many* refs at once — reading it once per ref would re-scan the one file
-    Coga lets grow without bound. Callers own their own message parsing; this
+    *many* refs at once — reading it once per ref would re-scan the retained global audit file. Callers own their own message parsing; this
     only splits the line's fixed envelope.
     """
     path = log_path(cfg)
@@ -249,7 +345,7 @@ def iter_log_messages_reverse(
     The forward twin above has to touch every byte before it can answer
     anything. That is the right shape for a caller reconstructing *all* of
     history, and the wrong shape for one asking "what is the newest record for
-    these few refs?" — the log is the one file Coga lets grow without bound, so
+    these few refs?" — the log is the retained global audit file, so
     a question answered by its last few lines must not cost a full read.
 
     The file is walked backwards a block at a time and each block's complete

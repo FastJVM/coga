@@ -44,7 +44,7 @@ The ownership rule is [coga/knowledge](../../knowledge/SKILL.md).
   blocks period creation even with a launch override.
 - `run_when_inactive` — optional boolean, default false; exempts the template
   from the [repo inactivity gate](../scheduling/inactivity/SKILL.md). The shipped
-  `autoclose-merged` and `branch-sweep` opt in. Non-booleans are template
+  `autoclose-merged`, `branch-sweep` and `trim-log` opt in. Non-booleans are template
   errors, reported by the sweep (inactive or not) and `coga validate`. On an inactive sweep, a template without the exemption is
   skipped without strict validation, so its other errors wait until the repo
   wakes or `coga validate` runs. The field stays on the template and is never
@@ -142,3 +142,10 @@ to detect concurrent change, preserve the region's leading newline, and if the
 file ends at the fence with no newline, start your text with one (those helpers
 do not add it). Own only your keys ([coga/period-task](../../period-task/SKILL.md));
 test both orderings and repeated alternating writes against the other writers.
+
+The trim-log maintenance job has one narrow cross-parent write: before deleting
+history it may migrate phone-home's valid schema-1 cursor to schema 2 without
+sending, minting an identity or advancing `run`. The joint guarded publication
+preserves all unrelated parent content; subsequent trims only read the cursor.
+The [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)
+owns migration and unread movement semantics.

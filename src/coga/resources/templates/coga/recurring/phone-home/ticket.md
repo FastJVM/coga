@@ -50,11 +50,21 @@ manual ingestion proof uses a release wheel outside development trees.
 ### State, publication, and loss
 
 The parent template blackboard holds exactly one readable single-line JSON
-`period_state:` value: `schema` (1), `run` (nonnegative monotonic invocation
-number), nullable `repo_id` (UUID v4), `offset` (byte offset), and `digest`
-(SHA-256 of the consumed complete-line prefix). The unused seed has run/offset
-zero, null identity, and the empty-prefix digest. Declare only `period_state`
-in `state_keys`; quiet, disabled, failed and suppressed runs increment `run`.
+`period_state:` value: `schema` (2), `run` (nonnegative monotonic invocation
+number), nullable `repo_id` (UUID v4), and sorted unique `seen_movements`
+(SHA-256 fingerprints of complete movement events at the last reservation).
+The unused seed has run zero, null identity and an empty set. Declare only
+`period_state` in `state_keys`; quiet, disabled, failed and suppressed runs
+increment `run`. Hashes stay local and never become payload properties.
+
+Schema 1 (`offset`/`digest`) remains readable for migration. A valid prefix
+seeds exactly its consumed movement, leaving later events unread. A null
+identity baselines the snapshot because the first enabled run promises zero.
+An invalid non-null prefix cannot migrate losslessly: trim refuses untouched;
+phone-home retains its visible reset warning and zero baseline when it runs.
+Trim may perform the non-sending migration under a joint guarded log/parent
+publication, preserving `run`, identity, above-fence bytes and unrelated prose.
+After migration trim only reads this state.
 
 Under `git.state_lock(cfg)`, capture parent bytes, read using
 `taskfile.read_blackboard(expected_bytes=...)`, replace using
@@ -113,14 +123,23 @@ Actor and handoff names may contain spaces; step names may contain parentheses,
 as permitted by the audit producers. An FYI suffix may contain line breaks. These names are parsed locally, never sent.
 
 No rewinds, launches, creates, other marks, blocks, unblocks, embedded prose,
-malformed lines or housekeeping. First enabled run baselines at complete-line
-EOF and sends movement zero. Later runs verify the prefix hash and count only
-new complete lines through captured EOF; leave a trailing partial line for
-next time. Deduplicate exact lines within the new suffix. Shrink/rewrite resets
-to new EOF with movement zero and a local warning. Missing log is empty.
-Equal or out-of-order timestamps do not change counting. Union merges can
-append old lines after a valid prefix; identical real transitions within one
-minute can collapse. This is approximate activity, not an audit ledger.
+malformed lines or housekeeping. First enabled run baselines complete events
+and sends movement zero. Later reservations count current movement hashes
+absent from `seen_movements`, then replace the set with the current set before
+transport. Hash canonical LF event bytes, excluding the final terminator;
+CRLF conversion, reordering and removal of consumed records do not reset the
+cursor. Exact-event duplicates collapse; a partial legacy event waits until
+complete. Missing log is empty. Equal/out-of-order timestamps do not affect
+counting. Identical real transitions in one minute can still collapse.
+
+Retention protects unread events in its control snapshot even when reporting
+is delayed past the age window. After consumption, a later trim may remove
+them. The fingerprint set is replaced, not accumulated forever. Incoming
+archived replays are classified using control's unread snapshot and exact Git
+provenance, so a consumed hash forgotten after trimming cannot resurrect and
+count again. Genuinely new backdated movement remains reportable. Ordinary
+trimming causes no recurring telemetry loss; transport failure/crash semantics
+above are unchanged. This is approximate activity, not an audit ledger.
 Snapshots supply current inventory; never sum historical inventories.
 
 ### Closed wire contract
@@ -147,7 +166,7 @@ properties:
 
 No dynamic properties, `$set`, `$lib`, owner/agent names, paths, slugs, titles,
 bodies, blackboards, remotes, branches, Slack IDs, environment values, raw logs,
-errors, cursor digests, hostnames, or full kernel build text. Protocol fields
+errors, cursor fingerprints/digests, hostnames, or full kernel build text. Protocol fields
 are not measured properties. Keep the default identified event/person keyed
 only by opaque repo ID; no identify/alias calls or person attributes. IP discard
 and disabled GeoIP are required project settings. The network peer necessarily
@@ -186,4 +205,4 @@ Supporting Markdown stays with the template; it is not copied into a period task
 This state is shared by synced clones. Do not copy runtime state into the
 packaged seed. Only period_state changes each run; no delivery is retried.
 
-period_state: {"schema":1,"run":0,"repo_id":null,"offset":0,"digest":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+period_state: {"schema":2,"run":0,"repo_id":null,"seen_movements":[]}

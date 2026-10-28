@@ -50,8 +50,8 @@ The scan takes the last firing with `recurring._last_firing` and buckets it
 with `_period_key`. One writer and one parser own the line
 (`format_serviced_log`, `parse_serviced_period_entries`), pinned by a test.
 Records are validated for exact shape and calendar values and compared by
-calendar position. `coga/log.md` is `merge=union`
-([spool-merge](../spool-merge/SKILL.md)), so a newer record can sit above an
+calendar position. Event-aware cross-checkout publication
+([spool-merge](../spool-merge/SKILL.md)) can put a newer record above an
 older one: `read_serviced_ledger` reads the log **backwards** and stops once
 every requested ref has a valid record at or after its target period, and an
 older hit never stops the read. The first scan of a new period therefore walks
@@ -83,8 +83,10 @@ create refreshes the snapshot for the complete target set (also on a
 non-fast-forward retry). After a successful own publication — whose revision is
 read from the remote-tracking ref that push advanced, including audit-only
 pushes — a later control advance is diffed on `coga/log.md`: templates whose
-serviced lines were added, removed or changed externally refuse admission for
-the rest of the sweep, even for a same-period change; other templates stay
+serviced lines were added or changed externally refuse admission for
+the rest of the sweep, even for a same-period change. Deletion alone is benign
+only after full reads at both revisions prove unchanged greatest-period and
+error state, with no malformed evidence. Other templates stay
 serviceable, and audit-only changes invalidate nothing. Both create and
 audit-only publishes re-run the check through `publish`'s `guard` at every base
 ([coga/sync](../../../coga/sync/SKILL.md)).

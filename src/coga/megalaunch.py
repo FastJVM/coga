@@ -1362,55 +1362,56 @@ def _launch_until_stop(
         # exact active bytes that the preflight saw; never overlay that peer
         # revision with this loop's stale in-memory ticket. The same guard also
         # closes the preflight window for an already-active sweep candidate.
-        prior_start_status = ticket.status
-        start_bytes = _ticket_bytes(ref)
-        log_before = _log_bytes(cfg)
-        if start_bytes != prepared_launch.source_ticket_bytes:
-            return _result(
-                ref,
-                "failed",
-                "ticket changed after launch preflight; retry",
-                launch_agent,
-                launched=launched,
-            )
-        try:
-            mark_in_progress(
-                cfg,
-                ref,
-                prepared_launch.ticket,
-                actor="megalaunch",
-                log_message=(
-                    "started (active → in_progress) via coga megalaunch"
-                    if prior_start_status == "active"
-                    else "claimed in_progress resume via coga megalaunch"
-                ),
-                echo=None,
-                strict=cfg.git_enabled,
-            )
-        except TaskValidationError as exc:
-            _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
-            return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
-        except git.UncertainPublishError as exc:
-            # Unknown: keep the pending claim on disk as the legible evidence
-            # for reconciliation.
-            return _result(
-                ref,
-                "failed",
-                "launch claim publication outcome is uncertain; generated "
-                f"local state retained for reconciliation — {exc}",
-                _operator_name(cfg, ref, ticket),
-            )
-        except git.GitError as exc:
-            # Definitely not on control: another checkout won the claim, this
-            # one is stale, or the push never got through. Put the pre-write
-            # bytes back.
-            _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
-            return _result(
-                ref,
-                "failed",
-                f"launch claim publication refused: {exc}; retry",
-                _operator_name(cfg, ref, ticket),
-            )
+        with git.state_lock(cfg):
+            prior_start_status = ticket.status
+            start_bytes = _ticket_bytes(ref)
+            log_before = _log_bytes(cfg)
+            if start_bytes != prepared_launch.source_ticket_bytes:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed after launch preflight; retry",
+                    launch_agent,
+                    launched=launched,
+                )
+            try:
+                mark_in_progress(
+                    cfg,
+                    ref,
+                    prepared_launch.ticket,
+                    actor="megalaunch",
+                    log_message=(
+                        "started (active → in_progress) via coga megalaunch"
+                        if prior_start_status == "active"
+                        else "claimed in_progress resume via coga megalaunch"
+                    ),
+                    echo=None,
+                    strict=cfg.git_enabled,
+                )
+            except TaskValidationError as exc:
+                _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
+                return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
+            except git.UncertainPublishError as exc:
+                # Unknown: keep the pending claim on disk as the legible evidence
+                # for reconciliation.
+                return _result(
+                    ref,
+                    "failed",
+                    "launch claim publication outcome is uncertain; generated "
+                    f"local state retained for reconciliation — {exc}",
+                    _operator_name(cfg, ref, ticket),
+                )
+            except git.GitError as exc:
+                # Definitely not on control: another checkout won the claim, this
+                # one is stale, or the push never got through. Put the pre-write
+                # bytes back.
+                _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
+                return _result(
+                    ref,
+                    "failed",
+                    f"launch claim publication refused: {exc}; retry",
+                    _operator_name(cfg, ref, ticket),
+                )
         # `mark_in_progress` includes synchronous Git publication. A peer can
         # replace, complete, or claim the ticket while that network boundary
         # is in flight, after our pre-write CAS has already succeeded. Spawn
@@ -1696,64 +1697,65 @@ def _activate_for_launch(
     if prepared is not None:
         ticket.frontmatter = dict(prepared.frontmatter)
         ticket.body = prepared.body
-    log_before = _log_bytes(cfg)
-    try:
-        with git.state_lock(cfg):
-            if source_bytes is not None and _ticket_bytes(ref) != source_bytes:
-                return _result(
+    with git.state_lock(cfg):
+        log_before = _log_bytes(cfg)
+        try:
+            with git.state_lock(cfg):
+                if source_bytes is not None and _ticket_bytes(ref) != source_bytes:
+                    return _result(
+                        ref,
+                        "failed",
+                        "ticket changed before deferred activation; retry",
+                        _operator_name(cfg, ref, ticket),
+                    )
+                mark_active(
+                    cfg,
                     ref,
-                    "failed",
-                    "ticket changed before deferred activation; retry",
-                    _operator_name(cfg, ref, ticket),
+                    ticket,
+                    actor="megalaunch",
+                    log_message=(
+                        log_message
+                        or f"activated ({prior} → active) — explicit megalaunch pick"
+                    ),
+                    echo=None,
+                    sync_state=not strict_activation and blocker_resolution is None,
                 )
-            mark_active(
+                if blocker_resolution is not None:
+                    actor, answer = blocker_resolution
+                    try:
+                        resolved = resolve_open_blockers(
+                            ref.ticket_path, actor=actor, answer=answer
+                        )
+                    except (OSError, UnicodeError, TaskFileError) as exc:
+                        raise git.GitError(
+                            f"could not resolve dependency blocker: {exc}"
+                        ) from exc
+                    if not resolved:
+                        raise git.GitError(
+                            "dependency blocker changed before its guarded resolution"
+                        )
+                if strict_activation:
+                    git.sync_task_state(
+                        cfg,
+                        ref.path,
+                        message=f"Ticket: {ref.id_slug} — active",
+                        strict=True,
+                    )
+        except git.UncertainPublishError as exc:
+            return _activation_refusal(
                 cfg,
                 ref,
                 ticket,
-                actor="megalaunch",
-                log_message=(
-                    log_message
-                    or f"activated ({prior} → active) — explicit megalaunch pick"
+                prior,
+                git.GitError(
+                    "activation publication outcome is uncertain; generated "
+                    f"local state retained for reconciliation — {exc}"
                 ),
-                echo=None,
-                sync_state=not strict_activation and blocker_resolution is None,
             )
-            if blocker_resolution is not None:
-                actor, answer = blocker_resolution
-                try:
-                    resolved = resolve_open_blockers(
-                        ref.ticket_path, actor=actor, answer=answer
-                    )
-                except (OSError, UnicodeError, TaskFileError) as exc:
-                    raise git.GitError(
-                        f"could not resolve dependency blocker: {exc}"
-                    ) from exc
-                if not resolved:
-                    raise git.GitError(
-                        "dependency blocker changed before its guarded resolution"
-                    )
-            if strict_activation:
-                git.sync_task_state(
-                    cfg,
-                    ref.path,
-                    message=f"Ticket: {ref.id_slug} — active",
-                    strict=True,
-                )
-    except git.UncertainPublishError as exc:
-        return _activation_refusal(
-            cfg,
-            ref,
-            ticket,
-            prior,
-            git.GitError(
-                "activation publication outcome is uncertain; generated "
-                f"local state retained for reconciliation — {exc}"
-            ),
-        )
-    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError, git.GitError) as exc:
-        if isinstance(exc, (TaskValidationError, git.GitError)) and strict_activation:
-            _restore_ticket_bytes(cfg, ref, source_bytes, log_before=log_before)
-        return _activation_refusal(cfg, ref, ticket, prior, exc)
+        except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError, git.GitError) as exc:
+            if isinstance(exc, (TaskValidationError, git.GitError)) and strict_activation:
+                _restore_ticket_bytes(cfg, ref, source_bytes, log_before=log_before)
+            return _activation_refusal(cfg, ref, ticket, prior, exc)
     return None
 
 

@@ -119,7 +119,7 @@ The skill's default safe-repair pass applies only deterministic repairs
 currently supported by `coga validate --fix`: append a missing blackboard fence
 + rendered region to a `ticket.md` that lacks one. The single-file format keeps
 state in `ticket.md`'s blackboard region — there is no sibling `blackboard.md`
-or `log.md`, and append-only history goes to the repo-global `coga/log.md`. It
+or `log.md`, and retained history goes to the repo-global `coga/log.md`. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
@@ -708,4 +708,4 @@ Dream's per-period task is disposable after it is marked done, but Dream does
 not delete itself mid-run. Dream keeps no durable state here — every finding
 ends in a PR, a draft ticket, or a recorded marker instead. `coga recurring`
 keeps Dream's serviced-period record in the repo-global `coga/log.md`;
-`log.md` keeps append-only human history.
+`log.md` keeps retained human history; [trim-log](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md) preserves histories of tickets still on disk.

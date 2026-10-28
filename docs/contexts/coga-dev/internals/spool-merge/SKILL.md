@@ -1,9 +1,9 @@
 ---
 name: coga-dev/internals/spool-merge
-description: How concurrent writers to shared Coga state files stay correct — `merge=union` append-only files (`log.md`, `retires.md`), the one-line-per-event audit-log encoding and its legacy-line policy, the union three-way merge in `publish`, content guards on union files, and why atomic replacement is crash-safety rather than a lock; also records that the digest spool no longer exists.
+description: Event-aware audit publication, guarded log mutation and recovery, retained legacy bytes, retire-worklist union merging, and local writer locking.
 ---
 
-# Append-only state and concurrent writers
+# Retained state and concurrent writers
 
 Coga lets several processes, worktrees, and clones write state at once. No
 lock spans them: `git.state_lock` serializes one checkout only, and
@@ -17,28 +17,22 @@ notifications. This page keeps the reusable merge rules that outlived it.
 
 ## `merge=union` files
 
-`coga/.gitattributes` marks `**/log.md` and `**/retires.md` `merge=union`.
-Union keeps both sides' lines, which is safe only when resurrecting a line
-is harmless:
+The audit log is no longer a union path. Fresh templates use `/log.md -merge`:
+native competing edits conflict with both sides recoverable in Git index
+stages. Coga identifies `paths.log_path(cfg)` independently of attributes and
+uses the event-aware publisher below. Adoption of that attribute and the
+weekly schedule is explicitly staged with compatible writers; the
+[operations guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+owns the two-phase rollout.
 
-- `coga/log.md` — every writer only appends, so union never loses or revives
-  anything meaningful. Usage records ride it (`coga/usage`).
-- `coga/recurring/<name>/retires.md` — the autoclose retire worklist is
-  rewritten, so a union can resurrect a dropped line, and a git-native union
-  merge (or a differing line for the same slug) can still duplicate a slug;
-  its reader collapses duplicates and the next reconcile re-applies the
-  discharge rule (`src/coga/retire_worklist.py`).
-
-A file that is compacted, trimmed, or rewritten without such a healing reader
-must never carry the attribute: union would resurrect deletions. Because
-`git.union_merge_paths` asks `git check-attr merge` rather than hardcoding
-names, adding a path to `.gitattributes` is enough to route it through the
-union merge — which is also why adding the wrong file is the mistake to avoid.
+`**/retires.md merge=union` remains unchanged. Its healing reader collapses
+duplicate slugs and re-applies the discharge rule (`retire_worklist`). Other
+union paths still come from `git check-attr merge`; they must tolerate
+resurrection or must not carry that attribute.
 
 ## One event per log line
 
-Union merging, retraction (`logfile.retract_log_lines`), and every log reader
-work on physical lines, so each `coga/log.md` event must be exactly one
+New `coga/log.md` events are exactly one
 LF-terminated line: `YYYY-MM-DD HH:MM v1 [<ref>] [<actor>] <message>`.
 `logfile.append_log` guarantees this centrally; callers pass raw text,
 multiline Git stderr included, and never sanitize. It escapes `\` as `\\`
@@ -53,8 +47,8 @@ legacy message text. The
 returned line bytes are exactly what was appended, which is what an exact-byte
 retraction removes.
 
-**Legacy lines stay.** The log is append-only, so events written before this
-encoding are not rewritten. A message that contained a line break left one or
+**Legacy bytes stay unchanged while retained.** Events written before this
+encoding are not re-encoded. A message that contained a line break left one or
 more continuation lines with no leading timestamp, sometimes starting with a
 `[<ref>]`-looking prefix. Readers skip such a line rather than misparse it,
 and `coga show` (`logfile.task_log_lines`) prints it with the event it
@@ -71,75 +65,69 @@ obvious from `logfile` alone (the v1 change first missed the telemetry
 reader): `usage._LOG_LINE_RE` in `usage.load_records`,
 `recurring_runner._CONTROL_LOG_ENTRY_RE` in `_read_control_ledger` and its
 incremental diff path, the anchored pattern in `recurring._pause_origins`,
-and `coga_edge/phone_home.py` `_ENTRY` for movement counting. Grep for
+and shared `movement_cursor._ENTRY` for phone-home movement counting. Grep for
 `v1 )?` before trusting this list. Accepted limitation: a Coga older than
 the v1 header does not parse v1 lines, so an older clone reading a newer log
 silently skips the new events rather than failing.
 
+## How `publish` lands the audit log
+
+`logfile.parse_events` returns byte spans, separating malformed timestamp-like
+headers, invalid UTF-8, unknown versions, v1 continuations and incomplete tails
+conservatively. Legacy continuations belong to their event. Retention pins
+opaque data and its attribution boundary so `task_log_lines` cannot attach it
+to a different surviving ticket. It never sorts, re-encodes or deduplicates
+retained history.
+
+`log_publication.reconcile` preserves control's entire event sequence and
+appends new source events in source order. A byte-identical event already on
+control keeps control's occurrence count. Missing source events are not delete
+instructions. Source HEAD/merge-base provenance is distinct from the landed
+`PUBLISHED_REF` blob; the latter must never become a three-way source base.
+Whole-file truncation against source HEAD requires a `LogMutation` receipt.
+
+An expired incoming event absent from control can be suppressed only when the
+shared selector permits it under pinned control/candidate task/config state
+and reachable control history proves those exact canonical event bytes were
+archived. Unread movement protection comes from the control snapshot, not
+hash absence on incoming replays: a forgotten consumed fingerprint must not
+resurrect itself. Genuinely new or unproven backdated input survives. One
+transient history traversal locates candidates in patches, then verifies
+positives against full blobs (legacy continuation boundaries matter). Failed
+inspection never counts as proof. Checkout subsumption and exit diagnostics
+use the same reconciliation rule.
+
+Explicit mutation (`git.publish(log_mutation=...)`) requires exact control
+preimage and local postimage and removes only named whole-event occurrences.
+The trim job first archives pending events, pins decision inputs with `expect`
+and `guard`, and publishes cursor migration plus log deletion together.
+`log_transaction` pins the intent and attempted commits under the per-worktree
+Git ref `refs/worktree/coga/log-mutation`, with a local receipt. It prevents
+ordinary publication/checkout return after a crash or uncertain push. Recovery
+fetches control, proves accepted commits by ancestry, and either catches up or
+restores only unchanged outputs, preserving later appends. Log restoration
+precedes cursor restoration. The receipt is transient transaction evidence,
+not an archive or distributed tombstone; it is removed only on acknowledged
+success or verified restoration. The runbook owns operator recovery.
+
 ## How `publish` lands a union path
 
-- No provenance check: union paths merge rather than overlay.
-- The landed bytes are `git merge-file --union` of (merge-base copy, control's
-  copy, working copy) (`_merge_union_bytes`), and those bytes are what the
-  control checkout is fast-forwarded to.
-- **Invariant: a union-merged publication never increases the occurrence
-  count of a byte-identical line already on control.** A feature-branch or
-  detached checkout publishes without its HEAD advancing, so its merge base
-  can lag lines it already landed; diffed from that base, control and the
-  working copy both "insert" them and the raw union emits them twice. The
-  same happens with no merge base at all (empty base).
-- `_merge_union_bytes` therefore filters the raw merge by occurrence count:
-  a line on control keeps `min(control count, raw merge count)` occurrences;
-  a line absent from control keeps all of them. When the raw merge contains
-  control's whole line sequence as a subsequence, its earliest such
-  embedding is kept; otherwise the earliest occurrences within each cap are.
-  The result is always a subsequence of the raw merge — nothing is reordered
-  or added, so a clean move keeps the raw merge's order. Lines are split
-  at LF only, as `git merge-file` splits them (a bare CR is content), and
-  compare as bytes with their line ends. The working copy enters the merge
-  in its clean-filtered blob form (`_clean_bytes`, through `_hash_blob`'s
-  `--path`), so under `core.autocrlf` a CRLF working copy compares against
-  control's LF blob rather than looking like new lines. Prepare's "already on control" proof
-  (`_published_proof`) uses the same function, so it agrees with what
-  publish lands.
-- Deletions: a line the working copy dropped still lands as a deletion when
-  the merge base also had it (`coga retire` drops its `retires.md` slug this
-  way), and a clean deletion of one historical duplicate still lands. A
-  control line both the working copy and the base lack (a concurrent
-  control addition) is kept. Union is not "never deletes".
-- The published ref (`refs/worktree/coga/published`) is not used as the
-  base: it holds the *landed* bytes, so against it the working copy would
-  look like it deleted a peer's line and the merge would erase it. Recording
-  the working bytes instead would be new hidden state that still fails with
-  no ref, in another clone, or with no merge base; the filter needs none.
-- Tradeoff: a line identical to one control already has cannot be added
-  again by publish. `retires.md` collapses duplicates anyway; `log.md` lines
-  carry a minute timestamp (usage records a session id), so only an
-  identical line written in the same minute and published separately
-  collapses. Existing duplicates are kept, not rewritten.
-- A union path missing locally while control has it is refused, never
-  published as a deletion (`coga-dev/internals/git-regressions`).
-- When a writer decided something from control's exact copy, it pins it:
-  `expect` adds a blob check (only while the path is a candidate), and
-  `guard` re-evaluates control's *content* before every attempt. The
-  recurring create uses both — it pins the ledger and template it read and
-  refuses once control records the period as serviced — so a peer that
-  serviced the period between fetch and push makes the create re-read
-  control instead of landing a duplicate.
+The retire-worklist contract is unchanged: `_merge_union_bytes` three-way
+merges control, merge base and clean-filtered working bytes, then caps
+byte-identical line occurrences at control's existing multiplicity. A missing
+local union path refuses. It can land explicit line deletions present in the
+base; its healing reader handles resurrected worklist rows. The published ref
+is never the source base. This generic union contract does not apply to logs.
 
 ## Crash-safe replacement is not a lock
 
-`atomicio.atomic_write_text` writes a same-directory temp file (fsync by
-default), then `os.replace`s it, so a reader sees the old or the new complete
-file and a crash never leaves a half-written file for the sweep to publish. It
-does **not** serialize writers: two read-modify-write cycles can still race,
-and the later one wins. A composition must stay correct through one of:
-
-- append-only regions (union-merged);
-- disjoint hunks that git merges cleanly;
-- an explicit primitive — `state_lock` within a checkout or launch claims
-  ([`coga-dev/internals/launch-claims`](../launch-claims/SKILL.md)), `expect`/`guard`
-  across checkouts.
-
-`merge=union` resolves only the pure append-versus-append case; it resolves
-nothing else.
+Atomic replacement prevents half-written files; it does not serialize writers.
+`append_log` acquires the reentrant state lock before opening and holds it
+through close. Local replacements, both rollback writers, publication and
+landed-byte installation use the same lock and atomic replacement. Rollback
+holds the transaction from before-snapshot through refusal, or carries an exact
+returned-append identity; a changed prefix refuses visibly. Peer events stay.
+A publisher acquires another control checkout's lock non-blockingly before
+fast-forwarding, or leaves it for its own locked catch-up. Two checkout locks
+are never waited on in opposite order. Manual Git/file writers remain subject
+to visible conflicts and exact local-byte comparison failures.

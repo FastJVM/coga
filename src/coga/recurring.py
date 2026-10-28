@@ -1010,7 +1010,7 @@ def _pause_origins(cfg: Config, refs: set[str]) -> dict[str, tuple[str, str]]:
     (`PAUSE_SWEEP`); a human or unidentifiable pause is absent. Reuse the
     durable audit actor instead of inventing another status or duplicating
     lifecycle state in the blackboard. Audit timestamps win over file order
-    because merge=union may append older events after newer ones; same-minute
+    because cross-checkout publication may append older events after newer ones; same-minute
     ties follow append order. A newer creation clears old-period provenance at
     the stable task path. Other events (an `unblocked` that leaves the period
     paused) do not change who paused it. No paused periods means no log read.
@@ -1953,7 +1953,7 @@ def _period_key(cron: str, fire_time: datetime) -> str:
 # that, and every `coga recurring` then re-fired an already-serviced period
 # and reposted its result. An appended
 # line cannot be clobbered that way, it outlives the period task (Dream reaps
-# those), and it is union-merged across checkouts.
+# those), and its high-water evidence survives event-aware publication and retention.
 #
 # Because dedup now depends on this wording, the format has one writer and one
 # reader, both here. Changing it breaks `test_recurring.py`'s format pin rather
@@ -2117,8 +2117,7 @@ def read_serviced_ledger(
     that target, at which point any unseen record is irrelevant to the caller's
     "at least this period" question; the read stops once every ref resolves.
 
-    That target is the proof that makes the early stop safe. `log.md` is
-    `merge=union`, so line order is not chronological and an arbitrary older
+    That target is the proof that makes the early stop safe. `log.md` keeps physical event order, which need not be chronological and an arbitrary older
     hit cannot bound the true maximum. If a target is absent — the normal first
     scan of a new period — that ref stays pending and the pass reaches the
     beginning of the file. Repeated scans after the period is recorded stop at
@@ -2146,7 +2145,7 @@ def serviced_periods(
     `read_serviced_ledger`.
 
     Without `resolve_at`, this returns the exact latest calendar period rather
-    than the last line seen: `log.md` is `merge=union`, so concurrent appends
+    than the last line seen: `log.md` preserves physical order, so concurrent appends
     can leave the file unsorted. With targets, each value is only promised to
     be at or after its target; that is sufficient for dedup and permits the safe
     early stop. Malformed ledger state raises instead of returning a partial

@@ -230,7 +230,7 @@ Two reading rules keep a shard inside its budget:
 
 - **Never read a file over 60 KB whole.** Read it in ranges, or grep it for the
   claims you care about. A single 55 KB context file is a third of a shard.
-- **Never read `coga/log.md` whole.** It is the repo-global append-only history
+- **Never read `coga/log.md` whole.** It is the repo-global retained history
   and is far larger than any shard budget. Grep it for an exact slug or term.
 
 If your assignment turns out to exceed the budget once you size it, do not read

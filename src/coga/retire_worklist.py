@@ -56,7 +56,7 @@ branch debt. Older entries remain valid; union merges retain additional debt.
 Field encoding for hand-edited entries is documented in `coga/autoclose/sweep`.
 A line that does not parse, or a file without the `## Follow-ups (open)`
 heading, fails loud rather than growing a second section no reader would find.
-The file is `merge=union` like `log.md`, so a slug recorded on two branches can
+The worklist file is `merge=union`, so a slug recorded on two branches can
 arrive as two lines and a line one side dropped can be resurrected; both heal
 on the next reconcile, which collapses duplicates on read and re-applies the
 same discharge rule.

@@ -1950,3 +1950,55 @@ def test_script_chain_returns_the_checkout_between_real_git_phases(
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "main", cwd=git_repo.origin
     ).strip()
+
+
+@pytest.mark.parametrize("crash", [False, True])
+def test_stateful_audit_mutation_survives_child_exit_and_next_command(git_repo, crash):
+    """Real script/CLI boundaries cannot sweep an interrupted deletion."""
+    from coga import log_transaction
+    from coga.logfile import append_log
+    cfg = load_config(git_repo.coga_os)
+    append_log(cfg, "retired", "system", "archived before mutation")
+    script = '''
+from coga import git, log_transaction
+from coga.config import load_config
+from coga.logfile import LogMutation, replace_log
+from coga.paths import log_path
+cfg=load_config()
+root=git.toplevel(cfg.repo_root)
+path=log_path(cfg)
+git.publish(cfg,[path],"Log: archive before test mutation",require_paths=[path])
+raw=path.read_bytes()
+base=git.known_control_revision(cfg,root)
+mutation=LogMutation(raw,(0,))
+log_transaction.begin(cfg,base,mutation,{},"Log: recurring/trim-log — crash fixture")
+replace_log(cfg,mutation)
+'''
+    script += "import os\nos._exit(1)\n" if crash else "raise SystemExit(75)\n"
+    ref = _create_script_task(git_repo.coga_os, script)
+    git_repo.git("add", "--all")
+    git_repo.git("commit", "-m", "seed audit mutation script")
+    git_repo.git("push", "origin", "main")
+    env = {**os.environ, "PYTHONPATH": str(_SOURCE_ROOT / "src")}
+    result = subprocess.run([sys.executable, "-m", "coga.cli", "launch", ref.id_slug],
+                            cwd=git_repo.coga_os, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert log_transaction.pending(cfg)
+    assert b"archived before mutation" in git.tree_bytes(git_repo.root, "origin/main", "coga/log.md")
+    after = subprocess.run([sys.executable, "-m", "coga.cli", "run", "publish-state"],
+                           cwd=git_repo.coga_os, env=env, capture_output=True, text=True, timeout=30)
+    assert after.returncode != 0
+    assert "pending audit mutation" in after.stdout + after.stderr
+    assert b"archived before mutation" in git.tree_bytes(git_repo.root, "origin/main", "coga/log.md")
+    assert log_transaction.recover(cfg) == "restored"
+    assert b"archived before mutation" in (cfg.repo_root / "log.md").read_bytes()
+
+
+def test_stateful_pending_audit_exit_75_skips_between_phase_settlement(script_repo, monkeypatch):
+    from coga import log_transaction
+    ref = _create_script_task(script_repo, "raise SystemExit(75)\n")
+    cfg = load_config(script_repo)
+    monkeypatch.setattr(log_transaction, "pending", lambda cfg: True)
+    outcome = run_script_chain(cfg, ref, Ticket.read(ref.ticket_path), set(),
+                               between_phases=lambda *args: pytest.fail("settled pending deletion"))
+    assert outcome.exit_code == 75

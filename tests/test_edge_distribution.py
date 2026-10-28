@@ -360,3 +360,74 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
     assert edited.read_bytes() == edited_before
     assert unrelated.read_bytes() == b"unrelated attachment\r\n"
     assert not (guard / "called").exists()
+
+
+@pytest.mark.parametrize("adopt", [False, True])
+def test_installed_trim_log_adoption_and_headless_period(tmp_path, edge_wheels, adopt):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
+    coga_os = root / "coga"
+    paths = [coga_os / rel for rel in (
+        "recurring/trim-log/ticket.md", "recurring/trim-log/ticket.py",
+        "recurring/trim-log/operations.md", "workflows/trim-log/run.md",
+    )]
+    if adopt:
+        for path in paths:
+            path.unlink()
+        attrs = coga_os / ".gitattributes"
+        attrs.write_bytes(attrs.read_bytes().replace(b"/log.md -merge", b"**/log.md merge=union"))
+    before = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
+    _run(coga_os, env, "-m", "coga_edge.trim_log", "--install")
+    after = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
+    assert {p for p in before.keys() | after.keys() if before.get(p) != after.get(p)} <= set(paths) | {coga_os / ".gitattributes"}
+    assert "already installed" in _run(coga_os, env, "-m", "coga_edge.trim_log", "--install")
+    # Run real Git publication and the reserved script with no agent available.
+    _run(coga_os, env, "-c", '''
+from pathlib import Path
+import subprocess
+from coga.config import load_config
+from coga.recurring import create_named
+local=Path("coga.local.toml")
+local.write_text(local.read_text().replace("enabled = false", "enabled = true"))
+log=Path("log.md")
+log.write_bytes(b"2000-01-01 00:00 v1 [removed] [human:test] archived old event\\n")
+subprocess.run(["git","add","--all"],check=True)
+subprocess.run(["git","commit","-m","seed installed retention fixture"],check=True,capture_output=True)
+cfg=load_config()
+assert cfg.log_retention_days == 30
+assert create_named(cfg,"trim-log").created
+''')
+    if os.name == "nt":
+        env["PATH"] = str(Path(shutil.which("git")).parent)
+    else:
+        (installed / "bin/git").symlink_to(shutil.which("git"))
+        env["PATH"] = str(installed / "bin")
+    # The real script/CLI still run; only the injected maintenance clock is
+    # fixed so the installed-wheel assertion never depends on today's date.
+    with (guard / "sitecustomize.py").open("a") as stream:
+        stream.write(
+            "from datetime import date\nfrom functools import partial\n"
+            "import coga_edge.trim_log as trim_log\n"
+            "trim_log.trim = partial(trim_log.trim, clock=lambda: date(2026, 10, 27))\n"
+        )
+    _run(coga_os, env, "-m", "coga.cli", "launch", "recurring/trim-log")
+    from coga.ticket import Ticket
+    period = coga_os / "tasks/recurring/trim-log/ticket.md"
+    assert Ticket.read(period).status == "done"
+    assert "Removed 1 events" in period.read_text()
+    assert "archived old event" not in (coga_os / "log.md").read_text()
+    subjects = subprocess.run(["git", "log", "--format=%s"], cwd=root, capture_output=True, text=True, check=True).stdout
+    assert "Log: recurring/trim-log — retained" in subjects
+    assert not (guard / "called").exists()
+
+
+@windows_skip("POSIX documented interpreter/adoption shell; native installed-wheel adoption is tested separately")
+def test_documented_trim_adoption_uses_resolved_interpreter(tmp_path, edge_wheels):
+    root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
+    env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
+    env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
+    # Execute the exact feature command in the runbook after wheel upgrade.
+    result = subprocess.run(["bash", "-c", '"$COGA_PY" -m coga_edge.trim_log --install'], cwd=root, env=env,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "already installed" in result.stdout
+    assert not (guard / "called").exists()

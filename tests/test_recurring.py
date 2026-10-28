@@ -13904,7 +13904,7 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
 def test_shipped_inactivity_exemptions() -> None:
     exempt = sorted(p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
                     if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive)
-    assert exempt == ["autoclose-merged", "branch-sweep"]
+    assert exempt == ["autoclose-merged", "branch-sweep", "trim-log"]
 
 
 @pytest.mark.parametrize("exempt", [False, True])

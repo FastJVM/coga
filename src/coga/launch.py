@@ -3689,7 +3689,7 @@ def spawn_agent_session(
                         validate_after_spawn()
                     except BaseException as exc:
                         provisional_audit = None
-                        if not _retract_log_append(audit_path, before, audit_append):
+                        if not _retract_log_append(cfg, before, audit_append):
                             raise RuntimeError(
                                 f"{exc}; could not remove refused launch audit "
                                 f"from {audit_path}"
@@ -3705,7 +3705,7 @@ def spawn_agent_session(
                 return
             before, audit_append = provisional_audit
             provisional_audit = None
-            if not _retract_log_append(log_path(cfg), before, audit_append):
+            if not _retract_log_append(cfg, before, audit_append):
                 raise RuntimeError(
                     "could not remove unreleased launch audit from "
                     f"{log_path(cfg)}"
@@ -3808,25 +3808,9 @@ def spawn_agent_session(
             pass
 
 
-def _retract_log_append(path: Path, before: bytes | None, appended: bytes) -> bool:
-    """Remove exactly one provisional audit line, keeping any peer appends.
-
-    Returns False when the line is no longer present as written.
-    """
-    current = path.read_bytes() if path.is_file() else None
-    if current is None:
-        return before is None
-    if current == (before or b"") + appended:
-        if before is None:
-            path.unlink()
-        else:
-            path.write_bytes(before)
-        return True
-    index = current.find(appended)
-    if index < 0:
-        return False
-    path.write_bytes(current[:index] + current[index + len(appended):])
-    return True
+def _retract_log_append(cfg: Config, before: bytes | None, appended: bytes) -> bool:
+    from coga.logfile import retract_log_append
+    return retract_log_append(cfg, before, appended)
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
