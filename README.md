@@ -59,18 +59,6 @@ So we parked the implementation tickets and [changed the plan](https://github.co
 
 **The agent followed the original plan. The human questioned its premise. Coga made it possible to change course without losing the work.**
 
-For a batch, `coga megalaunch --pick` lets you choose tickets and runs their
-agent steps in sequence. A task needing input records a blocker; the queue
-can continue with other work, leaving that task waiting and human review
-gates with you. In Coga's own
-[October 22 run](https://github.com/FastJVM/coga/blob/3b57a4d0d4eaf3e2fabb4d30fca9adfcba7ff8d5/coga/log.md#L9111-L9127),
-a Windows CI task blocked on the unfinished Windows port at 11:50. The next
-ticket launched at 11:51 and reached peer review at 12:10. Each new step
-starts from the ticket, its attached contexts, and the recorded handoff, so
-corrections in those files carry into later launches.
-[Megalaunch](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/megalaunch/SKILL.md) explains the queue and
-its human gates.
-
 Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks), too. Its task history lives in [`coga/log.md`](https://github.com/FastJVM/coga/blob/main/coga/log.md).
 
 ## Get started
