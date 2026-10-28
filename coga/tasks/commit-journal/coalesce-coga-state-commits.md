@@ -510,6 +510,51 @@ publication; preserve all other publishers; prove counts and refusal behavior
 with the real-Git fixtures; update canonical topics and shipped twins. Review
 and PR creation remain later workflow steps.
 
+Implementation progress: ordinary startup now plans against captured source
+bytes, prepares linkage without a ticket write, and publishes final lifecycle,
+linkage and audit together. Publication guards cover unchanged control-only
+resumes; every plan is confirmed again before entry. Successful-start delivery
+runs after checkout entry so a reported notification failure cannot dirty
+control before its switch proof. Direct lifecycle commands, queue claims,
+script/authoring/recurring paths, handoff and log-only usage remain separate.
+
+Real-Git tests now assert exactly three publications for the nine ordinary
+status/checkout combinations, named-workflow activation and paused startup;
+four/five for queue claim/admission paths; bootstrap and script boundaries;
+and extra entry/intervening-command/return events outside the bound. Targeted
+failure tests cover no-write preflight refusal, failed/refused/skipped/uncertain
+publication, post-push uncertainty, control-only routing races, concurrent log
+appends, cleanup and abrupt-death next-entry recovery. Full verification and
+commit receipts remain pending. AST inventory finds 32 direct append_log sites;
+the new internal log-writers topic records their publisher and retained exits.
+
+### Verification blocker discovered during implementation
+
+The broader regression run found the pre-existing navigation failure
+`tests/test_packaging.py::test_context_navigation_has_no_broken_links`:
+`docs/README.md` still links to `../README.md#key-concepts`, but that heading
+no longer exists. No matching repair ticket was found. Neither file is changed
+by this implementation. A separate, archive-excluding export of baseline
+`36c85653c2ce522882d73e7d9226ff42dc98d1f5` reproduced the exact failure:
+
+```sh
+cd /tmp/coga-coalesce-baseline-36c85653c2ce
+PYTHONPATH=/tmp/coga-coalesce-baseline-36c85653c2ce/src /home/n/Code/coga/.venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links
+```
+
+Result: **1 failed in 0.63s**, solely the missing README anchor. The initial
+broad branch run had **583 passed, 2 failed**: the second failure was this
+change's missing new-topic manifest entry and has been corrected in
+`tests/test_packaging.py::REQUIRED_BOOTSTRAP_CONTEXT_REFS`. The full suite is
+running without exclusions. Per `code/implement`, unrelated failures are
+reported for owner resolution rather than fixed or waived in this ticket.
+
+Seeded validation passed, **4 valid tasks, no issues**:
+`env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`
+from `tests/fixtures/seeded-repo/coga`. Tests run on Python **3.12.12**;
+Python 3.11.15 is present but has no pytest installation, so no 3.11 receipt
+is claimed.
+
 ## Evaluator review
 
 2026-10-27: **Ready for owner review; no must-fix design findings.** Reviewed
