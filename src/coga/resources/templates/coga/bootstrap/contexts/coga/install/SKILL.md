@@ -20,8 +20,9 @@ adopt it into. Installing the package never modifies a repo;
 - **Python 3.11+.** The preferred uv install below can download a compatible
   Python for you; pip and pipx need an installed Python 3.11+.
 - **Git.** The only external tool `coga init` enforces. Git is also Coga's
-  sync layer: state changes are commits. On macOS, Git comes from the Xcode
-  Command Line Tools; install them first (below).
+  sync layer: state changes are commits. On macOS, check that
+  `git --version` works; the Xcode Command Line Tools are one way to obtain
+  Git, but any working Git installation is sufficient (below).
 - **An agent CLI**, installed and authenticated: Claude Code or Codex, for
   anything that launches an agent. `coga init` does not require one (below).
 - **GitHub CLI (`gh`)**, recommended but not required at init. PR workflows,
@@ -50,19 +51,24 @@ on first run, or `codex login`). Without a terminal, neither command
 prompts. How init may change the default agent is in
 [coga/init](../init/SKILL.md).
 
-### macOS: install the Command Line Tools first
+### macOS: check Git before init
 
-A fresh Mac has no real Git. `/usr/bin/git` is a stub that the Xcode
-Command Line Tools (CLT) replace, so the first `git` call, even
-`git --version`, triggers the CLT install instead of running Git.
-`coga init` cannot repair this: the stub is on PATH, so its missing-`git`
-check passes, its install offer never runs, and its next Git command fails.
-Install the CLT before installing Coga or running `git init` / `coga init`,
-and confirm `git --version` prints a version:
+Coga requires **working Git**, not Xcode. On a fresh Mac, `/usr/bin/git` may
+be a stub: `git --version` can trigger installation of Apple's Xcode
+Command Line Tools (CLT) instead of printing a version. The stub is on
+`PATH`, so `coga init` may detect it as installed and fail at its first real
+Git operation.
 
-- **At the Mac's screen**, run `xcode-select --install` (or any `git`
-  command) and click **Install** in the dialog. Wait for it to finish, then
-  re-run `git --version`.
+Run `git --version` before `git init` / `coga init`. If it prints a
+version, there is no need to install CLT solely for Coga. Git installed via
+Homebrew, MacPorts, or another working source is fine.
+
+If Git is not working, Apple's CLT package is a standard option; **the full
+Xcode app is not required**:
+
+- **At the Mac's screen**, run `xcode-select --install` (or follow the
+  prompt from `git --version`) and click **Install** in the dialog. Wait
+  for it to finish, then re-run `git --version`.
 - **Over SSH or another headless session**, no dialog can open. `git` exits
   1 with `xcode-select: error: No developer tools were found and no install
   could be requested (possibly because there is no active GUI session)`.
@@ -86,7 +92,17 @@ actionable hint when one is not ready. It stores no tokens of its own.
 ## Install the CLI
 
 The package is `coga` on PyPI. Preferred: an isolated tool install with
-[`uv`](https://docs.astral.sh/uv/):
+[`uv`](https://docs.astral.sh/uv/). If `uv` is missing, install it first
+on macOS or Linux with Astral's official installer:
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+See [other installation methods](https://docs.astral.sh/uv/getting-started/installation/)
+if you prefer a package manager or want to inspect the installer. If
+`uv` is not found after installation, open a new terminal or follow the
+installer's `PATH` instructions.
 
 ```sh
 uv tool install coga
