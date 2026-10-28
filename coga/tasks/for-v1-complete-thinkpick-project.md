@@ -1,6 +1,6 @@
 ---
 title: 'for V1: complete thinkpick project'
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
@@ -97,4 +97,7 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Cancellation
+
+2026-10-28: The owner requested cancellation because completing Thinkpick is
+already being handled. This draft is redundant with that ongoing work.
