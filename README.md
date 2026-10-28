@@ -49,13 +49,15 @@ You keep using Claude Code or Codex. Coga gives each task durable context, a wor
 
 ## When the first plan was wrong: Thinkpick
 
-We used Coga to plan [Thinkpick](https://github.com/FastJVM/thinkpick), a proposed tool for choosing a model's reasoning level for a task. After ten minutes of discussion, `coga build` produced plausible tickets—but the plan assumed we already knew how to choose the right level.
+We asked `coga build` to plan [Thinkpick](https://github.com/FastJVM/thinkpick), a tool for recommending how much reasoning effort a model should use for a task.
 
-We didn't. Instead of implementing that assumption, we changed the tickets to [review existing approaches](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/state-of-the-art-review.md), [establish ground truth](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/head-to-head-ground-truth.md), [evaluate an existing candidate](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/evaluate-jev.md), [compare candidates](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/score-candidates.md), and finally [make a decision](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/decide-classifier-approach.md).
+The agent produced a concrete plan: [a library](https://github.com/FastJVM/thinkpick/blob/5bb87f87c9103fb94ce956cd8ed29bd7dcc16aa1/coga/tasks/recommendation-core-library.md) that takes a task description and returns an effort level with a reason, a CLI to expose it, a feedback log, and a ticket to choose between heuristics, a cheap LLM, or a hybrid.
 
-The tickets were written for Codex. The corrected [vision](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/contexts/product/vision/SKILL.md) asks whether effort can be predicted at all; the candidate-scoring ticket requires measuring our preferred approach against a baseline. The research and decision tickets were drafts in that snapshot. The owner subsequently [paused Thinkpick](https://github.com/FastJVM/thinkpick/blob/main/coga/contexts/product/vision/SKILL.md#decision-2026-10-28-paused-not-abandoned) rather than invest in an integration and end-to-end evaluation of real coding-agent sessions without demonstrated benefit. No experiment or Thinkpick product was completed. What carried forward was the correction to the plan and the decision not to build yet.
+The plan was reasonable given our prompt. **But the prompt itself assumed the hard problem was solved:** that the right reasoning effort could be predicted reliably from a task description. We hadn't established that.
 
-**The win wasn't a flawless initial plan. It was being able to challenge it, change it, and carry the result forward.**
+So we parked the implementation tickets and [changed the plan](https://github.com/FastJVM/thinkpick/commit/6b32d453d6e0cf684f13d2cdc4484f8e51527b64) to investigate existing approaches and establish ground truth first. We eventually [paused Thinkpick](https://github.com/FastJVM/thinkpick/blob/main/coga/contexts/product/vision/SKILL.md#decision-2026-10-28-paused-not-abandoned) because validating the benefit in real coding-agent workflows would require more investment than we could justify.
+
+**The agent followed the original plan. The human questioned its premise. Coga made it possible to change course without losing the work.**
 
 For a batch, `coga megalaunch --pick` lets you choose tickets and runs their
 agent steps in sequence. A task needing input records a blocker; the queue
