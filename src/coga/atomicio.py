@@ -62,4 +62,23 @@ def atomic_write_text(path: Path, data: str, *, fsync: bool = True) -> None:
         raise
 
 
-__all__ = ["atomic_write_text"]
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Byte-preserving counterpart for log rewrites, under the caller's lock."""
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            if os.name == "posix":
+                os.fchmod(stream.fileno(), _replacement_mode(path))
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+    except BaseException:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+        raise
+
+
+__all__ = ["atomic_write_text", "atomic_write_bytes"]

@@ -187,7 +187,7 @@ storage to recover; restoring access is the operator's call
 ### A stranded log tail blocking catch-up
 
 A log append left by an earlier command can block `main` from fast-forwarding
-over newer remote log entries. `merge=union` preserves concurrent entries
+over newer remote log entries. The event-aware publisher preserves concurrent entries
 during publication, but does not let Git overwrite an uncommitted file.
 [Recurring catch-up](../recurring/scheduling/SKILL.md#variants) can identify an
 isolated tail and offer the strict recipe as a remedy. Ordinary launch already
@@ -202,3 +202,21 @@ remote and local lines without hand-editing the audit trail or replaying the
 chat. Recovery is offered rather than performed at recurring admission:
 append-only bytes do not establish who wrote them or authorize publishing
 other pending work.
+
+## Audit mutations and retained recovery
+
+Ordinary log publication preserves control's event order and merges new source
+events. Missing source events are not a deletion request. Expired incoming
+replays can be ignored only with exact reachable Git-history evidence and the
+current protected state; a backdated timestamp alone proves nothing. Checkout
+return and unpublished-log diagnostics use the same disposition. The stock
+`/log.md -merge` makes competing native Git edits conflict visibly; the retire
+worklist's union behavior remains separate.
+
+Explicit deletion requires an exact preimage/postimage and whole-event receipt.
+All append and replacement paths take the same reentrant checkout state lock.
+An interrupted trim retains a temporary local Git receipt: ordinary publication
+and checkout return refuse until the compatible trim script resolves it against
+fresh control. A stateful script with this receipt propagates exit 75 without
+settlement. Do not replay lifecycle commands or discard the receipt. Follow
+[trim-log recovery](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md).

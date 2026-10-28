@@ -405,7 +405,8 @@ def run_script_chain(
                 stateless=stateless,
                 strict_assist=assist_branch is not None,
             )
-        if stateless and phase.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+        from coga.log_transaction import pending
+        if phase.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE and (stateless or pending(cfg)):
             # The command script deliberately retained local state; settling
             # the checkout would publish or move exactly what it preserved.
             return ScriptChainResult(

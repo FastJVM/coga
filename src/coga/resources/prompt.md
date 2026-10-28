@@ -54,7 +54,7 @@ After YAML frontmatter, a normal ticket has two regions separated by exactly
   convention ("Superseded designs"); the composed blackboard includes a
   pointer for deliberate reading.
 
-The append-only audit trail lives separately in repo-global `coga/log.md`.
+The retained audit trail lives separately in repo-global `coga/log.md`.
 Do not edit it: Coga commands write it. Put your observations on the
 blackboard.
 

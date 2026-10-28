@@ -29,7 +29,7 @@ reported as completed work.
 ## Context
 
 Cancellation is terminal and clears the workflow step. Its required reason
-lives in the append-only audit log, while this ticket remains ordinary,
+lives in the retained audit log, while this ticket remains ordinary,
 human-readable markdown.
 
 <!-- coga:blackboard -->

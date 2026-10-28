@@ -1,0 +1,2 @@
+/log.md -merge
+**/retires.md merge=union

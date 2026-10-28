@@ -3276,42 +3276,43 @@ def _run_delegated_task(
             _require_period_bytes(
                 ref, current_lease.ticket_bytes, action="delegated start"
             )
-            log_before = _log_bytes(start_cfg)
-            try:
-                mark_in_progress(
-                    start_cfg,
-                    ref,
-                    current,
-                    actor="system",
-                    log_message=(
-                        f"started ({transition}) via recurring delegation "
-                        f"to {delegate}"
-                    ),
-                    slack_text=(
-                        f"▶️ delegated run started *{ref.id_slug}* "
-                        f"\"{current.title}\"{step_note}"
-                    ),
-                    echo=f"{ref.id_slug}: in_progress",
-                    strict=True,
-                )
-            except git.UncertainPublishError as exc:
-                raise RecurringError(
-                    f"cannot start delegated period {ref.id_slug}: publication "
-                    f"outcome is uncertain; generated local state was retained "
-                    f"for reconciliation — {exc}"
-                ) from exc
-            except git.GitError as exc:
-                # A refusal always unwinds; a transport miss only when push
-                # auth was preflighted (control is then required to hold it).
-                if require_period_publication or isinstance(
-                    exc, git.StateRegressionError
-                ):
-                    _restore_period_bytes(
-                        start_cfg, ref, current_lease.ticket_bytes, log_before=log_before
+            with git.state_lock(start_cfg):
+                log_before = _log_bytes(start_cfg)
+                try:
+                    mark_in_progress(
+                        start_cfg,
+                        ref,
+                        current,
+                        actor="system",
+                        log_message=(
+                            f"started ({transition}) via recurring delegation "
+                            f"to {delegate}"
+                        ),
+                        slack_text=(
+                            f"▶️ delegated run started *{ref.id_slug}* "
+                            f"\"{current.title}\"{step_note}"
+                        ),
+                        echo=f"{ref.id_slug}: in_progress",
+                        strict=True,
                     )
+                except git.UncertainPublishError as exc:
                     raise RecurringError(
-                        f"cannot start delegated period {ref.id_slug}: {exc}"
+                        f"cannot start delegated period {ref.id_slug}: publication "
+                        f"outcome is uncertain; generated local state was retained "
+                        f"for reconciliation — {exc}"
                     ) from exc
+                except git.GitError as exc:
+                    # A refusal always unwinds; a transport miss only when push
+                    # auth was preflighted (control is then required to hold it).
+                    if require_period_publication or isinstance(
+                        exc, git.StateRegressionError
+                    ):
+                        _restore_period_bytes(
+                            start_cfg, ref, current_lease.ticket_bytes, log_before=log_before
+                        )
+                        raise RecurringError(
+                            f"cannot start delegated period {ref.id_slug}: {exc}"
+                        ) from exc
         elif current.status != "in_progress":
             raise RecurringError(
                 f"cannot launch delegated target {delegate}: period task "
@@ -3488,77 +3489,78 @@ def _run_delegated_task(
         boundary="completion",
         expected_status="in_progress",
     )
-    parent_before = _local_parent_state_lease(cfg, ref)
-    log_before = _log_bytes(cfg)
-    try:
-        _require_period_bytes(
-            ref, current_lease.ticket_bytes, action="delegated completion"
-        )
-        confirm_control_lease(
-            cfg,
-            expected_period_lease,
-            boundary="completion",
-            parent_lease=expected_parent_state_lease,
-        )
-        mark_done(
-            cfg,
-            ref,
-            after_delegate,
-            actor="system",
-            log_message=(
-                f"completed (delegated {delegate} run finished) "
-                "via coga recurring"
-            ),
-            slack_text=(
-                f"✅ delegated run completed *{ref.id_slug}* "
-                f"\"{after_delegate.title}\""
-            ),
-            echo=f"{ref.id_slug}: done",
-            strict=True,
-        )
-    except git.UncertainPublishError as exc:
-        typer.secho(
-            f"cannot complete delegated period {ref.id_slug}: publication "
-            f"outcome is uncertain; generated local state was retained for "
-            f"reconciliation — {exc}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, "refused")
-    except (git.GitError, RecurringError) as exc:
-        if (
-            isinstance(exc, git.GitError)
-            and not isinstance(exc, git.StateRegressionError)
-            and not require_period_publication
-        ):
-            return DelegatedRunResult(0, "done")
-        if isinstance(exc, git.GitError):
-            _restore_period_bytes(
+    with git.state_lock(cfg):
+        parent_before = _local_parent_state_lease(cfg, ref)
+        log_before = _log_bytes(cfg)
+        try:
+            _require_period_bytes(
+                ref, current_lease.ticket_bytes, action="delegated completion"
+            )
+            confirm_control_lease(
+                cfg,
+                expected_period_lease,
+                boundary="completion",
+                parent_lease=expected_parent_state_lease,
+            )
+            mark_done(
                 cfg,
                 ref,
-                current_lease.ticket_bytes,
-                log_before=log_before,
-                parent=parent_before,
+                after_delegate,
+                actor="system",
+                log_message=(
+                    f"completed (delegated {delegate} run finished) "
+                    "via coga recurring"
+                ),
+                slack_text=(
+                    f"✅ delegated run completed *{ref.id_slug}* "
+                    f"\"{after_delegate.title}\""
+                ),
+                echo=f"{ref.id_slug}: done",
+                strict=True,
             )
-        typer.secho(
-            f"cannot complete delegated period {ref.id_slug}: {exc}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, "refused")
-    except StrandedProductCode as exc:
-        listed = "\n".join(f"    {path}" for path in exc.paths)
-        typer.secho(
-            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
-            "has no push/PR step, but this checkout committed tracked product "
-            f"code not on the control branch:\n{listed}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(2, "done")
-    except TaskValidationError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return DelegatedRunResult(2, "done")
+        except git.UncertainPublishError as exc:
+            typer.secho(
+                f"cannot complete delegated period {ref.id_slug}: publication "
+                f"outcome is uncertain; generated local state was retained for "
+                f"reconciliation — {exc}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            return DelegatedRunResult(2, "refused")
+        except (git.GitError, RecurringError) as exc:
+            if (
+                isinstance(exc, git.GitError)
+                and not isinstance(exc, git.StateRegressionError)
+                and not require_period_publication
+            ):
+                return DelegatedRunResult(0, "done")
+            if isinstance(exc, git.GitError):
+                _restore_period_bytes(
+                    cfg,
+                    ref,
+                    current_lease.ticket_bytes,
+                    log_before=log_before,
+                    parent=parent_before,
+                )
+            typer.secho(
+                f"cannot complete delegated period {ref.id_slug}: {exc}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            return DelegatedRunResult(2, "refused")
+        except StrandedProductCode as exc:
+            listed = "\n".join(f"    {path}" for path in exc.paths)
+            typer.secho(
+                f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
+                "has no push/PR step, but this checkout committed tracked product "
+                f"code not on the control branch:\n{listed}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            return DelegatedRunResult(2, "done")
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            return DelegatedRunResult(2, "done")
     return DelegatedRunResult(0, "done")
 
 
@@ -4119,7 +4121,7 @@ def _sync_recurring_create(
             assert sync_failures is not None
             sync_failures.append(str(exc))
         return True
-    # The serviced-period ledger is the repo-global, union-merged `coga/log.md`
+    # The serviced-period ledger is the repo-global, event-reconciled `coga/log.md`
     # (appended by `_record_run`), which never rides the cross-branch overlay —
     # so this sync reconciles no scheduler state at all. The template ticket
     # stays in the overlay only for the *run* cursors it carries
@@ -4223,7 +4225,7 @@ def _sync_recurring_create_paths(
     """Publish a period create, or adopt control's copy when it already ran.
 
     Fetches control first: when control already holds this period (its
-    serviced-period record in the union-merged `coga/log.md`, or the task
+    serviced-period record in the retained `coga/log.md`, or the task
     itself), the local create is unwound to control's copy and only the log
     line is published. Otherwise the period task, the template's run cursors,
     and the log land in one `git.publish`, whose provenance check refuses to
@@ -4268,7 +4270,7 @@ def _sync_recurring_create_paths(
 
         def refuse_if_serviced(at: str) -> None:
             # The ledger half of `already_handled`, re-run at every base the
-            # publish pushes on. `expect` cannot carry it: the union-merged log
+            # publish pushes on. `expect` cannot carry it: the shared audit log
             # is only a candidate while it is dirty, and on a control checkout
             # the first create of a sweep already landed every line this sweep
             # appended — so a peer's record arriving before a later create is
@@ -4294,7 +4296,7 @@ def _sync_recurring_create_paths(
                 )
 
         def bind_published() -> None:
-            # This publication unioned every pending sweep record. Keep the
+            # This publication carried every pending sweep record. Keep the
             # competitor snapshot, but advance its known revision past our own
             # write so later templates cannot collide with themselves.
             if control_ledger is None:
@@ -4447,8 +4449,7 @@ def _adopt_control_period(
     """Unwind a local create to control's copy; publish only the log line.
 
     The create appended its record to the global log before the sync found
-    the period already handled on control, so that line is published (union
-    merged) and the task paths are restored from control. In a control
+    the period already handled on control, so that line is published (event-reconciled) and the task paths are restored from control. In a control
     checkout the restored paths are staged so the fast-forward that follows
     the log publish leaves the tree clean. Even this rejected create publishes
     the other pending sweep targets' records, so the publish is guarded like
@@ -4631,8 +4632,26 @@ def _control_serviced_period_cached(
                     ))
                 )
         changed = parse_serviced_period_entries(entries)
-        for changed_ref in changed.periods.keys() | changed.errors.keys():
-            control_ledger[f"{_LEDGER_REFUSAL_PREFIX}{changed_ref}"] = ref
+        added_entries: list[tuple[str, str]] = []
+        for line in log_lines(diff):
+            if line.startswith("+"):
+                match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
+                if match:
+                    added_entries.append((match["ref"], decode_log_message(match["message"]) if match["version"] else match["message"]))
+        added = parse_serviced_period_entries(added_entries)
+        affected = changed.periods.keys() | changed.errors.keys()
+        # A trim may delete obsolete valid ledger evidence. Prove the complete
+        # high-water/error state at both revisions; bounded readers deliberately
+        # do not expose older errors and cannot supply this proof.
+        old_state = _read_control_ledger(root, previous, log_rel) if affected else {}
+        new_state = _read_control_ledger(root, ref, log_rel) if affected else {}
+        for changed_ref in affected:
+            benign = (changed_ref not in added.periods and changed_ref not in added.errors
+                      and changed_ref not in changed.errors
+                      and old_state.get(changed_ref) == new_state.get(changed_ref)
+                      and old_state.get(_control_ledger_error_key(changed_ref)) == new_state.get(_control_ledger_error_key(changed_ref)))
+            if not benign:
+                control_ledger[f"{_LEDGER_REFUSAL_PREFIX}{changed_ref}"] = ref
         control_ledger[_LEDGER_REVISION] = ref
     elif not control_ledger.get(_LEDGER_LOADED) or previous != ref:
         targets = _control_ledger_targets(control_ledger)
@@ -5052,51 +5071,52 @@ def _stop_if_unfinished_after_launch(
             "paused and continuing to next due task."
         )
 
-    log_before = _log_bytes(cfg)
-    try:
-        if expected_period_lease is not None:
-            _require_period_bytes(
-                ref, expected_period_lease.ticket_bytes, action="pause"
-            )
-            _verify_period_on_control(
+    with git.state_lock(cfg):
+        log_before = _log_bytes(cfg)
+        try:
+            if expected_period_lease is not None:
+                _require_period_bytes(
+                    ref, expected_period_lease.ticket_bytes, action="pause"
+                )
+                _verify_period_on_control(
+                    cfg,
+                    ref,
+                    expected_period_lease,
+                    boundary="pause",
+                    require_control=require_period_publication,
+                )
+            mark_paused(
                 cfg,
                 ref,
-                expected_period_lease,
-                boundary="pause",
-                require_control=require_period_publication,
+                ticket,
+                actor=actor,
+                log_message=f"paused ({ticket.status} → paused) — {suffix}",
+                slack_text=slack_text,
+                echo=None,
+                strict=expected_period_lease is not None,
             )
-        mark_paused(
-            cfg,
-            ref,
-            ticket,
-            actor=actor,
-            log_message=f"paused ({ticket.status} → paused) — {suffix}",
-            slack_text=slack_text,
-            echo=None,
-            strict=expected_period_lease is not None,
-        )
-    except git.UncertainPublishError as exc:
-        raise RecurringError(
-            f"cannot pause recurring period {ref.id_slug}: publication "
-            f"outcome is uncertain; generated local state was retained for "
-            f"reconciliation — {exc}"
-        ) from exc
-    except git.GitError as exc:
-        if not require_period_publication and not isinstance(
-            exc, git.StateRegressionError
-        ):
-            typer.secho(outcome, fg=typer.colors.YELLOW)
-            return
-        if expected_period_lease is not None:
-            _restore_period_bytes(
-                cfg, ref, expected_period_lease.ticket_bytes, log_before=log_before
-            )
-        raise RecurringError(
-            f"cannot pause recurring period {ref.id_slug}: {exc}"
-        ) from exc
-    except TaskValidationError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        sys.exit(2)
+        except git.UncertainPublishError as exc:
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: publication "
+                f"outcome is uncertain; generated local state was retained for "
+                f"reconciliation — {exc}"
+            ) from exc
+        except git.GitError as exc:
+            if not require_period_publication and not isinstance(
+                exc, git.StateRegressionError
+            ):
+                typer.secho(outcome, fg=typer.colors.YELLOW)
+                return
+            if expected_period_lease is not None:
+                _restore_period_bytes(
+                    cfg, ref, expected_period_lease.ticket_bytes, log_before=log_before
+                )
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: {exc}"
+            ) from exc
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
     typer.secho(outcome, fg=typer.colors.YELLOW)
 
 

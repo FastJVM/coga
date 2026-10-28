@@ -127,8 +127,7 @@ position.
 
 ## What never composes
 
-- `coga/log.md`: repo-global, append-only, never a layer, so it can grow
-  without bound. Only the blackboard carries state forward.
+- `coga/log.md`: repo-global, never a layer; [retention](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md) bounds eligible old history. Only the blackboard carries state forward.
 - Ticket attachments and superseded-design text (pointer only).
 - Unattached contexts, docs pages, and anything reached by a link.
 

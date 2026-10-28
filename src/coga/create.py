@@ -277,7 +277,7 @@ def create_task(
         assert ticket_template is not None
         ticket_body = ticket_template.replace("{description}", desc_body)
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
-    # log.md. The append-only history goes to the repo-global log.
+    # log.md. Audit history goes to the repo-global log.
     full_body = join_task_body(ticket_body, blackboard)
     git.write_ticket(
         cfg,

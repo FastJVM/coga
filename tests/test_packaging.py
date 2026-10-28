@@ -27,6 +27,10 @@ from coga.ticket import Ticket
 
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
+    "coga/resources/templates/coga/recurring/trim-log/ticket.md",
+    "coga/resources/templates/coga/recurring/trim-log/ticket.py",
+    "coga/resources/templates/coga/recurring/trim-log/operations.md",
+    "coga/resources/templates/coga/workflows/trim-log/run.md",
     "coga/resources/templates/coga/recurring/phone-home/ticket.md",
     "coga/resources/templates/coga/recurring/phone-home/ticket.py",
     "coga/resources/templates/coga/workflows/phone-home/run.md",
@@ -171,6 +175,10 @@ GENERATED_TEMPLATE_DIRS = frozenset(
 # exempt. An entry that stops describing a real divergence fails the suite,
 # so this map prunes itself rather than accumulating stale allowances.
 INTENTIONALLY_DIVERGENT_TWINS = {
+    "coga/.gitattributes": (
+        "trim-log two-phase rollout: enable /log.md -merge through the feature installer "
+        "after compatible core lands; rollout/trim-log/coga holds the exact staged twin."
+    ),
     "coga/.gitignore": (
         "The live copy carries `coga init`'s `>>> coga-managed >>>` markers; "
         "the packaged copy is the marker-free body that init writes between "
@@ -716,6 +724,19 @@ def _context_link_problems(source: Path) -> list[str]:
             destination = (location.parent / target).resolve() if target else location
         if destination.is_relative_to(REPO_ROOT / "docs/archive"):
             continue  # Dated history is outside this audit; never read it.
+        # A feature's enabling files stay outside swept roots until its core
+        # support lands. Validate their declared staged twins during that
+        # two-phase rollout; the live destination wins after adoption.
+        if not destination.exists() and destination.is_relative_to(REPO_ROOT / "coga"):
+            relative = destination.relative_to(REPO_ROOT)
+            staged = REPO_ROOT / "rollout/trim-log" / relative
+            if relative.as_posix() in {
+                "coga/recurring/trim-log/ticket.md",
+                "coga/recurring/trim-log/ticket.py",
+                "coga/recurring/trim-log/operations.md",
+                "coga/workflows/trim-log/run.md",
+            } and staged.is_file():
+                destination = staged
         if not destination.exists():
             problems.append(f"{source.relative_to(REPO_ROOT)}: missing link {href}")
         elif anchor and destination.suffix == ".md":
@@ -1081,10 +1102,10 @@ def test_phone_home_matches_seed_except_period_state_and_seed_is_unused():
         period_state.sub(b"period_state:", seed.read_bytes())
     )
     state, _ = _state(read_blackboard(seed))
-    assert state["run"] == state["offset"] == 0
+    assert state["schema"] == 2
+    assert state["run"] == 0
     assert state["repo_id"] is None
-    import hashlib
-    assert state["digest"] == hashlib.sha256(b"").hexdigest()
+    assert state["seen_movements"] == []
 
 
 def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
@@ -1136,3 +1157,10 @@ print("installed init and suppressed first snapshot passed")
     result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True, encoding="utf-8",timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "suppressed first snapshot passed" in result.stdout
+
+
+def test_staged_trim_log_rollout_matches_packaged_files():
+    staged = REPO_ROOT / "rollout/trim-log/coga"
+    for path in staged.rglob("*"):
+        if path.is_file():
+            assert path.read_bytes() == (REPO_ROOT / PACKAGED_ROOT / path.relative_to(staged)).read_bytes()

@@ -45,3 +45,13 @@ shared core it imports; restoring the stock shim rejoins wheel updates.
 Phone-home's module is self-contained, so a copy of the single file works as
 a local fork. The migration procedure includes source inspection and copy
 commands; do not run production telemetry to find its source.
+
+## Audit retention adoption
+
+Fresh init installs the weekly trim-log job with default-on 30-day retention.
+A wheel upgrade alone installs no new schedule into existing repos. After
+upgrading every writer, use the feature-specific `python -m
+coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+for the exact command, allowlist, customization/parking checks and compatible
+two-phase rollout. The command installs only this feature's repo files.

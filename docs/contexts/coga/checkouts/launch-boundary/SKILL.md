@@ -46,8 +46,10 @@ withholds the final sweep, preserving the session's edits. Each time it:
 3. **Proves every change.** Staged, tracked, and untracked changes anywhere
    in the checkout are examined. Only files under the Coga roots may be
    discarded, and only when already on the pinned `origin/main`: the same existence, file mode,
-   and bytes, or, for a `merge=union` file such as `coga/log.md`, every working
-   line already on control (union-merging it onto control changes nothing).
+   and bytes; union files must merge without changing control. The audit log
+   instead uses event-aware reconciliation: a missing expired source event
+   requires exact reachable-history proof before it can be discarded.
+   Pending guarded log mutations refuse checkout return until recovered.
    A staged copy must equal HEAD's or the published one. Deletions and both
    sides of a rename count separately. Symlinks, submodules, and mode
    changes refuse even with equal bytes. Ignored files are never candidates;

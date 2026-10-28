@@ -11,7 +11,6 @@ operator can copy the whole file into a repo as a full local fork.
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import http.client
 import io
 import json
@@ -33,7 +32,10 @@ from coga import git, notification
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, load_config
 from coga.lifecycle import VALID_STATUSES
-from coga.logfile import append_log, decode_log_message
+from coga.logfile import append_log
+from coga.movement_cursor import (
+    MovementError as TelemetryError, _uuid, _state, _housekeeping, _movement, cursor as _cursor,
+)
 from coga.paths import log_path, recurring_dir
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
@@ -52,76 +54,11 @@ _VERSION = re.compile(
     re.ASCII,
 )
 _NUMERIC = re.compile(r"[0-9]+(?:\.[0-9]+)*", re.ASCII)
-_STATE_LINE = re.compile(r"^period_state: ([^\r\n]+)(?=\r?$)", re.MULTILINE)
-# Names are producer-owned free text: actors/operators can contain spaces and
-# step names can contain parentheses. Only envelope delimiters end a field.
-_ENTRY = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) (?P<version>v1 )?\[([^\[\]\r\n]+)\] \[([^\[\]\r\n]+)\] (.+)")
-_MOVEMENT = re.compile(
-    r"(?:advanced to step [1-9][0-9]* \([^\r\n]+\)(?: → \S[^\r\n]*)?(?: — [\s\S]+)?"
-    r"|task done(?: — [\s\S]+)?"
-    r"|auto-bumped on merge of (?:PR #[0-9]+|the linked PR) → done)"
-)
 _COUNT_KEYS = {f"tickets_{s}" for s in VALID_STATUSES} | {"movement_count"}
 _PROPERTY_KEYS = _COUNT_KEYS | {"coga_version", "os_name", "os_version", "python_version"}
 # An editable install from a source checkout is development, wherever this
 # script was copied to.
 _PACKAGE_FILE = Path(coga.__file__)
-
-
-class TelemetryError(ValueError):
-    """Invalid local input; never includes private input in its message."""
-
-
-def _uuid(value: object) -> bool:
-    try:
-        return isinstance(value, str) and str(UUID(value)) == value and UUID(value).version == 4
-    except ValueError:
-        return False
-
-
-def _state(region: str) -> tuple[dict, re.Match[str]]:
-    matches = list(_STATE_LINE.finditer(region))
-    if len(matches) != 1:
-        raise TelemetryError("phone-home requires one period_state line")
-    try:
-        state = json.loads(matches[0][1])
-        if not isinstance(state, dict) or set(state) != {"schema", "run", "repo_id", "offset", "digest"}:
-            raise ValueError
-        if type(state["schema"]) is not int or state["schema"] != 1:
-            raise ValueError
-        if any(type(state[k]) is not int or state[k] < 0 for k in ("run", "offset")):
-            raise ValueError
-        if state["repo_id"] is not None and not _uuid(state["repo_id"]):
-            raise ValueError
-        if not isinstance(state["digest"], str) or not re.fullmatch(r"[0-9a-f]{64}", state["digest"]):
-            raise ValueError
-    except (ValueError, TypeError):
-        raise TelemetryError("invalid phone-home period_state") from None
-    return state, matches[0]
-
-
-def _housekeeping(ref: str) -> bool:
-    return ref == "recurring" or ref.startswith("recurring/")
-
-
-def _movement(line: bytes) -> bool:
-    try:
-        match = _ENTRY.fullmatch(line.decode("utf-8").removesuffix("\r"))
-        if not match or not match[3].strip() or not match[4].strip() or _housekeeping(match[3]):
-            return False
-        datetime.strptime(match[1], "%Y-%m-%d %H:%M")
-        message = decode_log_message(match[5]) if match["version"] else match[5]
-        return _MOVEMENT.fullmatch(message) is not None
-    except (UnicodeDecodeError, ValueError):
-        return False
-
-
-def _cursor(raw: bytes, state: dict, *, baseline: bool) -> tuple[int, str, int, bool]:
-    complete = raw[:raw.rfind(b"\n") + 1]
-    offset = state["offset"]
-    reset = offset > len(complete) or hashlib.sha256(complete[:offset]).hexdigest() != state["digest"]
-    count = 0 if baseline or reset else sum(_movement(line) for line in set(complete[offset:].split(b"\n")))
-    return len(complete), hashlib.sha256(complete).hexdigest(), count, reset and not baseline
 
 
 def _inventory(cfg: Config) -> dict[str, int]:
@@ -300,6 +237,8 @@ def run_phone_home(
     event = None
     outcome = "suppressed" if not admitted else "skipped"
     with git.state_lock(cfg):
+        from coga.log_transaction import ensure_clear
+        ensure_clear(cfg)
         raw = parent.read_bytes()
         region = read_blackboard(parent, expected_bytes=raw)
         state, match = _state(region)
@@ -315,14 +254,14 @@ def run_phone_home(
                 log = log_path(cfg).read_bytes()
             except FileNotFoundError:
                 log = b""
-            offset, digest, movement, reset = _cursor(log, state, baseline=not admitted or state["repo_id"] is None)
+            seen, movement, reset = _cursor(log, state, baseline=not admitted or state["repo_id"] is None)
             if reset:
                 warnings.append("audit log rewritten or truncated; movement baselined to zero")
             if admitted:
                 repo_id = state["repo_id"] or str(identity())
                 event = _payload(repo_id, counts, movement, (clock or (lambda: datetime.now(timezone.utc)))())
                 state["repo_id"] = repo_id
-            state.update(offset=offset, digest=digest)
+            state = {"schema": 2, "run": state["run"], "repo_id": state["repo_id"], "seen_movements": seen}
         replacement = region[:match.start()] + "period_state: " + json.dumps(state, separators=(",", ":")) + region[match.end():]
         replace_blackboard(parent, replacement, expected_bytes=raw)
         try:

@@ -145,6 +145,7 @@ class Config:
     launch_max_session: float | None = None
     # Shared recurring policy; zero disables the control-history idle gate.
     recurring_idle_days: int = 14
+    log_retention_days: int = 30
     # `[authoring] agent` from coga.local.toml: this operator's default agent
     # for the `coga ticket` / megalaunch picked-draft authoring interview. It is
     # machine-local because agent quota exhaustion is per-operator. Empty means
@@ -474,6 +475,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         recurring_idle_days=_parse_recurring(shared.get("recurring")),
+        log_retention_days=_parse_log(shared.get("log")),
         launch_max_session=launch_max_session,
         owner=owner,
         contexts_dir=contexts_dir,
@@ -558,6 +560,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "telemetry",
     "launch",
     "recurring",
+    "log",
     "ticket",
     "aliases",
     "extensions",
@@ -1669,6 +1672,19 @@ def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> Non
                 contexts_root, Path(directory) / "SKILL.md", checkout=checkout,
                 trackable=trackable,
             )
+
+
+def _parse_log(shared: object) -> int:
+    """Shared calendar-day retention policy; zero disables maintenance."""
+    if shared is None:
+        return 30
+    if not isinstance(shared, dict):
+        raise ConfigError("[log] must be a table")
+    _reject_unknown_keys(shared, frozenset({"retention_days"}), "[log]")
+    value = shared.get("retention_days", 30)
+    if type(value) is not int or value < 0:
+        raise ConfigError("[log].retention_days must be a non-negative int")
+    return value
 
 
 def _parse_recurring(shared: object) -> int:

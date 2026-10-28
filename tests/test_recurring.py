@@ -11031,6 +11031,43 @@ def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
     assert "bbb-check" not in [task.template for task in retry.due]
 
 
+def test_recurring_sweep_continues_after_peer_trim_removes_obsolete_ledger(
+    git_repo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga_edge.trim_log import trim
+    from datetime import date
+    names = ("aaa-check", "bbb-check", "ccc-check")
+    cfg = _seed_recurring_ledger_sweep(git_repo, names)
+    log = git_repo.coga_os / "log.md"
+    log.write_bytes(log.read_bytes() + b"2020-01-01 00:00 [recurring/bbb-check] [system] created recurring/bbb-check for 2020-W01\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed obsolete ledger evidence")
+    git_repo.git("push", "origin", "main")
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
+    original_sync = recurring_cmd._sync_recurring_create
+    reports: list[str] = []
+
+    def sync_then_trim(cfg, template_name, *args, **kwargs):  # type: ignore[no-untyped-def]
+        created = original_sync(cfg, template_name, *args, **kwargs)
+        if template_name == "aaa-check":
+            peer = tmp_path / "maintenance"
+            git_repo.git("clone", "--branch", "main", str(git_repo.origin), str(peer))
+            git_repo.git("config", "user.name", "Maintenance", cwd=peer)
+            git_repo.git("config", "user.email", "maintenance@example.test", cwd=peer)
+            shutil.copyfile(git_repo.coga_os / "coga.local.toml", peer / "coga/coga.local.toml")
+            reports.append(trim(load_config(peer / "coga"), clock=lambda: date(2026, 6, 8)))
+        return created
+
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", sync_then_trim)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(cfg, scan, control_is_fresh=True, control_revision=revision)
+    assert len(reports) == 1 and "Removed 1 events" in reports[0]
+    assert [task.template for task in scan.due] == list(names)
+    assert scan.errors == []
+    assert all(git_repo.origin_tracks(f"coga/tasks/recurring/{name}/ticket.md") for name in names)
+
+
 def test_recurring_ledger_refresh_read_failure_discards_local_create(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -13904,7 +13941,7 @@ def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatc
 def test_shipped_inactivity_exemptions() -> None:
     exempt = sorted(p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
                     if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive)
-    assert exempt == ["autoclose-merged", "branch-sweep"]
+    assert exempt == ["autoclose-merged", "branch-sweep", "trim-log"]
 
 
 @pytest.mark.parametrize("exempt", [False, True])

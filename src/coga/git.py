@@ -18,8 +18,8 @@ Invariants, in the order they matter:
 - **Nothing is lost.** The on-disk markdown is the write. A publish that
   cannot reach control leaves the file exactly as written (dirty), reports
   once on stderr and in `coga/log.md`, never crashes the command, and is
-  retried by the next command's sweep. `merge=union` files (`coga/log.md`)
-  are three-way union-merged, never overlaid.
+  retried by the next command's sweep. The audit log uses event-aware reconciliation and guarded mutations;
+  `merge=union` worklists retain their three-way merge.
 - **Nothing moves backward.** Each published path is a compare-and-swap
   against control: the control blob must be one this checkout derived its
   working copy from — its HEAD copy, the merge-base copy, a copy this
@@ -59,8 +59,8 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -158,7 +158,7 @@ _HELD_LOCKS: dict[tuple[str, int], list[int]] = {}
 
 
 @contextmanager
-def state_lock(cfg: Config) -> Iterator[None]:
+def state_lock(cfg: Config, *, blocking: bool = True) -> Iterator[None]:
     """Serialize this checkout's Coga writers and publishers.
 
     A short, kernel-released advisory lock around a ticket's
@@ -185,7 +185,7 @@ def state_lock(cfg: Config) -> Iterator[None]:
     except OSError as exc:
         raise GitError(f"could not open local state lock: {exc}") from exc
     try:
-        lock_fd(fd, blocking=True)
+        lock_fd(fd, blocking=blocking)
     except OSError as exc:
         os.close(fd)
         raise GitError(f"local state lock failed: {exc}") from exc
@@ -405,6 +405,7 @@ def publish(
     guard: Callable[[str], None] | None = None,
     fast_forward: bool = True,
     require_paths: Iterable[Path] = (),
+    log_mutation: "LogMutation | None" = None,
 ) -> bool | None:
     """Land the dirty files under `paths` on the control branch.
 
@@ -414,7 +415,7 @@ def publish(
     `guard` is called with the control commit each attempt builds on — the
     remote-tracking ref, re-fetched after every rejected push — before any
     tree is built; it may raise to refuse. It exists for a decision `expect`
-    cannot express: a `merge=union` file whose *content* matters (the
+    cannot express: shared audit state whose *content* matters (the
     recurring serviced-period ledger), where pinning the whole blob would
     refuse every unrelated concurrent append. `fast_forward=False` leaves the
     local control checkout untouched after a successful push (Retro's
@@ -439,7 +440,7 @@ def publish(
     }
     with state_lock(cfg):
         required = [relative_to_root(root, path) for path in require_paths]
-        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward, required)
+        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward, required, log_mutation)
 
 
 def _publishable_root(cfg: Config, message: str) -> Path | None:
@@ -467,7 +468,13 @@ def _publish_locked(
     guard: Callable[[str], None] | None,
     fast_forward: bool,
     required: list[str],
+    log_mutation: "LogMutation | None" = None,
 ) -> bool:
+    from coga import log_transaction
+    from coga.log_publication import reconcile
+    log_transaction.ensure_clear(cfg, log_mutation)
+    today = date.today()
+    log_rel = relative_to_root(root, log_path(cfg))
     remote, control = cfg.git_remote, cfg.git_control_branch
     have_remote = remote_configured(root, remote)
     fetched = False
@@ -486,7 +493,7 @@ def _publish_locked(
         if guard is not None:
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
-        rels = _candidates(root, pathspecs, base, ancestor, adopt_only)
+        rels = _candidates(root, pathspecs, base, ancestor, adopt_only, log_rel=log_rel)
         index_modes = _index_modes(root) if required and os.name != "posix" else None
         for rel in required:
             if rel in rels:
@@ -509,17 +516,28 @@ def _publish_locked(
                 f"local {control!r} only; add a remote to sync ({message})\n"
             )
         working = {rel: _working_tree_bytes(root, rel) for rel in rels}
-        union = union_merge_paths(root, rels)
+        union = union_merge_paths(root, rels) - {log_rel}
         landed = _guard(cfg, root, rels, base, working, union, _provenance(root, rels, ancestor), expected)
+        if log_rel in rels:
+            if working[log_rel] is None:
+                raise StateRegressionError("audit log is missing locally; restore it before publication")
+            landed[log_rel] = reconcile(
+                cfg, root, base, _clean_bytes(root, working[log_rel], log_rel),
+                source_base=(tree_bytes(root, ancestor, log_rel) or b"") if ancestor else b"",
+                head=tree_bytes(root, "HEAD", log_rel) or b"", overlays=landed,
+                today=today, mutation=log_mutation,
+            )
         tree = _build_tree(root, base, rels, working, union, ancestor, landed)
         staged = {rel: (working[rel], landed[rel]) for rel in rels}
         if tree == run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             # Already on control. A control checkout still catches up so its
             # dirty-but-equal files come clean; nothing reaches other checkouts.
             if fast_forward and current_branch(root) == control:
-                fast_forward_control(cfg, root, base, staged=staged)
+                fast_forward_control(cfg, root, base, staged=staged, **({"log_mutation": log_mutation} if log_mutation else {}))
             return False
         new = run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
+        if log_mutation is not None:
+            log_transaction.attempted(cfg, new)
         if not have_remote:
             break
         failure = _push(root, remote, f"{new}:refs/heads/{control}")
@@ -551,7 +569,7 @@ def _publish_locked(
         # Local control is the only durable destination here: a commit it does
         # not point at is dangling, so a refused fast-forward is a failed
         # publish, not a note. Nothing is recorded as published for it.
-        if not fast_forward_control(cfg, root, new, staged=staged):
+        if not fast_forward_control(cfg, root, new, staged=staged, **({"log_mutation": log_mutation} if log_mutation else {})):
             raise GitError(
                 f"no {remote!r} remote configured and local {control!r} could not "
                 f"be fast-forwarded to the new commit; the write stays dirty"
@@ -560,7 +578,7 @@ def _publish_locked(
         return True
     _record_published(root, {rel: _blob_oid(root, new, rel) for rel in rels})
     if fast_forward:
-        fast_forward_control(cfg, root, new, staged=staged)
+        fast_forward_control(cfg, root, new, staged=staged, **({"log_mutation": log_mutation} if log_mutation else {}))
     return True
 
 
@@ -624,6 +642,7 @@ def _candidates(
     base: str,
     ancestor: str | None,
     adopt_only: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
+    *, log_rel: str | None = None,
 ) -> list[str]:
     """The files under `pathspecs` this publish carries.
 
@@ -655,7 +674,7 @@ def _candidates(
         if ancestor is not None and head_oid == _blob_oid(root, ancestor, rel):
             continue
         derived = _provenance(root, [rel], ancestor)[rel] - {head_oid}
-        if _blob_oid(root, base, rel) in derived:
+        if rel == log_rel or _blob_oid(root, base, rel) in derived:
             rels.append(rel)
     return rels
 
@@ -711,6 +730,12 @@ def _guard(
                 f"{rel}: is a symlink or has a symlinked ancestor; "
                 "replace it with regular files before publication"
             )
+            continue
+        if rel == relative_to_root(root, log_path(cfg)):
+            if data is None and _blob_oid(root, base, rel) is not None:
+                refusals.append(f"{rel}: append-only file is missing locally; restore it with `git checkout {cfg.git_remote}/{cfg.git_control_branch} -- {rel}` before publication")
+            elif rel in expected and _blob_oid(root, base, rel) != expected[rel]:
+                refusals.append(f"{rel}: control copy changed since it was read")
             continue
         if rel in union:
             # Union paths merge rather than overlay, so they need no
@@ -820,7 +845,7 @@ def _build_tree(
     try:
         run_git(root, "read-tree", base, env=env)
         for rel in rels:
-            data = working[rel]
+            data = landed[rel]
             if rel in union and data is not None:
                 data = _merge_union_bytes(
                     current=tree_bytes(root, base, rel) or b"",
@@ -978,6 +1003,17 @@ def _write_published(root: Path, blobs: Mapping[str, str | None]) -> None:
 
 
 def fast_forward_control(
+    cfg: Config, root: Path, new: str, *,
+    staged: Mapping[str, tuple[bytes | None, bytes | None]] | None = None,
+    log_mutation: "LogMutation | None" = None,
+) -> bool:
+    from coga import log_transaction
+    with state_lock(cfg):
+        log_transaction.ensure_clear(cfg, log_mutation)
+        return _fast_forward_control_locked(cfg, root, new, staged=staged)
+
+
+def _fast_forward_control_locked(
     cfg: Config,
     root: Path,
     new: str,
@@ -1030,10 +1066,19 @@ def fast_forward_control(
         return True
     if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged):
         return False
-    result = _run(
-        ["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new],
-        env=_MESSAGE_LOCALE,
-    )
+    try:
+        holder_cfg = replace(cfg, repo_root=holder / cfg.repo_root.resolve().relative_to(root.resolve()))
+        with state_lock(holder_cfg, blocking=False):
+            from coga.log_transaction import pending
+            if holder.resolve() != root.resolve() and pending(holder_cfg):
+                return False
+            result = _run(
+                ["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new],
+                env=_MESSAGE_LOCALE,
+            )
+    except GitError as exc:
+        sys.stderr.write(f"[git] note: control checkout left for its own locked catch-up: {exc}\n")
+        return False
     if result.returncode != 0:
         sys.stderr.write(
             f"[git] note: local {control!r} in {holder} not fast-forwarded: "
@@ -1061,8 +1106,18 @@ def _stage_landed(
         for rel, (read, landed) in (staged or {}).items():
             if _working_tree_bytes(root, rel) != read:
                 continue
-            if landed is not None:
-                (root / rel).write_bytes(landed)
+            # A guarded trim already installed the exact surviving bytes.
+            # The committed log is clean-filtered (usually LF), so preserve
+            # the local postimage when it represents that same blob.
+            equivalent_log = (
+                rel == relative_to_root(root, log_path(cfg))
+                and read is not None
+                and landed is not None
+                and _clean_bytes(root, read, rel) == landed
+            )
+            if landed is not None and not equivalent_log:
+                from coga.atomicio import atomic_write_bytes
+                atomic_write_bytes(root / rel, landed)
             run_git(root, "add", "--all", "--", rel)
     except (GitError, OSError) as exc:
         sys.stderr.write(f"[git] note: local {cfg.git_control_branch!r} not moved: {exc}\n")
@@ -1359,6 +1414,9 @@ def _plan_preparation(
     cfg: Config, root: Path, pinned: str, previous_contexts_root: Path | None = None,
 ) -> _PreparationPlan | CheckoutPreparation:
     """Every check `prepare_control_checkout` makes before its first write."""
+    from coga import log_transaction
+    if log_transaction.pending(cfg):
+        return CheckoutPreparation("refused", "pending audit mutation; rerun trim-log to recover before returning checkout", blocking=("log.md",))
     remote, control = cfg.git_remote, cfg.git_control_branch
     branch = symbolic_head(root)
     if branch is None:
@@ -1433,7 +1491,7 @@ def _plan_preparation(
                 blocking.append(f"{rel} (not a regular file)")
                 continue
             proof = _published_proof(
-                root, rel, working, published, head_entry=None, union=rel in union
+                root, rel, working, published, head_entry=None, union=rel in union, cfg=cfg, revision=pinned
             )
             if proof:
                 blocking.append(f"{rel} ({proof})")
@@ -1456,7 +1514,7 @@ def _plan_preparation(
             blocking.append(f"{rel} (staged content is not the published version)")
             continue
         proof = _published_proof(
-            root, rel, working, published, head_entry=head_entry, union=rel in union
+            root, rel, working, published, head_entry=head_entry, union=rel in union, cfg=cfg, revision=pinned
         )
         if proof:
             blocking.append(f"{rel} ({proof})")
@@ -1658,6 +1716,8 @@ def _published_proof(
     *,
     head_entry: tuple[str, str] | None,
     union: bool,
+    cfg: Config | None = None,
+    revision: str | None = None,
 ) -> str | None:
     """`None` when the working copy of `rel` is already on control, else why not."""
     if working is None:
@@ -1667,6 +1727,11 @@ def _published_proof(
     mode, data = working
     if mode != published[0]:
         return "file mode differs from control"
+    if cfg is not None and revision is not None and rel == relative_to_root(root, log_path(cfg)):
+        from coga.log_publication import reconcile
+        control_bytes = _blob_bytes(root, published[1])
+        merged = reconcile(cfg, root, revision, _clean_bytes(root, data, rel))
+        return None if merged == control_bytes else "lines not yet on control"
     if not union:
         if _hash_blob(root, data, rel) == published[1]:
             return None
@@ -1798,7 +1863,7 @@ def _local_control_subsumed(
                 )
             working = None if mine is None else (mine[0], _blob_bytes(root, mine[1]))
             proof = _published_proof(
-                root, rel, working, published, head_entry=head_entry, union=rel in union
+                root, rel, working, published, head_entry=head_entry, union=rel in union, cfg=cfg, revision=target
             )
             if proof:
                 failed.append(f"{rel} ({proof})")

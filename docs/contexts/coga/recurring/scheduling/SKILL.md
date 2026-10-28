@@ -18,8 +18,8 @@ anything else → `YYYYMMDDTHHMM`.
 The high-water mark is a `created|reused <task-ref> for <period>` line tagged
 `recurring/<name>` in the repo-global `coga/log.md`. It is not in the template
 blackboard, where a run rewriting a region could erase it and re-fire the
-period. The line is append-only, outlives the reaped period task, and is never
-composed into prompts. A period at or below the newest valid record is not
+period. The greatest valid period evidence survives retention after a period task
+is reaped and is never composed into prompts. A period at or below the newest valid record is not
 re-created or re-launched. A malformed record is a template error in the
 sweep, `coga recurring list` and `coga status`, never "ran this period".
 
@@ -230,3 +230,12 @@ Size exception: this topic stays over the size review thresholds, as
 accepted when the recurring family was consolidated. It absorbed the former
 serviced-period ledger and failures leaves; splitting it again would recreate
 them, so only repo inactivity stays a separate leaf.
+
+Retention preserves every occurrence of the greatest valid period per ref and
+its winning creation/pause evidence, including absent or parked templates.
+It validates the full ledger first and never erases malformed older evidence
+to make a bounded reader succeed. A sweep that already published treats only
+removal of obsolete valid evidence as benign, after comparing full high-water
+and error state at both revisions. Added records, new errors, changed maxima
+or ambiguous evidence still trigger competitor-admission refusal. Target-bound
+reverse reads retain their at-least semantics and error reachability.

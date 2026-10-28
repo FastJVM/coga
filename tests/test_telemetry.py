@@ -199,20 +199,20 @@ def test_movement_rejects_housekeeping_and_malformed_envelopes(line):
     assert not t._movement(line.rstrip(b"\n"))
 
 
-def test_cursor_complete_lines_dedup_equal_and_unsorted_times_rewrites():
-    seed = {"offset": 0, "digest": hashlib.sha256(b"").hexdigest()}
-    raw = _line(ref="deleted") + _line(ref="deleted") + _line(ref="other", stamp="2020-01-01 01:00") + b"partial"
-    offset, digest, count, reset = t._cursor(raw, seed, baseline=False)
+def test_cursor_complete_events_dedup_unsorted_and_rewrites():
+    seed = {"schema": 2, "run": 0, "repo_id": REPO_ID, "seen_movements": []}
+    first = _line(ref="deleted").replace(b"07:00 [", b"07:00 v1 [")
+    second = _line(ref="other", stamp="2020-01-01 01:00").replace(b"01:00 [", b"01:00 v1 [")
+    raw = first + first + second + b"partial"
+    seen, count, reset = t._cursor(raw, seed, baseline=False)
     assert count == 2 and not reset
-    assert raw[offset:] == b"partial"
-    state = {"offset": offset, "digest": digest}
-    assert t._cursor(raw, state, baseline=False)[2:] == (0, False)
-    for rewrite in (b"", _line("task done — rewritten") + raw):
-        assert t._cursor(rewrite, state, baseline=False)[2:] == (0, True)
-    prefix = _line()[:-1]
-    offset, digest, _, _ = t._cursor(prefix, seed, baseline=False)
-    assert offset == 0
-    assert t._cursor(prefix+b"\n", {"offset":offset,"digest":digest}, baseline=False)[2] == 1
+    state = {**seed, "seen_movements": seen}
+    assert t._cursor(raw, state, baseline=False)[1:] == (0, False)
+    assert t._cursor(b"", state, baseline=False)[1:] == (0, False)
+    assert t._cursor(second + first, state, baseline=False)[1:] == (0, False)
+    assert t._cursor(_line("task done — rewritten") + raw, state, baseline=False)[1:] == (1, False)
+    assert t._cursor(first[:-1], seed, baseline=False)[1] == 0
+    assert t._cursor(first, seed, baseline=False)[1] == 1
 
 
 def test_exact_http_envelope_and_provenance(repo, monkeypatch):
@@ -418,7 +418,9 @@ def test_cas_detects_parent_edit_and_preserves_prose(repo, monkeypatch):
 def test_suppressed_cursor_baselines_complete_eof(repo):
     (repo/"log.md").write_bytes(_line()+b"partial")
     t.run_phone_home(load_config(repo), [])
-    assert _state(repo)["offset"] == len(_line())
+    assert _state(repo)["schema"] == 2
+    # The legacy event owns the incomplete continuation, so it is not reserved.
+    assert _state(repo)["seen_movements"] == []
     assert _state(repo)["repo_id"] is None
 
 

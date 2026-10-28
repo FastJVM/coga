@@ -154,7 +154,7 @@ no checkout; the fourth is the durable worklist:
   fails with an I/O or encoding error, the report falls back to stdout and the
   run still fails, so a refused durable record never hides the follow-up on
   every surface. The reconcile is a barrier-held, compare-and-swap, atomic
-  rewrite; the file is `merge=union` like `log.md`, and a line union merge
+  rewrite; this worklist keeps `merge=union`, and a line union merge
   resurrects or duplicates is healed by the next reconcile. A run that
   recorded, refreshed, or dropped nothing, and has no open entries, prints
   nothing about the file; otherwise stdout carries one

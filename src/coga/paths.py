@@ -286,11 +286,9 @@ def repo_context_path(cfg: Config) -> Path:
 
 
 def log_path(cfg: Config) -> Path:
-    """The repo-global append-only audit log (`coga/log.md`).
+    """The retained repo-global audit log, never a prompt layer.
 
-    One file per repo, never a prompt-composition layer, marked `merge=union`
-    via `coga/.gitattributes` so concurrent appends across branches merge
-    cleanly. Each line is tagged with its task ref; see `coga.logfile`.
+    `coga.logfile` owns event IO; the trim-log ticket owns retention.
     """
     return cfg.repo_root / "log.md"
 
