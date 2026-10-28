@@ -1,6 +1,6 @@
 ---
 title: Coalesce Coga state commits to one per lifecycle event
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -38,6 +38,7 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
+launch_generation: pending:0000ba94-dc39-4476-8910-7ccca8ba582c
 ---
 
 ## Description
