@@ -40,12 +40,12 @@ py -3.11 -m venv .venv
 ```
 
 If `python3` is older, choose a 3.11+ interpreter before creating the
-environment. For `uv`-created environments (which may not include pip),
-follow the [testing guide](docs/contexts/coga-dev/testing/SKILL.md).
+environment. The [testing guide](docs/contexts/coga-dev/testing/SKILL.md)
+covers `uv` environments without pip, CLI smoke checks, and other testing
+pitfalls.
 
-The [testing](docs/contexts/coga-dev/testing/SKILL.md) topic covers the CLI smoke
-check and test commands; [codebase](docs/contexts/coga-dev/codebase/SKILL.md)
-covers source layout, coding style, and commit conventions;
+The [codebase](docs/contexts/coga-dev/codebase/SKILL.md) topic covers source
+layout, coding style, and commit conventions;
 [configuration](docs/contexts/coga/configuration/SKILL.md) covers `coga.toml`
 and `coga.local.toml`; and [packaging](docs/contexts/coga-dev/packaging/SKILL.md)
 covers keeping the canonical topics and packaged templates in sync. Read the
