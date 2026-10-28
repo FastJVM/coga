@@ -113,6 +113,19 @@ def seed_direct_body_workflow(coga_os: Path) -> None:
     shutil.copy(_TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md", wf_dst)
 
 
+def append_test_usage(**kwargs) -> None:
+    """One fixed usage line through the real writer, without vendor transcripts."""
+    from coga.usage import UsageRecord, append_record
+
+    append_record(kwargs["cfg"], UsageRecord(
+        ts="2026-10-27T00:00:00Z", title=kwargs["title"], slug=kwargs["slug"],
+        step=kwargs["step"], agent=kwargs["agent"], cli=kwargs["cli"], provider="test",
+        model="fixture", session_id="startup-usage", input_tokens=1,
+        cache_creation_input_tokens=0, cache_read_input_tokens=0, output_tokens=1,
+        usage_status="ok",
+    ))
+
+
 @pytest.fixture
 def tmp_path(tmp_path: Path) -> Path:
     # Windows may reuse pytest-of-Administrator as pytest-of-administrator.

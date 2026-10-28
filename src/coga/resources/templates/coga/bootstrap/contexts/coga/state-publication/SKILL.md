@@ -68,7 +68,10 @@ reviewed PR.
   withheld state. After a checkout rewrite, the check can also name older
   retained lines. An unchanged log or explicitly disabled Git stays silent.
 - **Launch** publishes routine state at entry and before returning the
-  checkout ([coga/checkouts](../checkouts/SKILL.md)).
+  checkout ([coga/checkouts](../checkouts/SKILL.md)). Ordinary managed agent
+  startup publishes its prepared lifecycle, branch linkage, and launch audit
+  together before execution. [Launch publication boundaries](launch-boundaries/SKILL.md)
+  owns the commit bound, counting interval, and paths with separate deadlines.
 - **Session teardown**, including `coga chat`, publishes the log after usage
   capture. The agent's final answer precedes this write, so its claim of a
   clean checkout cannot cover the usage record. Log publication requires the
@@ -101,6 +104,10 @@ deliberate deferrals are:
   ([init](../init/SKILL.md)).
 - **Session usage records** land after the agent's last lifecycle sync and
   publish at session teardown (above).
+- **Ordinary managed startup** appends activation, start, and launch audit
+  inside its startup publication, before switching or spawning. A failed or
+  interrupted group retains its evidence with a withheld-sweep report; no
+  startup line is deferred through the agent session to its eventual bump.
 - **Lines in a writer's own later publish.** A recurring run's serviced-period
   ledger lines and a launched `ticket.py`'s exit line ride its recurring
   publication, the next checkout settlement, or the end-of-command sweep.
@@ -202,3 +209,5 @@ remote and local lines without hand-editing the audit trail or replaying the
 chat. Recovery is offered rather than performed at recurring admission:
 append-only bytes do not establish who wrote them or authorize publishing
 other pending work.
+
+Size exception: eligibility, publication deadlines, and recovery stay together so an operator can determine both what a failed command retained and how to publish it safely; launch accounting lives in its own leaf.

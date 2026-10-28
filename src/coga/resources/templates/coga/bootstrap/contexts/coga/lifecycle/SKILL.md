@@ -34,6 +34,15 @@ pre-launch authoring notes on the blackboard
 `agent:` and freezes a bare workflow ref ([coga/tickets](../tickets/SKILL.md)).
 Tickets without a workflow move through statuses only via `coga mark`.
 
+For an ordinary managed agent launch, activation and start are prepared in
+memory and published as the final `in_progress` ticket with checkout linkage
+and the launch audit. Their distinct audit events remain ordered; there is
+no separately published intermediate `active` state. Standalone commands and
+strict queue/recurring callers keep their own immediate transitions.
+[Launch publication boundaries](../state-publication/launch-boundaries/SKILL.md)
+owns the accounting; [checkout preparation](../checkouts/launch-boundary/SKILL.md)
+owns refusal and retained-state recovery.
+
 - `--message` adds an FYI to active/paused/done notifications; for canceled
   it is the required audit reason, appended to `coga/log.md`. Cancellation
   leaves the body and blackboard (including open blocker text) untouched.

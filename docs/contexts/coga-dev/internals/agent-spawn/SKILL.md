@@ -44,6 +44,13 @@ open blocker left after a resumed session is restored by
 `_reblock_unresolved_resume`; the `--agent` continuation rule is
 `consecutive_agent_override`.
 
+Ordinary managed agent-only startup carries the captured source and prospective
+lifecycle into supervision, plans linkage without writing it, composes, then
+publishes and confirms the group before checkout entry and notification.
+[`_publish_startup`](../state-publication/publish/SKILL.md#ordinary-managed-startup)
+owns the finalizer and its failure paths. Other launch routes keep their own
+publication order.
+
 ## Order inside one call
 
 1. `apply_task_env` rewrites `COGA_TASK_*`; inherited `COGA_ASSIST_*` values
@@ -53,7 +60,8 @@ open blocker left after a resumed session is restored by
    bytes (megalaunch), then append `prompt_suffix` (launch arguments only).
 3. Write the prompt file; build argv with `build_agent_command`.
 4. `validate_before_spawn` guard; append the launch audit (unless deferred
-   into the spawn gate) and, with `commit_log`, publish it at once. `coga
+   into the spawn gate or already published by the caller with
+   `record_launch=False`) and, with `commit_log`, publish it at once. `coga
    launch` always sets `commit_log`, so a code step's start check
    ([coga/checkouts](../../../coga/checkouts/SKILL.md)) finds a clean tree;
    megalaunch's deferred audit publishes with its launch admission.
@@ -201,3 +209,5 @@ profiles; and a common-dir probe misses an external `GIT_OBJECT_DIRECTORY`.
 Dream's preflight works because it runs inside the launched agent. Reopening
 it needs its own capability design: where the probe runs, warn versus refuse,
 effective object storage, and which alternate configurations comply.
+
+Size exception: the API, spawn ordering, and supervisor cleanup remain together because every spawn caller must preserve the same admission and exit contract; publication mechanics live in their linked topic.
