@@ -71,20 +71,6 @@ Actually, **you still use the agent.** but you use Coga to launch the agent. Cog
 
 **Agents work in sessions. Coga works in tasks.**
 
-## Why use Coga instead of another tool?
-
-These tools overlap in places, but they don't all solve the same problem. The difference is what each puts at the center:
-
-- **[Spec Kit](https://github.github.com/spec-kit/)** offers processes for spec-driven development, bug fixing, and idea assessment, with customizable workflows. Coga centers on a launchable ticket, with or without a formal spec.
-- **[BMad Method](https://docs.bmad-method.org/)** provides planning and delivery workflows with specialized agent roles. Coga stays a smaller layer around the coding agents you already use.
-- **[BMad Builder](https://bmad-builder-docs.bmad-method.org/)** creates custom agents, skills, workflows, and modules. Coga uses existing agents to work through project tickets.
-- **[OpenSpec](https://openspec.dev/docs/quickstart)** tracks changes through proposals, specs, designs, and task checklists. Coga tracks individual tickets, their contexts, and their workflow steps.
-- **[GSD Core](https://github.com/open-gsd/gsd-core)** structures work into a discuss–plan–execute–verify–ship loop using fresh-context subagents. Coga doesn't require a project-wide phase loop.
-- **[Beads](https://github.com/gastownhall/beads)** gives coding agents persistent memory and a dependency-aware issue graph backed by Dolt. Coga uses editable Markdown tickets, with context and human/agent workflow steps composed at launch.
-- **[Kiro](https://kiro.dev/)** is an agentic development platform with specs, steering, and hooks across its IDE, CLI, and cloud. Coga is not a coding agent: it organizes work in Git and launches Claude Code or Codex to carry it out.
-
-Choose Coga if you like your coding agent but want to inspect and change the work it does across tasks and sessions.
-
 ## When the first plan was wrong: Thinkpick
 
 We used Coga to build [Thinkpick](https://github.com/FastJVM/thinkpick), a tool for choosing a model's reasoning level for a task. After ten minutes of discussion, `coga build` produced plausible tickets—but the plan assumed we already knew how to choose the right level.
