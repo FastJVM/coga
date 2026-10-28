@@ -37,14 +37,10 @@ def _report(cfg: Config, text: str) -> None:
     append_blackboard_report(cfg, path, "## Trim log\n\n" + text + "\n")
 
 
-def _phone_compatible(cfg: Config) -> None:
+def _phone_compatible(cfg: Config, parent: Path | None) -> None:
     # Parent discovery includes parked installations: stopped reporting still
     # owns unread movement. Two parents or a full local fork need adaptation.
-    parent = recurring_dir(cfg) / "phone-home/ticket.md"
-    parked = recurring_dir(cfg) / "_phone-home"
-    if parked.exists():
-        raise RetentionError("parked phone-home needs explicit cursor adaptation before trimming; preserve its state")
-    if parent.exists():
+    if parent is not None:
         shim = parent.with_name("ticket.py")
         stock = packaged_template_path("recurring", "phone-home", "ticket.py")
         if git.symlink_component(parent) is not None or git.symlink_component(shim) is not None or not shim.is_file() or shim.read_bytes() != stock.read_bytes():
@@ -65,7 +61,8 @@ def _local_inputs(
 
 def _check_local_inputs(cfg: Config, root: Path, rev: str, outputs: dict[Path, bytes]) -> Inputs:
     inputs = read_inputs(cfg, root, rev)
-    wanted = [cfg.repo_root / "coga.toml", tasks_dir(cfg), recurring_dir(cfg) / "phone-home"]
+    wanted = [cfg.repo_root / "coga.toml", tasks_dir(cfg),
+              *(recurring_dir(cfg) / name for name in ("phone-home", "_phone-home"))]
     expected = {git.relative_to_root(root, p): data for p, data in outputs.items()}
     dirty = set(git._dirty_paths(root, [git.relative_to_root(root, p) for p in wanted])) - expected.keys()
     if dirty:
@@ -87,7 +84,7 @@ def _check_local_inputs(cfg: Config, root: Path, rev: str, outputs: dict[Path, b
         matches = raw == expected[name] if name in expected else git._hash_blob(root, raw, name) == oid
         if not matches:
             raise RetentionError(f"retention decision input differs from current control: {name}")
-    _phone_compatible(cfg)
+    _phone_compatible(cfg, root / inputs.parent_rel if inputs.parent_rel else None)
     return inputs
 
 
@@ -132,16 +129,16 @@ def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
             if not inputs.days:
                 return "Skipped: control retention_days = 0; history unchanged."
             plan = select(raw, snapshot(inputs, raw), cutoff_at(clock(), inputs.days))
-            parent = recurring_dir(cfg) / "phone-home/ticket.md"
+            parent = root / inputs.parent_rel if inputs.parent_rel else None
             state = cursor_state(inputs.parent, raw)
-            parent_before = parent.read_bytes() if inputs.parent is not None else None
+            parent_before = parent.read_bytes() if parent is not None else None
             region = read_blackboard(parent, expected_bytes=parent_before) if parent_before is not None else None
             migrated_region = replace_state(region, state) if region is not None and _state(region)[0]["schema"] == 1 else None
             if not plan.mutation.removed:
                 return "No expired unprotected events; history unchanged."
             outputs: dict[Path, bytes] = {}
             if migrated_region is not None:
-                assert region is not None and inputs.parent is not None
+                assert parent is not None and region is not None and inputs.parent is not None
                 prefix = parent_before[:-len(region.encode("utf-8"))] if region else parent_before
                 outputs[parent] = prefix + migrated_region.encode("utf-8")
             kept = len(raw) - sum(len(plan.events[i].raw) for i in plan.mutation.removed)
@@ -154,6 +151,7 @@ def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
             log_transaction.begin(cfg, rev, plan.mutation, outputs, message)
             try:
                 if migrated_region is not None:
+                    assert parent is not None
                     replace_blackboard(parent, migrated_region, expected_bytes=parent_before)
                 replace_log(cfg, plan.mutation)
                 result = git.publish(

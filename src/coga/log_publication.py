@@ -30,6 +30,7 @@ class Inputs:
     parent: bytes | None
     # Exact decision inputs for guards, including modes and directory shape.
     entries: tuple[tuple[str, str, str], ...]
+    parent_rel: str | None
 
 
 def inventory(files: Mapping[str, bytes]) -> frozenset[str]:
@@ -60,9 +61,10 @@ def read_inputs(cfg: Config, root: Path, rev: str, overlays: Mapping[str, bytes 
 
     config_rel = git.relative_to_root(root, cfg.repo_root / "coga.toml")
     tasks_rel = git.relative_to_root(root, tasks_dir(cfg)) + "/"
-    parent_rel = git.relative_to_root(root, recurring_dir(cfg) / "phone-home/ticket.md")
+    phone_dirs = tuple(git.relative_to_root(root, recurring_dir(cfg) / name) + "/"
+                       for name in ("phone-home", "_phone-home"))
     entries: dict[str, tuple[str, str]] = {}
-    for record in git.run_git(root, "ls-tree", "-r", "-z", rev, "--", config_rel, tasks_rel, parent_rel).split("\0"):
+    for record in git.run_git(root, "ls-tree", "-r", "-z", rev, "--", config_rel, tasks_rel, *phone_dirs).split("\0"):
         if record:
             meta, name = record.split("\t", 1)
             mode, kind, oid = meta.split()
@@ -71,7 +73,7 @@ def read_inputs(cfg: Config, root: Path, rev: str, overlays: Mapping[str, bytes 
             entries[name] = (mode, oid)
     data = {name: git._blob_bytes(root, oid) for name, (_, oid) in entries.items()}
     for name, raw in (overlays or {}).items():
-        if name == config_rel or name == parent_rel or name.startswith(tasks_rel):
+        if name == config_rel or name.startswith((tasks_rel, *phone_dirs)):
             if raw is None:
                 data.pop(name, None)
             else:
@@ -79,7 +81,15 @@ def read_inputs(cfg: Config, root: Path, rev: str, overlays: Mapping[str, bytes 
     shared = tomllib.loads(data.get(config_rel, b"").decode("utf-8"))
     days = _parse_log(shared.get("log"))
     refs = inventory({name[len(tasks_rel):]: raw for name, raw in data.items() if name.startswith(tasks_rel)})
-    return Inputs(days, refs, data.get(parent_rel), tuple((name, *entry) for name, entry in sorted(entries.items())))
+    parents = [directory + "ticket.md" for directory in phone_dirs
+               if any(name.startswith(directory) for name in data)]
+    if len(parents) > 1:
+        raise RetentionError("both active and parked phone-home parents exist; reconcile their cursors before trimming")
+    parent_rel = parents[0] if parents else None
+    if parent_rel is not None and parent_rel not in data:
+        raise RetentionError("installed phone-home is missing its parent cursor; restore it before trimming")
+    return Inputs(days, refs, data.get(parent_rel) if parent_rel else None,
+                  tuple((name, *entry) for name, entry in sorted(entries.items())), parent_rel)
 
 
 def cursor_state(parent: bytes | None, raw: bytes) -> dict | None:

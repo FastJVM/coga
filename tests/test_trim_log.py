@@ -336,6 +336,82 @@ def test_trim_and_phone_home_alternate_preserving_delayed_unread_movement(git_re
     assert phone_home._state(read_blackboard(parent))[0]["run"] == 14
 
 
+def test_parked_phone_home_preserves_unread_movement_and_cursor_identity(git_repo):
+    cfg, path = _seed(git_repo, _line("consumed"))
+    parent = _phone(git_repo, path.read_bytes())
+    unread = _line("delayed")
+    path.write_bytes(path.read_bytes() + unread)
+    parked = parent.parent.with_name("_phone-home")
+    parent.parent.rename(parked)
+    git_repo.git("add", "coga/log.md", "coga/recurring")
+    git_repo.git("commit", "-m", "park reporting with an unread suffix")
+    git_repo.git("push", "origin", "main")
+    parent = parked / "ticket.md"
+    prefix = parent.read_bytes().split(b"<!-- coga:blackboard -->")[0]
+    assert "Removed 1 events" in trim_log.trim(cfg, clock=lambda: TODAY)
+    assert path.read_bytes() == unread
+    state = phone_home._state(read_blackboard(parent))[0]
+    assert state["schema"] == 2 and state["repo_id"] == REPO_ID and state["run"] == 7
+    assert parent.read_bytes().split(b"<!-- coga:blackboard -->")[0] == prefix
+    assert not (cfg.repo_root / "recurring/phone-home").exists()
+    assert "unchanged" in trim_log.trim(cfg, clock=lambda: TODAY)
+
+
+def test_cursor_reservation_during_rejected_trim_is_replanned(git_repo, monkeypatch):
+    from coga.movement_cursor import movements, replace_state
+    cfg, path = _seed(git_repo, _line("consumed"))
+    parent = _phone(git_repo, path.read_bytes())
+    path.write_bytes(path.read_bytes() + _line("unread"))
+    assert git.publish(cfg, [path], "Log: unread movement")
+    region = read_blackboard(parent)
+    state = {"schema": 2, "run": 8, "repo_id": REPO_ID, "seen_movements": sorted(movements(path.read_bytes()))}
+    reserved = parent.read_bytes()[:-len(region.encode())] + replace_state(region, state).encode()
+    original_push = git._push
+    raced = False
+    def reserve(root, remote, refspec):
+        nonlocal raced
+        if not raced:
+            raced = True
+            git_repo.push_competing_commit("coga/recurring/phone-home/ticket.md", reserved.decode())
+        return original_push(root, remote, refspec)
+    monkeypatch.setattr(git, "_push", reserve)
+    assert "Removed 2 events" in trim_log.trim(cfg, clock=lambda: TODAY)
+    assert phone_home._state(read_blackboard(parent))[0] == state
+    assert _report(cfg, monkeypatch) == 0
+    assert not log_transaction.pending(cfg)
+
+
+@pytest.mark.parametrize("problem", ["bad-prefix", "malformed", "dual-parent", "missing-parent", "fork"])
+def test_incompatible_installed_cursor_refuses_before_changing_history(git_repo, problem):
+    from coga.movement_cursor import replace_state
+    cfg, path = _seed(git_repo)
+    parent = _phone(git_repo, path.read_bytes())
+    if problem in {"bad-prefix", "malformed"}:
+        region = read_blackboard(parent)
+        state = phone_home._state(region)[0]
+        if problem == "bad-prefix":
+            state["digest"] = "0" * 64
+        else:
+            state["schema"] = 99
+        replace_blackboard(parent, replace_state(region, state))
+    elif problem == "dual-parent":
+        shutil.copytree(parent.parent, parent.parent.with_name("_phone-home"))
+    elif problem == "missing-parent":
+        parent.unlink()
+    else:
+        parent.with_name("ticket.py").write_text("# local fork\n")
+    git_repo.git("add", "coga/recurring")
+    git_repo.git("commit", "-m", "seed incompatible reporting state")
+    git_repo.git("push", "origin", "main")
+    before = path.read_bytes()
+    parents = {p: p.read_bytes() for p in (cfg.repo_root / "recurring").rglob("ticket.md")}
+    with pytest.raises(ValueError, match="phone-home"):
+        trim_log.trim(cfg, clock=lambda: TODAY)
+    assert path.read_bytes() == before
+    assert all(p.read_bytes() == raw for p, raw in parents.items())
+    assert not log_transaction.pending(cfg)
+
+
 def test_local_append_waits_until_trim_replacement_closes(git_repo, monkeypatch):
     import threading
     from coga import atomicio

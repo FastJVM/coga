@@ -41,6 +41,11 @@ repo practice. Adapt any phone-home full fork to the shared schema-2 cursor
 before enabling; preserve its identity, run counter and blackboard. Unknown
 origins are review items, never permission to overwrite.
 
+A stock phone-home installation parked as `_phone-home` keeps its cursor and
+unread-movement protection; trim can migrate that cursor without un-parking
+the job. Two parent copies, a missing cursor or an incompatible script require
+repair before trimming. The script and parent are pinned decision inputs.
+
 Coga's own code PR stages these live files under `rollout/trim-log/coga/`,
 outside swept roots. The package receives the matching files immediately.
 After the core PR merges, the operator upgrades all writers, runs the command
