@@ -1,11 +1,44 @@
 ---
 title: Trim coga/log.md to a configurable age with a weekly recurring job
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga-dev/principles
-  - coga/recurring/templates
-workflow: code/design-then-implement
+- coga-dev/principles
+- coga/recurring/templates
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (design)
+agent: claude
 ---
 
 ## Description
