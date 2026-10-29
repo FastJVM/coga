@@ -141,6 +141,7 @@ Previous ref: `review-all-doc` (renamed 2026-10-27); earlier audit lines retain 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1139
 branch: codex/v1-33-doc-acceptance
 
 ## Implementation plan — 2026-10-28
