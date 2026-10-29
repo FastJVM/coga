@@ -124,3 +124,14 @@ Previous ref: `marketing/fix-installer/make-the-readme-install-section-the-only-
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Documentation coordination — 2026-10-29
+
+The documentation acceptance pass, `v1/33-review-all-doc`, pushed candidate
+`bd72b19d2a13972005285252b53df7504350bbc7` on `codex/v1-33-doc-acceptance`.
+Its README has a self-contained macOS/Linux entry path and no link to the
+separate install reference. The reference still exists and owns install
+alternatives, failure remedies, external CLI offers and upgrade/adoption
+information; init/first-task and docs/README still link it. Retirement and
+re-homing remain owned here, and ticket 33's final acceptance must recheck the
+result. No decision to retain the reference permanently is implied.

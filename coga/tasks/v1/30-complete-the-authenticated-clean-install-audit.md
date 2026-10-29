@@ -115,3 +115,16 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 - 5ea8dbecc3c8 last_reminded: 2026-10-09 13:48
 
 - 7977c2de5d10 last_reminded: 2026-10-12 10:35
+
+## Documentation coordination — 2026-10-29
+
+`v1/33-review-all-doc` audited documentation candidate
+`bd72b19d2a13972005285252b53df7504350bbc7` (unreleased wheel 0.4.1, SHA256
+`bccf26b653fe092d05ae04b592e5ef896cabcc548bcbcaff89b480e4db5bae08`). Its
+blackboard records command/link/rendering checks, none of which completed an
+authenticated task. Ticket 33's mistaken summary of eight completed runs was
+corrected to eight approved/required runs, using this ticket's October 28
+access check. Final documentation acceptance still needs this ticket's fresh
+Linux/macOS × PyPI/main × both-agent receipts, on the eventual candidate after
+relevant installer changes. Preserve the existing owned-Mac access blocker,
+all-four-together scope, and no-AWS-spend decision. No rerun occurred here.

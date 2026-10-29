@@ -147,3 +147,15 @@ Previous ref: `marketing/fix-installer/test-install-on-windows` (renamed 2026-10
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Documentation coordination — 2026-10-29
+
+`v1/33-review-all-doc` reviewed candidate
+`bd72b19d2a13972005285252b53df7504350bbc7`. It still refuses native Windows
+agent sessions, so the README explicitly withholds a Windows first-task claim.
+PyPI 0.4.1 predates even the core port. After
+`v1/14-interactive-coga-launch-on-native-windows` lands, this ticket still owns
+the attended install/authentication/first-task-through-done walk against an
+identified unmodified candidate. Return its Windows/Python versions, commit,
+wheel hash and results to ticket 33 so documentation can be refreshed and
+accepted. No Windows execution or acceptance occurred in the docs pass.

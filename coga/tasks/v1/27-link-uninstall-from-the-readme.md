@@ -115,3 +115,12 @@ Previous ref: `marketing/fix-installer/link-uninstall-from-the-readme` (renamed 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Documentation coordination — 2026-10-29
+
+`v1/33-review-all-doc` pushed the requested README uninstall route in candidate
+`bd72b19d2a13972005285252b53df7504350bbc7` on `codex/v1-33-doc-acceptance`:
+Get started names `coga uninstall` and links the owning uninstall topic beside
+upgrade guidance. The link returned HTTP 200 and renders on the candidate's
+GitHub page and PyPI-compatible preview. The branch is not merged and this
+note does not close this ticket; verify the landed result before accepting it.

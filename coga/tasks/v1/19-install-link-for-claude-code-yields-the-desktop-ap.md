@@ -127,3 +127,13 @@ Previous ref: `marketing/fix-installer/install-link-for-claude-code-yields-the-d
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Documentation coordination — 2026-10-29
+
+The documentation acceptance pass, `v1/33-review-all-doc`, pushed candidate
+`bd72b19d2a13972005285252b53df7504350bbc7` on `codex/v1-33-doc-acceptance`.
+README and coga/install now link the vendor's CLI quickstart and name the login
+command. This is not merged yet. `src/coga/dependencies.py` still points to
+`https://claude.com/claude-code`, and the install helper still needs brew/npm.
+Those product fixes and the fresh authenticated-Mac success criterion remain
+owned here; the documentation change is not a completion receipt.

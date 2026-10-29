@@ -159,3 +159,112 @@ agent launch still refuses in source, and ticket 31 has no walk receipt.
 Ticket 26 is still draft; do not silently treat its install-page removal as
 landed. Documentation can proceed; final acceptance remains gated on these
 owners and nicktoper's explicit acceptance of the eventual candidate.
+
+## Implement handoff — 2026-10-29
+
+Actual implementer: Codex. Pushed `codex/v1-33-doc-acceptance` at
+`bd72b19d2a13972005285252b53df7504350bbc7`, based on fetched main
+`381f8206a230d99fc042750ce21fc5609ad47cdb`. Two docs-only commits; no runtime,
+fixture, config, or workflow edits. Returned this checkout to clean current
+`main` before writing the handoff. No PR opened and no owner acceptance claimed.
+
+Changes: README distinguishes Git/agent authentication from optional tools,
+shows new-repo creation and Git identity, explains clone setup, gives explicit
+Codex entry commands, states PR/peer requirements, and links uninstall.
+First-task/configuration explain the single-agent alternative and interviewer
+selection. Init's clone install-offer ordering now matches source. README and
+install distinguish PyPI's native Windows import failure from development's
+agent-session refusal. A working Windows first-task path cannot yet be promised.
+
+The link audit found trim-log guidance pointing to absent live files. Corrected
+all 11 occurrences in 10 canonical topics to the existing packaged ticket and
+runbook, including their user-topic twins. This changes navigation only; it
+does not activate the pending retention rollout. All other edited user topics
+also match their packaged twins. Coga-dev remains local-only.
+
+### Candidate and verification receipts
+
+- Candidate: `bd72b19d2a13972005285252b53df7504350bbc7`.
+- Pristine verification clone: `/tmp/coga-v1-33-candidate`, clean before and
+  after the wheel build; no linked worktree. Wheel:
+  `coga-0.4.1-py3-none-any.whl`, SHA256
+  `bccf26b653fe092d05ae04b592e5ef896cabcc548bcbcaff89b480e4db5bae08`.
+  This unreleased candidate shares the 0.4.1 version label with PyPI; the hash
+  and commit distinguish them. It was not uploaded.
+- README SHA256:
+  `06d489a6c03e90462009bdb9f4083de6c871ad44c77816c21b9824654a239914`.
+  `[project].readme` still selects `README.md`; wheel METADATA description is
+  byte-identical UTF-8 and `Description-Content-Type: text/markdown`. All six
+  reviewed user topics match their installed wheel resources.
+- Fully reviewed: `README.md`, `docs/README.md`, and `docs/contexts/coga/`
+  `{install,init,first-task,launch,configuration,uninstall}/SKILL.md`.
+  Narrow navigation checks additionally cover architecture, edge-code,
+  prompt-composition, script-tickets, state-publication, usage, and
+  coga-dev/internals/spool-merge. No context restructuring or archive content
+  review occurred.
+- Source checks: init `_repo_is_empty`, `_offer_agent_cli`,
+  `_setup_initialized_clone`; dependency/agent install manifests;
+  launch `agent_sessions_supported`/preflight/chaining; create/ticket/validate
+  options; configuration allowlists/default routing; uninstall plan, backup,
+  and installer selection; shipped code workflows and annotated config.
+- Environment: Linux x86_64, Python 3.12.12, Git 2.43.0, uv 0.13.6.
+  No fresh Python 3.11/macOS/Windows execution and no authenticated agent run.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py`
+  — **31 passed** after the final navigation changes. Full suite omitted for
+  this docs-only diff.
+- In the pristine clone:
+  `/home/n/Code/coga/.venv/bin/python -m pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/coga-v1-33-evidence/dist .`
+  — built the wheel above.
+- `/tmp/coga-v1-33-render-env/bin/python -m twine check --strict /tmp/coga-v1-33-evidence/dist/coga-0.4.1-py3-none-any.whl`
+  — passed. `readme_renderer` 46.0 rendered the wheel description without warnings.
+- `/tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-evidence/check_docs.py /tmp/coga-v1-33-candidate /tmp/coga-v1-33-evidence/dist/coga-0.4.1-py3-none-any.whl`
+  — 177 link occurrences checked across the eight full-review pages;
+  162 candidate-local targets exist, 13 local fragments resolve, all 24 README
+  URLs are HTTPS, and all 32 distinct HTTP targets returned 200. The external
+  Thinkpick pause anchor also resolves. Five archive paths in the docs index
+  were checked for existence only; no archive contents read.
+- `/tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-evidence/check_commands.py`
+  — 39 expected command exits using the installed candidate. Checked version,
+  documented built-in help, init/validate/status in new and populated repos,
+  create/show/task validation, composition via the read-only Python API,
+  initialized-clone setup without a commit, and uninstall preserving the
+  disposable project's file. New repo seeds onboarding; populated repo does
+  not. No nested launch, authentication, remote PR, or global purge executed.
+- `/tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-evidence/render_docs.py`
+  — live [candidate GitHub README](https://github.com/FastJVM/coga/blob/bd72b19d2a13972005285252b53df7504350bbc7/README.md)
+  and local PyPI-renderer output checked at 1280×1000 and 390×1100. Inspected
+  screenshots of prerequisites and init; text wraps, code scrolls within its
+  block, and neither article overflows horizontally. Both DOMs retain 24
+  destination links plus eight heading permalinks. The PyPI preview uses local
+  styling, not a claim about the live PyPI page. Ticket 43 owns that release check.
+- Scoped `coga validate --task v1/33-review-all-doc --json` — one valid task,
+  no issues; `git diff --check origin/main...HEAD` — passed before returning.
+
+Scripts, command outputs, HTML, screenshots, JSON receipts, and both wheels
+are retained locally in `.coga/v1-33-doc-audit/20261029/` (ignored). The commands
+above name their original `/tmp/coga-v1-33-evidence/` execution paths.
+
+### Platform evidence and acceptance gates
+
+| Claim / gate | Actual evidence and disposition |
+| --- | --- |
+| macOS prerequisite/install route | Ticket 29's `macos-walk-findings.md`, October 17, fresh macOS 26.6.2 arm64 and PyPI 0.4.0: five-line route reached `coga build`. No completed first-task receipt, exact wheel hash, or reliable Python receipt for that final walk; PR #1043 closed unmerged. Reuse its friction findings, not a candidate pass. Ticket 30 must supply current authenticated proof. |
+| Linux/macOS × PyPI/main × both agents | `v1/30-complete-the-authenticated-clean-install-audit`: October 28 access check explicitly records no runs, despite approval of eight required completions. Still needs the owned Mac SSH target via `v1/28-affordable-macos-testing-on-owned-macs-and-per-min`; no AWS spend authorized. The old 0.2.0/0.3.2 login-blocked matrix and 0.4.0 smoke are not passes for this candidate. |
+| Native Windows | `v1/14-interactive-coga-launch-on-native-windows` remains at owner review-design; candidate `launch.agent_sessions_supported` refuses native agent sessions. `v1/31-test-install-on-windows` has no attended walk receipt. The port must land, then that owner must test an identified unmodified candidate through `done`; documentation must be refreshed with it. |
+| PyPI versus candidate | Read public PyPI metadata and downloaded unmodified 0.4.1 wheel (uploaded October 21), SHA256 `7e2a2cd1c22068e8dc789b8d6dbd64a8dd9dd22310d40bc559f251d329a8ae9c`. Its eager `fcntl` import remains; source/core-port progress cannot be presented as published Windows support. This was artifact inspection, not a native execution receipt. |
+| README checks already owned by 32 | API confirms PR #1119 merged October 28 as `e38c1814fded1c80123e1610398bd66143d16d96`; that commit is included and ticket 32 is now done. Reused its demo verdict and pinned examples. Later main commits deliberately revised Thinkpick and removed batch-process details (`ce2e91d54`); preserved that direction instead of resurrecting its former megalaunch section. Current demo-removal rationale remains in coga-dev/current-direction. |
+| Remaining installation owners | `v1/19-install-link-for-claude-code-yields-the-desktop-ap` still owns the stale CLI dependency URL/installer behavior; this branch fixes only the README/topic links. `v1/26-make-the-readme-install-section-the-only-install-p` still owns retiring/re-homing the install reference; its removal has not landed. `v1/27-link-uninstall-from-the-readme` can verify its README requirement on this branch after merge. Existing installer choices/fixes are not silently declared finished. |
+
+Vendor CLI/login URLs were opened against current official Claude Code and
+OpenAI documentation; uv's installer syntax was checked against Astral's
+installation page. These source/link checks do not substitute for the owned
+fresh-machine walks. Relevant code and installer behavior changed since the
+old walk receipts, so tickets 30/31 must rerun against the eventual release
+candidate. Their existing tickets receive this routing, not duplicate tasks.
+
+**Acceptance: pending.** Peer review and PR publication are next. Missing
+platform receipts and unfinished Windows/install work prevent v1 acceptance.
+Do not merge/close as release-ready or hand an accepted record to
+`v1/43-publish-coga-1-0-as-the-final-v1-step` until nicktoper explicitly accepts
+the identified candidate and its completed evidence at the owner-held gate.
+Broader context splitting, cosmetic prose cleanup, and a new demo stay deferred.
