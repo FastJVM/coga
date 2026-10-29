@@ -114,7 +114,7 @@ non-zero exit.
 
 ## Guided-authoring finalization
 
-`authoring.finalize_authored` fingerprints the eligible files under
+`authoring.snapshot_authoring_state` fingerprints the eligible files under
 `coga_root_paths` (`authoring_sync_roots`) before the interview: file mode
 plus content hash, so a mode-only edit is a change; Git lists the files, so
 ignored ones are never hashed, and symlinks are never followed. On Windows,
@@ -131,17 +131,23 @@ stays local; it is not a deletion or a required publication path. If a
 previously snapshotted path now has a symlinked ancestor, finalization
 refuses instead of treating it as a deletion and following its new target.
 Invalid configuration refuses before publication and keeps the edits. An
-existing target is validated even when unchanged, but its task path is
-selected only when its ticket or attachments changed; file-to-directory
-conversions include both paths; a deleted target is skipped. Bootstrap
-interviews discover and validate changed or new tasks.
+existing target is validated even when unchanged. Both targeted and bootstrap
+interviews use `authored_task_refs` to discover surviving changed/new tasks;
+the named target is re-resolved after promotion and added once for validation.
+Every selected surviving ticket validates before the first publication write.
+Deletion removes a body from validation, not its paths from publication.
 
-The publish carries the authored task paths and every changed file outside
-the tasks directory (the log is left to its writers and the sweep), and
-requires the changed knowledge files through `require_paths`: committed
-feature-branch edits, mode included, must already be on control or
+The publish carries exact changed files under tasks and every changed file
+outside the tasks directory (the log is left to its writers and the sweep),
+and requires all selected paths through `require_paths`. A knowledge edit
+committed on a feature branch, mode included, must already be on control or
 finalization fails with a review/merge remedy before publishing the task. A
-bootstrap interview that only writes a context still publishes it, so the
+directory pathspec would also select untouched dirty attachments, so it is
+never substituted for the changed file list. A pre-dirty path edited again
+is carried in full; fingerprints cannot separate its earlier hunks. Deleted
+siblings, deleted attachments, and both old/new promotion paths stay in the
+selection without needing a surviving ref. A bootstrap interview that only
+writes a context still publishes it, so the
 next ticket launch finds it on control with no extra branch. A refused or
 failed publish raises `AuthoringError`, and the invocation withholds its
 final sweep so it cannot publish a task separately from the knowledge the
@@ -150,4 +156,27 @@ successful publish names the non-task files it carried on stderr. The
 boundary is identical with or without launch metadata, on control and
 feature checkouts.
 
+Cancellation has two later publication opportunities. `commands.mark.canceled`
+publishes the transition, then emits the done sentinel before the child CLI's
+exit sweep. The PTY supervisor can interrupt that sweep; its `done` outcome
+is a teardown cause, not proof of child CLI completion
+([agent spawn](../agent-spawn/SKILL.md#the-supervisor)). After teardown and log
+publication, `commands.ticket._run_authoring_session` still finalizes the
+interview, and the outer `cli.main` reaches its own sweep. A finalizer refusal
+sets `state_sweep_withheld` and exits 2 with retained-root and strict-recovery
+diagnostics. This does not isolate earlier lifecycle commands: a child sweep
+that finishes can publish an invalid sibling before finalization rejects it,
+and that earlier publication is not rolled back.
+
+`tests/test_ticket.py`'s cancellation regression and its
+`tests/fixtures/authoring_cancellation.py` stub gate sentinel observation on
+the child sweep boundary (or completed child exit). They assert the outer
+exit, remote bytes, retained files, and recovery diagnostics, including a
+local remote that rejects the sibling handoff. Interrupting only the child
+sweep is insufficient to explain a missing handoff when the outer sweep
+succeeds; a refusal there can leave state behind. This controlled failure
+path alone does not establish the cause of a live missing-handoff incident.
+
 The [publish primitive](publish/SKILL.md) owns the transaction mechanics.
+
+Size exception: sweep selection, authoring validation, and retained-state recovery stay together because their ordering determines whether an authored handoff is durable.

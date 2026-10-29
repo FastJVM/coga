@@ -228,7 +228,7 @@ def _git_destination(cfg: Config) -> tuple[object, ...]:
 def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
     """Commit message for a guided authoring sync."""
     if not authored_refs:
-        return "Ticket authoring — knowledge edits"
+        return "Ticket authoring — authored state"
     if len(authored_refs) == 1:
         return f"Ticket: {authored_refs[0].id_slug} — authored"
     slugs = ", ".join(ref.id_slug for ref in authored_refs)
@@ -296,7 +296,16 @@ def finalize_authored(
             )
     support = support_paths(cfg, changed_paths)
 
-    task_sync_paths: list[Path]
+    # Select exact changed files, not directory pathspecs: an untouched dirty
+    # attachment beside an authored ticket belongs to the entry state. A path
+    # edited again is selected in full; fingerprints do not attribute hunks.
+    # Keeping deleted paths also covers removed tickets and both sides of a
+    # file-to-directory promotion, even when no surviving ref names them.
+    tasks_root = tasks_dir(cfg).absolute()
+    task_sync_paths = sorted(
+        path for path in changed_paths if tasks_root in path.parents
+    )
+    authored_refs = authored_task_refs(cfg, changed_paths, before_snapshot.tasks)
     if isinstance(ref, TaskRef):
         # The interview may promote a flat task to directory form so it can
         # carry attachments. Re-resolve by the shape-independent id_slug:
@@ -305,32 +314,15 @@ def finalize_authored(
         try:
             authored_ref = resolve_task(cfg, ref.id_slug)
         except TaskNotFoundError:
-            # A session may legitimately end by deleting the ticket (the human
-            # decides the task should go away — `coga delete` already committed
-            # the removal), so there is nothing to validate or re-sync.
-            authored_refs = []
-            task_sync_paths = []
+            # Deleted tickets have no body to validate. Their changed paths
+            # still publish with the surviving siblings and support files.
+            pass
         else:
-            authored_refs = [authored_ref]
-            task_root = authored_ref.path.resolve(strict=False)
-            task_sync_paths = (
-                [authored_ref.path]
-                if any(
-                    path == task_root or task_root in path.parents
-                    for path in changed_paths
-                )
-                else []
-            )
-            if authored_ref.path.resolve(strict=False) != ref.path.resolve(
-                strict=False
-            ):
-                # Stage the removed and added sides of the shape conversion.
-                task_sync_paths.insert(0, ref.path)
-    else:
-        authored_refs = authored_task_refs(
-            cfg, changed_paths, before_snapshot.tasks
-        )
-        task_sync_paths = [authored_ref.path for authored_ref in authored_refs]
+            # Keep validating the named target even when unchanged, once only.
+            authored_refs = [authored_ref, *(
+                sibling for sibling in authored_refs
+                if sibling.id_slug != authored_ref.id_slug
+            )]
 
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
@@ -340,12 +332,12 @@ def finalize_authored(
         return
     try:
         published = git.publish(
-            cfg, sync_paths, authoring_sync_message(authored_refs), require_paths=support,
+            cfg, sync_paths, authoring_sync_message(authored_refs), require_paths=sync_paths,
         )
     except git.GitError as exc:
         raise AuthoringError(
             f"Authored changes were not published: {exc}. They are kept on "
-            "disk as written; the next Coga command's state sweep retries them."
+            "disk as written; resolve the publication failure before retrying."
         ) from exc
     if support and published is not None:
         sys.stderr.write(

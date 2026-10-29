@@ -82,11 +82,26 @@ reviewed PR.
   Git keeps its usual informational note instead of that warning.
 - **Guided authoring** (`coga ticket`) publishes its launch line before the
   session starts, as `coga chat` and launch do, so an attended session never
-  holds the log dirty. At the end it publishes the authored tickets and
-  every changed context, skill, workflow, or config file under the roots in
-  **one** guarded publish. An authored change to the Git destination (`[git]`
-  enabled, remote, or control branch) refuses. A refused or failed publish
-  keeps every edit on disk and `coga ticket` exits non-zero.
+  holds the log dirty. At the end it validates every surviving authored
+  ticket, including siblings edited during `coga ticket <slug>`, before
+  publishing any part of **one** guarded transaction with the changed
+  context, skill, workflow, and config files. An existing named target is
+  validated even when unchanged; canceling or deleting it does not hide
+  sibling edits. Deleted ticket and attachment paths and both sides of a
+  file-to-directory promotion are included, with no deleted body to validate.
+  Selection compares file content and mode with the interview's entry
+  snapshot. Untouched files are excluded even if already dirty, including
+  attachments beside an edited ticket. A previously dirty file edited again
+  is selected in full: the snapshot identifies files, not authorship of hunks.
+  An authored change to the Git destination (`[git]` enabled, remote, or
+  control branch) refuses. Validation or publication refusal keeps edits on
+  disk, exits non-zero, withholds the command's sweep, and identifies the
+  retained roots and recovery command. Resolve the reported problem before
+  retrying the interview or using [strict publication](#strict-publication-on-demand).
+  The transaction covers finalization only: earlier lifecycle commands and
+  their sweeps may already have published state. An authorized cancellation
+  stands; recovery never replays or rolls it back. The ordinary sweep can
+  still publish entry dirt after successful finalization.
 - **Ordinary manual edits** inside the roots publish through the next
   command's sweep. Local prompt composition still reads local edits.
 
