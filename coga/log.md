@@ -9690,3 +9690,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-28 17:47 v1 [publish-sibling-ticket-handoffs-during-targeted-au] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-28 17:47 v1 [publish-sibling-ticket-handoffs-during-targeted-au] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-28 17:47 v1 [publish-sibling-ticket-handoffs-during-targeted-au] [megalaunch] launched via coga megalaunch
+2026-10-28 18:14 v1 [publish-sibling-ticket-handoffs-during-targeted-au] [agent:codex] advanced to step 2 (peer-review) → codex

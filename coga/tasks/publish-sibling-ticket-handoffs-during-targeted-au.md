@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 9d02e497-3eaf-4280-81c4-b3aad91ae930
 ---
 
 ## Description
@@ -376,3 +375,8 @@ interrupted before completion while finalizing fixture/doc changes; they are
 not verification receipts. The complete committed-head run above is the final
 result. Baseline refusal evidence is retained in the local paths above and its
 conclusions are captured here for review.
+
+Manual checkout return completed: the published ticket bytes were verified
+against origin/main before restoring the feature copy; main was fast-forwarded
+and verified clean. `coga validate --task publish-sibling-ticket-handoffs-during-targeted-au --json`
+then returned exit 0, ok_count 1, no issues. Advancing implement to peer-review.
