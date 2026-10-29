@@ -2,7 +2,7 @@
 title: test-install-on-windows
 status: draft
 owner: zach
-workflow: null
+workflow: human/run
 ---
 
 ## Description
@@ -11,6 +11,8 @@ A human install and first-task walk on a fresh native Windows environment,
 the Windows counterpart to `v1/29-test-and-fix-install-on-macos-and-windows`.
 Zach follows only the public README and linked user documentation on his own
 Windows PC in a disposable VM, recording every point where a new user gets stuck.
+Zach owns the entire walk and the completion decision; this ticket has no
+agent preparation or verification step.
 
 Owner clarification, 2026-10-27: v1 must actually work on Windows and install
 easily. The native core port merged in PR #1093; its former import failure is
@@ -23,17 +25,38 @@ Done means a clean install, `coga init`, agent authentication, the documented
 new-repo/onboarding path where applicable, and an actual first ticket reaching
 `done` with its result inspected. Record the Windows version, Python version,
 candidate commit, wheel hash, exact commands, friction, and per-step results.
-Route product failures to the existing installer or Windows ticket, fix them,
-and rerun affected steps against an unmodified candidate. A successful
-`--version`, `--help`, or init alone does not satisfy this gate. Hand the evidence
-to `v1/33-review-all-doc` and `v1/43-publish-coga-1-0-as-the-final-v1-step`;
+Route product failures to the existing installer or Windows ticket for fixes
+through its code workflow, then rerun affected steps against an unmodified
+candidate containing the fixes. Keep this ticket open until the complete walk
+passes. A successful `--version`, `--help`, or init alone does not satisfy this
+gate. Hand the evidence to `v1/33-review-all-doc` and
+`v1/43-publish-coga-1-0-as-the-final-v1-step`;
 the release ticket owns the repeat check against the published 1.0 artifact.
 
 ## Context
 
-Use `coga/skills/coga/testing/clean-install/windows-aws/SKILL.md` for the existing
-Windows test route, and [the numbered queue](README.md) for release ordering.
-The owner still needs to select this draft's workflow before launch.
+This is a human-run release check, using the single owner-held `execute`
+step in `human/run`. Zach records the run evidence on this ticket's blackboard,
+inspects the completed first task's result, and closes this ticket only after
+the done criteria are satisfied. Product fixes are outside this ticket's scope;
+link the owning installer or Windows ticket and the candidate used for each
+retest.
+
+Follow `coga/workflows/human/run.md` for the human lifecycle: activate with
+`coga mark active v1/31-test-install-on-windows`, perform the walk, then close
+with `coga mark done v1/31-test-install-on-windows` once the evidence satisfies
+the done criteria. No agent launch is needed. Zach selects and records the
+exact candidate and VM baseline after the prerequisite lands.
+
+The `coga/testing/clean-install/windows-aws` skill at
+`coga/skills/coga/testing/clean-install/windows-aws/SKILL.md` documents the
+existing automated Windows route. Its `Walk` section is useful for candidate
+provenance and evidence conventions, but its Windows Server install/init
+smoke does not replace Zach's attended native Windows walk on his own PC.
+Follow the public README and linked user documentation during the walk;
+record any undocumented intervention as friction. See
+[the numbered queue](README.md) for release ordering: the native Windows
+interactive-launch work must land before this complete first-task check.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
