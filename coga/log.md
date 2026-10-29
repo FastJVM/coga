@@ -9731,3 +9731,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-29 09:02 v1 [v1/32-finish-the-readme-launch-checks-left-open-by-readm] [human:nicktoper] auto-bumped on merge of PR #1119 → done
 2026-10-29 09:02 v1 [v1/37-fix-the-usage-report-cost-proxy-parenthetical-and] [human:nicktoper] auto-bumped on merge of PR #1124 → done
 2026-10-29 09:02 v1 [v1/38-coalesce-coga-state-commits] [human:nicktoper] auto-bumped on merge of PR #1128 → done
+2026-10-29 09:02 v1 [v1/39-trim-the-audit-log] [human:nicktoper] auto-bumped on merge of PR #1129 → done
