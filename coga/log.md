@@ -9734,3 +9734,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-29 09:02 v1 [v1/39-trim-the-audit-log] [human:nicktoper] auto-bumped on merge of PR #1129 → done
 2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] task done
 2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] script exited with code 0
+2026-10-29 10:03 v1 [v1/33-review-all-doc] [agent:codex] advanced to step 2 (peer-review) → codex — Docs candidate bd72b19d2 pushed; 31 packaging checks, command/link/wheel/rendering receipts recorded. Platform evidence and owner acceptance remain pending.

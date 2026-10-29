@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 9141bf8e-f7aa-4bdc-8296-df1cc9fb1464
 ---
 
 ## Description
