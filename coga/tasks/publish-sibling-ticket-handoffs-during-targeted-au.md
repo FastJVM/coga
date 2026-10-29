@@ -244,4 +244,16 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/publish-sibling-ticket-handoffs
+
+## Implementation plan
+
+Codex is implementing this step (the ticket's configured agent remains unchanged).
+Start verified clean on current main. Extend targeted finalization to include
+changed sibling paths, validating all surviving selected tickets before the
+single publication. Reproduce cancellation with synchronized PTY teardown and
+trace both child and outer sweeps; do not infer the live incident's cause from
+a done outcome. Preserve lifecycle and owner gates. Tests and documentation
+will specify file-level treatment of paths dirty before the interview.
