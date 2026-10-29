@@ -9727,3 +9727,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-29 09:01 v1 [recurring/address-pr-comments] [system] completed (delegated bootstrap/address-pr-comments run finished) via coga recurring
 2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-10-29 09:02 v1 [v1/02-reconcile-the-coga-notifications-leaked-webhook-re] [human:nicktoper] auto-bumped on merge of PR #1120 → done
