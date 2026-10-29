@@ -94,8 +94,9 @@ reviewed PR.
   attachments beside an edited ticket. A previously dirty file edited again
   is selected in full: the snapshot identifies files, not authorship of hunks.
   An authored change to the Git destination (`[git]` enabled, remote, or
-  control branch) refuses. Validation or publication refusal keeps edits on
-  disk, exits non-zero, withholds the command's sweep, and identifies the
+  control branch) refuses. Ambiguous ticket identities, such as both shapes
+  left by an incomplete promotion, also refuse. Validation or publication
+  refusal keeps edits on disk, exits non-zero, withholds the command's sweep, and identifies the
   retained roots and recovery command. Resolve the reported problem before
   retrying the interview or using [strict publication](#strict-publication-on-demand).
   The transaction covers finalization only: earlier lifecycle commands and

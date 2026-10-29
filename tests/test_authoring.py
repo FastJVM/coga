@@ -657,6 +657,32 @@ def test_finalize_authored_invalid_sibling_prevents_every_publication(repo, monk
     assert {p: p.read_bytes() for p in retained} == retained
 
 
+@pytest.mark.parametrize("bootstrap", [False, True])
+def test_finalize_authored_reports_ambiguous_sibling(repo, monkeypatch, bootstrap):
+    cfg = load_config(repo)
+    target = _create_task(repo, "Target")
+    sibling = _create_task(repo, "Sibling")
+    before = snapshot_authoring_state(cfg)
+    directory = sibling.path.with_suffix("")
+    directory.mkdir()
+    promoted = directory / "ticket.md"
+    promoted.write_bytes(sibling.ticket_path.read_bytes())
+    support = cfg.contexts_root / "team/SKILL.md"
+    _write(support, "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+    retained = {p: p.read_bytes() for p in (target.ticket_path, sibling.path, promoted, support)}
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(AuthoringError, match="Duplicate task slug 'sibling'"):
+        finalize_authored(
+            cfg, before_snapshot=before,
+            ref=resolve_bootstrap(cfg, "ticket") if bootstrap else target,
+        )
+
+    assert calls == []
+    assert {p: p.read_bytes() for p in retained} == retained
+
+
 @pytest.mark.parametrize("edit_again", [False, True])
 def test_finalize_authored_selects_changed_files_not_entire_ticket_directories(
     git_repo, edit_again,

@@ -136,6 +136,9 @@ interviews use `authored_task_refs` to discover surviving changed/new tasks;
 the named target is re-resolved after promotion and added once for validation.
 Every selected surviving ticket validates before the first publication write.
 Deletion removes a body from validation, not its paths from publication.
+Duplicate slugs discovered after the interview raise `AuthoringError`, so an
+incomplete promotion also withholds the outer sweep instead of publishing
+the ambiguous tickets through the CLI's general exception cleanup.
 
 The publish carries exact changed files under tasks and every changed file
 outside the tasks directory (the log is left to its writers and the sweep),

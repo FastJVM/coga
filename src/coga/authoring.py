@@ -15,6 +15,7 @@ from coga.logfile import log_path
 from coga.paths import tasks_dir
 from coga.tasks import (
     BootstrapRef,
+    DuplicateTaskSlugError,
     TaskNotFoundError,
     TaskRef,
     list_tasks,
@@ -305,7 +306,12 @@ def finalize_authored(
     task_sync_paths = sorted(
         path for path in changed_paths if tasks_root in path.parents
     )
-    authored_refs = authored_task_refs(cfg, changed_paths, before_snapshot.tasks)
+    try:
+        authored_refs = authored_task_refs(cfg, changed_paths, before_snapshot.tasks)
+    except DuplicateTaskSlugError as exc:
+        # Discovery is part of validation: an incomplete promotion must not
+        # escape the command's refusal handler and reach its exit sweep.
+        raise AuthoringError(f"Authored ticket discovery failed: {exc}") from exc
     if isinstance(ref, TaskRef):
         # The interview may promote a flat task to directory form so it can
         # carry attachments. Re-resolve by the shape-independent id_slug:

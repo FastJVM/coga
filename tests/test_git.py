@@ -1164,7 +1164,9 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
         assert context.read_text(encoding="utf-8") == "authored knowledge\n"
 
 
-@pytest.mark.parametrize("failure", ["committed_context", "push", "invalid_sibling"])
+@pytest.mark.parametrize(
+    "failure", ["committed_context", "push", "invalid_sibling", "duplicate_sibling"],
+)
 def test_ticket_command_withholds_sweep_after_failed_authoring(
     git_repo, monkeypatch, capsys, failure, tmp_path,
 ):
@@ -1179,7 +1181,10 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
     write_executable(bin_dir / "true", "pass\n")
     monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
     task = _seed_ticket(git_repo)
-    sibling = _seed_ticket(git_repo, "sibling") if failure == "invalid_sibling" else None
+    sibling = (
+        _seed_ticket(git_repo, "sibling")
+        if failure in {"invalid_sibling", "duplicate_sibling"} else None
+    )
     config = git_repo.coga_os / "coga.toml"
     config.write_text(config.read_text(encoding="utf-8").replace('cli = "claude"', 'cli = "true"'), encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/coga.toml")
@@ -1197,6 +1202,11 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
             git_repo.git("commit", "-m", "review-bound knowledge")
         elif failure == "push":
             monkeypatch.setattr(git, "_push", lambda *args: "offline")
+        elif failure == "duplicate_sibling":
+            # An interrupted promotion leaves both ticket shapes discoverable.
+            directory = sibling.with_suffix("")
+            directory.mkdir()
+            (directory / "ticket.md").write_bytes(sibling.read_bytes())
         else:
             ticket = Ticket.read(sibling)
             ticket.frontmatter["contexts"] = ["missing/context"]
@@ -1223,9 +1233,14 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
     assert "Published these knowledge edits" not in err
     assert "state sweep withheld" in err
     assert "coga run publish-state" in err
-    if sibling is not None:
+    if failure == "invalid_sibling":
         assert Ticket.read(sibling).contexts == ["missing/context"]
         assert "missing/context" not in _control(git_repo, "coga/tasks/sibling.md")
+    elif failure == "duplicate_sibling":
+        assert "Duplicate task slug 'sibling'" in err
+        assert sibling.is_file()
+        assert (sibling.with_suffix("") / "ticket.md").is_file()
+        assert not git_repo.origin_tracks("coga/tasks/sibling/ticket.md")
 
 
 def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_repo):
