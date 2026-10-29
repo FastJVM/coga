@@ -11,7 +11,7 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
-launch_generation: pending:8f28b9ca-4893-4464-bfd7-bc5d635f6250
+launch_generation: 8f28b9ca-4893-4464-bfd7-bc5d635f6250
 ---
 
 ## Description
