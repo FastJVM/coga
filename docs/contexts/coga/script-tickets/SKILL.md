@@ -66,7 +66,7 @@ lookup, skill refresh, or push probe.
    that durable receipt makes publication and checkout settlement refuse
    until recovery; a nonzero exit alone is not a transaction receipt. The
    [audit mutation contract](../state-publication/SKILL.md) and
-   [trim-log runbook](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+   [trim-log runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
    specify recovery before retrying a later command.
 
 ## Chaining

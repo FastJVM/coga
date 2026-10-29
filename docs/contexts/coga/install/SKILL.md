@@ -194,6 +194,6 @@ Fresh init installs the weekly trim-log job with default-on 30-day retention.
 A wheel upgrade alone installs no new schedule into existing repos. After
 upgrading every writer, use the feature-specific `python -m
 coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
-[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command installs only this feature's repo files.
