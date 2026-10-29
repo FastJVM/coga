@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 4da8ffdf-dffd-41a1-a1ec-19fcf6b5f734
 ---
 
 ## Description
@@ -268,3 +267,233 @@ Do not merge/close as release-ready or hand an accepted record to
 `v1/43-publish-coga-1-0-as-the-final-v1-step` until nicktoper explicitly accepts
 the identified candidate and its completed evidence at the owner-held gate.
 Broader context splitting, cosmetic prose cleanup, and a new demo stay deferred.
+
+## Peer review
+
+Completed direct Codex review on 2026-10-29. **No must-fix findings and no
+content edits.** Both the implementation handoff and this session identify
+Codex as the actual agent; this is **self-review**, despite the configured
+Claude main agent and the peer-review step. No separate reviewer was invoked
+and no review remains in flight.
+
+Reviewed and pushed head: `45a5636ec810411996b6007bad90cd4b59ac0255`.
+Reviewed diff base: `66431d634fddc327bc463099a67320790200220f`.
+The checkout started clean on current main. No PR existed for the recorded
+branch. Rebased both implementation commits onto fetched main; `git range-diff`
+confirms both patches are unchanged. Intervening main changes were task/log
+state only. Pushed with an explicit lease against the prior remote head,
+then returned to clean, current main before writing this handoff.
+
+Review covered the full README, docs index, and install, init, first-task,
+launch, configuration and uninstall topics, plus every changed paragraph in
+the seven additional navigation topics and all ten packaged user-topic twins.
+Checked the load-bearing claims against init's empty-repo detector, agent
+offers and clone setup, authoring and launch routing, shipped workflows and
+config, dependency manifests, and uninstall behavior. The broader trim-log
+changes repair links to the shipped contract/runbook without enabling a repo
+schedule or changing retention behavior. No runtime, fixture, config or
+workflow files are in the feature diff.
+
+Read the actual ticket 29 Mac receipt, ticket 30's October 28 access check,
+ticket 31's absent walk evidence, ticket 14's remaining owner design gate,
+and ticket 32's checks/demo verdict. GitHub confirms PR #1119 merged as
+`e38c1814fded1c80123e1610398bd66143d16d96`, which is an ancestor of this
+candidate. The old demo decision and later main's Thinkpick direction remain
+intact. The public 0.4.1 wheel still imports `fcntl` eagerly in launch and
+related modules; the candidate's native Windows agent refusal remains in
+source. These are artifact/source checks, not Windows execution.
+
+Verification on Linux/Python 3.12.12:
+
+- Required packaging checks: **31 passed in 6.80s**. Full pytest omitted for
+  the prose-only diff; the ticket specifically requires the packaging checks.
+- A new pristine clone at `/tmp/coga-v1-33-peer-candidate` built
+  `coga-0.4.1-py3-none-any.whl`, SHA256
+  `bccf26b653fe092d05ae04b592e5ef896cabcc548bcbcaff89b480e4db5bae08`,
+  with a clean tree before and after. It is byte-identical to the implement
+  artifact. All ten changed user topics equal their source and wheel twins;
+  no Coga-dev context ships.
+- README SHA256 remains
+  `06d489a6c03e90462009bdb9f4083de6c871ad44c77816c21b9824654a239914`.
+  `[project].readme`, UTF-8 description bytes and `text/markdown` metadata
+  agree. Strict Twine validation and warning-free `readme_renderer` rendering
+  passed for the rebuilt wheel.
+- Extended the link check to **15 pages / 251 link occurrences**: 236 local
+  targets exist, 19 local anchors resolve, all 24 README destinations are
+  HTTPS, and all 37 distinct HTTP targets returned 200. The external Thinkpick
+  pause anchor resolves. The five docs-index archive targets were checked for
+  existence only; no archive contents were read.
+- Inspected the saved GitHub desktop/mobile and PyPI-renderer desktop/mobile
+  screenshots of prerequisites and init. Text wraps and code stays in its
+  scroll area. Those captures and the 39 successful command receipts belong
+  to the original implementation head; verified identical README and wheel
+  bytes instead of claiming a fresh browser capture or command walk. The
+  GitHub capture is live-site evidence; the styled PyPI preview is not a
+  live PyPI page. Original head/base are retained in the PR receipts.
+- Scoped task validation: one valid task, no issues. Whitespace check passed.
+
+New scripts, HTML, link results, artifact comparison and wheel are retained
+in `.coga/v1-33-doc-audit/peer-review-20261029/` (ignored), with original
+execution paths under `/tmp/coga-v1-33-peer-evidence/`. Earlier command and
+rendering evidence remains under the implementation evidence directory above.
+
+**Next: open-pr. Advisory review depth: deep.** Documentation review passed;
+final first-user documentation acceptance has not. The existing installer
+owners and `v1/14-interactive-coga-launch-on-native-windows`,
+`v1/30-complete-the-authenticated-clean-install-audit`, and
+`v1/31-test-install-on-windows` still own their missing fixes/receipts.
+Refresh the documentation against the eventual tested candidate, then obtain
+nicktoper's explicit acceptance at the owner-held review gate. Do not merge,
+close, or give ticket 43 an accepted release record on this review alone.
+No fresh platform walk, authenticated agent session, PR publication, or owner
+acceptance occurred in this step.
+
+The read-only PR formatter accepted the preparation below as
+`[deep · A:codex R:codex(self)]`, with all 22 diff paths covered and current
+review/check head/base values. Only the two deliberately retained original
+command/rendering receipts display as historical. Scoped validation also
+passed after this handoff; ticket intent and lifecycle frontmatter are unchanged.
+
+## PR
+
+```yaml
+title: Clarify first-user setup and repair documentation links
+author: codex
+author_evidence: >-
+  The implementation handoff identifies Codex as the actual implementer despite
+  the configured Claude main agent. This Codex review made no content edits.
+head: 45a5636ec810411996b6007bad90cd4b59ac0255
+base: 66431d634fddc327bc463099a67320790200220f
+depth: deep
+rationale: >-
+  The documentation diff has no must-fix findings, and packaging, metadata and
+  links pass. Inspect the current platform limits and pending acceptance gates:
+  native Windows agent work and authenticated first-task evidence are unfinished.
+  Both sessions used Codex, so this is self-review. The original command and
+  screenshot receipts remain historical, with identical artifact bytes verified.
+implementation: >-
+  Clarifies Git and agent prerequisites, new-repo and initialized-clone setup,
+  explicit Codex entry commands, single-agent versus peer-review workflows,
+  optional GitHub/1Password tools, and uninstall navigation. Distinguishes PyPI
+  0.4.1's native Windows import failure from the candidate's agent-session
+  refusal. Repairs trim-log links to existing packaged guidance and synchronizes
+  every changed user topic with its packaged twin.
+deviations: >-
+  Documentation work can proceed before the owned platform walks, but this is
+  not final release acceptance. The install reference remains until ticket 26
+  retires and re-homes it. The link audit expanded only to repair navigation
+  into the shipped trim-log ticket/runbook; no retention rollout was activated.
+limitations: >-
+  No fresh Python 3.11, macOS, native Windows, or authenticated first-task run.
+  Ticket 30 still lacks its eight approved completions and ticket 31 lacks its
+  attended Windows receipt after ticket 14 lands. Existing installer fixes and
+  nicktoper's explicit acceptance remain required before merge/closure. Visual
+  review used saved GitHub and locally styled PyPI-renderer screenshots of the
+  byte-identical README; no new browser capture or live PyPI publication check.
+  Ticket 43 owns the latter after release. No independent agent review occurred.
+files:
+  README.md: Clarify prerequisites, setup paths, agent choice, platform limits and uninstall.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Repair the trim-log operations link; keep this development topic local-only.
+  docs/contexts/coga/architecture/SKILL.md: Point retention navigation to the shipped ticket.
+  docs/contexts/coga/configuration/SKILL.md: Explain default-agent versus interviewer selection and repair retention links.
+  docs/contexts/coga/edge-code/SKILL.md: Repair navigation to the shipped retention adoption runbook.
+  docs/contexts/coga/first-task/SKILL.md: Explain PR readiness, one-agent versus peer review, agent choice and actual completion.
+  docs/contexts/coga/init/SKILL.md: Correct clone install-offer ordering and repair the retention adoption link.
+  docs/contexts/coga/install/SKILL.md: Clarify artifact/platform limits, authentication, Python prerequisites and verification scope.
+  docs/contexts/coga/prompt-composition/SKILL.md: Repair the retention ticket link.
+  docs/contexts/coga/script-tickets/SKILL.md: Repair the trim-log recovery runbook link.
+  docs/contexts/coga/state-publication/SKILL.md: Repair the trim-log recovery runbook link.
+  docs/contexts/coga/usage/SKILL.md: Repair navigation to the retention ticket.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Keep the shipped fallback byte-identical to its canonical topic.
+review:
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 45a5636ec810411996b6007bad90cd4b59ac0255
+  base: 66431d634fddc327bc463099a67320790200220f
+  detail: >-
+    Direct review completed on 2026-10-29 with no must-fix findings and no
+    content edits. Reviewed all changed Markdown, required user topics,
+    load-bearing source/contracts, actual platform receipts, navigation and
+    packaged twins. No review tool remains in flight. Final release acceptance
+    remains pending; this review does not supply the missing platform evidence.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: 31 passed in 6.80s on Linux/Python 3.12.12; the ticket explicitly requires these packaging checks.
+  - command: /home/n/Code/coga/.venv/bin/python -m pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/coga-v1-33-peer-evidence/dist .
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: >-
+      Built in pristine /tmp/coga-v1-33-peer-candidate, clean before and after.
+      coga-0.4.1-py3-none-any.whl SHA256
+      bccf26b653fe092d05ae04b592e5ef896cabcc548bcbcaff89b480e4db5bae08 is
+      byte-identical to the implement artifact. No upload.
+  - command: /tmp/coga-v1-33-render-env/bin/python -m twine check --strict /tmp/coga-v1-33-peer-evidence/dist/coga-0.4.1-py3-none-any.whl
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: Strict distribution-description validation passed.
+  - command: /tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-peer-evidence/check_docs.py /tmp/coga-v1-33-peer-candidate /tmp/coga-v1-33-peer-evidence/dist/coga-0.4.1-py3-none-any.whl
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: >-
+      251 link occurrences across 15 pages; 236 local targets and 19 local
+      anchors resolve, 37 HTTP targets return 200, and the Thinkpick pause
+      anchor resolves. All 24 README destinations are HTTPS. Five archive
+      targets checked for existence only. Wheel description equals README,
+      uses text/markdown and renders without warnings; all reviewed user
+      topics equal wheel resources. All ten changed topic twins also match
+      and no Coga-dev topic ships. README SHA256
+      06d489a6c03e90462009bdb9f4083de6c871ad44c77816c21b9824654a239914.
+  - command: git range-diff 381f8206a230d99fc042750ce21fc5609ad47cdb..bd72b19d2a13972005285252b53df7504350bbc7 origin/main..HEAD
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: Both implementation patches are unchanged after rebase; main added task/log state only.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/33-review-all-doc --json
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: One valid task, no fixes or issues, on the reviewed feature checkout.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 45a5636ec810411996b6007bad90cd4b59ac0255
+    base: 66431d634fddc327bc463099a67320790200220f
+    detail: Passed after final fetch before pushing the rebased branch.
+  - command: /tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-evidence/check_commands.py
+    status: passed
+    head: bd72b19d2a13972005285252b53df7504350bbc7
+    base: 381f8206a230d99fc042750ce21fc5609ad47cdb
+    detail: >-
+      Historical implement receipt inspected during review, not rerun or
+      re-stamped. All 39 recorded commands exited as expected: help, version,
+      new/populated init, validation, task creation, read-only composition,
+      clone setup without a commit and disposable-repo uninstall. The new
+      wheel is byte-identical. No authenticated agent task was run.
+  - command: /tmp/coga-v1-33-render-env/bin/python /tmp/coga-v1-33-evidence/render_docs.py
+    status: passed
+    head: bd72b19d2a13972005285252b53df7504350bbc7
+    base: 381f8206a230d99fc042750ce21fc5609ad47cdb
+    detail: >-
+      Historical captures at 1280x1000 and 390x1100. Reviewer inspected saved
+      prerequisites/init screenshots from live GitHub and local PyPI-renderer
+      output: readable wrapping and contained code blocks. The current README
+      bytes are identical. No fresh browser capture or live PyPI check claimed.
+  - command: python -m pytest
+    status: not-run
+    detail: Pure prose/navigation diff with no runtime code or fixture edits; required packaging checks ran separately.
+```
