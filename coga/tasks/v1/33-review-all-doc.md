@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: da861d48-e1b6-47ae-8601-25cd52149361
 ---
 
 ## Description
@@ -499,3 +498,13 @@ checks:
     status: not-run
     detail: Pure prose/navigation diff with no runtime code or fixture edits; required packaging checks ran separately.
 ```
+
+## Open-pr — 2026-10-29
+
+Actual agent: Claude. Started on clean current main (`95ad38f6a`). `coga open-pr`
+published [#1139](https://github.com/FastJVM/coga/pull/1139); main had advanced
+only through task/log state. GitHub reports it ready (not draft), `MERGEABLE`,
+`CLEAN`, head `45a5636ec810411996b6007bad90cd4b59ac0255` = reviewed head. No
+conflict resolution or new push was needed. **Acceptance still pending:** do not
+merge as release-ready until nicktoper explicitly accepts the candidate and the
+missing platform evidence (tickets 14/30/31) and installer owners are resolved.
