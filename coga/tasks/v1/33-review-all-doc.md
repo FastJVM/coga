@@ -24,7 +24,7 @@ contexts:
 - coga-dev/principles
 step: 2 (peer-review)
 agent: claude
-launch_generation: pending:4da8ffdf-dffd-41a1-a1ec-19fcf6b5f734
+launch_generation: 4da8ffdf-dffd-41a1-a1ec-19fcf6b5f734
 ---
 
 ## Description
