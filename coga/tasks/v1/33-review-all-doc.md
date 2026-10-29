@@ -103,8 +103,10 @@ candidate; build from a pristine checkout when checking packaging behavior.
 - `v1/29-test-and-fix-install-on-macos-and-windows` supplies the macOS human
   walk despite its older title. `v1/30-complete-the-authenticated-clean-install-audit`
   owns fresh Linux/macOS authenticated first-task evidence on Python 3.11 for
-  PyPI and a main wheel. Its owner confirmed both Claude Code and Codex in each
-  of those four combinations: eight authenticated first-task completions.
+  PyPI and a main wheel. Its owner approved both Claude Code and Codex in each
+  of those four combinations: eight required authenticated first-task completions.
+  That scope approval is not a receipt; the October 28 access check records
+  no completed run and still needs the owned Mac's SSH target.
   `v1/31-test-install-on-windows` owns the attended native Windows walk
   after `v1/14-interactive-coga-launch-on-native-windows`. Read their receipts,
   not just their statuses. A login blocker, install/init smoke, or patched
@@ -137,4 +139,23 @@ Previous ref: `review-all-doc` (renamed 2026-10-27); earlier audit lines retain 
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: codex/v1-33-doc-acceptance
+
+## Implementation plan — 2026-10-28
+
+Actual implementer: Codex. Manual checkout start: clean `main`, fetched and
+fast-forward checked at `68b6cca1e`; no existing branch, PR, or dirty work.
+Docs-only scope: review the README and six user topics against source and
+receipts, correct first-user guidance, synchronize topic twins, check links
+and candidate wheel metadata/rendering, then commit/push and hand off.
+No product fixes, platform provisioning, or authenticated walks belong here.
+
+Evidence correction: ticket 30 approves eight runs, but its latest access
+check explicitly says none ran. The body now distinguishes required runs
+from completed evidence. Ticket 14 is still at owner review-design, native
+agent launch still refuses in source, and ticket 31 has no walk receipt.
+Ticket 26 is still draft; do not silently treat its install-page removal as
+landed. Documentation can proceed; final acceptance remains gated on these
+owners and nicktoper's explicit acceptance of the eventual candidate.
