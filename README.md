@@ -4,7 +4,9 @@
 
 Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. That's where Coga comes in.
 
-**Coga turns those plans into Markdown tickets you can inspect, edit, and run with your agent.** Run multiple projects in parallel, each in its own Git repo. Choose how involved you want to be: guide sessions interactively, add human review gates, or queue work to run unattended.
+**Coga keeps plans, decisions, and project knowledge in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
+
+For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent's prompt. This reduces repeated discovery and gives each session a more consistent starting point. Guide sessions interactively, add human review gates, or queue work to run unattended. Work across multiple projects, each in its own Git repo.
 
 Coga is a local CLI, not another coding agent.
 
@@ -43,7 +45,7 @@ Its workflow is **agent researches → human reviews and decides which follow-up
 You keep using Claude Code or Codex. Coga gives each task durable context, a workflow, and a history that survives individual agent sessions:
 
 - **Change the plan.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
-- **Give each task the right context.** Attach relevant facts, constraints, and decisions instead of making every session rediscover them.
+- **Give each task the right context.** Keep facts, constraints, and decisions discoverable as Markdown; select what a focused launch needs instead of making each session rediscover it.
 - **Put reviews where they matter.** Use a lightweight workflow for a simple change or require design, peer review, and human approval for more substantial work.
 - **Keep what you learn.** Record decisions in project contexts so later tasks inherit them, even when a different agent does the work.
 
