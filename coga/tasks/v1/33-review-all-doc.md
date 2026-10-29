@@ -24,7 +24,7 @@ contexts:
 - coga-dev/principles
 step: 1 (implement)
 agent: claude
-launch_generation: pending:9141bf8e-f7aa-4bdc-8296-df1cc9fb1464
+launch_generation: 9141bf8e-f7aa-4bdc-8296-df1cc9fb1464
 ---
 
 ## Description
