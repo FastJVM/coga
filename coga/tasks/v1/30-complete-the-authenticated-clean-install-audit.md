@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: direct/body
@@ -11,6 +11,7 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
+launch_generation: pending:8f28b9ca-4893-4464-bfd7-bc5d635f6250
 ---
 
 ## Description
