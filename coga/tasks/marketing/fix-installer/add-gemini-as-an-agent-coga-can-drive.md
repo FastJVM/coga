@@ -36,9 +36,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: f8a587ce-19bf-4f97-a04e-dec0d1f89a4d
 ---
 
 ## Description
@@ -448,6 +447,106 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Evaluator review
+
+Reviewed 2026-10-28 against current `main` at `f6961c955`. **Two corrections
+are needed before implementation.** The existing configuration/launch approach
+is viable; the gaps are in skill-discovery lifecycle boundaries. This is
+evaluation evidence for the owner's `review-design` gate, not owner approval.
+
+### Must fix before implementation
+
+1. **P1 — Define how existing installations acquire the Gemini ignore rule
+   before links are generated.** Proposed shape 4 changes
+   `commands/update.py::_HOST_GITIGNORE_BODY`, but only fresh
+   `commands/init.py::_do_init` calls `ensure_host_gitignore`.
+   `_setup_initialized_clone` and `launch.py::_refresh_agent_skills_for_launch`
+   do not refresh that tracked file. A wheel upgrade therefore leaves an old
+   repo's ignore block unchanged while the proposed shared projection creates
+   `.gemini/skills/coga-*`. Because skill wiring is independent of agent
+   selection, this can affect an existing Claude/Codex repo too. In a disposable
+   nested repo with today's managed ignore block and the proposed links,
+   `git check-ignore -q .gemini/skills/coga-review%2Fprobe` exited 1 and Git
+   reported 29 untracked Gemini links. This contradicts the acceptance criterion
+   that generated links are ignored and clone setup's existing contract to
+   write only ignored state, pinned by
+   `tests/test_init.py::test_init_real_clone_preserves_head_index_and_working_tree`.
+   Specify the migration/installation sequence for old repos and their clones,
+   including what happens before the ignore rule exists, without silently
+   changing clone setup's tracked-file contract. Add an old-ignore-block
+   regression that checks Git status after clone setup and launch refresh;
+   changing the seed constant alone is insufficient.
+
+2. **P2 — Resolve Gemini discovery when launch starts below the adopting root.**
+   `coga/checkouts` explicitly preserves the invoking cwd; Coga finds its config
+   by walking upward. The proposed links live at the adopting root, whereas
+   Gemini 0.66.0's `packages/cli/src/config/config.ts::loadCliConfig` defaults
+   its target to `process.cwd()`, and
+   `packages/core/src/config/storage.ts::Storage.getProjectSkillsDir` plus
+   `skills/skillManager.ts::SkillManager.discoverSkills` scan that target's
+   `.gemini/skills` without an ancestor walk. A real, trusted `gemini skills list`
+   found the local `review/probe` and bundled `code/design` projections from
+   `project/tools/ops`; the same invocation from `project/tools/ops/src` exited
+   0 with `No skills discovered.` Thus respecting the adopting root during
+   projection is necessary but does not ensure discovery from Coga's supported
+   descendant invocation locations. State the supported cwd boundary and its
+   behavior: either specify discovery support there, or explicitly document
+   and surface a requirement to launch Gemini from the adopting root. Preserve
+   Coga's existing cwd contract and add both root and descendant cases,
+   including nested init, to the versioned discovery smoke.
+
+### Optional recommendations
+
+No additional feature scope is recommended. Keep the authenticated
+task/publication and oversized-prompt checks as implementation gates; the
+offline transport evidence and this evaluator's scanner probe do not satisfy
+them.
+
+### Verified claims and validation
+
+- The body uses the composed `Description`/`Context` regions correctly, and
+  the frozen workflow reaches owner review next. There is no recorded feature
+  branch or PR. The sibling
+  `v1/20-ask-which-agents-to-enable-during-coga-init` remains at owner
+  `review-design`; `_disable_unchosen_agents` has not landed. The compatibility
+  handoff in proposed shape 2 remains necessary.
+- Current `config.py::_parse_agents`, `launch.py::build_agent_command`,
+  `recurring_autofix.py::build_analyze_command`, and
+  `bump.py::resolve_other_agent` support the proposed shape without new agent
+  schema or inference. An in-memory check of all seven non-empty subsets,
+  removing peers only when their target is absent, produced the specified
+  mappings; all three singleton subsets raised the existing explicit error.
+- Inspected the installed official npm artifact's `package.json` and bundled
+  source for 0.66.0: positional prompts plus kickoff are joined, the scanner
+  checks `SKILL.md`/`*/SKILL.md`, metadata names are sanitized, and shell
+  environment/Git overrides match the design's caveats. The
+  [official CLI reference](https://geminicli.com/docs/cli/cli-reference/),
+  [skill guide](https://geminicli.com/docs/cli/skills/), and
+  [installation guide](https://geminicli.com/docs/get-started/installation/)
+  corroborate the public entry points and packages. The shared skill-view
+  consumers and canonical/packaged topic ownership match current source.
+- Scanner/subset probe: `PYTHONPATH=src python
+  /tmp/coga-gemini-evaluator-probe.py`. It used the cached official 0.66.0 CLI,
+  an isolated profile and explicit scratch-workspace trust, with no credentials
+  or model calls. Local receipts are under
+  `/tmp/coga-gemini-evaluator-yqx91xzm/` (`result.json`, `ignore-result.json`,
+  `adopting_root.txt`, `descendant.txt`); the behavior and reproduction shape
+  above remain usable after these disposable files disappear.
+- **39 existing focused tests passed**, 990 deselected, with:
+
+  ```sh
+  .venv/bin/python -m pytest -q tests/test_launch.py tests/test_config.py tests/test_commands.py tests/test_validate.py tests/test_recurring_autofix.py tests/test_init.py tests/test_uninstall.py tests/test_agent_cli_setup.py -k 'build_command or argv_prompt or configured_analyze_template or agent_peer or other_agent_uses_declared_peer_with_three_agents or other_agent_three_agents_names_peer_fix or unresolvable_other_agent_step or agent_skill_view or link_skills_for_agents or init_real_clone_preserves or init_clone_retries_after or uninstall_preserves or uninstall_backs_up or agent_cli_already_on_path or macos_installs_the_brew_cask or linux_installs_with_npm'
+  ```
+
+  The initial run with the ambient `python` failed collection because that
+  interpreter lacks `tomlkit`; the repository `.venv` resolved it without an
+  install. The full suite and authenticated end-to-end smoke were not run in
+  this design-only step.
+- `git diff --check` passed. `coga validate --json` exited 0 with 101 OK,
+  16 existing warnings on other tickets, and no issue naming this ticket.
+  Verified that only this review section was added: the complete ticket body,
+  frontmatter, embedded guide, and prior blackboard were preserved byte-for-byte.
 
 ## Design handoff
 
