@@ -34,9 +34,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 12175f57-aac3-44a7-b59a-4c36100535d0
 ---
 
 ## Description
@@ -502,3 +501,106 @@ For the owner at `review-design`, before any rollout work:
   this design-only change. Implementation checks above are requirements, not
   claimed results. Next workflow step: independent `evaluate-design`, then
   the owner resolves Open Questions at `review-design`.
+
+## Evaluator review
+
+2026-10-28 local / 2026-10-29 UTC — Codex cold review completed against
+`f586061627a159b037c3aa5b3cfb6ecb7e39cb0b` (clean `main` and freshly fetched
+`origin/main`). Reviewed the Description and Context as the implementation
+contract, then checked the blackboard evidence. **One workflow clarification
+must be resolved before implementation.** The bounded installer and combined
+adoption/cleanup PR are otherwise implementable. This is not owner approval.
+
+### Must fix before implementation
+
+1. **P2 — Resolve ownership of the work that remains after merge.**
+   Acceptance criteria and Proposed shape, step 5, leave merged-tree checks,
+   writer resumption and its receipt on this ticket, with final completion
+   after those actions. But the frozen `code/open-pr` step's skill,
+   `coga/skills/code/open-pr/SKILL.md`, "Order of operations", item 2, and
+   "Acceptance for this step", requires post-merge obligations to be filed
+   as separate drafts before opening the PR. The owning contract is
+   `docs/contexts/coga/workflows/SKILL.md`, "Obligations the merge does not
+   discharge". The plan currently says `open-pr` runs "as usual" without
+   reconciling this requirement.
+
+   Holding autoclose through final verification protects the maintenance
+   window, but does not by itself resolve that pre-PR handoff. It also needs
+   a precise release boundary: `src/coga/autoclose.py`, `_candidate` and
+   `_try_bump_one`, close a final-step active/in-progress ticket when its PR
+   is merged without checking acceptance criteria or resumption evidence.
+   Step 5 currently releases schedulers and then records resumption.
+
+   At `review-design`, choose and record either a linked follow-up that owns
+   the post-merge checks/resumption, or an explicit owner-approved exception
+   retaining those obligations here. For the latter, specify how `open-pr`
+   handles the exception and keep autoclose stopped until the resumption
+   disposition is recorded and the owner completes the gate (writers still
+   stopped may be recorded as such). This does not require splitting the
+   adoption/cleanup PR or changing workflow code or configuration. Do not
+   leave the mechanical PR-opening agent to infer the exception.
+
+### Optional recommendation
+
+- Explicitly extend the manual-only rule to any pre-merge owner-review fixes
+  or `code/address-pr-comments` assistance. The general prohibition on
+  branch-side launch/teardown already covers them, but only `implement` and
+  `peer-review` are named in the publication decision. The entry table in
+  `docs/contexts/coga/checkouts/SKILL.md`, "Which checkout a step starts in",
+  also puts a normal owner-held `review` assist on the feature branch;
+  `coga/skills/code/address-pr-comments/SKILL.md` assumes that launched path.
+  Naming this case prevents the ordinary assist workflow from defeating the
+  single-publication boundary during later requested fixes.
+
+### Verified basis
+
+- GitHub reports PR #1129 merged as
+  `42d1b30a47e30bb642f9e610d950681acdacd595`; `git merge-base --is-ancestor`
+  succeeds against fresh `origin/main`. Since the design's recorded base,
+  only this ticket and the audit log changed. No rollout branch or PR exists
+  in this ticket's Dev record.
+- `src/coga_edge/trim_log.py`, `main`, `install` and `_attribute_plan`, match
+  the stated allowlist, installed-resource comparison, preflight/refusal and
+  temporary-index attribute check. Exact `--install` bypasses maintenance,
+  reporting and bump. `_phone_compatible` runs during maintenance, so the
+  inventory's phone-home review remains necessary. The plan correctly puts
+  idempotence before the runbook edit and distinguishes refusal from a crash
+  during the non-atomic five-file write loop.
+- `src/coga/git.py`, `_candidates`, and `coga/state-publication` confirm the
+  committed-recurring publication hazard. `src/coga/open_pr.py`, `open_pr`,
+  inspects/pushes a recorded branch by name from control. The proposed manual
+  returns therefore support the combined PR without publishing its files
+  during ordinary implement/peer-review handoffs.
+- All five staged files currently match both source-package and active
+  interpreter resources. The four live trim-log files are absent; read-only
+  `list_templates` does not discover the job. `Template.load` on staging
+  reports `0 4 * * 1`, repo scope, `run_when_inactive: true`, and
+  `trim-log/run`. `load_config` reports retention 30. Effective log and retire
+  attributes are both still `union`. These are pre-adoption observations,
+  not upgrade, quiescence or activation receipts; the active CLI still imports
+  this checkout's editable sources.
+- `tests/test_packaging.py`, `_discover_live_packaged_twins`,
+  `test_intentional_divergences_stay_real_and_explained`,
+  `_context_link_problems` and the staging test support the exact cleanup
+  list. Searches outside archives found operative trim-log staging references
+  in that test module and the staged, packaged and seeded-fixture runbooks,
+  all covered by the plan. Installed-wheel adoption/refusal and documented
+  interpreter tests exist in `tests/test_edge_distribution.py`; they were
+  inspected, not executed in this design review.
+
+### Review checks and handoff
+
+- `env PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m pytest tests/test_trim_log.py::test_install_idempotence_and_exact_allowlist tests/test_trim_log.py::test_install_validates_all_files_before_writing tests/test_autoclose.py::test_sweep_merged_bumps_final_step_with_merged_pr`
+  — **7 passed**; Python 3.12.12, Linux x86_64. These use isolated fixtures;
+  they are not the implementation's full-suite or platform receipts.
+- Scoped `coga validate --task commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json`
+  passed: one valid task, no issues or fixes. `git diff --check` passed; a
+  byte comparison with HEAD confirmed that frontmatter, body and all prior
+  blackboard content are unchanged. Final fetch found HEAD and `origin/main`
+  still at the reviewed revision; only this ticket has local edits.
+- The existing Open Questions remain owner prerequisites, including the
+  complete writer inventory, maintenance authority, wheel provenance and
+  resumption order. This review does not resolve them or block the ticket:
+  the next owner gate resolves the finding and those questions.
+- Only this Evaluator review was authored. No ticket-body edit, branch, code,
+  wheel installation, live installer/maintenance run or PR was produced.
