@@ -9733,3 +9733,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-29 09:02 v1 [v1/38-coalesce-coga-state-commits] [human:nicktoper] auto-bumped on merge of PR #1128 → done
 2026-10-29 09:02 v1 [v1/39-trim-the-audit-log] [human:nicktoper] auto-bumped on merge of PR #1129 → done
 2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] task done
+2026-10-29 09:02 v1 [recurring/autoclose-merged] [system] script exited with code 0
