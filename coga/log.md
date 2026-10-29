@@ -9712,3 +9712,9 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-28 22:35 v1 [v1/33-review-all-doc] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-28 22:36 v1 [v1/33-review-all-doc] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-28 22:36 v1 [v1/33-review-all-doc] [megalaunch] launched via coga megalaunch
+2026-10-29 09:00 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-29 09:00 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-29
+2026-10-29 09:00 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-29
+2026-10-29 09:00 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-29 09:00 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-29
+2026-10-29 09:00 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-29
