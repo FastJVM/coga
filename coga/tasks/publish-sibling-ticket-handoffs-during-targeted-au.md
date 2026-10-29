@@ -1,6 +1,6 @@
 ---
 title: Publish sibling ticket handoffs during targeted authoring
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:9d02e497-3eaf-4280-81c4-b3aad91ae930
 ---
 
 ## Description
