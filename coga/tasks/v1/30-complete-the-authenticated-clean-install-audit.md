@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -11,7 +11,6 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
-launch_generation: 8f28b9ca-4893-4464-bfd7-bc5d635f6250
 ---
 
 ## Description
@@ -69,6 +68,32 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 - Owned-Mac route **still unavailable**: `affordable-macos-testing-on-owned-macs-and-per-min` is blocked (2026-10-07) on deploying the Mac test env + SSH target; PR #976 closed unmerged, branch `owned-mac-clean-install` retained.
 - Owner decision: re-block on Mac SSH access only; run all four environments together once it exists (no Linux-only partial run, no AWS spend). No environments created this session.
 
+### Blocker-resolution check — 2026-10-28 (codex)
+
+- Surfaced both open Mac-access asks (October 8 and October 9). The owner
+  answered "yeah" when asked whether both could be cleared, with SSH access
+  ready and attendance for Claude Code/Codex logins. Treat this as readiness
+  confirmation; it did not include a connection target.
+- Asked for the owned Mac's `user@host` or SSH alias; that detail remains
+  pending. No local SSH config or owned-Mac run record supplied a target;
+  `.coga/clean-install/mac1/resources.env` belongs to the historical AWS run.
+  No SSH connectivity or disposable-environment readiness has been tested.
+- Fetched main and verified a clean, current control checkout at
+  `42444bc8e9998323679863949f54c684769ae0a7`. The dependency
+  `v1/28-affordable-macos-testing-on-owned-macs-and-per-min` still records
+  blocked status. GitHub confirms PR #976 remains closed and unmerged,
+  with head `812ff1b92a226ac3adf5aa98bed0d22589bde594` on
+  `owned-mac-clean-install`; its saved implementation is not on main.
+- The existing access asks remain unresolved until the connection detail
+  is supplied. No `coga unblock`, readiness audit, environment creation,
+  agent login, or first-task run occurred. No AWS resources were allocated.
+  Preserve the approved scope: all four environments together, both agents
+  in each (eight authenticated first tasks), and no AWS spend.
+- Resume with the SSH target, record the completed access resolution using
+  `coga unblock`, then follow the ticket's readiness review, including the
+  saved owned-Mac implementation's current status. This check is not an
+  audit pass or owner review of audit results.
+
 ## Blockers
 
 - [x] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
@@ -77,6 +102,8 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 - [ ] [2026-10-08 11:24] [agent:claude] id=20261008T112407 Needs owner SSH access to the spare Mac (owned-Mac route) before the 4-run matrix can start; depends on v1/28-affordable-macos-testing-on-owned-macs-and-per-min. Fix tickets have already landed on main. Unblock and relaunch when the Mac SSH target is available.
 
 - [ ] [2026-10-09 20:36] [agent:claude] id=20261009T203619 Still waiting on owner SSH access to the spare Mac (owned-Mac route); depends on v1/28-affordable-macos-testing-on-owned-macs-and-per-min, itself blocked on deploying the Mac test env + SSH target (PR #976 closed, branch owned-mac-clean-install retained). Fix tickets already on main. Re-checked 2026-10-09: no change. Unblock and relaunch when the Mac SSH target exists; all four environments run together, no AWS spend.
+
+- [ ] [2026-10-28 22:35] [agent:claude] id=20261028T223551 Provide the owned Mac SSH target (user@host or SSH alias) to finish resolving the October 8 and October 9 access asks. Owner confirmed readiness on 2026-10-28, but the connection target is still pending and access has not been tested. Depends on v1/28-affordable-macos-testing-on-owned-macs-and-per-min for the deployed test target. Preserve all four environments together, both agents in each, and no AWS spend.
 
 
 ---
