@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 72ba3195-8bbe-424a-8209-787c477f10dd
 ---
 
 ## Description
@@ -250,13 +249,10 @@ branch: coga/publish-sibling-ticket-handoffs
 
 ## Implementation plan
 
-Codex is implementing this step (the ticket's configured agent remains unchanged).
-Start verified clean on current main. Extend targeted finalization to include
-changed sibling paths, validating all surviving selected tickets before the
-single publication. Reproduce cancellation with synchronized PTY teardown and
-trace both child and outer sweeps; do not infer the live incident's cause from
-a done outcome. Preserve lifecycle and owner gates. Tests and documentation
-will specify file-level treatment of paths dirty before the interview.
+Implementation used Codex (the ticket's configured agent remains unchanged).
+The branch includes changed sibling paths in one validated transaction,
+synchronized PTY cancellation evidence, and documented file-level treatment
+of paths dirty before the interview. Lifecycle and owner gates are preserved.
 
 ## Implementation findings
 
@@ -285,77 +281,145 @@ will specify file-level treatment of paths dirty before the interview.
   it does not prove which refusal/interruption occurred in the live incident.
 - Initial new regressions failed 21/21 before the fix. Current authoring tests:
   `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_authoring.py -q --tb=short`
-  -> 55 passed. The PTY subset -> 5 passed. Full-suite verification passed: 4338 passed, 10 skipped (see PR receipts below).
+  -> 55 passed. The PTY subset -> 5 passed. Implement-step full suite: 4338 passed, 10 skipped on the original implementation head. Current review receipts are below.
 - Example fixture validation (from tests/fixtures/seeded-repo/coga):
   `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`
   -> exit 0, ok_count 5, no issues.
+
+## Peer review
+
+Direct Codex review **completed** on head `c755b1ff290638eb3e45630ec6d998219cd156f2` against
+base `124ca41b69f124c86e178ccc9b187e8acede905f` after the final rebase and fix. The implementation
+and review both used Codex; this fresh peer session is conservatively recorded
+as self-review. No nested reviewer was launched and independence is not claimed.
+
+One must-fix finding was reproduced and fixed: leaving `sibling.md` beside
+`sibling/ticket.md` after an incomplete promotion raised an uncaught
+`DuplicateTaskSlugError`. The CLI's general exception cleanup then published
+the ambiguous ticket, changed target, and support context through its sweep.
+The new command regression failed before the fix; the isolated remote actually
+contained the duplicate and support file in a `Sync coga state` commit.
+Commit `c755b1ff290638eb3e45630ec6d998219cd156f2` converts discovery failure to `AuthoringError`,
+which takes the retained-state refusal path. Targeted/bootstrap unit regressions
+and the real-Git command regression now prove no selected writes publish and
+all edits remain recoverable. No unresolved must-fix findings remain.
+
+Reviewed selection, validation-before-publication, required-path guards,
+pre-dirty file semantics, deletions, promotions, cancellation/sweep ordering,
+owner-gate preservation, and canonical/packaged contracts. The existing five
+synchronized PTY cases all passed in the final full suite. Re-read the retained
+old-finalizer baseline evidence: it proves a possible omission plus outer-sweep
+refusal path, not the live incident's complete cause.
+
+Also drove the actual PTY teardown in real terminals: 80x24 success published
+the handoff and exited 0 with clean state; 120x40 remote rejection exited 2,
+kept sibling/context edits, and visibly identified their roots and strict
+recovery. Both reaped the interrupted cancellation child with exit 143 and
+preserved cancellation. The exact commands and receipts are under `## PR`.
+No cursor/pager rendering changed; the plain diagnostics were readable at both
+sizes. Linux/Python 3.12.12 only; Windows and Python 3.11 remain unverified.
+
+The final full suite passed 4341 tests with 10 skips. The first peer full run
+was interrupted when the discovery finding was reproduced; it is not a check
+receipt. Focused verification after the fix passed 61 tests before the final
+committed-head full run.
 
 ## PR
 
 ```yaml
 title: Publish sibling ticket handoffs during targeted authoring
 author: codex
-author_evidence: This implement session ran Codex, not the ticket-configured Claude. No additional
-  model override was requested; the exact model variant is not exposed in this session.
-head: 1984164d6441202852d0631fe2a33c064b4e50ab
-base: 192fd278c324a570a8231bcc4e25f5c55c772eb1
+author_evidence: The implement handoff records Codex as the actual implementer. This fresh peer-review
+  session also ran Codex and authored the discovery-refusal fix; the configured Claude identity was not
+  used. Exact model variants are not established by these receipts.
+head: c755b1ff290638eb3e45630ec6d998219cd156f2
+base: 124ca41b69f124c86e178ccc9b187e8acede905f
 depth: deep
-rationale: Changes publication durability and validation scope. Independent code review is the next
-  workflow step; the historical incident cause remains unproven.
-implementation: Targeted and bootstrap finalization discover changed/new siblings, validate every
-  surviving selected ticket plus the existing named target, and publish exact changed paths with support
-  files in one guarded transaction. Failures keep edits and report strict recovery with the outer
-  sweep withheld.
-deviations: None. Lifecycle commands, supervisor behavior, checkout rules, and owner gates are preserved.
-  No PR has been opened.
-limitations: The synchronized old-finalizer experiment reproduces exit 0 with a retained sibling when
-  the child sweep is interrupted and the outer sweep is rejected; it does not establish the live incident
-  cause. Earlier lifecycle sweeps can publish an invalid sibling before finalization rejects it. Verification
-  used Linux/Python 3.12.12; native Windows and Python 3.11 were not run.
+rationale: Changes publication durability and validation scope. Direct review completed and checks passed,
+  but both author and reviewer are Codex, so this is recorded as self-review. The historical incident
+  cause remains unproven.
+implementation: Targeted and bootstrap finalization validate every surviving authored sibling plus the
+  existing named target, then publish exact changed ticket and support paths in one required-path transaction.
+  Deletions and promotions are included, untouched entry dirt is excluded, and a pre-dirty path edited
+  again is carried in full. Validation, ambiguous ticket discovery, and publication refusals retain edits,
+  exit nonzero, and withhold the outer sweep with recovery diagnostics.
+deviations: None. The peer-review fix handles duplicate sibling identities from incomplete promotions
+  within the required validation boundary. Lifecycle commands, supervisor behavior, checkout rules, and
+  owner gates are preserved. No PR has been opened.
+limitations: The controlled old-finalizer experiment reproduces exit 0 with a retained sibling when child
+  teardown interrupts its sweep and the outer sweep is rejected; it does not establish the live incident
+  cause. Earlier lifecycle sweeps can publish an invalid sibling before finalization rejects it. Review
+  is recorded as self-review, not independent. Verification used Linux/Python 3.12.12; native Windows
+  and Python 3.11 were not run. PTY cases use local remotes and stub agents, without real agent credentials
+  or Slack.
 files:
   docs/contexts/coga-dev/internals/state-publication/SKILL.md: Explain exact file selection, validation
     ordering, and the child/outer cancellation publication boundaries.
-  docs/contexts/coga/state-publication/SKILL.md: Own the sibling handoff, pre-dirty file, deletion,
-    and retained-state recovery contracts.
-  src/coga/authoring.py: Validate surviving authored siblings and select exact changed paths, including
-    deletions, in one required-path publication.
+  docs/contexts/coga/state-publication/SKILL.md: Own the sibling handoff, pre-dirty file, deletion, and
+    retained-state recovery contracts.
+  src/coga/authoring.py: Validate surviving authored siblings, normalize ambiguous discovery into a guarded
+    refusal, and publish exact changed paths including deletions in one required-path transaction.
   src/coga/commands/ticket.py: Identify retained authoring state and strict recovery after finalization
     refuses with its sweep withheld.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Keep the shipped
     user contract byte-identical to its canonical topic.
   tests/fixtures/authoring_cancellation.py: Synchronize real PTY teardown with the cancellation child
     sweep and observe the outer CLI boundary.
-  tests/test_authoring.py: Cover sibling discovery and validation, exact paths, pre-dirty files, attachments,
-    removals, and promotions.
-  tests/test_git.py: Prove an invalid sibling prevents the outer command from publishing tickets or
-    support files without cancellation.
-  tests/test_ticket.py: Check complete outer exits, diagnostics, local/remote bytes, and owner-gate
-    preservation through cancellation.
+  tests/test_authoring.py: Cover sibling discovery and validation, ambiguous promotions, exact paths,
+    pre-dirty files, attachments, removals, and both sides of promotions.
+  tests/test_git.py: Prove invalid or ambiguously identified siblings prevent the outer command from publishing
+    selected tickets or support files and preserve recoverable local edits.
+  tests/test_ticket.py: Check complete outer exits, diagnostics, local/remote bytes, and owner-gate preservation
+    through cancellation.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: This is the implement step; independent code review belongs to the next frozen peer-review
-    step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
+  detail: Direct review completed on the final head/base after rebasing and fixing the must-fix discovery
+    error. An incomplete sibling promotion previously raised uncaught DuplicateTaskSlugError and let the
+    outer sweep publish invalid state; it now raises AuthoringError and withholds that sweep. No unresolved
+    findings. Fresh session, but both implementing and reviewing identities are Codex; independence is
+    not claimed. Real terminal checks at 80x24 and 120x40 confirmed completed outer exits, publication/retention,
+    and visible recovery diagnostics.
 checks:
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --tb=short
   status: passed
-  head: 1984164d6441202852d0631fe2a33c064b4e50ab
-  base: 192fd278c324a570a8231bcc4e25f5c55c772eb1
-  detail: '4338 passed, 10 skipped in 530.05s (exit 0), Python 3.12.12 on Linux. The suite reported
-    its skips; none were added to suppress failures. Tested source/tests/docs equal the committed
-    tree. Output: /tmp/coga-sibling-full.log.'
-- command: cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
+  detail: '4341 passed, 10 skipped in 528.77s (exit 0), Python 3.12.12 on Linux. Includes all five synchronized
+    PTY cancellation cases and the new duplicate-discovery regressions. No failures suppressed. The tested
+    source/tests/docs remained equal to this committed head. Output: /tmp/coga-sibling-peer-fixed-full.log.'
+- command: cd /home/n/Code/coga/tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src
     /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
   status: passed
-  head: 1984164d6441202852d0631fe2a33c064b4e50ab
-  base: 192fd278c324a570a8231bcc4e25f5c55c772eb1
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
   detail: Exit 0; ok_count 5; fixes and issues empty.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 1984164d6441202852d0631fe2a33c064b4e50ab
-  base: 192fd278c324a570a8231bcc4e25f5c55c772eb1
-  detail: Exit 0; no whitespace errors.
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
+  detail: Exit 0 on the feature branch; no whitespace errors. Final fetch/rebase left the tested head
+    and base unchanged.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-sibling-peer-terminal.py 80 24
+    none
+  status: passed
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
+  detail: 'Real 80x24 terminal with a local remote and stub agent: sentinel teardown interrupted the cancellation
+    child (143); outer command exited 0, published the sibling/context, and left the fixture clean. Publication
+    message remained readable. Receipts: /tmp/coga-sibling-peer-tty-_umzxqbe/synchronization/.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-sibling-peer-terminal.py 120 40
+    publication
+  status: passed
+  head: c755b1ff290638eb3e45630ec6d998219cd156f2
+  base: 124ca41b69f124c86e178ccc9b187e8acede905f
+  detail: 'Real 120x40 terminal with a rejecting local remote: child exited 143, outer command completed
+    with exit 2, cancellation remained published, sibling/context stayed local, and the sweep was withheld.
+    The terminal showed retained roots, coga run publish-state, and the instruction not to repeat cancellation/bump.
+    Receipts: /tmp/coga-sibling-peer-tty-38232t_6/synchronization/.'
 ```
 
 ## Implement handoff
@@ -381,3 +445,14 @@ Manual checkout return completed: the published ticket bytes were verified
 against origin/main before restoring the feature copy; main was fast-forwarded
 and verified clean. `coga validate --task publish-sibling-ticket-handoffs-during-targeted-au --json`
 then returned exit 0, ok_count 1, no issues. Advancing implement to peer-review.
+
+## Peer-review handoff
+
+Final branch `coga/publish-sibling-ticket-handoffs` is committed and pushed at
+`c755b1ff290638eb3e45630ec6d998219cd156f2` (two commits ahead of the reviewed main base).
+Final fetch and unconditional rebase found main unchanged at
+`124ca41b69f124c86e178ccc9b187e8acede905f`; source/tests/docs were clean after verification.
+The checkout was returned to clean current main before writing this handoff.
+`## PR` covers every current diff path and the final head/base; advisory depth
+is `deep`. No PR has been opened. The next step only opens the PR and bumps;
+owner review remains the merge gate. Advancing peer-review to open-pr.
