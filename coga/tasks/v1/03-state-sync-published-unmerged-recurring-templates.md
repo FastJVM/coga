@@ -394,3 +394,23 @@ Validation returned **1 OK, no issues**; the diff check passed. A byte
 comparison with HEAD confirmed that frontmatter, ticket body, and all prior
 blackboard content were preserved, with exactly one evaluator review and one
 blackboard fence. Only this ticket's blackboard changed.
+
+## Dev
+
+branch: coga/v1-03-recurring-publication-boundary
+
+## Implementation — 2026-10-29
+
+Implementing agent: Codex (this session), overriding the ticket's configured
+Claude routing. Manual checkout procedure applies: started from clean main
+at `8cc4d55bf`, fetched and confirmed current control, and created the branch
+above without switching. No prior implementation branch or PR exists for
+this ticket; incident PRs #1032 and #1033 remain merged. Publishing this
+linkage before switching.
+
+Plan: add generated real-Git regressions and observe the clean committed
+recurring leak before changing `_routine_state_areas()` in `src/coga/git.py`.
+Retain dirty whole-file publication, task/log adoption, control recovery and
+provenance checks. Update the owning publication topic and affected summaries
+with packaged twins, then run focused and full tests plus validation, commit,
+reconcile, push, return to main, and leave structured publication evidence.
