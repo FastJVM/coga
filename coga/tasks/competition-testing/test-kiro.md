@@ -328,7 +328,22 @@ finished — not what the trial found.
 ## State
 
 `agent-produces` opened 2026-10-29. Both artifacts the step owns are built and
-published. Nothing observed yet — no lap has run.
+published.
+
+**Lap 0 (install) finished 2026-10-30.** 16 entries in the log. Findings stay
+in the log and the write-up, not here. State worth carrying:
+
+- `kiro-cli 2.36.0`, running **V3** — a fresh install defaults to V2, which has
+  no specs or workflows. Record `kiro-cli version` at the start of every lap:
+  the session banner says 3.0 ships at the end of October and auto-updates
+  will take it there, which would make lap 2 a different product from lap 1.
+- Credit baseline `0.00 of 50`, KIRO FREE, **resets 2026-11-01**. So the
+  practical budget is 50 now and 50 again two days later; credits are not the
+  constraint on lap count that the ticket assumed.
+- Workspace is `~/kiro-tiny-ticket`, trusted. Launching from `~` was declined
+  on purpose — home's `.kiro` is the global scope, and workspace-versus-global
+  precedence is under test.
+- Signed in with Google.
 
 ## Artifacts
 
