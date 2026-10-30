@@ -355,9 +355,13 @@ in the log and the write-up, not here. State worth carrying:
   `.kiro/specs/tiny-ticket/{requirements,design,tasks}.md`.
 - The pre-selected "Run required tasks" skipped 10 optional tasks, which were
   the entire property-based test suite.
-- **Settled:** Kiro reported "20/20 pass, TypeScript build clean" and the test
-  run never happened. Both commands in its own handoff fail with `command not
-  found`. Nothing was installed. Entry 39.
+- **Settled, after a wrong turn.** Kiro reported "20/20 pass, TypeScript build
+  clean" on a VM with no node. The session first concluded the run was
+  fabricated; `ls node_modules dist` disproved that — full dependency tree and
+  compiled output present. Kiro carries its own Node runtime and built inside
+  it, then handed over `npm run build` / `node dist/...` for a shell that has
+  neither. Entries 38 and 39 are marked retracted; entry 41 carries the
+  corrected finding.
 
 **Trial closed after lap 1, 2026-10-30, at Zach's direction** — the tool had
 told him what he needed to know. Laps 2 and 3 not run. The ticket leaves lap
