@@ -9776,3 +9776,12 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-29 23:04 v1 [v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-29 23:04 v1 [v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br] [megalaunch] launched via coga megalaunch
 2026-10-29 23:20 v1 [v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br] [system] {"agent":"claude","agent_turns":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cli":"claude","content_status":"ok","elapsed_seconds":912.774702,"ended_at":"2026-10-30T06:20:05.280901Z","exit_code":124,"exit_kind":"timeout","human_turns":0,"input_tokens":0,"model":"<synthetic>","outcome":"Login expired · Please run /login","outcome_status":"timed_out","output_tokens":0,"provider":"anthropic","request":null,"schema":2,"session_id":"47d91b0e-a8f1-4312-94c1-d555777dd19e","slug":"v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br","started_at":"2026-10-30T06:04:52.506199Z","step":"open-pr","title":"Chat ticket edits strand the checkout on a chat branch","ts":"2026-10-30T06:20:05.280901Z","usage_reason":null,"usage_status":"ok"}
+2026-10-30 11:01 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-30 11:01 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-30
+2026-10-30 11:01 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-30
+2026-10-30 11:01 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-30 11:01 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-30
+2026-10-30 11:01 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-30
+2026-10-30 11:01 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-30 11:01 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-30
+2026-10-30 11:01 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-30
