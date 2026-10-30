@@ -1568,11 +1568,12 @@ def test_chat_publishes_routine_state_before_preparing_reviewed_work(
     git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, layout: str,
 ) -> None:  # type: ignore[no-untyped-def]
     if layout == "root":
+        # Windows cannot remove the process's current directory.
+        monkeypatch.chdir(git_repo.root)
         for path in git_repo.coga_os.iterdir():
             path.rename(git_repo.root / path.name)
         git_repo.coga_os.rmdir()
         git_repo.coga_os = git_repo.root
-        monkeypatch.chdir(git_repo.root)
         (git_repo.root / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n.coga/\n", encoding="utf-8", newline="\n")
     elif layout == "relocated":
         contexts = git_repo.root / "knowledge library"
