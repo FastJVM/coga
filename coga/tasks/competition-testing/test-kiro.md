@@ -325,4 +325,73 @@ finished — not what the trial found.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## State
+
+`agent-produces` opened 2026-10-29. Both artifacts the step owns are built and
+published. Nothing observed yet — no lap has run.
+
+## Artifacts
+
+- **Running entry log** — https://claude.ai/code/artifact/d3266b10-1cf1-45ed-98ba-6f709cb3d8cd
+  Source: `scratchpad/kiro-trial-log.html`. Republish the same path to keep the
+  URL; from another session pass the URL as `url`. Carries the scaffold, the
+  tag legend, the prior-trial prerequisite baseline, and the five docs claims
+  to check. Zero entries.
+- **Command relay** — https://claude.ai/code/artifact/6bec366c-0131-4423-ba10-aa4db25c96aa
+  Source: `scratchpad/kiro-command-relay.html`. Four pending items: R1 bare
+  snapshot baseline, R2 the lap-1 prompt, R3 steering capture, R4 spec output
+  size.
+
+## Working rule
+
+Zach cannot copy from this session into the VM. Any command or prompt the agent
+wants run goes into the relay, never into chat. In the VM both artifacts are
+listed by title at `claude.ai/code/artifacts`.
+
+## Lap 1 prompt decision
+
+R2 is Zach's BMAD description verbatim, including the gap in `tiny-ticket
+create )`, plus the same scoping sentence Compound Engineering got. Source is
+the CE section of the running doc, which records the exact text CE was handed.
+Do not repair the typo and do not pre-answer Kiro's questions.
+
+## Baseline read from the running doc (2026-10-29)
+
+Read the SpecKit, BMAD and CE sections before install. Prerequisite chains:
+SpecKit needed Claude Code, discovered only after `specify init` failed. BMAD
+needed Xcode CLI tools, uv, Python 3.12 and node 24, and its CLI did not work
+until an undocumented `uv tool install`. CE needed Claude Code alone.
+
+Two install failures worth watching for a Kiro equivalent: CE's two-line paste
+fed the second command to the first as an argument, and its installer printed
+success below the PATH warning. Both are input to
+`v1/26-make-the-readme-install-section-the-only-install-p`.
+
+Standing result all three siblings share: `tiny-ticket` did not work the way
+Zach wanted at the end, despite heavy planning and review.
+
+R1 avoids running `python3 -V`, which is what triggered the Xcode CLI tools
+prompt in the CE trial and would contaminate the prerequisite comparison.
+
+## Lap plan
+
+1. Lap 0 — install from the bare snapshot through sign-in. Record every demand
+   in order, and the credit balance before lap 1.
+2. Lap 1 — `create`: full spec cycle, Generate Steering Docs, record the burn.
+3. Lap 2 — `list`: watch whether stored steering visibly changes the output.
+4. Lap 3 — `validate`: same watch with two laps of steering behind it.
+
+Laps share one VM and one `kiro-tiny-ticket` directory. How many run is Zach's
+call.
+
+## How the write-up gets produced
+
+Zach records his thinking in Pocket and produces the write-up from that
+recording in a separate session. The agent does not draft it. This session's
+job is the trial and the entry log.
+
+## Open — needed before lap 0
+
+- Which `cogatest` VM, and confirmation it is reverted to a bare snapshot.
+- Which sign-in: Google, GitHub, AWS Builder ID, or org identity.
+- Free tier or Pro, decided before lap 1.
