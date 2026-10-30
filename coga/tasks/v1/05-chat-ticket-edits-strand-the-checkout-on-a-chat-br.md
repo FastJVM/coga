@@ -32,9 +32,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
-launch_generation: 0b15775c-1189-47f5-a24e-a226f9e16138
 ---
 
 ## Description
@@ -691,7 +690,12 @@ The evaluator's P1 is implemented in shared publication and covered through
 publication during a chat and complete publish/return flows on control.
 All acceptance items are implemented and verified on this branch. Reconciliation
 found no intervening main changes; the no-op rebase kept the tested source.
-The manual procedure will return to clean current main before the terminal bump.
+The branch is pushed at `85774628bc7127b025c3cf485806fb4977a45653`, verified
+against its remote-tracking ref. Strict ticket publication succeeded. The
+published working ticket was byte-verified against `origin/main` and backed
+up before restoring its branch copy; the manual return then left clean main
+at `b23d0cfd4` before this final handoff update. The terminal bump publishes
+this update and advances exactly once to open-pr.
 Do not create another branch or repeat a lifecycle transition to publish state.
 
 No implementation findings remain open. The historical evidence gap, absent
