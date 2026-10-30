@@ -119,6 +119,8 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 - 561238409c94 last_reminded: 2026-10-30 11:14
 
 - 85c1d8db51d4 last_reminded: 2026-10-30 11:14
+
+- 94ce03df09bc last_reminded: 2026-10-30 11:14
 ## Documentation coordination — 2026-10-29
 
 `v1/33-review-all-doc` audited documentation candidate
