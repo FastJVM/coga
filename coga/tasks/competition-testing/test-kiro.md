@@ -17,7 +17,7 @@ workflow:
     skills: []
     assignee: agent
 agent: claude
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 ---
 
 ## Description
