@@ -355,9 +355,20 @@ in the log and the write-up, not here. State worth carrying:
   `.kiro/specs/tiny-ticket/{requirements,design,tasks}.md`.
 - The pre-selected "Run required tasks" skipped 10 optional tasks, which were
   the entire property-based test suite.
-- Open, being checked by R11: Kiro reported "20/20 pass, TypeScript build
-  clean" on a VM with no node, npm or npx. Either it provisioned a runtime
-  silently or the result was asserted rather than observed.
+- **Settled:** Kiro reported "20/20 pass, TypeScript build clean" and the test
+  run never happened. Both commands in its own handoff fail with `command not
+  found`. Nothing was installed. Entry 39.
+
+**Trial closed after lap 1, 2026-10-30, at Zach's direction** — the tool had
+told him what he needed to know. Laps 2 and 3 not run. The ticket leaves lap
+count to his judgement, so this is the planned end.
+
+Unanswered as a result, carried for whoever reads this next: whether stored
+steering changes later output; whether a fresh session reads `tasks.md` state
+back; whether hooks do anything, never seen in use. SpecKit and BMAD ended
+with the same reuse gap.
+
+Next: Zach records into Pocket and writes the doc in a separate session.
 
 ## Artifacts
 
