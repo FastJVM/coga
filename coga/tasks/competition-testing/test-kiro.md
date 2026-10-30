@@ -399,21 +399,45 @@ job is the trial and the entry log.
 - **Sign-in:** Google or GitHub, Zach's pick at the prompt. Both avoid the AWS
   account path. Record which, and whether Kiro asks for more than basic OAuth
   scope.
-- **Surface:** IDE for the whole trial, as the ticket scopes it, plus a CLI
-  cross-check after lap 1 — install the CLI, point it at the same
-  `kiro-tiny-ticket`, and see whether it reads the steering the IDE wrote.
-  Zach raised the CLI as the fairer comparison, since the three siblings were
-  all terminal tools. Reasons for keeping the IDE primary: the install page
-  states `.kiro` is shared across all surfaces, so stored state is identical
-  either way and only the driving experience differs; and the docs say CLI V1
-  and V2 support only some steering inclusion modes, so testing steering
-  through the CLI risks measuring a cut-down version of the feature the trial
-  exists for. The cost — the experience column is no longer apples-to-apples
-  with the other three write-ups — is real and belongs in the write-up.
+- **Surface: the CLI, not the IDE.** Zach's call, against the session's
+  initial recommendation. This departs from the ticket's "only the IDE gets
+  trialled" scope, deliberately. Reasons: the Downloads page lists CLI first
+  of four surfaces and the IDE third, so the terminal is the product's own
+  primary; the three sibling trials were all terminal-driven, so an IDE trial
+  would break the experience comparison across the four write-ups; and the
+  CLI exposes `/usage`, which turns the per-lap credit burn into a printed
+  number. An IDE cross-check after lap 1 is optional and may not happen.
+  What this costs: the ticket's IDE-specific watch items (Generate Steering
+  Docs button, phase-gate UI, hook UI) are not exercised as UI.
 - **Xcode Command Line Tools** were installed by operator habit before Kiro
   asked for anything. Entry 4. Do not list them as a Kiro prerequisite.
 - **Empty-directory steering test, agreed.** Press Generate Steering Docs on
   `kiro-tiny-ticket` before any spec exists. Either Kiro declines, or it
   invents a product, tech stack and structure from nothing and feeds that into
   every later prompt — which is what SpecKit's constitution did and what CE
-  explicitly refused to do. Capture with R3, then run R3 again after lap 1.
+  explicitly refused to do. Capture with R6, then run R6 again after lap 1.
+  Caveat: kiro.dev documents steering *generation* only as an IDE panel
+  action. If the CLI has no authoring path, that is the finding; do not
+  install the IDE to chase it.
+
+## What the CLI surface actually exposes
+
+From kiro.dev's slash-command reference, 2026-10-29 — plan input, not
+findings. The CLI is much wider than the ticket's specs / steering / hooks
+framing, and several of these are direct Coga comparisons that no sibling
+trial had:
+
+- `/spec` — list specs, switch to spec mode, run spec tasks.
+- `/config` — review Agents, MCP servers, Powers, Steering, Skills, Hooks.
+- `/usage` — billing and credits. This is how the burn gets measured.
+- `/workflow` — "declarative workflows". Nothing in the ticket anticipated a
+  workflow primitive; compare against Coga workflows directly.
+- `/hooks` — show active context hooks.
+- Skills in `.kiro/skills/` are exposed as slash commands, so Kiro has
+  skills as well as steering. Coga splits process knowledge (skills, per
+  step) from domain knowledge (contexts, per ticket); worth checking whether
+  Kiro's split lands in the same place.
+- `/goal` and `/autonomous` — autonomous loops, the analogue of CE's `/lfg`,
+  which the CE trial never got to.
+- `/knowledge`, `/powers`, `/sandbox`, `/checkpoint`, `/rewind` — unplanned
+  surface area. Out of scope unless a lap runs into them.
