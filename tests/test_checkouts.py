@@ -1495,7 +1495,174 @@ def test_chat_launch_notice_carries_the_exact_invocation(
 
     assert result.exit_code == 0, result.output
     assert "coga run prepare-checkout --session " in seen[0]
+    assert "routine Coga-state-only edits stay on control" in seen[0]
+    assert "Before editing any file" not in seen[0]
+    assert "require success and a clean checkout" in seen[0]
+    assert str(git_repo.coga_os) in seen[0]
     assert _head(git_repo) == "main"
+
+
+@pytest.mark.parametrize("staged", [False, True])
+@pytest.mark.parametrize("publish_during_chat", [False, True])
+def test_state_only_chat_renames_publish_without_allocating_a_branch(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, staged: bool,
+    publish_during_chat: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    refs = [_task(git_repo, "code", title=f"Rename {i}") for i in range(3)]
+    new = [ref.ticket_path.with_name(f"renamed-{i}.md") for i, ref in enumerate(refs)]
+    captured: list[dict] = []
+    index: list[str] = []
+    sweeps: list[bool] = []
+    from coga import cli
+    real_sweep = cli._sweep_coga_state
+
+    def sweep(cfg) -> None:  # type: ignore[no-untyped-def]
+        sweeps.append(True)
+        real_sweep(cfg)
+
+    monkeypatch.setattr(cli, "_sweep_coga_state", sweep)
+    paths = [path.relative_to(git_repo.root).as_posix() for path in [*(r.ticket_path for r in refs), *new]]
+
+    def chat(seen: dict) -> None:
+        assert seen["head"] == "main"
+        session = launch_module._CHAT_SESSION.get()
+        assert session is not None
+        assert git_repo.git("branch", "--list", session.branch) == ""
+        for ref, path in zip(refs, new):
+            ref.ticket_path.rename(path)
+        if staged:
+            git_repo.git("--literal-pathspecs", "add", "--all", "--", *paths)
+        index.append(git_repo.git("ls-files", "--stage", "--", *paths))
+        for path in new:
+            replace_blackboard(path, "\nWorking prose after renaming.\n")
+        if publish_during_chat:
+            coga_git.sync_coga_state(load_config(git_repo.coga_os))
+            if staged:
+                assert git_repo.git("ls-files", "--stage", "--", *paths) == index[0]
+
+    def capture(**kwargs) -> None:  # type: ignore[no-untyped-def]
+        captured.append(kwargs)
+        _usage_record(**kwargs)
+
+    launch_env(_Agent(git_repo, [chat]))
+    monkeypatch.setattr(launch_module.usage_tracking, "capture_session", capture)
+    assert _main(monkeypatch, "chat") == (75 if staged else 0)
+    assert captured[0]["exit_code"] == 0
+    assert captured[0]["exit_kind"] == "done"
+    assert _head(git_repo) == "main"
+    assert git_repo.git("branch", "--list", "coga/chat-*") == ""
+    assert all(not git_repo.origin_tracks(path.relative_to(git_repo.root).as_posix()) for path in (ref.ticket_path for ref in refs))
+    for path in new:
+        assert "Working prose after renaming." in _control(git_repo, path.relative_to(git_repo.root).as_posix())
+    assert '"session_id":"startup-usage"' in _control(git_repo, "coga/log.md")
+    if staged:
+        assert git_repo.git("ls-files", "--stage", "--", *paths) == index[0]
+        assert sweeps == []
+    else:
+        assert _dirty(git_repo) == []
+        assert git_repo.git("rev-parse", "HEAD") == git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+
+@pytest.mark.parametrize("layout", ["nested", "relocated", "root"])
+def test_chat_publishes_routine_state_before_preparing_reviewed_work(
+    git_repo, launch_env, monkeypatch: pytest.MonkeyPatch, layout: str,
+) -> None:  # type: ignore[no-untyped-def]
+    if layout == "root":
+        for path in git_repo.coga_os.iterdir():
+            path.rename(git_repo.root / path.name)
+        git_repo.coga_os.rmdir()
+        git_repo.coga_os = git_repo.root
+        monkeypatch.chdir(git_repo.root)
+        (git_repo.root / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n.coga/\n", encoding="utf-8", newline="\n")
+    elif layout == "relocated":
+        contexts = git_repo.root / "knowledge library"
+        contexts.mkdir()
+        (contexts / ".gitkeep").write_text("", encoding="utf-8", newline="\n")
+        with (git_repo.coga_os / "coga.toml").open("a", encoding="utf-8", newline="\n") as stream:
+            stream.write('[layout]\ncontexts = "knowledge library"\n')
+    if layout != "nested":
+        git_repo.git("add", "--all")
+        git_repo.git("commit", "-m", "Configure roots")
+        git_repo.git("push", "origin", "main")
+    cfg = load_config(git_repo.coga_os)
+    ref = _task(git_repo, "code")
+    moved = ref.ticket_path.with_name("renamed.md")
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    branch: list[str] = []
+
+    def chat(seen: dict) -> None:
+        assert str(cfg.repo_root) in seen["prompt"]
+        if layout == "relocated":
+            assert str(cfg.contexts_root) in seen["prompt"]
+        ref.ticket_path.rename(moved)
+        replace_blackboard(moved, "\nRoutine ticket prose.\n")
+        context.parent.mkdir(parents=True)
+        context.write_text("Routine knowledge.\n", encoding="utf-8", newline="\n")
+        published = CliRunner().invoke(app, ["run", "publish-state"])
+        assert published.exit_code == 0, published.output
+        assert _dirty(git_repo) == []
+        assert "Routine ticket prose" in _control(git_repo, moved.relative_to(git_repo.root).as_posix())
+        assert not git_repo.origin_tracks(ref.ticket_path.relative_to(git_repo.root).as_posix())
+        session = launch_module._CHAT_SESSION.get()
+        prepared = _run_recipe(git_repo, "--session", session.session)
+        assert prepared.exit_code == 0, prepared.output
+        branch.append(_head(git_repo))
+        source = git_repo.root / "work.py"
+        source.write_text("reviewed implementation\n", encoding="utf-8", newline="\n")
+        context.write_text("Deliberately reviewed knowledge.\n", encoding="utf-8", newline="\n")
+        assert _run_recipe(git_repo, "--session", session.session).exit_code == 0
+        assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == "Routine knowledge.\n"
+        git_repo.git("add", "--", "work.py", context.relative_to(git_repo.root).as_posix())
+        git_repo.git("commit", "-m", "Reviewed work")
+
+    launch_env(_Agent(git_repo, [chat]))
+    assert _main(monkeypatch, "chat") == 0
+    assert _head(git_repo) == "main" and _dirty(git_repo) == []
+    assert not git_repo.origin_tracks("work.py")
+    assert git_repo.git("show", f"{branch[0]}:work.py") == "reviewed implementation\n"
+    assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == "Routine knowledge.\n"
+
+
+def test_failed_state_publication_does_not_prepare_a_chat_branch(git_repo, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    with launch_module._orientation_checkout_guard(cfg):
+        session = launch_module._CHAT_SESSION.get()
+        (git_repo.coga_os / "notes.md").write_text("pending\n", encoding="utf-8", newline="\n")
+        monkeypatch.setattr(coga_git, "_push", lambda *a: "network unavailable")
+        result = CliRunner().invoke(app, ["run", "publish-state"])
+        assert result.exit_code == 1, result.output
+        assert _head(git_repo) == "main"
+        # Even a caller ignoring the failure cannot switch with dirty state.
+        assert _run_recipe(git_repo, "--session", session.session).exit_code == 75
+        assert git_repo.git("branch", "--list", session.branch) == ""
+
+
+@pytest.mark.parametrize("publish_during_chat", [False, True])
+def test_control_chat_keeps_distinct_staged_ticket_draft_through_return(
+    git_repo, launch_env, publish_during_chat: bool,
+) -> None:  # type: ignore[no-untyped-def]
+    ref = _task(git_repo, "code")
+    rel = _rel(git_repo, ref)
+    index: list[str] = []
+
+    def chat(seen: dict) -> None:
+        assert seen["head"] == "main"
+        replace_blackboard(ref.ticket_path, "\nUnique staged intent.\n")
+        git_repo.git("add", "--", rel)
+        index.append(git_repo.git("show", f":{rel}"))
+        replace_blackboard(ref.ticket_path, "\nWorking prose.\n")
+        if publish_during_chat:
+            coga_git.sync_task_state(load_config(git_repo.coga_os), ref.path, message="Routine task write")
+            assert git_repo.git("show", f":{rel}") == index[0]
+
+    launch_env(_Agent(git_repo, [chat]))
+    result = _launch("bootstrap/orient")
+    assert result.exit_code == 75, result.output
+    assert "Working prose." in _control(git_repo, rel)
+    assert git_repo.git("show", f":{rel}") == index[0]
+    assert "Working prose." in ref.ticket_path.read_text(encoding="utf-8")
+    assert "working file matches control" in result.output
+    assert "staged copy differs" in result.output
 
 
 # --- helpers --------------------------------------------------------------------

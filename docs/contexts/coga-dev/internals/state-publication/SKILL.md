@@ -82,8 +82,9 @@ checkout return. The sweep:
   preparation or return refused or stopped part-way
   (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
   covers an in-process `coga recurring` run): the preserved dirt is what the
-  sweep must not publish, the command's exit status is unchanged, and the
-  next launch entry publishes routine state again;
+  sweep must not publish. Ordinary launch preserves its result; direct chat's
+  command result is owned by [chat checkouts](../../../coga/checkouts/chat/SKILL.md).
+  The next launch entry publishes routine state again;
 - is skipped in a process that relayed a recurring run into the worktree
   holding the control branch (the relayed child sweeps there), and for the
   off-control `run recurring-scan --require-fresh-control` child, whose
