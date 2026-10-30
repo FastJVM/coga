@@ -1040,3 +1040,9 @@ Readiness evidence (current behavior only):
 ## Blockers
 
 - [ ] [2026-10-29 22:30] [agent:claude] id=20261029T223051 Approve the concrete compatibility/cutover sibling split recorded under Implementation readiness, or provide an explicit two-landing workflow for this ticket. The current frozen workflow has one implementation/PR cycle, while acceptance requires compatibility merged and in use before cutover publication; the ticket explicitly reserves splitting for the owner. The stage-A publication boundary is now specified and the proposed design is treated as authorized. No additional product-design approval is requested.
+
+---
+
+## Blocker reminders
+
+- 851586b3cb01 last_reminded: 2026-10-30 11:14
