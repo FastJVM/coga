@@ -345,6 +345,20 @@ in the log and the write-up, not here. State worth carrying:
   precedence is under test.
 - Signed in with Google.
 
+**Lap 1 (`create`) finished 2026-10-30.** 38 entries. State worth carrying:
+
+- **Cost: 34.12 credits of 50, 33m 7s.** The free tier covers one lap of this
+  build, not three. Kiro prints per-turn and per-session credits unasked; no
+  sibling tool gave any cost signal at all. Whether lap 2 runs depends on the
+  2026-11-01 reset.
+- All three spec phases ran, with a human gate between each:
+  `.kiro/specs/tiny-ticket/{requirements,design,tasks}.md`.
+- The pre-selected "Run required tasks" skipped 10 optional tasks, which were
+  the entire property-based test suite.
+- Open, being checked by R11: Kiro reported "20/20 pass, TypeScript build
+  clean" on a VM with no node, npm or npx. Either it provisioned a runtime
+  silently or the result was asserted rather than observed.
+
 ## Artifacts
 
 - **Running entry log** — https://claude.ai/code/artifact/d3266b10-1cf1-45ed-98ba-6f709cb3d8cd
