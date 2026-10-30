@@ -1,7 +1,7 @@
 ---
 title: Stop the contexts-root sweep from publishing canonical topics without their
   packaged twins
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -39,7 +39,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: f1d56a42-5bf8-4bd8-81ea-67b340541fb4
 ---
 
 ## Description
@@ -101,6 +100,11 @@ all mutable state stays in the repo or owning clone.
   deletion/state conversion from a feature checkout against that control
   version; control's package, navigation and representative runtime checks
   stay green before the cutover PR merges.
+- [ ] Before compatibility merges, its ordinary handoff sweep leaves live
+  recurring definitions and their supporting files unchanged on pre-A
+  control while publishing ordinary ticket/state updates. Run pre-A
+  control's own packaging, navigation and representative runtime checks;
+  stage A's imports or relaxed checks cannot stand in for this evidence.
 - [ ] A separate final-state regression edits packaged content on a feature
   branch, both dirty and committed, then runs a mutating CLI exit sweep.
   Control's packaged bytes stay unchanged while ordinary local task,
@@ -231,8 +235,11 @@ the selected package definition's initial blackboard, before snapshotting its
 keys. Do not initialize during list/status/validation or reseed existing
 state, including an intentionally empty state region. Initialization and
 publication must detect concurrent creation/update rather than overwrite it.
-Direct supported recipe execution, including phone-home, obtains the same
-state before writing. Invalid state fails visibly; it must not reset a
+Direct phone-home execution through `src/coga_edge/phone_home.py::main()` /
+`run_phone_home()` obtains the same state before writing; this does not add
+a `phone-home` entry to `runner.RECIPES`. Preserve its existing direct-call
+policy separately from recurring scheduling and test disabled selection and
+a uniquely parked parent. Invalid state fails visibly; it must not reset a
 counter to the package seed. Respect `log_transaction.ensure_clear()` before
 initializing or changing state; a pending retention receipt is not permission
 to copy, reset or migrate its cursor.
@@ -329,9 +336,28 @@ pre-compatibility main. Splitting the ticket is an owner decision; follow
 selection/carrier support, dependency fallbacks, init changes and reader/writer
 updates first. Keep this repo's existing live definitions during this stage.
 Move package seed refs as above while keeping their live resolutions valid.
-Update owning topics and links to their eventual package owners now, keeping
-any still-present twins synchronized until cutover. Update Dream's scans and
-hard-coded live-path consumers before deleting their inputs.
+Update owning topics and links to their eventual package owners now. Commit
+topic, skill and workflow changes that belong to A with its source before
+any sweeping command, following the existing checkout contract.
+
+**Pre-A publication boundary (evaluator P1 disposition):** keep this repo's
+live recurring definitions and every definition sibling unchanged throughout
+A, including scripts and runbooks. Ordinary mutable blackboard/worklist
+updates remain ordinary published state. Committing a live recurring edit
+does not protect it from the sweep. Author required instruction/link changes
+only in the packaged recurring files during A; enumerate each resulting
+legacy-definition difference, its old bytes and reason in A's transitional
+checks. Phone-home's separate comparison must distinguish these reviewed
+definition differences from its preserved complete mutable state. Do not
+use a blanket recurring-directory exemption. B removes or converts these
+legacy files only after A is merged and installed; it does not backport A's
+new instructions into live parents before that boundary.
+
+Update Dream's scans and hard-coded live-path consumers before deleting their
+inputs. For any change inside a live recurring definition or attachment,
+the packaged update takes effect after cutover; A's compatibility must still
+support the unchanged live version. No source-root, provenance or publication
+guard changes are part of this boundary.
 
 A's packaging policy is deliberately transitional: package resources are
 required; legacy counterparts are optional and, when present as definitions,
@@ -418,7 +444,12 @@ contracts. The implementer should cover:
   scripts, agent composition/dispatch and delegates through the real routing
   seams, stubbing agent/Slack/GitHub/telemetry/destructive outward effects.
 - `tests/test_git.py`: use actual temporary control and feature checkouts to
-  exercise both A-to-B transition publications and final packaged-only edits.
+  exercise A's handoff against pre-A control, A-to-B transition publications,
+  and final packaged-only edits. Pin the pre-A control revision for the first
+  case; assert all live recurring definition/sibling bytes and control's
+  packaged bytes remain unchanged while ordinary ticket/state updates publish.
+  Execute that control checkout's own packaging, navigation and representative
+  runtime checks with its imports, before A's compatibility allowances exist.
   Run the control checkout's own compatibility code/checks, not B imports via
   the primary checkout's editable install. Include dirty topic deletions and
   the committed recurring-deletion adoption path, parent state conversion,
@@ -875,6 +906,12 @@ this review does not approve those product or rollout decisions.
 
 For the owner at `review-design`, after the independent evaluator:
 
+The owner advanced this gate at `1826bb2668dc11d07507d747ad58430bdf98eb94`.
+The implementation-readiness record below treats that as authorization for
+the proposed design. The remaining execution decision is item 4: the frozen
+workflow still has one implementation/PR cycle and no sibling split or staged
+publication workflow was recorded. Items 1–3 are retained as design history.
+
 1. Approve `recurring/jobs.toml` selection semantics: existing local jobs keep
    working without a file; bundled-only jobs need explicit true; false disables
    local and bundled definitions; `_name` parking suppresses fallback; named
@@ -895,6 +932,78 @@ For the owner at `review-design`, after the independent evaluator:
    tickets so the dependency can actually merge first. If kept as one ticket,
    an explicit staged-publication workflow is needed before implementation;
    one deletion PR against today's control cannot meet the rollout criterion.
+
+## Implementation readiness — 2026-10-29
+
+Codex checked clean `main` against fetched `origin/main` at
+`80e999d95224b8304a951bd874a900c98d1afcb5` (`0 0` ahead/behind). This ticket is
+`in_progress` at `4 (implement)` on control, with no recorded Dev branch or
+PR. The owner advance above changed only `step:` and the audit record;
+the frozen workflow still contains one implementation, peer-review and PR
+cycle. No sibling compatibility/cutover tickets are present. Product design
+authorization is accepted; choosing the execution split remains necessary to
+satisfy the required merge-before-removal order without rewriting the frozen
+workflow or publishing a PR from the implement step.
+
+Resolved evaluator P1 in Description: A keeps every live recurring definition
+and definition sibling unchanged, permits ordinary mutable state to publish,
+and makes required recurring instruction changes only in the package. A's
+transitional checks must pin narrowly enumerated legacy differences and
+verify the handoff against pre-A control's own code/checks. The blanket twin
+synchronization instruction now distinguishes these files. Also named direct
+phone-home execution precisely; no new recipe is proposed. These are plan
+corrections, not runtime changes or completed regression coverage.
+
+Concrete recommended split for owner authorization:
+
+- `v1/package-definitions/01-runtime-compatibility`: stage A's effective
+  resource/recurring resolvers, selection and carriers, all reader/writer and
+  retention changes, package ref moves, scaffold-only init, migration/rollback
+  runbook, required-resource and deletion-tolerant checks, navigation and
+  instruction preparation, pre-A handoff regression, isolated-wheel coverage
+  and full-suite verification. Preserve all current live definitions through
+  its merge. Use an ordinary implementation/review/PR workflow.
+- `v1/package-definitions/02-repo-cutover`: depends on the exact first ref
+  being merged and its clients in use; inventory/quiesce/back up writers,
+  publish selection, convert state and remove approved live definitions in
+  the documented order, run the first-conversion and full-removal checks on
+  A control, then enforce strict ownership and final package-edit publication
+  coverage. Rehearse rollback and retain custom jobs, attachments, frozen
+  runs, all blackboards and ledgers. Use its own implementation/review/PR
+  workflow.
+
+If authorized, distribute the full contract into these sibling tickets and
+their group README before removing this original through `coga delete`, per
+`coga/tickets/discovery`; keep no umbrella. Alternatively, the owner must
+provide an explicit staged workflow for this ticket. Creating/deleting the
+tickets or changing the frozen workflow has not been inferred from the gate
+advance. No implementation branch, source edit, migration or PR was created.
+
+Readiness evidence (current behavior only):
+
+- `git fetch origin main`; `git merge --ff-only origin/main` — succeeded;
+  `git rev-list --left-right --count HEAD...origin/main` — `0 0`.
+- `src/coga/recurring.py::{scan_due,scan_clone_due,create_named,list_templates}`
+  still discovers local definitions; `src/coga/commands/update.py` plus
+  `copy_fresh_templates()` still copies the non-bootstrap tree. A has not
+  already landed.
+- `.venv/bin/python -B` inspection of
+  `tests/test_packaging.py::_discover_live_packaged_twins()` found 104 pairs:
+  52 context files, 20 skills, 10 workflows, 15 recurring files, two bootstrap
+  tickets and five root scaffolds. All nine bundled parents and five staged
+  trim-log files remain present; `_context_distribution_problems()` is empty.
+- `PYTHONPATH=/home/n/Code/coga/src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_git.py::test_sweep_publishes_committed_state_from_a_feature_checkout tests/test_git.py::test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_phone_home_matches_seed_except_period_state_and_seed_is_unused tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+  — **5 passed in 1.90s**. This confirms current publication behavior and a
+  green baseline, not the new pre-A regression or any implementation claim.
+- `PYTHONPATH=/home/n/Code/coga/src PYTHONDONTWRITEBYTECODE=1 coga validate --task v1/04-stop-the-contexts-root-sweep-from-publishing-canon --json`
+  — **1 OK, no issues**. `git diff --check` passed. A byte comparison against
+  HEAD confirms the lifecycle header, ticket guide and evaluator review are
+  preserved, with exactly one blackboard fence. Final fetch still matched
+  the starting revision; only this ticket is dirty before the transition.
+- Full suite, isolated wheel and migration tests are deferred to the approved
+  implementation deliverables; this attempt changed only ticket intent and
+  blackboard. The terminal blocker will request only the split/staged-workflow
+  decision, with this concrete scope as its referent.
 
 ## Verification
 
@@ -925,3 +1034,9 @@ For the owner at `review-design`, after the independent evaluator:
   `7d9c95053c2a518e90f72a834eab9255011f5d61`; `git diff --check` remains clean.
   Handoff is to the frozen `evaluate-design` step, not implementation or owner
   approval. Use the current path-qualified ref above for the transition.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-29 22:30] [agent:claude] id=20261029T223051 Approve the concrete compatibility/cutover sibling split recorded under Implementation readiness, or provide an explicit two-landing workflow for this ticket. The current frozen workflow has one implementation/PR cycle, while acceptance requires compatibility merged and in use before cutover publication; the ticket explicitly reserves splitting for the owner. The stage-A publication boundary is now specified and the proposed design is treated as authorized. No additional product-design approval is requested.
