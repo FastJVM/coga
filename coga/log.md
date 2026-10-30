@@ -9788,3 +9788,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-30 11:01 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-30 11:01 v1 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
 2026-10-30 11:01 v1 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
+2026-10-30 11:09 v1 [v1/03-state-sync-published-unmerged-recurring-templates] [megalaunch] activated (blocked → active) — explicit megalaunch pick
