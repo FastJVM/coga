@@ -118,17 +118,18 @@ git clone <repo> && cd <repo>
 coga init --user <your-name>
 ```
 
-This path stages and commits nothing. It wires
-the agent skill links first. If that fails, it exits non-zero and leaves the
-local config untouched. Fix the reported path and re-run; correct links
+This path stages and commits nothing. After validating the name and Git
+preconditions, it makes the same optional CLI install/login offers as a fresh
+init, but never changes the default agent: the committed `coga.toml` is team
+config. It then wires the agent skill links before saving your name. If that
+fails, it exits non-zero and leaves the local config untouched. Fix the
+reported path and re-run; correct links
 from an earlier attempt are reused. Then it writes `user`. A missing file
 gets the full template. An existing `coga.local.toml` is edited in place as
 TOML, so other keys, nested tables and comments survive; `user` is a
 top-level key, and table entries also named `user` are left alone. An
 unparseable local file is a hard error. Without `--user` it fails naming the
-flag. Only after these checks and the `git` ones does it make the same install
-offers as a fresh init, except that it never changes the default agent: the
-committed `coga.toml` is team config. Once `user` is set, re-running init is refused with the upgrade menu:
+flag. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
 `coga uninstall`.
 
@@ -168,6 +169,6 @@ Fresh init installs the weekly trim-log job with default-on 30-day retention.
 A wheel upgrade alone installs no new schedule into existing repos. After
 upgrading every writer, use the feature-specific `python -m
 coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
-[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command installs only this feature's repo files.

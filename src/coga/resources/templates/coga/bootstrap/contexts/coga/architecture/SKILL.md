@@ -13,7 +13,7 @@ rebuilds its prompt from files.
 
 - **Tickets** under `coga/tasks/`: frontmatter, body, and a blackboard of
   working state composed into the next launch; disposable once done.
-- **Log**: CLI-written `coga/log.md`, never composed; the [retention job](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md) expires eligible old events.
+- **Log**: CLI-written `coga/log.md`, never composed; the [retention job](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/ticket.md) expires eligible old events.
 - **Contexts**: facts and contracts ("what is true"), attached per ticket.
 - **Skills**: process ("how to do it"), attached to workflow steps or tickets.
 - **Workflows**: ordered steps with roles and gates, frozen into tickets.

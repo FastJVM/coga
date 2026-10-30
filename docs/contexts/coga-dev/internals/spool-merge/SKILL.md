@@ -22,7 +22,7 @@ native competing edits conflict with both sides recoverable in Git index
 stages. Coga identifies `paths.log_path(cfg)` independently of attributes and
 uses the event-aware publisher below. Adoption of that attribute and the
 weekly schedule is explicitly staged with compatible writers; the
-[operations guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[operations guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 owns the two-phase rollout.
 
 `**/retires.md merge=union` remains unchanged. Its healing reader collapses

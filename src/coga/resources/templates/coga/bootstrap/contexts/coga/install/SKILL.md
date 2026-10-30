@@ -11,9 +11,11 @@ adopt it into. Installing the package never modifies a repo;
 
 ## Prerequisites
 
-- **Linux or macOS for agent sessions.** On native Windows the CLI and
-  deterministic work run: non-interactive commands, `ticket.py` phases,
-  recipes and recurring scripts. Agent sessions refuse there until
+- **Linux or macOS for agent sessions.** In the development version after
+  the native core port, Windows runs non-interactive commands, `ticket.py`
+  phases, recipes and recurring scripts. Published PyPI 0.4.1 predates that
+  port and fails to import on native Windows. Even the development version
+  refuses agent sessions there until
   `v1/14-interactive-coga-launch-on-native-windows` lands
   ([coga/launch](../launch/SKILL.md#phases-and-routing)). WSL is the
   untested Windows route for agent sessions.
@@ -25,12 +27,20 @@ adopt it into. Installing the package never modifies a repo;
   Git, but any working Git installation is sufficient (below).
 - **An agent CLI**, installed and authenticated: Claude Code or Codex, for
   anything that launches an agent. `coga init` does not require one (below).
+  Follow the [Claude Code CLI quickstart](https://code.claude.com/docs/en/quickstart)
+  or [Codex CLI instructions](https://developers.openai.com/codex/cli/), then
+  sign in with `claude` or `codex login`. Coga's install does not include
+  these tools or authenticate an existing installation.
 - **GitHub CLI (`gh`)**, recommended but not required at init. PR workflows,
   the merged-ticket autoclose sweep, and `coga skill install` check for it at
   their point of use and fail with an install hint.
 - **1Password CLI (`op`)**, only if a ticket declares an `op://` secret; it
   is checked when that launch resolves the reference
   ([coga/secrets](../secrets/SKILL.md)).
+
+One agent is enough for a session. A workflow with an `other-agent` review
+step needs its configured peer as well; the [first-task walk](../first-task/SKILL.md)
+explains the one-agent and peer-review choices and GitHub prerequisites.
 
 In an interactive terminal, `coga init` offers to install a missing `git`,
 `gh` (default yes, then `gh auth login` if the active github.com account is
@@ -82,8 +92,8 @@ Xcode app is not required**:
   rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
   ```
 
-The CLT install is machine-wide. Its `/usr/bin/python3` is 3.9, below
-Coga's floor; `uv tool install` manages its own Python.
+The CLT install is machine-wide. A system `python3` may still be below
+Coga's Python 3.11 floor; `uv tool install` manages its own Python.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an
@@ -158,7 +168,8 @@ coga --version     # prints "coga <version>"
 
 `coga --version` reports the installed package version (`unknown` if package
 metadata is missing). One CLI runs every repo, so there is no per-repo
-version.
+version. These commands check the CLI installation, not agent authentication
+or a completed first task; continue with [coga/first-task](../first-task/SKILL.md).
 
 ## Upgrading and removing
 
@@ -183,6 +194,6 @@ Fresh init installs the weekly trim-log job with default-on 30-day retention.
 A wheel upgrade alone installs no new schedule into existing repos. After
 upgrading every writer, use the feature-specific `python -m
 coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
-[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command installs only this feature's repo files.
