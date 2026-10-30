@@ -28,7 +28,10 @@ withholds the final sweep, preserving the session's edits. Each time it:
    templates, contexts, skills, workflows, config — that the session or
    script did not publish, plus eligible committed state such as a hand
    commit on local `main` whose control copy has not moved since. Only what
-   publication cannot land stays dirty or unpublished.
+   publication cannot land stays unpublished. Working state can land while
+   a distinct staged version keeps the checkout dirty; control publication
+   preserves that index before staging any selected landed files
+   ([state publication](../../state-publication/SKILL.md#control-versus-feature-checkouts)).
 2. **Pins control.** Under the checkout's state lock, `git fetch origin main`
    and pin that commit, re-pinning a bounded number of times when a sibling
    checkout's publish moves it. Local `main` must exist and be equal to or
@@ -66,8 +69,11 @@ withholds the final sweep, preserving the session's edits. Each time it:
 An entry refusal names the blocking paths or branch and the remedy, starts no
 work, changes no checkout contents or local ref, and exits 75 so the outer
 sweep does not publish the rejected dirt. A refusal after a session is a
-prominent warning: the remaining work and the session's own result stand,
-chaining stops, and that command's end sweep is withheld. An unexpected Git
+prominent warning: remaining versions are retained, chaining stops, and that
+command's end sweep is withheld. Publication and checkout return are separate
+outcomes: working bytes may already be on control while the index still holds
+an unproved draft. Ordinary task launch keeps its result; direct chat's
+command result is specified in [chat](../chat/SKILL.md). An unexpected Git
 or I/O failure after mutation began reports where it stopped; nothing is
 rolled back. A killed launch is recovered by the next entry.
 
@@ -108,24 +114,57 @@ When preparation refuses, or an agent finds an unexpected starting checkout,
 investigate before changing it. A stale branch's ticket is not current task
 state, and a merged PR does not establish that uncommitted edits are finished.
 
-1. Inspect HEAD, staged and unstaged diffs, and untracked files. Identify the
+1. Inspect HEAD, staged and unstaged diffs, and untracked files. The refusal
+   prints configured, shell-quoted commands from the Git checkout root:
+   `git status --short --branch`, `git diff --cached --binary`,
+   `git diff --binary`, and `git fetch <remote> <control>`. Per-path comparisons
+   use the pinned control OID and `git --literal-pathspecs`, including names
+   with spaces or Git metacharacters. Untracked files need a separate working
+   blob comparison: `git diff` omits them. Commands use POSIX shell quoting
+   on POSIX and PowerShell single-quoted literals on native Windows.
+   Identify the
    branch's associated ticket from its recorded `branch:` or `pr:`, commit
    history, and PR metadata. Do not infer a ticket solely from the branch name;
-   report an unknown or ambiguous association.
+   report an unknown or ambiguous association. A chat branch need not have a
+   ticket, PR, or upstream; fetch the named remote and control explicitly.
 2. Fetch the configured remote control branch and read that revision's ticket
    without replacing local files. Check the linked PR's current state and
    merge evidence. Report the ticket, current lifecycle status, and whether
    its work merged; distinguish that from any stale local status. If access
    prevents verification, report the uncertainty rather than calling it done.
-3. Account for uncommitted changes separately. Compare them with current
+3. Before changing anything, record HEAD's OID (`git rev-parse HEAD`) and
+   verify backups outside the checkout: separate staged and unstaged binary
+   patches, plus copies of every untracked file. `git diff --cached --binary
+   --output=<outside-path>` and `git diff --binary --output=<outside-path>`
+   save Git's bytes without shell redirection encoding them differently.
+   Check the patches and compare copied files byte-for-byte; keep the branch
+   and recorded HEAD so committed work remains reachable too.
+4. Account for uncommitted changes separately. Compare them with current
    control and the associated branch, preserving unique work. State which
    changes are already incorporated, which remain needed, and whose purpose
    or ownership is unknown. A stash preserves bytes but does not answer these
    questions; never automatically stash, reset, or discard edits to clear the
    refusal. Do not switch another task's occupied checkout.
-4. Explain the proposed recovery and its effect on remaining work. Resolve
+   A diagnostic saying “working file matches control; staged copy differs”
+   describes two observations, not semantic supersession. An older staged
+   draft can carry unique intent; neither newer control nor a merged PR proves
+   otherwise. Exact HEAD/control index copies retain the existing cleanup
+   proof; staged union-log versions need the same exact index proof.
+5. Explain the proposed recovery and its effect on remaining work. For a
+   reviewed index-only duplicate whose working copy is already published,
+   the conditional remedy is `git --literal-pathspecs restore --staged
+   --source=HEAD -- <old> <new>`, including both sides of a rename. It changes
+   only the index. Review every path printed in that command and verify it
+   has no unique staged intent before using it; never execute recovery just
+   because it was printed. If working files differ, reconcile the unique
+   intent onto current control under [reconciliation](../reconciliation/SKILL.md)
+   first, preserving source work on its feature branch for review. Do not
+   blanket-restore files from control.
+   Resolve
    unclear intent, ownership, or permissions through session conduct before
-   mutation; then perform the authorized recovery and retry the normal launch.
+   mutation; then perform the authorized recovery and retry the original
+   chat/launch invocation printed in the refusal. The boundary fetches and
+   proves every version again before cleanup.
    Never mark a ticket done or replay a workflow transition merely because
    its PR merged. Launch itself does not query GitHub or make these judgments.
 

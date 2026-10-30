@@ -7601,6 +7601,168 @@ def test_orientation_returns_to_control_after_session_changes_branch(
     assert git_repo.git("show", "feature/from-chat:work.py") == "committed work\n"
 
 
+@pytest.mark.parametrize("agent_code", [0, 3, 130])
+def test_orientation_return_refusal_preserves_agent_result_and_releases_guard(
+    git_repo, monkeypatch: pytest.MonkeyPatch, agent_code: int,
+) -> None:
+    def work(_ref: BootstrapRef) -> bool:
+        git_repo.checkout_branch("feature/chat-dirty")
+        (git_repo.root / "work.py").write_text("unique work\n", encoding="utf-8", newline="\n")
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[work], exit_codes=[agent_code])
+    _checkout_launch_env(monkeypatch, session)
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert result.exit_code == (agent_code or 75), result.output
+    assert "feature/chat-dirty" in result.output
+    assert "git diff --cached --binary" in result.output
+    assert "git fetch origin main" in result.output
+    assert "coga launch bootstrap/orient" in result.output
+    assert "not published;" not in result.output
+    assert coga_git.state_sweep_withheld.get()
+    assert _branch_and_tip(git_repo)[0] == "feature/chat-dirty"
+    assert (git_repo.root / "work.py").read_text(encoding="utf-8") == "unique work\n"
+    with launch_module._orientation_checkout_guard(load_config(git_repo.coga_os)):
+        assert launch_module._CHAT_SESSION.get() is not None
+
+
+def test_orientation_python_boundary_reports_refusal_first_seen_at_final_teardown(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    _checkout_launch_env(monkeypatch, session)
+    original = launch_module._LaunchInvocation.return_checkout
+
+    def dirty_finally(invocation):  # type: ignore[no-untyped-def]
+        (git_repo.root / "late.txt").write_text("late work\n", encoding="utf-8", newline="\n")
+        return original(invocation)
+
+    monkeypatch.setattr(launch_module._LaunchInvocation, "return_checkout", dirty_finally)
+    with pytest.raises(launch_module.LaunchBail) as refused:
+        launch_module.launch("bootstrap/orient", return_timeout=True)
+    assert refused.value.code == 75
+    assert (git_repo.root / "late.txt").exists()
+
+
+def test_orientation_python_boundary_ignores_an_earlier_withheld_sweep(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    _checkout_launch_env(monkeypatch, session)
+    coga_git.state_sweep_withheld.set(True)
+    result = launch_module.launch("bootstrap/orient")
+    assert result.exit_code == 0
+    _assert_clean_control(git_repo)
+
+
+@pytest.mark.parametrize("failure", ["git", "io", "interrupt"])
+def test_orientation_finalization_failures_keep_work_and_nonzero_exceptions(
+    git_repo, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    def work(_ref: BootstrapRef) -> bool:
+        (git_repo.root / "work.py").write_text("kept\n", encoding="utf-8", newline="\n")
+        if failure == "interrupt":
+            raise SystemExit(130)
+        real = coga_git.prepare_control_checkout
+
+        def fail(cfg, **kwargs):  # type: ignore[no-untyped-def]
+            if kwargs.get("require_remote_control"):
+                raise (OSError("disk failure") if failure == "io" else coga_git.GitError("git failure"))
+            return real(cfg, **kwargs)
+
+        monkeypatch.setattr(coga_git, "prepare_control_checkout", fail)
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[work])
+    _checkout_launch_env(monkeypatch, session)
+    result = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+    assert result.exit_code == (130 if failure == "interrupt" else 75), result.output
+    assert "Checkout left on 'main'" in result.output
+    assert coga_git.state_sweep_withheld.get()
+    assert (git_repo.root / "work.py").read_text(encoding="utf-8") == "kept\n"
+
+
+def test_checkout_diagnostics_use_pinned_control_and_literal_rename_paths(git_repo) -> None:
+    import shlex
+
+    git_repo.git("remote", "rename", "origin", "upstream")
+    git_repo.git("branch", "-m", "trunk")
+    git_repo.git("push", "upstream", "trunk")
+    from dataclasses import replace
+    cfg = replace(load_config(git_repo.coga_os), git_remote="upstream", git_control_branch="trunk")
+    old = "coga/old [ab].md"
+    new = "coga/new [ab] '$draft'.md"
+    (git_repo.root / old).write_text("original\n", encoding="utf-8", newline="\n")
+    git_repo.git("--literal-pathspecs", "add", "--", old)
+    git_repo.git("commit", "-m", "seed")
+    git_repo.git("push", "upstream", "trunk")
+    git_repo.checkout_branch("feature/no-upstream")
+    (git_repo.root / old).rename(git_repo.root / new)
+    git_repo.git("--literal-pathspecs", "add", "--all", "--", old, new)
+    (git_repo.root / new).write_text("published working version\n", encoding="utf-8", newline="\n")
+    coga_git.publish(cfg, coga_git.coga_root_paths(cfg), "rename")
+    before = (git_repo.git("ls-files", "--stage"), git_repo.git("show-ref"), (git_repo.root / new).read_bytes())
+    outcome = coga_git.prepare_control_checkout(cfg)
+
+    message = launch_module._checkout_refusal_message(
+        cfg, outcome, "Cannot launch chat", retry_command="coga chat --agent codex",
+    )
+
+    assert "working file matches control" in message
+    assert "staged copy differs" in message
+    assert "feature/no-upstream" in message
+    assert "git fetch upstream trunk" in message
+    assert outcome.commit in message
+    assert "coga chat --agent codex" in message
+    assert "Only after reviewing" in message
+    assert (git_repo.git("ls-files", "--stage"), git_repo.git("show-ref"), (git_repo.root / new).read_bytes()) == before
+    if os.name != "nt":
+        commands = [shlex.split(line.strip()) for line in message.splitlines() if line.startswith("  git ")]
+        restore = next(argv for argv in commands if "restore" in argv)
+        assert restore == ["git", "--literal-pathspecs", "restore", "--staged", "--source=HEAD", "--", new, old]
+        for argv in commands:
+            if "diff" in argv:
+                git_repo.git(*argv[1:])
+        # Explicitly reviewed fixture: the printed remedy changes only the
+        # index, then the next boundary re-fetches and re-proves all paths.
+        git_repo.git(*restore[1:])
+        assert (git_repo.root / new).read_bytes() == before[2]
+        assert git_repo.git("show-ref") == before[1]
+        assert coga_git.prepare_control_checkout(cfg).kind == "prepared"
+
+
+def test_checkout_command_quotes_powershell_literals(monkeypatch: pytest.MonkeyPatch) -> None:
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "name", "nt")
+        command = launch_module._checkout_command(["git", "--literal-pathspecs", "diff", "--", "a [b] '$x'.md"])
+    assert command == "git --literal-pathspecs diff -- 'a [b] ''$x''.md'"
+
+
+def test_checkout_untracked_diagnostic_compares_working_blob_explicitly(git_repo) -> None:
+    import shlex
+
+    cfg = load_config(git_repo.coga_os)
+    rel = "coga/untracked [ab].md"
+    git_repo.push_competing_commit(rel, "published\n")
+    path = git_repo.root / rel
+    path.write_text("unique local work\n", encoding="utf-8", newline="\n")
+    outcome = coga_git.prepare_control_checkout(cfg)
+    assert outcome.kind == "refused"
+    assert outcome.observations[0].untracked
+    assert outcome.observations[0].working == "differs"
+    message = launch_module._checkout_refusal_message(cfg, outcome, "Cannot launch")
+    assert "Git diff omits its working bytes" in message
+    assert "working file differs from control" in message
+    assert "restore --staged" not in message
+    if os.name != "nt":
+        commands = [shlex.split(line.strip()) for line in message.splitlines() if line.startswith("  git ")]
+        hash_command = next(argv for argv in commands if "hash-object" in argv)
+        control_command = next(argv for argv in commands if "rev-parse" in argv)
+        assert git_repo.git(*hash_command[1:]) != git_repo.git(*control_command[1:])
+    assert path.read_text(encoding="utf-8") == "unique local work\n"
+
+
 @windows_interactive_skip
 def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch

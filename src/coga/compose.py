@@ -86,6 +86,7 @@ class CheckoutNotice:
     return_owner: str
     projected: str | None = None
     prepare_command: str | None = None
+    state_roots: tuple[str, ...] = ()
 
     def render(self) -> str:
         lines = [self.summary]
@@ -98,10 +99,23 @@ class CheckoutNotice:
             )
         if self.prepare_command:
             lines.append(
-                "Discussion needs no branch. Before editing any file, read "
-                "`coga/checkouts` and run exactly "
+                "Discussion and routine Coga-state-only edits stay on control. "
+                "The configured publication roots are "
+                + ", ".join(f"`{root}`" for root in self.state_roots)
+                + ". Leave routine state unstaged, including renames: use a "
+                "filesystem move, not `git mv` or `git add`. Before the first "
+                "implementation or deliberately reviewed knowledge edit, read "
+                "`coga/checkouts/chat`, run `coga run publish-state` with no paths "
+                "to include deletions, require success and a clean checkout, then run exactly "
                 f"`{self.prepare_command}`; it creates or reuses this chat's "
-                "one branch and is safe to repeat."
+                "one branch and is safe to repeat. Stop if publication fails. "
+                "Preparation itself never sweeps. Code or docs outside the roots "
+                "need a branch and PR; implementation inside a root and knowledge "
+                "chosen for review also need the branch before editing. Commit "
+                "intended PR files and packaged twins before any sweeping command. "
+                "Routine task/log/recurring state still follows publication's "
+                "adoption rules, even when committed. State can publish from the "
+                "branch; do not switch for each kind of edit."
             )
         lines.append(self.return_owner)
         lines.append(

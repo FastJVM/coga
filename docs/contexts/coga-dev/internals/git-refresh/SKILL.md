@@ -64,7 +64,13 @@ inside `refresh`.
     retrying the command, whose sweep publishes the rebased state.
   - `unproven`: left alone; the note says what could not be proved, with no
     rebase prescribed.
-- When this checkout holds the branch, each just-published file still equal
+- When this checkout holds the branch, `_stage_landed` first checks the entire
+  selected index against HEAD and the landed revision (exact mode and blob,
+  never a historical or union-subsumption shortcut), then rechecks index and
+  HEAD before its first write. A distinct draft refuses before any selected
+  path is mutated. This applies to fast-forward and realignment; the user
+  outcome is owned by [state publication](../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+  Each just-published file still equal
   to the bytes `publish` read is written to its landed bytes (the union result
   for the log) and staged, so the move is not refused by the edit it carries.
   A file a peer changed meanwhile stays dirty for the next sweep.

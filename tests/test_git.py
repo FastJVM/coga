@@ -2771,6 +2771,141 @@ def test_prepare_refuses_staged_content_that_is_not_published(git_repo):
     assert "staged draft" in git_repo.git("show", ":coga/tasks/demo.md")
 
 
+@pytest.mark.parametrize("on_control", [False, True])
+@pytest.mark.parametrize("stage_renames", [False, True])
+def test_publish_then_prepare_preserves_distinct_staged_renames(
+    git_repo, on_control, stage_renames,
+):
+    cfg = load_config(git_repo.coga_os)
+    old = [_seed_ticket(git_repo, slug=f"old-{i}") for i in range(3)]
+    if not on_control:
+        git_repo.checkout_branch("feature/chat")
+    new = [path.with_name(f"new-{i}.md") for i, path in enumerate(old)]
+    for source, destination in zip(old, new):
+        source.rename(destination)
+    if stage_renames:
+        git_repo.git("add", "--all", "--", "coga/tasks")
+    for path in new:
+        path.write_text(_ticket_text(blackboard="working prose\n"), encoding="utf-8", newline="\n")
+    before_head = _head(git_repo)
+    before_index = git_repo.git("ls-files", "--stage")
+    working = [path.read_bytes() for path in new]
+
+    assert git.publish(cfg, git.coga_root_paths(cfg), "Rename tickets")
+
+    for source, destination in zip(old, new):
+        assert _control(git_repo, source.relative_to(git_repo.root).as_posix()) is None
+        assert "working prose" in _control(git_repo, destination.relative_to(git_repo.root).as_posix())
+    if stage_renames:
+        assert _head(git_repo) == before_head
+        assert git_repo.git("ls-files", "--stage") == before_index
+    before = _snapshot(git_repo)
+    refs = git_repo.git("show-ref")
+    outcome = git.prepare_control_checkout(cfg)
+
+    if stage_renames:
+        assert outcome.kind == "refused"
+        assert len(outcome.blocking) == 3
+        destinations = [o for o in outcome.observations if o.index == "differs"]
+        assert len(destinations) == 3
+        assert all(o.working == "matches" for o in destinations)
+        assert outcome.commit == git_repo.git("rev-parse", "origin/main").strip()
+        assert _snapshot(git_repo) == before
+        assert git_repo.git("show-ref") == refs
+        assert [path.read_bytes() for path in new] == working
+    else:
+        _assert_prepared(git_repo, outcome)
+        assert not any(path.exists() for path in old)
+        assert [path.read_bytes() for path in new] == working
+
+
+def test_control_publication_preserves_staged_draft_before_any_landed_staging(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    first = _seed_ticket(git_repo, slug="a")
+    draft = _seed_ticket(git_repo, slug="z")
+    draft.write_text(_ticket_text(blackboard="unique staged intent\n"), encoding="utf-8", newline="\n")
+    git_repo.git("add", "--", "coga/tasks/z.md")
+    for path in (first, draft):
+        path.write_text(_ticket_text(blackboard="working prose\n"), encoding="utf-8", newline="\n")
+    before = _snapshot(git_repo)
+
+    assert git.publish(cfg, git.coga_root_paths(cfg), "Working state")
+
+    assert "working prose" in _control(git_repo, "coga/tasks/z.md")
+    assert _snapshot(git_repo) == before
+    assert "unique staged intent" in git_repo.git("show", ":coga/tasks/z.md")
+    assert git.prepare_control_checkout(cfg).kind == "refused"
+
+
+@pytest.mark.parametrize("on_control", [False, True])
+def test_exact_staged_rename_still_publishes_and_returns(git_repo, on_control):
+    cfg = load_config(git_repo.coga_os)
+    old = _seed_ticket(git_repo)
+    if not on_control:
+        git_repo.checkout_branch("feature/chat")
+    new = old.with_name("renamed.md")
+    old.rename(new)
+    git_repo.git("add", "--all", "--", "coga/tasks")
+
+    assert git.publish(cfg, git.coga_root_paths(cfg), "Exact rename")
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert not old.exists() and new.exists()
+
+
+@pytest.mark.parametrize("on_control", [False, True])
+def test_staged_union_log_draft_is_not_proved_by_published_working_lines(git_repo, on_control):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    append_log(cfg, "demo", "agent:claude", "seed")
+    git.publish(cfg, [git.log_path(cfg)], "seed log")
+    if not on_control:
+        git_repo.checkout_branch("feature/chat")
+    log = git.log_path(cfg)
+    original = log.read_bytes()
+    append_log(cfg, "demo", "agent:claude", "unique staged draft")
+    git_repo.git("add", "--", "coga/log.md")
+    log.write_bytes(original)
+    append_log(cfg, "demo", "agent:claude", "working event")
+    before = _snapshot(git_repo)
+
+    assert git.publish(cfg, [log], "Working log")
+    assert "working event" in _control(git_repo, "coga/log.md")
+    assert git_repo.git("ls-files", "--stage") == before[2]
+    before_return = _snapshot(git_repo)
+    outcome = git.prepare_control_checkout(cfg)
+    assert outcome.kind == "refused"
+    assert "staged content" in outcome.blocking[0]
+    assert outcome.observations[0].working in {"matches", "published"}
+    assert _snapshot(git_repo) == before_return
+
+
+def test_control_publication_rechecks_index_before_staging_any_path(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.write_text(_ticket_text(blackboard="working prose\n"), encoding="utf-8", newline="\n")
+    working = ticket.read_bytes()
+    real = git.run_git
+    probes = 0
+
+    def race(root, *args, **kwargs):
+        nonlocal probes
+        if args[:3] == ("ls-files", "--stage", "-z"):
+            probes += 1
+            if probes == 2:
+                ticket.write_text(_ticket_text(blackboard="concurrent staged draft\n"), encoding="utf-8", newline="\n")
+                git_repo.git("add", "--", "coga/tasks/demo.md")
+                ticket.write_bytes(working)
+        return real(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "run_git", race)
+    head = _head(git_repo)
+    assert git.publish(cfg, [ticket], "Working prose")
+    assert probes == 2
+    assert _head(git_repo) == head
+    assert ticket.read_bytes() == working
+    assert "concurrent staged draft" in git_repo.git("show", ":coga/tasks/demo.md")
+
+
 @windows_skip("POSIX filesystem mode bits and permissions")
 def test_prepare_refuses_a_mode_change_with_equal_bytes(git_repo):
     cfg = load_config(git_repo.coga_os)

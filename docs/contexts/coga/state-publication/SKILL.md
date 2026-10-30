@@ -78,7 +78,9 @@ reviewed PR.
   file to be included or already on control; an excluded log (for example an
   ignored, untracked `log.md`) is a reported failure. Failed or skipped
   publication adds a session-end warning naming the retained log, alongside
-  the Git diagnostic. The agent's exit result stands. Explicitly disabled
+  the Git diagnostic. Usage keeps the agent's actual result; a direct chat's
+  failed checkout return has the command-level result specified by
+  [chat checkouts](../checkouts/chat/SKILL.md). Explicitly disabled
   Git keeps its usual informational note instead of that warning.
 - **Guided authoring** (`coga ticket`) publishes its launch line before the
   session starts, as `coga chat` and launch do, so an attended session never
@@ -122,6 +124,19 @@ each publish fast-forwards it, or realigns it when its local-only commits are
 Coga state that publication has already put on control. Local commits
 touching anything else, state not yet on control, or an in-progress Git
 operation leave it alone with the remedy.
+
+Publication reads working files independently of the index. Before staging
+landed files to advance the local control checkout, it proves the existing
+index for the entire selected set: each entry must equal HEAD or the landed
+revision, including its mode. A distinct staged draft, deletion, rename, or
+union-log version is preserved; no selected path is staged or rewritten and
+local control is left behind. With a remote, working state may already have
+published successfully; that does not make the staged version disposable.
+Without a remote, inability to advance the only durable control ref is a
+publication failure. This safeguard applies to every publication caller,
+including lifecycle commands during a chat, not only chat teardown.
+Reconcile the retained versions under
+[checkout recovery](../checkouts/launch-boundary/SKILL.md#checkout-recovery).
 
 When Git refuses a control fast-forward because local changes or untracked
 files would be overwritten, the stderr note includes the first 10 paths

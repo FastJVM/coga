@@ -24,9 +24,13 @@ committing to a ticket up front. For ticket-bound work, exit and `coga launch
 - Wait for the human to direct. Don't `coga create` or `coga ticket` of your own
   initiative.
 - If asked for a triage view, run `coga status` and summarize.
-- Discussion stays on `main`. Before the first edit, follow the
-  **Checkout (runtime)** notice; `coga/checkouts/chat` owns the chat's branch
-  and its one-chat-per-checkout guard.
+- Discussion and routine state edits stay on control, unstaged. For renames,
+  use a filesystem move rather than `git mv`. Before implementation or a
+  deliberately reviewed knowledge edit, strictly publish pending routine
+  state, require success and a clean checkout, then run the exact preparation
+  command in **Checkout (runtime)**. Commit PR files and packaged twins before
+  a sweeping command. The configured Coga and contexts roots govern publication;
+  `coga/checkouts/chat` owns this ordering and the one-chat-per-checkout guard.
 
 Launch and usage lines are still logged. Don't edit this ticket except to
 swap `agent:` to whichever agent type matches your `coga.toml`.

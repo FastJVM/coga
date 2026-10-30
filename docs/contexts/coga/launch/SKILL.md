@@ -146,7 +146,8 @@ prepared launch returns its checkout instead.
 - Refusals exit 2; a checkout-boundary entry refusal, a stale recurring
   gate, and an unreconciled released megalaunch admission exit 75, which
   skips the end-of-command sweep; a non-zero agent or `ticket.py` exit
-  propagates.
+  propagates. A successful direct chat whose checkout return fails also
+  exits 75; [chat checkouts](../checkouts/chat/SKILL.md) owns that contract.
 
 The Python launch API, its internal phases, and the shared spawn path are in
 [coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md).
