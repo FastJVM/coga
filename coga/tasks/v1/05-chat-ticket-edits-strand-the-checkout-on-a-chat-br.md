@@ -621,3 +621,23 @@ pre-existing ticket is intact, the only added content is this evaluator
 section, there is one blackboard fence, and the index is unchanged. The five
 relevant checkout/publication context pairs remain byte-identical. No
 ticket-body edit, implementation, task branch, manual commit, or PR was made.
+
+## Dev
+
+branch: coga/chat-state-checkout-05
+
+## Implementation — 2026-10-29
+
+Owner approval is recorded in the audit: human:nicktoper advanced the owner
+review-design gate to implement on 2026-10-29. The earlier open decisions
+are approved by that transition; the original supervisor evidence gap remains
+unresolved and is not needed for this fix.
+
+Implement the proposed state-only chat policy, structured refusal diagnostics,
+and direct-chat exit 75. Include the evaluator's preservation correction in
+shared control publication: prove the existing index before staging landed
+working bytes or advancing control, so an independent staged draft survives
+publication during a chat and at teardown. Keep strict checkout proofs and
+ordinary/delegated launch result contracts. Add regression coverage before
+fixing behavior, update owning topics and packaged twins, run the full suite,
+then commit, reconcile, push, return to main, and hand off without a PR.
