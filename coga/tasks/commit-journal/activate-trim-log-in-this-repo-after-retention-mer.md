@@ -1,6 +1,6 @@
 ---
 title: Activate trim-log in this repo after retention merges
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: 46fab6f0-09d0-40b5-85a8-720b2b41f141
 ---
 
 ## Description
@@ -422,6 +421,70 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Implementation prerequisite check
+
+2026-10-29 PDT / 2026-10-30 UTC — Codex stopped at rollout prerequisites.
+The owner advanced `review-design` to `implement` in
+`67a692249d216ca43b1a04806f00703a6eeb4b8d`; that commit changes only `step:`.
+The advancement is recorded, but supplies no answers to the writer inventory,
+maintenance window, wheel provenance or resumption questions, and no resolution
+of the evaluator's post-merge ownership finding. Do not infer stopped processes
+or an approved deployment artifact from the workflow transition.
+
+Entry was clean `main`; `git fetch origin main` and
+`git merge --ff-only origin/main` confirmed current control at
+`edd2b1798b580a6f6954a228a6f2178c03c6262f`. No feature branch or PR is recorded
+for this ticket. The prompt identifies this session as a megalaunch queue step;
+no checkout preparation or return witness was supplied. The selected rollout
+requires manual/API code sessions outside launch/megalaunch, so this session
+cannot perform the adoption branch work under that procedure.
+
+Read-only recheck on that revision:
+
+- GitHub still reports PR #1129 merged as
+  `42d1b30a47e30bb642f9e610d950681acdacd595`; `git merge-base --is-ancestor
+  42d1b30a47e30bb642f9e610d950681acdacd595 origin/main` exited 0.
+- Resolving `/home/n/.local/bin/coga` by its direct shebang yields
+  `/home/n/.local/share/uv/tools/coga/bin/python` (Python 3.12.12, Linux
+  x86_64). It still imports editable
+  `/home/n/Code/coga/src/coga_edge/trim_log.py`, SHA-256
+  `d487c64de17f78519a412031bcd31cd538f2d33e4007772c7dc1be97626c13e9`.
+  This is source evidence, not the required non-editable wheel receipt or
+  proof of what an already-running supervisor loaded.
+- All five staged artifacts byte-match that interpreter's packaged resources.
+  The four live trim-log files are absent; `list_templates` does not discover
+  `trim-log`. `git check-attr merge -- coga/log.md coga/retires.md` still
+  reports `union` for both; `load_config` reports retention 30.
+- The local writer inventory above remains partial. No host-wide quiescence,
+  installation replacement, scheduler timezone, or restart disposition is
+  established by this check. The deployment controller is still editable.
+
+Required owner handoff: record each participating/excluded writer and its
+stop/restart authority, the maintenance window and scheduler timezone, and
+the reviewed wheel revision/SHA-256 for each environment. Resolve the evaluator
+finding with either a linked follow-up owning merged-tree verification and
+resumption or an explicit exception retaining them here, including how
+`open-pr` handles it and holding autoclose until the disposition is recorded
+and the owner completes the gate. Resume implementation manually outside
+launch/megalaunch with a freshly verified non-editable controller. Preserve
+the single adoption-and-cleanup PR boundary, including any review fixes.
+
+Checks: scoped `coga validate --task
+commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json`
+passed (one valid task, no issues or fixes); `git diff --check` passed.
+Byte comparisons confirmed unchanged frontmatter/body and prior blackboard,
+one fence, and unchanged shared/local configuration hashes. Only this ticket
+has unstaged edits; there are no staged or untracked files. A final
+`git fetch origin main` found HEAD and `origin/main` still at the revision
+above, with no intervening changes to reconcile.
+
+Only this prerequisite note was authored. No branch, installer run, wheel
+replacement, writer stop/restart, activation files, code changes, production
+trim or delivery was performed. Configuration, the five adoption targets and
+staging files remain unchanged. Implementation tests and PR preparation are
+not claimed: rollout has not started. The queue handoff is `coga block`,
+keeping step 4 until the concrete missing inputs are recorded.
+
 ## Design handoff
 
 2026-10-28 local / 2026-10-29 UTC — Codex design investigation. No branch,
@@ -605,3 +668,9 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
   the next owner gate resolves the finding and those questions.
 - Only this Evaluator review was authored. No ticket-body edit, branch, code,
   wheel installation, live installer/maintenance run or PR was produced.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-29 21:58] [agent:claude] id=20261029T215814 Record the participating/excluded writer inventory, stop/restart authority and maintenance window (including current megalaunch, dirty Retro checkout and schedulers), scheduler timezone, and reviewed compatible wheel revision/SHA-256 per installation. Resolve the evaluator finding with a linked post-merge verification/resumption follow-up or an explicit exception explaining open-pr handling and keeping autoclose stopped through the recorded disposition and owner completion. Resume implement in a manual/API session outside launch/megalaunch with a freshly verified non-editable controller; the current CLI is editable and no stop/upgrade receipts are recorded.
