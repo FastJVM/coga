@@ -217,14 +217,14 @@ def test_finalize_authored_publishes_relocated_contexts_dir(
     assert calls == [([context_path], "Ticket: relocated-contexts — authored")]
 
 
-def test_finalize_authored_skips_deleted_ticket(
+def test_finalize_authored_publishes_deleted_ticket_without_validating_it(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # A session may end by deleting the ticket (the human decides the task
     # should go away). `finalize_authored` must not fail validating a ref
-    # whose ticket.md was removed, nor try to re-sync it.
+    # whose ticket.md was removed, but must still account for its removal.
     import shutil
 
     cfg = load_config(repo)
@@ -244,7 +244,7 @@ def test_finalize_authored_skips_deleted_ticket(
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
 
-    assert calls == []
+    assert calls == [([ref.path], "Ticket authoring — authored state")]
 
 
 def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
@@ -276,7 +276,7 @@ def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
 
     assert calls == [
         (
-            [original_ref.path, promoted_ref.path],
+            sorted([original_ref.path, promoted_dir / "notes.txt", promoted_ticket]),
             "Ticket: promote-for-attachment — authored",
         )
     ]
@@ -335,7 +335,7 @@ def test_finalize_authored_publishes_support_only_from_bootstrap_interview(
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
-    assert calls == [([context_path], "Ticket authoring — knowledge edits")]
+    assert calls == [([context_path], "Ticket authoring — authored state")]
     assert str(context_path) in capsys.readouterr().err
 
 
@@ -367,7 +367,7 @@ def test_finalize_authored_publishes_deleted_support_only(
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
-    assert calls == [([context_path], "Ticket authoring — knowledge edits")]
+    assert calls == [([context_path], "Ticket authoring — authored state")]
     assert not context_path.exists()
 
 
@@ -521,7 +521,7 @@ def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, chang
     calls = []
     monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
-    assert calls == [[ref.path]]
+    assert calls == [[attachment]]
 
 
 def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, monkeypatch, capsys):
@@ -549,5 +549,221 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     calls = []
     monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
-    # The task directory pathspec carries the nested context; it is listed once.
-    assert calls == [[ref.path]]
+    # Exact files also carry a context nested inside the task directory once.
+    assert calls == [[context, attachment]]
+
+
+@pytest.mark.parametrize("target_state", ["unchanged", "canceled", "deleted"])
+@pytest.mark.parametrize(
+    "change", ["edited", "new", "deleted", "promotion", "attachment", "attachment_deleted"],
+)
+def test_finalize_authored_includes_siblings(repo, monkeypatch, target_state, change):
+    cfg = load_config(repo)
+    target = _create_task(repo, "Target")
+    sibling = _create_task(repo, "Sibling")
+    if change.startswith("attachment"):
+        directory = sibling.path.with_suffix("")
+        directory.mkdir()
+        sibling.path.replace(directory / "ticket.md")
+        sibling = resolve_task(cfg, sibling.id_slug)
+        attachment = directory / "notes.txt"
+        _write(attachment, "before\n")
+    before = snapshot_authoring_state(cfg)
+    selected = []
+    if target_state == "canceled":
+        ticket = Ticket.read(target.ticket_path)
+        ticket.frontmatter["status"] = "canceled"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(target.ticket_path)
+        selected.append(target.ticket_path)
+    elif target_state == "deleted":
+        target.ticket_path.unlink()
+        selected.append(target.ticket_path)
+
+    if change == "new":
+        sibling = _create_task(repo, "New sibling")
+        selected.append(sibling.ticket_path)
+    elif change == "deleted":
+        sibling.ticket_path.unlink()
+        selected.append(sibling.ticket_path)
+    elif change == "promotion":
+        directory = sibling.path.with_suffix("")
+        directory.mkdir()
+        sibling.path.replace(directory / "ticket.md")
+        _write(directory / "notes.txt", "handoff\n")
+        selected.extend([sibling.path, directory / "ticket.md", directory / "notes.txt"])
+    elif change.startswith("attachment"):
+        if change == "attachment_deleted":
+            attachment.unlink()
+        else:
+            _write(attachment, "handoff\n")
+        selected.append(attachment)
+    else:
+        ticket = Ticket.read(sibling.ticket_path)
+        ticket.body += "\nSibling handoff.\n"
+        ticket.write(sibling.ticket_path)
+        selected.append(sibling.ticket_path)
+    support = repo / "skills" / "helper" / "SKILL.md"
+    _write(support, "support\n")
+    validated = []
+
+    def validate(cfg, ref):
+        validate_authored_task(cfg, ref)
+        validated.append(ref.id_slug)
+
+    expected_validated = set()
+    if target_state != "deleted":
+        expected_validated.add(target.id_slug)
+    if change != "deleted":
+        expected_validated.add(sibling.id_slug)
+    calls = []
+
+    def publish(cfg, paths, message, **kwargs):
+        # All surviving selected tickets must validate before the first write.
+        assert set(validated) == expected_validated
+        calls.append(list(paths))
+        assert set(kwargs["require_paths"]) == set(paths)
+
+    monkeypatch.setattr("coga.authoring.validate_authored_task", validate)
+    monkeypatch.setattr("coga.authoring.git.publish", publish)
+
+    finalize_authored(cfg, before_snapshot=before, ref=target)
+
+    assert calls == [[*sorted(selected), support]]
+    assert len(validated) == len(expected_validated)
+
+
+def test_finalize_authored_invalid_sibling_prevents_every_publication(repo, monkeypatch):
+    cfg = load_config(repo)
+    target = _create_task(repo, "Target")
+    sibling = _create_task(repo, "Invalid sibling")
+    before = snapshot_authoring_state(cfg)
+    ticket = Ticket.read(target.ticket_path)
+    ticket.body += "\nTarget edit.\n"
+    ticket.write(target.ticket_path)
+    ticket = Ticket.read(sibling.ticket_path)
+    ticket.frontmatter["contexts"] = ["missing/context"]
+    ticket.write(sibling.ticket_path)
+    support = repo / "skills" / "helper" / "SKILL.md"
+    _write(support, "support\n")
+    retained = {p: p.read_bytes() for p in (target.ticket_path, sibling.ticket_path, support)}
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(TaskValidationError, match="missing/context"):
+        finalize_authored(cfg, before_snapshot=before, ref=target)
+
+    assert calls == []
+    assert {p: p.read_bytes() for p in retained} == retained
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
+def test_finalize_authored_reports_ambiguous_sibling(repo, monkeypatch, bootstrap):
+    cfg = load_config(repo)
+    target = _create_task(repo, "Target")
+    sibling = _create_task(repo, "Sibling")
+    before = snapshot_authoring_state(cfg)
+    directory = sibling.path.with_suffix("")
+    directory.mkdir()
+    promoted = directory / "ticket.md"
+    promoted.write_bytes(sibling.ticket_path.read_bytes())
+    support = cfg.contexts_root / "team/SKILL.md"
+    _write(support, "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+    retained = {p: p.read_bytes() for p in (target.ticket_path, sibling.path, promoted, support)}
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(AuthoringError, match="Duplicate task slug 'sibling'"):
+        finalize_authored(
+            cfg, before_snapshot=before,
+            ref=resolve_bootstrap(cfg, "ticket") if bootstrap else target,
+        )
+
+    assert calls == []
+    assert {p: p.read_bytes() for p in retained} == retained
+
+
+@pytest.mark.parametrize("edit_again", [False, True])
+def test_finalize_authored_selects_changed_files_not_entire_ticket_directories(
+    git_repo, edit_again,
+):
+    repo = git_repo.coga_os
+    cfg = load_config(repo)
+    target = _create_task(repo, "Target")
+    sibling = _create_task(repo, "Sibling")
+    directory = sibling.path.with_suffix("")
+    directory.mkdir()
+    sibling.path.replace(directory / "ticket.md")
+    sibling = resolve_task(cfg, sibling.id_slug)
+    attachment = directory / "notes.txt"
+    _write(attachment, "committed\n")
+    git_repo.git("add", "coga/tasks")
+    git_repo.git("commit", "-m", "seed tickets")
+    git_repo.git("push", "origin", "main")
+    _write(attachment, "pre-existing dirt\n")
+    ticket = Ticket.read(target.ticket_path)
+    ticket.body += "\nPre-existing target dirt.\n"
+    ticket.write(target.ticket_path)
+    before = snapshot_authoring_state(cfg)
+    ticket = Ticket.read(sibling.ticket_path)
+    ticket.body += "\nAuthored sibling handoff.\n"
+    ticket.write(sibling.ticket_path)
+    if edit_again:
+        _write(attachment, "pre-existing dirt\nauthored addition\n")
+
+    finalize_authored(cfg, before_snapshot=before, ref=target)
+
+    def remote(path):
+        return git_repo.git("show", f"main:{path.relative_to(git_repo.root).as_posix()}", cwd=git_repo.origin)
+
+    assert "Authored sibling handoff." in remote(sibling.ticket_path)
+    assert "Pre-existing target dirt." not in remote(target.ticket_path)
+    assert "Pre-existing target dirt." in target.ticket_path.read_text(encoding="utf-8")
+    assert remote(attachment) == (
+        "pre-existing dirt\nauthored addition\n" if edit_again else "committed\n"
+    )
+    assert "pre-existing dirt" in attachment.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("bootstrap", [False, True])
+@pytest.mark.parametrize("change", ["promotion", "deletion", "attachment_deletion"])
+def test_finalize_authored_publishes_sibling_moves_and_removals(git_repo, bootstrap, change):
+    import shutil
+
+    cfg = load_config(git_repo.coga_os)
+    target = _create_task(git_repo.coga_os, "Target")
+    sibling = _create_task(git_repo.coga_os, "Sibling")
+    directory = sibling.path.with_suffix("")
+    attachment = directory / "notes.txt"
+    if change != "promotion":
+        directory.mkdir()
+        sibling.path.replace(directory / "ticket.md")
+        _write(attachment, "original\n")
+    git_repo.git("add", "coga/tasks", "coga/log.md")
+    git_repo.git("commit", "-m", "seed tickets")
+    git_repo.git("push", "origin", "main")
+    tip = git_repo.git("rev-parse", "main").strip()
+    before = snapshot_authoring_state(cfg)
+    if change == "promotion":
+        directory.mkdir()
+        sibling.path.replace(directory / "ticket.md")
+        _write(attachment, "authored\n")
+    elif change == "deletion":
+        shutil.rmtree(directory)
+    else:
+        attachment.unlink()
+    support = cfg.contexts_root / "team/SKILL.md"
+    _write(support, "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+
+    finalize_authored(
+        cfg, before_snapshot=before,
+        ref=resolve_bootstrap(cfg, "ticket") if bootstrap else target,
+    )
+
+    assert git_repo.git("rev-list", "--count", f"{tip}..main", cwd=git_repo.origin).strip() == "1"
+    for path in (target.ticket_path, sibling.path, directory / "ticket.md", attachment, support):
+        rel = path.relative_to(git_repo.root).as_posix()
+        assert git_repo.origin_tracks(rel) == path.is_file()
+        if path.is_file():
+            assert git_repo.git("show", f"main:{rel}", cwd=git_repo.origin) == path.read_text(encoding="utf-8")
+    assert git_repo.git("status", "--porcelain") == ""
