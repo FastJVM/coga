@@ -37,9 +37,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: c8c57881-5e9a-44ce-bd13-34c2e5680de3
 ---
 
 ## Description
@@ -766,6 +765,110 @@ Historical reading was owner-authorized for twin rationale only. The context
 migration record establishes the former docs ownership and coordinated
 cutover; it does not require overriding the present package-only decision.
 No unresolved conflict with that owner decision was found in the record.
+
+## Evaluator review
+
+Reviewed 2026-10-29 against reconciled control
+`7911647a2cc5237abc89e076339a2d18d1b41207`.
+
+**Verdict: one must-fix before implementation.** The package ownership,
+whole-directory overrides, explicit activation and separate writable state
+are implementable within the existing architecture. The proposed shared
+catalog and state helper have real consumers and respect the microkernel
+boundary. The missing piece is safe publication while developing stage A
+itself. The owner also needs to resolve the four existing Open Questions;
+this review does not approve those product or rollout decisions.
+
+### Must fix before implementation
+
+1. **P1 — Stage A can publish its own recurring twin changes before its
+   compatibility checks land.** Proposed shape 5 requires A to update owning
+   topics and links while keeping still-present twins synchronized, and to
+   make navigation work with removable counterparts absent. This includes
+   recurring definitions and their supporting files: for example,
+   `coga/recurring/phone-home/ticket.md` and `operations.md` link to the
+   soon-to-be-removed user topics and live runbook paths. Updating both sides
+   on A's feature branch does not protect these live files.
+
+   Evidence: `src/coga/git.py::_routine_state_areas()` includes the entire
+   recurring root in committed-path adoption on a feature checkout; package
+   source is outside the state roots. Consequently an ordinary mutating CLI
+   exit, including A's workflow handoff, can publish A's committed live
+   recurring edits while control still has the old packaged bytes and tests.
+   `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical()`
+   rejects that mismatch, and
+   `test_phone_home_matches_seed_except_period_state_and_seed_is_unused()`
+   independently rejects phone-home changes outside `period_state`. The
+   existing committed-state/deletion tests in `tests/test_git.py` confirm the
+   publication behavior. This recreates the original failure before any B
+   deletion; the specified A-to-B regression starts too late to catch it.
+
+   Required disposition: specify a safe pre-merge boundary for A's recurring
+   definitions **and siblings**, not just for B's removals. One viable shape
+   keeps the live recurring files unchanged until A merges, with narrowly
+   enumerated, reviewed legacy-definition differences in A's transitional
+   checks while package instructions change; B then removes or converts
+   those legacy files. Another needs an explicit earlier compatibility
+   landing. Choose the sequence before implementation and add verification
+   of A's ordinary handoff sweep against pre-A control, proving that control
+   remains valid. Do not rely on committing recurring edits, avoiding the
+   normal workflow handoff, or changing publication membership/guards. Amend
+   the blanket synchronization instruction to match the chosen sequence.
+
+### Optional recommendations
+
+- Name the direct phone-home surface precisely in Proposed shape 3. It is
+  `src/coga_edge/phone_home.py::main()` / `run_phone_home()`, reached by the
+  shim or module execution; `src/coga/runner.py::RECIPES` has no `phone-home`
+  entry. Calling it a supported recipe can imply an unintended new registry
+  entry. Document and test how direct execution uses the shared state helper
+  when selection is false or the only parent is parked; the specified
+  scheduling and named-launch refusal rules need not become a new direct
+  execution policy by accident.
+- Refresh the dated inventory when preparing the implementation siblings:
+  current control has **104** pairs, including 52 context files, plus the same
+  five staged trim-log files. The added context is
+  `coga/state-publication/launch-boundaries`. There are still exactly nine
+  bundled parents. The ticket already calls for recomputation, so this drift
+  is informational, not a design defect.
+
+### Review coverage and verification
+
+- Checked the ticket body independently of the handoff: requirements are
+  under Description and Context, so they compose. The frozen workflow matches
+  `bootstrap/workflows/code/design-then-implement.md`; the next step is the
+  owner-held `review-design` gate. The current workflow has one implementation
+  and PR path, so the existing split/staged-workflow decision must be settled
+  there before implementation is launched.
+- Checked the resolvers, generated skill view, init/clone setup, recurring
+  scanners and creation/adoption paths, state snapshots/completion paths,
+  worklist lookup, phone-home, retention inputs/installer, publication roots,
+  packaging/navigation checks and their existing tests. The design correctly
+  identifies the definition/state path coupling and the retention cursor and
+  receipt constraints; these are not reasons to weaken publication or move
+  mutable state into the package. Cited owners were read; no archive content
+  was read.
+- Start and pre-edit reconciliation: `git fetch origin main` and
+  `git merge --ff-only origin/main`; clean `main`, no recorded Dev branch or
+  PR, and `git rev-list --left-right --count HEAD...origin/main` returned
+  `0 0` at the revision above.
+- A read-only `.venv/bin/python -B` inspection of
+  `tests/test_packaging.py::_discover_live_packaged_twins()` and
+  `_context_distribution_problems()` found the inventory above, no context
+  distribution errors, and equality for every non-exempt pair.
+- `PYTHONPATH=/home/n/Code/coga/src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_git.py::test_sweep_publishes_committed_state_from_a_feature_checkout tests/test_git.py::test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_phone_home_matches_seed_except_period_state_and_seed_is_unused`
+  — **4 passed in 1.01s**. These verify current behavior supporting the
+  finding, not the proposed implementation.
+- `coga validate --task v1/04-stop-the-contexts-root-sweep-from-publishing-canon --json`
+  — **1 OK, no issues**. Only this evaluator section was authored; no ticket
+  intent, lifecycle header, configuration, code, branch or PR was changed by
+  the review. Full-suite, migration and wheel acceptance remain implementation
+  work.
+- Final pre-handoff fetch still matches the reviewed revision (`0 0` ahead/
+  behind); only this ticket is dirty. Validation was repeated after the review
+  edit with the same result. `git diff --check` passed, and a byte comparison
+  against HEAD verified that removing this one evaluator section reproduces
+  the original ticket exactly.
 
 ## Open Questions
 
