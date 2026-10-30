@@ -1,6 +1,6 @@
 ---
 title: State sync published unmerged recurring templates from a feature branch
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: d43911f1-5f15-472a-b96a-3b9e4597b046
 ---
 
 ## Description
@@ -589,6 +588,46 @@ checks:
 
 ---
 
+## Blocker recheck — 2026-10-30
+
+The resumed session was Codex. Both recorded blockers still reproduce on
+clean control `7eba4a32a23366b6bedfe772c9c37f9995a2a679`, using Python
+**3.11.15** from the existing isolated test environment:
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m pytest -q tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
+PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m coga.cli validate --json
+```
+
+The targeted test returned **1 failed in 4.55s**, with
+`ModuleNotFoundError: No module named 'yaml'`. Repository validation returned
+**98 OK, 16 warnings, 4 errors**, the same `unsynthesized-draft-blackboard`
+errors in `v1/19-install-link-for-claude-code-yields-the-desktop-ap`,
+`v1/26-make-the-readme-install-section-the-only-install-p`,
+`v1/27-link-uninstall-from-the-readme`, and `v1/31-test-install-on-windows`.
+`v1/12-fix-release-env-fixture-interpreter-symlink-in-fre` remains draft;
+`tests/test_clean_install_harness.py`, `release_env`, still contains
+`python.symlink_to(sys.executable)`. The full suite was not repeated while
+its recorded targeted failure remains reproducible.
+
+The human was shown both open asks and asked to choose between waiting for
+the owning fixes, explicitly waiving these known failures, or authorizing
+their resolution in this session. No resolution was supplied, so no waiver
+or scope expansion is assumed and the original ask remains unresolved.
+No unblock, implementation work, branch rewrite, or workflow advance ran.
+The local and remote implementation tips remain
+`6a73bbf4dbe5ed16593ab4121470db4578ff4ed1`; GitHub returned no PR for the
+recorded branch.
+
+Before this handoff, fetched and fast-forwarded clean main to `06752c696`.
+The intervening commits change other recurring/task state and the log;
+this ticket, all five blocker-owning tickets, the fixture, and the
+reconciliation instructions are unchanged. Preserve the implementation
+and existing receipts until the blocker decision is resolved, then follow
+the prior resume/reconciliation instructions.
+
 ## Blockers
 
 - [ ] [2026-10-29 22:24] [agent:claude] id=20261029T222441 Implementation is pushed at 6a73bbf4d; resolve required checks or explicitly waive them before advancement. v1/12-fix-release-env-fixture-interpreter-symlink-in-fre must fix the unchanged release_env symlink that loses PyYAML in a fresh Python 3.11 venv (full suite: 1 failed, 4362 passed, 10 skipped). Also synthesize draft coordination notes or place intentional launch notes under Production notes in v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p, v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows; these cause four repository-validation errors. Focused publication tests pass (310); exact evidence is on the blackboard.
+
+- [ ] [2026-10-30 11:15] [agent:claude] id=20261030T111555 Owner resolution remains required before implementation resumes: wait for the owning fixes, authorize resolving these blockers in this session, or explicitly waive these specific failures. Python 3.11.15 recheck still fails with missing yaml in the release_env fixture owned by v1/12-fix-release-env-fixture-interpreter-symlink-in-fre (1 failed in 4.55s). Repository validation still reports 98 OK, 16 warnings, and four unsynthesized-draft-blackboard errors in v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p, v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows. Both asks were surfaced; no resolution or waiver was supplied. Fresh evidence is on the blackboard; implementation remains pushed at 6a73bbf4d, without a PR.
