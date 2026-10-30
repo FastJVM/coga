@@ -1,6 +1,6 @@
 ---
 title: State sync published unmerged recurring templates from a feature branch
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: 2592a1ab-df2c-4244-9456-c9cf01cd5a22
 ---
 
 ## Description
@@ -75,35 +74,35 @@ needed to decide eligibility.
 
 ### Acceptance criteria
 
-- [ ] Preserve the incident diagnosis with the two publication commits, source
+- [x] Preserve the incident diagnosis with the two publication commits, source
   commits, HEAD/main reflog evidence, log evidence, and a clean-checkout
   reproduction. Distinguish what history proves from the unavailable original
   index/worktree snapshot; neither dirty files nor a commit on local main is
   required to reproduce the leak.
-- [ ] With a feature or detached HEAD, sweeping committed changes under the
+- [x] With a feature or detached HEAD, sweeping committed changes under the
   configured recurring directory leaves control's existence, content, and
   modes unchanged. Cover additions, edits, deletions (including deletion of
   the entire directory), and renames of templates and siblings. An unrelated
   publishable task/log write in the same sweep still lands; the branch's HEAD,
   index, and working files are preserved.
-- [ ] Repeated sweeps, including one after control reverts a previously
+- [x] Repeated sweeps, including one after control reverts a previously
   published template to its branch-point content, cannot re-adopt those clean
   committed recurring changes. Committed contexts, skills, workflows, shared
   config, and source outside the roots remain excluded on a feature checkout.
-- [ ] Dirty eligible recurring files still publish from control and feature
+- [x] Dirty eligible recurring files still publish from control and feature
   checkouts, including scripts, parent blackboard updates, and machine-written
   siblings. A staged but uncommitted change is still dirty. Routine committed
   task-directory state (including materialized `tasks/recurring/` periods) and
   the log still adopt subject to existing guards. Clean control-checkout hand
   commits of recurring files still publish through the existing recovery path.
-- [ ] The configured Coga root, including root layout, determines the paths;
+- [x] The configured Coga root, including root layout, determines the paths;
   no literal `coga/recurring` prefix or repository-specific twin rule enters
   the implementation. Relocated contexts retain their current exclusion.
-- [ ] Requiring an excluded, differing committed recurring file through
+- [x] Requiring an excluded, differing committed recurring file through
   `coga run publish-state` exits 1 with the existing merge/review remedy,
   before publishing accompanying dirty task/log state. Requiring one already
   identical to control succeeds. Naming the file does not bypass selection.
-- [ ] Update `coga/state-publication` and its packaged twin with the new
+- [x] Update `coga/state-publication` and its packaged twin with the new
   committed-state boundary and remaining dirty-file hazard. Correct the
   affected checkout and implementation topics listed below in the same PR;
   every shipped twin remains byte-identical.
@@ -401,16 +400,194 @@ branch: coga/v1-03-recurring-publication-boundary
 
 ## Implementation — 2026-10-29
 
-Implementing agent: Codex (this session), overriding the ticket's configured
-Claude routing. Manual checkout procedure applies: started from clean main
-at `8cc4d55bf`, fetched and confirmed current control, and created the branch
-above without switching. No prior implementation branch or PR exists for
-this ticket; incident PRs #1032 and #1033 remain merged. Publishing this
-linkage before switching.
+Implemented and pushed `coga/v1-03-recurring-publication-boundary` at
+`6a73bbf4dbe5ed16593ab4121470db4578ff4ed1`; merge base with current control is
+`b2f1ab8745dfd8afc1aedfc10d65f8114691d07b`. Actual implementing agent was
+**Codex**, overriding the ticket's configured Claude routing. No PR opened.
 
-Plan: add generated real-Git regressions and observe the clean committed
-recurring leak before changing `_routine_state_areas()` in `src/coga/git.py`.
-Retain dirty whole-file publication, task/log adoption, control recovery and
-provenance checks. Update the owning publication topic and affected summaries
-with packaged twins, then run focused and full tests plus validation, commit,
-reconcile, push, return to main, and leave structured publication evidence.
+Started from clean main at `8cc4d55bf`, created the recorded branch without
+switching, and strictly published the linkage on main before switching.
+Committed implementation and canonical/package twins together. Fetch/rebase
+before final verification reported up to date; the final fetch before push
+and checkout return found no intervening main commits. All final receipts
+below ran against the committed head above with a clean tree. Pushed the
+branch and returned this checkout to clean main before writing this handoff.
+
+### What changed and evidence
+
+- `src/coga/git.py`, `_routine_state_areas()`, now permits only the configured
+  task directory and log for clean committed adoption off control. No change
+  to `_candidates()`' dirty arm, root membership, provenance, guards or callers.
+- The generated real-Git matrix covers feature/detached HEAD; nested, custom
+  and root layouts; additions, edits, deletions, entire-directory deletion,
+  renames, and modes. It verifies control trees and unchanged branch HEAD,
+  index entries, status, working bytes and modes before/after repeated sweeps,
+  both clean and alongside unrelated dirty task/log writes. A separate case
+  preserves control's revert even with prior publication provenance.
+- Retained paths are pinned by committed contexts (including relocation),
+  skills, workflows, config and source; task/period/script/log adoption;
+  clean control hand commits; staged and unstaged recurring runtime writes.
+  Runtime checks use `taskfile.replace_blackboard()` and
+  `retire_worklist.reconcile_worklist()`. A dirty template publishes its whole
+  committed definition while a clean committed sibling remains excluded.
+- Strict CLI tests prove a differing required recurring file refuses before
+  accompanying task/log writes, including mode mismatch, without an exit
+  sweep. An excluded file already identical to control succeeds.
+- Updated the owning user topic and both shipped twins, the checkout summary,
+  and three implementation topics. Live-documentation searches found no
+  remaining early-adoption contract; no archives were searched or read.
+  Task layout, composition and workflow semantics did not change, so no
+  seeded-repo fixture update was needed.
+- All original incident investigation and evaluation evidence above is
+  preserved, including both publication/source commits, reflogs, log evidence,
+  the clean-checkout reproductions and the unavailable original index/worktree
+  snapshot. The regression suite uses generated content, not those objects.
+
+Pre-fix command (Python 3.12.12):
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py -k 'keeps_committed_recurring or readopt_committed_recurring' tests/test_publish_state.py -k 'keeps_committed_recurring or readopt_committed_recurring or required_recurring'
+```
+
+Result: **38 failed, 8 passed, 264 deselected in 15.69s**, demonstrating clean
+committed leakage and strict publication bypass. Mode-only cases already
+passed. Two later focused attempts each had 308 passes and 2 setup failures
+in the newly extended contexts fixture: configuration requires an existing,
+trackable contexts root. Creating its context before config load fixed the
+fixture; the final focused run passed all **310** cases. No product change
+was made to satisfy those setup failures.
+
+### Verification blockers and next action
+
+The implementation is ready for resumed verification, but acceptance item 8
+is **not satisfied**, so this step must block rather than bump:
+
+1. Full fresh-venv Python **3.11.15** suite: **1 failed, 4362 passed,
+   10 skipped in 516.70s**. The sole failure is
+   `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
+   with `ModuleNotFoundError: No module named 'yaml'`. The unchanged
+   `release_env` fixture still uses `python.symlink_to(sys.executable)`, which
+   loses the originating venv's packages. A separate run reproduced **1
+   failed in 0.31s**. Existing dependency
+   `v1/12-fix-release-env-fixture-interpreter-symlink-in-fre` owns the fix;
+   the fixture and clean-install script match control byte-for-byte.
+2. Repo-wide validation: **98 OK, 16 warnings, 4 errors**. All four are
+   `unsynthesized-draft-blackboard` from `## Documentation coordination`
+   notes in these unchanged control tickets:
+   - `v1/19-install-link-for-claude-code-yields-the-desktop-ap`
+   - `v1/26-make-the-readme-install-section-the-only-install-p`
+   - `v1/27-link-uninstall-from-the-readme`
+   - `v1/31-test-install-on-windows`
+   Synthesize their durable intent or place deliberate launch notes under
+   `## Production notes` through their owning work, then rerun validation.
+   This ticket validates **1 OK, no issues**. The validator also matches
+   control; these errors were not silently accepted as a baseline.
+
+Resolve those checks (or explicitly waive the unmet whole-repository checks),
+then resume this recorded branch, reconcile with current main and refresh the
+receipts before bumping. No independent code review or native Windows run
+occurred. The dirty-file hazard remains intentional and documented; the
+separate `v1/04-stop-the-contexts-root-sweep-from-publishing-canon` remains
+outside this change. Do not rerun incident lifecycle commands.
+
+## PR
+
+```yaml
+title: Keep committed recurring files on feature branches
+author: codex
+author_evidence: This implementation session ran as Codex, overriding the ticket-configured Claude agent;
+  see Implementation handoff.
+head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+depth: deep
+rationale: Changes publication eligibility; no code review yet, and required whole-repository checks have
+  unrelated failures that must be resolved or explicitly waived before advancing.
+implementation: Restricts committed adoption off control to the configured task directory and log. Clean
+  committed recurring files wait for merge; dirty whole-file writes, provenance guards and control hand-commit
+  recovery retain their existing behavior. Adds real-Git regressions and updates owning documentation
+  and twins.
+deviations: No implementation deviation. The step cannot advance because the full Python 3.11 suite and
+  repository validation are not green; their exact failures and existing owners are recorded below.
+limitations: Dirty runtime blackboard writes still publish the whole template, including committed definition
+  changes. Native Windows was not run on this Linux host. Independent code review has not run. No PR has
+  been opened.
+files:
+  src/coga/git.py: Remove recurring from the off-control committed-adoption allowlist and its unused import;
+    retain shared dirty selection and guards.
+  tests/test_git.py: Exercise clean feature/detached sweeps across change kinds and layouts, checkout
+    preservation, revert/retry, retained dirty writers, task/log adoption and control recovery.
+  tests/test_publish_state.py: Prove required recurring-file refusal is atomic and cannot fall through
+    to the CLI sweep; allow files already identical to control.
+  docs/contexts/coga/state-publication/SKILL.md: Own the committed recurring boundary, strict refusal
+    and remaining whole-file dirty hazard.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Ship the byte-identical
+    user-facing publication contract.
+  docs/contexts/coga/checkouts/SKILL.md: Replace the obsolete early-adoption workaround with a link to
+    the owning boundary.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Ship the byte-identical
+    checkout summary.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Describe task-directory/log-only committed
+    selection off control.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Explain the narrowed allowlist
+    and independent dirty-path arm shared by all callers.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Retain the incident as historical evidence and
+    remove the claim that committed recurring adoption remains current.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This was the implement step; no independent code review was requested or run. The earlier design
+    evaluation is not a code-review receipt.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py tests/test_publish_state.py
+  status: passed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: 'Python 3.12.12: 310 passed in 68.96s.'
+- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m pytest -q
+  status: failed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: 'Python 3.11.15, fresh venv with declared test extras: 1 failed, 4362 passed, 10 skipped in
+    516.70s. Only failure: tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task,
+    ModuleNotFoundError: yaml. Existing v1/12-fix-release-env-fixture-interpreter-symlink-in-fre owns
+    the unchanged fixture defect.'
+- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m pytest -q tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
+  status: failed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: 'Python 3.11.15: 1 failed in 0.31s, independently reproducing the same missing-yaml error.'
+- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m coga.cli validate --json
+  status: failed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: 'Python 3.11.15: exit 1; 98 OK, 16 warnings, 4 unsynthesized-draft-blackboard errors. Affected
+    tickets: v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p,
+    v1/27-link-uninstall-from-the-readme, v1/31-test-install-on-windows. These files and the validator
+    match control.'
+- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m coga.cli validate --task
+    v1/03-state-sync-published-unmerged-recurring-templates --json
+  status: passed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: 'Python 3.11.15: 1 OK, no issues.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: No whitespace errors in the final branch diff.
+- command: 'cmp docs/contexts/coga/state-publication/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md
+
+    cmp docs/contexts/coga/checkouts/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md'
+  status: passed
+  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
+  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+  detail: Both edited canonical/package pairs are byte-identical after reconciliation. The full suite
+    also passed all packaging tests.
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-10-29 22:24] [agent:claude] id=20261029T222441 Implementation is pushed at 6a73bbf4d; resolve required checks or explicitly waive them before advancement. v1/12-fix-release-env-fixture-interpreter-symlink-in-fre must fix the unchanged release_env symlink that loses PyYAML in a fresh Python 3.11 venv (full suite: 1 failed, 4362 passed, 10 skipped). Also synthesize draft coordination notes or place intentional launch notes under Production notes in v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p, v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows; these cause four repository-validation errors. Focused publication tests pass (310); exact evidence is on the blackboard.
