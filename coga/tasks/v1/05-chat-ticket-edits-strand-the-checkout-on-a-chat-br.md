@@ -153,41 +153,41 @@ Use the second option, subject to owner review:
 
 ### Acceptance criteria
 
-- [ ] A state-only direct chat can edit and rename tickets without creating a
+- [x] A state-only direct chat can edit and rename tickets without creating a
   chat branch. Successful finalization publishes the new paths and prose,
   removes the old paths on control, and leaves a clean checkout on current
   control, including the usage log. Discussion-only behavior remains valid.
-- [ ] A chat that starts with routine state edits and then needs code or a
+- [x] A chat that starts with routine state edits and then needs code or a
   reviewed knowledge edit publishes the former before preparing its reserved
   branch. Tests verify state reaches control, source stays on the branch,
   repeated preparation remains safe, and failed publication never causes a
   switch. Root-layout and relocated-context examples use configured roots.
-- [ ] Entry and return diagnostics distinguish an index-only mismatch from
+- [x] Entry and return diagnostics distinguish an index-only mismatch from
   a working-file mismatch. The staged-rename reproduction reports that the
   working files are already on control while the staged copies differ; it
   preserves HEAD, index, files, and branch refs on refusal, apart from the
   documented fetch/publication preceding the cleanup planner.
-- [ ] Refusals provide configured, copyable inspection commands, backup and
+- [x] Refusals provide configured, copyable inspection commands, backup and
   conditional recovery instructions, and the original invocation to retry.
   They do not require a chat branch to have an upstream or imply it has a
   ticket/PR. Paths containing spaces or Git pathspec metacharacters are
   handled literally; command rendering follows the platform's shell rules.
-- [ ] A fresh direct-chat return refusal after agent exit 0 exits 75 and
+- [x] A fresh direct-chat return refusal after agent exit 0 exits 75 and
   names the checkout left behind; a nonzero agent result retains its code.
   Tests cover normal exit, failure/interrupt cleanup, refusal first observed
   at final teardown, and the Python launch boundary. Usage retains the real
   agent outcome, the guard releases, and the exit sweep stays withheld.
-- [ ] Exact published renames/deletions still return successfully. Distinct
+- [x] Exact published renames/deletions still return successfully. Distinct
   staged drafts, differing working files, staged union-log versions without
   sufficient proof, dirty source, unsupported modes/symlinks/submodules,
   ignored collisions, and changed evidence during planning still refuse
   without partial cleanup. No historical-content or semantic-drop heuristic
   is introduced.
-- [ ] A failed entry starts no agent; a refused return stops chaining. A
+- [x] A failed entry starts no agent; a refused return stops chaining. A
   second chat cannot take an active chat's checkout. Ordinary task-launch,
   recurring/delegated, prompt-report, and Git-disabled/remote-less exemptions
   retain their contracts. Recovery never replays a lifecycle transition.
-- [ ] Owning contexts, chat instructions, generated notices, and packaged
+- [x] Owning contexts, chat instructions, generated notices, and packaged
   twins agree. Relevant real-Git and CLI tests, composition checks, and the
   packaging twin checks pass; record exact validation commands and results.
 
@@ -471,15 +471,12 @@ Do not widen this into a generic automatic-drop or state-review redesign.
 
 ## Open Questions
 
-1. Owner decision: approve keeping routine state-only chat edits on control
-   and preparing a branch only for implementation or deliberately reviewed
-   knowledge? Recommended yes; publication scope and its existing review
-   tradeoff stay unchanged. The smaller fallback is retaining today's branch
-   policy while adding unstaged-state instructions and recovery diagnostics.
-2. Owner decision: approve exit 75 for a successful direct chat whose checkout
-   return fails, while retaining actual agent usage results and all existing
-   nonzero results? Recommended yes, scoped to direct chat; ordinary task
-   transitions must not look undone or be replayed.
+1. Resolved at the owner gate on 2026-10-29: routine state-only chat edits
+   stay on control; implementation and deliberately reviewed knowledge prepare
+   a branch. The audit records human:nicktoper advancing to implement.
+2. Resolved by that same approval: an otherwise successful direct chat whose
+   checkout return fails exits 75; actual usage and existing nonzero results
+   remain unchanged. Ordinary task transitions must not be replayed.
 3. Historical evidence gap: original supervisor stderr and installed version
    are unavailable locally. Recover those only if an exact explanation of
    the first chat's missing finalization is required. The staged-index refusal
@@ -641,3 +638,186 @@ publication during a chat and at teardown. Keep strict checkout proofs and
 ordinary/delegated launch result contracts. Add regression coverage before
 fixing behavior, update owning topics and packaged twins, run the full suite,
 then commit, reconcile, push, return to main, and hand off without a PR.
+
+### Current implementation and verification
+
+Committed as `7e3acbee7b57a29c4231af5dc241a34a90b41032`; reconciled with
+`origin/main` at `ef94eacb040f216b7b576d4b9fefe91f571b1091`.
+
+- `src/coga/git.py`, `_stage_landed`, now checks the entire selected index
+  against HEAD and the landed revision, then rechecks index and HEAD before
+  any file is staged or rewritten. A distinct index keeps local control
+  behind without undoing successful remote working-state publication. This
+  applies to ordinary callers as well as chat; remote-less inability to move
+  the only durable control ref remains a publication failure. Exact staged
+  deletions use `update-index --remove`, including rename sources already
+  absent from the index. No historical-content drop heuristic was added.
+- `git.CheckoutObservation` carries pinned path/index/working observations
+  for `launch._checkout_refusal_message`, without parsing error prose or
+  changing cleanup permissions. Diagnostics include literal comparisons,
+  explicit untracked hashes, configured fetch, backup instructions, conditional
+  index-only recovery for reviewed duplicates, and the invocation to retry.
+- `launch._launch` checks this invocation's armed boundary after all final
+  settlement. A successful direct chat becomes exit 75 on failed return;
+  actual child usage and nonzero results, ordinary task launch, and delegated
+  routes keep their contracts.
+- Chat notices and the orient ticket now keep unstaged routine state on
+  control and require strict publication plus cleanliness before preparing
+  implementation/review work. Owning topics and all five packaged context
+  twins agree. Related real-Git fixtures cover nested, root, and relocated
+  context layouts; the seeded repository schema does not change.
+
+Regression-first run: 7 failures / 3 passes exposed overwritten staged copies,
+missing structured observations/diagnostics, and successful chat exits after
+refused return. The same 10 tests passed after the fix. A broader four-module
+run had 758 passes / 3 failures in newly added fixture setup/assertions; those
+fixtures were corrected, and the focused rerun passed 12 tests. Additional
+index preservation and packaging checks passed 36 tests. The full suite at
+`7e3acbee7b57a29c4231af5dc241a34a90b41032` passed 4337 tests, with 10 native
+Windows skips. A final fixture-only portability correction produced
+`85774628bc7127b025c3cf485806fb4977a45653`; its full checkout module passed
+149 tests and packaging passed 31. Runtime code and docs are byte-identical
+between these heads. The exact commands and per-run OIDs are retained below.
+
+No independent code review has run in this implementation step. The frozen
+workflow goes directly to open-pr; use advisory depth deep and retain this
+review limitation. Original historical supervisor stderr/version remain
+unavailable, as recorded in the design; this implementation makes no claim
+to establish them.
+
+### Handoff to open-pr
+
+The evaluator's P1 is implemented in shared publication and covered through
+publication during a chat and complete publish/return flows on control.
+All acceptance items are implemented and verified on this branch. Reconciliation
+found no intervening main changes; the no-op rebase kept the tested source.
+The manual procedure will return to clean current main before the terminal bump.
+Do not create another branch or repeat a lifecycle transition to publish state.
+
+No implementation findings remain open. The historical evidence gap, absent
+independent code review, and unexecuted Python 3.11/native Windows checks are
+limitations, not claims of verification. The next step should publish this
+branch with the deep preparation below; no PR was opened during implement.
+
+## PR
+
+```yaml
+title: Keep routine chat state on control and preserve distinct staged drafts
+author: codex
+author_evidence: Actual implementer was Codex in this API session (GPT-6 family per session instructions).
+  Exact model variant and override metadata were not exposed; the ticket-configured claude identity is
+  not used as authorship evidence.
+head: 85774628bc7127b025c3cf485806fb4977a45653
+base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+depth: deep
+rationale: Changes shared Git index preservation and direct-chat command results. No independent code
+  review has run. Full-suite evidence is retained at its actual parent commit; the final fixture-only
+  change has fresh checkout and packaging verification.
+implementation: Routine state-only chats remain unstaged on control. Mixed work strictly publishes before
+  preparing a branch. Shared publication preserves independent index versions before any selected staging.
+  Refusals show pinned working/index facts, literal inspection and conditional recovery. Successful direct
+  chats with failed checkout return exit 75 after all finalization; actual child usage and nonzero results
+  remain unchanged.
+deviations: Includes the evaluator-required shared publication guard and exact staged-deletion handling.
+  No new command/recipe or cleanup heuristic. Retry guidance renders an equivalent canonical launch invocation
+  with target, options and arguments.
+limitations: Original historical supervisor stderr/version remain unavailable. No independent code review,
+  Python 3.11 run, or native Windows execution. PowerShell literal rendering is unit-tested; the root
+  fixture is ordered for Windows. The full suite was not repeated after the fixture-only chdir fix; all
+  149 checkout tests and 31 packaging tests passed on the final head, and src/docs are identical to the
+  full-suite head.
+files:
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Describe the all-path index check and evidence
+    recheck before staging landed state.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Link the direct-chat command-result exception
+    without changing ordinary sweep contracts.
+  docs/contexts/coga/checkouts/SKILL.md: Align the checkout overview with routine chat state on control
+    and strict mixed-work ordering.
+  docs/contexts/coga/checkouts/chat/SKILL.md: Own the state-only and reviewed-work chat policy plus direct-chat
+    return exit 75.
+  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Own index-versus-working observations, publication/return
+    distinctions, and conditional recovery.
+  docs/contexts/coga/launch/SKILL.md: Link the direct-chat checkout-return exception from the launch exit
+    index.
+  docs/contexts/coga/state-publication/SKILL.md: Document distinct-index preservation for every publication
+    caller and remote-less failure semantics.
+  src/coga/checkouts.py: Pass configured publication roots into the generated chat notice.
+  src/coga/compose.py: Render routine-state guidance and publication-before-preparation ordering without
+    changing ticket projection notices.
+  src/coga/git.py: Protect independent staged versions before local integration, handle exact staged deletions,
+    and expose pinned diagnostic observations without weakening cleanup proofs.
+  src/coga/launch.py: Report configured literal recovery commands and direct-chat return failure after
+    final settlement while retaining actual child results.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Ship the byte-identical
+    fallback of docs/contexts/coga/checkouts/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Ship the byte-identical
+    fallback of docs/contexts/coga/checkouts/chat/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Ship the
+    byte-identical fallback of docs/contexts/coga/checkouts/launch-boundary/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Ship the byte-identical fallback
+    of docs/contexts/coga/launch/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Ship the byte-identical
+    fallback of docs/contexts/coga/state-publication/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/orient/ticket.md: Give the package-owned chat agent the
+    same state and branch policy.
+  tests/test_checkouts.py: Exercise real chat state/draft/rename/usage paths, strict mixed-work preparation,
+    and nested/root/relocated layouts with portable fixture setup.
+  tests/test_git.py: Cover distinct and exact staged renames, draft and union-log preservation, and changed-index
+    evidence with real Git.
+  tests/test_launch.py: Cover direct-chat result boundaries, failure/interrupt/final teardown, guard release,
+    and configured literal recovery diagnostics.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This implement step does not perform code review. The legacy frozen workflow goes directly to
+    open-pr; owner design approval is not implementation review.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-chat-state-full-pytest.log
+    2>&1
+  status: passed
+  head: 7e3acbee7b57a29c4231af5dc241a34a90b41032
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 4337 passed, 10 skipped in 546.93s on Linux / Python 3.12.12. All skips require native Windows.
+    This receipt retains the actual tested commit; the subsequent commit only moves chdir before removing
+    a test fixture directory.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_checkouts.py > /tmp/coga-chat-state-final-checkouts.log
+    2>&1
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 149 passed in 122.02s on the final head, including the root-layout portability correction.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 31 passed in 3.78s, including all canonical/package twins.
+- command: git diff 7e3acbee7b57a29c4231af5dc241a34a90b41032..HEAD -- src docs
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 'Empty: final runtime code and documentation are identical to the full-suite-tested revision.'
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 'Ran from tests/fixtures/seeded-repo/coga on the final head: 5 valid tasks, no issues.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br
+    --json
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: 'Final-head live ticket validation: 1 valid task, no issues.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: Passed for the complete implementation diff.
+- command: git diff --check
+  status: passed
+  head: 85774628bc7127b025c3cf485806fb4977a45653
+  base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+  detail: Passed for the unstaged live-ticket handoff.
+
+```
