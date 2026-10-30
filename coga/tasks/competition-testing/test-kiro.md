@@ -390,8 +390,25 @@ Zach records his thinking in Pocket and produces the write-up from that
 recording in a separate session. The agent does not draft it. This session's
 job is the trial and the entry log.
 
-## Open — needed before lap 0
+## Decisions
 
-- Which `cogatest` VM, and confirmation it is reverted to a bare snapshot.
-- Which sign-in: Google, GitHub, AWS Builder ID, or org identity.
-- Free tier or Pro, decided before lap 1.
+- **VM:** `cogatest-kiro`, a spare that has never held a trial. Bare at the
+  start — `xcode-select -p` errored in the R1 baseline capture.
+- **Tier:** free, 50 credits. Record the balance before lap 1 and the burn
+  after each lap.
+- **Sign-in:** Google or GitHub, Zach's pick at the prompt. Both avoid the AWS
+  account path. Record which, and whether Kiro asks for more than basic OAuth
+  scope.
+- **Surface:** IDE for the whole trial, as the ticket scopes it, plus a CLI
+  cross-check after lap 1 — install the CLI, point it at the same
+  `kiro-tiny-ticket`, and see whether it reads the steering the IDE wrote.
+  Zach raised the CLI as the fairer comparison, since the three siblings were
+  all terminal tools. Reasons for keeping the IDE primary: the install page
+  states `.kiro` is shared across all surfaces, so stored state is identical
+  either way and only the driving experience differs; and the docs say CLI V1
+  and V2 support only some steering inclusion modes, so testing steering
+  through the CLI risks measuring a cut-down version of the feature the trial
+  exists for. The cost — the experience column is no longer apples-to-apples
+  with the other three write-ups — is real and belongs in the write-up.
+- **Xcode Command Line Tools** were installed by operator habit before Kiro
+  asked for anything. Entry 4. Do not list them as a Kiro prerequisite.
