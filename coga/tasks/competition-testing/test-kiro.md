@@ -412,3 +412,8 @@ job is the trial and the entry log.
   with the other three write-ups — is real and belongs in the write-up.
 - **Xcode Command Line Tools** were installed by operator habit before Kiro
   asked for anything. Entry 4. Do not list them as a Kiro prerequisite.
+- **Empty-directory steering test, agreed.** Press Generate Steering Docs on
+  `kiro-tiny-ticket` before any spec exists. Either Kiro declines, or it
+  invents a product, tech stack and structure from nothing and feeds that into
+  every later prompt — which is what SpecKit's constitution did and what CE
+  explicitly refused to do. Capture with R3, then run R3 again after lap 1.
