@@ -372,7 +372,23 @@ steering changes later output; whether a fresh session reads `tasks.md` state
 back; whether hooks do anything, never seen in use. SpecKit and BMAD ended
 with the same reuse gap.
 
-Next: Zach records into Pocket and writes the doc in a separate session.
+## Closing record
+
+- **Deliverable:** "Kiro — Testing Breakdown (Oct 30, 2026)" —
+  https://docs.google.com/document/d/15sT7RiajWCygkUL-JmZ4Yw3f8NE0yj19SeJu3nuGUKQ/edit
+  In the `coga-competitors` folder beside the SpecKit, BMAD and Compound
+  Engineering write-ups. Written by Zach from his Pocket recording in a
+  separate session.
+- **Share verified, not assumed:** `nicolas@fastjvm.com` holds `writer`,
+  granted by named account rather than link-sharing. Checked 2026-10-30.
+  This was the last of the four trials, so the share obligation is discharged.
+- **Running entry log, 41 entries:**
+  https://claude.ai/code/artifact/d3266b10-1cf1-45ed-98ba-6f709cb3d8cd
+- **Command relay:**
+  https://claude.ai/code/artifact/6bec366c-0131-4423-ba10-aa4db25c96aa
+- **Housekeeping:** a second, empty doc with the identical title sits in the
+  same folder — `1W7gm0G1veJpjrYG0iiJ73ofupOdwt8UU1c1OmYuqlX4`, created
+  21:08. Nico holds `writer` on it too. Zach's call whether to trash it.
 
 ## Artifacts
 
