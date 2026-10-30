@@ -235,11 +235,14 @@ The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
   takes no `cwd` and `src/coga/` has no `os.chdir`: the session inherits the
   cwd `coga launch` was typed in, and the boundary moves only that checkout's
   HEAD.
-- **Committed recurring templates on a branch.** The sweep adopts committed
-  `coga/recurring/` changes from a feature branch onto control. This once
-  shipped `scope: clone` templates to main before the runner understood
-  `scope:`; the fix made the `ticket.py` shims bump `COGA_TASK_SLUG` when
-  set, so old code ran them as one-step periods.
+- **Historical recurring-template leak (2026-10-16).** Sweeps `0591ae8bd`
+  and `cf40ef440` adopted committed feature-branch recurring files before
+  the runner understood `scope: clone`. Compatibility shims temporarily
+  bumped `COGA_TASK_SLUG` when set so old code could finish one-step periods;
+  restoration PR #1032 and feature PR #1033 later merged. The recurring
+  exception has since been removed from `_routine_state_areas`: clean
+  committed recurring files now wait for merge. The remaining dirty-file
+  hazard is owned by [state publication](../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
 
 ## `coga open-pr` source notes
 

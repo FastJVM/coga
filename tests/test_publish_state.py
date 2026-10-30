@@ -262,6 +262,77 @@ def test_publish_state_refusal_does_not_sweep_tickets_without_their_vision(
     assert all(path.is_file() for path in files)
 
 
+@pytest.mark.parametrize("detached", [False, True])
+@pytest.mark.parametrize("filename,change", [
+    ("ticket.md", "content"), ("ticket.py", "content"),
+    ("retires.md", "content"), ("ticket.py", "mode"),
+])
+def test_publish_state_refusal_does_not_sweep_state_without_required_recurring(
+    git_repo, detached, filename, change,
+) -> None:
+    from coga.logfile import append_log, log_path
+
+    cfg = load_config(git_repo.coga_os)
+    template = git_repo.coga_os / "recurring" / "weekly" / filename
+    template.parent.mkdir(parents=True)
+    template.write_text("original\n", encoding="utf-8", newline="\n")
+    rel = template.relative_to(git_repo.root).as_posix()
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "seed recurring")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    if change == "content":
+        template.write_text("pending review\n", encoding="utf-8", newline="\n")
+        git_repo.git("add", rel)
+    else:
+        if os.name == "posix":
+            template.chmod(0o755)
+        git_repo.git("update-index", "--chmod=+x", rel)
+    git_repo.git("commit", "-m", "recurring pending review")
+    if detached:
+        git_repo.git("checkout", "--detach")
+    task = git_repo.coga_os / "tasks" / "demo.md"
+    task.write_text(_RESTRICTED_TICKET, encoding="utf-8", newline="\n")
+    append_log(cfg, "demo", "agent:claude", "pending handoff")
+    paths = (template, task, log_path(cfg))
+    before = [path.read_bytes() for path in paths]
+    head = git_repo.git("rev-parse", "HEAD")
+    index = git_repo.git("ls-files", "--stage")
+    control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    result = _publish_cli(*(str(path) for path in paths))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "required file is excluded from publication" in result.stderr
+    assert "merge its reviewed change before retrying" in result.stderr
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
+    assert git_repo.git("rev-parse", "HEAD") == head
+    assert git_repo.git("ls-files", "--stage") == index
+    assert [path.read_bytes() for path in paths] == before
+
+
+@pytest.mark.parametrize("detached", [False, True])
+def test_publish_state_accepts_committed_recurring_already_identical_to_control(git_repo, detached):
+    template = git_repo.coga_os / "recurring" / "weekly" / "ticket.py"
+    template.parent.mkdir(parents=True)
+    git_repo.checkout_branch("feature/x")
+    template.write_text("print('reviewed')\n", encoding="utf-8", newline="\n")
+    rel = template.relative_to(git_repo.root).as_posix()
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "recurring on branch")
+    if detached:
+        git_repo.git("checkout", "--detach")
+    git_repo.push_competing_commit(rel, template.read_text(encoding="utf-8"))
+    control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    result = _publish_cli(str(template))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "already on origin/main" in result.stdout
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
+    assert git_repo.git("status", "--porcelain") == ""
+
+
 @pytest.mark.parametrize("separator", [[], ["--"]])
 def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git, separator: list[str],

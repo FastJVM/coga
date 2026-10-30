@@ -68,7 +68,7 @@ from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.logfile import append_log, ref_tag_for_path
-from coga.paths import log_path, recurring_dir, tasks_dir
+from coga.paths import log_path, tasks_dir
 from coga.ticket import (
     Ticket,
     TicketError,
@@ -479,8 +479,8 @@ def _publish_locked(
     have_remote = remote_configured(root, remote)
     fetched = False
     # A commit on a feature or detached checkout is review work: only routine
-    # task, log, and recurring state is adopted from it, so a code PR's
-    # committed knowledge edits wait for their merge.
+    # task-directory state and the log are adopted from it. Committed recurring
+    # files and other knowledge edits wait for their merge.
     adopt_only = None if symbolic_head(root) == control else _routine_state_areas(cfg, root)
     for _attempt in range(MAX_PUBLISH_ATTEMPTS):
         base = _control_base(root, remote, control, have_remote, fetched=fetched)
@@ -1645,16 +1645,13 @@ def _state_areas(
 
 
 def _routine_state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """The tasks and recurring directories and the log: state Coga itself writes.
+    """The task directory and log: committed state adopted off control.
 
     Only `_candidates`' committed-path adoption on a non-control checkout
     reads this narrower set; membership everywhere else is `_state_areas`.
     """
-    dirs = tuple(
-        relative_to_root(root, path).rstrip("/") + "/"
-        for path in (tasks_dir(cfg), recurring_dir(cfg))
-    )
-    return dirs, (relative_to_root(root, log_path(cfg)),)
+    task_prefix = relative_to_root(root, tasks_dir(cfg)).rstrip("/") + "/"
+    return (task_prefix,), (relative_to_root(root, log_path(cfg)),)
 
 
 def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:

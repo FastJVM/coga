@@ -1217,26 +1217,45 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
     assert "Published these knowledge edits" not in capsys.readouterr().err
 
 
-def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_repo):
+@pytest.mark.parametrize("contexts", ["coga/contexts", "docs/contexts"])
+def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_repo, contexts):
     """A commit on a feature branch is review work: a code PR's committed
     context edit (and its packaged twin) waits for the merge, while routine
     ticket state committed beside it is still adopted."""
-    cfg = load_config(git_repo.coga_os)
-    _seed_ticket(git_repo)
-    context = cfg.contexts_root / "team" / "SKILL.md"
+    context = git_repo.root / contexts / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
     context.write_text("original\n", encoding="utf-8", newline="\n")
+    config = git_repo.coga_os / "coga.toml"
+    with config.open("a", encoding="utf-8", newline="\n") as stream:
+        stream.write(f'\n[layout]\ncontexts = "{contexts}"\n')
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("original skill\n", encoding="utf-8", newline="\n")
+    packaged = git_repo.root / "src" / "templates" / "team.md"
+    packaged.parent.mkdir(parents=True)
+    packaged.write_text("original packaged copy\n", encoding="utf-8", newline="\n")
+    source = git_repo.root / "src.py"
+    source.write_text("# original source\n", encoding="utf-8", newline="\n")
+    workflow = git_repo.coga_os / "workflows" / "code.md"
+    originals = {
+        path.relative_to(git_repo.root).as_posix(): path.read_text(encoding="utf-8")
+        for path in (context, skill, workflow, config, packaged, source)
+    }
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed context")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/x")
-    context.write_text("reviewed in the PR\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "--", "coga/contexts/team/SKILL.md")
+    for rel, original in originals.items():
+        (git_repo.root / rel).write_text(original + "\n# review in PR\n", encoding="utf-8", newline="\n")
+    git_repo.git("add", "--", *originals)
     _hand_commit(git_repo, "coga/tasks/demo.md", _ticket_text(blackboard="handoff\n"))
 
     git.sync_coga_state(cfg)
 
-    assert _control(git_repo, "coga/contexts/team/SKILL.md") == "original\n"
+    for rel, original in originals.items():
+        assert _control(git_repo, rel) == original
     assert "handoff" in _control(git_repo, "coga/tasks/demo.md")
 
 
@@ -1540,13 +1559,20 @@ def test_sweep_refuses_submodules_without_deleting_them(git_repo, capsys, change
         assert knowledge.read_text(encoding="utf-8") == ("original\n" if change == "added" else "edited\n")
 
 
-def test_sweep_publishes_a_hand_committed_skill_from_a_clean_control_checkout(git_repo):
+@pytest.mark.parametrize("rel", [
+    "coga/skills/team/SKILL.md",
+    "coga/recurring/weekly/ticket.md",
+    "coga/recurring/weekly/ticket.py",
+    "coga/recurring/weekly/retires.md",
+])
+def test_sweep_publishes_hand_committed_knowledge_from_a_clean_control_checkout(git_repo, rel):
     cfg = load_config(git_repo.coga_os)
-    tip = _hand_commit(git_repo, "coga/skills/team/SKILL.md", "hand skill\n")
+    tip = _hand_commit(git_repo, rel, "hand knowledge\n")
+    assert _dirty(git_repo) == set()
 
     git.sync_coga_state(cfg)
 
-    assert _control(git_repo, "coga/skills/team/SKILL.md") == "hand skill\n"
+    assert _control(git_repo, rel) == "hand knowledge\n"
     assert _head(git_repo) == ("main", _origin_tip(git_repo))
     assert tip in git_repo.git("reflog", "--format=%H", "main")
     assert _dirty(git_repo) == set()
@@ -1628,20 +1654,35 @@ def test_sweep_publishes_a_hand_committed_ticket_from_a_clean_control_checkout(
     assert tip in git_repo.git("reflog", "--format=%H", "main")
 
 
-def test_sweep_publishes_committed_state_from_a_feature_checkout(git_repo):
+@pytest.mark.parametrize("detached", [False, True])
+def test_sweep_publishes_committed_state_from_a_feature_checkout(git_repo, detached):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
     git_repo.checkout_branch("feature/x")
     hand = _ticket_text(blackboard="feature handoff\n")
     (git_repo.root / "src.py").write_text("code\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "src.py")
+    period = git_repo.coga_os / "tasks" / "recurring" / "weekly" / "ticket.md"
+    period.parent.mkdir(parents=True)
+    period.write_text(_ticket_text(), encoding="utf-8", newline="\n")
+    script = period.with_suffix(".py")
+    script.write_text("print('period')\n", encoding="utf-8", newline="\n")
+    append_log(cfg, "demo", "agent:claude", "committed handoff")
+    log = log_path(cfg).read_text(encoding="utf-8")
+    git_repo.git("add", "src.py", "coga/tasks/recurring", "coga/log.md")
     tip = _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    if detached:
+        git_repo.git("checkout", "--detach")
+    assert _dirty(git_repo) == set()
 
     git.sync_coga_state(cfg)
 
     assert _control(git_repo, "coga/tasks/demo.md") == hand
+    assert _control(git_repo, "coga/tasks/recurring/weekly/ticket.md") == _ticket_text()
+    assert _control(git_repo, "coga/tasks/recurring/weekly/ticket.py") == "print('period')\n"
+    assert _control(git_repo, "coga/log.md") == log
     assert not git_repo.origin_tracks("src.py")
-    assert _head(git_repo) == ("feature/x", tip)
+    assert _head(git_repo) == ("HEAD" if detached else "feature/x", tip)
+    assert _dirty(git_repo) == set()
     assert git_repo.git("rev-parse", "main").strip() == _origin_tip(git_repo)
 
 
@@ -1678,19 +1719,182 @@ def test_sweep_does_not_republish_a_ticket_this_feature_checkout_lacks(git_repo)
 def test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory(git_repo):
     cfg = load_config(git_repo.coga_os)
     _seed_ticket(git_repo)
-    weekly = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
-    weekly.parent.mkdir(parents=True)
-    weekly.write_text("---\ntitle: weekly\n---\n", encoding="utf-8", newline="\n")
-    git_repo.git("add", "coga/recurring")
-    git_repo.git("commit", "-m", "seed recurring")
-    git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/x")
-    _hand_commit(git_repo, "coga/recurring", None, "drop recurring")
-    assert not (git_repo.coga_os / "recurring").exists()
+    _hand_commit(git_repo, "coga/tasks", None, "drop tasks")
+    assert not (git_repo.coga_os / "tasks").exists()
 
     git.sync_coga_state(cfg)
 
-    assert not git_repo.origin_tracks("coga/recurring/weekly/ticket.md")
+    assert not git_repo.origin_tracks("coga/tasks/demo.md")
+
+
+def _sweep_checkout_snapshot(git_repo):
+    """HEAD, index entries, dirt and eligible working bytes/modes, not Git refs."""
+    rels = git_repo.git("ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    working = {}
+    for rel in filter(None, rels.split("\x00")):
+        path = git_repo.root / rel
+        working[rel] = (path.read_bytes(), path.stat().st_mode) if path.exists() else None
+    return (
+        _head(git_repo), git_repo.git("ls-files", "--stage", "-z"),
+        git_repo.git("status", "--porcelain", "-z"), working,
+    )
+
+
+@pytest.mark.parametrize("layout", ["nested", "custom", "root"])
+@pytest.mark.parametrize("detached", [False, True])
+@pytest.mark.parametrize("change", ["add", "edit", "delete", "delete-directory", "rename", "mode"])
+def test_sweep_keeps_committed_recurring_files_on_the_branch(
+    git_repo, monkeypatch, layout, detached, change,
+):
+    if layout != "nested":
+        monkeypatch.chdir(git_repo.root)
+        destination = git_repo.root if layout == "root" else git_repo.root / "workbench"
+        destination.mkdir(exist_ok=True)
+        for path in git_repo.coga_os.iterdir():
+            path.rename(destination / path.name)
+        git_repo.coga_os.rmdir()
+        git_repo.coga_os = destination
+        prefix = "" if layout == "root" else "workbench/"
+        (git_repo.root / ".gitignore").write_text(
+            f"{prefix}coga.local.toml\n{prefix}.agent-skills/\n", encoding="utf-8", newline="\n",
+        )
+    cfg = load_config(git_repo.coga_os)
+    recurring = cfg.repo_root / "recurring"
+    weekly = recurring / "weekly"
+    weekly.mkdir(parents=True)
+    originals = {
+        "ticket.md": "---\ntitle: weekly\n---\n\n<!-- coga:blackboard -->\nold cursor\n",
+        "ticket.py": "print('original')\n",
+        "retires.md": "original sibling\n",
+    }
+    for name, content in originals.items():
+        (weekly / name).write_text(content, encoding="utf-8", newline="\n")
+    packaged = git_repo.root / "src" / "templates" / "weekly.py"
+    packaged.parent.mkdir(parents=True)
+    packaged.write_text("print('packaged original')\n", encoding="utf-8", newline="\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed recurring and layout")
+    git_repo.git("push", "origin", "main")
+    rel = recurring.relative_to(git_repo.root).as_posix()
+    control_tree = git_repo.git("ls-tree", "-r", "main", "--", rel, "src", cwd=git_repo.origin)
+    git_repo.checkout_branch("feature/x")
+    if change in {"add", "edit"}:
+        target = recurring / "new" if change == "add" else weekly
+        target.mkdir(exist_ok=True)
+        for name, content in originals.items():
+            (target / name).write_text(content + "# branch change\n", encoding="utf-8", newline="\n")
+    elif change == "delete":
+        (weekly / "ticket.md").unlink()
+        (weekly / "retires.md").unlink()
+    elif change == "delete-directory":
+        shutil.rmtree(recurring)
+    elif change == "rename":
+        weekly.rename(recurring / "renamed")
+    else:
+        if os.name == "posix":
+            (weekly / "ticket.py").chmod(0o755)
+        git_repo.git("update-index", "--chmod=+x", f"{rel}/weekly/ticket.py")
+    packaged.write_text("print('packaged branch')\n", encoding="utf-8", newline="\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "recurring changes pending review")
+    if detached:
+        git_repo.git("checkout", "--detach")
+    assert _dirty(git_repo) == set()
+    before = _sweep_checkout_snapshot(git_repo)
+    control_tip = _origin_tip(git_repo)
+
+    # A completely clean checkout is enough to reproduce the original leak.
+    git.sync_coga_state(cfg)
+
+    assert _origin_tip(git_repo) == control_tip
+    assert _sweep_checkout_snapshot(git_repo) == before
+    task = cfg.repo_root / "tasks" / "fresh.md"
+    task.parent.mkdir(exist_ok=True)
+    task.write_text(_ticket_text(), encoding="utf-8", newline="\n")
+    append_log(cfg, "fresh", "agent:claude", "dirty handoff")
+    before = _sweep_checkout_snapshot(git_repo)
+    for _ in range(2):
+        git.sync_coga_state(cfg)
+        assert git_repo.git("ls-tree", "-r", "main", "--", rel, "src", cwd=git_repo.origin) == control_tree
+        assert _control(git_repo, task.relative_to(git_repo.root).as_posix()) == _ticket_text()
+        assert "dirty handoff" in _control(git_repo, log_path(cfg).relative_to(git_repo.root).as_posix())
+        assert _sweep_checkout_snapshot(git_repo) == before
+
+
+@pytest.mark.parametrize("detached", [False, True])
+def test_sweep_does_not_readopt_committed_recurring_after_control_reverts(git_repo, detached):
+    cfg = load_config(git_repo.coga_os)
+    rel = "coga/recurring/weekly/ticket.md"
+    _hand_commit(git_repo, rel, "original template\n")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    path = git_repo.root / rel
+    path.write_text("branch template\n", encoding="utf-8", newline="\n")
+    # Model a prior publication, including this checkout's provenance record.
+    git.sync_coga_state(cfg)
+    assert _control(git_repo, rel) == "branch template\n"
+    _hand_commit(git_repo, rel, "branch template\n")
+    if detached:
+        git_repo.git("checkout", "--detach")
+    git_repo.push_competing_commit(rel, "original template\n")
+    git_repo.git("fetch", "origin")
+    assert _dirty(git_repo) == set()
+    before = _sweep_checkout_snapshot(git_repo)
+    control_tip = _origin_tip(git_repo)
+
+    for _ in range(2):
+        git.sync_coga_state(cfg)
+        assert _origin_tip(git_repo) == control_tip
+        assert _control(git_repo, rel) == "original template\n"
+        assert _sweep_checkout_snapshot(git_repo) == before
+
+
+@pytest.mark.parametrize("feature", [False, True])
+@pytest.mark.parametrize("staged", [False, True])
+def test_sweep_publishes_dirty_recurring_runtime_files(git_repo, feature, staged):
+    from coga.retire_worklist import RetireFollowUp, reconcile_worklist
+    from coga.taskfile import replace_blackboard
+
+    cfg = load_config(git_repo.coga_os)
+    template = "coga/recurring/weekly/ticket.md"
+    script = "coga/recurring/weekly/ticket.py"
+    sibling = "coga/recurring/weekly/operations.md"
+    _hand_commit(git_repo, template, "original definition\n<!-- coga:blackboard -->\n")
+    _hand_commit(git_repo, script, "print('original')\n")
+    _hand_commit(git_repo, sibling, "original operations\n")
+    git_repo.git("push", "origin", "main")
+    if feature:
+        git_repo.checkout_branch("feature/x")
+        _hand_commit(git_repo, template, "committed definition\n<!-- coga:blackboard -->\n")
+        _hand_commit(git_repo, sibling, "committed operations\n")
+    replace_blackboard(git_repo.root / template, "\nnew runtime cursor\n")
+    (git_repo.root / script).write_text("print('dirty script')\n", encoding="utf-8", newline="\n")
+    worklist = git_repo.root / "coga/recurring/weekly/retires.md"
+    reconcile_worklist(
+        cfg, worklist, root=git_repo.root,
+        pending=[RetireFollowUp("demo", "feature/debt", str(git_repo.root), "2026-10-01")],
+    )
+    expected = {
+        rel: (git_repo.root / rel).read_text(encoding="utf-8")
+        for rel in (template, script, "coga/recurring/weekly/retires.md")
+    }
+    if staged:
+        git_repo.git("add", "--", *expected)
+    before = _sweep_checkout_snapshot(git_repo)
+
+    git.sync_coga_state(cfg)
+
+    for rel, content in expected.items():
+        assert _control(git_repo, rel) == content
+    assert _control(git_repo, sibling) == "original operations\n"
+    if feature:
+        # A dirty blackboard publishes its whole template, including the
+        # committed definition. The clean committed sibling remains excluded.
+        assert "committed definition" in _control(git_repo, template)
+        assert _sweep_checkout_snapshot(git_repo) == before
+    else:
+        assert _dirty(git_repo) == set()
 
 
 # --- object-write failures: where Git was writing, and the recovery -----------
