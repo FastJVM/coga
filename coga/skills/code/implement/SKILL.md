@@ -84,7 +84,7 @@ after review and fixes.
    blackboard is a handoff, not the bug's final home.
 5. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
-   `coga validate --json` against the example fixture. **Make new tests
+   `coga validate --json` against the repo's seeded fixture. **Make new tests
    conform to the existing suite, not to your own taste** — agents
    reliably skip this because a clean-from-scratch test is easier to
    write than one that matches a quirky neighbor:
@@ -96,9 +96,10 @@ after review and fixes.
    - Keep coverage deterministic and low-creating: no real time,
      network, or filesystem nondeterminism; no sprawling mocks where a
      fixture or a plain call would do.
-6. **Update the example fixture** when behavior affects task layout,
-   prompt composition, or workflow semantics (per the repo's agent
-   instruction file, `AGENTS.md` or `CLAUDE.md`).
+6. **Update the seeded fixture** when behavior affects task layout,
+   prompt composition, or workflow semantics. The repo's agent
+   instruction file (`AGENTS.md` or `CLAUDE.md`) names the fixture and
+   when it must change.
 7. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
 8. **Freshen against the control branch.** With `<remote>` and `<control>`
