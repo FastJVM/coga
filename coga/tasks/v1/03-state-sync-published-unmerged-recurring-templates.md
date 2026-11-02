@@ -1,6 +1,6 @@
 ---
 title: State sync published unmerged recurring templates from a feature branch
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -40,6 +40,7 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
+launch_generation: pending:1ca0bc5a-bf8a-457d-868f-e98449aa2ff3
 ---
 
 ## Description
