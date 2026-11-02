@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 contexts:
 - coga/sync
 - coga/state-publication
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: 1ca0bc5a-bf8a-457d-868f-e98449aa2ff3
 ---
 
 ## Description
@@ -496,19 +495,21 @@ outside this change. Do not rerun incident lifecycle commands.
 ```yaml
 title: Keep committed recurring files on feature branches
 author: codex
-author_evidence: This implementation session ran as Codex, overriding the ticket-configured Claude agent;
-  see Implementation handoff.
-head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
+author_evidence: The implementation commit was authored in a Codex session, overriding the ticket-configured
+  Claude agent (see Implementation handoff). The 2026-11-02 resume (Claude, claude-opus-5-5) only reconciled
+  with main and refreshed verification; it made no code change.
+head: 11bd7fc59556abe4c740c0c84215f7c330fa98d2
+base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
 depth: deep
-rationale: Changes publication eligibility; no code review yet, and required whole-repository checks have
-  unrelated failures that must be resolved or explicitly waived before advancing.
+rationale: Changes publication eligibility for every sweep, launch checkout return and strict publication;
+  no code review yet.
 implementation: Restricts committed adoption off control to the configured task directory and log. Clean
   committed recurring files wait for merge; dirty whole-file writes, provenance guards and control hand-commit
   recovery retain their existing behavior. Adds real-Git regressions and updates owning documentation
   and twins.
-deviations: No implementation deviation. The step cannot advance because the full Python 3.11 suite and
-  repository validation are not green; their exact failures and existing owners are recorded below.
+deviations: No implementation deviation. Owner explicitly waived (2026-11-02) two known failures on unchanged
+  main that this branch does not touch; see checks. Reconciled by merging main into the pushed tip (force-push
+  of a rebase was not permitted); the merge tree is identical to the tested rebased tree.
 limitations: Dirty runtime blackboard writes still publish the whole template, including committed definition
   changes. Native Windows was not run on this Linux host. Independent code review has not run. No PR has
   been opened.
@@ -540,51 +541,40 @@ review:
   detail: This was the implement step; no independent code review was requested or run. The earlier design
     evaluation is not a code-review receipt.
 checks:
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py tests/test_publish_state.py
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q tests/test_git.py tests/test_publish_state.py tests/test_packaging.py
   status: passed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: 'Python 3.12.12: 310 passed in 68.96s.'
-- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m pytest -q
-  status: failed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: 'Python 3.11.15, fresh venv with declared test extras: 1 failed, 4362 passed, 10 skipped in
-    516.70s. Only failure: tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task,
-    ModuleNotFoundError: yaml. Existing v1/12-fix-release-env-fixture-interpreter-symlink-in-fre owns
-    the unchanged fixture defect.'
-- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m pytest -q tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
-  status: failed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: 'Python 3.11.15: 1 failed in 0.31s, independently reproducing the same missing-yaml error.'
-- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m coga.cli validate --json
-  status: failed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: 'Python 3.11.15: exit 1; 98 OK, 16 warnings, 4 unsynthesized-draft-blackboard errors. Affected
-    tickets: v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p,
-    v1/27-link-uninstall-from-the-readme, v1/31-test-install-on-windows. These files and the validator
-    match control.'
-- command: PYTHONPATH=/home/n/Code/coga/src /tmp/coga-v1-03-py311/bin/python -m coga.cli validate --task
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: 'Python 3.12.12: 341 passed in 70.41s. Tested tree 2bfe75037 equals the pushed merge head tree.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src <fresh uv venv, python3.11 + .[test]>/bin/python -m pytest -q -p no:cacheprovider
+  status: failed (waived)
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: 'Python 3.11.15: 1 failed, 4362 passed, 10 skipped in 478.97s. Only failure: tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task,
+    ModuleNotFoundError: yaml (release_env symlink, unchanged on main, owned by v1/12-fix-release-env-fixture-interpreter-symlink-in-fre).
+    Owner waived 2026-11-02. Tree identical to pushed head.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src <py3.11 venv>/bin/python -m coga.cli validate --json
+  status: failed (waived)
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: 'Python 3.11.15: exit 1; 90 OK, 20 warnings, 4 errors, all unsynthesized-draft-blackboard in
+    v1/19, v1/26, v1/27, v1/31 (unchanged drafts on main). Owner waived 2026-11-02.'
+- command: PYTHONPATH=/home/n/Code/claude/coga/src <py3.11 venv>/bin/python -m coga.cli validate --task
     v1/03-state-sync-published-unmerged-recurring-templates --json
   status: passed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: 'Python 3.11.15: 1 OK, no issues.'
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: '1 OK, no issues.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: No whitespace errors in the final branch diff.
-- command: 'cmp docs/contexts/coga/state-publication/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md
-
-    cmp docs/contexts/coga/checkouts/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md'
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: No whitespace errors.
+- command: cmp of both edited canonical/package context pairs (state-publication, checkouts)
   status: passed
-  head: 6a73bbf4dbe5ed16593ab4121470db4578ff4ed1
-  base: b2f1ab8745dfd8afc1aedfc10d65f8114691d07b
-  detail: Both edited canonical/package pairs are byte-identical after reconciliation. The full suite
-    also passed all packaging tests.
+  head: 559bdd760c71c6b09178cad885083791eae395d5
+  base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
+  detail: Byte-identical; test_packaging.py also passed.
 ```
 
 ---
@@ -626,6 +616,23 @@ this ticket, all five blocker-owning tickets, the fixture, and the
 reconciliation instructions are unchanged. Preserve the implementation
 and existing receipts until the blocker decision is resolved, then follow
 the prior resume/reconciliation instructions.
+
+## Resume — 2026-11-02
+
+Session agent: Claude (claude-opus-5-5), megalaunch pick with no checkout
+preparation; followed `coga/checkouts/manual`. Rechecked both blockers on main
+`82678fea0`: fresh 3.11.15 venv still fails the release_env test (missing
+yaml); validation still reports the same four draft-blackboard errors. The
+owner explicitly **waived both** for this ticket; recorded with `coga unblock`.
+Acceptance item 8 is therefore met by waiver, not by a green run.
+
+Rebased the branch onto main `5601addfa` (clean; main had not changed any
+branch file since the old base) as `559bdd760` and verified it (receipts in
+`## PR`). Force-pushing the rebase was denied by the session's permission
+policy, so instead merged `origin/main` into the already-pushed tip
+`6a73bbf4d`, giving merge `11bd7fc59`, whose tree is byte-identical to the
+tested `559bdd760` tree (`2bfe75037`). Pushed as a fast-forward; the branch
+contains main. No code change. Checkout returned to clean main. Next: review.
 
 ## Blockers
 
