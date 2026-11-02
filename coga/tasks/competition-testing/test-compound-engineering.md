@@ -689,3 +689,10 @@ closed / reads-against-Coga. Carries lap-0 entries 1-7 as of 2026-10-24.
 
 - Which `cogatest` VM.
 - Nico's account for the final share.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New skill: hands-on competitor trial method
