@@ -512,8 +512,8 @@ deviations: No implementation deviation. Owner explicitly waived (2026-11-02) tw
   main that this branch does not touch; see checks. Reconciled by merging main into the pushed tip (force-push
   of a rebase was not permitted); the merge tree is identical to the tested rebased tree.
 limitations: Dirty runtime blackboard writes still publish the whole template, including committed definition
-  changes. Native Windows was not run on this Linux host. Independent code review has not run. No PR has
-  been opened.
+  changes. Native Windows was not run on this Linux host. Independent code review has not run (the frozen
+  workflow has no peer-review step).
 files:
   src/coga/git.py: Remove recurring from the off-control committed-adoption allowlist and its unused import;
     retain shared dirty selection and guards.
@@ -577,8 +577,6 @@ checks:
   base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
   detail: Byte-identical; test_packaging.py also passed.
 ```
-
----
 
 ## Blocker recheck — 2026-10-30
 
@@ -670,3 +668,13 @@ Recorded: 2026-11-02T23:50:50+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: use one complete fenced yaml mapping under ## PR.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/03-state-sync-published-unmerged-recurring-templates`
+Recorded: 2026-11-02T23:51:21+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid status 'failed (waived)'.
