@@ -783,3 +783,53 @@ Result: 24 issue(s): 0 direct fix, 0 PR proposal, 24 human-needed.
   Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
 - `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`: `large-blackboard` (warn) - blackboard region is 32.7 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
   Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
+
+## Run log (2026-11-02, run 20261102T223931Z)
+
+- preflight: git-common-dir ok, remote ok, gh ok
+- Phase 1 validate-drift: reported — 24 human-needed (12 unfrozen-workflow, 5 stuck-in-progress, 4 unsynthesized-draft-blackboard, 3 large-blackboard), 0 direct-fix, 0 pr-proposal.
+- Repo identity: coga-source (no Rule A exclusion). Corpus excluded this live run's own ticket `recurring/dream`, parked `coga/tasks/_*`, and installer-managed `google-agents-cli-*`.
+- Phase 2 knowledge scan: reported — 24/24 shards complete (distinct ids), 23 raw findings.
+- Phase 3 contract audit: reported — 9/9 shards complete (incl. inline `ca-copy`: 98 live/packaged pairs tracked + byte-identical), 10 raw findings, all duplicates of Phase 2 classes.
+- Merged: 21 distinct findings.
+
+## Findings
+
+### extract (area-grouped)
+
+- **coga/recurring/scheduling** — `recurring-unblock-launch` (source: done): watchdog loudness differs for bare sweep vs `--force` vs named `coga recurring launch`; legacy-pause classifier false-positive. [ks-recurring-2]
+- **coga-dev/codebase/gotchas** — `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` (source: done): Windows-portability editing hazards (eager POSIX imports in cli, utf-8/LF via atomicio, oscompat for locks/process groups, `shutil.which` for .cmd, refusal before state change). [ks-windows-ci-1]
+- **coga-dev/codebase/gotchas** — `windows-native/02-pr-ci-with-linux-and-windows-test-jobs` (source: done): `os.path.relpath` raises ValueError across Windows drives; fall back to absolute. [ks-windows-ci-1]
+- **coga-dev/testing** — `v1/02-reconcile-the-coga-notifications-leaked-webhook-re` (source: done): full suite can exhaust /tmp inodes; rerun with TMPDIR on main disk. [ks-code-skills-4]
+- **coga-dev/principles (README authoring)** — `v1/32-finish-the-readme-launch-checks-left-open-by-readm` (source: done): README is the PyPI long description, so links must be absolute; historical examples pinned. [ks-docs-3]
+- **skills/competition-testing (new skill)** — `competition-testing/test-compound-engineering` (source: done): hands-on competitor-trial method (VM, entry log + command relay, bare-Claude control, Drive write-up, nothing committed). [ks-code-skills-1]
+- **coga/first-task (`coga validate`)** — `validate-that-committed-skill-scripts-with-a-sheba` (source: done+checkout; local branch `shebang-exec-check` remains): `non-executable-script` check documented only in local-only coga-dev/testing. [ks-code-skills-2]
+- **coga-dev/internals/agent-config** — `v1/21-show-which-agents-are-available-on-the-machine-dur` (source: canceled): `AGENT_CLIS` governs discovery only; any `[agents.<name>]` is drivable. [ks-install-3]
+- **coga-dev/internals/usage-pricing + coga/usage** — `define-the-api-equivalent-cost-proxy-and-price-tab` (source: canceled): owner declined dollar proxy 2026-09-23 (no consumer); reopen condition. [ks-usage-1]
+- **coga/checkouts** — `detect-stranded-blackboard-prose-across-checkouts` (source: canceled): declined detector, why, and reopen discriminator. [ks-state-3]
+
+### stale / drift
+
+- `coga/workflows/blocker-reminders/run.md` + `coga/skills/coga/blockers/remind/SKILL.md` (+ twins): name coga/notifications/producers as eligibility owner; producers defers to the blocker-reminders template. [ks-recurring-2, ks-code-skills-3]
+- `docs/contexts/coga/skill-management/SKILL.md`: gh outcome set omits `failed` for unrecognised gh output. [ks-recurring-2]
+- `coga/tasks/cleanup/README.md`: says drained tickets await retirement; all retired. [ks-docs-1]
+- `coga/skills/code/implement/SKILL.md`, `coga/skills/code/self-qa/SKILL.md` (+ twins): "the example fixture" after move to tests/fixtures/seeded-repo. [ks-code-skills-3]
+- `docs/contexts/coga-dev/internals/notifications/SKILL.md`: caller list omits launch.py `_prepare_step_checkout` start post. [ks-code-skills-2, ca-contexts-1]
+- `coga/skills/coga/branch-sweep/sweep/SKILL.md` step 7 (+ comment in `src/coga/branchsweep.py`): report destination is stdout/clone log, not period blackboard. [ks-code-skills-4]
+- `coga/skills/coga/autoclose/sweep/SKILL.md`: foreign linked worktree branch still judged locally — owner: v1/09-guard-foreign-linked-worktree-branch-cleanup. [ks-recurring-3]
+- `coga/skills/coga/releasing/SKILL.md`: "release.yml is the only workflow" — owner: v1/13-repair-ci-and-resume-with-release-focused-triggers. [ks-code-skills-2, ca-skills-2]
+- trim-log links to `coga/recurring/trim-log/{ticket,operations}.md` 404 on main (install, edge-code, configuration, init, architecture, spool-merge, show skill, dream template, + others) — owner: commit-journal/activate-trim-log-in-this-repo-after-retention-mer (staged rollout; test tolerates via fallback). [ks-install-2, ks-docs-3, ca-skills-2, ca-contexts-2 ×2, ca-contexts-3 ×4, ca-templates2-1]
+
+### gap
+
+- `coga/install`: no remedy when `coga` not on PATH after `uv tool install` — owner: v1/26-make-the-readme-install-section-the-only-install-p. [ks-install-2]
+- No skill for the attended human fresh-machine install walk (cogatest VM setup/hygiene; lives only in v1/29's `guide-for-zach.md`) — no owner. [ks-install-1]
+
+## Phase 4 — Retro (verified)
+
+22 eligible done tickets processed in an isolated linked worktree based on origin/main 61fd3fa01; outcome verified against fetched origin/main (all PR branches pushed, all 15 direct deletes on main, checkout held nothing unlanded); worktree, temp branch and local-config copy removed.
+
+- Knowledge PRs (each deletes its source tickets): #1141 test-suite pitfalls (v1/02, v1/39, windows-native/02 → coga-dev/testing); #1142 Windows import/write hazards (windows-native/01 → coga-dev/codebase/gotchas); #1143 watchdog-pause reporting by entry point (recurring-unblock-launch → coga/recurring/scheduling + twin); #1144 README links must be absolute (v1/32 → coga-dev/packaging); #1145 new skill coga/skills/competition-testing/hands-on-trial (competition-testing/test-compound-engineering).
+- Direct-deleted (nothing durable): automate-checkout-setup-and-deduplicate-instructio, commit-journal/publish-log-lines-left-uncommitted, context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set, fix-parser-bugs-documented-in-pr-1055, launch-moves-the-checkout-to-main-before-and-after, make-every-code-workflow-review-with-the-other-age, recurring/{address-pr-comments,autoclose-merged,blocker-reminders,phone-home,resolve-conflicts,skill-update,usage-report}, v1/37-fix-the-usage-report-cost-proxy-parenthetical-and, v1/38-coalesce-coga-state-commits.
+- Deferred retirement debt (done + live local branch): blocks/06, blocks/08, blocks/09, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba; plus 34 canceled tickets (2 with live branches: define-the-split-a-ticket-mechanic-shared-by-code, scrub-the-service-account-token-from-the-launch-ch).
+- Observed, not this run's: stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` on branch `dream/ops-20261026T172253Z` from the 2026-10-26 Dream run — human to inspect and remove.
