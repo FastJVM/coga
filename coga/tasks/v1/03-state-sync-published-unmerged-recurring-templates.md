@@ -1,6 +1,6 @@
 ---
 title: State sync published unmerged recurring templates from a feature branch
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
