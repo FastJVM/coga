@@ -1329,3 +1329,10 @@ Task: `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`
 Recorded: 2026-10-23T17:41:49+00:00
 
     Branch 'coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f' is not safe to publish. refs/heads/coga/windows-native-01-core-port-cli-and-test-suite-p-2e174f does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: native Windows import and write hazards in Coga source
