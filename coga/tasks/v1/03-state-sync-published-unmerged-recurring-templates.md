@@ -631,3 +631,9 @@ the prior resume/reconciliation instructions.
 - [ ] [2026-10-29 22:24] [agent:claude] id=20261029T222441 Implementation is pushed at 6a73bbf4d; resolve required checks or explicitly waive them before advancement. v1/12-fix-release-env-fixture-interpreter-symlink-in-fre must fix the unchanged release_env symlink that loses PyYAML in a fresh Python 3.11 venv (full suite: 1 failed, 4362 passed, 10 skipped). Also synthesize draft coordination notes or place intentional launch notes under Production notes in v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p, v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows; these cause four repository-validation errors. Focused publication tests pass (310); exact evidence is on the blackboard.
 
 - [ ] [2026-10-30 11:15] [agent:claude] id=20261030T111555 Owner resolution remains required before implementation resumes: wait for the owning fixes, authorize resolving these blockers in this session, or explicitly waive these specific failures. Python 3.11.15 recheck still fails with missing yaml in the release_env fixture owned by v1/12-fix-release-env-fixture-interpreter-symlink-in-fre (1 failed in 4.55s). Repository validation still reports 98 OK, 16 warnings, and four unsynthesized-draft-blackboard errors in v1/19-install-link-for-claude-code-yields-the-desktop-ap, v1/26-make-the-readme-install-section-the-only-install-p, v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows. Both asks were surfaced; no resolution or waiver was supplied. Fresh evidence is on the blackboard; implementation remains pushed at 6a73bbf4d, without a PR.
+
+---
+
+## Blocker reminders
+
+- 4b6a958fc2d0 last_reminded: 2026-11-02 14:38
