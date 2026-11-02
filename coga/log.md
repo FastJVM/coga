@@ -9874,3 +9874,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 15:06 v1 [validate-drift-unsynthesized-draft-blackboard-four] [human:nicktoper] created (status=draft)
 2026-11-02 15:06 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [human:nicktoper] created (status=draft)
 2026-11-02 15:06 v1 [document-the-non-executable-script-validate-check] [human:nicktoper] created (status=draft)
+2026-11-02 15:10 v1 [recurring/dream] [agent:claude] slack: Dream: validate-drift 24 human-needed (2 classes already ticketed, 1 new brief), 5 Retro knowledge PRs + 15 direct deletes, 6 stale-fix PRs, 2 gap/extract drafts; 41 tickets of retirement debt; old 2026-10-26 Dream worktree needs removal.

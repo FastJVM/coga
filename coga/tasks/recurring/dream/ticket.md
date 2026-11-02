@@ -840,3 +840,46 @@ Generated: 2026-11-02T23:05:55+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-11-02T23:20Z (run 20261102T223931Z, coga-source repo)
+
+| Phase | Result | Notes |
+|---|---|---|
+| preflight | ok | git-common-dir, remote, gh |
+| 1 validate-drift | reported / human-needed | 24 issues: 0 direct-fix, 0 pr-proposal, 24 human-needed |
+| 2 knowledge scan | reported | 24/24 shards; 23 raw → merged |
+| 3 contract audit | reported | 9/9 shards (98 twin pairs identical); 10 raw, all dupes of Phase 2 classes |
+| 4 retro/done-ticket | pr-opened | 22 tickets: 5 knowledge PRs (#1141–#1145, 7 tickets), 15 direct deletes |
+| 5 cleanup-orphan-markers | no-op | |
+| 6 disposition | proposed / pr-opened | 6 proposal PRs, 3 draft tickets |
+| upstream-captured | 0 | coga-source repo |
+
+Findings: 21 distinct (10 extract, 9 stale/drift, 2 gap).
+
+**PRs opened**
+- Retro: #1141 test-suite pitfalls · #1142 Windows hazards · #1143 watchdog-pause reporting · #1144 README absolute links · #1145 competitor-trial skill
+- Proposals: #1146 blocker-reminder eligibility owner · #1147 seeded-fixture wording in code skills · #1148 branch-sweep report destination · #1149 notification caller inventory · #1150 skill-management `failed` outcome · #1151 cleanup/README retired
+
+**Draft tickets created**
+- `validate-drift-unsynthesized-draft-blackboard-four` (brief-for-human; members v1/19, v1/26, v1/27, v1/31)
+- `add-a-skill-for-the-attended-human-fresh-machine-i` (gap, code/with-review)
+- `document-the-non-executable-script-validate-check` (done+checkout extract; overlaps PR #1139 on coga/first-task)
+
+**Already ticketed / reused**
+- validate-drift: unfrozen-workflow — already ticketed as `_v2/validate-drift-unfrozen-workflow-11-hand-authored`; 12 members this run, new since filed: implement-the-include-allowlist-that-url-skill-upd, stop-creating-linked-worktrees-for-coga-retire, ticket-sync-fails-with-read-only-git-inside-agent, v1/06, v1/12, v1/16, v1/31, v1/36, v1/40, v1/42.
+- validate-drift: stuck-in-progress — already ticketed as `_v2/validate-drift-stuck-in-progress-11-in-progress-ti`; 5 members, all new since filed: marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive, publish-sibling-ticket-handoffs-during-targeted-au, v1/01, v1/05, v1/33.
+- validate-drift: large-blackboard (3) — all done tickets on the Retro route (context-audiences/02 deleted; v1/39 in #1141; windows-native/01 in #1142); no slimming draft.
+- trim-log dead links — contexts carried by reused PR #1139; show skill + dream template links already ticketed as `commit-journal/activate-trim-log-in-this-repo-after-retention-mer` (activation creates the linked files).
+- autoclose/sweep foreign-branch note — already ticketed as `v1/09-guard-foreign-linked-worktree-branch-cleanup`.
+- releasing "only workflow" — already ticketed as `v1/13-repair-ci-and-resume-with-release-focused-triggers`.
+- install PATH remedy gap — already ticketed as `v1/26-make-the-readme-install-section-the-only-install-p`.
+
+**Retirement debt** (`coga retire <slug>`)
+- done + live local branch: blocks/06, blocks/08, blocks/09, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba (extract routed to draft above).
+- 34 canceled tickets. Retiring these unlocks extracts: v1/21-show-which-agents-are-available-on-the-machine-dur (coga-dev/internals/agent-config: AGENT_CLIS governs discovery only); define-the-api-equivalent-cost-proxy-and-price-tab (usage-pricing + coga/usage: declined dollar proxy and reopen condition); detect-stranded-blackboard-prose-across-checkouts (coga/checkouts: declined detector and reopen discriminator).
+
+**Machine-local validator issues:** none.
+
+**Human-needed:** stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` (branch `dream/ops-20261026T172253Z`) left by the 2026-10-26 Dream run — inspect and remove. All PRs need human review; none auto-merge.
