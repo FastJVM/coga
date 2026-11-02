@@ -9832,3 +9832,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 14:34 v1 [recurring/skill-update] [system] created recurring/skill-update for 2026-W45
 2026-11-02 14:34 v1 [recurring/usage-report] [system] created (status=active)
 2026-11-02 14:34 v1 [recurring/usage-report] [system] created recurring/usage-report for 2026-W45
+2026-11-02 14:34 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
