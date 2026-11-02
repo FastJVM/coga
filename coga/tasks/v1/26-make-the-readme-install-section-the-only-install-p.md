@@ -34,6 +34,11 @@ the README install section stands on its own.
 - Zach on 2026-10-21: there should be no separate page detailing the install at
   all, because having to click into other pages to work out how to install coga
   is where it gets confusing.
+- From the Kiro trial on 2026-10-30: Kiro's installer printed "Installation
+  complete!" above the PATH step that made the tool runnable, and Compound
+  Engineering's printed its success line below the same warning.
+- The README's only PATH line covers `uv`, so a reader whose `coga --version`
+  fails after `uv tool install coga` is told nothing.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every

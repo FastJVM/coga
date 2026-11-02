@@ -17,7 +17,7 @@ workflow:
     skills: []
     assignee: agent
 agent: claude
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 ---
 
 ## Description
@@ -328,7 +328,67 @@ finished — not what the trial found.
 ## State
 
 `agent-produces` opened 2026-10-29. Both artifacts the step owns are built and
-published. Nothing observed yet — no lap has run.
+published.
+
+**Lap 0 (install) finished 2026-10-30.** 16 entries in the log. Findings stay
+in the log and the write-up, not here. State worth carrying:
+
+- `kiro-cli 2.36.0`, running **V3** — a fresh install defaults to V2, which has
+  no specs or workflows. Record `kiro-cli version` at the start of every lap:
+  the session banner says 3.0 ships at the end of October and auto-updates
+  will take it there, which would make lap 2 a different product from lap 1.
+- Credit baseline `0.00 of 50`, KIRO FREE, **resets 2026-11-01**. So the
+  practical budget is 50 now and 50 again two days later; credits are not the
+  constraint on lap count that the ticket assumed.
+- Workspace is `~/kiro-tiny-ticket`, trusted. Launching from `~` was declined
+  on purpose — home's `.kiro` is the global scope, and workspace-versus-global
+  precedence is under test.
+- Signed in with Google.
+
+**Lap 1 (`create`) finished 2026-10-30.** 38 entries. State worth carrying:
+
+- **Cost: 34.12 credits of 50, 33m 7s.** The free tier covers one lap of this
+  build, not three. Kiro prints per-turn and per-session credits unasked; no
+  sibling tool gave any cost signal at all. Whether lap 2 runs depends on the
+  2026-11-01 reset.
+- All three spec phases ran, with a human gate between each:
+  `.kiro/specs/tiny-ticket/{requirements,design,tasks}.md`.
+- The pre-selected "Run required tasks" skipped 10 optional tasks, which were
+  the entire property-based test suite.
+- **Settled, after a wrong turn.** Kiro reported "20/20 pass, TypeScript build
+  clean" on a VM with no node. The session first concluded the run was
+  fabricated; `ls node_modules dist` disproved that — full dependency tree and
+  compiled output present. Kiro carries its own Node runtime and built inside
+  it, then handed over `npm run build` / `node dist/...` for a shell that has
+  neither. Entries 38 and 39 are marked retracted; entry 41 carries the
+  corrected finding.
+
+**Trial closed after lap 1, 2026-10-30, at Zach's direction** — the tool had
+told him what he needed to know. Laps 2 and 3 not run. The ticket leaves lap
+count to his judgement, so this is the planned end.
+
+Unanswered as a result, carried for whoever reads this next: whether stored
+steering changes later output; whether a fresh session reads `tasks.md` state
+back; whether hooks do anything, never seen in use. SpecKit and BMAD ended
+with the same reuse gap.
+
+## Closing record
+
+- **Deliverable:** "Kiro — Testing Breakdown (Oct 30, 2026)" —
+  https://docs.google.com/document/d/15sT7RiajWCygkUL-JmZ4Yw3f8NE0yj19SeJu3nuGUKQ/edit
+  In the `coga-competitors` folder beside the SpecKit, BMAD and Compound
+  Engineering write-ups. Written by Zach from his Pocket recording in a
+  separate session.
+- **Share verified, not assumed:** `nicolas@fastjvm.com` holds `writer`,
+  granted by named account rather than link-sharing. Checked 2026-10-30.
+  This was the last of the four trials, so the share obligation is discharged.
+- **Running entry log, 41 entries:**
+  https://claude.ai/code/artifact/d3266b10-1cf1-45ed-98ba-6f709cb3d8cd
+- **Command relay:**
+  https://claude.ai/code/artifact/6bec366c-0131-4423-ba10-aa4db25c96aa
+- **Housekeeping:** a second, empty doc with the identical title sits in the
+  same folder — `1W7gm0G1veJpjrYG0iiJ73ofupOdwt8UU1c1OmYuqlX4`, created
+  21:08. Nico holds `writer` on it too. Zach's call whether to trash it.
 
 ## Artifacts
 

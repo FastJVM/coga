@@ -674,3 +674,9 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
 ## Blockers
 
 - [ ] [2026-10-29 21:58] [agent:claude] id=20261029T215814 Record the participating/excluded writer inventory, stop/restart authority and maintenance window (including current megalaunch, dirty Retro checkout and schedulers), scheduler timezone, and reviewed compatible wheel revision/SHA-256 per installation. Resolve the evaluator finding with a linked post-merge verification/resumption follow-up or an explicit exception explaining open-pr handling and keeping autoclose stopped through the recorded disposition and owner completion. Resume implement in a manual/API session outside launch/megalaunch with a freshly verified non-editable controller; the current CLI is editable and no stop/upgrade receipts are recorded.
+
+---
+
+## Blocker reminders
+
+- 20c3261f9049 last_reminded: 2026-10-30 11:14
