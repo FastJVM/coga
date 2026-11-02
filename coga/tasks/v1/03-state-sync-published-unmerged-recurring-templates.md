@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 contexts:
 - coga/sync
 - coga/state-publication
@@ -40,7 +40,6 @@ contexts:
 - coga-dev/testing
 - coga/checkouts
 agent: claude
-launch_generation: 2fad31df-da7d-4ae7-901d-1a9e944377d0
 ---
 
 ## Description
@@ -633,6 +632,22 @@ policy, so instead merged `origin/main` into the already-pushed tip
 `6a73bbf4d`, giving merge `11bd7fc59`, whose tree is byte-identical to the
 tested `559bdd760` tree (`2bfe75037`). Pushed as a fast-forward; the branch
 contains main. No code change. Checkout returned to clean main. Next: review.
+
+## Open PR — 2026-11-02
+
+Claude (claude-opus-5-5), megalaunch pick, run from clean `main`. Opened
+https://github.com/FastJVM/coga/pull/1152 at head `11bd7fc59` with
+`coga open-pr`. That required three fixes under `## PR` so the parser
+accepted it: removed a stray `---` after the YAML fence, changed the
+`failed (waived)` receipt statuses to the valid `failed` (each detail
+still records the owner's waiver), and dropped the stale "No PR has been
+opened" limitation. No receipt was rerun or invented. Receipts recorded at
+`559bdd760` render as stale against the merge head, although the trees are
+identical. The frozen workflow has no peer-review step, so the PR states
+that no code review ran. Open follow-ups stay with existing tickets:
+v1/04-stop-the-contexts-root-sweep-from-publishing-canon and
+v1/12-fix-release-env-fixture-interpreter-symlink-in-fre. Native Windows
+has not been run. Next: owner review.
 
 ## Blockers
 
