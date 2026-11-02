@@ -1,12 +1,12 @@
 # Phase 0 Brainstorming Playbook
 
 Turn the user's idea into an agreed `.agents-cli-spec.md` through a collaborative dialogue —
-*before* any sample study, scaffolding, or code. Adapt the depth to the agent's complexity.
+*before* any recipe study, scaffolding, or code. Adapt the depth to the agent's complexity.
 
 ## HARD-GATE
 
-Do NOT clone a sample, scaffold, run `agents-cli create`, or write any code until the user has
-approved the spec. **Reading the recipe index is exempt** — it is not "studying a sample". Scan it
+Do NOT clone a recipe, scaffold, run `agents-cli create`, or write any code until the user has
+approved the spec. **Reading the recipe index is exempt** — it is not "studying a recipe". Scan it
 before your first reply and name any matching recipe there, even when that reply is only a
 clarifying question. This applies even to "obvious" agents — unexamined assumptions cause the most
 wasted work.
@@ -46,7 +46,7 @@ schedule/cadence, and which model.**
 
 Non-interactive ≠ skip the thinking. For non-trivial agents you must still record the approaches you
 weighed and the one you chose, flag oversized scope, and route any capability the scaffold doesn't
-ship to its recipe (`/google-agents-cli-adk-code` → `references/samples.md`) — then commit to a design. The user-review gate is how they catch a wrong assumption.
+ship to its recipe (`/google-agents-cli-adk-code` → `references/recipes.md`) — then commit to a design. The user-review gate is how they catch a wrong assumption.
 
 ## Propose 2–3 approaches (non-trivial agents)
 
@@ -62,11 +62,11 @@ or override. Typical axes:
   tickets, or knowledge base"), sandboxed shell or code execution, memory across sessions, approval
   gates before risky actions, OAuth consent, safety guardrails, event-driven or scheduled runs. None
   of these is a scaffold flag; each is something you build by studying a worked example first. List
-  every match in the spec's Reference Samples, to study in Phase 1. Don't silently downgrade a stated
+  every match in the spec's Reference Recipes, to study in Phase 1. Don't silently downgrade a stated
   need to a plain tool call, and flag it even when it's deferred to a later phase.
   **In Python**, look the need up in the topic index in `/google-agents-cli-adk-code` →
-  `references/samples.md`, which maps it to a clone-and-study recipe. **In Go**, that catalog has no
-  equivalent — the same skill's `references/adk-go.md` says where to find Go samples.
+  `references/recipes.md`, which maps it to a clone-and-study recipe. **In Go**, that catalog has no
+  equivalent — the same skill's `references/adk-go.md` says where to find Go examples.
 - **Deployment shape** — prototype-first (recommended) vs a deployment target.
 
 ## Present the design in sections
@@ -115,7 +115,7 @@ Fix issues inline, then continue.
 Ask the user to review `.agents-cli-spec.md` before moving on:
 
 > "Spec written to `.agents-cli-spec.md`. Please review it and tell me if you want changes before we
-> look at reference samples and scaffold."
+> look at reference recipes and scaffold."
 
 If they request changes, make them and re-run the self-review. Only once they approve do you proceed
-to **Phase 1 (study samples)** → **Phase 2 (scaffold)**.
+to **Phase 1 (study recipes)** → **Phase 2 (scaffold)**.

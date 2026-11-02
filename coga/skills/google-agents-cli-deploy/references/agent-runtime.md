@@ -54,16 +54,18 @@ https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/
 ```
 
 where `{resource}` is the full `projects/.../reasoningEngines/...` name. For
-example, the A2A agent card (container route `/a2a/{agent_directory}/.well-known/agent-card.json`)
+example, the A2A agent card (container route `/a2a/{app_name}/.well-known/agent-card.json`)
 is reachable at:
 
 ```
-https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/a2a/{agent_directory}/.well-known/agent-card.json
+https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/a2a/{app_name}/.well-known/agent-card.json
 ```
 
-`{agent_directory}` is the app name (the project's `agent_directory`, recorded in
-`deployment_metadata.json`). This is the exact URL `deploy` advertises on
-success and `run` constructs for `--mode a2a` against an Agent Runtime URL — both
+`{app_name}` is the basename of the project's `agent_directory`, e.g.
+`my_agent` for `src/my_agent` (`agent_directory` is recorded in
+`deployment_metadata.json`). This is
+the exact URL `deploy` advertises on success and `run` constructs for
+`--mode a2a` against an Agent Runtime URL — both
 authenticate with your Google credentials. On Agent Runtime, `publish` defaults
 to **ADK** registration (`:streamQuery` against the reasoning-engine resource
 name) rather than this card URL; pass `--registration-type a2a` if your container
@@ -150,7 +152,7 @@ Environment variables set during deployment come from `agents-cli deploy` (the C
 
 ### Memory Bank
 
-To enable cross-session memory on Agent Runtime, configure `memory_bank_config` via `context_spec`. See the ADK [`cross-session-memory` recipe](https://github.com/google/adk-samples/tree/main/core/python/cross-session-memory) for the full pattern.
+To enable cross-session memory on Agent Runtime, configure `memory_bank_config` via `context_spec`. See the ADK [`cross-session-memory` recipe](https://github.com/google/adk-recipes/tree/main/core/python/cross-session-memory) for the full pattern.
 
 ## Networking (PSC Interface)
 
