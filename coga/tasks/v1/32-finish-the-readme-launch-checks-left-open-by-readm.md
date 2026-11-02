@@ -364,3 +364,10 @@ checks:
   base: 60a0e956d4ca8bc07f274bf80a12913a089bef5c
   detail: Passed on the clean rebased feature checkout at the recorded head/base.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: README links must be absolute because PyPI renders it

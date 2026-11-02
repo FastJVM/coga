@@ -1,6 +1,6 @@
 ---
 name: coga-dev/packaging
-description: Authoring Coga's packaged resources, enforcing user versus local-only Coga-dev contexts, canonical twins, and wheel contents.
+description: Authoring Coga's packaged resources, enforcing user versus local-only Coga-dev contexts, canonical twins, and wheel contents, including the README as the PyPI long description.
 ---
 
 # Packaging Coga's resources
@@ -133,3 +133,10 @@ views under the templates tree dedup the collision away. Verify packaging
 changes against a fresh `git clone` or `git worktree` as well as a dev tree.
 Build artifacts (`.coga/`, `.venv/`, `__pycache__/`) are excluded so a dirty
 tree cannot ship a stale venv into every `coga init`.
+
+`README.md` is also the package's PyPI long description
+(`readme = "README.md"` in `pyproject.toml`). PyPI does not resolve relative
+links, so every README link must be an absolute GitHub URL: `blob/main/...`
+for files and `tree/main/...` for directories. Done tickets are retired, so
+link evidence such as a ticket file or a `coga/log.md` excerpt at a commit
+(`blob/<sha>/...`), not at `main`.
