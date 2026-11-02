@@ -660,3 +660,13 @@ Recorded: 2026-11-02T23:50:43+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: use one complete fenced yaml mapping under ## PR.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/03-state-sync-published-unmerged-recurring-templates`
+Recorded: 2026-11-02T23:50:50+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: use one complete fenced yaml mapping under ## PR.
