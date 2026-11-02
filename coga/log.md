@@ -9846,3 +9846,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 14:36 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-11-02 14:36 v1 [recurring/autoclose-merged] [system] task done
 2026-11-02 14:36 v1 [recurring/autoclose-merged] [system] script exited with code 0
+2026-11-02 14:36 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
