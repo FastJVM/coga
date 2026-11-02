@@ -1,6 +1,6 @@
 ---
 title: Dream
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
