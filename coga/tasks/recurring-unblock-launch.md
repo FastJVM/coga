@@ -494,3 +494,10 @@ Recorded: 2026-10-26T21:20:00+00:00
       in "<unicode string>", line 98, column 5:
             the function in the coga-dev spo ... 
             ^
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: watchdog-pause reporting differs by recurring entry point
