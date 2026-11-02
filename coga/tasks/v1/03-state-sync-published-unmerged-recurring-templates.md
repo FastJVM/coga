@@ -397,6 +397,7 @@ blackboard fence. Only this ticket's blackboard changed.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1152
 branch: coga/v1-03-recurring-publication-boundary
 
 ## Implementation — 2026-10-29
@@ -548,14 +549,14 @@ checks:
   base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
   detail: 'Python 3.12.12: 341 passed in 70.41s. Tested tree 2bfe75037 equals the pushed merge head tree.'
 - command: PYTHONPATH=/home/n/Code/claude/coga/src <fresh uv venv, python3.11 + .[test]>/bin/python -m pytest -q -p no:cacheprovider
-  status: failed (waived)
+  status: failed
   head: 559bdd760c71c6b09178cad885083791eae395d5
   base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
   detail: 'Python 3.11.15: 1 failed, 4362 passed, 10 skipped in 478.97s. Only failure: tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task,
     ModuleNotFoundError: yaml (release_env symlink, unchanged on main, owned by v1/12-fix-release-env-fixture-interpreter-symlink-in-fre).
     Owner waived 2026-11-02. Tree identical to pushed head.'
 - command: PYTHONPATH=/home/n/Code/claude/coga/src <py3.11 venv>/bin/python -m coga.cli validate --json
-  status: failed (waived)
+  status: failed
   head: 559bdd760c71c6b09178cad885083791eae395d5
   base: 5601addfa15d7e2f5c78c7e49539b8cd0c428f14
   detail: 'Python 3.11.15: exit 1; 90 OK, 20 warnings, 4 errors, all unsynthesized-draft-blackboard in
