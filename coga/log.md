@@ -9870,3 +9870,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 15:05 v1 [recurring/dream] [agent:claude] slack: New context: native Windows import and write hazards in Coga source. PR: https://github.com/FastJVM/coga/pull/1142
 2026-11-02 15:05 v1 [recurring/dream] [agent:claude] slack: New context: watchdog-pause reporting differs by recurring entry point. PR: https://github.com/FastJVM/coga/pull/1143
 2026-11-02 15:05 v1 [recurring/dream] [agent:claude] slack: New context: README links must be absolute because PyPI renders it. PR: https://github.com/FastJVM/coga/pull/1144
+2026-11-02 15:05 v1 [recurring/dream] [agent:claude] slack: New skill: hands-on competitor trial method. PR: https://github.com/FastJVM/coga/pull/1145
