@@ -341,3 +341,10 @@ checks:
   detail: The actual feature PR is opened by the following mechanical step; its own Ubuntu and Windows
     checks remain required before owner merge.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: known Coga test-suite failures to rule out first

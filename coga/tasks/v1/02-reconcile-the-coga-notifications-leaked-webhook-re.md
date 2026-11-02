@@ -339,3 +339,10 @@ checks:
     base: 0c672984a9e2497e69102d7acf885ab252df57a7
     detail: Exit 0; the single implementation commit maps with =, preserving its patch through rebase.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: known Coga test-suite failures to rule out first
