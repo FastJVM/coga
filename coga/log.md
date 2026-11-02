@@ -9873,3 +9873,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 15:05 v1 [recurring/dream] [agent:claude] slack: New skill: hands-on competitor trial method. PR: https://github.com/FastJVM/coga/pull/1145
 2026-11-02 15:06 v1 [validate-drift-unsynthesized-draft-blackboard-four] [human:nicktoper] created (status=draft)
 2026-11-02 15:06 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [human:nicktoper] created (status=draft)
+2026-11-02 15:06 v1 [document-the-non-executable-script-validate-check] [human:nicktoper] created (status=draft)
