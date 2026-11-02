@@ -51,7 +51,10 @@ ticket. The
 [macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host, and the
 [Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
-Server.
+Server. The
+[attended human walk](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/human-walk/SKILL.md)
+is their hand-run counterpart: a first-time user installs on a fresh
+`cogatest` VM while an agent records findings.
 
 ## Which code you are actually testing
 
