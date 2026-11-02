@@ -833,3 +833,10 @@ Result: 24 issue(s): 0 direct fix, 0 PR proposal, 24 human-needed.
 - Direct-deleted (nothing durable): automate-checkout-setup-and-deduplicate-instructio, commit-journal/publish-log-lines-left-uncommitted, context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set, fix-parser-bugs-documented-in-pr-1055, launch-moves-the-checkout-to-main-before-and-after, make-every-code-workflow-review-with-the-other-age, recurring/{address-pr-comments,autoclose-merged,blocker-reminders,phone-home,resolve-conflicts,skill-update,usage-report}, v1/37-fix-the-usage-report-cost-proxy-parenthetical-and, v1/38-coalesce-coga-state-commits.
 - Deferred retirement debt (done + live local branch): blocks/06, blocks/08, blocks/09, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba; plus 34 canceled tickets (2 with live branches: define-the-split-a-ticket-mechanic-shared-by-code, scrub-the-service-account-token-from-the-launch-ch).
 - Observed, not this run's: stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` on branch `dream/ops-20261026T172253Z` from the 2026-10-26 Dream run — human to inspect and remove.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-11-02T23:05:55+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
