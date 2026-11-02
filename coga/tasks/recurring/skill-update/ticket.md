@@ -1,6 +1,6 @@
 ---
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - bootstrap/skill-update
     assignee: agent
-step: 1 (update)
 ---
 
 ## Description
@@ -137,3 +136,26 @@ template rather than living with it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Skill Update
+
+Generated: 2026-11-02T22:38:19+00:00
+Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.cli skill update --all --json --pr --pr-title 'Update Coga-managed skills'`
+Task: `recurring/skill-update`
+
+Result: 8 skill(s): 7 updated, 0 need follow-up, 1 skipped.
+PR: https://github.com/FastJVM/coga/pull/1140
+
+### Updated
+
+- `google-agents-cli-adk-code`: `updated` (github) - updated by gh skill (google/agents-cli) 876b67f4 > adfa0ff1 [v1.12.0]
+- `google-agents-cli-deploy`: `updated` (github) - updated by gh skill (google/agents-cli) 3fd11023 > f51c19e2 [v1.12.0]
+- `google-agents-cli-eval`: `updated` (github) - updated by gh skill (google/agents-cli) 0f739661 > e0474baa [v1.12.0]
+- `google-agents-cli-observability`: `updated` (github) - updated by gh skill (google/agents-cli) 15758239 > a9c54645 [v1.12.0]
+- `google-agents-cli-publish`: `updated` (github) - updated by gh skill (google/agents-cli) 1f0af76b > adcb9eaf [v1.12.0]
+- `google-agents-cli-scaffold`: `updated` (github) - updated by gh skill (google/agents-cli) ccb2058b > 48688478 [v1.12.0]
+- `google-agents-cli-workflow`: `updated` (github) - updated by gh skill (google/agents-cli) ee9e6b5b > b4a31680 [v1.12.0]
+
+### Skipped
+
+- `clarity`: `unchanged` (url) - upstream digest unchanged
