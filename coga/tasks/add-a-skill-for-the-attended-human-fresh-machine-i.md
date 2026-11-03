@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 412d29e2-7307-49a6-9b98-7d7ade178852
 ---
 
 ## Description
@@ -132,107 +131,128 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
 ## Dev
 
 branch: coga/add-a-skill-for-the-attended-human-fresh-machine-i-84cdf7
 
-## Handoff — implement, 2026-11-02
+## Implementation record
 
-Pushed `d0d07b353`; no PR yet (open-pr step).
+Claude Opus 5.5 authored the initial implementation (implement handoff),
+pushed as `d0d07b353`; Codex rebased it as `13f662555` and committed the review
+corrections as `35c0a7801`. The old implementation check receipts are
+historical; `## PR` records this step's final verification.
 
-Decisions:
+Current decisions:
 
-- **Shared VM hygiene is its own skill**, `coga/skills/coga/testing/fresh-vm/SKILL.md`,
-  cited by `clean-install/human-walk`. It is placed under `coga/testing/`
-  rather than inside `human-walk` so a competitor trial can cite it without
-  reaching into an install-walk skill. PR #1145 (`competition-testing/hands-on-trial`,
-  open, not ours) is left untouched. Follow-up for whoever lands #1145 or
-  for retro: replace its "Fresh VM" bullet's VM details with a citation of
-  `coga/testing/fresh-vm`.
-- **guide-for-zach.md's durable parts moved** to
-  `clean-install/human-walk/operator-guide.md`, generalized: no names or
-  dates, the perishable Windows `fcntl` paragraph replaced by "your helper
-  tells you what is known to fail", and the stopwatch/"Time" field replaced
-  by a "Waiting" field, matching the rule that conversational wall-clock
-  times are not timing evidence. The original attachment stays on v1/29
-  (in review, owner zach); it can be deleted when v1/29 retires.
-- **Not packaged.** The Linux/AWS harness skills have bootstrap twins; the
-  new two describe this team's spare `cogatest` VMs and stay local, like
-  `coga/skills/marketing`. A link added to the packaged
-  `clean-install/SKILL.md` was reverted because it would have needed a twin
-  edit pointing at a non-shipped skill; the index (`docs/README.md`) and
-  `coga-dev/testing` link the new skills instead.
-- All eight ticket bullets are covered: .ipsw-before-clone and ~45 GB,
-  VirtualBox Skip Unattended, leaked machine-wide tools, stub-safe baseline,
-  UTM clipboard, revert-to-bare, wall-clock not evidence (human-walk),
-  PyPI vs `git+...@main` re-walks (human-walk).
+- `coga/testing/fresh-vm` owns shared VM preparation for both participants;
+  `human-walk` owns the helper's method, with participant conduct in its guide.
+- The v1/29 guide is now a compatibility pointer. Its separate dated findings
+  remain untouched. Both new skills stay local; no packaged twin changed.
+- PR #1145 is still separate and open. Its integration should cite
+  `coga/testing/fresh-vm` instead of becoming another VM procedure owner.
+
+## Peer review
+
+Direct Codex review **completed**. The independent initial review covered
+`13f662555eda4fb9cf12efcbc843c847536ed7b9` against
+`04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6`. After applying findings, Codex
+reviewed the complete final diff at `35c0a7801fa18983c6ee032147f1a8016abfc3b5` against `04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6`.
+The final receipt is marked self-review because the reviewer authored the
+corrections; the initial Claude implementation was independently reviewed.
+No unresolved findings. No nested agent CLI or review tool was used.
+
+Corrected findings:
+
+1. Removed competing VM instructions and the false claim that a new macOS account has no Homebrew. The shared fresh-vm skill is now the single setup/baseline/reuse/cleanup owner, written for both participants.
+2. Replaced guide-for-zach.md with a compatibility pointer; preserved the separate dated evidence attachment. The old guide no longer supplies stale platform-failure and timing instructions.
+3. Scoped snapshot/clipboard limitations to the observed bare UTM setup and linked current UTM support. Removed the assumed Claude artifact-service dependency; added guest-readable command transfer and host screenshots when paste is unavailable.
+4. Removed reliance on the old Windows OOBE local-account bypass and made account setup follow the selected Windows build. The Windows baseline records caption/build/architecture through CIM and looks up both agent CLIs without invoking Python aliases.
+5. Kept the ticket's artifact source and done criteria authoritative, including v1/31's candidate wheel and completed-task requirement. Re-walk evidence records the resolved commit rather than only an ambiguous main package version.
+
+Verification: the exact final-head commands and counts are under `## PR`.
+Both new skills also passed skill-creator's `quick_validate.py`. An inline
+Python link/anchor scan checked 15 repository links in the four procedure
+files; the three shell snippets passed `bash -n` without execution.
+
+No executable terminal surface changed. The Mac/Windows GUI procedures were
+reviewed against the source walk evidence and vendor docs, not driven in a
+VM in this Linux session; no attended install outcome is claimed. UTM's
+[current guest support](https://docs.getutm.app/guest-support/macos/),
+Microsoft's [OOBE update](https://blogs.windows.com/windows-insider/2025/10/06/announcing-windows-11-insider-preview-build-26220-6772-dev-channel/),
+the [VirtualBox manual](https://download.virtualbox.org/virtualbox/7.0.22/UserManual.pdf),
+and Microsoft's [OS inventory example](https://learn.microsoft.com/en-us/powershell/scripting/samples/collecting-information-about-computers)
+support the platform corrections.
+
+The feature branch is committed and pushed, and the checkout is back on
+`main`. Next is the mechanical PR-opening step.
 
 ## PR
 
 ```yaml
-title: Add attended human install-walk and fresh-VM skills
-author: claude
-author_evidence: >-
-  Implemented in this session by Claude Opus 5.5 (claude-opus-5-5) under a
-  megalaunch queue pick; no agent override.
-head: d0d07b35357655bafef943da52bb063e94fe1cb2
-base: 851af79289e779ddb885508764be8b2c4d97585c
-depth: light
-rationale: >-
-  Documentation-only: two new local (unpackaged) skills, one attachment, and
-  two index/link lines. No code, no packaged twin touched. Facts are moved
-  from v1/29's guide and agent-side notes, the CE/Kiro tickets, and
-  macos-walk-findings.md rather than newly asserted.
-implementation: >-
-  New coga/testing/clean-install/human-walk skill (agent method for an
-  attended first-time install walk) with a generalized plain-language
-  operator guide, and a new coga/testing/fresh-vm skill owning cogatest VM
-  preparation, baseline, reuse and teardown, shared with competitor trials.
-deviations: >-
-  The shared VM-hygiene part lives at coga/skills/coga/testing/fresh-vm
-  rather than inside human-walk, so competitor trials can cite it.
-limitations: >-
-  PR #1145's hands-on-trial skill does not yet cite fresh-vm (open PR, not
-  this ticket's). guide-for-zach.md remains on v1/29 until it retires.
+title: Add attended install-walk guidance with shared VM preparation
+author: claude/codex
+author_evidence: The implement handoff identifies Claude Opus 5.5 as author of d0d07b353
+  (rebased as 13f662555). Codex applied the peer-review corrections in 35c0a7801 in this
+  session.
+head: 35c0a7801fa18983c6ee032147f1a8016abfc3b5
+base: 04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6
+depth: skim
+rationale: 'Bounded documentation change with no executable runtime or packaged resource
+  changes. Direct review, the full Linux suite, and task validation passed. Read the VM
+  version assumptions and the scope limits: Codex reviewed its own corrections, and no attended
+  Mac or Windows walk was performed.'
+implementation: Extracts the attended install method and participant guide from v1/29 into
+  maintained local skills. VM setup, baseline capture, reuse, and cleanup now have one shared
+  owner usable by competitor trials. The original guide becomes a compatibility pointer,
+  while dated observations remain in their attachment.
+deviations: Shared VM preparation lives at coga/testing/fresh-vm rather than under human-walk.
+  Review replaced historical blanket UTM limitations and the Windows local-account bypass
+  with version-aware guidance, and made ticket-defined artifacts and completion criteria
+  authoritative.
+limitations: 'No actual macOS/Windows VM walk ran in this Linux session; the Python suite
+  does not validate those GUI instructions. New skills remain local. The separate open PR
+  #1145 still needs to cite fresh-vm when its competitor-trial skill is integrated.'
 files:
-  coga/skills/coga/testing/clean-install/human-walk/SKILL.md: >-
-    New skill: roles, walk rules, record format, what a walk cannot measure,
-    fix-and-re-walk loop with PyPI vs main installs, wrap-up.
-  coga/skills/coga/testing/clean-install/human-walk/operator-guide.md: >-
-    Plain-language tester guide moved from v1/29's guide-for-zach.md,
-    generalized (no names, dates, or perishable platform failures).
-  coga/skills/coga/testing/fresh-vm/SKILL.md: >-
-    New shared skill: VM over new account (leaked tools), UTM clone/.ipsw
-    order and clipboard, VirtualBox OOBE, stub-safe baselines, revert-to-bare,
-    teardown.
-  docs/README.md: Index links to the two new skills.
-  docs/contexts/coga-dev/testing/SKILL.md: >-
-    One sentence naming the attended walk as the harnesses' hand-run
-    counterpart.
+  coga/skills/coga/testing/clean-install/human-walk/SKILL.md: Helper procedure for recording
+    attended observations and verifying fixes against the ticket-specified artifact and
+    completion criteria.
+  coga/skills/coga/testing/clean-install/human-walk/operator-guide.md: Generalized participant
+    instructions, note template, and wrap-up, linking the shared setup procedure.
+  coga/skills/coga/testing/fresh-vm/SKILL.md: Single shared VM preparation and reuse procedure,
+    including inherited-tool exclusions, stub-safe baselines, and version-aware transfer/account
+    setup.
+  coga/tasks/v1/29-test-and-fix-install-on-macos-and-windows/guide-for-zach.md: Replace
+    the duplicated legacy guide with a pointer so its existing entry point reaches the maintained
+    procedure without losing dated evidence.
+  docs/README.md: Index the two local skills.
+  docs/contexts/coga-dev/testing/SKILL.md: Link the attended walk as the human counterpart
+    to the automated harnesses.
 review:
-  status: not-run
-  detail: >-
-    No code review yet; the workflow's peer-review step follows.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 35c0a7801fa18983c6ee032147f1a8016abfc3b5
+  base: 04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6
+  detail: Direct review completed with no unresolved findings. Codex independently reviewed
+    Claude's rebased 13f662555, then applied the recorded findings and reviewed the complete
+    final diff at 35c0a7801. Classified as self-review for the final receipt because Codex
+    authored those corrections; no nested review CLI or second agent was used.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: 9e2f45c0e (pre-rebase; same diff as d0d07b353)
-    base: 17f46d9e5
-    detail: >-
-      4306 passed, 10 skipped in 527s. The rebase onto 851af7928 added only a
-      Coga-state commit; `git diff 9e2f45c0e d0d07b353 -- coga/skills docs`
-      is empty.
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_validate.py tests/test_skill_manager.py
-    status: passed
-    head: d0d07b35357655bafef943da52bb063e94fe1cb2
-    base: 851af79289e779ddb885508764be8b2c4d97585c
-    detail: 279 passed at the final head.
-  - command: coga validate --json
-    status: passed
-    head: 9e2f45c0e
-    detail: >-
-      No issues from this change; existing errors and warnings are on other
-      tickets (v1/19, v1/26, v1/27, v1/31 draft blackboards, and others).
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
+  status: passed
+  detail: 4306 passed, 10 skipped in 550.84 seconds on Linux with Python 3.12.12. No macOS,
+    Windows, or Python 3.11 execution is claimed.
+  head: 35c0a7801fa18983c6ee032147f1a8016abfc3b5
+  base: 04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6
+- command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m coga.cli validate
+    --task add-a-skill-for-the-attended-human-fresh-machine-i --json
+  status: passed
+  detail: 1 task checked; no issues.
+  head: 35c0a7801fa18983c6ee032147f1a8016abfc3b5
+  base: 04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6
+- command: git diff --check origin/main...HEAD
+  status: passed
+  detail: No whitespace errors.
+  head: 35c0a7801fa18983c6ee032147f1a8016abfc3b5
+  base: 04ec6bf9f967d7ebe2f0ad90dd9712b4172818d6
 ```
