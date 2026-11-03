@@ -1,6 +1,6 @@
 ---
 title: Activate trim-log in this repo after retention merges
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: 7e8ad3e2-4314-4beb-9fb5-bac0aea98f0a
 ---
 
 ## Description
@@ -675,6 +674,9 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
 ## Blockers
 
 - [ ] [2026-10-29 21:58] [agent:claude] id=20261029T215814 Record the participating/excluded writer inventory, stop/restart authority and maintenance window (including current megalaunch, dirty Retro checkout and schedulers), scheduler timezone, and reviewed compatible wheel revision/SHA-256 per installation. Resolve the evaluator finding with a linked post-merge verification/resumption follow-up or an explicit exception explaining open-pr handling and keeping autoclose stopped through the recorded disposition and owner completion. Resume implement in a manual/API session outside launch/megalaunch with a freshly verified non-editable controller; the current CLI is editable and no stop/upgrade receipts are recorded.
+
+- [ ] [2026-11-02 22:08] [agent:claude] id=20261102T220849 Owner deferred rollout (2026-11-02). Settled: scheduler timezone PST/PDT; one reviewed non-editable wheel (record revision + SHA-256) for the single deployment installation; post-merge exception (b) — merged-tree verification and resumption stay on this ticket, open-pr files no drafts for them, autoclose stays off until the resumption record is written and the owner completes the final gate; megalaunch is acceptable for implement if the session uses only git/tests on the feature branch and returns to clean main before any coga command or bump; no separate maintenance window beyond holding autoclose. Still needed: the owner's list of live Coga writers for this repo (candidates: ~/Code/coga editable source behind ~/.local/bin/coga, ~/Code/codex/coga on 0.3.2, ~/Code/claude/coga, cron/scheduled jobs, other machines/people), each upgraded to the reviewed wheel or kept from running coga until upgraded; disposition of the dirty Retro checkout .dream-retro-20261026T172253Z/dream-ops.
+
 
 ---
 
