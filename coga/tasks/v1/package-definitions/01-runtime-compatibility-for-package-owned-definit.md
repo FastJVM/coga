@@ -230,4 +230,17 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/package-definitions-01-runtime-compat
+
+## Plan (implement, claude)
+
+Layered, one commit per layer on the branch; this repo's live definitions stay untouched.
+1. Resolver tightening + single packaged owner per ref (seeded workflows/skills -> bootstrap/).
+2. Recurring catalog (`iter_template_sources`/`resolve_template_source`), `jobs.toml` selection, `recurring_state.py` carriers.
+3. Consumers: scans, create, list, validate, runner, retire worklists, phone-home, trim-log, log publication.
+4. Scaffold-only init allowlist; trim-log install via selection.
+5. Transitional packaging checks + legacy removal inventory; docs/owners.
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
