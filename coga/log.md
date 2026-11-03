@@ -10013,3 +10013,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-03 15:14 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-03 15:14 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-03 15:14 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] launched via coga megalaunch
+2026-11-03 15:14 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [agent:claude] blocked: Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.
