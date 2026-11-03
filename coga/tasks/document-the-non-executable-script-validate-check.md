@@ -1,7 +1,7 @@
 ---
 title: Document the non-executable-script validate check in the user-facing coga validate
   topic
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
