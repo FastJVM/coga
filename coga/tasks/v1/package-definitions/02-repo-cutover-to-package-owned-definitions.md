@@ -1,6 +1,6 @@
 ---
 title: 02 Repo cutover to package-owned definitions
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,7 +25,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 9a9e74e9-1618-4aeb-bea7-c0d8313889ef
 ---
 
 ## Description
@@ -226,3 +225,16 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dependency check (2026-11-03)
+
+- Stage A (`v1/package-definitions/01-runtime-compatibility-for-package-owned-definit`)
+  is `status: blocked` at `step: 2 (peer-review)` on `origin/main` (993005521),
+  not merged. Per the ticket's Dependency section, no B work started; no branch
+  created. Resume once A merges and every participating CLI is A or newer.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.

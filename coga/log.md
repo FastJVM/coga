@@ -9992,3 +9992,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-03 13:32 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-03 13:32 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-03 13:33 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [megalaunch] launched via coga megalaunch
+2026-11-03 13:33 v1 [v1/package-definitions/02-repo-cutover-to-package-owned-definitions] [agent:claude] blocked: Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
