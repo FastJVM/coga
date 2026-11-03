@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 49b8d3c0-8600-4c46-8388-787241dda16d
 ---
 
 ## Description
@@ -645,8 +644,9 @@ edits were changed; the CLI-maintained blocker history below preserves the inter
 
 Review and verification are complete. Final branch head is `13da855da42dcf27bb29527875ce7ab956b96eb7`
 on base `876f8b00453449cb748d5fd38e05b1963ddffd7c`, pushed with an explicit lease against
-`5ce1c8a85`. Remaining: publish these notes, return the primary to main, and bump once.
-No PR exists yet; PR opening belongs to the next workflow step.
+`5ce1c8a85`. The review handoff is published and the primary checkout has returned to
+clean, current main. Ready for the single peer-review bump and the mechanical open-pr
+step; no PR has been opened in this session.
 
 ---
 
