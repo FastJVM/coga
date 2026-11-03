@@ -1,6 +1,6 @@
 ---
 title: 01 Runtime compatibility for package-owned definitions
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
