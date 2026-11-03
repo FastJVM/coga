@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -22,6 +22,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6d00f7a4-8521-429c-b261-0f5c1eea9183
 ---
 
 ## Description
