@@ -317,7 +317,7 @@ def _print_templates_table(
         table.add_column(col, max_width=width, overflow="fold")
     for s in sorted(statuses, key=lambda x: x.name):
         if s.error:
-            table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
+            table.add_row(s.name, "[red]error[/red]", "-", "-", "-")
             continue
         if s.selection != "enabled":
             table.add_row(
@@ -352,7 +352,9 @@ def _print_templates_table(
         )
     console.print(table)
     for s in sorted(statuses, key=lambda x: x.name):
-        if s.selection != "enabled" and s.reason:
+        if s.error:
+            console.print(f"{s.name}: error: {s.error}", style="red", markup=False, highlight=False)
+        elif s.selection != "enabled" and s.reason:
             # Long paths/remedies must not consume the table width and hide
             # names or firing times. Print the complete reason below it.
             console.print(f"{s.name}: {s.reason}", style="dim", markup=False, highlight=False)
