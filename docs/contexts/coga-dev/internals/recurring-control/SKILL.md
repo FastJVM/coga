@@ -43,7 +43,7 @@ Direct `coga launch recurring/<name>` has no relay and its refusal says nothing
 about worktrees.
 
 A create made from a feature checkout by a direct call publishes to control like
-any write ([coga/sync](../../../coga/sync/SKILL.md)); normal recurring commands refuse
+any write ([coga/sync](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md)); normal recurring commands refuse
 that checkout first.
 
 ## The `--all` child entry gate

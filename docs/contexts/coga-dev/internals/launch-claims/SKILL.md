@@ -5,7 +5,7 @@ description: How megalaunch claims a ticket before spawning — exact-byte prefl
 
 # Megalaunch launch claims
 
-Megalaunch ([megalaunch](../../../coga/megalaunch/SKILL.md)) must never let two
+Megalaunch ([megalaunch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md)) must never let two
 checkouts start one ticket revision, never spawn against bytes it did not
 preflight, and never leave a ticket claiming a session that did not start.
 
@@ -99,7 +99,7 @@ Cross-checkout safety comes only from the publish compare-and-set.
 
 ## Direct chat occupancy guard and receipt
 
-The user contract is [coga/checkouts/chat](../../../coga/checkouts/chat/SKILL.md);
+The user contract is [coga/checkouts/chat](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md);
 this is how `checkouts.prepare_chat_checkout` keeps it. The guard is a
 nonblocking descriptor lock keyed by the resolved Git toplevel, with its file in the
 per-user system temp directory, outside the working tree. The OS releases it

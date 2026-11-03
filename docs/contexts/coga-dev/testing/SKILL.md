@@ -44,13 +44,13 @@ prunes `.git`, `__pycache__`, `node_modules`, and `.venv`
 (`validate._check_shebang_executables`).
 
 For artifact-level reproduction, use the
-[Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI
+[Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
 continuation for agent login, the first-run `coga build`, and the first
 ticket. The
-[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
+[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host, and the
-[Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
+[Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
 Server.
 
 ## Which code you are actually testing
@@ -103,7 +103,7 @@ Server.
   Confirm with `command -v coga` from the session, and read the results with
   that split in mind (seen in the 2026-10-15 Codex SIGINT reproduction).
 - Installed-versus-source skew warnings from `launch`/`validate` are owned by
-  [coga/launch](../../coga/launch/SKILL.md).
+  [coga/launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md).
 
 ## Test-writing rules
 
@@ -172,7 +172,7 @@ ANSI codes into plain-text assertions. It does not run
 `coga validate`, interactive launch (checked on EC2), or anything needing a
 real agent CLI, network, or AWS; such tests must skip cleanly rather than be
 excluded from CI. The publish-only `.github/workflows/release.yml`
-([coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md))
+([coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md))
 still inspects only metadata with `twine check`.
 
 CI does not replace step-level verification: implement / self-QA / review

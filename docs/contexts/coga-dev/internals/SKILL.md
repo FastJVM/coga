@@ -10,7 +10,7 @@ These pages hold what a change to `src/coga/launch.py`,
 `src/coga/repl_supervisor.py`, `src/coga/pr_assist.py`,
 `src/coga/open_pr.py`, `src/coga/step_gate.py`, or the recurring runner must
 not break. They are not attached by default: operating Coga needs
-[launch](../../coga/launch/SKILL.md) and [megalaunch](../../coga/megalaunch/SKILL.md), not
+[launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md) and [megalaunch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md), not
 these proofs. Links are navigation only, so attaching this index does not
 load any child page. Attach the specific page a ticket touches.
 

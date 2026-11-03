@@ -12,12 +12,12 @@ The repo separates implementation from the OS it operates:
   placement is owned by [coga-dev/microkernel](../microkernel/SKILL.md).
 - **`coga/`** plus the configured contexts root (`docs/contexts/` in this
   repo): the Coga OS this repo operates on. Layout is owned by
-  [coga/context-layout](../../coga/context-layout/SKILL.md).
+  [coga/context-layout](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md).
 
 ## Source map
 
 - `src/coga_edge/phone_home.py`: the default telemetry implementation behind
-  the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md) owns its contract.
+  the repo shim; [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md) owns its contract.
 
 - `src/coga/commands/`: one Typer entrypoint per command. Thin entrypoints
   with no business logic are the target; `init.py` still carries substantial
@@ -32,11 +32,11 @@ The repo separates implementation from the OS it operates:
   `config.load_config` rejects unknown keys through `_reject_unknown_keys`,
   `_reject_unknown_sections` and the per-table parsers; removed or misplaced
   keys get tailored errors first. Adding a config key means adding it to its
-  table's allowlist and the [coga/configuration](../../coga/configuration/SKILL.md)
+  table's allowlist and the [coga/configuration](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md)
   table in the same change. Only `_resolve_secret_value` runs `env:`
   indirection, for the two Slack webhook keys.
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
-  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../coga/state-publication/SKILL.md).
+  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `oscompat.py`: per-user lock paths and descriptor locks for publication
@@ -45,7 +45,7 @@ The repo separates implementation from the OS it operates:
 - `launch.py` (launch API, preparation and supervision),
   `checkout_policy.py` (pure step-to-entry-checkout table) and
   `checkouts.py` (shared branch preparation for launch and the
-  `prepare-checkout` chat recipe; [coga/checkouts](../../coga/checkouts/SKILL.md)),
+  `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
   (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
@@ -84,7 +84,7 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
   loading, or task creation update `tests/fixtures/seeded-repo/` or related fixtures.
 - **Docs travel with behavior.** A behavior change updates its owning topic in
   the same PR. One owner per fact; see
-  [coga/knowledge](../../coga/knowledge/SKILL.md).
+  [coga/knowledge](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
 - **Twins.** Canonical topics and their packaged copies must stay
   byte-identical; see [coga-dev/packaging](../packaging/SKILL.md).
 - **Commits and PRs.** Short factual subjects; a ticket prefix only when a
@@ -93,15 +93,15 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
   ([coga-dev/testing](../testing/SKILL.md)).
 - **Legibility.** Changes that hide state, move logic into opaque services,
   or blur the correction loop are usually wrong
-  ([coga/architecture](../../coga/architecture/SKILL.md)).
+  ([coga/architecture](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md)).
 
 ## Related topics
 
 - [coga-dev/testing](../testing/SKILL.md): running the suite, environment
   pitfalls, CI posture, verification receipts.
 - [coga-dev/packaging](../packaging/SKILL.md): bundled batteries, twins, wheel.
-- [coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md): PyPI release and install gate.
-- [coga/skill-management](../../coga/skill-management/SKILL.md): skill shapes and
+- [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md): PyPI release and install gate.
+- [coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.
-- [coga/checkouts](../../coga/checkouts/SKILL.md): code-ticket checkouts and
+- [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md): code-ticket checkouts and
   the `## Dev` linkage.

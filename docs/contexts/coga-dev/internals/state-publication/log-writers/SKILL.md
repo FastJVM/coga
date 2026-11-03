@@ -6,7 +6,7 @@ description: Direct append_log writers and their publication owners, including o
 # Audit writers and publication owners
 
 Part of [state publication](../SKILL.md). The user contract is
-[every log line has a publisher](../../../../coga/state-publication/SKILL.md#every-log-line-has-a-publisher).
+[every log line has a publisher](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#every-log-line-has-a-publisher).
 Re-inventory direct `append_log` calls under all of `src/`, including nested
 functions, when changing a writer. Atomic appends and the local lock do not
 replace the [event-aware publisher](../../spool-merge/SKILL.md).

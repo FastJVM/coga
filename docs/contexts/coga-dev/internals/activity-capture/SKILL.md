@@ -5,7 +5,7 @@ description: How Coga captures one bounded, secret-redacted usage record per age
 
 # Session activity capture
 
-The read side and store are [`coga/usage`](../../../coga/usage/SKILL.md). This page
+The read side and store are [`coga/usage`](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md). This page
 owns what is written and how it is derived. All parsing, bounding, and rollup
 logic lives in `src/coga/usage.py`; `launch.py` and
 `commands/usage.py` stay thin.

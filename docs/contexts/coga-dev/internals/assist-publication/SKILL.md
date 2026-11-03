@@ -6,7 +6,7 @@ description: The recorded assist's alignment loop and `COGA_ASSIST_*` identity, 
 # Assist publication
 
 A recorded human-step assist
-([human assist](../../../coga/human-assist/SKILL.md)) runs in the checkout that holds
+([human assist](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md)) runs in the checkout that holds
 the PR's feature branch. That checkout's copy of the ticket is the live one,
 yet nothing the assist generates is committed to that branch. Every write
 goes through the same `git.publish` path as any other checkout and lands on
@@ -55,7 +55,7 @@ configured agent. Nested non-assist spawns clear all three.
 
 The feature branch receives only commits the agent or human make on purpose,
 plus whatever `coga open-pr` pushes
-([PR publication](../../../coga/pr-publication/SKILL.md)).
+([PR publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md)).
 
 ## Consequences
 
@@ -65,7 +65,7 @@ plus whatever `coga open-pr` pushes
   else.
   `coga open-pr` has no such carve-out: it runs only from a checkout on the
   control branch, and a recorded clone with any dirt refuses
-  ([PR publication](../../../coga/pr-publication/SKILL.md)).
+  ([PR publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md)).
 - Assist writes use ordinary best-effort publication: a refused or failed
   sync is reported on stderr and in the log, the local transition stands,
   and the end-of-command state sweep retries it. There is no assist lease,
@@ -74,11 +74,11 @@ plus whatever `coga open-pr` pushes
   admission (`coga-dev/internals/recurring-admission`).
 - Publication authority comes from the PR-head proof made before
   composition, not from the environment. `COGA_ASSIST_*` carries the
-  [recorded assist identity](../../../coga/human-assist/SKILL.md#attribution).
+  [recorded assist identity](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md#attribution).
   Inside an assist, `coga bump` refuses
   every rewind (`--to` / `--backward`); a human rewinds outside the assist.
 - The deterministic attribution marker (`COGA_SCRIPT_TASK`,
-  [script tickets](../../../coga/script-tickets/SKILL.md)) is independent of the
+  [script tickets](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md)) is independent of the
   assist identity. A script inside an assist credits `system`, and the marker
   can never stand in for the PR-head proof.
 - A missing assist agent or PR on a script launch raises

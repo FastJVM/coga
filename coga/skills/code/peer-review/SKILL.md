@@ -80,7 +80,7 @@ before you bump:
   bullet) before the review when you can, and re-review the final head if
   fixes or a later rebase moved it, or record the receipt as covering the older
   revision. Read
-  [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md),
+  [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md),
   “Presentation and review-depth rubric” and “Preparation record”. Refresh
   `## PR` with the actual title, advisory recommendation and rationale,
   implementation/deviations/limitations, reasons for every current diff path,

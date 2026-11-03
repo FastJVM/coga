@@ -71,7 +71,7 @@ Agent sessions run on Linux or macOS. You'll need Git and an authenticated [Clau
 
 On macOS, check that `git --version` works. If it prompts for developer
 tools, run `xcode-select --install`; Git installed another way works too.
-Full Xcode is not required. The [install guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-check-git-before-init)
+Full Xcode is not required. The [install guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#macos-check-git-before-init)
 covers this and Windows support limits.
 
 If `uv` isn't installed yet, get it first (macOS/Linux):
@@ -103,15 +103,15 @@ coga chat
 coga status
 ```
 
-You can edit any ticket directly in Markdown or run `coga ticket <slug>` to refine it with an agent. For a walkthrough from a draft to a reviewed PR, see [Your first task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md).
+You can edit any ticket directly in Markdown or run `coga ticket <slug>` to refine it with an agent. For a walkthrough from a draft to a reviewed PR, see [Your first task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md).
 
 ## What lives in your repo?
 
 Everything Coga manages is visible under `coga/`:
 
-- **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/tickets/SKILL.md).
-- **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/knowledge/SKILL.md).
-- **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/workflows/SKILL.md).
+- **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md).
+- **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
+- **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
 
 ## Principles

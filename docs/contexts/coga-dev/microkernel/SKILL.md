@@ -26,7 +26,7 @@ package, and imports only appropriate shared core infra. Edge shipping does
 not confer kernel status. Production `src/coga/` never imports or path-loads
 `coga_edge` or ticket/skill implementations; repo shims choose their imports.
 Distribution, upgrades and overrides are owned by
-[coga/edge-code](../../coga/edge-code/SKILL.md). Skills are invocation contracts and
+[coga/edge-code](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md). Skills are invocation contracts and
 never executable launch plugins.
 
 - **Count callers of one symbol, not copies of one body.** Three
@@ -76,7 +76,7 @@ documented soft-skip, the local write remains the result
 
 ## The `ticket.py` script phase
 
-The user contract is [coga/script-tickets](../../coga/script-tickets/SKILL.md).
+The user contract is [coga/script-tickets](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md).
 Owner-accepted design (2026-08-18, PR #700); do not re-argue it without
 engaging these reasons:
 
@@ -125,7 +125,7 @@ secret injection, notify dispatch), what must exist before any launch
 (`create`, fresh `init`), the `block`/`unblock` state transitions, the fixed
 `runner.RECIPES`, thin heads over a fixed recipe (`delete` over `delete-task`,
 bare `recurring` over `recurring-scan`), and proven co-versioned commands.
-[coga/extension-model](../../coga/extension-model/SKILL.md) owns the tiers a
+[coga/extension-model](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md) owns the tiers a
 repo chooses from.
 
 - **No inversion.** Moving logic out of the kernel moves the substance

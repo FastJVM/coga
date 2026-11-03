@@ -13,7 +13,7 @@ under `src/coga/resources/templates/coga/bootstrap/`. Runtime resolvers
 `tasks.resolve_bootstrap`) check the repo first and then read the package; no
 `coga/bootstrap/` mirror is materialized. Optional domain skills are not
 packaged; operators install them with `coga skill install`
-([coga/skill-management](../../coga/skill-management/SKILL.md)).
+([coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md)).
 
 **Local-first also applies to this repo.** A live `coga/<kind>/<name>`
 shadows the packaged copy; where none exists, the packaged file is what this
@@ -50,7 +50,7 @@ enforces this.
 ## Canonical copies and twins
 
 The audience criterion belongs to
-[context layout](../../coga/context-layout/SKILL.md#context-audiences): user
+[context layout](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md#context-audiences): user
 topics are required to operate shipped surfaces; Coga-dev topics explain
 developing Coga itself. Only the user set ships. The entire `coga-dev/`
 namespace is local-only, including its supporting files. A new development
@@ -82,8 +82,8 @@ namespace accidentally added to the required bootstrap list or built wheel.
 They also check context links and prohibit shipped required references to
 the local-only set; optional absolute GitHub links may expose implementation
 detail. Resolution and repo overrides are owned by
-[context layout](../../coga/context-layout/SKILL.md); edge shims and forks by
-[edge code](../../coga/edge-code/SKILL.md).
+[context layout](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md); edge shims and forks by
+[edge code](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md).
 Discovery skips `.coga/`, `.venv/`, `.agent-skills/`, `.claude/`, `.codex/`,
 bytecode caches, and `coga.local.toml`. A deliberate difference goes in
 `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the suite fails once the

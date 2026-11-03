@@ -53,7 +53,7 @@ inspect and create templates. What each spelling does is in
   one-shot analyst, autofix tickets, and template-damage detection.
 - [coga/period-task](../period-task/SKILL.md) — the small context the creator
   attaches to every period task: parent-blackboard state versus per-run scratch.
-- [Dream template](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md) — the built-in janitor template and its fixed
+- [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) — the built-in janitor template and its fixed
   phases; REM for repo-specific maintenance.
 - Internals: [recurring-control](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/recurring-control/SKILL.md)
   (control-branch requirement, relay, owner authorization),

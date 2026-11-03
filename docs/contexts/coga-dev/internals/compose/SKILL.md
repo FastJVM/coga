@@ -6,7 +6,7 @@ description: How `src/coga/compose.py` implements prompt composition — prompt 
 # Prompt composition internals
 
 The user contract (layer order, what each layer reads, conduct selection) is
-[coga/prompt-composition](../../../coga/prompt-composition/SKILL.md). This
+[coga/prompt-composition](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md). This
 page holds what a change to `src/coga/compose.py` or its launch callers must
 not break.
 

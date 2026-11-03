@@ -55,7 +55,7 @@ tests, and the current CI policy.
 Before editing behavior, read the topic that owns it in the
 [documentation index](docs/README.md). Keep the documentation and code
 consistent. The [codebase guide](docs/contexts/coga-dev/codebase/SKILL.md)
-covers layout and coding conventions; [configuration](docs/contexts/coga/configuration/SKILL.md)
+covers layout and coding conventions; [configuration](src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md)
 explains `coga.toml`; and [packaging](docs/contexts/coga-dev/packaging/SKILL.md)
 explains why changes to shipped contexts and templates often need matching
 edits in both the canonical and packaged files.

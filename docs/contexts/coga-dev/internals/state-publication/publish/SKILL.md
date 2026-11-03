@@ -66,7 +66,7 @@ usage records). It preserves `publish`'s `True`/`False` distinction for newly
 published versus already-held state and returns `None` on a reported failure
 or soft-skip. Failure recovery names the retained log as a required path.
 Failures remain stderr-only; `spawn_agent_session` checks for
-`None` to add the [session-end warning](../../../../coga/state-publication/SKILL.md#when-coga-publishes).
+`None` to add the [session-end warning](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#when-coga-publishes).
 `sync_coga_state(cfg)` is the sweep.
 
 ## Best-effort versus strict
@@ -128,7 +128,7 @@ refusal, failure, soft-skip or uncertainty exits 75 and starts no agent; no
 transition is rolled back, even when post-push verification fails. The next
 entry settles the already-recorded state rather than replaying activation or
 start. Handoff and teardown stay independent; their accounting is owned by
-[launch publication boundaries](../../../../coga/state-publication/launch-boundaries/SKILL.md).
+[launch publication boundaries](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/launch-boundaries/SKILL.md).
 
 ## Failure reporting
 
@@ -155,7 +155,7 @@ sync from the `Sync coga state` sweep. A best-effort caller adds a second
 line: local state was saved (task sync, `mark`) or retained (sweep, log,
 deletion); Git publication failed, or "could not be confirmed" for
 `UncertainPublishError`; do not rerun the command (`coga bump` names itself
-through `command=`); then the [recovery](../../../../coga/state-publication/SKILL.md#recovering-a-failed-publication).
+through `command=`); then the [recovery](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#recovering-a-failed-publication).
 Only an `ObjectWriteError` adds the conditional step "if Git could not write to
 the object storage shown above, restore permitted access to it first". A
 refusal keeps its own reconciliation guidance and gets no retry hint. Strict

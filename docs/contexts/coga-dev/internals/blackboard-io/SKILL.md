@@ -5,8 +5,8 @@ description: How Coga's ticket IO parses and writes a ticket file — the fence 
 
 # Ticket body and blackboard IO
 
-The user contracts are [coga/tickets](../../../coga/tickets/SKILL.md) (body
-regions) and [coga/blackboard](../../../coga/blackboard/SKILL.md) (writer
+The user contracts are [coga/tickets](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md) (body
+regions) and [coga/blackboard](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md) (writer
 rules). This page holds the parser and writer details behind them, in
 `src/coga/taskfile.py`, `src/coga/blackboard.py`, and `src/coga/create.py`.
 Where the source disagrees with this page, the source wins.

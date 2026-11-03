@@ -7,7 +7,7 @@ description: Facts about Coga's usage records that any future dollar-cost price 
 
 Capture and the record schema are
 [activity capture](../activity-capture/SKILL.md); the read contract is
-[coga/usage](../../../coga/usage/SKILL.md).
+[coga/usage](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md).
 
 No pricing is implemented. These facts about the records were verified while a
 dollar-cost proxy was scoped and set aside; any price table must handle them

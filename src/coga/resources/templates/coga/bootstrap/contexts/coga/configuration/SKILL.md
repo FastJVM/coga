@@ -106,7 +106,7 @@ Coga argv ([coga/cli](../cli/SKILL.md)).
 Telemetry defaults on. Both `[telemetry]` layers are
 validated even when overridden. No endpoint, key, cadence, or test bypass is
 configurable. Delivery, state and payload belong to
-[phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md); git and notification switches remain
+[phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md); git and notification switches remain
 independent.
 
 `[recurring].idle_days` is team policy and cannot be overridden locally.
@@ -120,7 +120,7 @@ positive integers saturate at `datetime.min` when computing the cutoff. Days
 are local calendar days, matching timezone-free log envelopes: complete
 unprotected events strictly before local midnight on today minus the window
 expire. The boundary and future timestamps stay. The
-[trim-log ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md)
+[trim-log ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/ticket.md)
 owns exceptions and its weekly schedule; its
-[operations guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[operations guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 owns default-on adoption for existing repos.

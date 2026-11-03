@@ -59,7 +59,7 @@ are in [recurring-clone](https://github.com/FastJVM/coga/blob/main/docs/contexts
 Clone-scoped runs leave no runner-owned git-visible record. Their evidence is
 the clone-local ledger and log, the console, and the autofix run record. The
 shipped `branch-sweep` template uses clone scope for local refs and worktrees;
-its [ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/branch-sweep/ticket.md)
+its [ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md)
 owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
 because ticket closure is shared state. A `scope: clone` template serviced as a
 shared period task means the CLI predates clone scope
@@ -178,7 +178,7 @@ no `--force` and no retry cap. Pause provenance is the latest `paused` or
   which resolves the asks and leaves the period `paused` for the next sweep to
   resume with the answer on its blackboard. The blocker-reminder job keeps those
   asks visible under its
-  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md).
+  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md).
   Unreadable asks leave the period paused and report a template error; they
   are never treated as an empty blocker list.
 - **Watchdog pause** (actor `system:watchdog`) — resumed on every sweep, and

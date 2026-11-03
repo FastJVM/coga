@@ -5,11 +5,11 @@ description: Provision, use, and tear down an AWS Mac for Coga clean-install ver
 
 # macOS clean-install harness on AWS
 
-The macOS counterpart of the [Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It
+The macOS counterpart of the [Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md). It
 runs the same walk script, `scripts/clean-install/container.sh`, as a fresh
 macOS user on an EC2 Mac (`mac2.metal`, Apple silicon), and checks the
-documented [install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md), [init](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md)
-and [first-task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md) path against an installed
+documented [install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md), [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)
+and [first-task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md) path against an installed
 artifact. Like the Linux harness, it is repository tooling and is not
 installed with Coga:
 
@@ -138,7 +138,7 @@ install dialog instead. That stop is the new-user finding. To continue, install
 the CLT: as a new user would, over VNC (below) by clicking **Install** in the
 dialog or accepting `xcode-select --install`; or headless over SSH with the
 `softwareupdate` steps that
-[coga/install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-check-git-before-init)
+[coga/install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#macos-check-git-before-init)
 owns.
 
 Then run a walk with a **new** macOS user. The CLT install is machine-wide;

@@ -6,12 +6,12 @@ description: Run Coga's Linux clean-install harness against PyPI or a main-branc
 # Linux clean-install harness
 
 Repository tooling lives in `scripts/clean-install/`; it is not installed with
-Coga. It exercises the documented [install](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md),
-[init](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md), and [first-task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md) path
+Coga. It exercises the documented [install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md),
+[init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md), and [first-task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md) path
 against an installed artifact. The release continuation below also checks a
 pinned release and a completed agent launch. The
-[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk script as a fresh
-user on an EC2 Mac. The [Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md) runs the
+[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk script as a fresh
+user on an EC2 Mac. The [Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md) runs the
 same walk steps natively on EC2 Windows Server and backs the native-port fix
 loop.
 

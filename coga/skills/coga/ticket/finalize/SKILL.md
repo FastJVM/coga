@@ -7,7 +7,7 @@ description: Describe the validation and publication boundary that completes gui
 
 After a successful authoring interview, `coga ticket` validates and publishes
 its changes. Read "When Coga publishes" in
-[coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md#when-coga-publishes)
+[coga/state-publication](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#when-coga-publishes)
 for the publication and refusal contract.
 
 For development detail, finalization internals live in

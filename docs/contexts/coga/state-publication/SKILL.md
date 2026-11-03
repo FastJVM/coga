@@ -226,6 +226,6 @@ An interrupted trim retains a temporary local Git receipt: ordinary publication
 and checkout return refuse until the compatible trim script resolves it against
 fresh control. A stateful script with this receipt propagates exit 75 without
 settlement. Do not replay lifecycle commands or discard the receipt. Follow
-[trim-log recovery](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md).
+[trim-log recovery](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md).
 
 Size exception: eligibility, publication deadlines, and recovery stay together so an operator can determine both what a failed command retained and how to publish it safely; launch accounting lives in its own leaf.

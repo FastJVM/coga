@@ -16,7 +16,7 @@ Quiesce affected sessions first. Upgrade every participating interpreter and
 checkout to the compatible wheel before enabling the repo files. An older
 writer neither locks the log nor understands guarded deletion. Use the exact
 `COGA_PY` interpreter-resolution command in
-[coga/edge-code upgrades](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/edge-code/edge-code-upgrades.md)
+[coga/edge-code upgrades](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md)
 (the `migration:interpreter` block); it preserves the installed environment's
 shebang interpreter rather than substituting ambient Python. From the repo:
 

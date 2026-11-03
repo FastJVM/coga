@@ -11,7 +11,7 @@ cross-checkout coordination is the push compare-and-swap in
 [`coga-dev/internals/state-publication/publish`](../state-publication/publish/SKILL.md). Files that
 many writers touch must therefore be correct **by shape**.
 
-**No spool exists.** Outcomes post live ([`coga/notifications`](../../../coga/notifications/SKILL.md)).
+**No spool exists.** Outcomes post live ([`coga/notifications`](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md)).
 There is no hidden queue, drain step, or high-water watermark for
 notifications. This page keeps the reusable merge rules that outlived it.
 
@@ -22,7 +22,7 @@ native competing edits conflict with both sides recoverable in Git index
 stages. Coga identifies `paths.log_path(cfg)` independently of attributes and
 uses the event-aware publisher below. Adoption of that attribute and the
 weekly schedule is explicitly staged with compatible writers; the
-[operations guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[operations guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 owns the two-phase rollout.
 
 `**/retires.md merge=union` remains unchanged. Its healing reader collapses

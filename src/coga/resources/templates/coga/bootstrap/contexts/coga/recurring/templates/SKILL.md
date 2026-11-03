@@ -109,7 +109,7 @@ template sibling in a fixed shape (`autoclose-merged/retires.md`, owned by
 `coga/autoclose/sweep` skill); or one-line facts in `coga/log.md`. The schedule
 high-water mark lives only in the log
 ([ledger](../scheduling/SKILL.md#periods-and-the-serviced-period-ledger)).
-The [autoclose template's upgrade guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md) owns worklist setup for older repos.
+The [autoclose template's upgrade guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md) owns worklist setup for older repos.
 
 ## `ticket.py` completion and reporting
 
@@ -147,5 +147,5 @@ The trim-log maintenance job has one narrow cross-parent write: before deleting
 history it may migrate phone-home's valid schema-1 cursor to schema 2 without
 sending, minting an identity or advancing `run`. The joint guarded publication
 preserves all unrelated parent content; subsequent trims only read the cursor.
-The [phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)
+The [phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md)
 owns migration and unread movement semantics.

@@ -20,7 +20,7 @@ bumps once through the CLI; bump failure propagates. `phone-home/run` has one
 agent-owned `send` step with no skills, so normal completion needs no agent.
 Run by hand outside a launch, it prints its report without advancing a task.
 Upgrades, full local forks and legacy adoption are owned by
-[coga/edge-code](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/edge-code/SKILL.md).
+[coga/edge-code](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md).
 The schedule is declared in this template's frontmatter (operator-local time).
 New templates are due on the first sweep, too. Coga installs no scheduler.
 Downloads, init, and ordinary commands send no events. Repos that never sweep
@@ -149,7 +149,7 @@ One `coga_weekly_snapshot` attempt per eligible valid run, HTTPS POST to
 FastJVM US Cloud project `606347`, shared with Multiply. Its public write-only
 key is embedded only in the edge module's `POSTHOG_CAPTURE_KEY`. Publishing it permits
 spam injection; rotation affects old Multiply builds too. Operational key source, rotation and project settings are in the
-[maintenance runbook](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/operations.md).
+[maintenance runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/operations.md).
 
 Exact envelope: `api_key`, `event`, `distinct_id`, `timestamp`, `properties`.
 Identity is the persisted UUID; timestamp is UTC occurrence time. Exact measured
@@ -196,7 +196,7 @@ outside a task it goes to stdout. Local validation failures remain distinct.
 
 For wheel verification, project read-back, key rotation or person deletion,
 read the persistent template's
-[operations.md](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/operations.md).
+[operations.md](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/operations.md).
 Those are separate operator procedures, not actions for a weekly run.
 Supporting Markdown stays with the template; it is not copied into a period task.
 
