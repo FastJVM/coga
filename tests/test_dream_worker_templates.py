@@ -20,6 +20,7 @@ TEMPLATES = (
 DREAM = TEMPLATES.parent
 SCAN_TEMPLATES = DREAM / "scan"
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "coga" / "resources"
+CONTEXTS = RESOURCES / "templates" / "coga" / "bootstrap" / "contexts" / "coga"
 RECURRING_TEMPLATES = (
     RESOURCES / "templates" / "coga" / "recurring"
 )
@@ -691,7 +692,7 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
 
 def test_sandboxes_topic_owns_the_codex_sandbox_grant() -> None:
     testing = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "sandboxes" / "SKILL.md")
+        (CONTEXTS / "sandboxes" / "SKILL.md")
         .read_text(encoding="utf-8")
         .split()
     )
@@ -723,7 +724,7 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
     assert "Skip this check for a claim the snapshot marks `owner: coga`." in retro
     assert "never as unshipped scope, a local context edit, or a knowledge PR" in retro
     lifecycle = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
+        (CONTEXTS / "lifecycle" / "SKILL.md")
         .read_text(encoding="utf-8")
         .split()
     )

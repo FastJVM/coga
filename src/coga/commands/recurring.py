@@ -312,8 +312,9 @@ def _print_templates_table(
     if not statuses:
         return
     table = Table(title="Recurring templates", title_justify="left", show_edge=False)
-    for col in ("template", "schedule", "last fire", "next fire", "current period"):
-        table.add_column(col, no_wrap=True)
+    for col, width in (("template", 24), ("schedule", 22), ("last fire", 17),
+                       ("next fire", 17), ("current period", 36)):
+        table.add_column(col, max_width=width, overflow="fold")
     for s in sorted(statuses, key=lambda x: x.name):
         if s.error:
             table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
@@ -321,7 +322,7 @@ def _print_templates_table(
         if s.selection != "enabled":
             table.add_row(
                 s.name, f"[dim]{s.selection} ({s.origin or 'no definition'})[/dim]",
-                "-", "-", f"[dim]{s.reason or ''}[/dim]",
+                "-", "-", "-",
             )
             continue
         name = s.name if s.origin != "package" else f"{s.name} [dim](bundled)[/dim]"
@@ -350,6 +351,11 @@ def _print_templates_table(
             period,
         )
     console.print(table)
+    for s in sorted(statuses, key=lambda x: x.name):
+        if s.selection != "enabled" and s.reason:
+            # Long paths/remedies must not consume the table width and hide
+            # names or firing times. Print the complete reason below it.
+            console.print(f"{s.name}: {s.reason}", style="dim", markup=False, highlight=False)
 
 
 def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:

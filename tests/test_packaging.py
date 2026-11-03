@@ -942,6 +942,28 @@ def _context_link_problems(
                     f"{rel_source}: links removable legacy copy {href}; link its "
                     f"package owner {_read_inventory()[rel_destination]}"
                 )
+            elif destination.is_dir() and any(
+                path.startswith(rel_destination + "/") for path in removable
+            ):
+                # A directory link also disappears when all of its files are
+                # removed. Do not traverse archives to make this decision.
+                pending = [destination]
+                survives_removal = False
+                while pending and not survives_removal:
+                    for child in pending.pop().iterdir():
+                        if child == REPO_ROOT / "docs/archive":
+                            survives_removal = True
+                            break
+                        if child.is_dir():
+                            pending.append(child)
+                        elif child.relative_to(REPO_ROOT).as_posix() not in removable:
+                            survives_removal = True
+                            break
+                if not survives_removal:
+                    problems.append(
+                        f"{rel_source}: links removable legacy directory {href}; "
+                        "link its package owner"
+                    )
         if anchor and destination.suffix == ".md":
             if anchor not in _markdown_anchors(destination.read_text(encoding="utf-8")):
                 problems.append(f"{rel_source}: missing anchor {href}")
@@ -955,6 +977,21 @@ def test_context_navigation_has_no_broken_links() -> None:
         for problem in _context_link_problems(source)
     ]
     assert problems == []
+
+
+def test_navigation_rejects_a_directory_that_disappears_at_cutover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    topic = tmp_path / "docs/contexts/coga/cli/SKILL.md"
+    topic.parent.mkdir(parents=True)
+    topic.write_text("# CLI\n", encoding="utf-8")
+    index = tmp_path / "README.md"
+    index.write_text("[User topics](docs/contexts/coga/)\n", encoding="utf-8")
+    removable = frozenset({"docs/contexts/coga/cli/SKILL.md"})
+    assert "removable legacy directory" in _context_link_problems(index, removable)[0]
+    (topic.parent / "local.md").write_text("Local topic\n", encoding="utf-8")
+    assert _context_link_problems(index, removable) == []
 
 
 def _unbundled_development_refs(raw: str) -> list[str]:
@@ -1005,7 +1042,7 @@ def test_executable_context_instructions_honor_layout_override() -> None:
             "dream/scan/knowledge-scan/SKILL.md"
         )
     ).read_text(encoding="utf-8")
-    onboarding = (repo_root / "coga/workflows/build/onboarding.md").read_text(encoding="utf-8")
+    onboarding = (repo_root / PACKAGED_ROOT / "bootstrap/workflows/build/onboarding.md").read_text(encoding="utf-8")
     onboarding_ticket = (
         repo_root / "src/coga/resources/templates/coga/tasks/coga-build.md"
     ).read_text(encoding="utf-8")

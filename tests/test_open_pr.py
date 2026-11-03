@@ -974,7 +974,7 @@ def test_set_dev_pr_appends_section_when_missing():
     assert "pr: https://x/pull/4" in out
 
 
-# --- live/packaged skill copies stay in sync (AGENTS.md rule) -----------------
+# --- packaged skill owns the command instructions ----------------------------
 
 _ROOT = Path(__file__).resolve().parents[1]
 _LIVE_SKILL = _ROOT / "coga" / "skills" / "code" / "open-pr"
@@ -985,13 +985,13 @@ _PACKAGED_SKILL = (
 
 
 def test_open_pr_live_and_packaged_copies_stay_in_sync() -> None:
-    assert (_LIVE_SKILL / "SKILL.md").read_text(encoding="utf-8") == (
-        _PACKAGED_SKILL / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    packaged = (_PACKAGED_SKILL / "SKILL.md").read_text(encoding="utf-8")
+    if (_LIVE_SKILL / "SKILL.md").exists():
+        assert (_LIVE_SKILL / "SKILL.md").read_text(encoding="utf-8") == packaged
 
 
 def test_open_pr_skill_has_no_executable_entrypoint() -> None:
-    skill = (_LIVE_SKILL / "SKILL.md").read_text(encoding="utf-8")
+    skill = (_PACKAGED_SKILL / "SKILL.md").read_text(encoding="utf-8")
     assert "name: code/open-pr" in skill
     assert not (_LIVE_SKILL / "run.py").exists()
     assert not (_LIVE_SKILL / "recipe.py").exists()

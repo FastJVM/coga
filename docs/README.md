@@ -104,11 +104,11 @@ The local-only Coga-dev topics and maintainer skills cover implementation:
 ## How this library works
 
 The same Markdown topics are read by people and can be attached to agents'
-prompts. Topics live under [`contexts/`](contexts/). A ticket attaches a
+prompts. A ticket attaches a
 context by its ref (for example, `contexts: [coga/launch]`); a Markdown
 link is only navigation and does **not** load that topic into the prompt.
 
-There are two audiences. [User topics](contexts/coga/) under `coga/`
+There are two audiences. [User topics](../src/coga/resources/templates/coga/bootstrap/contexts/coga/) under `coga/`
 describe what an adopting repository needs to run Coga and ship as packaged
 fallbacks. [Coga-dev topics](contexts/coga-dev/) under `coga-dev/`
 describe Coga's implementation and stay in this source repository.

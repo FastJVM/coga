@@ -131,6 +131,31 @@ def test_selected_bundled_job_creates_a_carrier_once_from_the_seed(repo: Path) -
     assert resolve_template_source(load_config(repo), "dream").origin == "package"
 
 
+@pytest.mark.parametrize("width", [80, 120])
+def test_listing_keeps_names_and_schedules_visible_with_disabled_reasons(
+    repo: Path, width: int,
+) -> None:
+    from io import StringIO
+    from rich.console import Console
+    from coga.commands.recurring import _print_templates_table
+
+    _jobs(repo, "[jobs]\nbranch-sweep = true\nphone-home = true\ndream = false\nskill-update = true\n")
+    _write(repo / "recurring/_skill-update/ticket.md", render_carrier("cursor: 1\n"))
+    output = StringIO()
+    _print_templates_table(
+        Console(file=output, width=width, color_system=None),
+        list_templates(load_config(repo), NOW, include_available=True), NOW,
+    )
+    text = output.getvalue()
+    table = text.split("Recurring templates", 1)[1].split("dream:", 1)[0]
+    for name in ("branch-sweep", "phone-home", "dream", "skill-update"):
+        assert name in table
+    assert "0 7 * * 1" in table
+    assert "disabled" in table and "parked" in table
+    assert "…" not in table
+    assert "jobs.toml" in text and "_skill-update" in text
+
+
 def test_local_override_wins_and_owns_its_state(repo: Path) -> None:
     _jobs(repo, "[jobs]\ndream = true\n")
     _write(repo / "recurring" / "dream" / "ticket.md", LOCAL_JOB)

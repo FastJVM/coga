@@ -262,7 +262,7 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
 
 
 FIXTURES = ROOT / "tests/fixtures/edge-migration"
-RUNBOOK = ROOT / "docs/contexts/coga/edge-code/edge-code-upgrades.md"
+RUNBOOK = ROOT / "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md"
 
 
 def _operator_command(name, root, env, *, success=True):
