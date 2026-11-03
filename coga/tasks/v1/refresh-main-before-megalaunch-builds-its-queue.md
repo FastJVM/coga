@@ -2,6 +2,9 @@
 title: Refresh main before megalaunch builds its queue
 status: draft
 owner: nicktoper
+contexts:
+  - coga/megalaunch
+  - coga/sync
 workflow:
   name: code/with-review
   steps:
