@@ -2,13 +2,12 @@
 
  **Agents work in sessions. Humans make things. Coga makes agents build better and deeper.**
 
-Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, assumptions turn out to be wrong, and sessions end. That's where Coga comes in.
+Claude Code and Codex can turn an idea into a plan and implementing. But plans change, assumptions turn out to be wrong, and... How do you handle that? Do you update the plan? All the plan? Do you restart from the beginning? That's where Coga comes in.
 
-**Coga keeps plans, decisions, and project knowledge in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
+Coga is a local CLI: an agent launcher and a task tracker that manages the "information of the project" (what is known). **It keeps plans, decisions, and project knowledge in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
 
 For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent's prompt. This reduces repeated discovery and gives each session a more consistent starting point. Guide sessions interactively, add human review gates, or queue work to run unattended. Work across multiple projects, each in its own Git repo.
 
-Coga is a local CLI, not another coding agent.
 
 [Browse real project tickets](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks)
 
