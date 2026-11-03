@@ -67,6 +67,12 @@ shared period task means the CLI predates clone scope
 
 ## What a sweep does per template
 
+A sweep walks the effective catalog, not the local directory: every
+**enabled** job, local or bundled, per
+[selection and state](../templates/SKILL.md#selection-and-state). Disabled,
+parked and unselected jobs are not scheduled, and a selection or state error
+is one template error that leaves healthy jobs running.
+
 One stable task per template:
 
 - **Live** (`active`, or orphaned `in_progress` from a dead supervisor) — resumed
@@ -94,7 +100,8 @@ This section owns the recurring command spellings' behavior; flags and syntax
 are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
 `recurring-scan` recipe through `coga run`.
 
-- `--force` runs every template regardless of schedule and status, reactivating
+- `--force` runs every enabled template regardless of schedule and status
+  (it never enables a disabled, parked or unselected job), reactivating
   `done` and `paused` periods — real Slack, sync and ledger advance. A `canceled`
   period gets a controlled refusal; the sweep continues and exits non-zero.
   Force does not bypass branch, owner or TTY gates.

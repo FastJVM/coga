@@ -42,7 +42,9 @@ is rebuilt by init and launch and is not committed to the repository.
 - **Bundled**: package-backed under `bootstrap/skills/`; `coga skill` never
   writes into `coga/bootstrap/`. See [coga/context-layout](../context-layout/SKILL.md).
   A repo copy of a bundled skill shadows it and `coga skill status` reports it
-  as `local-override`. Upgrading `coga` refreshes the package copy, not the repo twin.
+  as `local-override`. Upgrading `coga` refreshes the package copy, never the
+  repo override; an override that exists but is unusable fails rather than
+  falling back to the package.
 
 ## `coga skill` commands
 

@@ -63,33 +63,38 @@ Dream partitions the surface into groups and chunks each to the protocol's
 budget:
 
 - **contexts** — every `SKILL.md` under the configured contexts directory.
+  In the Coga source repo also every `SKILL.md` under the package's
+  `src/coga/resources/templates/coga/bootstrap/contexts/`: shipped user topics
+  are owned there, and a canonical copy under the contexts root is only a
+  transitional legacy counterpart.
 - **skills** — `coga/skills/**/SKILL.md`, excluding the installer-managed
-  trees named above.
-- **templates and docs** — `coga/recurring/*/ticket.md`, `README.md`,
-  `docs/*.md`, `CLAUDE.md`, `AGENTS.md`.
-- **copy divergence** — one shard over actual counterpart pairs only. In the
-  Coga source repo the pairs come from `tests/test_packaging.py`, where
-  `IDENTICAL_LIVE_PACKAGED_PAIRS` is *derived* from the packaged tree at import
-  rather than written out, so print it instead of reading literals. Run this
-  from the repo root, keeping the `-c` program on a single line:
+  trees named above. In the Coga source repo also the package's
+  `bootstrap/skills/**/SKILL.md`.
+- **templates and docs** — `coga/recurring/*/ticket.md` local definitions,
+  `README.md`, `docs/*.md`, `CLAUDE.md`, `AGENTS.md`. In the Coga source repo
+  also the package's `recurring/*/` definitions and `bootstrap/workflows/`.
+  A `coga/recurring/<name>/ticket.md` that starts with the
+  `<!-- coga:recurring-state -->` marker is a state-only carrier (repo state
+  for a package-backed job), not prose to audit.
+- **single-source ownership** — only in the Coga source repo
+  (`repo-identity: coga-source`). The package is the one committed owner of
+  every shipped definition; `tests/test_packaging.py` pins the transitional
+  legacy live copies in `tests/legacy_removal_inventory.txt` and fails on any
+  other live counterpart. Print what the suite derives instead of diffing the
+  roots, from the repo root on a single line:
 
   ```sh
-  python -c "import sys; sys.path.insert(0, 'tests'); import test_packaging as t; print('\n'.join(f'{a} {b}' for a, b in t.IDENTICAL_LIVE_PACKAGED_PAIRS))"
+  python -c "import sys; sys.path.insert(0, 'tests'); import test_packaging as t; inv = t._read_inventory(); print('\n'.join(f'{a} {b}' for a, b in t.LIVE_PACKAGED_TWINS if a not in inv and a not in t.SCAFFOLD_COUNTERPARTS))"
   ```
 
-  Confirm both paths in each pair are tracked, and compare each pair with
-  `cmp`. Also check an additional pair only when a living contract explicitly
-  names it as a synchronized twin. Do **not** run a recursive diff between
-  `coga/` and `src/coga/resources/templates/coga/`: most of those roots
-  intentionally have no counterpart, and the twins that intentionally differ
-  (runtime state such as `coga/log.md`) are the ones that derivation already
-  excludes via `INTENTIONALLY_DIVERGENT_TWINS`. Because the suite enforces
-  every derived pair, a divergence here is a test failure first — a green
-  suite means this shard has nothing to report, and a finding means the suite
-  was not run. In a client repo (`repo-identity: client`, per the protocol's
-  "Repo identity" section) there is no packaged source tree and no pair list:
-  omit this group. `coga/.agent-skills/` is a generated, gitignored
-  symlink view of the packaged skills, not a copy to compare.
+  Any line printed is an unapproved live copy of a package definition: the
+  finding is to delete the live copy (or record a reviewed override), never
+  to sync the two. Do **not** run a recursive diff between `coga/` and
+  `src/coga/resources/templates/coga/`. Because the suite enforces this, a
+  green suite means this shard has nothing to report. In a client repo there
+  is no packaged source tree: omit this group, and never edit installed
+  package resources there; a client's deliberate override is its own file.
+  `coga/.agent-skills/` is a generated, gitignored symlink view, not a copy.
 
 ## Findings
 
@@ -107,14 +112,15 @@ Check each concrete claim in your shard against three sources of truth:
   Rule B); it is routed upstream, never to a local proposal PR.
 - **referenced artifacts** — a file, skill, context, or workflow a contract
   names that does not exist on disk.
-- **copy divergence** — a shipped template under `coga/` whose packaged
-  counterpart under `src/coga/resources/templates/coga/` has drifted,
-  where the difference is not documented as intentional.
+- **copy divergence** — in the Coga source repo, a live copy of a shipped
+  definition that the single-source ownership shard reports (the package is
+  the only owner; the fix is removal, not syncing), or a still-inventoried
+  legacy copy that drifted from its package owner without a reviewed entry.
 
 Classify each finding as:
 
 - `drift` — a contract claim contradicts code reality, names a missing
-  artifact, or a live/packaged copy pair has diverged. Name the file and line,
+  artifact, or a live copy of a package definition is unapproved or drifted. Name the file and line,
   state the contradiction, and name the source of truth.
 
 Findings go to the scan directory's `findings.md` in the protocol's shape, in

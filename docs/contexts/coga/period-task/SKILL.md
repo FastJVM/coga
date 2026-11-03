@@ -5,8 +5,10 @@ description: "For whoever runs one firing of a recurring task — agent or the t
 
 # You are a period task
 
-`coga recurring` created this task from the template at
-`coga/recurring/<parent-name>/`. The creator attaches this context to every
+`coga recurring` created this task from the parent's selected definition: a
+repo-local `coga/recurring/<parent-name>/`, or the bundled job in the
+installed package (its supporting files stay there; `coga recurring list`
+shows which). The creator attaches this context to every
 period task; promotion strips it back out. Your
 ref is `recurring/<parent-name>` and your directory
 `coga/tasks/recurring/<parent-name>/` is scratch for this run only: when the
@@ -30,7 +32,10 @@ The period is not in your slug. The newest `… for <period>` line tagged
 Anything the next run needs — a last-processed SHA, a cursor, a posted flag —
 goes below the `<!-- coga:blackboard -->` fence of
 `coga/recurring/<parent-name>/ticket.md`. The template body names *which* keys;
-this context says *where*.
+this context says *where*. That repo path is the state owner for every
+parent; for a bundled job it is a state-only carrier (marked
+`<!-- coga:recurring-state -->`) holding only the blackboard. Edit only below
+its fence, and never write into the installed package.
 
 1. Read the parent blackboard (and the log line) to find where the last run
    stopped.

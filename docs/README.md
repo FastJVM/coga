@@ -115,7 +115,10 @@ describe Coga's implementation and stay in this source repository.
 [Context layout](../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md#context-audiences)
 defines the boundary; [knowledge placement](../src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md)
 defines where facts belong. For older context refs, see the
-[migration note](release-notes/context-audiences.md).
+[migration note](release-notes/context-audiences.md). Shipped definitions are
+owned by the package and resolved local-first; the
+[package-definitions note](release-notes/package-definitions.md) covers
+recurring selection, state carriers and migrating an existing repo.
 
 ## Proposals and history
 

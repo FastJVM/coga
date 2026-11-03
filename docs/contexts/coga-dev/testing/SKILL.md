@@ -55,6 +55,15 @@ Server.
 
 ## Which code you are actually testing
 
+- **Package-owned definitions.** Tests and harnesses read shipped skills,
+  workflows and recurring definitions from the package tree
+  (`src/coga/resources/templates/coga/...`), never from this repo's legacy
+  live copies, which stage B of `v1/package-definitions` removes. A test that
+  must compare a legacy copy skips it when absent or when
+  `test_packaging.LEGACY_DEFINITION_DIFFERENCES` lists it. Pass
+  `--basetemp` on a roomy volume for full runs: the suite creates many
+  temporary repos and can fill a small `/tmp` tmpfs.
+
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets
   `[tool.pytest.ini_options] pythonpath = ["src"]`, so tests import the

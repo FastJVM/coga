@@ -31,15 +31,24 @@ each failure exits 2 with the remedy:
 
 Then init:
 
-1. Copies the packaged template tree into `coga/`, skipping `bootstrap/`.
-   The result is
-   `coga.toml`, `context.md`, `log.md`, `tasks/`, `recurring/`, `skills/`,
-   `workflows/`, a `contexts/` holding only the `_template/` scaffold and its
-   `.gitignore`, `coga/.gitattributes` (`/log.md -merge` and
-   `merge=union` for `retires.md`), plus `coga/.gitignore` wrapped in a coga-managed block.
-   Bundled contexts, skills and workflows are **not** copied. They resolve
-   from the installed package after the local roots miss
-   ([coga/context-layout](../context-layout/SKILL.md)).
+1. Copies only the reviewed scaffolds into `coga/`
+   (`commands.update.FRESH_SCAFFOLDS`), each for a concrete reason:
+   `coga.toml` and `context.md` (the repo's own configuration and context,
+   never reapplied), an empty `log.md` (real audit history),
+   `coga/.gitattributes` (`/log.md -merge` and `merge=union` for
+   `retires.md`, which Git needs physically), `coga/.gitignore` wrapped in a
+   coga-managed block and `contexts/.gitignore` (physical ignore rules), the
+   ignored `contexts/_template/`, `skills/_template/` and
+   `workflows/_template.md` authoring starters, and `tasks/coga-build.md`
+   (pruned on a filled repo). It also writes `recurring/jobs.toml` once,
+   selecting the nine bundled recurring jobs with explicit `true` entries
+   ([coga/recurring/templates](../recurring/templates/SKILL.md#selection-and-state)).
+   No reusable definition is copied: contexts, skills, workflows, bootstrap
+   tickets and recurring jobs (with their scripts and runbooks) resolve from
+   the installed package after the local roots miss
+   ([coga/context-layout](../context-layout/SKILL.md)), so a package upgrade
+   changes them without touching the repo. A recurring job's repo state is
+   created on its first run, not by init.
 2. Relocates `contexts/` only if the scaffolded `coga.toml` itself sets
    `[layout] contexts` (the shipped template does not). The destination must
    not already exist or be ignored.
@@ -118,7 +127,8 @@ git clone <repo> && cd <repo>
 coga init --user <your-name>
 ```
 
-This path stages and commits nothing. It wires
+This path stages and commits nothing, never writes `recurring/jobs.toml`,
+and never restores or reseeds a shipped definition or recurring state. It wires
 the agent skill links first. If that fails, it exits non-zero and leaves the
 local config untouched. Fix the reported path and re-run; correct links
 from an earlier attempt are reused. Then it writes `user`. A missing file
@@ -164,10 +174,13 @@ from inside its own subtree.
 
 ## Audit retention adoption
 
-Fresh init installs the weekly trim-log job with default-on 30-day retention.
-A wheel upgrade alone installs no new schedule into existing repos. After
-upgrading every writer, use the feature-specific `python -m
-coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
+Fresh init selects the weekly trim-log job (`trim-log = true` in
+`recurring/jobs.toml`) with default-on 30-day retention. A wheel upgrade alone
+enables no new schedule in an existing repo: a newly bundled job has no
+selection entry and stays disabled. After upgrading every writer, use the
+feature-specific `python -m coga_edge.trim_log --install` with the upgraded
+CLI's interpreter, which records the selection and the attribute rule rather
+than copying definitions; follow the
 [adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
-two-phase rollout. The command installs only this feature's repo files.
+two-phase rollout. The command writes only this feature's selection and attribute.

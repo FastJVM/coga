@@ -30,15 +30,19 @@ downstream-only.
   (`bootstrap_context_path`) when the repo has no local `<ref>/SKILL.md`.
 - **Init-seeded**: `templates/coga/contexts/**`, today only the scaffolds
   `.gitignore` and `_template/SKILL.md`. `commands/update.py`
-  `copy_fresh_templates` copies them once; nothing reads the packaged
-  original at runtime.
+  `copy_fresh_templates` copies only the reviewed `FRESH_SCAFFOLDS`
+  allowlist once; nothing reads the packaged original at runtime.
 - **Local-only**: no packaged copy, resolved first and unknown to other repos
   (a repo's `product/` topics, or this repo's `coga-dev/` set).
 
 Resolution is local, then `bootstrap/contexts/`, then `None`, which `compose`
 turns into a `ComposeError`. Skills and workflows have the same split:
-fallback only from `bootstrap/{skills,workflows}/`, while seeded
-`templates/coga/{skills,workflows}/` files are one-time copies.
+fallback only from `bootstrap/{skills,workflows}/`. Every reusable workflow
+and skill, including `direct/body`, `build/onboarding` and the recurring
+workflows, is now a bootstrap battery; `templates/coga/{skills,workflows}/`
+hold only the ignored `_template` starters. A present but unusable local
+override (`paths.local_definition_entry`) raises `LocalOverrideError` rather
+than selecting the packaged copy.
 
 **Bundled launchers may only name fallback contexts.** A bundled
 `bootstrap/<verb>/ticket.md`, or a bundled skill that tells the agent to apply
@@ -68,38 +72,55 @@ templates/coga/<path>                            -> coga/<path>
 templates/coga/bootstrap/{skills,workflows}/<p>  -> coga/{skills,workflows}/<p>
 ```
 
-`tests/test_packaging.py` derives the pairs from the packaged tree (nothing to
-register) and requires byte-identity. For contexts it is stricter than for
-other areas: every packaged context file except the starter template must
-have its canonical counterpart, every canonical topic must be classified as
-bootstrap, init-seeded, or under `LOCAL_ONLY_CONTEXT_NAMESPACES`, and
-`REQUIRED_BOOTSTRAP_CONTEXT_REFS`
-fails the suite if a required bootstrap topic disappears from both trees.
-`REQUIRED_INIT_CONTEXT_FILES` still requires the packaged starter to ship;
-a copy under `docs/contexts/_template/` is unnecessary.
-Tests reject development files in either packaged context tree, including a
-namespace accidentally added to the required bootstrap list or built wheel.
-They also check context links and prohibit shipped required references to
-the local-only set; optional absolute GitHub links may expose implementation
-detail. Resolution and repo overrides are owned by
+**The package is the single committed owner of every shipped definition**
+([v1/package-definitions](https://github.com/FastJVM/coga/blob/main/coga/tasks/v1/package-definitions/README.md)).
+The live copies this repo still carries are transitional legacy counterparts
+that stage B removes or converts. `tests/test_packaging.py` derives the pairs
+above from the packaged tree and applies the stage A policy:
+
+- **Pinned inventory.** `tests/legacy_removal_inventory.txt` lists every
+  legacy live copy with its package owner. A derived counterpart missing from
+  it (and not one of `SCAFFOLD_COUNTERPARTS`: `coga.toml`, `context.md`,
+  `log.md`, `.gitattributes`, the two `.gitignore` files) fails, even when
+  byte-identical, so the allowance cannot grow. Every inventory entry's
+  package owner must exist, so deleting both copies is never a vacuous pass;
+  there is no pair-count floor.
+- **Optional, but compared while present.** A present legacy copy must equal
+  its owner. A recurring parent ticket compares only the text above its
+  blackboard fence; the blackboard is repo state. A reviewed difference goes in
+  `LEGACY_DEFINITION_DIFFERENCES`, pinning the unchanged live definition's
+  sha256 and the reason: stage A edits packaged recurring definitions only
+  and never touches live ones (the sweep could publish them ahead of the
+  code). Scaffold divergences stay in `INTENTIONALLY_DIVERGENT_TWINS`.
+- **Contexts.** A canonical copy under `docs/contexts/coga/` is optional;
+  required bootstrap refs (`REQUIRED_BOOTSTRAP_CONTEXT_REFS`), the
+  init-seeded files, the classification of every canonical topic and the
+  local-only prohibition still apply.
+- **Navigation.** Links resolve where each file actually lives (package files
+  inside the package tree). A surviving source, anything not in the
+  inventory, must link the package owner rather than a removable legacy copy.
+
+Development files are rejected in either packaged context tree, including a
+namespace accidentally added to the required bootstrap list or built wheel,
+and shipped guidance may not require a local-only reference; optional absolute
+GitHub links may expose implementation detail. Resolution and repo overrides are owned by
 [context layout](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md); edge shims and forks by
 [edge code](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md).
 Discovery skips `.coga/`, `.venv/`, `.agent-skills/`, `.claude/`, `.codex/`,
-bytecode caches, and `coga.local.toml`. A deliberate difference goes in
-`INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the suite fails once the
-entry stops describing a real divergence. This repo overrides
+bytecode caches, and `coga.local.toml`. This repo overrides
 `coga/bootstrap/resolve-conflicts/ticket.md` and
-`coga/bootstrap/address-pr-comments/ticket.md`; those are twins like any other.
-Packaged batteries with no live
-counterpart (`bootstrap/orient/`, `bootstrap/workflows/` fallbacks,
-`tasks/coga-build.md`) are not pairs; `EXPECTED_BOOTSTRAP_RESOURCES` keeps them
-shipping. The Coga repo root keeps only `AGENTS.md`, which Claude Code reads
+`coga/bootstrap/address-pr-comments/ticket.md` with identical copies; they are
+inventoried legacy copies like the rest. Packaged batteries with no live
+counterpart (`bootstrap/orient/`, `tasks/coga-build.md`) are not pairs;
+`EXPECTED_BOOTSTRAP_RESOURCES` keeps them shipping. The Coga repo root keeps only `AGENTS.md`, which Claude Code reads
 when no `CLAUDE.md` or `CLAUDE.local.md` exists (see `coga/init`); do not
 add a root `CLAUDE.md` copy.
 
-Shipped recurring templates have a packaged twin under
-`templates/coga/recurring/<name>/`; edit both, since the body is the run prompt
-`coga init` installs. Downstream and promoted templates need no twin. A
+Shipped recurring definitions live together at
+`templates/coga/recurring/<name>/` and resolve from the package through the
+recurring catalog (`recurring.iter_template_sources`, selection in a repo's
+`recurring/jobs.toml`); a repo keeps only its state carrier. Edit the package
+copy. Downstream and promoted templates are local definitions. A
 packaged template leaves `owner:` and `agent:` empty so each installing repo's
 defaults apply: an explicit `agent: claude` blocked period creation in a
 Codex-only repo even with a launch override (PR #857 review);
@@ -129,7 +150,9 @@ single shipper. A walk and a force-include of the same file abort the build
 ("A second file is being added to the wheel archive at the same path").
 
 This fails only on a pristine tree: in a dev tree, gitignored agent symlink
-views under the templates tree dedup the collision away. Verify packaging
-changes against a fresh `git clone` or `git worktree` as well as a dev tree.
+views under the templates tree dedup the collision away. The wheel tests
+therefore build from a pristine copy of the tracked files
+(`test_packaging._pristine_source`), assert no archive path ships twice, and
+smoke-test the installed, read-only artifact outside the source tree.
 Build artifacts (`.coga/`, `.venv/`, `__pycache__/`) are excluded so a dirty
 tree cannot ship a stale venv into every `coga init`.

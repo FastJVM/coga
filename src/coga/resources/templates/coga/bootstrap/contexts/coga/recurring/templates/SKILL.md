@@ -5,17 +5,83 @@ description: How to author or promote a recurring template — fields, parking, 
 
 # Recurring templates
 
-A template is `coga/recurring/<name>/ticket.md` (frontmatter plus run body) and
-optional siblings. Its blackboard region, below `<!-- coga:blackboard -->`,
-persists across every run. A non-underscore directory with a valid `schedule:`
-is live; rename `foo/` to `_foo/` to park it (the scanner and validation skip
-it). There is no starter directory — copy an existing template.
+A template is a ticket-format **definition** (frontmatter plus run body) with
+optional siblings: a repo-local `coga/recurring/<name>/ticket.md`, or a
+bundled job in the installed package's `templates/coga/recurring/<name>/`.
+Its cross-run state, the blackboard below `<!-- coga:blackboard -->`, always
+lives in the repo at `coga/recurring/<name>/ticket.md` (see [selection and
+state](#selection-and-state)). A local non-underscore directory with a valid
+`schedule:` is live; rename `foo/` to `_foo/` to park it (the scanner and
+validation skip it). There is no starter directory — copy an existing template.
 
 The template owns its job's behavior and run procedure. Shared machinery stays
 in contexts; reusable process stays in skills. Keep job-specific maintenance
 in supporting files beside the template and link them for reading when needed,
 with the persistent template path: periods do not copy supporting Markdown.
 The ownership rule is [coga/knowledge](../../knowledge/SKILL.md).
+
+## Selection and state
+
+One effective catalog (`recurring.iter_template_sources` and
+`resolve_template_source`) serves every consumer: scans, clone scans, named
+launch, `coga recurring list`, status and `coga validate`. Per job name it
+reports the selected definition, its origin (`local` or `package`), its
+selection status, and the repo-local state directory separately.
+
+Activation is chosen in the repo-owned `coga/recurring/jobs.toml`:
+
+```toml
+[jobs]
+dream = true          # local definition if present, else the bundled one
+skill-update = false  # disabled: local or bundled
+```
+
+- `true` enables the local definition if present, otherwise the bundled one;
+  a `true` entry naming no definition is an error.
+- `false` disables either. A sweep (including `--force`) does not schedule
+  it and a named `coga recurring launch` refuses with the path and remedy.
+  An already materialized period keeps its ordinary lifecycle.
+- No entry (or no file): a local definition keeps today's activation; a
+  bundled-only job is available but not selected. A job added by a package
+  upgrade therefore stays off until selected. State alone never selects.
+- Invalid TOML, unknown keys, invalid names and non-boolean values are
+  configuration errors, reported rather than guessed.
+- A parked `_name/` parks the job, bundled fallback included, regardless of
+  selection; its state moves with the directory. An active local definition
+  beside a parked one, or state in both, is an ambiguous configuration and is
+  reported.
+
+`coga init` writes the file once for a fresh repo; nothing refreshes it. An
+existing repo keeps working unchanged after an upgrade; to move its stock
+copies onto the package, follow the reviewed
+[migration and rollback procedure](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md).
+
+**Resolution is by artifact, not by merging text.** A local definition owns
+its whole directory: a local `ticket.md` with no `ticket.py` is agent-backed
+(omission does not inherit the packaged script), so copy every sibling a
+customized job needs. A package-backed job keeps only a **state-only
+carrier** at `coga/recurring/<name>/ticket.md`:
+
+```markdown
+---
+{}
+---
+<!-- coga:recurring-state -->
+
+<!-- coga:blackboard -->
+...saved blackboard...
+```
+
+The shape is exact: definition fields or prose above the fence in a marked
+file, or an unmarked ticket with no `schedule:`, are errors, never a quiet
+fallback. Only recognized runtime state (`retires.md`) may sit beside a
+carrier or alone; a `ticket.py` or runbook beside a carrier is an incomplete
+fork to repair, not an inherited file. An empty or cache-only directory
+counts as absent. The first admitted repo-scoped run creates the carrier
+once from the packaged definition's initial blackboard, before snapshotting
+`state_keys`; listing, status and validation never create it, and existing
+state (even an empty region) is never reseeded. `coga.recurring_state` owns
+this classification; writes always target the repo path, never the package.
 
 ## Fields
 
@@ -68,7 +134,9 @@ Each firing goes through the ordinary task creator. It:
   heading);
 - appends `coga/period-task` to `contexts:` (idempotently, always);
 - freezes `delegate:` and stamps a fresh `period_generation`;
-- copies only the reserved `ticket.py`; other siblings stay with the template;
+- copies only the reserved `ticket.py` from the selected definition; other
+  siblings stay with the definition (the package's directory for a bundled
+  job), so instructions name supporting files by their resolved location;
 - writes a `state_keys` snapshot when keys are declared.
 
 Ticket-level `skills:` and repo extension-field values are not copied into a

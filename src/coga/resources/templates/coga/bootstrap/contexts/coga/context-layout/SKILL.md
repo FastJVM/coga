@@ -55,10 +55,18 @@ and docstrings serve developers and do not make a topic a user dependency.
 Resolution is per ref. Coga reads `<contexts-root>/<ref>/SKILL.md` and, only
 when that local file is genuinely absent, falls back to the installed
 package's copy of the ref. Every `coga/*` topic ships that way. Skills,
-workflows and bootstrap tickets follow the same local-then-package order. The
+workflows, bootstrap tickets and recurring jobs follow the same
+local-then-package order (recurring jobs also need selection; see
+[coga/recurring/templates](../recurring/templates/SKILL.md#selection-and-state)).
+The package is the single committed owner of each shipped definition, and
 packaged copies are never materialized into a repo, so a local file at the
 same ref is an override and an upgrade changes the fallback without touching
-the repo. A ref that resolves nowhere fails composition, and `coga validate`
+the repo. Resolution is by artifact, never by merging text: a local skill,
+context, bootstrap ticket or recurring job owns its directory and supporting
+files, and a local workflow owns its file. An override that exists but is
+unusable (a directory or dangling link where the definition belongs, or
+supporting files with no definition) fails visibly instead of selecting the
+stock text. A ref that resolves nowhere fails composition, and `coga validate`
 and `coga create` reject it statically. A few scaffolds, such as
 `contexts/_template/`, are instead copied once by `coga init`; the repo then
 owns them, and the packaged originals are never read again.
