@@ -1040,7 +1040,8 @@ Readiness evidence (current behavior only):
 
 ## Blockers
 
-- [ ] [2026-10-29 22:30] [agent:claude] id=20261029T223051 Approve the concrete compatibility/cutover sibling split recorded under Implementation readiness, or provide an explicit two-landing workflow for this ticket. The current frozen workflow has one implementation/PR cycle, while acceptance requires compatibility merged and in use before cutover publication; the ticket explicitly reserves splitting for the owner. The stage-A publication boundary is now specified and the proposed design is treated as authorized. No additional product-design approval is requested.
+- [x] [2026-10-29 22:30] [agent:claude] id=20261029T223051 Approve the concrete compatibility/cutover sibling split recorded under Implementation readiness, or provide an explicit two-landing workflow for this ticket. The current frozen workflow has one implementation/PR cycle, while acceptance requires compatibility merged and in use before cutover publication; the ticket explicitly reserves splitting for the owner. The stage-A publication boundary is now specified and the proposed design is treated as authorized. No additional product-design approval is requested.
+  resolved: [2026-11-02 22:10] [human:nicktoper] Owner approved the split: create sibling tickets v1/package-definitions/01-runtime-compatibility (stage A) and v1/package-definitions/02-repo-cutover (stage B, depends on 01 being merged and in use), distribute the full contract plus a group README into them per coga/tickets/discovery, then remove this original via coga delete with no umbrella ticket.
 
 ---
 
