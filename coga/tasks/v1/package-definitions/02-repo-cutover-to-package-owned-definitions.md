@@ -1,6 +1,6 @@
 ---
 title: 02 Repo cutover to package-owned definitions
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:eda5f09c-f26b-41ee-98af-2613ae5c168c
 ---
 
 ## Description
