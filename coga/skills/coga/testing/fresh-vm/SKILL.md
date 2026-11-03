@@ -183,7 +183,16 @@ Run the baseline and record the inherited tools before the recheck.
 ## Teardown
 
 Once the findings are saved and the human has finished with the working
-copy, delete it through UTM or VirtualBox and keep the bare spare for
-retests. Remove a temporary `cogatest` user through Users & Groups or
+copy, return to the bare spare for retests:
+
+- **macOS:** delete the working clone through UTM and keep the untouched
+  bare spare.
+- **Windows:** do not delete the VM. Its baseline snapshot is the bare spare,
+  and deleting the VM through VirtualBox deletes that snapshot with it.
+  Restore the baseline snapshot instead. Delete a Windows VM only if a
+  separate bare spare (for example, a clone taken from the baseline snapshot)
+  already exists.
+
+Remove a temporary `cogatest` user through Users & Groups or
 Accounts only after its notes have been saved. Keep any VM the ticket still
 needs for reproducing an unresolved finding.
