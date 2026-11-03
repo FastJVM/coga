@@ -21,33 +21,23 @@ they had to guess, and whether each step works. It rents no machines.
   outside the VM. It never runs the install. It records what the human
   reports, answers when they are stuck, and fixes what fits the ticket.
 
-Give the human the [operator guide](operator-guide.md) beside this skill. It
-is written for them, in plain language, and the agent need not restate it.
+Read the [operator guide](operator-guide.md) and give it to the human. It
+owns the participant's walk rules, report template, and wrap-up questions;
+this skill owns the helper's record and fix loop.
 
 ## Before the walk
 
 1. Prepare or reuse the VM per
    [coga/testing/fresh-vm](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/fresh-vm/SKILL.md),
-   including the confirmed revert to bare and the baseline the human pastes
-   in. Record the baseline under the walk's section of the record.
-2. Write down which install source the walk uses: PyPI (`uv tool install
-   coga`, what a real user gets) or `main` (see the fix loop). Record the
-   resolved Coga version once it is installed.
+   including the confirmed return to bare when reusing a VM. Record the
+   baseline under the walk's section of the record.
+2. Follow the ticket's install source and completion criteria. For a normal
+   first-user walk, use PyPI (`uv tool install coga`); for a merged fix, see
+   the fix loop. A release-check ticket may instead require a candidate wheel
+   and a completed first task. Record the installed version and, for a source
+   or wheel install, the resolved commit and wheel hash when applicable.
 3. Note what is already known to fail on this platform, from the ticket, so
    the human can stop there instead of fighting it.
-
-## Walk rules
-
-- **Docs only.** The human follows only what the README says. The agent helps
-  only when they are stuck, and a hint they needed is itself a finding.
-- **The first walk is the only cold one.** Once the human knows the answers the
-  confusion this walk exists to catch is gone. If both a VM and a new user
-  account will be used, walk the VM first.
-- **The human does not fix things with tricks they know.** They paste the full
-  error and one line of what they were doing.
-- **Per step, record** the command typed or clicked, what they saw, what they
-  expected, anything weird or slow, and whether they needed help. The operator
-  guide carries the template.
 
 ## The record
 
@@ -56,8 +46,8 @@ walk, reproduction, verification). When dated walk evidence outgrows the
 blackboard, move it verbatim to an attachment beside the ticket and leave a
 numbered status list on the blackboard that points to it.
 
-Each finding gets a number, a severity with its reason, the evidence (pasted
-output, not paraphrase), the surface that owns the fix, and a status:
+Each finding gets a number, a severity with its reason, the evidence (exact
+output or screenshots), the surface that owns the fix, and a status:
 `fixed-in-PR`, `tracked-elsewhere` (name the ticket), or `open`. A finding
 the walk confirmed says so; one read from the docs before walking is a
 prediction until the walk reaches it.
@@ -75,8 +65,8 @@ details in the record.
   and missing clipboard are properties of the setup
   ([coga/testing/fresh-vm](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/fresh-vm/SKILL.md)
   lists them).
-- **Not the leaked tools.** On a new user account, `git` and the Python floor
-  are machine-wide; mark those steps "not a real test".
+- **Not a fresh-machine prerequisite test on a new account.** Apply the
+  machine-wide tool exclusions in the shared VM skill.
 
 ## Fix and re-walk
 
@@ -84,22 +74,24 @@ Finding, then PR, then merge, then re-walk the affected step on a fresh copy
 (a new clone of the sealed macOS spare, the restored Windows snapshot, or a
 new user account when the step does not depend on leaked tools).
 
-`uv tool install coga` installs from PyPI, so a merged fix is not there until
-a release. A re-walk of a merged fix installs from `main`:
+`uv tool install coga` installs from PyPI, so verify that the tested release
+contains the fix. For a merged fix not yet released, use `main` unless the
+ticket specifies another candidate:
 
 ```sh
 uv tool install git+https://github.com/FastJVM/coga@main
 ```
 
-and the finding records that it was checked against `main`, not a release.
+The finding records the resolved commit and that it was checked against
+`main`, not a release; a package version alone cannot distinguish main commits.
 Doc-only fixes need no reinstall. Name a re-walk on an untouched copy before
 any fix lands a **reproduction**, and one after a fix a **verification**; only
 the second can mark a finding fixed.
 
 ## Wrap-up
 
-When the human says the walk is done, collect their notes and ask the guide's
-three questions: the most annoying moment, where they would have given up,
-and roughly how long it took overall (an impression, not timing evidence).
-Then list every finding with its status and hand the open ones to the tickets
-that own their surfaces.
+When the human reaches the ticket's completion criteria or stops the walk,
+collect their notes and the guide's wrap-up answers. List every finding with
+its status, record any untested steps, and hand the open findings to the
+tickets that own their surfaces. A stopped walk does not satisfy an incomplete
+release check.
