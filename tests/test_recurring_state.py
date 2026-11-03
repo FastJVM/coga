@@ -169,6 +169,9 @@ def test_parked_jobs_stay_parked_and_keep_their_state(repo: Path) -> None:
         create_named(cfg, "dream")
     assert scan_due(cfg, now=NOW, force=True).tasks == []
     assert parent_state_path(cfg, "dream") == parked
+    listed = {s.name: s for s in list_templates(cfg, NOW, include_available=True)}
+    assert listed["dream"].selection == "parked"
+    assert str(parked.parent) in listed["dream"].reason
 
 
 def test_ambiguous_active_and_parked_configurations_are_errors(repo: Path) -> None:
@@ -255,6 +258,52 @@ def test_cache_only_directory_does_not_shadow_the_package(repo: Path) -> None:
     assert source.enabled and source.origin == "package"
 
 
+def test_unreadable_override_does_not_hide_healthy_jobs(repo, monkeypatch):
+    _jobs(repo, "[jobs]\ndream = true\nphone-home = true\n")
+    bad = repo / "recurring/dream"
+    bad.mkdir()
+    original = Path.iterdir
+    def denied(path):
+        if path == bad:
+            raise PermissionError("unreadable parent")
+        return original(path)
+    monkeypatch.setattr(Path, "iterdir", denied)
+    sources = _sources(repo)
+    assert "unreadable parent" in sources["dream"].error
+    assert sources["phone-home"].enabled
+
+
+def test_direct_phone_home_refuses_malformed_carrier_before_writing(repo, monkeypatch):
+    from coga_edge import phone_home
+
+    seed = read_blackboard(packaged_template_path("recurring", "phone-home", "ticket.md"))
+    parent = repo / "recurring/phone-home/ticket.md"
+    _write(parent, render_carrier(seed).replace("{}", "schedule: invalid", 1))
+    before = parent.read_bytes()
+    monkeypatch.setattr(phone_home, "_admitted", lambda cfg: False)
+    with pytest.raises(RecurringStateError, match="state-only carrier"):
+        phone_home.run_phone_home(load_config(repo), [])
+    assert parent.read_bytes() == before
+
+
+@pytest.mark.parametrize("parked", [False, True])
+def test_direct_phone_home_preserves_disabled_or_parked_state(repo, monkeypatch, parked):
+    from coga_edge import phone_home
+
+    _jobs(repo, "[jobs]\nphone-home = false\n")
+    name = "_phone-home" if parked else "phone-home"
+    parent = repo / "recurring" / name / "ticket.md"
+    seed = read_blackboard(packaged_template_path("recurring", "phone-home", "ticket.md"))
+    _write(parent, render_carrier(seed + "\nother: keep\n"))
+    monkeypatch.setattr(phone_home, "_admitted", lambda cfg: False)
+    for _ in range(2):
+        assert phone_home.run_phone_home(load_config(repo), []) == 0
+    assert phone_home._state(read_blackboard(parent))[0]["run"] == 2
+    assert "other: keep" in read_blackboard(parent)
+    if parked:
+        assert not (repo / "recurring/phone-home/ticket.md").exists()
+
+
 def test_invalid_local_skill_and_bootstrap_overrides_never_select_stock(repo: Path) -> None:
     cfg = load_config(repo)
     (repo / "skills" / "direct" / "body" / "SKILL.md").mkdir(parents=True)
@@ -272,3 +321,81 @@ def test_invalid_local_skill_and_bootstrap_overrides_never_select_stock(repo: Pa
     assert resolve_skill_path(cfg, "coga/show") == packaged_template_path(
         "bootstrap", "skills", "coga", "show", "SKILL.md"
     )
+
+
+@pytest.mark.parametrize("feature", [False, True])
+def test_first_package_period_publishes_carrier_and_ledger_together(git_repo, feature):
+    from coga.recurring_runner import _sync_recurring_create
+    from coga_edge import phone_home
+
+    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
+    git_repo.git("add", "coga/recurring/jobs.toml")
+    git_repo.git("commit", "-m", "select packaged phone-home")
+    git_repo.git("push", "origin", "main")
+    if feature:
+        git_repo.checkout_branch("feature/test")
+    cfg = load_config(git_repo.coga_os)
+    outcome = create_named(cfg, "phone-home", now=NOW)
+    failures = []
+    assert _sync_recurring_create(cfg, "phone-home", outcome.ref, sync_failures=failures)
+    assert not failures
+    parent_rel = "coga/recurring/phone-home/ticket.md"
+    assert git_repo.origin_tracks(parent_rel)
+    assert git_repo.origin_tracks("coga/tasks/recurring/phone-home/.state-snapshot.json")
+    assert git_repo.origin_tracks("coga/tasks/recurring/phone-home/ticket.py")
+    assert "created recurring/phone-home" in git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "period_state:" in git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    assert phone_home.run_phone_home(cfg, []) == 0
+    assert phone_home._state(read_blackboard(git_repo.coga_os / "recurring/phone-home/ticket.md"))[0]["run"] == 1
+
+
+def test_package_create_adopts_a_racing_parent_without_resetting_state(git_repo, monkeypatch):
+    from coga import git
+    from coga.recurring_runner import _sync_recurring_create
+
+    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
+    git_repo.git("add", "coga/recurring/jobs.toml")
+    git_repo.git("commit", "-m", "select packaged phone-home")
+    git_repo.git("push", "origin", "main")
+    cfg = load_config(git_repo.coga_os)
+    outcome = create_named(cfg, "phone-home", now=NOW)
+    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
+    peer = parent.read_text(encoding="utf-8").replace('"run":0', '"run":9') + "\nother: peer\n"
+    original = git._push
+    raced = False
+    def create_parent(root, remote, refspec):
+        nonlocal raced
+        if not raced:
+            raced = True
+            git_repo.push_competing_commit("coga/recurring/phone-home/ticket.md", peer)
+        return original(root, remote, refspec)
+    monkeypatch.setattr(git, "_push", create_parent)
+    failures = []
+    assert _sync_recurring_create(cfg, "phone-home", outcome.ref, sync_failures=failures)
+    assert raced and not failures
+    assert parent.read_text(encoding="utf-8") == peer
+    assert git_repo.git("show", "main:coga/recurring/phone-home/ticket.md", cwd=git_repo.origin) == peer
+
+
+def test_stale_package_create_adopts_the_existing_period_and_carrier(git_repo):
+    from coga.recurring_runner import _sync_recurring_create
+
+    _jobs(git_repo.coga_os, "[jobs]\nphone-home = true\n")
+    git_repo.git("add", "coga/recurring/jobs.toml")
+    git_repo.git("commit", "-m", "select packaged phone-home")
+    git_repo.git("push", "origin", "main")
+    start = git_repo.git("rev-parse", "HEAD").strip()
+    cfg = load_config(git_repo.coga_os)
+    first = create_named(cfg, "phone-home", now=NOW)
+    assert _sync_recurring_create(cfg, "phone-home", first.ref)
+    expected_task = first.ref.ticket_path.read_bytes()
+    expected_snapshot = (first.ref.path / ".state-snapshot.json").read_bytes()
+    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
+    expected_parent = parent.read_bytes()
+    git_repo.git("reset", "--hard", start)
+    stale = create_named(cfg, "phone-home", now=NOW)
+    assert stale.ref.ticket_path.read_bytes() != expected_task
+    assert not _sync_recurring_create(cfg, "phone-home", stale.ref)
+    assert stale.ref.ticket_path.read_bytes() == expected_task
+    assert (stale.ref.path / ".state-snapshot.json").read_bytes() == expected_snapshot
+    assert parent.read_bytes() == expected_parent

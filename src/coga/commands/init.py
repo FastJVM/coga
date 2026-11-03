@@ -31,6 +31,7 @@ import typer
 
 from coga.agent_cli_setup import offer_agent_cli
 from coga.agent_skills import refresh_agent_skill_view
+from coga.paths import LocalOverrideError
 from coga.aliases import ONBOARDING_TASK
 from coga.commands.update import (
     _refresh_coga_gitignore,
@@ -1145,7 +1146,7 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     # and interruptions can be retried without hitting the re-init refusal.
     try:
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
-    except OSError as exc:
+    except (OSError, LocalOverrideError) as exc:
         typer.secho(
             f"Could not prepare agent skills for {coga_os}: {exc}. "
             "Your name has not been saved. Fix the path or its permissions, "

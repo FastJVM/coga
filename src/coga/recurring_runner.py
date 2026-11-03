@@ -4549,6 +4549,13 @@ def _control_create_rels(
 ) -> list[str]:
     if _ref_has_path(root, ref, ticket_rel):
         return rels
+    from coga.recurring_state import CARRIER, inspect_parent_dir
+
+    # A first-use carrier is new mutable state, not a feature-only template.
+    # Publish it with the period and ledger, including an absence CAS, so
+    # the first writer can reserve its cursor against that control copy.
+    if inspect_parent_dir((root / ticket_rel).parent).kind == CARRIER:
+        return rels
     return rels[:1]
 
 

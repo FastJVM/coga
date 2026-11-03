@@ -44,7 +44,9 @@ is rebuilt by init and launch and is not committed to the repository.
   A repo copy of a bundled skill shadows it and `coga skill status` reports it
   as `local-override`. Upgrading `coga` refreshes the package copy, never the
   repo override; an override that exists but is unusable fails rather than
-  falling back to the package.
+  falling back to the package. Agent discovery uses the same override check;
+  an incomplete local directory cannot expose stock instructions through the
+  generated skill view. Repair that override before launching.
 
 ## `coga skill` commands
 

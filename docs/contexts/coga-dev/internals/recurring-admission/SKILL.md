@@ -77,6 +77,13 @@ the same fetch. A peer that serviced the period in between makes the publish
 refuse; the create re-reads control and adopts the peer's period, publishing
 only its own log line if the period is already handled.
 
+A package-backed parent's first-use state carrier participates in that same
+publication even when control has no parent file yet; its expected bytes are
+`None`. `_control_create_rels` distinguishes that validated state from an
+unpublished feature-only definition, which remains excluded. On a competing
+carrier creation, retry adopts control's complete blackboard rather than
+overwriting it with the seed. All overlays and restoration paths stay local.
+
 The pre-create ledger read is bound to the caught-up revision and reused while
 the fetched revision matches. A different revision before the first successful
 create refreshes the snapshot for the complete target set (also on a

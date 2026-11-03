@@ -251,12 +251,14 @@ LEGACY_DEFINITION_DIFFERENCES: dict[str, tuple[str, str]] = {
     ),
     "coga/recurring/phone-home/ticket.md": (
         "aa73bf4301af4d01352531f54af03d004b5b072195843fecdc7083a411f33d78",
-        _LINKS_TO_PACKAGE_OWNERS + "; its blackboard (period_state) is state, "
-        "compared separately",
+        _LINKS_TO_PACKAGE_OWNERS + "; packaged instructions also explain "
+        "carrier initialization/CAS and replace the obsolete twin exemption; "
+        "its complete blackboard (period_state) is state, compared separately",
     ),
     "rollout/trim-log/coga/recurring/trim-log/operations.md": (
         "965a07e9c99ff4516353bf785887943a48ff8040344be702b0b5226f6c66e5b6",
-        _LINKS_TO_PACKAGE_OWNERS + "; adoption now selects instead of copying",
+        _LINKS_TO_PACKAGE_OWNERS + "; adoption now selects instead of copying, "
+        "accepts valid carriers and pins packaged script identity on retries",
     ),
     "rollout/trim-log/coga/recurring/trim-log/ticket.md": (
         "f486d382aca3cc15ad836615e30293ba90f5897cce7eec68b757349dc950d095",
@@ -276,6 +278,19 @@ def _definition_bytes(path: Path) -> bytes:
     if path.name == "ticket.md" and "recurring" in path.parts[-3:-1]:
         return raw.split(b"<!-- coga:blackboard -->", 1)[0]
     return raw
+
+
+def _legacy_carrier(path: Path) -> bool:
+    """Recognized parent state is validated, never compared as a definition."""
+    from coga.recurring_state import CARRIER, has_state_marker, inspect_parent_dir
+
+    if path.name != "ticket.md" or "recurring" not in path.parts[-3:-1]:
+        return False
+    if not has_state_marker(path.read_text(encoding="utf-8")):
+        return False
+    parent = inspect_parent_dir(path.parent)
+    assert parent.kind == CARRIER, parent.problem
+    return True
 
 
 def _read_inventory() -> dict[str, str]:
@@ -366,6 +381,8 @@ def test_live_and_packaged_copies_stay_identical() -> None:
     # required package resources (EXPECTED_BOOTSTRAP_RESOURCES and the
     # inventory owners below) keep deletion from becoming a vacuous pass.
     for live, packaged in IDENTICAL_LIVE_PACKAGED_PAIRS:
+        if _legacy_carrier(REPO_ROOT / live):
+            continue
         if live in LEGACY_DEFINITION_DIFFERENCES:
             continue
         assert _definition_bytes(REPO_ROOT / live) == _definition_bytes(
@@ -415,6 +432,8 @@ def test_legacy_definition_differences_pin_unchanged_live_bytes() -> None:
         path = REPO_ROOT / live
         if not path.exists():
             continue  # stage B removed it; drop the entry then.
+        if _legacy_carrier(path):
+            continue  # stage B preserved the complete blackboard as state.
         assert _sha256(path) == digest, (
             f"{live} changed; stage A leaves live definitions untouched"
         )
@@ -441,6 +460,35 @@ def test_inventory_rejects_an_accidental_twin(
 
     with pytest.raises(AssertionError, match="new live counterparts"):
         test_live_counterparts_are_inventoried_or_scaffolds()
+
+
+def test_transitional_checks_accept_carriers_but_reject_incomplete_forks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytest
+    from coga.recurring_state import render_carrier
+    from coga.taskfile import read_blackboard
+
+    live = "coga/recurring/phone-home/ticket.md"
+    packaged = f"{PACKAGED_ROOT}/recurring/phone-home/ticket.md"
+    seed = (REPO_ROOT / packaged).read_bytes()
+    for rel in (live, packaged):
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(seed)
+    parent = tmp_path / live
+    parent.write_text(render_carrier(read_blackboard(parent)), encoding="utf-8")
+    (tmp_path / INVENTORY_FILE).parent.mkdir(parents=True)
+    (tmp_path / INVENTORY_FILE).write_bytes((REPO_ROOT / INVENTORY_FILE).read_bytes())
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "IDENTICAL_LIVE_PACKAGED_PAIRS", ((live, packaged),))
+    test_live_and_packaged_copies_stay_identical()
+    test_legacy_definition_differences_pin_unchanged_live_bytes()
+    test_phone_home_preserves_state_and_seed_is_unused()
+    parent.with_name("operations.md").write_text("orphaned definition\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="incomplete fork"):
+        test_live_and_packaged_copies_stay_identical()
 
 
 def test_inventory_rejects_a_deleted_package_owner(
@@ -1375,6 +1423,59 @@ for name in names:
     s = sources[name]
     assert s.enabled and s.origin == "package" and "installed" in str(s.definition_dir), (name, s)
     s.load()
+# Materialize every repo job through the real fallback/workflow transform,
+# compose agent/delegate prompts, and execute every deterministic shim with
+# only outward work and lifecycle subprocesses stubbed.
+import os, runpy
+from coga.compose import compose_prompt
+from coga.recurring import frozen_task_delegate, scan_clone_due
+from coga.tasks import read_ticket
+from coga.runner import RECIPES
+from coga_edge import trim_log
+real_run = subprocess.run
+def stub_bump(argv, **kwargs):
+    if argv[1:4] == ["-m", "coga.cli", "bump"]:
+        assert argv[4].startswith("recurring/")
+        return subprocess.CompletedProcess(argv, 0)
+    assert argv[0] == "git", argv
+    return real_run(argv, **kwargs)
+calls = []
+def recipe(name):
+    def run(cfg, argv):
+        assert argv == []
+        calls.append(name)
+        return 0
+    return run
+for name in sorted(names - {"phone-home"}):
+    template = sources[name].load()
+    if template.clone_scoped:
+        due = scan_clone_due(cfg, only=name).due
+        assert len(due) == 1 and due[0].template.path == template.path
+        script = template.script_entry_point
+        task_env = {}
+        assert not Path("coga/recurring", name).exists()
+    else:
+        outcome = create_named(cfg, name)
+        assert outcome.created
+        ticket = read_ticket(outcome.ref)
+        delegate = frozen_task_delegate(outcome.ref, ticket)
+        target = resolve_bootstrap(cfg, delegate) if delegate else outcome.ref
+        prompt = compose_prompt(cfg, target, read_ticket(target))
+        assert prompt and (delegate is None or "installed" in str(target.path))
+        script = outcome.ref.task_dir / "ticket.py"
+        task_env = {"COGA_TASK_SLUG": outcome.ref.id_slug,
+                    "COGA_TASK_BLACKBOARD": str(outcome.ref.ticket_path)}
+    if script and script.is_file():
+        with patch.dict(os.environ, task_env), patch.dict(RECIPES, {key: recipe(key) for key in RECIPES}), \
+             patch("coga.config.load_config", return_value=cfg), \
+             patch.object(trim_log, "load_config", return_value=cfg), \
+             patch.object(trim_log, "trim", return_value="Installed smoke: no retention side effects"), \
+             patch.object(sys, "argv", [str(script)]), patch("subprocess.run", stub_bump):
+            try:
+                runpy.run_path(str(script), run_name="__main__")
+            except SystemExit as exc:
+                assert exc.code == 0, (name, exc.code)
+assert set(calls) == {"autoclose", "blocker-reminders", "skill-update", "branch-sweep"}, calls
 import coga_edge.phone_home as t
 assert "installed" in t.__file__
 assert "installed" in str(t._PACKAGE_FILE)

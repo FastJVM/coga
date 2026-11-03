@@ -18,7 +18,7 @@ from coga.log_retention import RetentionError, cutoff_at, select
 from coga.logfile import replace_log
 from coga.movement_cursor import MovementError, _state, replace_state
 from coga.paths import log_path, packaged_template_path, recurring_dir, tasks_dir
-from coga.recurring_state import is_carrier_file
+from coga.recurring_state import CARRIER, INCOMPLETE, inspect_parent_dir
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
 from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard, split_body
@@ -44,26 +44,32 @@ def _report(cfg: Config, text: str) -> None:
     append_blackboard_report(cfg, path, "## Trim log\n\n" + text + "\n")
 
 
-def _phone_compatible(cfg: Config, parent: Path | None) -> None:
+def _phone_compatible(cfg: Config, parent: Path | None) -> tuple[Path, bytes] | None:
     # Parent discovery includes parked installations: stopped reporting still
     # owns unread movement. Two parents or a full local fork need adaptation.
     if parent is not None:
         shim = parent.with_name("ticket.py")
         stock = packaged_template_path("recurring", "phone-home", "ticket.py")
+        stock_bytes = stock.read_bytes()
         if git.symlink_component(parent) is not None:
             raise RetentionError("symlinked phone-home parent needs review before trimming")
-        if is_carrier_file(parent):
+        state = inspect_parent_dir(parent.parent)
+        if state.kind == INCOMPLETE:
+            raise RetentionError(state.problem)
+        if state.kind == CARRIER:
             # A state-only carrier selects the packaged definition, whose
             # shim is the stock script by construction. A carrier never
             # inherits a local script: `inspect_parent_dir` reports one
             # beside it as an incomplete fork, refused here as well.
             if shim.exists() or shim.is_symlink():
                 raise RetentionError("phone-home carrier has a stray local ticket.py (incomplete fork); make it a full override or remove the script, preserving period_state")
-        elif git.symlink_component(shim) is not None or not shim.is_file() or shim.read_bytes() != stock.read_bytes():
+        elif git.symlink_component(shim) is not None or not shim.is_file() or shim.read_bytes() != stock_bytes:
             raise RetentionError("phone-home local fork is incompatible with trim-log; adapt its cursor or restore the reviewed shim, preserving period_state")
         period_shim = tasks_dir(cfg) / "recurring/phone-home/ticket.py"
-        if period_shim.exists() and (git.symlink_component(period_shim) is not None or period_shim.read_bytes() != stock.read_bytes()):
+        if period_shim.exists() and (git.symlink_component(period_shim) is not None or period_shim.read_bytes() != stock_bytes):
             raise RetentionError("the frozen phone-home period uses an incompatible fork; adapt that script while preserving period state")
+        return stock, stock_bytes
+    return None
 
 
 def _local_inputs(
@@ -182,6 +188,9 @@ def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
                 return "Skipped: control retention_days = 0; history unchanged."
             plan = select(raw, snapshot(inputs, raw), cutoff_at(clock(), inputs.days))
             parent = root / inputs.parent_rel if inputs.parent_rel else None
+            # Git pins repo inputs; package upgrades can change the effective
+            # shim outside Git while publication retries. Pin its identity too.
+            package_script = _phone_compatible(cfg, parent)
             state = cursor_state(inputs.parent, raw)
             parent_before = parent.read_bytes() if parent is not None else None
             region = read_blackboard(parent, expected_bytes=parent_before) if parent_before is not None else None
@@ -199,6 +208,8 @@ def trim(cfg: Config, *, clock: Callable[[], date] = date.today) -> str:
                 current = read_inputs(cfg, root, base)
                 if current.entries != inputs.entries:
                     raise git.StateRegressionError("retention config/task/cursor inputs changed on control; replan")
+                if _phone_compatible(cfg, parent) != package_script:
+                    raise RetentionError("packaged phone-home script changed during retention; retry with a stable installation")
                 _local_inputs(cfg, root, rev, outputs)
             log_transaction.begin(cfg, rev, plan.mutation, outputs, message)
             try:
@@ -294,9 +305,14 @@ def install(cfg: Config) -> list[Path]:
     with git.state_lock(cfg):
         if (recurring_dir(cfg) / "_trim-log").exists() or (recurring_dir(cfg) / "_trim-log").is_symlink():
             raise RetentionError("_trim-log is parked; review before enabling; no files installed")
+        parent = inspect_parent_dir(recurring_dir(cfg) / "trim-log")
+        if parent.kind == INCOMPLETE:
+            raise RetentionError(parent.problem)
         planned: dict[Path, bytes] = {}
         for rel, packaged in _LEGACY_INSTALL_FILES:
             path = cfg.repo_root / rel
+            if path == parent.ticket_path and parent.kind == CARRIER:
+                continue
             data = packaged_template_path(*packaged.split("/")).read_bytes()
             if git.symlink_component(path) is not None or (path.exists() and (not path.is_file() or path.read_bytes() != data)):
                 raise RetentionError(f"custom or symlinked {rel}; review before installation; no files installed")

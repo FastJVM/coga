@@ -80,7 +80,11 @@ fork to repair, not an inherited file. An empty or cache-only directory
 counts as absent. The first admitted repo-scoped run creates the carrier
 once from the packaged definition's initial blackboard, before snapshotting
 `state_keys`; listing, status and validation never create it, and existing
-state (even an empty region) is never reseeded. `coga.recurring_state` owns
+state (even an empty region) is never reseeded. Initialization and existing
+state lookup validate the parent under the shared state lock, including direct
+writers. The first carrier publishes with its period and ledger, pinned to
+control's absence; retries preserve a competing writer's complete state.
+`coga.recurring_state` owns
 this classification; writes always target the repo path, never the package.
 
 ## Fields

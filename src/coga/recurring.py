@@ -1761,8 +1761,8 @@ def list_templates(
     refs = list_tasks(cfg)
 
     for src in sources:
-        if src.selection == SELECTION_PARKED:
-            # Parked jobs keep their historical silence in listings.
+        if src.selection == SELECTION_PARKED and not include_available:
+            # The status summary stays quiet; the full list explains parking.
             continue
         if (
             src.selection == SELECTION_UNSELECTED

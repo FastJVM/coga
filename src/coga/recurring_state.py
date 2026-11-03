@@ -46,7 +46,7 @@ STATE_ONLY = "state-only"
 INCOMPLETE = "incomplete"
 
 
-class RecurringStateError(Exception):
+class RecurringStateError(ValueError):
     """A recurring parent's repo state is malformed or ambiguous."""
 
 
@@ -112,15 +112,18 @@ def inspect_parent_dir(path: Path) -> ParentDir:
         return ParentDir(path, ABSENT)
     if path.is_symlink() or not path.is_dir():
         return ParentDir(path, INCOMPLETE, f"{path} is not a regular directory")
-    names = sorted(
-        child.name for child in path.iterdir()
-        if child.name not in IGNORABLE_OVERRIDE_ENTRIES
-    )
+    try:
+        names = sorted(
+            child.name for child in path.iterdir()
+            if child.name not in IGNORABLE_OVERRIDE_ENTRIES
+        )
+    except OSError as exc:
+        return ParentDir(path, INCOMPLETE, f"{path} is unreadable: {exc}")
     state = tuple(n for n in names if n in RUNTIME_STATE_FILES)
     others = [n for n in names if n not in RUNTIME_STATE_FILES and n != PARENT_TICKET]
     ticket = path / PARENT_TICKET
     if PARENT_TICKET in names:
-        if not ticket.is_file():
+        if ticket.is_symlink() or not ticket.is_file():
             return ParentDir(path, INCOMPLETE, f"{ticket} is not a regular file", state)
         try:
             text = ticket.read_text(encoding="utf-8")
@@ -171,19 +174,19 @@ def parent_state_path(cfg: Config, name: str, *, include_parked: bool = True) ->
     with the directory); otherwise the active path, where first use creates
     it. Two tickets (active and parked) are ambiguous cursors and raise.
     """
-    active = active_parent_dir(cfg, name) / PARENT_TICKET
-    parked = parked_parent_dir(cfg, name) / PARENT_TICKET
-    active_exists = active.exists() or active.is_symlink()
-    parked_exists = include_parked and (parked.exists() or parked.is_symlink())
-    if active_exists and parked_exists:
+    active = inspect_parent_dir(active_parent_dir(cfg, name))
+    parked = inspect_parent_dir(parked_parent_dir(cfg, name)) if include_parked else None
+    for parent in (active, parked):
+        if parent is not None and parent.kind == INCOMPLETE:
+            raise RecurringStateError(parent.problem)
+    if active.kind != ABSENT and parked is not None and parked.kind != ABSENT:
         raise RecurringStateError(
-            f"both {active} and {parked} exist; reconcile their state before "
-            "running recurring/{name} (never guess which cursor is current)"
-            .replace("{name}", name)
+            f"both {active.path} and {parked.path} exist; reconcile their state before "
+            f"running recurring/{name} (never guess which cursor is current)"
         )
-    if parked_exists:
-        return parked
-    return active
+    if parked is not None and parked.kind != ABSENT:
+        return parked.ticket_path
+    return active.ticket_path
 
 
 def ensure_parent_state(
@@ -198,6 +201,13 @@ def ensure_parent_state(
     an exclusive create rather than overwritten. A pending audit-log mutation
     receipt blocks initialization.
     """
+    from coga.git import state_lock
+
+    with state_lock(cfg):
+        return _ensure_parent_state(cfg, name, seed_ticket=seed_ticket)
+
+
+def _ensure_parent_state(cfg: Config, name: str, *, seed_ticket: Path | None) -> Path:
     path = parent_state_path(cfg, name)
     if path.exists() or path.is_symlink() or seed_ticket is None:
         return path
@@ -215,11 +225,9 @@ def ensure_parent_state(
     try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
     except FileExistsError:
-        return path
-    try:
-        os.write(fd, data)
-    finally:
-        os.close(fd)
+        return parent_state_path(cfg, name)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(data)
     return path
 
 

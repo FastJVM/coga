@@ -117,6 +117,11 @@ absolute paths). It refuses unknown/edited files rather than overwriting them:
 cmp -s "$OLD_SOURCE" "$CANDIDATE" && cp "$NEW_SHIM" "$CANDIDATE"
 ```
 
+For a package-backed parent, do not copy a shim beside its state carrier:
+upgrade the package instead. A carrier plus local executable is an incomplete
+fork. The replacement procedure above applies to existing full local definitions
+and already-frozen period scripts; it never materializes a missing definition.
+
 Select both the template and outstanding periods, including parked ones that
 may resume. Do not regenerate periods, reset parent markers, or complete/cancel
 tasks to obtain new code. Preserve frontmatter, blackboards, `period_state`,

@@ -92,6 +92,10 @@ above from the packaged tree and applies the stage A policy:
   sha256 and the reason: stage A edits packaged recurring definitions only
   and never touches live ones (the sweep could publish them ahead of the
   code). Scaffold divergences stay in `INTENTIONALLY_DIVERGENT_TWINS`.
+  A marked recurring state carrier is checked with `inspect_parent_dir`
+  instead of compared with the definition: malformed headers and leftover
+  definition siblings still fail. Phone-home's complete state remains
+  parseable and the packaged seed stays unused.
 - **Contexts.** A canonical copy under `docs/contexts/coga/` is optional;
   required bootstrap refs (`REQUIRED_BOOTSTRAP_CONTEXT_REFS`), the
   init-seeded files, the classification of every canonical topic and the

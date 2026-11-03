@@ -1948,6 +1948,18 @@ def test_agent_skill_view_prefers_local_skill_over_bootstrap(
     assert link.resolve() == local.resolve()
 
 
+def test_agent_skill_view_refuses_incomplete_local_override(tmp_path: Path) -> None:
+    from coga.paths import LocalOverrideError
+
+    coga_os = tmp_path / "coga"
+    local = coga_os / "skills/code/implement"
+    local.mkdir(parents=True)
+    (local / "helper.py").write_text("# custom attachment\n", encoding="utf-8")
+    with pytest.raises(LocalOverrideError, match="no SKILL.md"):
+        agent_skills.refresh_agent_skill_view(coga_os)
+    assert not (coga_os / ".agent-skills/code/implement").exists()
+
+
 def test_agent_skill_view_links_bundled_skills_on_another_drive(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -64,7 +64,7 @@ def _clone(git_repo, tmp_path):
     return load_config(dest / "coga"), dest
 
 
-def _phone(git_repo, raw):
+def _phone(git_repo, raw, *, carrier=False):
     parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
     parent.parent.mkdir(parents=True)
     for name in ("ticket.md", "ticket.py"):
@@ -73,6 +73,10 @@ def _phone(git_repo, raw):
     region = read_blackboard(parent)
     _, match = phone_home._state(region)
     replace_blackboard(parent, region[:match.start()] + "period_state: " + json.dumps(state) + region[match.end():])
+    if carrier:
+        from coga.recurring_state import render_carrier
+        parent.write_text(render_carrier(read_blackboard(parent) + "\nother: keep\n"), encoding="utf-8")
+        parent.with_name("ticket.py").unlink()
     git_repo.git("add", "coga/recurring/phone-home")
     git_repo.git("commit", "-m", "seed consumed movement")
     git_repo.git("push", "origin", "main")
@@ -406,6 +410,9 @@ def test_install_idempotence_and_exact_allowlist(git_repo):
     assert not (cfg.repo_root / "recurring" / "trim-log").exists()
     assert not (cfg.repo_root / "workflows" / "trim-log").exists()
     assert trim_log.install(cfg) == []
+    from coga.recurring import create_named
+    create_named(cfg, "trim-log")
+    assert trim_log.install(cfg) == []  # first-use state is not a customization
 
 
 def test_install_preserves_other_selections_and_refuses_disabled(git_repo):
@@ -455,9 +462,10 @@ def test_native_merge_conflicts_preserve_both_index_stages(git_repo):
     assert len(git_repo.git("rev-list", "--parents", "-n", "1", "HEAD").split()) == 3
 
 
-def test_trim_and_phone_home_alternate_preserving_delayed_unread_movement(git_repo, monkeypatch):
+@pytest.mark.parametrize("carrier", [False, True])
+def test_trim_and_phone_home_alternate_preserving_delayed_unread_movement(git_repo, monkeypatch, carrier):
     cfg, path = _seed(git_repo, _line("consumed"))
-    parent = _phone(git_repo, path.read_bytes())
+    parent = _phone(git_repo, path.read_bytes(), carrier=carrier)
     delayed = _line("unread")
     path.write_bytes(path.read_bytes() + delayed)
     assert git.publish(cfg, [path], "Log: delayed work")
@@ -472,11 +480,14 @@ def test_trim_and_phone_home_alternate_preserving_delayed_unread_movement(git_re
         assert "unchanged" in trim_log.trim(cfg, clock=lambda: TODAY)
         assert _report(cfg, monkeypatch) == 1
     assert phone_home._state(read_blackboard(parent))[0]["run"] == 14
+    if carrier:
+        assert "other: keep" in read_blackboard(parent)
 
 
-def test_parked_phone_home_preserves_unread_movement_and_cursor_identity(git_repo):
+@pytest.mark.parametrize("carrier", [False, True])
+def test_parked_phone_home_preserves_unread_movement_and_cursor_identity(git_repo, carrier):
     cfg, path = _seed(git_repo, _line("consumed"))
-    parent = _phone(git_repo, path.read_bytes())
+    parent = _phone(git_repo, path.read_bytes(), carrier=carrier)
     unread = _line("delayed")
     path.write_bytes(path.read_bytes() + unread)
     parked = parent.parent.with_name("_phone-home")
@@ -495,10 +506,11 @@ def test_parked_phone_home_preserves_unread_movement_and_cursor_identity(git_rep
     assert "unchanged" in trim_log.trim(cfg, clock=lambda: TODAY)
 
 
-def test_cursor_reservation_during_rejected_trim_is_replanned(git_repo, monkeypatch):
+@pytest.mark.parametrize("carrier", [False, True])
+def test_cursor_reservation_during_rejected_trim_is_replanned(git_repo, monkeypatch, carrier):
     from coga.movement_cursor import movements, replace_state
     cfg, path = _seed(git_repo, _line("consumed"))
-    parent = _phone(git_repo, path.read_bytes())
+    parent = _phone(git_repo, path.read_bytes(), carrier=carrier)
     path.write_bytes(path.read_bytes() + _line("unread"))
     assert git.publish(cfg, [path], "Log: unread movement")
     region = read_blackboard(parent)
@@ -516,6 +528,29 @@ def test_cursor_reservation_during_rejected_trim_is_replanned(git_repo, monkeypa
     assert "Removed 2 events" in trim_log.trim(cfg, clock=lambda: TODAY)
     assert phone_home._state(read_blackboard(parent))[0] == state
     assert _report(cfg, monkeypatch) == 0
+    assert not log_transaction.pending(cfg)
+
+
+def test_package_script_change_during_trim_refuses_publication(git_repo, monkeypatch, tmp_path):
+    cfg, path = _seed(git_repo, _line("consumed"))
+    parent = _phone(git_repo, path.read_bytes(), carrier=True)
+    shim = tmp_path / "package-ticket.py"
+    shim.write_bytes(packaged_template_path("recurring", "phone-home", "ticket.py").read_bytes())
+    monkeypatch.setattr(trim_log, "packaged_template_path", lambda *args: shim)
+    original = git.publish
+    before = path.read_bytes()
+    before_parent = parent.read_bytes()
+
+    def upgrade_before_publication(*args, **kwargs):
+        if kwargs.get("log_mutation") is not None:
+            shim.write_bytes(shim.read_bytes() + b"\n# upgraded\n")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(git, "publish", upgrade_before_publication)
+    with pytest.raises(RetentionError, match="packaged phone-home script changed"):
+        trim_log.trim(cfg, clock=lambda: TODAY)
+    assert path.read_bytes() == before
+    assert parent.read_bytes() == before_parent
     assert not log_transaction.pending(cfg)
 
 

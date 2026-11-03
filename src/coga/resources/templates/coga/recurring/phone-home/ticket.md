@@ -14,7 +14,8 @@ agent. This template owns the snapshot's behavior and data boundary.
 
 The snapshot is edge code, not a registered recipe. Its default implementation
 is `src/coga_edge/phone_home.py`, shipped in the Coga wheel and called by the
-repo-owned `recurring/phone-home/ticket.py` shim. It imports only shared core
+selected definition's `ticket.py` shim (packaged by default, or a deliberate
+local override). Each period keeps its copied shim. It imports only shared core
 and runs under `runner.run_reported` (the `## Recipe Failure` floor), then
 bumps once through the CLI; bump failure propagates. `phone-home/run` has one
 agent-owned `send` step with no skills, so normal completion needs no agent.
@@ -49,7 +50,7 @@ manual ingestion proof uses a release wheel outside development trees.
 
 ### State, publication, and loss
 
-The parent template blackboard holds exactly one readable single-line JSON
+The repo-owned parent blackboard holds exactly one readable single-line JSON
 `period_state:` value: `schema` (2), `run` (nonnegative monotonic invocation
 number), nullable `repo_id` (UUID v4), and sorted unique `seen_movements`
 (SHA-256 fingerprints of complete movement events at the last reservation).
@@ -70,7 +71,13 @@ Under `git.state_lock(cfg)`, capture parent bytes, read using
 `taskfile.read_blackboard(expected_bytes=...)`, replace using
 `taskfile.replace_blackboard(expected_bytes=...)`, and explicitly publish only
 that parent via `git.publish(..., expect={parent: original_bytes})`. The current
-lock is reentrant, so mutation and publication share one lock window. Preserve
+lock is reentrant, so mutation and publication share one lock window. On direct
+first use, create a state carrier once from the unused package seed and pin
+control's absence (`expect={parent: None}`). Recurring creation publishes its
+carrier with the period before dispatch. State lookup uses a unique active or
+parked parent and rejects malformed carriers and incomplete forks; it never
+reseeds existing state. A direct invocation retains its own policy: a false
+job selection stops recurring admission, not this explicit call. Preserve
 all above-fence bytes and unrelated prose. No period bump is relied upon to
 publish its parent. No-git/disabled-git runs keep authoritative local state;
 publication failures retain state and ordinary local audit evidence.
@@ -94,11 +101,10 @@ unobservable. No suppression marker is persisted. Synced clones share identity;
 unsynced first runs can mint different identities. No distributed exactly-once
 claim or coordination.
 
-The live parent may acquire runtime state while its packaged twin must stay
-unused and identity-free. Only when they diverge, add that live path with its
-runtime-state reason to `INTENTIONALLY_DIVERGENT_TWINS`; the focused packaging
-test still requires identical above-fence bytes and an unused packaged seed.
-Never add a stale exemption while both files match.
+The repo parent accumulates state while the package seed stays unused and
+identity-free. Transitional checks compare legacy definitions separately from
+their complete mutable blackboards, validate carriers as state, and require an
+unused packaged seed. State changes never need a definition-divergence entry.
 
 ### Scope and approximate movement
 

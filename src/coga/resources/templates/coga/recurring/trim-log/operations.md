@@ -1,6 +1,6 @@
 # Adopting and recovering audit retention
 
-Default-on retention is a behavior change: fresh init installs Monday 04:00
+Default-on retention is a behavior change: fresh init selects Monday 04:00
 maintenance and uses 30 local calendar days. Existing repos acquire the weekly
 schedule only through the explicit adoption below. A wheel upgrade alone does
 not install a schedule. The [ticket](ticket.md) owns retention and preservation
@@ -27,13 +27,14 @@ shebang interpreter rather than substituting ambient Python. From the repo:
 This bounded installer validates the complete plan before writing. Its only
 possible edits, relative to the Coga root, are:
 
-- `recurring/trim-log/ticket.md`, `ticket.py`, and `operations.md`;
-- `workflows/trim-log/run.md`;
+- `recurring/jobs.toml`: select `trim-log = true` without changing other
+  selections or comments; definitions and workflows resolve from the package;
 - `.gitattributes`: replace the known stock `**/log.md merge=union` with
   `/log.md -merge`, preserving the `retires.md` union rule and unrelated bytes.
 
-It verifies the effective attribute, including overriding attributes. Identical
-files are no-ops. Custom or symlinked files, `_trim-log` parking and unfamiliar
+It verifies the effective attribute, including overriding attributes. Existing
+stock definitions and valid state carriers are no-ops. A false `trim-log`
+selection, custom or symlinked files, `_trim-log` parking and unfamiliar
 attributes require review; no partial feature replacement occurs on those
 refusals. It never rewrites config, other jobs, periods or full local forks,
 launches work, or sends telemetry. Review/publish the named edits using normal
@@ -44,17 +45,19 @@ origins are review items, never permission to overwrite.
 A stock phone-home installation parked as `_phone-home` keeps its cursor and
 unread-movement protection; trim can migrate that cursor without un-parking
 the job. Two parent copies, a missing cursor or an incompatible script require
-repair before trimming. The script and parent are pinned decision inputs.
+repair before trimming. The parent, selection, local override files and exact
+packaged shim identity are pinned decision inputs, rechecked before every
+publication attempt.
 
-Coga's own code PR stages these live files under `rollout/trim-log/coga/`,
-outside swept roots. The package receives the matching files immediately.
-After the core PR merges, the operator upgrades all writers, runs the command
-above on current control, reviews the exact diff and publishes it. Until that
-handoff, the live `.gitattributes` intentionally retains the old rule; the twin
-exception is removed once adoption makes the copies identical. The staged
-files and package are byte-identical and tested. Do not activate a live shim
-before its implementation reaches control. Rollback likewise requires a
-compatible wheel/repo pair; do not restore old cursor state or trimmed history.
+Coga's source repo retains its pre-compatibility files under
+`rollout/trim-log/coga/` until the package-definitions cutover. Those legacy
+definitions are not an installation source: after upgrading every writer,
+run the command above on current control and publish its selection and
+attribute edits. The live `.gitattributes` retains the old rule until adoption;
+remove its transitional exception once the physical rule matches the package.
+Do not enable a job before its compatible implementation is installed.
+Rollback likewise requires a compatible wheel/repo pair; do not restore old
+cursor state or trimmed history.
 
 ## Interrupted maintenance
 

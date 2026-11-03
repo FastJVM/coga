@@ -266,12 +266,20 @@ def local_definition_entry(
                 "repair or remove it to use the packaged copy"
             )
         return True
-    if owner is not None and owner.is_dir():
-        stray = sorted(
-            child.name
-            for child in owner.iterdir()
-            if child.name not in IGNORABLE_OVERRIDE_ENTRIES and not child.is_dir()
-        )
+    if owner is not None:
+        if (owner.exists() or owner.is_symlink()) and not owner.is_dir():
+            raise LocalOverrideError(f"local {kind} override {owner} is not a directory")
+        try:
+            stray = sorted(
+                child.name
+                for child in owner.iterdir()
+                if child.name not in IGNORABLE_OVERRIDE_ENTRIES
+                and not (child.is_dir() and any(child.rglob(definition.name)))
+            ) if owner.is_dir() else []
+        except OSError as exc:
+            raise LocalOverrideError(
+                f"local {kind} override {owner} cannot be inspected: {exc}"
+            ) from exc
         if stray:
             raise LocalOverrideError(
                 f"local {kind} override {owner} has supporting files "
