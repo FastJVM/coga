@@ -49,7 +49,10 @@ When the tool claims that captured learnings make later work better, a single
 build exercises only the write half of that claim. Run one full pass of the
 tool's loop per feature of the trial task, in the same VM and the same
 project directory, so stored learnings survive and later laps can read them
-back. Watch whether stored learnings visibly change later planning output,
+back. Start each lap in a fresh agent session: a later lap run in the earlier
+lap's conversation recalls everything from that history, so it would look the
+same with no stored learnings at all. Tools rarely say to restart, so tell the
+human before each lap. Watch whether stored learnings visibly change later planning output,
 and whether what was captured was worth capturing. Record where the tool
 stores learnings, its default location, and whether that setting can be
 discovered. Plan at least one lap where a stored learning and the existing
