@@ -2,12 +2,22 @@
 title: Make hands-on-trial cite the shared fresh-vm skill
 status: draft
 owner: nicktoper
-workflow: null
+workflow: docs/with-review
 ---
 
 ## Description
 
-Follow-up from add-a-skill-for-the-attended-human-fresh-machine-i. That ticket added coga/skills/coga/testing/fresh-vm/SKILL.md as the single owner of VM preparation, baseline capture, reuse, and cleanup for attended walks and competitor trials. Retro PR https://github.com/FastJVM/coga/pull/1145 (coga/skills/competition-testing/hands-on-trial/SKILL.md) was still open and carries its own VM-hygiene steps. When #1145 is integrated (or after it merges), replace its duplicated VM-hygiene instructions with a citation of coga/testing/fresh-vm so the skills keep one owner, per coga/knowledge. Done when hands-on-trial links fresh-vm for VM setup/reuse and restates no competing procedure.
+`coga/skills/competition-testing/hands-on-trial/SKILL.md` (proposed in PR
+#1145) carries its own VM preparation steps. `coga/skills/coga/testing/fresh-vm/SKILL.md`
+(proposed in PR #1153) is meant to be the single owner of VM preparation,
+baseline capture, reuse, and cleanup for attended install walks and competitor
+trials. Once both have merged to main, replace hands-on-trial's duplicated
+VM-hygiene instructions with a citation of `coga/testing/fresh-vm`, so the
+procedure has one owner per `coga/knowledge`.
+
+Done when hands-on-trial points to fresh-vm for VM choice, preparation, baseline,
+reuse, and cleanup, and restates no competing VM procedure. The trial-specific
+guidance that fresh-vm does not own stays in hands-on-trial.
 
 ## Context
 
@@ -94,6 +104,49 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Route: fold into #1145, then retire this ticket
+
+Owner decision (2026-11-02): do this edit inside PR #1145
+(`codex/retro-competition-testing-knowledge`, "New skill: hands-on competitor
+trial method"), not as a separate follow-up PR. Order: merge PR #1153 ("Add
+attended install-walk guidance with shared VM preparation", which adds
+`coga/skills/coga/testing/fresh-vm/SKILL.md`) first. Then rebase #1145 onto
+main and apply the change below on #1145's branch, before #1145 merges. Once
+#1145 merges with the citation, cancel this ticket.
+
+This draft tracks that work. Use it as a launched ticket only if #1145 merges
+without the citation. In that case, branch from main after both PRs are in.
+If #1153 is abandoned, this ticket is moot: cancel it.
+
+### What to change
+
+- Replace the VM-procedure parts of hands-on-trial with a link to fresh-vm.
+  That covers the **Fresh VM.** bullet in `## Setup` ("Use a spare bare
+  `cogatest` UTM machine, and have the human confirm which one at launch") and
+  any VM reuse/cleanup steps. Use the same link form that
+  `clean-install/human-walk` uses for fresh-vm.
+- Remove restatements of facts that fresh-vm owns. Two are known now:
+  separating steps the human installed from habit (fresh-vm `## Reusing a
+  spare`), and the human being unable to copy from the agent session into the
+  VM (fresh-vm `### Moving commands and evidence`) in the command-relay text.
+  The relay artifact itself is trial-specific and stays.
+- Keep the trial rules that fresh-vm does not own: install coverage starts at
+  the bare machine's prerequisites, demands are recorded in order, earlier
+  trials' write-ups are read first, and all laps run in the same VM and
+  project directory (a `## Laps` rule, not VM hygiene). Read fresh-vm's final
+  text to draw the line; the lists above are examples, not the boundary.
+- Don't hard-code UTM/macOS in hands-on-trial. Let fresh-vm's "Choose the
+  starting environment" pick the platform.
+- Rule applied: `coga/knowledge` (`docs/contexts/coga/knowledge/SKILL.md`),
+  cited, not attached. Read its one-owner rule ("one owner per fact; other
+  surfaces summarize and link") and `## Attach or cite`. Neither skill file is
+  attached either: one is edited, the other read once.
+- No packaged twin: both skills are repo-local (nothing under
+  `src/coga/resources/templates/coga/bootstrap/skills/competition-testing/` or
+  `.../coga/testing/fresh-vm`), so `tests/test_packaging.py` does not pair them.
+- Do not touch the competitor findings. `FastJVM/coga` is public, and
+  hands-on-trial keeps findings out of the repo.
 
 <!-- coga:blackboard -->
 
