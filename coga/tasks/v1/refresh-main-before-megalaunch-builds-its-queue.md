@@ -137,3 +137,13 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-refresh-main-before-megalaunch
+
+## Notes
+
+- Entry: no prepared checkout; this checkout was on stale `coga/chat-0b453101cbae`
+  (behind main, no unique commits; dirty paths all identical to origin/main).
+  Switched with `git switch -m main` (merge preserved content), ff to origin/main.
