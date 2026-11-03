@@ -9899,3 +9899,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 16:23 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-11-02 16:23 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [megalaunch] launched via coga megalaunch
 2026-11-02 16:23 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [human:nicktoper] created (status=draft)
+2026-11-02 16:23 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [agent:claude] advanced to step 4 (review) → nicktoper — PR #1153 opened; follow-up draft filed for PR #1145 to cite fresh-vm
