@@ -131,3 +131,17 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: document-non-executable-script-check
+
+## Plan
+
+- Overlap with open PR #1139 (unreviewed, idle since 2026-10-30): its
+  first-task hunks change base lines 11-16 and 24-29. Insert the new paragraph
+  between the readiness code block and "Run `coga validate` again" (base
+  lines 17-20) so unchanged lines separate it from both hunks — no textual
+  conflict, so no need to wait for that review.
+- Add the user-facing facts to coga/first-task + packaged bootstrap twin; trim
+  coga-dev/testing to a summary + link.
