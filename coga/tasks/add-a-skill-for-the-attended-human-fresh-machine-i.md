@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 5726dfa9-29f3-467d-acdf-8dbe502c5ad2
 ---
 
 ## Description
@@ -137,3 +136,102 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: coga/add-a-skill-for-the-attended-human-fresh-machine-i-84cdf7
+
+## Handoff — implement, 2026-11-02
+
+Pushed `d0d07b353`; no PR yet (open-pr step).
+
+Decisions:
+
+- **Shared VM hygiene is its own skill**, `coga/skills/coga/testing/fresh-vm/SKILL.md`,
+  cited by `clean-install/human-walk`. It is placed under `coga/testing/`
+  rather than inside `human-walk` so a competitor trial can cite it without
+  reaching into an install-walk skill. PR #1145 (`competition-testing/hands-on-trial`,
+  open, not ours) is left untouched. Follow-up for whoever lands #1145 or
+  for retro: replace its "Fresh VM" bullet's VM details with a citation of
+  `coga/testing/fresh-vm`.
+- **guide-for-zach.md's durable parts moved** to
+  `clean-install/human-walk/operator-guide.md`, generalized: no names or
+  dates, the perishable Windows `fcntl` paragraph replaced by "your helper
+  tells you what is known to fail", and the stopwatch/"Time" field replaced
+  by a "Waiting" field, matching the rule that conversational wall-clock
+  times are not timing evidence. The original attachment stays on v1/29
+  (in review, owner zach); it can be deleted when v1/29 retires.
+- **Not packaged.** The Linux/AWS harness skills have bootstrap twins; the
+  new two describe this team's spare `cogatest` VMs and stay local, like
+  `coga/skills/marketing`. A link added to the packaged
+  `clean-install/SKILL.md` was reverted because it would have needed a twin
+  edit pointing at a non-shipped skill; the index (`docs/README.md`) and
+  `coga-dev/testing` link the new skills instead.
+- All eight ticket bullets are covered: .ipsw-before-clone and ~45 GB,
+  VirtualBox Skip Unattended, leaked machine-wide tools, stub-safe baseline,
+  UTM clipboard, revert-to-bare, wall-clock not evidence (human-walk),
+  PyPI vs `git+...@main` re-walks (human-walk).
+
+## PR
+
+```yaml
+title: Add attended human install-walk and fresh-VM skills
+author: claude
+author_evidence: >-
+  Implemented in this session by Claude Opus 5.5 (claude-opus-5-5) under a
+  megalaunch queue pick; no agent override.
+head: d0d07b35357655bafef943da52bb063e94fe1cb2
+base: 851af79289e779ddb885508764be8b2c4d97585c
+depth: light
+rationale: >-
+  Documentation-only: two new local (unpackaged) skills, one attachment, and
+  two index/link lines. No code, no packaged twin touched. Facts are moved
+  from v1/29's guide and agent-side notes, the CE/Kiro tickets, and
+  macos-walk-findings.md rather than newly asserted.
+implementation: >-
+  New coga/testing/clean-install/human-walk skill (agent method for an
+  attended first-time install walk) with a generalized plain-language
+  operator guide, and a new coga/testing/fresh-vm skill owning cogatest VM
+  preparation, baseline, reuse and teardown, shared with competitor trials.
+deviations: >-
+  The shared VM-hygiene part lives at coga/skills/coga/testing/fresh-vm
+  rather than inside human-walk, so competitor trials can cite it.
+limitations: >-
+  PR #1145's hands-on-trial skill does not yet cite fresh-vm (open PR, not
+  this ticket's). guide-for-zach.md remains on v1/29 until it retires.
+files:
+  coga/skills/coga/testing/clean-install/human-walk/SKILL.md: >-
+    New skill: roles, walk rules, record format, what a walk cannot measure,
+    fix-and-re-walk loop with PyPI vs main installs, wrap-up.
+  coga/skills/coga/testing/clean-install/human-walk/operator-guide.md: >-
+    Plain-language tester guide moved from v1/29's guide-for-zach.md,
+    generalized (no names, dates, or perishable platform failures).
+  coga/skills/coga/testing/fresh-vm/SKILL.md: >-
+    New shared skill: VM over new account (leaked tools), UTM clone/.ipsw
+    order and clipboard, VirtualBox OOBE, stub-safe baselines, revert-to-bare,
+    teardown.
+  docs/README.md: Index links to the two new skills.
+  docs/contexts/coga-dev/testing/SKILL.md: >-
+    One sentence naming the attended walk as the harnesses' hand-run
+    counterpart.
+review:
+  status: not-run
+  detail: >-
+    No code review yet; the workflow's peer-review step follows.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 9e2f45c0e (pre-rebase; same diff as d0d07b353)
+    base: 17f46d9e5
+    detail: >-
+      4306 passed, 10 skipped in 527s. The rebase onto 851af7928 added only a
+      Coga-state commit; `git diff 9e2f45c0e d0d07b353 -- coga/skills docs`
+      is empty.
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_validate.py tests/test_skill_manager.py
+    status: passed
+    head: d0d07b35357655bafef943da52bb063e94fe1cb2
+    base: 851af79289e779ddb885508764be8b2c4d97585c
+    detail: 279 passed at the final head.
+  - command: coga validate --json
+    status: passed
+    head: 9e2f45c0e
+    detail: >-
+      No issues from this change; existing errors and warnings are on other
+      tickets (v1/19, v1/26, v1/27, v1/31 draft blackboards, and others).
+```
