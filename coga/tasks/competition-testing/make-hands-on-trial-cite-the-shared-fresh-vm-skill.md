@@ -176,3 +176,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+
+---
+
+## Blocker reminders
+
+- 7891d747a9e1 last_reminded: 2026-11-03 10:44
