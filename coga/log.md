@@ -9997,3 +9997,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-03 13:53 v1 [v1/16-find-out-what-macos-actually-ships] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)
 2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] launched via coga megalaunch
