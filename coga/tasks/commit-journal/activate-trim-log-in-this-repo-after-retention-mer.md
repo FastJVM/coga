@@ -1,6 +1,6 @@
 ---
 title: Activate trim-log in this repo after retention merges
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,6 +36,7 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
+launch_generation: pending:7e8ad3e2-4314-4beb-9fb5-bac0aea98f0a
 ---
 
 ## Description
