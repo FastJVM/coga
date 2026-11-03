@@ -261,6 +261,20 @@ def test_selection_errors_are_visible(repo: Path, body: str, message: str) -> No
     assert scan.tasks == [] and scan.errors
 
 
+def test_dangling_selection_never_restores_local_only_activation(repo: Path) -> None:
+    _write(repo / "recurring/local-job/ticket.md", LOCAL_JOB)
+    selection = repo / "recurring/jobs.toml"
+    selection.symlink_to(repo / "missing-selection.toml")
+    cfg = load_config(repo)
+    sources = iter_template_sources(cfg)
+    assert all(s.error and "symlink target is missing" in s.error for s in sources)
+    scan = scan_due(cfg, now=NOW, force=True)
+    assert scan.tasks == [] and scan.errors
+    with pytest.raises(RecurringError, match="symlink target is missing"):
+        create_named(cfg, "local-job", now=NOW)
+    assert not (repo / "tasks/recurring/local-job").exists()
+
+
 def test_worklist_only_directory_resolves_the_selected_bundled_parent(repo: Path) -> None:
     _jobs(repo, "[jobs]\nautoclose-merged = true\n")
     worklist = repo / "recurring" / "autoclose-merged" / "retires.md"

@@ -44,8 +44,10 @@ skill-update = false  # disabled: local or bundled
 - No entry (or no file): a local definition keeps today's activation; a
   bundled-only job is available but not selected. A job added by a package
   upgrade therefore stays off until selected. State alone never selects.
-- Invalid TOML, unknown keys, invalid names and non-boolean values are
-  configuration errors, reported rather than guessed.
+- Invalid TOML, unknown keys, invalid names, non-boolean values and
+  unreadable selection files (including dangling links) are configuration
+  errors, reported rather than guessed. A broken selection never restores
+  local-only activation.
 - A parked `_name/` parks the job, bundled fallback included, regardless of
   selection; its state moves with the directory. An active local definition
   beside a parked one, or state in both, is an ambiguous configuration and is

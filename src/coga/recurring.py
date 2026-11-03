@@ -626,7 +626,12 @@ def read_job_selection(cfg: Config) -> dict[str, bool]:
     path = jobs_file_path(cfg)
     try:
         raw = path.read_bytes()
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
+        if path.is_symlink():
+            raise RecurringError(
+                f"{path} is unreadable: its symlink target is missing; repair "
+                "the selection file before running recurring jobs"
+            ) from exc
         return {}
     except OSError as exc:
         raise RecurringError(f"{path} is unreadable: {exc}") from exc
