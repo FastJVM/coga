@@ -20,7 +20,7 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 | 01 | [webhook for slack is public](01-webhook-for-slack-is-public.md) |
 | 02 | [Reconcile the coga notifications leaked-webhook response with the append-only log](02-reconcile-the-coga-notifications-leaked-webhook-re.md) |
 | 03 | [State sync published unmerged recurring templates from a feature branch](03-state-sync-published-unmerged-recurring-templates.md) |
-| 04 | [Stop the contexts-root sweep from publishing canonical topics without their packaged twins](04-stop-the-contexts-root-sweep-from-publishing-canon.md) |
+| 04 | [Package-owned definitions](package-definitions/README.md): stop the contexts-root sweep from publishing canonical topics without their packaged twins (01 runtime compatibility, then 02 repo cutover) |
 | 05 | [Chat ticket edits strand the checkout on a chat branch](05-chat-ticket-edits-strand-the-checkout-on-a-chat-br.md) |
 | 06 | [Fix coga git sync failures that leave main diverged from origin](06-fix-coga-git-sync-failures-that-leave-main-diverge.md) |
 | 07 | [Lifecycle writes read control's ticket before modifying it](07-lifecycle-writes-read-control-s-ticket-before-modi.md) |

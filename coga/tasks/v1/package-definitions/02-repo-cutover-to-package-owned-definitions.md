@@ -28,9 +28,114 @@ step: 1 (implement)
 
 ## Description
 
-Stage B of the package-owned definitions split. See the group README.
+Stage B of the package-owned definitions split (see the group README for
+the goal and full design). Migrate this repo onto the package-owned
+definitions that stage A
+(`v1/package-definitions/01-runtime-compatibility-for-package-owned-definit`)
+made resolvable, remove the live copies, and enforce strict single-source
+ownership.
+
+### Dependency
+
+Do not start until
+`v1/package-definitions/01-runtime-compatibility-for-package-owned-definit`
+is merged to control and every participating checkout's CLI is A or newer. If it is not, `coga block` naming that exact
+ref. Use A's recorded legacy removal inventory and transitional-check
+allowances as the starting point; recompute the inventory on current main.
+
+### Stage B scope
+
+**B — repo migration, removal, and strict ownership.** Reconcile with merged A
+and verify the CLI in every participating checkout uses A or newer. During a
+short coordinated migration window, quiesce state writers/recurring sessions,
+back up local definitions plus complete blackboards/attachments, and inventory
+active, parked, deleted and customized jobs. Compare definitions and sibling
+files separately from mutable blackboards, using a known prior seed/version
+when needed. A changed file is not presumed disposable merely because its
+name matches a bundled resource. Ambiguity retains an intentional local
+override until the owner decides; record the reason, never silently delete it.
+
+Publish selection before removing its dependent definitions (it changes
+nothing while equivalent locals still exist). For each approved bundled
+parent, replace the definition with a carrier preserving the entire saved
+blackboard byte-for-byte and remove only its reviewed definition siblings.
+Keep nontrivial state even for jobs with no declared `state_keys`; retain
+worklists, the shared log, clone ledgers, frozen periods and custom jobs.
+Read state from freshly reconciled control, never from the package's zero
+seed. A parent with no useful state can have no local ticket until first use.
+Do not leave a carrier plus orphaned definition siblings at an intermediate
+publication: prepare that parent's conversion as one guarded state change.
+
+Live-copy deletions/conversions are normal Coga state and may reach control
+before B's source/test commit. Use the ordinary publication path and inspect
+its receipt; do not exclude paths, suppress guards, or commit the packaged
+side through a state command. `coga run publish-state` without path operands
+can sweep deletions; named operands must be existing files, so verify removed
+paths separately in the resulting control tree. Reconcile any publication
+conflict without discarding newer state. Check control with A's runtime and
+packaging tests after selection, after the first conversion/deletion, and
+after the full removal, before enabling B's strict test policy.
+
+B replaces temporary twin equality with an inverse check: fail on every
+unapproved live counterpart, even byte-identical ones. Keep explicit reasons
+for scaffolds/state carriers and any reviewed override, require those reasons
+to describe real current files, and reject new accidental package/live copies.
+Do not preserve phone-home's full definition merely for its counters. Land
+B's final ownership tests/docs after the removals are safe; no intermediate
+control commit may depend on unmerged B runtime support.
+
+The operator migration lives with the shipped init/recurring contracts, with
+a linked release-note entry. It must work on customized existing repos and
+rehearse a rollback: keep writers quiesced, retain current state/ledgers,
+restore definitions from verified backups if needed, and restore selection
+without replaying periods. Require A-or-newer clients after migration; old
+clients cannot interpret carriers. Drain or defer migration of a job whose
+frozen custom instructions still require removed definition attachments;
+never rewrite frozen workflows or discard an unfinished period just to finish
+the migration. Retained custom attachments are documented overrides, not
+silent exceptions. Automatic seed-recognition/migration tooling is not
+required.
+
+### Acceptance criteria
+
+- [ ] This repo has no undeclared live counterparts of package resources;
+  the inverse check fails on any unapproved live copy, even a byte-identical
+  one, and on a deleted required fallback. All `coga-dev/` files remain
+  local-only.
+- [ ] The compatibility stage is merged and in use on control before any
+  dependent removal is published. A regression exercises the first live-copy
+  deletion/state conversion from a feature checkout against that control
+  version; control's package, navigation and representative runtime checks
+  stay green before the cutover PR merges.
+- [ ] A separate final-state regression edits packaged content on a feature
+  branch, both dirty and committed, then runs a mutating CLI exit sweep.
+  Control's packaged bytes stay unchanged while ordinary local task,
+  recurring-state and repo-context edits publish; control's packaging checks
+  pass. No publication guard, root membership or provenance rule is weakened.
+- [ ] The documented operator migration is rehearsed on this repo, including
+  rollback. Old seeds, customized overrides, parked jobs, saved state
+  (including phone-home's complete `period_state`), worklists, clone ledgers,
+  frozen periods, and repo-only jobs (`usage-report`, `upstream-coga`) and
+  attachments are preserved. The temporary `rollout/trim-log/coga/`
+  definition copies and their staged-twin assertions are removed.
+- [ ] Build the verification wheel from a pristine disposable clone and run
+  installed-artifact smoke tests outside the editable source path. Cover all
+  resource types and all nine parents with outward effects stubbed; compare
+  package-resource bytes before/after and exercise read-only resources.
+- [ ] The owning topics, `AGENTS.md`, indexes, shipped instructions and local
+  development links describe the new ownership and navigation. Context-link
+  validation reads the actual package tree. The relevant tests, seeded-repo
+  validation and full suite pass after reconciliation with current main.
 
 ## Context
+
+### Read first
+
+The shared design contract and verified source context live in
+[the group README](README.md) (`coga/tasks/v1/package-definitions/README.md`):
+"Shared design" sections 1–4 and 6, "Out of scope", and "Context". Read it
+in full before planning; it is not composed into this prompt. Update the
+README's design in the same PR when this stage changes the contract.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
