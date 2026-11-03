@@ -1,6 +1,6 @@
 ---
 title: 01 Runtime compatibility for package-owned definitions
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
