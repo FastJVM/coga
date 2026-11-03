@@ -26,7 +26,7 @@ use `git add --chmod=+x <file>` where Git ignores filesystem modes. A hit
 under the packaged `bootstrap/skills` comes from the installed Coga, not your
 repo: upgrade or reinstall Coga
 ([coga/install](../install/SKILL.md#upgrading-and-removing)). On POSIX the
-check reads the working-tree mode; on Windows, or with
+check reads the working-tree mode; on Windows, or with a repo-local
 `core.fileMode=false`, it reads the git index and skips untracked files. It
 skips a root that has neither source.
 
