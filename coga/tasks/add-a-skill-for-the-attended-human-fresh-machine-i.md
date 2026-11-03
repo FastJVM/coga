@@ -134,6 +134,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1153
 branch: coga/add-a-skill-for-the-attended-human-fresh-machine-i-84cdf7
 
 ## Implementation record
@@ -151,6 +152,9 @@ Current decisions:
   remain untouched. Both new skills stay local; no packaged twin changed.
 - PR #1145 is still separate and open. Its integration should cite
   `coga/testing/fresh-vm` instead of becoming another VM procedure owner.
+  Filed as draft follow-up
+  `competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill`
+  (the merge of this PR does not discharge it).
 
 ## Peer review
 
