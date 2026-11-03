@@ -9948,3 +9948,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-03 10:20 v1 [v1/refresh-main-before-megalaunch-builds-its-queue] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-03 10:20 v1 [v1/refresh-main-before-megalaunch-builds-its-queue] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-03 10:21 v1 [v1/refresh-main-before-megalaunch-builds-its-queue] [megalaunch] launched via coga megalaunch
+2026-11-03 10:26 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
