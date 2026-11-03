@@ -1,6 +1,6 @@
 ---
 title: Activate trim-log in this repo after retention merges
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 step: 4 (implement)
 agent: claude
-launch_generation: 34ccd79a-7f0b-4654-9888-c09f7b2e8e1b
 ---
 
 ## Description
@@ -422,6 +421,33 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Implementation entry check — 2026-11-03
+
+Owner resolved both open asks this session (see `## Blockers`): sole
+participating writer is `~/.local/bin/coga`; every other clone/scheduler is
+excluded until upgraded; the dirty Retro checkout is abandoned and untouched.
+
+Implement still cannot start in this session:
+
+- This megalaunch pick runs in `/home/n/Code/coga` on chat branch
+  `coga/chat-0b453101cbae` (0 ahead / 5 behind `origin/main`), not clean
+  `main`. Dirty files (`coga/log.md`, this ticket,
+  `v1/refresh-main-before-megalaunch-builds-its-queue`) are already on
+  `origin/main`, but the chat owns this checkout. `coga/checkouts/manual`'s
+  start check forbids switching an occupied checkout.
+- `~/.local/bin/coga` is still 0.4.1, an editable install of this checkout,
+  and the live megalaunch supervisor runs from it. The rollout needs that
+  writer stopped before it is replaced with the reviewed non-editable wheel.
+  This session can't do that from inside the queue.
+
+Next: after this megalaunch and chat end, start from a clean `main` with no
+supervisor running. Build the wheel from current `origin/main` and record its
+revision and SHA-256. `uv tool install` it in place of the editable install,
+then verify `coga_edge.trim_log` imports from site-packages. Then resume
+implement manually per the ticket's Proposed shape, steps 2–5. Nothing was
+installed, branched or changed in this session.
+
+
 ## Implementation prerequisite check
 
 2026-10-29 PDT / 2026-10-30 UTC — Codex stopped at rollout prerequisites.
@@ -679,6 +705,8 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
 
 - [x] [2026-11-02 22:08] [agent:claude] id=20261102T220849 Owner deferred rollout (2026-11-02). Settled: scheduler timezone PST/PDT; one reviewed non-editable wheel (record revision + SHA-256) for the single deployment installation; post-merge exception (b) — merged-tree verification and resumption stay on this ticket, open-pr files no drafts for them, autoclose stays off until the resumption record is written and the owner completes the final gate; megalaunch is acceptable for implement if the session uses only git/tests on the feature branch and returns to clean main before any coga command or bump; no separate maintenance window beyond holding autoclose. Still needed: the owner's list of live Coga writers for this repo (candidates: ~/Code/coga editable source behind ~/.local/bin/coga, ~/Code/codex/coga on 0.3.2, ~/Code/claude/coga, cron/scheduled jobs, other machines/people), each upgraded to the reviewed wheel or kept from running coga until upgraded; disposition of the dirty Retro checkout .dream-retro-20261026T172253Z/dream-ops.
   resolved: [2026-11-03 10:18] [human:nicktoper] Owner 2026-11-03: the only participating writer is the deployment install behind ~/.local/bin/coga, which must be replaced with the reviewed non-editable wheel (record revision + SHA-256) before activation. Excluded and kept from running coga until upgraded: ~/Code/codex/coga (0.3.2), ~/Code/claude/coga, ~/Code/coga/.venv (tests only), any cron/scheduled jobs, other machines or people. The dirty Retro checkout ~/Code/claude/.dream-retro-20261026T172253Z/dream-ops is abandoned and excluded: leave it untouched, not part of this rollout. Earlier settlements stand: PST/PDT scheduler timezone; post-merge exception (b), so merged-tree verification and resumption stay on this ticket, open-pr files no drafts for them, and autoclose stays off until the resumption record is written and the owner completes the final gate; implement may run under megalaunch if it uses only git/tests on the feature branch and returns to clean main before any coga command or bump; no maintenance window beyond holding autoclose.
+
+- [ ] [2026-11-03 10:20] [agent:claude] id=20261103T102001 Writer inventory resolved 2026-11-03. Implement now needs a session outside this megalaunch/chat: the checkout is occupied by chat branch coga/chat-0b453101cbae (not clean main), and the sole writer ~/.local/bin/coga is still an editable 0.4.1 install that this live supervisor runs from. After the queue ends, the owner (or a manual session) replaces it with a non-editable wheel built from current origin/main, records revision + SHA-256, and resumes implement from clean main.
 
 
 ---
