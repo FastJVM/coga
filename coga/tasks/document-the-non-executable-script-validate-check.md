@@ -24,9 +24,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 6205c7c3-0414-4b9e-be18-134272acbcb9
 ---
 
 ## Description
@@ -151,46 +150,98 @@ branch: document-non-executable-script-check
   are fixed upstream / Dream routes them human-needed, and the walk's
   symlink/pruned-dir details with the `validate._check_shebang_executables`
   pointer.
-- Overlap with open PR #1139 (unreviewed, idle since 2026-10-30): I placed
-  the paragraph between that PR's two first-task hunks so unchanged lines
-  separate them; `git merge-tree` of this branch against pull/1139/head
-  reports no conflict. That's why I didn't wait for #1139's review.
+- Implementation placed the paragraph between PR #1139's first-task hunks;
+  its trial merge was clean. Peer review corrected the earlier assumption
+  that #1139 had no review: its Coga direct review completed on 2026-10-29.
+  Owner acceptance remains pending; see the peer-review record below.
 - Test env note: the shell's `python` lacks Coga deps (tomlkit); tests were
   run with `.venv/bin/python`.
 - Retirement debt: the source ticket's local branch `shebang-exec-check` still
   exists; this ticket now carries its fact, so retire can delete it.
+
+## Peer review
+
+Completed direct Codex review on 2026-11-02. Claude authored the implementation
+(the implement handoff and original commit's Claude coauthor trailer agree).
+This was an independent review of that implementation; Codex also applied and
+self-reviewed the small correction below. No review tool or child agent was
+started, and no review remains in flight.
+
+Reviewed and pushed head: `fff3034d1911557da441664485c78bc7d71a136d`.
+Reviewed diff base: `49907ab2fce16137f17fffedeefb318acdc33840`.
+
+- Fixed one accuracy finding in both first-task copies: the Git-index
+  fallback uses a **repo-local** `core.fileMode=false`. The implementation
+  had dropped that qualifier from the old owning text. Confirmed against
+  `validate._check_shebang_executables` (`git config --local`) and the existing
+  global-fileMode and index-mode tests. Fix commit: `fff3034d1`.
+- Re-reviewed the final three-file diff after the fix: scope, error severity,
+  `--task` exclusion, remedies, mode sources, skip cases, knowledge ownership,
+  twin identity, and all three changed link destinations/headings. No
+  unresolved findings. No terminal or interactive surface changed; rendered
+  Markdown was not previewed.
+- PR #1139 remains open at `45a5636ec810411996b6007bad90cd4b59ac0255`.
+  Its PR body and `v1/33-review-all-doc` blackboard record a completed Coga
+  self-review on 2026-10-29; GitHub has no submitted reviews and owner
+  acceptance is still pending. The requested review sequencing is satisfied
+  by that completed review. A fresh trial merge is clean, and inspection of
+  its first-task text confirms both changes survive with identical twins.
+- Rebased onto fetched main before review; `git range-diff` confirmed the
+  original patch was unchanged. Final fetches found no further main movement.
+  The full suite below ran after the correction; an earlier pre-fix run was
+  intentionally interrupted and is not a passing receipt.
+- Pushed with an explicit lease against the old remote tip and returned to
+  clean, current main before writing this handoff. The branch has two commits
+  ahead of the reviewed base. Prepared `## PR` for the open-pr step.
 
 ## PR
 
 ```yaml
 title: Document the non-executable-script validate check in coga/first-task
 author: claude
-author_evidence: Implement step run by Claude (Opus 5.5) in this megalaunch session; see implement handoff.
-head: 511091d54f687d6a051390fdc333a3fdba047491
-base: 79d6452fff99238ff1968d918d92fb8d7c716465
+author_evidence: Claude (Opus 5.5) authored the implementation, supported by the implement handoff and original commit's coauthor trailer. Codex restored the repo-local qualifier during peer review.
+head: fff3034d1911557da441664485c78bc7d71a136d
+base: 49907ab2fce16137f17fffedeefb318acdc33840
 depth: skim
-rationale: Docs-only move of one fact from a local-only dev topic to the shipped user topic plus its byte-identical twin; no code change.
-implementation: Adds a user-facing paragraph on the non-executable-script error to coga/first-task (and packaged twin) and reduces coga-dev/testing to a summary, a link, and developer-only details.
-deviations: Did not wait for PR #1139's review as the ticket suggested; the edit sits between that PR's hunks and a trial merge against pull/1139/head is conflict-free.
-limitations: Rendered Markdown not previewed; anchor links checked against heading text only.
+rationale: Bounded documentation change checked against the validator and existing tests, with the full suite passing and byte-identical twins. Skim the reviewer-authored qualifier correction and the PR 1139 coordination note; no runtime behavior changes.
+implementation: Documents the non-executable-script error, scope, task-only exclusion, remedies, and mode sources in coga/first-task and its packaged twin. coga-dev/testing now summarizes and links while retaining developer guidance. Peer review restored the repo-local qualification on core.fileMode=false.
+deviations: Implementation proceeded while PR 1139 was open. Peer review verified that its Coga review had already completed on 2026-10-29 and that a current trial merge is clean; owner acceptance remains pending. No scope expansion.
+limitations: Rendered Markdown was not previewed; changed link targets and headings were checked directly. Tests ran on Linux/Python 3.12.12, with no fresh Python 3.11 or native Windows run. Codex self-reviewed its small qualifier correction; no second reviewer inspected that correction.
 files:
   docs/contexts/coga/first-task/SKILL.md: Owns the user-facing non-executable-script rule, remedy, and mode sources.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Packaged twin of coga/first-task, kept byte-identical.
   docs/contexts/coga-dev/testing/SKILL.md: Stops owning the user facts; summarizes, links, and keeps developer-only details.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; peer-review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: fff3034d1911557da441664485c78bc7d71a136d
+  base: 49907ab2fce16137f17fffedeefb318acdc33840
+  detail: Direct independent review of Claude's implementation completed. Fixed the missing repo-local qualifier, then re-reviewed the entire final diff against source, tests, ownership, links, and twins. Codex self-reviewed that small correction. No unresolved findings or review in flight.
 checks:
-  - command: .venv/bin/python -m pytest -q
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
     status: passed
-    head: 511091d54f687d6a051390fdc333a3fdba047491
-    base: 79d6452fff99238ff1968d918d92fb8d7c716465
-    detail: 4306 passed, 10 skipped (includes test_packaging twin byte-identity). Ran on the uncommitted tree; the commit holds exactly those edits and rebase was a no-op.
+    head: fff3034d1911557da441664485c78bc7d71a136d
+    base: 49907ab2fce16137f17fffedeefb318acdc33840
+    detail: 4306 passed, 10 skipped in 530.34s on Linux/Python 3.12.12, after rebase and the review fix. Includes validator and packaging checks.
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m coga.cli validate --task document-the-non-executable-script-validate-check --json
+    status: passed
+    head: fff3034d1911557da441664485c78bc7d71a136d
+    base: 49907ab2fce16137f17fffedeefb318acdc33840
+    detail: One valid task, no issues or fixes, checked on the feature branch.
+  - command: cmp docs/contexts/coga/first-task/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md
+    status: passed
+    head: fff3034d1911557da441664485c78bc7d71a136d
+    base: 49907ab2fce16137f17fffedeefb318acdc33840
+    detail: Byte-identical canonical and packaged first-task topics after the final fetch.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: fff3034d1911557da441664485c78bc7d71a136d
+    base: 49907ab2fce16137f17fffedeefb318acdc33840
+    detail: No whitespace errors after the final fetch; main had not moved.
   - command: git merge-tree --write-tree origin/pr-1139 document-non-executable-script-check
     status: passed
-    head: 511091d54f687d6a051390fdc333a3fdba047491
-    base: 79d6452fff99238ff1968d918d92fb8d7c716465
-    detail: Clean trial merge with open PR #1139.
+    head: fff3034d1911557da441664485c78bc7d71a136d
+    base: 49907ab2fce16137f17fffedeefb318acdc33840
+    detail: Clean trial merge with PR 1139 at 45a5636ec810411996b6007bad90cd4b59ac0255; combined first-task text preserves both changes and matching twins.
 ```
