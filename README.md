@@ -44,12 +44,16 @@ Its workflow is **agent researches → human reviews and decides which follow-up
 
 ## Why use Coga instead of just the agent?
 
-You keep using Claude Code or Codex. Coga gives each task durable context, a workflow, and a history that survives individual agent sessions:
+You keep using Claude Code or Codex to plan, investigate, and build. Coga gives you a shared plan and working knowledge that you can inspect, correct, and carry across sessions:
 
-- **Change the plan.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
-- **Give each task the right context.** Keep facts, constraints, and decisions discoverable as Markdown; select what a focused launch needs instead of making each session rediscover it.
-- **Put reviews where they matter.** Use a lightweight workflow for a simple change or require design, peer review, and human approval for more substantial work.
-- **Keep what you learn.** Record decisions in project contexts so later tasks inherit them, even when a different agent does the work.
+- **Understand and shape the plan.** Let the agent propose an approach, then read and refine what it intends to build. Add missing constraints, question assumptions, and decide what success means. The same edited plan helps you judge the work and gives the agent direction.
+- **Manage context rot with readable handoffs.** At each step, the agent records useful findings, decisions, and open questions. The next session starts fresh from the current ticket, notes, and selected knowledge. You can inspect, correct, and share what carries forward.
+- **Choose knowledge and skills for the task.** Select the facts, constraints, and procedures to include at launch. Make important guidance available from the start, and keep irrelevant or outdated instructions out of the task's prompt.
+- **Change the plan as you learn.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
+- **Put reviews where they matter.** Work interactively, add human review gates, or delegate work to run unattended. Choose the points where you want to check the plan, findings, or implementation.
+- **Keep what you learn.** Record useful discoveries in project contexts and reusable methods in skills so later tasks can draw on them, even when a different agent does the work.
+
+The [research behind these choices](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/principles/reading-list.md#context-skills-and-plan-review) covers context rot, selective guidance, and reviewing plans before implementation.
 
 ## When the first plan was wrong: Thinkpick
 
