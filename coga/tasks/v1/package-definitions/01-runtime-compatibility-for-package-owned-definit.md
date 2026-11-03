@@ -496,4 +496,31 @@ For review / owner decision:
   The seeded fixture validates clean (Slack env unset).
 - Peer review has not run. That is the next workflow step.
 
+## Peer review (in progress, Codex, 2026-11-03)
+
+Direct review began independently of Claude's implementation. Rebased the branch onto
+`bdffb5555d5757d766ebd1941e8bff313126ef2a`; no PR exists. Final review/check receipts
+will replace this note before the transition. **Do not advance while checks are running.**
+
+Must-fix findings applied in `06920900d`, `d3aafe99f`, and `c4f7cb90c`:
+- First package period now publishes its new carrier with the period/ledger under the
+  absence CAS. Tests cover control/feature creation, competing parent state and stale-period adoption.
+- Discovery agrees with override resolution; incomplete/unreadable local overrides fail.
+  Carrier creation is locked; direct phone-home validates carrier state and preserves extra keys.
+- Retention validates carrier siblings, pins the effective packaged script across retries,
+  and adoption stays idempotent after first use. Interleaved/parked/cursor-race tests use carriers too.
+- Transitional packaging validates carriers as state. Deletion rehearsal found live-path test
+  readers and a removable directory link; changed them to package owners and tightened navigation.
+- Real PTY checks at 80x24 and 120x40 exposed status truncation. Reasons now follow the
+  table; full names, schedules and selection labels remain visible at both sizes.
+- A dangling jobs.toml symlink used to restore local-only activation. It now refuses scans,
+  force and named admission instead; regression passes.
+
+Focused checks pass. A pristine-clone wheel smoke covers all resource types/nine parents,
+with outward effects stubbed and read-only resource bytes unchanged. The pre-A publisher
+rehearsal preserved 170 definition/resource files while publishing task and complete
+phone-home state; its own packaging/navigation/runtime suite passed 249 tests.
+The final full suite and expanded deletion rehearsal are running. No live recurring
+instruction/sibling, rollout definition, workflow or bootstrap ticket was edited.
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
