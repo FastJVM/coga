@@ -1,7 +1,7 @@
 ---
 title: Stop the contexts-root sweep from publishing canonical topics without their
   packaged twins
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga-dev/principles
