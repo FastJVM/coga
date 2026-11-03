@@ -167,9 +167,11 @@ invoked, and launch never follows a recorded `worktree:`.
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.
 - **Launch and megalaunch compose from the invoking checkout.** An ordinary
   ticket launch or direct chat brings it to fresh control first (the [launch
-  boundary](launch-boundary/SKILL.md)). Run megalaunch and exempt launches
-  only from a control checkout freshly synced to `origin/<control>`; a stale
-  one re-dispatches merged work.
+  boundary](launch-boundary/SKILL.md)). Megalaunch fast-forwards a control
+  checkout before queueing ([refresh first](../megalaunch/SKILL.md#refresh-first))
+  but only fetches on a feature branch, so run it and exempt launches from a
+  control checkout synced to `origin/<control>`; a stale one re-dispatches
+  merged work.
 
 ## Stranded ticket writes
 
