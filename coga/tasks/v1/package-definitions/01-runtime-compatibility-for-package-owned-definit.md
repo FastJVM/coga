@@ -1,6 +1,6 @@
 ---
 title: 01 Runtime compatibility for package-owned definitions
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6cb4cd49-aa69-4396-9773-a7c158e31722
 ---
 
 ## Description
