@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: docs/with-review
