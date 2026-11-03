@@ -26,9 +26,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 75fd03a4-8a21-4a83-8ad3-66c768ed8243
 ---
 
 ## Description
@@ -168,29 +167,110 @@ branch: coga/v1-refresh-main-before-megalaunch
   so this fix would not have refreshed it. Possible follow-up: megalaunch could
   refuse or warn when not on the control branch.
 
+## Peer review
+
+- Completed an independent direct Codex review of head `7b58e175c6b218ee244f19aa72db52e35f0a6ee9` against
+  base `78d6c065669155aec7bd100ebb97554eeb3db6e7`. Claude Opus 5.5 implemented the change; Codex reviewed it
+  in this fresh session and made no implementation edits. No must-fix findings.
+- Reviewed all six diff paths, refresh-before-read ordering, failure handling,
+  configuration reload, real-Git status/step regressions, and the existing
+  feature/detached and soft-skip contracts. Both packaged topics match their
+  canonical copies byte-for-byte.
+- Rebased onto current main, including recurring-job state and its retire
+  worklist, and re-reviewed the resulting diff. The implementation patch was
+  unchanged. The final full-suite run passed: 4310 passed, 10 skipped in
+  783.20s on Linux/Python 3.12.12; exact commands and revisions are below.
+- Drove the actual picker in real PTYs at 100x24 and 60x10 from stale control
+  checkouts. Only the owner-held step-2 ticket appeared; the completed ticket
+  disappeared. Space/Enter produced a human-gate skip with no launch, and
+  Space/q canceled cleanly in the narrow terminal. A diverged control checkout
+  printed the refresh reason and exited 1 before the picker, preserving HEAD
+  and ticket bytes. Disposable fixtures disabled Slack and spawned no agents.
+- Pushed the final branch with `--force-with-lease` and returned this checkout
+  to clean current main before writing the handoff. The next step is the
+  mechanical PR publication; the preparation below recommends `skim` and
+  records the intended feature/detached-checkout limitation.
+
 ## PR
 
 ```yaml
 title: Refresh control before megalaunch builds its queue
-author: claude (claude-opus-5-5), megalaunch session 17f63b43-637b-4b7d-87ac-616ed3797bf1
-head: adde8e15dad609851e6d2990f0c2e143fa256a61
-base: bf3043233b723ac94ec738b33973e7258633d819
-review_depth: light
-review_depth_rationale: one guarded call at command entry plus docs; behavior reuses existing git.refresh
+author: claude
+author_evidence: The implement handoff records Claude Opus 5.5; the implementation commit
+  also carries the Claude Opus 5.5 co-author trailer. Codex performed this fresh peer-review
+  session and authored no implementation changes.
+head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+depth: skim
+rationale: Bounded command-entry change reuses the existing Git refresh contract. Independent
+  direct review, real-Git regressions, the full suite and real-terminal checks verify the
+  change. Read the feature/detached-checkout limitation before merging.
+implementation: Megalaunch refreshes control before sweep, picker or saved-selection ticket
+  reads, reloads configuration, and stops with exit 1 when refresh returns False. Real-Git
+  tests cover peer status/step changes across pick, sweep and relaunch; both owning guidance
+  topics and their packaged twins are updated.
+deviations: None. The configuration reload follows the existing launch pattern. The checkouts
+  guidance is aligned with the new megalaunch rule.
+limitations: Feature and detached checkouts retain fetch-only behavior and queue from their
+  own files, as requested. Verification ran on Linux/Python 3.12.12; Python 3.11 and Windows
+  were not run. Terminal fixtures disabled Slack and did not spawn an agent.
 files:
-  src/coga/commands/megalaunch.py: refresh control at entry; stop on failure
-  tests/test_megalaunch.py: real-Git regressions for pick, sweep, relaunch, and refresh failure
-  docs/contexts/coga/megalaunch/SKILL.md: state the refresh-first rule
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: packaged twin
-  docs/contexts/coga/checkouts/SKILL.md: align the invoking-checkout guidance with refresh-first
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: packaged twin
-review: not yet run (peer-review is the next step)
+  src/coga/commands/megalaunch.py: Refresh before selection and queue reads, stop on failure,
+    and reload configuration.
+  tests/test_megalaunch.py: Real-Git regressions for pick, sweep and relaunch, plus the failed-refresh
+    short circuit.
+  docs/contexts/coga/megalaunch/SKILL.md: Own the refresh-first rule and its existing soft-skip
+    and feature-checkout limits.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Ship the
+    byte-identical megalaunch topic.
+  docs/contexts/coga/checkouts/SKILL.md: Align invoking-checkout guidance and link the owning
+    refresh-first contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Ship the byte-identical
+    checkout guidance.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: Direct review completed after the final rebase. Inspected all six diff paths, command
+    ordering, the shared refresh contract, regression coverage, and canonical/package pairs.
+    No must-fix findings or implementation edits; the final patch is unchanged by rebase.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    result: 4310 passed, 10 skipped (743s)
-    tree: 5c4fdd133a596ddd7c0bb555363fece4b1bc624e
-    note: rebase onto bf3043233 changed only coga/log.md; src/tests/docs identical to tested tree (git diff --quiet)
-  - command: .venv/bin/python -m pytest tests/test_megalaunch.py -k "control_state or refresh_cannot" with the refresh call disabled
-    result: 4 failed (regressions confirmed)
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: 4310 passed, 10 skipped in 783.20s (13:03), on Linux/Python 3.12.12 after the final
+    rebase.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-refresh-peer-review-wu4yjvf_/run.py
+    final-wide 24 100
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: Real PTY, 100 columns by 24 rows, with a bare remote and peer checkout advancing
+    two tickets. Only the in_progress owner-held step appeared; the done ticket was absent.
+    Space and Enter selected it; the run skipped the human gate, launched zero agents, and
+    exited 0.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-refresh-peer-review-wu4yjvf_/run.py
+    final-narrow 10 60
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: Real PTY, 60 columns by 10 rows, starting behind the same peer transitions. The
+    refreshed row, cursor and checkbox remained visible; Space toggled and q canceled with
+    exit 0. Long fields truncated within their cells.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-refresh-peer-review-wu4yjvf_/run.py
+    final-failure 24 100
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: 'Real PTY with diverged main and an unpublished code commit. Exit 1 was expected
+    and observed: the refresh reason and no-work notice appeared before any picker. Local
+    HEAD and ticket bytes were preserved.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 7b58e175c6b218ee244f19aa72db52e35f0a6ee9
+  base: 78d6c065669155aec7bd100ebb97554eeb3db6e7
+  detail: No whitespace errors.
 ```
-
