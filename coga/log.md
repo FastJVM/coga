@@ -9998,3 +9998,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [megalaunch] launched via coga megalaunch
+2026-11-03 14:38 v1 [competition-testing/make-hands-on-trial-cite-the-shared-fresh-vm-skill] [agent:claude] blocked: Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
