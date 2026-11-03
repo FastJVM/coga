@@ -466,7 +466,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     template_dir = coga_os / "recurring" / "skill-update"
     ticket = (template_dir / "ticket.md").read_text(encoding="utf-8")
     script = (template_dir / "ticket.py").read_text(encoding="utf-8")
-    workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text(encoding="utf-8")
+    workflow = (coga_os / "bootstrap" / "workflows" / "skill-update" / "run.md").read_text(encoding="utf-8")
 
     assert ticket.startswith("---\n")
     assert "schedule:" in ticket

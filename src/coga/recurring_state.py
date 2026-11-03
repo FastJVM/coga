@@ -135,7 +135,8 @@ def inspect_parent_dir(path: Path) -> ParentDir:
             return ParentDir(
                 path, INCOMPLETE,
                 f"{path} holds a state-only carrier beside definition files "
-                f"({', '.join(others)}); a carrier inherits nothing from them. "
+                f"({', '.join(others)}): an incomplete fork; a carrier inherits "
+                "nothing from them. "
                 "Make it a full local override (copy the definition into "
                 "ticket.md) or remove those files",
                 state,

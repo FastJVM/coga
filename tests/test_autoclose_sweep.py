@@ -113,7 +113,15 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         ),
     ]
 
+    from test_packaging import LEGACY_DEFINITION_DIFFERENCES, REPO_ROOT
+
     for live, packaged, tolerant in pairs:
+        if not live.exists():
+            continue  # a removed legacy copy: the package is the only owner
+        if live.relative_to(REPO_ROOT).as_posix() in LEGACY_DEFINITION_DIFFERENCES:
+            # Stage A's reviewed difference (pinned in test_packaging); only
+            # the packaged definition is current.
+            continue
         live_text, packaged_text = live.read_text(encoding="utf-8"), packaged.read_text(encoding="utf-8")
         if tolerant:
             live_text = _strip_runtime_state(live_text)

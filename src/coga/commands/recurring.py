@@ -274,8 +274,13 @@ def list_recurring(ctx: typer.Context) -> None:
     statuses = list_templates(cfg, include_available=True)
     picked = [ref for ref in list_tasks(cfg) if ref.directory == "recurring"]
 
-    if not statuses and not picked:
+    configured = [
+        s for s in statuses
+        if s.error or not (s.selection == "unselected" and s.origin == "package")
+    ]
+    if not configured and not picked:
         typer.echo("(no recurring templates)")
+        _print_templates_table(Console(), statuses, datetime.now())
         return
 
     console = Console()
@@ -301,7 +306,7 @@ def _print_templates_table(
         console.print(
             "[dim]Bundled recurring jobs available but not selected: "
             + ", ".join(available)
-            + " — enable one with `<name> = true` under [jobs] in "
+            + " — enable one with `<name> = true` under \\[jobs] in "
             "coga/recurring/jobs.toml[/dim]"
         )
     if not statuses:
