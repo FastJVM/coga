@@ -9904,3 +9904,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-02 16:23 v1 [document-the-non-executable-script-validate-check] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-02 16:23 v1 [document-the-non-executable-script-validate-check] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-02 16:24 v1 [document-the-non-executable-script-validate-check] [megalaunch] launched via coga megalaunch
+2026-11-02 16:34 v1 [document-the-non-executable-script-validate-check] [agent:claude] advanced to step 2 (peer-review) → codex

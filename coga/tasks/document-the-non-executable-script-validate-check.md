@@ -24,9 +24,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: bc6dfaf2-4098-404c-851a-78d188097ead
 ---
 
 ## Description
@@ -136,12 +135,61 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: document-non-executable-script-check
 
-## Plan
+## Handoff (implement)
 
-- Overlap with open PR #1139 (unreviewed, idle since 2026-10-30): its
-  first-task hunks change base lines 11-16 and 24-29. Insert the new paragraph
-  between the readiness code block and "Run `coga validate` again" (base
-  lines 17-20) so unchanged lines separate it from both hunks — no textual
-  conflict, so no need to wait for that review.
-- Add the user-facing facts to coga/first-task + packaged bootstrap twin; trim
-  coga-dev/testing to a summary + link.
+- coga/first-task "0. Check readiness" (and its byte-identical packaged twin)
+  gains one paragraph after the readiness code block: #! files under the
+  skills root / packaged bootstrap skills must be executable
+  (`non-executable-script` error); `--task` skips the check; remedy
+  `chmod +x` + commit or `git add --chmod=+x`; a packaged-tree hit means
+  upgrade/reinstall Coga (links coga/install#upgrading-and-removing); mode
+  source is working tree on POSIX, git index on Windows or
+  `core.fileMode=false` (untracked skipped); roots with neither are skipped.
+- coga-dev/testing now summarizes and links to coga/first-task; it keeps only
+  developer facts: commit packaged shebang scripts 100755, packaged-tree hits
+  are fixed upstream / Dream routes them human-needed, and the walk's
+  symlink/pruned-dir details with the `validate._check_shebang_executables`
+  pointer.
+- Overlap with open PR #1139 (unreviewed, idle since 2026-10-30): I placed
+  the paragraph between that PR's two first-task hunks so unchanged lines
+  separate them; `git merge-tree` of this branch against pull/1139/head
+  reports no conflict. That's why I didn't wait for #1139's review.
+- Test env note: the shell's `python` lacks Coga deps (tomlkit); tests were
+  run with `.venv/bin/python`.
+- Retirement debt: the source ticket's local branch `shebang-exec-check` still
+  exists; this ticket now carries its fact, so retire can delete it.
+
+## PR
+
+```yaml
+title: Document the non-executable-script validate check in coga/first-task
+author: claude
+author_evidence: Implement step run by Claude (Opus 5.5) in this megalaunch session; see implement handoff.
+head: 511091d54f687d6a051390fdc333a3fdba047491
+base: 79d6452fff99238ff1968d918d92fb8d7c716465
+depth: skim
+rationale: Docs-only move of one fact from a local-only dev topic to the shipped user topic plus its byte-identical twin; no code change.
+implementation: Adds a user-facing paragraph on the non-executable-script error to coga/first-task (and packaged twin) and reduces coga-dev/testing to a summary, a link, and developer-only details.
+deviations: Did not wait for PR #1139's review as the ticket suggested; the edit sits between that PR's hunks and a trial merge against pull/1139/head is conflict-free.
+limitations: Rendered Markdown not previewed; anchor links checked against heading text only.
+files:
+  docs/contexts/coga/first-task/SKILL.md: Owns the user-facing non-executable-script rule, remedy, and mode sources.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Packaged twin of coga/first-task, kept byte-identical.
+  docs/contexts/coga-dev/testing/SKILL.md: Stops owning the user facts; summarizes, links, and keeps developer-only details.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; peer-review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 511091d54f687d6a051390fdc333a3fdba047491
+    base: 79d6452fff99238ff1968d918d92fb8d7c716465
+    detail: 4306 passed, 10 skipped (includes test_packaging twin byte-identity). Ran on the uncommitted tree; the commit holds exactly those edits and rebase was a no-op.
+  - command: git merge-tree --write-tree origin/pr-1139 document-non-executable-script-check
+    status: passed
+    head: 511091d54f687d6a051390fdc333a3fdba047491
+    base: 79d6452fff99238ff1968d918d92fb8d7c716465
+    detail: Clean trial merge with open PR #1139.
+```
