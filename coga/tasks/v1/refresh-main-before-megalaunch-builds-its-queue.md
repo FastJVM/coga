@@ -26,9 +26,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 3cdcca1c-1b87-4ae1-925c-b1b89c42b6b8
 ---
 
 ## Description
@@ -147,3 +146,50 @@ branch: coga/v1-refresh-main-before-megalaunch
 - Entry: no prepared checkout; this checkout was on stale `coga/chat-0b453101cbae`
   (behind main, no unique commits; dirty paths all identical to origin/main).
   Switched with `git switch -m main` (merge preserved content), ff to origin/main.
+
+## Handoff (implement)
+
+- `src/coga/commands/megalaunch.py` (`megalaunch`): after config/agent
+  validation, calls `git.refresh(cfg)` before `_resolve_selection`; on False
+  prints a one-line red notice and exits 1 (refresh already printed the cause).
+  Reloads config after refresh, mirroring `launch.py`'s post-refresh reload.
+- Tests (`tests/test_megalaunch.py`): `_peer_advances_control_behind_local`
+  helper (real Git peer clone advances one ticket to done and another to its
+  owner step); `test_megalaunch_pick_offers_control_state_not_stale_checkout`,
+  `test_megalaunch_queue_reflects_control_state_not_stale_checkout[sweep|relaunch]`,
+  `test_megalaunch_stops_when_refresh_cannot_level_control`. All four fail with
+  the refresh call disabled.
+- Docs: new "Refresh first" section in `coga/megalaunch`; `coga/checkouts`
+  "Which checkout you invoke Coga from" bullet updated. Twins copied byte-identical.
+- Adjacent observation, not fixed (out of scope per ticket): today's
+  megalaunch ran in a checkout left on `coga/chat-0b453101cbae` (a stale chat
+  branch, behind main). refresh treats that as a feature checkout (fetch only),
+  so this fix would not have refreshed it. Possible follow-up: megalaunch could
+  refuse or warn when not on the control branch.
+
+## PR
+
+```yaml
+title: Refresh control before megalaunch builds its queue
+author: claude (claude-opus-5-5), megalaunch session 17f63b43-637b-4b7d-87ac-616ed3797bf1
+head: adde8e15dad609851e6d2990f0c2e143fa256a61
+base: bf3043233b723ac94ec738b33973e7258633d819
+review_depth: light
+review_depth_rationale: one guarded call at command entry plus docs; behavior reuses existing git.refresh
+files:
+  src/coga/commands/megalaunch.py: refresh control at entry; stop on failure
+  tests/test_megalaunch.py: real-Git regressions for pick, sweep, relaunch, and refresh failure
+  docs/contexts/coga/megalaunch/SKILL.md: state the refresh-first rule
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: packaged twin
+  docs/contexts/coga/checkouts/SKILL.md: align the invoking-checkout guidance with refresh-first
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: packaged twin
+review: not yet run (peer-review is the next step)
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    result: 4310 passed, 10 skipped (743s)
+    tree: 5c4fdd133a596ddd7c0bb555363fece4b1bc624e
+    note: rebase onto bf3043233 changed only coga/log.md; src/tests/docs identical to tested tree (git diff --quiet)
+  - command: .venv/bin/python -m pytest tests/test_megalaunch.py -k "control_state or refresh_cannot" with the refresh call disabled
+    result: 4 failed (regressions confirmed)
+```
+
