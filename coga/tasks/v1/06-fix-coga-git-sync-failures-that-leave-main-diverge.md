@@ -6,137 +6,136 @@ contexts:
   - coga/sync
   - coga/state-publication
   - coga-dev/internals/state-publication
-  - coga-dev/internals/git-refresh
 workflow: code/design-then-implement
 ---
 
 ## Description
 
-Coga's automatic git sync keeps failing, and when it does it leaves local main with commits that diverge from origin/main. On 2026-09-29 this forced a manual reset. Find the root cause of each failure class and fix it so that sync either succeeds or fails loudly without leaving main diverged. Do not assume the sandbox makes `.git` read-only: on the owner's machine `.git` is read-write, so a "Read-only file system" error comes from whatever sandbox the failing process ran in, and that has to be identified.
+Coga's automatic git sync keeps failing in the Multiply checkout
+(`~/Code/multiply`), and on 2026-09-29 a failure left local `main` diverged
+from `origin/main`, forcing a manual reset. Diagnose each failure class
+against the **current** Coga revision, fix what is fixable in code, and record
+an explicit decision for the rest, so sync either succeeds or fails loudly
+with a remedy and never leaves `main` diverged. Do not assume Coga's sandbox
+makes `.git` read-only: on the owner's machine `.git` is read-write, so a
+"Read-only file system" error comes from whatever sandbox the failing process
+ran in, and that process has to be identified.
 
 Done when:
 
-- The root cause of each failure class in the table under Context is either
-  fixed or explicitly accepted, and the reason is written down. If a fix is an
-  owner-side `coga.toml` / `coga.local.toml` or CLI-settings change, the
-  design names it as an open question for the review-design gate; the owner
+- Every failure class from the recount (see Context) is either fixed or
+  explicitly accepted, with the reason written down. If the fix is an
+  owner-side `coga.toml` / `coga.local.toml` or agent-CLI settings change, the
+  design names it as an open question for the `review-design` gate; the owner
   applying it counts as fixed.
-- A launched Codex session and a launched Claude session can each finish a
-  step in `~/Code/multiply`, with normal network access, without adding a
-  `[git] sync failed` line. The PR attaches the relevant `coga/log.md` excerpt.
-- A failed sync never leaves `main` diverged when origin already has the same
-  content. A regression test in `tests/` simulates a failed publish followed by
-  a later sync and asserts that `main` ends up matching origin. Any failure it
-  does produce is loud and says what to run.
+- The divergence case is confirmed covered: PR #948 already realigns local
+  `main` over state-only commits control carries. Confirm it covers *a failed
+  publish followed by a later sync* by citing the existing test in
+  `tests/test_git.py`, or add only the missing regression test, asserting
+  `main` ends level with origin and any refusal is loud and names what to run.
+- Owner-run check at the final `review` gate (not the agent's job): after the
+  owner installs the PR build in Multiply, a launched Codex session and a
+  launched Claude session each finish a step with normal network access and
+  add no `[git] sync failed` line for the classes marked fixed. The owner
+  attaches the `coga/log.md` excerpt to the PR.
 
 ## Context
 
 ### Incident (2026-09-29)
 
-The incident and all log evidence below come from the Multiply checkout
-(`~/Code/multiply`, its `coga/log.md`), a consumer repo of this package; the
-fix lands here in Coga.
+Evidence comes from Multiply (`~/Code/multiply`, its `coga/log.md`), a
+consumer repo; the fix lands here in Coga. Local `main` was 1 ahead / 5
+behind `origin/main` with uncommitted `coga/log.md` and ticket edits, all of
+which had already reached origin through separate sync commits; the working
+tree was byte-identical to `origin/main`. Fixed by hand with
+`git branch backup/main-94da4bda HEAD && git reset origin/main`. The
+`backup/main-94da4bda` branch still exists in Multiply as a repro artifact;
+after #948 it reproduces an already-handled case.
 
-Local `main` was 1 commit ahead of `origin/main` and 5 behind, and it also had
-uncommitted edits to `coga/log.md` and the `decide-the-six-title-only-tickets-flagged-by-valid`
-ticket. The local commit `94da4bda` and the uncommitted edits had already
-reached origin through separate sync commits (`f1f696a8` "Sync coga state",
-`6ab1e663`, `f500316f`, `b8953733`, `b37922f7`). The working tree was
-byte-identical to `origin/main`. It was fixed by hand with
-`git branch backup/main-94da4bda HEAD && git reset origin/main`. Nobody should
-have to do that. The `backup/main-94da4bda` branch still exists in
-`~/Code/multiply` and can serve as a repro artifact.
+**Already fixed since:** PR #948 (`f7fde464b`, merged 2026-10-05) made
+`git.fast_forward_control` realign local control when
+`git._local_control_subsumed` proves every local-only commit is Coga state
+control already carries (`git._realign_control`); otherwise
+`git._divergence_message` refuses with a `git pull --rebase --autostash`
+remedy. Tests: `tests/test_git.py` ("hand commit was realigned away", the
+"realigning a state-only divergence" block). Do not add another realignment
+path; reuse this one.
 
-### Sync failures recorded in `coga/log.md` (`[git] sync failed`)
+### Failure classes — recount, don't trust
 
-| Count | Error | Dates | Status |
-| --- | --- | --- | --- |
-| 151 | `git fetch` → `Could not resolve host: github.com` | 2026-08-14 → 2026-09-21 21:14 | Session without network access |
-| 41 | `git hash-object` → `unable to create temporary file: Read-only file system` / `fatal: Unable to add (null) to database` | 2026-09-22 10:32 → 2026-09-29 | Live; process ran where `.git` was not writable |
-| 4 | `git add` → `Unable to create '/home/n/Code/codex/multiply/.git/index.lock': Read-only file system` | 2026-08-26 | Same shape, in the `~/Code/codex/multiply` checkout (still exists) |
-| 16 | `could not rebase 'main' onto origin/main: could not apply 1678fe5... Contexts: pivo…` | 2026-08-19 only | Probably obsolete (see below) |
-| 2 | Rebase blocked by untracked working-tree files | 2026-09-13 only | Probably obsolete |
-| 4 | `could not reapply local changes after rebasing`; pre-sync state restored | 2026-09-17 only | Probably obsolete |
+Recount from Multiply with:
 
-`[coga]` is the slug on 90 of the 218 failures, which makes them repo-wide
-state syncs. Every other failure belongs to a ticket-scoped sync.
+```
+grep "\[git\] sync failed" ~/Code/multiply/coga/log.md
+```
 
-Findings from the ticket's cold review, to verify rather than trust:
+As of 2026-11-02: 263 lines (68 in Aug, 163 in Sep, 32 in Oct), `[coga]` slug
+= repo-wide sweep, other slugs = ticket-scoped sync. Classes seen:
 
-- **The switch from `fetch` to `hash-object` failures tracks a code change.**
-  Coga #848 "Simplify git sync" landed 2026-09-21 20:31, between the last
-  `Could not resolve host` and the first `hash-object` failure. Once publish
-  writes objects before fetching, a restricted session trips on `hash-object`
-  first. This may be one cause (a restricted session running sync) seen
-  through two code paths.
-- **It is not clearly Codex-specific.** Failing entries include bumps logged
-  as `[agent:claude] advanced … → codex` (09-22 10:32) and
-  `[human:nicktoper] advanced … → codex` (09-29 08:59). Neither repo's
-  `[agents.claude]` or `[agents.codex]` sets a sandbox flag, so any
-  restriction comes from each CLI's defaults or user-level settings. Check
-  both CLIs, and the operator/agent fields around each failure.
-- **The rebase/autostash rows predate #848.** Current `git.py` has no rebase
-  or autostash sync path. It only prints a `git pull --rebase` hint. Confirm
-  and record that as the resolution.
-- **The divergence mechanism is likely in `git-refresh`.**
-  `fast_forward_control` leaves an ahead-or-diverged `main` alone and prints
-  `git pull --rebase`. That is the natural place for "local content already
-  matches origin → fast-forward".
-- Relevant code: `git.sync_task_state`, `git.publish` and its `hash-object`
-  call, and the `[git] sync failed` sites in `git.py`, `mark.py`,
-  `recurring_runner.py`, `authoring.py`. `coga-dev/internals/git-regressions` and
-  `coga-dev/internals/spool-merge` (under `docs/contexts/`) are cited, not
-  attached. Read them only if the fix touches the provenance check or the
-  union merge of `log.md`.
+| Class | Window | Notes |
+| --- | --- | --- |
+| `git fetch` / push → `Could not resolve host: github.com` | 08-14 → 09-21; 4 push failures in Oct | Network unavailable in the publishing process; DNS failure alone does not prove sandbox denial |
+| `git hash-object` → `unable to create temporary file: Read-only file system` | 09-22 → 10-14 (27 in Oct) | Process ran where `.git` objects were not writable. Check whether the current revision still produces it; last seen 10-14 |
+| `git add` → `.git/index.lock: Read-only file system` | 08-26 | Same shape, `~/Code/codex/multiply` checkout |
+| `git rm --cached` → `/tmp/coga-git-index-*.lock: No space left on device` | 10-27 | New class: temp-index write on a full `/tmp`. Decide fix vs. accept |
+| Rebase conflict (`1678fe5`), rebase blocked by untracked files, autostash reapply failure | 08-19, 09-13, 09-17 | Predate #848 "Simplify git sync" (`1210b7c39`, 2026-09-21); current `git.py` has no rebase/autostash sync path, only a hint string. Confirm and record as resolved |
+
+The fetch → `hash-object` switch lines up with #848: once publish writes
+objects before fetching, a restricted session fails on `hash-object` first.
+This may be one cause seen through two code paths. Check which Coga version
+Multiply runs (owner machine had `coga 0.4.1` on 2026-11-02) against when each
+failure was logged.
 
 ### What to find out
 
 1. Which process and environment ran each `hash-object` / `index.lock` /
-   `fetch` failure, and why `.git` was unwritable or the network unreachable
-   there (`.git` itself is read-write on the owner's machine). Check both the
-   Codex and Claude Code CLIs' sandbox defaults, and `[agents.*]` in
-   `coga.toml` / `coga.local.toml`. Agents may not edit those files, so
-   propose any change to the owner.
-2. Why a failed in-session sync ends up as a later local commit that
-   duplicates what reached origin another way, rather than being retried
-   cleanly.
-3. Whether the divergence could be avoided: for example, sync from the
-   supervisor (outside any sandbox) after the session exits, or have a
-   post-failure sync notice that local content already matches origin and
-   fast-forward.
-4. Confirm the rebase conflict (`1678fe5`), untracked-file, and autostash
-   failures are resolved by #848.
+   network failure, and why `.git` was unwritable or the network unreachable
+   there. It is not clearly Codex-specific: failing entries include
+   `[agent:claude] advanced … → codex` (09-22 10:32) and
+   `[human:nicktoper] advanced … → codex` (09-29 08:59). Neither repo's
+   `[agents.claude]` / `[agents.codex]` sets a sandbox flag, so check both
+   CLIs' defaults and user-level settings, and the operator/agent fields
+   around each failure. Agents may not edit `coga.toml` / `coga.local.toml`;
+   propose changes to the owner. EROFS errors already report the checkout
+   path (`test_erofs_hash_failure_keeps_git_stderr_and_the_location`).
+2. Against current code (post-#948 and the end-of-command sweep), whether a
+   failed in-session sync can still become a later local commit duplicating
+   what reached origin.
+3. Whether moving publication out of the sandbox (e.g. the supervisor syncing
+   after session exit) is needed. If so, record it as a follow-up ticket —
+   a pending-publication / deferred-retry state is out of scope here (it would
+   change the `coga/state-publication` contract). Any such follow-up must
+   keep a visible pending state, actionable recovery, strict caller
+   semantics, and uncertain-push handling; a deferred write is never reported
+   as published.
 
-### Additional downstream report — 2026-10-07
+### Code pointers
 
-Another AI, relayed by the owner, reports these additional failure counts:
+- `git.sync_task_state`, `git.publish` and its `hash-object` call, the
+  `hash-object` failure error class in `git.py`.
+- Literal `[git] sync failed` sites: `git.py`, `recurring_runner.py`,
+  `commands/recurring.py`. `mark.py`, `commands/mark.py` and `authoring.py`
+  catch `git.GitError` and report through `git.py`'s helper.
 
-| Reported count | Failure | Reported window |
-| --- | --- | --- |
-| 59 | Push failures, almost all “Could not resolve host” | September–October 2026 |
-| 20 | Writes to .git fail with “Read-only file system” | September–October 2026 |
-| 68 | Fetch failures | August–September 2026 |
+### Cited, not attached
 
-The source checkout, precise query, and full excerpts were not supplied.
-These counts have not been independently reproduced and must not be added to
-the earlier Multiply totals without checking repository, period, and overlap.
-Obtain those inputs and compare against the running Coga revision.
+- `coga-dev/internals/git-refresh` (`docs/contexts/coga-dev/internals/git-refresh/SKILL.md`):
+  read "The realignment proof", "`fast_forward_control`" and "`refresh`".
+  Attach it only if the design changes realignment.
+- `coga/checkouts/sandbox-clone` and `coga/checkouts/launch-boundary`
+  (`docs/contexts/coga/checkouts/`): the sandbox and checkout boundary, for
+  question 1.
+- `coga-dev/internals/git-regressions` and `coga-dev/internals/spool-merge`:
+  only if the fix touches the provenance check or the `log.md` union merge.
 
-Proposed direction to evaluate, not an accepted root cause: detect an
-unavailable network or an unwritable .git in the actual publishing process,
-retain the pending state, and defer synchronization to an eligible supervisor
-or later retry instead of repeatedly appending the same failure. DNS failures
-alone do not prove sandbox denial. Preserve a visible pending-publication
-state, actionable recovery, strict caller semantics, and uncertain-push
-handling; a deferred write must never be reported as successfully published.
+### Related
 
-The broader log-format defect (multiline Git stderr becoming orphan audit
-lines) is tracked separately in keep-multiline-audit-messages-on-one-log-line.
-The existing recover-when-local-main-carries-hand-commits-of-co ticket owns
-recovery when local state is already on control; use that implementation rather
-than introducing another realignment path here.
-
-Previous ref: `fix-coga-git-sync-failures-that-leave-main-diverge` (renamed 2026-10-27); earlier audit lines retain that ref.
+- Multiline Git stderr breaking log lines was fixed in #985
+  (`keep-multiline-audit-messages-on-one-log-line`).
+- Unsourced counts relayed on 2026-10-07 (no checkout or query) were dropped;
+  the recount above supersedes them.
+- Previous ref: `fix-coga-git-sync-failures-that-leave-main-diverge` (renamed
+  2026-10-27); earlier audit lines retain that ref.
 
 <!-- coga:blackboard -->
 
