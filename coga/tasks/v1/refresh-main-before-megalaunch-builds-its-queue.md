@@ -1,10 +1,10 @@
 ---
 title: Refresh main before megalaunch builds its queue
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/megalaunch
-  - coga/sync
+- coga/megalaunch
+- coga/sync
 workflow:
   name: code/with-review
   steps:
@@ -27,6 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
