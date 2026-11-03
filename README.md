@@ -44,6 +44,7 @@ Its workflow is **agent researches → human reviews and decides which follow-up
 
 You keep using Claude Code or Codex. Coga gives each task durable context, a workflow, and a history that survives individual agent sessions:
 
+- **Go where neither could alone.** Agents produce plans fast; people see the whole and question it. Coga keeps the whole plan in text you can see at once and rearrange: split a task, test a premise first, park work, change direction. Each later session, by any agent, starts from the rearranged plan.
 - **Change the plan.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
 - **Give each task the right context.** Keep facts, constraints, and decisions discoverable as Markdown; select what a focused launch needs instead of making each session rediscover it.
 - **Put reviews where they matter.** Use a lightweight workflow for a simple change or require design, peer review, and human approval for more substantial work.

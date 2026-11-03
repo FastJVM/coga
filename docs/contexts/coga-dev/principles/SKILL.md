@@ -16,7 +16,10 @@ to build.
 - **Expand human capacity.** Expand people's ability to think, explore, and
   create. People choose purpose and direction; agents help discover problems,
   challenge assumptions, and build. Automate mechanical work to leave more
-  attention for judgment.
+  attention for judgment. People and agents together do not outperform the
+  stronger of the two by default; process makes the difference. Keep the whole
+  problem in a form people can see and restructure, so together they reach
+  what neither reaches alone.
 - **Text above code.** Readable text carries intent, knowledge, and decisions.
   Code implements that understanding and can be rewritten as we learn.
 - **Context is explicit.** People can find, question, correct, and choose the
