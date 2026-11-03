@@ -77,6 +77,8 @@ from coga.recurring import (
     same_period_lease as _same_period_lease,
     same_ticket_bytes as _same_ticket_bytes,
     create_named,
+    load_effective_template,
+    resolve_template_source,
     resumable_pause,
     scan_clone_due,
     scan_due,
@@ -2604,16 +2606,29 @@ def _template_description(cfg: Config, template: str) -> str | None:
     single fence, so the body and the blackboard cannot be told apart. Callers
     read None-before as "no baseline" and None-after as damage.
     """
-    path = recurring_dir(cfg) / template / "ticket.md"
-    try:
-        above, _ = split_body(Ticket.read(path).body)
-    except (OSError, UnicodeError, TicketError, TaskFileError):
-        # `UnicodeError` alongside the rest, as the four sibling `Ticket.read`
-        # call sites in this module do: `read_text` raises `UnicodeDecodeError`
-        # on a non-UTF-8 file, and a corrupt template must not abort the sweep
-        # with a traceback from a check that only observes.
-        return None
-    return above
+    # Compare the *selected definition*. For a package-backed job the repo
+    # parent is a state-only carrier: its above-fence region (the reserved
+    # marker) is compared too, so a firing that writes prose above the
+    # carrier's fence is still damage while ordinary state updates are not.
+    src = resolve_template_source(cfg, template)
+    definition = src.ticket_path or (recurring_dir(cfg) / template / "ticket.md")
+    paths = [definition]
+    state = src.state_dir / "ticket.md"
+    if state != definition and (state.exists() or state.is_symlink()):
+        paths.append(state)
+    regions: list[str] = []
+    for path in paths:
+        try:
+            above, _ = split_body(Ticket.read(path).body)
+        except (OSError, UnicodeError, TicketError, TaskFileError):
+            # `UnicodeError` alongside the rest, as the four sibling
+            # `Ticket.read` call sites in this module do: `read_text` raises
+            # `UnicodeDecodeError` on a non-UTF-8 file, and a corrupt template
+            # must not abort the sweep with a traceback from a check that only
+            # observes.
+            return None
+        regions.append(above)
+    return "\n".join(regions)
 
 
 def _template_damage(before: str | None, after: str | None) -> str | None:
@@ -3609,7 +3624,10 @@ def run_recurring_named(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
-    if _declares_clone_scope(recurring_dir(cfg) / name):
+    named_source = resolve_template_source(cfg, name)
+    if named_source.definition_dir is not None and _declares_clone_scope(
+        named_source.definition_dir
+    ):
         # No period task to create: run it in this clone now, ignoring the
         # clone ledger the way a named launch ignores the shared one.
         record = RunRecord(
@@ -4157,7 +4175,7 @@ def _sync_recurring_create(
     state_keys: list[str] = []
     if force_period_key is not None:
         try:
-            template = Template.load(template_dir)
+            template = load_effective_template(cfg, template_name)
         except RecurringError:
             template = None
         if template is not None:
@@ -5300,11 +5318,10 @@ def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
     if task.ref is None or not task.period_key:
         return
 
-    template_dir = recurring_dir(cfg) / task.template
-    template = Template.load(template_dir)
+    template = load_effective_template(cfg, task.template)
     blackboard_text = (
-        read_blackboard(template.ticket_path, blackboard_required=False)
-        if template.ticket_path.is_file()
+        read_blackboard(template.state_path, blackboard_required=False)
+        if template.state_path.is_file()
         else ""
     )
     state_keys = list(template.frontmatter.get("state_keys") or [])

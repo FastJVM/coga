@@ -18,15 +18,22 @@ from coga.log_retention import RetentionError, cutoff_at, select
 from coga.logfile import replace_log
 from coga.movement_cursor import MovementError, _state, replace_state
 from coga.paths import log_path, packaged_template_path, recurring_dir, tasks_dir
+from coga.recurring_state import is_carrier_file
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
 from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard, split_body
 from coga.tasks import DuplicateTaskSlugError, list_tasks, read_ticket
 from coga.ticket import TicketError
 
-_INSTALL_FILES = (
-    "recurring/trim-log/ticket.md", "recurring/trim-log/ticket.py",
-    "recurring/trim-log/operations.md", "workflows/trim-log/run.md",
+# Legacy local installations copied these package files. An identical copy is
+# still accepted (it stays a local override, removable later); a customized one
+# is refused for review. Adoption now selects the packaged definition instead
+# of copying it: (repo path, package path).
+_LEGACY_INSTALL_FILES = (
+    ("recurring/trim-log/ticket.md", "recurring/trim-log/ticket.md"),
+    ("recurring/trim-log/ticket.py", "recurring/trim-log/ticket.py"),
+    ("recurring/trim-log/operations.md", "recurring/trim-log/operations.md"),
+    ("workflows/trim-log/run.md", "bootstrap/workflows/trim-log/run.md"),
 )
 
 
@@ -43,7 +50,16 @@ def _phone_compatible(cfg: Config, parent: Path | None) -> None:
     if parent is not None:
         shim = parent.with_name("ticket.py")
         stock = packaged_template_path("recurring", "phone-home", "ticket.py")
-        if git.symlink_component(parent) is not None or git.symlink_component(shim) is not None or not shim.is_file() or shim.read_bytes() != stock.read_bytes():
+        if git.symlink_component(parent) is not None:
+            raise RetentionError("symlinked phone-home parent needs review before trimming")
+        if is_carrier_file(parent):
+            # A state-only carrier selects the packaged definition, whose
+            # shim is the stock script by construction. A carrier never
+            # inherits a local script: `inspect_parent_dir` reports one
+            # beside it as an incomplete fork, refused here as well.
+            if shim.exists() or shim.is_symlink():
+                raise RetentionError("phone-home carrier has a stray local ticket.py (incomplete fork); make it a full override or remove the script, preserving period_state")
+        elif git.symlink_component(shim) is not None or not shim.is_file() or shim.read_bytes() != stock.read_bytes():
             raise RetentionError("phone-home local fork is incompatible with trim-log; adapt its cursor or restore the reviewed shim, preserving period_state")
         period_shim = tasks_dir(cfg) / "recurring/phone-home/ticket.py"
         if period_shim.exists() and (git.symlink_component(period_shim) is not None or period_shim.read_bytes() != stock.read_bytes()):
@@ -61,7 +77,7 @@ def _local_inputs(
 
 def _check_local_inputs(cfg: Config, root: Path, rev: str, outputs: dict[Path, bytes]) -> Inputs:
     inputs = read_inputs(cfg, root, rev)
-    wanted = [cfg.repo_root / "coga.toml", tasks_dir(cfg),
+    wanted = [cfg.repo_root / "coga.toml", tasks_dir(cfg), recurring_dir(cfg) / "jobs.toml",
               *(recurring_dir(cfg) / name for name in ("phone-home", "_phone-home"))]
     expected = {git.relative_to_root(root, p): data for p, data in outputs.items()}
     dirty = set(git._dirty_paths(root, [git.relative_to_root(root, p) for p in wanted])) - expected.keys()
@@ -279,21 +295,28 @@ def install(cfg: Config) -> list[Path]:
         if (recurring_dir(cfg) / "_trim-log").exists() or (recurring_dir(cfg) / "_trim-log").is_symlink():
             raise RetentionError("_trim-log is parked; review before enabling; no files installed")
         planned: dict[Path, bytes] = {}
-        for rel in _INSTALL_FILES:
+        for rel, packaged in _LEGACY_INSTALL_FILES:
             path = cfg.repo_root / rel
-            data = packaged_template_path(*rel.split("/")).read_bytes()
+            data = packaged_template_path(*packaged.split("/")).read_bytes()
             if git.symlink_component(path) is not None or (path.exists() and (not path.is_file() or path.read_bytes() != data)):
                 raise RetentionError(f"custom or symlinked {rel}; review before installation; no files installed")
-            if not path.exists():
-                planned[path] = data
+        from coga.recurring import RecurringError, jobs_file_path, planned_job_selection, read_job_selection
+        try:
+            if read_job_selection(cfg).get("trim-log") is False:
+                raise RetentionError(f"trim-log is disabled in {jobs_file_path(cfg)}; review that choice before enabling; no files installed")
+            selection = planned_job_selection(cfg, "trim-log", True)
+        except RecurringError as exc:
+            raise RetentionError(f"{exc}; no files installed") from exc
+        if selection is not None:
+            if git.symlink_component(jobs_file_path(cfg)) is not None:
+                raise RetentionError("symlinked recurring/jobs.toml needs review; no files installed")
+            planned[jobs_file_path(cfg)] = selection
         attr, data = _attribute_plan(cfg, root)
         if not attr.exists() or attr.read_bytes() != data:
             planned[attr] = data
         for path, data in planned.items():
             path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_bytes(path, data)
-            if path.name == "ticket.py":
-                path.chmod(path.stat().st_mode | 0o111)
         return list(planned)
 
 

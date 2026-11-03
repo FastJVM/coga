@@ -273,7 +273,7 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
         seeded / "recurring" / template,
     )
     shutil.copytree(
-        PACKAGED / "workflows" / template,
+        PACKAGED / "bootstrap" / "workflows" / template,
         seeded / "workflows" / template,
     )
 
@@ -312,7 +312,7 @@ def test_period_task_left_unfinished_when_its_shim_fails(seeded: Path) -> None:
         seeded / "recurring" / "blocker-reminders",
     )
     shutil.copy(
-        PACKAGED / "workflows" / "blocker-reminders" / "run.md",
+        PACKAGED / "bootstrap" / "workflows" / "blocker-reminders" / "run.md",
         _mkdir(seeded / "workflows" / "blocker-reminders") / "run.md",
     )
     cfg = load_config(seeded)
@@ -342,7 +342,7 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
         seeded / "recurring" / "blocker-reminders",
     )
     shutil.copy(
-        PACKAGED / "workflows" / "blocker-reminders" / "run.md",
+        PACKAGED / "bootstrap" / "workflows" / "blocker-reminders" / "run.md",
         _mkdir(seeded / "workflows" / "blocker-reminders") / "run.md",
     )
     cfg = load_config(seeded)
@@ -378,11 +378,19 @@ def _mkdir(path: Path) -> Path:
 def test_phone_home_real_suppressed_shim_updates_parent_and_finishes(seeded, capfd):
     """The first due run uses the real ticket code, never an agent or production HTTP."""
     _state = load_phone_home()._state
-    for area in ("recurring", "workflows"):
-        shutil.copytree(PACKAGED / area / "phone-home", seeded / area / "phone-home")
+    # Package-backed: no local definition, only an explicit selection. The
+    # first admitted run creates the repo carrier from the packaged seed.
+    _mkdir(seeded / "recurring")
+    (seeded / "recurring" / "jobs.toml").write_text(
+        "[jobs]\nphone-home = true\n", encoding="utf-8"
+    )
+    assert not (seeded / "recurring/phone-home").exists()
     cfg = load_config(seeded)
     outcome = create_named(cfg, "phone-home")
     assert outcome.created
+    parent = seeded / "recurring/phone-home/ticket.md"
+    assert sorted(p.name for p in parent.parent.iterdir()) == ["ticket.md"]
+    assert parent.read_text(encoding="utf-8").startswith("---\n{}\n---\n<!-- coga:recurring-state -->")
     result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
     assert result.exit_code == 0, result.output
     assert read_ticket(outcome.ref).status == "done"
@@ -395,8 +403,10 @@ def test_phone_home_real_suppressed_shim_updates_parent_and_finishes(seeded, cap
 def test_phone_home_failure_reaches_the_period_blackboard_without_a_registry_entry(seeded):
     """Edge code keeps the `## Recipe Failure` floor through `run_reported`."""
     assert "phone-home" not in RECIPES
-    for area in ("recurring", "workflows"):
-        shutil.copytree(PACKAGED / area / "phone-home", seeded / area / "phone-home")
+    shutil.copytree(PACKAGED / "recurring" / "phone-home", seeded / "recurring" / "phone-home")
+    shutil.copytree(
+        PACKAGED / "bootstrap" / "workflows" / "phone-home", seeded / "workflows" / "phone-home"
+    )
     parent = seeded / "recurring/phone-home/ticket.md"
     replace_blackboard(parent, "\nperiod_state: {}\n")
     cfg = load_config(seeded)

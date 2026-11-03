@@ -271,7 +271,7 @@ def list_recurring(ctx: typer.Context) -> None:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    statuses = list_templates(cfg)
+    statuses = list_templates(cfg, include_available=True)
     picked = [ref for ref in list_tasks(cfg) if ref.directory == "recurring"]
 
     if not statuses and not picked:
@@ -287,6 +287,23 @@ def list_recurring(ctx: typer.Context) -> None:
 def _print_templates_table(
     console: Console, statuses: list[TemplateStatus], now: datetime
 ) -> None:
+    # Bundled jobs a repo never selected are available, not configured:
+    # summarize them in one line instead of one row each.
+    available = sorted(
+        s.name for s in statuses
+        if not s.error and s.selection == "unselected" and s.origin == "package"
+    )
+    statuses = [
+        s for s in statuses
+        if s.error or not (s.selection == "unselected" and s.origin == "package")
+    ]
+    if available:
+        console.print(
+            "[dim]Bundled recurring jobs available but not selected: "
+            + ", ".join(available)
+            + " — enable one with `<name> = true` under [jobs] in "
+            "coga/recurring/jobs.toml[/dim]"
+        )
     if not statuses:
         return
     table = Table(title="Recurring templates", title_justify="left", show_edge=False)
@@ -296,6 +313,13 @@ def _print_templates_table(
         if s.error:
             table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
             continue
+        if s.selection != "enabled":
+            table.add_row(
+                s.name, f"[dim]{s.selection} ({s.origin or 'no definition'})[/dim]",
+                "-", "-", f"[dim]{s.reason or ''}[/dim]",
+            )
+            continue
+        name = s.name if s.origin != "package" else f"{s.name} [dim](bundled)[/dim]"
         if s.scope == "clone":
             # Serviced per clone; this row describes only this clone's ledger.
             if s.serviced and s.clone_ledger is not None:
@@ -314,7 +338,7 @@ def _print_templates_table(
         else:
             period = "[dim]ran this period — task reaped[/dim]"
         table.add_row(
-            s.name,
+            name,
             s.schedule or "-",
             firing_stamp(s.last_fire),
             firing_stamp(s.next_fire),

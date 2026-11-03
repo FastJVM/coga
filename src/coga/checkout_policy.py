@@ -113,7 +113,7 @@ def _changed_skill(cfg: Config, refs: tuple[str, ...]) -> str | None:
                 return f"step skill {ref!r} does not resolve"
             if resolved.read_bytes() != bootstrap_skill_path(cfg, ref).read_bytes():
                 return f"step skill {ref!r} differs from the shipped copy at {resolved}"
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             return f"step skill {ref!r} could not be compared: {exc}"
     return None
 

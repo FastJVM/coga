@@ -36,7 +36,7 @@ from coga.logfile import append_log
 from coga.movement_cursor import (
     MovementError as TelemetryError, _uuid, _state, _housekeeping, _movement, cursor as _cursor,
 )
-from coga.paths import log_path, recurring_dir
+from coga.paths import log_path
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
 from coga.taskfile import read_blackboard, replace_blackboard
@@ -223,6 +223,31 @@ def _bounded_worker(cfg: Config, kind: str, data: dict) -> str:
         return "network-error"
 
 
+def _parent_state(cfg: Config) -> tuple[Path, bool]:
+    """The repo-owned phone-home state ticket, created once from the package seed.
+
+    State always lives in the repo (`recurring/phone-home/ticket.md`, or a
+    uniquely parked `_phone-home/`), whichever definition is selected. A
+    package-backed parent with no state yet gets a carrier holding the seed
+    blackboard; existing state is never reseeded, and an invalid or ambiguous
+    state fails visibly instead of resetting the counter. Direct calls keep
+    their own policy: disabled selection does not stop a direct invocation.
+    """
+    from coga.recurring import ORIGIN_PACKAGE, resolve_template_source
+    from coga.recurring_state import ensure_parent_state, parent_state_path
+
+    parent = parent_state_path(cfg, "phone-home")
+    if parent.exists() or parent.is_symlink():
+        return parent, False
+    source = resolve_template_source(cfg, "phone-home")
+    seed = source.ticket_path if source.origin == ORIGIN_PACKAGE else None
+    created = ensure_parent_state(cfg, "phone-home", seed_ticket=seed)
+    # `ensure_parent_state` returns an existing file when a concurrent writer
+    # won the exclusive create; publication's CAS then pins control's absence
+    # only for the copy this call created.
+    return created, seed is not None
+
+
 def run_phone_home(
     cfg: Config, argv: list[str], *,
     sender: Callable[[Config, str, dict], str] | None = None,
@@ -232,13 +257,13 @@ def run_phone_home(
     if argv:
         raise TelemetryError("phone-home takes no options or arguments")
     admitted = _admitted(cfg)
-    parent = recurring_dir(cfg) / "phone-home/ticket.md"
     warnings: list[str] = []
     event = None
     outcome = "suppressed" if not admitted else "skipped"
     with git.state_lock(cfg):
         from coga.log_transaction import ensure_clear
         ensure_clear(cfg)
+        parent, created = _parent_state(cfg)
         raw = parent.read_bytes()
         region = read_blackboard(parent, expected_bytes=raw)
         state, match = _state(region)
@@ -265,7 +290,7 @@ def run_phone_home(
         replacement = region[:match.start()] + "period_state: " + json.dumps(state, separators=(",", ":")) + region[match.end():]
         replace_blackboard(parent, replacement, expected_bytes=raw)
         try:
-            git.publish(cfg, [parent], "Telemetry: reserve weekly snapshot", expect={parent: raw})
+            git.publish(cfg, [parent], "Telemetry: reserve weekly snapshot", expect={parent: None if created else raw})
         except git.GitError as exc:
             # Match ordinary sync's durable local failure evidence, scoped to
             # this parent. Publication failure never rolls back reservation.

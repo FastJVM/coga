@@ -7,12 +7,25 @@ from pathlib import Path
 from typing import Union
 
 from coga.config import Config
-from coga.paths import bootstrap_resolution_paths, tasks_dir
+from coga.paths import (
+    LocalOverrideError,
+    bootstrap_resolution_paths,
+    local_definition_entry,
+    tasks_dir,
+)
 from coga.ticket import Ticket
 
 
 class TaskNotFoundError(Exception):
     pass
+
+
+class BootstrapOverrideError(TaskNotFoundError):
+    """A local `bootstrap/<name>/` override exists but is unusable.
+
+    A subclass of `TaskNotFoundError` so every caller that already reports an
+    unresolvable target reports this too, never falling back to stock text.
+    """
 
 
 class DuplicateTaskSlugError(Exception):
@@ -313,9 +326,16 @@ def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
     if name.startswith(_BOOTSTRAP_PREFIX):
         name = name[len(_BOOTSTRAP_PREFIX):]
     candidates = bootstrap_resolution_paths(cfg, name)
-    for path in candidates:
-        if (path / "ticket.md").is_file():
-            return BootstrapRef(name=name, path=path)
+    local, bundled = candidates
+    try:
+        if local_definition_entry(
+            local / "ticket.md", kind="bootstrap ticket", owner=local,
+        ):
+            return BootstrapRef(name=name, path=local)
+    except LocalOverrideError as exc:
+        raise BootstrapOverrideError(str(exc)) from exc
+    if (bundled / "ticket.md").is_file():
+        return BootstrapRef(name=name, path=bundled)
     checked = ", ".join(str(path / "ticket.md") for path in candidates)
     raise TaskNotFoundError(
         f"No bootstrap ticket `bootstrap/{name}` found. Checked: {checked}."
@@ -338,6 +358,7 @@ __all__ = [
     "BootstrapRef",
     "TargetRef",
     "TaskNotFoundError",
+    "BootstrapOverrideError",
     "DuplicateTaskSlugError",
     "UnknownDirectoryError",
     "is_under",

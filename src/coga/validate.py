@@ -90,6 +90,7 @@ from coga.paths import (
     repo_resources_dir,
     resolve_context_path,
     resolve_skill_path,
+    skill_unresolved,
     resolve_workflow_path,
 )
 from coga.service_order import leading_number
@@ -1125,7 +1126,7 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
 
     if _is_string_list(ticket.frontmatter.get("skills", [])):
         for ref_name in ticket.skills:
-            if resolve_skill_path(cfg, ref_name) is None:
+            if skill_unresolved(cfg, ref_name):
                 out.append(Issue(
                     kind="broken-skill",
                     task=task_label,
@@ -1143,7 +1144,7 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
             for ref_name in step.get("skills", []) or []:
                 if not isinstance(ref_name, str):
                     continue
-                if resolve_skill_path(cfg, ref_name) is None:
+                if skill_unresolved(cfg, ref_name):
                     out.append(Issue(
                         kind="broken-skill",
                         task=task_label,
@@ -1278,15 +1279,26 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         delegated_workflow_violation,
     )
 
-    root = recurring_dir(cfg)
-    if not root.is_dir():
-        return []
+    from coga.recurring import iter_template_sources
 
     now = datetime.now()
     out: list[Issue] = []
-    for path in sorted(root.iterdir()):
-        if path.name.startswith("_") or not path.is_dir():
+    # The same effective catalog the scanners use: enabled definitions (local
+    # or packaged) are checked; selection errors and malformed or incomplete
+    # repo state (carriers, stray definition files) are reported; disabled,
+    # unselected and parked jobs keep the existing skip.
+    for source in iter_template_sources(cfg):
+        if source.error is not None:
+            out.append(Issue(
+                kind="bad-recurring-template",
+                task=f"recurring/{source.name}",
+                message=source.error,
+                severity="error",
+            ))
             continue
+        if not source.enabled or source.definition_dir is None:
+            continue
+        path = source.definition_dir
         ticket_path = path / "ticket.md"
         if not ticket_path.is_file():
             continue
@@ -1445,8 +1457,7 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                 ))
         for step in workflow.steps:
             for ref_name in step.skills:
-                skill_path = resolve_skill_path(cfg, ref_name)
-                if skill_path is None:
+                if skill_unresolved(cfg, ref_name):
                     out.append(Issue(
                         kind="broken-recurring-template-skill",
                         task=f"recurring/{path.name}",

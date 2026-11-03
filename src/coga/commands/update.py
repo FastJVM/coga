@@ -55,10 +55,63 @@ def packaged_bootstrap_skills_dir() -> Path:
     )
 
 
+# The reviewed scaffold allowlist: the only package paths `coga init` copies
+# into a fresh repo, each for a concrete reason (`coga/init`, "Fresh repo").
+# Reusable definitions (contexts, skills, workflows, bootstrap tickets,
+# recurring jobs and their scripts/runbooks) are never on it: they resolve from
+# the installed package, so an upgrade changes them without copying.
+FRESH_SCAFFOLDS: tuple[str, ...] = (
+    "coga.toml",               # the repo's own configuration seed
+    "context.md",              # the repo context seed
+    "log.md",                  # real, initially empty audit history
+    ".gitattributes",          # physical merge attributes Git requires
+    ".gitignore",              # physical ignore rules (managed block)
+    "contexts/.gitignore",     # keeps an empty (relocatable) contexts root tracked
+    "contexts/_template",      # ignored authoring starter
+    "skills/_template",        # ignored authoring starter
+    "workflows/_template.md",  # ignored authoring starter
+    "tasks/coga-build.md",     # mutable onboarding task (pruned on filled repos)
+)
+
+# Bundled recurring jobs a fresh repo selects explicitly (`recurring/jobs.toml`).
+# Written once by init; upgrades never refresh it, so a job bundled later stays
+# disabled until a repo selects it. Owner review decides this default list.
+FRESH_RECURRING_SELECTION: tuple[str, ...] = (
+    "address-pr-comments",
+    "autoclose-merged",
+    "blocker-reminders",
+    "branch-sweep",
+    "dream",
+    "phone-home",
+    "resolve-conflicts",
+    "skill-update",
+    "trim-log",
+)
+
+
 def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
-    """Copy the full packaged coga template tree into a fresh repo."""
-    _copy_resource_tree(src_root, coga_os, skip_top={"bootstrap"})
+    """Copy the reviewed scaffolds (not reusable definitions) into a fresh repo."""
+    coga_os.mkdir(parents=True, exist_ok=True)
+    for rel in FRESH_SCAFFOLDS:
+        src = src_root.joinpath(*rel.split("/"))
+        dst = coga_os.joinpath(*rel.split("/"))
+        if src.is_dir():
+            _copy_resource_tree(src, dst)
+        elif src.is_file():
+            _copy_resource_file(src, dst)
+    _write_fresh_job_selection(coga_os)
     _chmod_packaged_executables(coga_os)
+
+
+def _write_fresh_job_selection(coga_os: Path) -> None:
+    from coga.recurring import JOBS_FILE, render_job_selection
+
+    path = coga_os / "recurring" / JOBS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        render_job_selection({name: True for name in FRESH_RECURRING_SELECTION}),
+        encoding="utf-8", newline="\n",
+    )
 
 
 def nearest_existing_dir(target: Path) -> Path | None:

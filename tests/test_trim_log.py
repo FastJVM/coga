@@ -398,10 +398,29 @@ def test_install_idempotence_and_exact_allowlist(git_repo):
     cfg = load_config(git_repo.coga_os)
     attrs = cfg.repo_root / ".gitattributes"
     attrs.write_bytes(b"# preserve\r\n**/log.md merge=union\r\n**/retires.md merge=union\r\n")
-    expected = {cfg.repo_root / rel for rel in trim_log._INSTALL_FILES} | {attrs}
-    assert set(trim_log.install(cfg)) == expected
+    jobs = cfg.repo_root / "recurring" / "jobs.toml"
+    # Adoption selects the packaged definition; it copies no definitions.
+    assert set(trim_log.install(cfg)) == {jobs, attrs}
     assert attrs.read_bytes() == b"# preserve\r\n/log.md -merge\r\n**/retires.md merge=union\r\n"
+    assert "trim-log = true" in jobs.read_text(encoding="utf-8")
+    assert not (cfg.repo_root / "recurring" / "trim-log").exists()
+    assert not (cfg.repo_root / "workflows" / "trim-log").exists()
     assert trim_log.install(cfg) == []
+
+
+def test_install_preserves_other_selections_and_refuses_disabled(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    jobs = cfg.repo_root / "recurring" / "jobs.toml"
+    jobs.parent.mkdir(parents=True, exist_ok=True)
+    jobs.write_text("# mine\n[jobs]\ndream = false\n", encoding="utf-8")
+    trim_log.install(cfg)
+    text = jobs.read_text(encoding="utf-8")
+    assert text.startswith("# mine\n") and "dream = false" in text and "trim-log = true" in text
+    jobs.write_text("[jobs]\ntrim-log = false\n", encoding="utf-8")
+    before = jobs.read_bytes()
+    with pytest.raises(RetentionError, match="disabled"):
+        trim_log.install(cfg)
+    assert jobs.read_bytes() == before
 
 
 def test_native_merge_conflicts_preserve_both_index_stages(git_repo):

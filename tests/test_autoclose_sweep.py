@@ -103,7 +103,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         ),
         (
             LIVE_COGA_OS / "workflows" / "autoclose-merged" / "sweep.md",
-            PACKAGED_COGA_OS / "workflows" / "autoclose-merged" / "sweep.md",
+            PACKAGED_COGA_OS / "bootstrap" / "workflows" / "autoclose-merged" / "sweep.md",
             False,
         ),
         (

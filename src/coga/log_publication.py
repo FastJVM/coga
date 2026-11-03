@@ -67,8 +67,11 @@ def read_inputs(cfg: Config, root: Path, rev: str, overlays: Mapping[str, bytes 
     tasks_rel = git.relative_to_root(root, tasks_dir(cfg)) + "/"
     phone_dirs = tuple(git.relative_to_root(root, recurring_dir(cfg) / name) + "/"
                        for name in ("phone-home", "_phone-home"))
+    # Recurring selection decides whether a carrier's packaged definition is
+    # in force; pin it with the other decision inputs so a retry rechecks it.
+    jobs_rel = git.relative_to_root(root, recurring_dir(cfg) / "jobs.toml")
     entries: dict[str, tuple[str, str]] = {}
-    for record in git.run_git(root, "ls-tree", "-r", "-z", rev, "--", config_rel, tasks_rel, *phone_dirs).split("\0"):
+    for record in git.run_git(root, "ls-tree", "-r", "-z", rev, "--", config_rel, tasks_rel, jobs_rel, *phone_dirs).split("\0"):
         if record:
             meta, name = record.split("\t", 1)
             mode, kind, oid = meta.split()

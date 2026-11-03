@@ -104,13 +104,13 @@ def seed_direct_body_workflow(coga_os: Path) -> None:
     skill_dst = coga_os / "skills" / "direct" / "body"
     skill_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(
-        _TEMPLATES_COGA_OS / "skills" / "direct" / "body",
+        _TEMPLATES_COGA_OS / "bootstrap" / "skills" / "direct" / "body",
         skill_dst,
         dirs_exist_ok=True,
     )
     wf_dst = coga_os / "workflows" / "direct" / "body.md"
     wf_dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(_TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md", wf_dst)
+    shutil.copy(_TEMPLATES_COGA_OS / "bootstrap" / "workflows" / "direct" / "body.md", wf_dst)
 
 
 def append_test_usage(**kwargs) -> None:

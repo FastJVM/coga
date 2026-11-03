@@ -58,30 +58,34 @@ def _fake_package_skill_root(
 
 
 EXPECTED_FILES = {
-    "coga/recurring/phone-home/ticket.md",
-    "coga/recurring/phone-home/ticket.py",
-    "coga/workflows/phone-home/run.md",
+    # Fresh init copies only the reviewed scaffolds plus the one-time recurring
+    # selection; reusable definitions resolve from the installed package.
     "coga/.gitignore",
     "coga/coga.toml",
     "coga/context.md",
     "coga/contexts/.gitignore",
     "coga/contexts/_template/SKILL.md",
     "coga/skills/_template/SKILL.md",
-    "coga/skills/direct/body/SKILL.md",
     "coga/workflows/_template.md",
-    "coga/recurring/autoclose-merged/ticket.md",
-    "coga/recurring/dream/ticket.md",
-    "coga/recurring/skill-update/ticket.md",
     "coga/tasks/coga-build.md",
+    "coga/recurring/jobs.toml",
     # Single-file format: the repo-global audit log + its union-merge attribute
     # ship at the coga root; tasks no longer carry per-dir blackboard.md/log.md.
     "coga/log.md",
     "coga/.gitattributes",
-    "coga/workflows/autoclose-merged/sweep.md",
-    "coga/workflows/direct/body.md",
-    "coga/workflows/skill-update/run.md",
-    "coga/workflows/build/onboarding.md",
 }
+
+# Shipped definitions a fresh init must not materialize in live roots.
+UNEXPECTED_DEFINITIONS = (
+    "coga/recurring/phone-home",
+    "coga/recurring/dream",
+    "coga/recurring/autoclose-merged",
+    "coga/recurring/skill-update",
+    "coga/skills/direct",
+    "coga/workflows/direct",
+    "coga/workflows/phone-home",
+    "coga/workflows/build",
+)
 
 
 def _make_git_repo(target: Path) -> Path:
@@ -279,6 +283,8 @@ def test_init_into_empty_dir(tmp_path: Path, fake_vendor) -> None:
 
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
+    for rel in UNEXPECTED_DEFINITIONS:
+        assert not (target / rel).exists(), f"init materialized {rel}"
     assert not (target / "coga" / "bootstrap").exists()
     assert not (target / "coga" / "skills" / "retro").exists()
     assert not (target / "coga" / "skills" / "coga").exists()
@@ -571,7 +577,7 @@ def test_fresh_init_installs_nothing(
     assert _installer_calls(calls) == []
     assert any(Path(argv[0]).name == "git" for argv in calls)
     skills = target / "coga" / "skills"
-    assert sorted(p.name for p in skills.iterdir()) == ["_template", "direct"]
+    assert sorted(p.name for p in skills.iterdir()) == ["_template"]
     assert not list(skills.glob("google-agents-cli-*"))
     out = result.output.casefold()
     for noise in ("managed skill", "optional skill", "gh auth login", "rate limit"):
@@ -585,7 +591,13 @@ def test_fresh_init_installs_nothing(
     assert (target / "coga" / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (target / ".claude" / "skills" / "coga").is_symlink()
     assert (target / ".codex" / "skills" / "coga").is_symlink()
-    assert (target / "coga" / "recurring" / "dream" / "ticket.md").is_file()
+    # Recurring jobs are selected, not copied: Dream resolves from the package.
+    from coga.config import load_config
+    from coga.recurring import resolve_template_source
+
+    assert not (target / "coga" / "recurring" / "dream").exists()
+    dream = resolve_template_source(load_config(target / "coga"), "dream")
+    assert dream.enabled and dream.origin == "package"
     if existing_project:
         assert "Skipped the onboarding ticket" in result.output
         assert (target / "README.md").read_text(encoding="utf-8") == "# an existing project\n"
@@ -1059,8 +1071,13 @@ def test_init_ships_build_ticket_template(
     assert not (tasks / "coga-build").exists()
     assert not (tasks / "coga-build" / "blackboard.md").exists()
     assert not (tasks / "coga-build" / "log.md").exists()
-    onboarding = (
-        target / "coga" / "workflows" / "build" / "onboarding.md"
+    # The onboarding workflow is a packaged definition resolved at launch,
+    # not a copy in the repo.
+    assert not (target / "coga" / "workflows" / "build").exists()
+    from coga.paths import packaged_template_path
+
+    onboarding = packaged_template_path(
+        "bootstrap", "workflows", "build", "onboarding.md"
     ).read_text(encoding="utf-8")
     assert "--workflow\n  code/design-then-implement" in onboarding
     assert "--workflow draft-for-human" in onboarding
@@ -3088,9 +3105,14 @@ def test_init_ships_phone_home_disclosure_without_running_it(tmp_path, fake_vend
     target = _make_git_repo(tmp_path / "company")
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
+    from coga.paths import packaged_template_path
     from coga.taskfile import read_blackboard
     _state = load_phone_home()._state
-    state, _ = _state(read_blackboard(target / "coga/recurring/phone-home/ticket.md"))
+    # No state exists until the first admitted run; the selection and the
+    # package seed (run zero, no identity) are what init ships.
+    assert not (target / "coga/recurring/phone-home").exists()
+    assert "phone-home = true" in (target / "coga/recurring/jobs.toml").read_text(encoding="utf-8")
+    state, _ = _state(read_blackboard(packaged_template_path("recurring", "phone-home", "ticket.md")))
     assert state["run"] == 0 and state["repo_id"] is None
     config = (target / "coga/coga.toml").read_text(encoding="utf-8")
     assert "[telemetry]" in config and "not an install count" in config
