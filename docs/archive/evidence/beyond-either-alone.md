@@ -88,6 +88,30 @@ below flags as decisive, premise-level review and visibility of the whole.
   <https://www.microsoft.com/en-us/research/?p=1135061>,
   <https://arxiv.org/abs/2608.23642>
 
+### Why the negative default mostly does not apply
+
+The meta-analysis measures one arrangement: a human and an AI jointly making
+the same decision. Coga mostly avoids it. Each workflow step has one assignee
+role, so work is routed rather than shared:
+
+- the agent works alone on steps where it is strong (research, drafting,
+  implementing);
+- the human works alone on steps where they hold the edge (direction,
+  premises, whether to build);
+- both work together only sometimes, as in an attended chat, and mostly on
+  open-ended thinking, the creation-type work where pairs fared better.
+
+The tickets and contexts are the handoff between steps. Routing each step to
+the stronger party is how the process avoids the losing case and uses the
+synergy condition (the human holding the edge).
+
+Two caveats. Review gates remain the joint-decision case, a human deciding
+on AI output, so they should ask about premises and purpose rather than redo
+checks the agent does better. And the meta-analysis did not test this: its
+"division of labour" moderator, not significant, was measured within single
+tasks, not as step routing over time. The evidence supports the design but
+does not prove it.
+
 ### Not found
 
 No study found tests whether an external, editable plan helps people catch a
