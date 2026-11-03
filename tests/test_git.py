@@ -3532,3 +3532,55 @@ def test_subsumed_guard_union_merges_committed_log_lines(git_repo):
     verdict = _subsumed(git_repo, cfg)
     assert verdict.kind == "ok", verdict
     assert verdict.evidence[-1] == ("coga/log.md",)
+
+
+def test_stage_a_handoff_sweep_publishes_state_but_never_definitions(git_repo):
+    """v1/package-definitions stage A: a feature branch edits package-owned
+    definitions (committed with the code) and the live copies of shipped
+    skills, while ordinary ticket and recurring-state edits stay dirty. The
+    handoff sweep publishes only that ordinary state: control keeps its live
+    recurring definition, its sibling script and its package bytes unchanged
+    until the PR merges."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    definition = (
+        "---\nschedule: \"0 9 * * 1\"\n---\n\n## Description\n\nOld body.\n\n"
+        "<!-- coga:blackboard -->\n\ncursor: 1\n"
+    )
+    seeds = {
+        "coga/recurring/dream/ticket.md": definition,
+        "coga/recurring/dream/ticket.py": "raise SystemExit(0)\n",
+        "coga/skills/code/implement/SKILL.md": "live skill\n",
+        "src/coga/resources/templates/coga/recurring/dream/ticket.md": definition,
+    }
+    for rel, text in seeds.items():
+        path = git_repo.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8", newline="\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed pre-A control")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/package-definitions")
+    _hand_commit(
+        git_repo, "src/coga/resources/templates/coga/recurring/dream/ticket.md",
+        definition.replace("Old body.", "New packaged body."),
+    )
+    _hand_commit(git_repo, "coga/skills/code/implement/SKILL.md", "linked to the package owner\n")
+    # Ordinary mutable state stays ordinary published state.
+    parent = git_repo.root / "coga/recurring/dream/ticket.md"
+    parent.write_text(definition.replace("cursor: 1", "cursor: 2"), encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "tasks/demo.md").write_text(
+        _ticket_text(blackboard="stage A handoff\n"), encoding="utf-8", newline="\n"
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "stage A handoff" in _control(git_repo, "coga/tasks/demo.md")
+    published = _control(git_repo, "coga/recurring/dream/ticket.md")
+    assert "cursor: 2" in published
+    assert published.split("<!-- coga:blackboard -->")[0] == definition.split("<!-- coga:blackboard -->")[0]
+    assert _control(git_repo, "coga/recurring/dream/ticket.py") == "raise SystemExit(0)\n"
+    assert _control(git_repo, "coga/skills/code/implement/SKILL.md") == "live skill\n"
+    assert _control(
+        git_repo, "src/coga/resources/templates/coga/recurring/dream/ticket.md"
+    ) == definition
