@@ -2,14 +2,106 @@
 title: Preflight dirty tracked files before skill-update PR checkout
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
 `coga skill update --all --pr` applies updates before `skill_manager.run_skill_update_pr_flow` carries them onto the shared branch with `git checkout -B coga/skill-update <control-branch>` (`_commit_skill_updates`, `_checkout`). Its preflight `skill_manager._assert_no_unmerged_paths` checks only `git diff --name-only --diff-filter=U`, so an ordinary dirty tracked file the checkout would overwrite (for example `coga/log.md`) reaches Git, which refuses with the raw "Your local changes ... would be overwritten by checkout" error; Coga exits 2 with the applied skill updates left in the working tree. Add a targeted dirty-file preflight (fail loud, naming the paths and the remedy) before any update is applied, with a regression test. Moved out of the shipped `coga/skill-management` topic by blocks/09 (Known gaps do not ship); residue recorded when `_v2/skill-update-aborts-on-uncommitted-log-file` was canceled.
 
+Done means:
+
+- `coga skill update --all --pr`, run with a dirty tracked file that the
+  branch switch would overwrite, exits non-zero with a Coga error before
+  `update_skills` writes anything. The error lists each offending path and
+  says how to fix it (commit or stash, then retry). No skill update is left
+  behind in the working tree.
+- A dirty tracked file that the switch would carry over safely does not
+  block the run. The weekly job must keep working when an unrelated,
+  harmless edit is present. When HEAD is the control branch, the check
+  finds nothing to block, which is correct: Git never refuses that
+  checkout. The reported failure only happens off the control branch.
+- The existing unmerged-paths refusal still fires, with its message
+  unchanged.
+- Regression tests in `tests/test_skill_manager.py` cover the blocking case
+  and the non-blocking case. Add a CLI-level test if the check runs in the
+  command handler.
+
 ## Context
+
+### Code map (as of 2026-11-04)
+
+- `commands/skill.py` `update`: runs `update_skills` before
+  `run_skill_update_pr_flow`, so the preflight cannot stay inside the PR
+  flow. Add a `skill_manager` preflight and call it from the handler
+  before `update_skills` when `pr and all_skills`. Move the
+  "`--pr` needs `--all`" refusal above it.
+- `skill_manager._assert_no_unmerged_paths` (`--diff-filter=U` only): fold
+  it into the new preflight. Do not duplicate it.
+- `skill_manager._commit_skill_updates`: runs `git checkout -B
+  coga/skill-update <cfg.git_control_branch>` in `cfg.repo_root.parent`,
+  then stages only `skills_root(cfg)`. The `finally` in the PR flow
+  returns to the original branch.
+- PR-flow tests in `tests/test_skill_manager.py` use exact-argv fake
+  runners, which need the new git calls added. Prefer one real-git
+  `tmp_path` test for the overwrite case.
+
+### Design points for implement
+
+- **Targeted, not "any dirty file".** Git refuses the checkout only when a
+  locally modified tracked path also differs between `HEAD` and the start
+  point. Block on the intersection of (a) dirty tracked paths, staged or
+  unstaged, from `git diff --name-only HEAD`, and (b) `git diff --name-only
+  HEAD <control-branch>`. A plain "tree must be clean" check would fail
+  the weekly job for harmless edits. Record the chosen rule on the
+  blackboard if it differs from this one. Use `--no-renames -z` on both
+  diffs: rename detection would hide the source path, and `-z` avoids
+  quoted path names. Diff paths are relative to the repo top, which
+  matches `cwd`. The control branch is a local ref (`git_control_branch`,
+  default `main`), so a stale local `main` widens the diff. Over-blocking
+  in that case is acceptable.
+- **Also block when `skills_root` itself differs between HEAD and the
+  control branch.** The updates dirty files under `skills_root` *after*
+  the preflight runs, so the pre-update dirty set misses them. Without
+  this check, the raw Git error can still come back after updates are
+  applied.
+- **Untracked files:** Git also refuses when an untracked file sits at a
+  path that exists in the control branch but not in HEAD. Either cover
+  this (untracked paths ∩ paths added in the control branch) or record on
+  the blackboard that it is out of scope, with the reason.
+- Also check the return trip. The `finally` checks out the original branch,
+  and that can hit the same refusal. Starting with no blocking dirty files
+  plus committing only `skills_root` should keep the return trip safe;
+  confirm it.
+- Pre-existing edits under `skills_root(cfg)`, untracked ones included,
+  get swept into the PR commit by `git add -- skills_root` and then vanish
+  from the user's branch on the return checkout. Decide explicitly whether
+  the preflight refuses them, and record the decision on the blackboard.
+  Refusing is the default unless you find a reason not to.
+- The preflight refuses even when no update would change anything,
+  because it runs before the updates are known. That is accepted:
+  checking afterwards is exactly the bug.
+- The original trigger was the recurring job's own uncommitted
+  `coga/log.md` launch append. Check whether launch now commits that
+  append before `ticket.py` runs (`launch.commit_log`). If it does not,
+  this fix turns the crash into a clean refusal, but the job will still
+  fail whenever it runs off the control branch. Report that on the
+  blackboard; fixing it is out of scope here.
+- Out of scope: on a detached HEAD, `_current_git_branch` returns an
+  empty name, so the `finally` never returns from `coga/skill-update`.
+- Sibling ticket `v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits`
+  changes the same `_commit_skill_updates` and checkout path. Expect
+  textual conflicts if both are in flight. Reconcile them rather than
+  rewriting the other change.
+
+### Docs
+
+`coga/skill-management` (`docs/contexts/coga/skill-management/SKILL.md`)
+is cited, not attached. It documents `--pr` in its command section. If you
+add a user-visible refusal, add one line there and in the packaged twin
+under `src/coga/resources/templates/coga/bootstrap/contexts/`, which
+`tests/test_packaging.py` enforces. Do not reintroduce a "Known gaps"
+section; blocks/09 removed it.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
