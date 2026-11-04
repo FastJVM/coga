@@ -30,6 +30,19 @@ coga validate --json     # the same, machine-readable
 coga status              # the task triage view
 ```
 
+A repo-wide `coga validate` also requires every file that starts with a `#!`
+line under the skills root or the packaged bootstrap skills to be executable;
+a shebang declares the file is run directly, so a missing executable bit is a
+`non-executable-script` error. `coga validate --task <slug>` does not run this
+check. Fix your own file with `chmod +x <file>` and commit the new mode, or
+use `git add --chmod=+x <file>` where Git ignores filesystem modes. A hit
+under the packaged `bootstrap/skills` comes from the installed Coga, not your
+repo: upgrade or reinstall Coga
+([coga/install](../install/SKILL.md#upgrading-and-removing)). On POSIX the
+check reads the working-tree mode; on Windows, or with a repo-local
+`core.fileMode=false`, it reads the git index and skips untracked files. It
+skips a root that has neither source.
+
 Run `coga validate` again after any config, workflow, or ticket change. It
 warns when `user` is unset. Network probes are opt-in:
 `coga validate --check-github` checks git and `gh` auth readiness, and
