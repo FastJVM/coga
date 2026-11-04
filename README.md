@@ -8,8 +8,6 @@ Claude Code and Codex can plan, investigate, and implement tasks. But a software
 
 **Work compounds.** As project context and reusable skills mature, tickets run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
 
-**Humans steer when direction changes.** Agents can surface evidence and propose alternatives, but you choose which goals are worth pursuing. Revise the plan and shared context, and subsequent tickets start from that new direction.
-
 For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent’s prompt, using the current files. You choose the knowledge the task needs, with as much help from an agent as you want.
 
 Guide sessions interactively, add human review gates, or queue work to run unattended. **Discover and build progressively. Delegate as much—or as little—as you want.**
