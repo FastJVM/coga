@@ -1,6 +1,6 @@
 ---
 title: Find out what macOS actually ships
-status: active
+status: done
 owner: zach
 agent: claude
 workflow:
@@ -21,7 +21,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
