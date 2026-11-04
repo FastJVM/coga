@@ -10039,3 +10039,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 09:36 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 09:36 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 09:36 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [megalaunch] launched via coga megalaunch
+2026-11-04 09:58 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [agent:claude] advanced to step 2 (peer-review) → codex

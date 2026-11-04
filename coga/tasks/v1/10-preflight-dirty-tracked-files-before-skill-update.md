@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 870e7eca-41b2-46ae-94c6-d7b0be036ca9
 ---
 
 ## Description
@@ -219,3 +218,107 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: coga/v1-10-preflight-dirty-skill-update
+
+## Implement handoff (2026-11-04, claude)
+
+Commit `c12ce8fbb` on the branch, pushed. No PR yet.
+
+What changed:
+- `skill_manager.assert_skill_update_pr_preflight(cfg, runner=, branch=)`: new
+  public preflight. `commands/skill.py` `update` now calls it when `--pr`
+  is set, before `update_skills` runs. The "`--pr` needs `--all`" refusal
+  was moved above it. `_assert_no_unmerged_paths` was folded in (called
+  first, message unchanged) and removed from `run_skill_update_pr_flow`.
+  That flow now assumes its caller ran the preflight; its only caller is
+  the handler.
+- Refusal rules, applied in order. Each refusal lists every path with its
+  reason:
+  1. Unmerged paths (existing message).
+  2. Local work, with the remedy "commit or stash these paths, then retry":
+     - tracked dirty (`git diff --name-only --no-renames -z HEAD`) ∩
+       `git diff --name-only --no-renames -z HEAD <control>`;
+     - untracked (`git ls-files --others --exclude-standard -z`) ∩ that
+       same HEAD..control set. This is broader than "added on control",
+       but it is conservative and still targeted;
+     - **any** tracked-dirty or untracked path under `skills_root`. This
+       is the refusal default the ticket suggested: otherwise `git add --
+       skills_root` would sweep those edits into the PR, and the return
+       checkout would remove them from the user's branch. One consequence:
+       the weekly job on `main` is refused if someone left skill-tree dirt.
+  3. Skills tree differs between HEAD and control. The remedy here is to
+     run from control or merge first, because commit/stash would not help.
+- Return trip: confirmed safe. Leftover dirt never intersects
+  HEAD..control, and the whole skills tree is committed. Checked with a
+  real-git repro: feature branch, harmless dirty `notes.md`, skill change.
+  `checkout -B` + commit + `checkout feature` succeeded, and the edit was
+  preserved.
+- Docs: one paragraph under `--pr` in `coga/skill-management`. The
+  canonical copy and the packaged bootstrap twin are byte-identical.
+- Tests (`tests/test_skill_manager.py`): the unmerged test was retargeted
+  at the preflight. New real-git tests cover the overwrite refusal (it
+  asserts that Git really refuses, and that a harmless edit is not
+  listed), the non-blocking cases (harmless edit, untracked file absent
+  from control, dirty log on `main`), untracked-tracked-on-control,
+  skills-tree dirt, and skills-tree drift. A CLI test checks that
+  `update_skills` never runs on refusal and that the branch is unchanged.
+  The PR-flow fake runners no longer stub the unmerged diff.
+- `tests/test_skill_update.py`
+  `test_skill_update_runs_through_generic_recipe_and_reports_no_op`: the
+  fixture is now `git init`'d and committed on `main`. `--pr` now runs git
+  (a read-only preflight) even for a no-op run, which the ticket accepts.
+  The test comment was updated to match.
+
+Out of scope / notes for later:
+- Launch log: the ordinary launch startup publishes the launch log line
+  through `_publish_startup` / `git.sync_log` in `launch.py` before checkout
+  entry. I did not trace the recurring `ticket.py` child path end-to-end.
+  If its `coga/log.md` append can still be uncommitted while the job runs
+  off control, this change turns the crash into a clean refusal but does
+  not make the job succeed.
+- Detached HEAD: `_current_git_branch` is empty, so the `finally` never
+  returns. Unchanged, as the ticket scoped it.
+- Sibling `v1/11-skill-update-rebuilds-its-branch...` touches
+  `_commit_skill_updates`. This change does not touch that function, only
+  `run_skill_update_pr_flow`'s precheck line, so conflicts should be small.
+- Environment: `/tmp` on this host is at 100% inode use
+  (`/tmp/pytest-of-n`), so pytest's default basetemp fails with 1000+
+  errors. I ran with `--basetemp=$HOME/.cache/coga-pytest-v1-10` (since
+  removed). The system `python` lacks `tomlkit`; use `.venv/bin/python`.
+
+## PR
+
+```yaml
+title: Preflight skill-update PR branch switch before applying updates
+author: claude
+author_evidence: Implement session ran as Claude Opus 5.5 (claude-opus-5-5) in a megalaunch queue.
+head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
+base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
+depth: careful
+rationale: Changes when a recurring job refuses; check the refusal rules (especially skills-tree dirt and drift) against the weekly job's expectations.
+implementation: Adds assert_skill_update_pr_preflight, called from `coga skill update` before update_skills when --pr is set; folds in the unmerged-paths check and blocks only on dirty/untracked paths that differ on the control branch, any skills-tree dirt, or skills-tree drift.
+deviations: Untracked check intersects with all HEAD..control differences rather than only paths added on control (conservative). The unmerged check moved out of run_skill_update_pr_flow into the preflight.
+limitations: Recurring ticket.py log-commit path not traced end to end; detached HEAD return not addressed (out of scope).
+files:
+  src/coga/skill_manager.py: New preflight and NUL-delimited git path helper; PR flow no longer runs the unmerged check itself.
+  src/coga/commands/skill.py: Run the --all check and preflight before update_skills.
+  tests/test_skill_manager.py: Retarget unmerged test at the preflight; real-git blocking/non-blocking/untracked/skills-tree tests; CLI no-update-on-refusal test; drop unused stubs.
+  tests/test_skill_update.py: Make the --pr recipe fixture a committed git repo because --pr now preflights with git.
+  docs/contexts/coga/skill-management/SKILL.md: Document the --pr refusal and remedy.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Packaged twin of the doc change.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; peer-review is the next workflow step.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=$HOME/.cache/coga-pytest-v1-10 tests/test_skill_update.py tests/test_skill_manager.py tests/test_packaging.py
+    status: passed
+    head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
+    base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
+    detail: 155 passed on the committed tree.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=$HOME/.cache/coga-pytest-v1-10
+    status: failed
+    head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
+    base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
+    detail: Ran on the pre-commit tree before the test_skill_update.py fixture fix; 4310 passed, 10 skipped, 2 failed (both test_skill_update_runs_through_generic_recipe_and_reports_no_op params, non-git fixture). The fix was then verified by the focused run above; full suite not re-run after it.
+```
