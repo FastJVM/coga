@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 1f09872f-0e64-446e-83f1-1ab1a5ea2ed9
 ---
 
 ## Description
@@ -200,3 +199,72 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: fail-sweep-on-local-enumeration
+
+## Implement handoff (2026-11-04)
+
+What changed (commit a65a8e686, pushed):
+- `branchsweep._local_branches(root, result, echo)` now lists name and tip in
+  one `for-each-ref --format=%(objectname) %(refname:strip=2)` (no per-branch
+  `rev-parse`, no delete-between-calls race). A non-zero exit, or an entry it
+  cannot split into tip + name, sets new `BranchSweepResult.local_unavailable`
+  and notes "could not list local branches — sweep skipped: …". An empty
+  successful listing is still fine.
+- `sweep_branches` returns right after `_local_branches` on failure, before
+  `_remote_branches` (no `ls-remote`, no remote_unavailable masking).
+- `failure` includes `local_unavailable` (after state_root, before gh);
+  `render_sweep_report` labels it "the sweep stopped early"; recipe exits 2.
+- Docs: new paragraph in `coga/checkout-cleanup/branch-sweep` (+ byte-identical
+  packaged twin) stating the stop-before-delete rule for local enumeration,
+  worktree probe, and Coga root prefix.
+- Tests: `test_local_branch_listing_failure_stops_sweep` (merged "feat" that
+  would look remote-only stays on both sides), `test_unresolvable_local_branch_entry_stops_sweep`,
+  plus `local_unavailable` case in `test_recipe_records_a_failed_sweep_on_the_blackboard`.
+  Both new tests fail with the fix reverted.
+
+Decision: an unresolvable entry is detected as an unparseable line from the
+combined listing (the `rev-parse`-empty case no longer exists).
+
+Environment note (not this ticket): the primary checkout carries an
+uncommitted human edit to `pyproject.toml` (`tmp_path_retention_policy =
+"failed"`). It was left untouched and unstaged. With it,
+`tests/test_validate.py::test_validate_prunes_skill_dependencies_before_scanning`
+errors at teardown (pathlib TypeError); with `-o tmp_path_retention_policy=all`
+it passes. Whoever lands that pyproject tweak should fix that interaction.
+
+No independent review yet; the workflow's later steps own review and PR.
+
+## PR
+
+```yaml
+title: Stop the branch sweep when local branch enumeration fails
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+base: 6ea506da11155179f63b8845108b950e887adae6
+depth: skim
+rationale: Bounded fail-closed change in one sweep helper; read the description for the single-listing parse choice.
+implementation: _local_branches lists tip and name in one for-each-ref; a non-zero exit or unparseable entry sets local_unavailable, which stops sweep_branches before the remote listing, reports "the sweep stopped early", and makes the recipe exit 2.
+deviations: Replaced per-branch rev-parse with %(objectname) in the listing, as the ticket suggested; the "empty rev-parse" case is now an unparseable-entry case.
+limitations: Unrelated local pyproject.toml tweak in the primary checkout causes a teardown error in one test_validate test; not part of this diff.
+files:
+  src/coga/branchsweep.py: Detect local enumeration failure, record local_unavailable, stop the sweep before any delete, and report it as stopped early.
+  tests/test_branchsweep.py: Regression tests for a failed listing and an unresolvable entry, plus the recipe exit-2/report case.
+  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: State that the sweep stops before deleting when local state cannot be established.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Byte-identical packaged twin of the topic.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to a later workflow step.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py tests/test_retire_worklist.py -q
+    status: passed
+    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+    base: 6ea506da11155179f63b8845108b950e887adae6
+    detail: 234 passed (run on the working tree identical to the committed tree).
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+    base: 6ea506da11155179f63b8845108b950e887adae6
+    detail: 4345 passed, 10 skipped, 1 teardown error in test_validate_prunes_skill_dependencies_before_scanning caused by the uncommitted local pyproject tmp_path_retention_policy edit; that test passes with -o tmp_path_retention_policy=all.
+```

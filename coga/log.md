@@ -10073,3 +10073,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 10:56 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 10:56 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 10:56 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] launched via coga megalaunch
+2026-11-04 11:09 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [agent:claude] advanced to step 2 (peer-review) → codex
