@@ -56,15 +56,16 @@ every mode, naming what needs it — only a ticket that declares an `op://`
 secret — with its install link, so a user who keeps secrets elsewhere skips
 it knowing nothing is broken.
 
-Agent CLIs take their own route. Interactive init, when neither `claude` nor
-`codex` is on `PATH`, asks which to install (or skip); `coga build` offers
-the onboarding ticket's missing agent CLI before failing. The installer is
-the vendor's package, never a `curl | sh` script: on macOS the brew cask
+Agent CLIs take their own route. `coga init` never installs one and never
+says where to get one: it only names the prerequisite in its next steps when
+neither `claude` nor `codex` is on `PATH`. `coga build` does offer the
+onboarding ticket's missing agent CLI before failing. That installer is the
+vendor's package, never a `curl | sh` script: on macOS the brew cask
 (`claude-code`, `codex`), else `npm install -g @anthropic-ai/claude-code` or
 `@openai/codex` when `npm` is on `PATH`, else only the install URL. The
 command runs only on a yes, then offers the login (`claude`, which signs in
-on first run, or `codex login`). Without a terminal, neither command
-prompts. How init may change the default agent is in
+on first run, or `codex login`). Without a terminal, nothing is offered or
+installed. How init may change the default agent is in
 [coga/init](../init/SKILL.md).
 
 ### macOS: check Git before init

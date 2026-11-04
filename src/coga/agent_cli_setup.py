@@ -1,10 +1,11 @@
 """Offer to install and log in an agent CLI (`claude`, `codex`).
 
-Shared by interactive `coga init` (pick an agent before scaffolding) and
-`coga build` (the onboarding launch, when its agent CLI is not on PATH), so a
-new user never meets "Agent CLI not found in PATH" as their first step.
-Callers decide interactivity; nothing here runs without a printed command and
-an explicit yes, and nothing here edits `coga.toml`.
+Used by `coga build` (the onboarding launch, when its agent CLI is not on
+PATH), so a new user never meets "Agent CLI not found in PATH" as their first
+step. `coga init` does not install an agent CLI; it only offers an installed
+one as the default agent. Callers decide interactivity; nothing here runs
+without a printed command and an explicit yes, and nothing here edits
+`coga.toml`.
 
 The installer is the vendor's package, never a `curl | sh` script: the brew
 cask on macOS, else a global npm package when `npm` is on PATH, else the

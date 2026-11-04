@@ -134,8 +134,8 @@ coga init --user YOUR_NAME
 In a repo new to Coga, init commits the Coga files. In a clone that already
 uses Coga, it sets up your local identity and agent links without a commit
 ([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
-In an interactive terminal, it offers agent CLI installation and login when
-neither supported CLI is installed and a supported installer is available;
+Init installs no agent CLI: in an interactive terminal, when exactly one
+supported CLI is installed, it offers to make that one your default agent, and
 an already-installed CLI still needs authentication. It seeds the onboarding
 ticket only for an otherwise empty repo; a short starter README, LICENSE or
 `.gitattributes` still counts as empty. Choose how to begin:
