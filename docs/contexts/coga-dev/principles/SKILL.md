@@ -60,7 +60,7 @@ and criteria for success. A human can question its assumptions, correct the
 tickets or context, add a review step, or stop the project. The revised text
 also directs later agent work. Coga uses the agent's planning capability and
 keeps that shared understanding editable across sessions. The
-[Coga history examples](https://github.com/FastJVM/coga/blob/main/README.md#when-coga-changed-its-own-mind)
+[Coga history examples](../../../../README.md#when-coga-changed-its-own-mind)
 show a discarded architectural assumption and a maintenance workflow changed
 when it became clear that transient notes would not preserve key findings.
 
