@@ -1,8 +1,27 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: draft
+status: blocked
 owner: nicktoper
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -151,3 +170,18 @@ If #1153 is abandoned, this ticket is moot: cancel it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [ ] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+
+- [ ] [2026-11-03 14:38] [agent:claude] id=20261103T143857 Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
+
+
+---
+
+## Blocker reminders
+
+- 7891d747a9e1 last_reminded: 2026-11-03 10:44

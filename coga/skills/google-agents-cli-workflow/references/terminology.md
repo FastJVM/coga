@@ -6,7 +6,7 @@ The platform is now called **Gemini platform**; users may still call it Vertex A
 |-------------|-----------|
 | Agent Runtime, Agent Engine, Vertex AI Agent Engine | `--deployment-target agent_runtime` |
 | Sessions in Gemini platform, managed sessions, Agent Engine sessions, Agent Platform Sessions | `--session-type agent_platform_sessions` |
-| Search or Vector Search in Gemini platform, Vertex AI Search, Vertex AI Vector Search, RAG | clone-and-study recipe, not a flag (see `/google-agents-cli-adk-code` → `references/samples.md`) |
+| Search or Vector Search in Gemini platform, Vertex AI Search, Vertex AI Vector Search, RAG | clone-and-study recipe, not a flag (see `/google-agents-cli-adk-code` → `references/recipes.md`) |
 | Gemini, Gemini Enterprise (publish destination) | `agents-cli publish gemini` |
 
 `google-cloud-aiplatform`, ships two importable packages: the older `vertexai` and the newer

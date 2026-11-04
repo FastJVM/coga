@@ -202,7 +202,7 @@ refinement_loop = LoopAgent(
 )
 ```
 
-For a production LoopAgent with EscalationChecker, BuiltInPlanner, and grounding citations, look it up in the topic index in `references/samples.md`.
+For a production LoopAgent with EscalationChecker, BuiltInPlanner, and grounding citations, look it up in the topic index in `references/recipes.md`.
 
 ---
 
@@ -406,13 +406,13 @@ agent = Agent(tools=[load_web_page], ...)
 agent = Agent(code_executor=BuiltInCodeExecutor(), ...)
 
 # Managed sandbox (Code Interpreter in Gemini platform). For a per-user sandbox an agent works
-# in across sessions, this primitive is not it — see the topic index in references/samples.md
+# in across sessions, this primitive is not it — see the topic index in references/recipes.md
 # from google.adk.code_executors import VertexAiCodeExecutor
 # agent = Agent(code_executor=VertexAiCodeExecutor(optimize_data_file=True, stateful=True), ...)
 
 ```
 
-> **`google_search` is model-internal grounding, not a regular tool.** Mixing it with FunctionTools disables Automatic Function Calling (AFC) for all tools. If you need search alongside custom tools, consider a sub-agent architecture or a custom search function — see the [deep-search sample](https://github.com/google/adk-samples/tree/main/core/python/deep-search) for a working pattern. For eval implications, see the eval guide's `builtin-tools-eval` reference.
+> **`google_search` is model-internal grounding, not a regular tool.** Mixing it with FunctionTools disables Automatic Function Calling (AFC) for all tools. If you need search alongside custom tools, consider a sub-agent architecture or a custom search function — see the [deep-search recipe](https://github.com/google/adk-recipes/tree/main/core/python/deep-search) for a working pattern. For eval implications, see the eval guide's `builtin-tools-eval` reference.
 
 ### Tool Confirmation
 
@@ -612,7 +612,7 @@ results = await memory_service.search_memory(app_name=app_name, user_id=user_id,
 
 #### Memory Bank (Long-term Memory)
 
-Managed cross-session memory that persists user preferences, remembers facts across sessions, and learns from conversations over time. See the [`cross-session-memory` recipe](https://github.com/google/adk-samples/tree/main/core/python/cross-session-memory) for a complete implementation.
+Managed cross-session memory that persists user preferences, remembers facts across sessions, and learns from conversations over time. See the [`cross-session-memory` recipe](https://github.com/google/adk-recipes/tree/main/core/python/cross-session-memory) for a complete implementation.
 
 ```python
 from google.adk.agents.callback_context import CallbackContext
@@ -678,7 +678,7 @@ app = App(
 
 ### App Name
 
-The `App(name=...)` parameter **must match the agent directory name** (default: `app`). A mismatch causes "Session not found" errors during evaluation because the runner infers the app name from the directory path.
+The `App(name=...)` parameter **must match the basename of the agent directory** (default: `app`; `my_agent` for `src/my_agent`). A mismatch causes "Session not found" errors during evaluation because the runner infers the app name from the directory path.
 
 ```python
 # CORRECT — matches the "app" directory
@@ -776,7 +776,7 @@ Requires `pip install google-adk[a2a]`.
 
 ```python
 # Expose an agent as an A2A service
-# Prefer scaffolding over manual code — scaffold a normal `adk` agent; A2A is built in (see /google-agents-cli-scaffold)
+# Prefer scaffolding over manual code — scaffold a normal `adk_python` agent; A2A is built in (see /google-agents-cli-scaffold)
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from a2a.types import AgentCard
 to_a2a(root_agent, port=8001)
@@ -851,7 +851,7 @@ Sessions are ephemeral by default (`InMemorySessionService`); use `DatabaseSessi
 
 Since ambient agents have no interactive user, route outputs via structured logging (JSON stdout → Cloud Logging → Cloud Monitoring alerts), Pub/Sub, or tool-based integrations (email, Jira, Slack).
 
-**Before implementing an ambient agent, clone and study the production sample** — it covers trigger wiring, middleware, structured logging, and Terraform. Look it up in the topic index in `references/samples.md`. [Full docs](https://adk.dev/runtime/ambient-agents/).
+**Before implementing an ambient agent, clone and study the production recipe** — it covers trigger wiring, middleware, structured logging, and Terraform. Look it up in the topic index in `references/recipes.md`. [Full docs](https://adk.dev/runtime/ambient-agents/).
 
 ---
 
@@ -978,8 +978,8 @@ Data flows between sequential sub-agents via conversation history and `output_ke
 ### Further Reading
 
 - [ADK Documentation](https://adk.dev/llms.txt)
-- [ADK Samples](https://github.com/google/adk-samples)
-- `references/samples.md` — topic index of the reference recipes, and how to clone one
+- [ADK Recipes](https://github.com/google/adk-recipes)
+- `references/recipes.md` — topic index of the reference recipes, and how to clone one
 
 ---
 

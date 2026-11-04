@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.11.0
+    github-ref: refs/tags/v1.12.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 3fd1102372ce46d7ccbcb1119e9ce054b3d83855
+    github-tree-sha: f51c19e2ba750ac74fc043f2bf965f7e5839b40e
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.11.0
+    version: 1.12.0
 name: google-agents-cli-deploy
 ---
 # Deployment Guide
@@ -60,7 +60,7 @@ All three targets are container-based, so any language works.
 
 > **Ambient / scheduled / event-driven agents (ADK projects):** ADK's `trigger_sources` registers `/apps/{app}/trigger/*` endpoints on the same FastAPI app for **all** targets. On **Cloud Run** / **GKE** these are public HTTP routes you point a Pub/Sub push subscription or Eventarc trigger at; on **Agent Runtime** the same routes are reachable through its `/api` passthrough (e.g. `.../reasoningEngines/v1/{resource}/api/apps/{app}/trigger/pubsub`). Cloud Run remains the simplest target for unauthenticated trigger sources. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
-> **OAuth / user consent agents:** Use **Agent Runtime**, registered with Gemini, for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. For a worked ADK example, look up OAuth user consent in the topic index in `/google-agents-cli-adk-code` → `references/samples.md`.
+> **OAuth / user consent agents:** Use **Agent Runtime**, registered with Gemini, for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. For a worked ADK example, look up OAuth user consent in the topic index in `/google-agents-cli-adk-code` → `references/recipes.md`.
 
 > **Live and voice agents:** pass **`--timeout 3600`** on Cloud Run so a session outlives the 300s default, and **`--min-instances 1`** on Cloud Run or Agent Runtime so the first caller after idle does not hear a cold start. GKE sizes pods in Terraform. URL shapes and session caps: `/google-agents-cli-adk-code` (`references/adk-python-live.md`).
 
@@ -105,7 +105,7 @@ agents-cli infra single-project --apply
 | `--secrets` / `--update-secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs. Cloud Run adds them to the service's existing secrets; Agent Runtime replaces the agent's existing secrets with the ones you pass. | Agent Runtime, Cloud Run |
 | `--env-vars` / `--update-env-vars` | Comma-separated `KEY=VALUE` environment variables | All |
 | `--agent-identity` | Enable [Agent Identity](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-identity) | Agent Runtime |
-| `--no-agent-identity` | Disable Agent Identity. Passing neither `--agent-identity` nor `--no-agent-identity` defaults to no Agent Identity, when a new agent is created, or keeps the current identity type on subsequent re-deployments. | Agent Runtime |
+| `--no-agent-identity` | Disable Agent Identity. Passing neither `--agent-identity` nor `--no-agent-identity` follows the project's identity default in `agents-cli-manifest.yaml` when the agent is created, or keeps the current identity type on later deploys. | Agent Runtime |
 | `--network-attachment` | Network attachment resource name for [PSC interface](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/private-service-connect-interface) (enables private VPC connectivity) | Agent Runtime |
 | `--dns-peering-domain` | DNS peering domain suffix, e.g. `my-internal.corp.` (requires `--network-attachment`) | Agent Runtime |
 | `--dns-peering-project` | Project ID hosting the Cloud DNS managed zone for DNS peering (requires `--network-attachment`) | Agent Runtime |
@@ -130,7 +130,7 @@ agents-cli infra single-project --apply
 | `--no-wait` | Start deployment and return immediately | Agent Runtime, Cloud Run |
 | `--status` | Check the status of a pending `--no-wait` deployment | Agent Runtime, Cloud Run |
 | `--list` | List existing deployments and exit | All |
-| `--dry-run` / `-n` | Print what would be executed without running it | All |
+| `--dry-run` / `-n` | Print what would be executed without running it. For Agent Runtime and Cloud Run, it first runs read-only checks on Google Cloud. | All |
 | `--no-confirm-project` | Skip project confirmation prompt | All |
 
 Run `agents-cli deploy --help` for the full flag reference.
@@ -174,7 +174,7 @@ For the full CI/CD pipeline setup guide — prerequisites, `infra cicd` flags, r
 
 For detailed infrastructure configuration (scaling defaults, Dockerfile, FastAPI endpoints, session types, networking), see `references/cloud-run.md`. **ADK:** for ADK docs on Cloud Run deployment, fetch `https://adk.dev/deploy/cloud-run/index.md`.
 
-> **ADK projects.** For event-driven / ambient agent deployment on Cloud Run, see the [`ambient-expense-agent`](https://github.com/google/adk-samples/tree/main/core/python/ambient-expense-agent) sample and `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
+> **ADK projects.** For event-driven / ambient agent deployment on Cloud Run, see the [`ambient-expense-agent`](https://github.com/google/adk-recipes/tree/main/core/python/ambient-expense-agent) recipe and `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
 ---
 
@@ -394,7 +394,7 @@ so the image must trust the gateway's root CA. That setup is opt-in at scaffold 
 creating a new project, pass `--agent-gateway` flag to `agents-cli create`:
 
 ```bash
-agents-cli create my-agent --agent adk -d agent_runtime --agent-gateway
+agents-cli create my-agent --agent adk_python -d agent_runtime --agent-gateway
 ```
 
 Alternatively, you can pass the same flag to `agents-cli scaffold enhance` to upgrade an

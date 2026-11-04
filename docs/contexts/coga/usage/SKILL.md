@@ -89,7 +89,7 @@ which estimates the prompt side before a run.
 ## Retained history
 
 `coga usage --since` queries records still in `coga/log.md`. The default-on
-[retention job](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/ticket.md)
+[retention job](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/ticket.md)
 uses envelope timestamps for age, while usage continues filtering JSON `ts`.
 Before the retention window there is no completeness guarantee: histories for
 tickets still on disk can survive while removed-ticket records expire. No

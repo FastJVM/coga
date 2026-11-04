@@ -1,6 +1,6 @@
 # BigQuery Agent Analytics Plugin
 
-> **ADK Python projects only. Opt-in.** Enable with `--bq-analytics` at scaffold time, or add manually to `app/agent.py`.
+> **ADK Python and Claude template projects. Opt-in.** Enable with `--bq-analytics` at scaffold time, or add manually to `app/agent.py` (ADK). Claude projects write the same `agent_events` table and views from `app/app_utils/bq_analytics/`, without ADK-only events (state, human-in-the-loop, transfer); see the project's `agents-cli-claude` skill.
 
 An optional ADK plugin that logs structured agent events directly to BigQuery via the Storage Write API. Enables:
 
@@ -13,7 +13,7 @@ An optional ADK plugin that logs structured agent events directly to BigQuery vi
 
 | Method | How |
 |--------|-----|
-| **At scaffold time** | `agents-cli scaffold create <project-name> --agent adk --deployment-target <target> --bq-analytics` |
+| **At scaffold time** | `agents-cli scaffold create <project-name> --agent adk_python --deployment-target <target> --bq-analytics` |
 | **Post-scaffold** | Add the plugin manually to `app/agent.py` (see [ADK docs](https://adk.dev/integrations/bigquery-agent-analytics/index.md)) |
 
 Infrastructure (BigQuery dataset, GCS offloading) is provisioned automatically by Terraform when enabled at scaffold time.

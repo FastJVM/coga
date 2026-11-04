@@ -158,8 +158,9 @@ needed to decide eligibility.
 
 - Changing which dirty Coga-root files publish, adding twin comparison or
   repository-specific exclusions, or automatically publishing source outside
-  the roots. The separate task
-  `v1/04-stop-the-contexts-root-sweep-from-publishing-canon` concerns that hazard.
+  the roots. The separate tasks in `v1/package-definitions/` (split from
+  `v1/04-stop-the-contexts-root-sweep-from-publishing-canon`) concern that
+  hazard.
 - Field-level merging or separating recurring intent from blackboard state;
   a committed file is held as a whole. Reclassifying attachments inside the
   task directory is also outside this change.
@@ -645,7 +646,8 @@ opened" limitation. No receipt was rerun or invented. Receipts recorded at
 `559bdd760` render as stale against the merge head, although the trees are
 identical. The frozen workflow has no peer-review step, so the PR states
 that no code review ran. Open follow-ups stay with existing tickets:
-v1/04-stop-the-contexts-root-sweep-from-publishing-canon and
+v1/package-definitions/ (split from
+v1/04-stop-the-contexts-root-sweep-from-publishing-canon) and
 v1/12-fix-release-env-fixture-interpreter-symlink-in-fre. Native Windows
 has not been run. Next: owner review.
 
