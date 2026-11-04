@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 5c7735e7-ee51-443b-bd01-51b8cc30ab64
 ---
 
 ## Description
@@ -213,3 +212,69 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: fix/guard-foreign-worktree-branch-cleanup
+
+## Handoff (implement)
+
+What changed (commit 3ef04cb5d on the branch, pushed):
+- `checkout_disposal.dispose_checkout`: after the claim scan and the
+  (unchanged, refusing) worktree attempt, a new `_foreign_checkout` check
+  skips `delete_branch` entirely when the recorded `worktree:` exists and is
+  not this repo's `"primary"`/`"linked"` (so `"foreign-linked"`,
+  `"foreign-primary"`, or `None` for an existing dir). One note:
+  "Branch cleanup: skipped — recorded worktree … is not this repository's
+  linked worktree, so branch … is not judged in this clone."
+  Reuses `retire_worklist._recorded_relation` (resolves relative paths,
+  returns None for a missing dir); a missing dir is not foreign, so the
+  ordinary already-gone path keeps its branch cleanup.
+- `CheckoutOutcome.branch_owner` is not set for these entries; the existing
+  foreign-linked autoclose remedy is unchanged
+  (`test_cross_repo_worktree_names_its_owning_checkout` still passes).
+- Docs: `coga/checkout-cleanup` "Primary checkouts and other clones" rewritten
+  in both copies (byte-identical); removed the "foreign linked is the
+  exception" rule. `autoclose.py`/`retire_worklist.py` docstrings did not
+  restate the old rule, so they are unchanged; `dispose_checkout`'s own
+  docstring gained one sentence.
+- Tests: `test_cross_repo_worktree_leaves_a_same_named_local_branch_untouched`
+  (autoclose) and `test_retire_leaves_a_same_named_branch_for_a_foreign_checkout`
+  (retire; parametrized foreign-linked and foreign-primary). Both stub the
+  PR as merged at the local tip so every branch proof would pass; on the
+  unfixed code they showed "deleted local" (and remote, for autoclose).
+
+Next step (peer-review): check the guard placement and the doc wording.
+
+## PR
+
+```yaml
+title: Skip branch cleanup for a foreign recorded worktree
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
+base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
+depth: skim
+rationale: Small, fail-closed guard in shared disposal code, with regression tests for autoclose and retire; read the doc rewrite.
+implementation: dispose_checkout skips delete_branch when the recorded worktree exists and git.classify_checkout says it is not this repository's primary or linked checkout, and adds one note. The worktree is still left in place, and the autoclose remedy is unchanged.
+deviations: None.
+limitations: An existing directory that Git cannot classify (None) also skips branch cleanup here, so a ticket recording a non-checkout directory keeps its local branch until a human looks. This is intended fail-closed behavior.
+files:
+  src/coga/checkout_disposal.py: Add the foreign-checkout guard before delete_branch.
+  tests/test_autoclose_dispose.py: Regression test that autoclose leaves a same-named local/remote branch for a foreign linked worktree.
+  tests/test_retire.py: Regression test that retire leaves a same-named branch for foreign linked and foreign primary checkouts.
+  docs/contexts/coga/checkout-cleanup/SKILL.md: Replace the foreign-linked exception with the never-judged-here rule for autoclose and retire.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Packaged twin, byte-identical.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review happens in the later peer-review step.
+checks:
+  - command: .venv/bin/python -m pytest -q tests/test_retire.py tests/test_autoclose_dispose.py tests/test_packaging.py
+    status: passed
+    head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
+    base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
+    detail: 90 passed.
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
+    base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
+    detail: 4309 passed, 10 skipped. Ran on the pre-rebase tree; the rebase onto this base brought only coga/log.md and an unrelated ticket file, so the src/tests/docs content is identical.
+```
