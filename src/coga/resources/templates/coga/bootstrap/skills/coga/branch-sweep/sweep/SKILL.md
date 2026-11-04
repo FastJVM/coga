@@ -93,10 +93,14 @@ without going through retire or a session dies mid-flight.
    ref with a lease on its authorized tip when a merged PR, or a terminal
    owner's closed PR, covers it,
 7. write a `## Branch Sweep` report (`render_sweep_report`) — the outcome
-   counts and lists, then every per-branch decision — to the period task's
-   blackboard named by `COGA_TASK_BLACKBOARD`, or to stdout when the recipe
-   runs outside a task. It is written before the exit code is decided, so a
-   sweep that stopped early records why.
+   counts and lists, then every per-branch decision. The scheduled
+   clone-scoped run has no period task (the clone runner strips the
+   `COGA_TASK_*` environment), so the report goes to stdout, which is kept in
+   the clone's `.coga/recurring-clone/branch-sweep.log` and in the sweep's
+   run record for the autofix analyst. Only a run inside a task with
+   `COGA_TASK_BLACKBOARD` set appends it to that blackboard instead. It is
+   written before the exit code is decided, so a sweep that stopped early
+   records why.
 
 The scope is defined by `coga.branchsweep.sweep_branches`. If worktree state
 cannot be pruned/listed, or the Coga OS root cannot be located in git, the

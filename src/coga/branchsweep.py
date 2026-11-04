@@ -1104,10 +1104,12 @@ def run_branch_sweep_recipe(
     # contract true even if that ever stops being so.
     sweep_branches(cfg, root, echo=print, result=result)
     discharge_owned_followups(cfg, root, echo=print, result=result)
-    # The report is the run's only durable record — the period task's
-    # blackboard is what the recurring sweep's autofix analyst reads, and a
-    # console-only sweep left the 2026-09-08 period with an empty one. Written
-    # before the exit code is decided so a failed sweep is recorded too.
+    # The report is the run's only durable record. The scheduled clone-scoped
+    # run has no period task, so it goes to stdout, which the clone runner
+    # keeps in `.coga/recurring-clone/branch-sweep.log` and the sweep's run
+    # record for the autofix analyst; a run inside a task appends it to that
+    # task's blackboard instead. Written before the exit code is decided so a
+    # failed sweep is recorded too.
     report = render_sweep_report(
         result,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
