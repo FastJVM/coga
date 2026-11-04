@@ -66,10 +66,10 @@ install a chosen agent that is not on PATH.
       any mismatch init leaves `coga.toml` untouched and warns.
 - [ ] `default_agent` names the first chosen agent when the packaged default
       (`claude`) is not chosen, and is otherwise left as packaged.
-- [ ] Choosing an agent that is not on `PATH` runs
-      `agent_cli_setup.offer_agent_cli` for it; a declined or failed install
-      still leaves that agent declared, with a printed line saying
-      `coga launch` offers it again at the point of need.
+- [ ] Choosing an agent that is not on `PATH` leaves it declared and offers no
+      install; init names its binary and tells the user to install it or put it
+      on `PATH`. The `offer_agent_cli` call here was dropped 2026-11-04; see
+      the blackboard.
 - [ ] A single-agent selection prints a warning naming `code/with-self-review`
       and the `coga validate` error that `other-agent` workflows now produce.
 - [ ] An empty selection is confirmed by a prompt naming the cost — no launch
@@ -86,8 +86,8 @@ install a chosen agent that is not on PATH.
       that calls no `termios`, `tty`, `select`, or `signal` function, and a
       test exercises that path on POSIX.
 - [ ] Non-interactive init and the clone path write no `[agents.*]` or
-      `default_agent` change, and the clone path still offers to install a
-      missing agent CLI.
+      `default_agent` change, and neither offers to install a missing agent
+      CLI.
 - [ ] `coga/init` and `coga/install` describe the new question, and
       `python -m pytest` passes.
 
@@ -468,6 +468,21 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 <!-- coga:blackboard -->
 
+## Direction change 2026-11-04
+
+- **init no longer offers to install an agent CLI** (Nico, 2026-11-04). Coga's
+  users already run agentic coding tools, so someone with no agent CLI
+  installed is not the audience init should be built around. This reverses the
+  declined-install decision below and changed two acceptance criteria. The
+  removal from init is its own ticket,
+  `v1/remove-the-agent-cli-install-offer-from-coga-init`; keep the two
+  consistent, and settle which one actually deletes `_offer_agent_cli`.
+- **Telling the user to put their agent CLI on `PATH` is an acceptable
+  outcome** (Zach, 2026-11-04) if the scan and picker turn out not to be worth
+  building. A printed line naming the supported binaries and asking the user to
+  install one or add it to `PATH` satisfies the underlying need; the scan is the
+  better version of that, not the only acceptable one.
+
 ## Decisions from the design step
 
 - **Unchosen `[agents.*]` tables are commented out, not deleted** (Zach,
@@ -487,7 +502,9 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
   `coga launch` offers it again (`launch.py` already calls `offer_agent_cli`
   when a configured agent's CLI is absent). The alternative — silently dropping
   what the user just asked for — is worse than a config entry whose binary
-  arrives later.
+  arrives later. **Superseded 2026-11-04:** init offers no install at all, so
+  there is no declined install to handle. Choosing an off-`PATH` agent still
+  leaves it declared, which is the part of this decision that survives.
 
 ## Corrections to the ticket's own context
 
