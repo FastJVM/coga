@@ -2,9 +2,9 @@
 
 **Agents work in sessions. Humans make things. Coga helps you build better and go deeper.**
 
-Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, experiments overturn assumptions, and you discover that you’re building something different from what you first imagined. What needs updating? Which decisions still apply? What should the next agent know?
+Claude Code and Codex can plan, investigate, and implement tasks. But a software project is more than a series of tasks: assumptions prove wrong, plans change, and decisions need to survive across agent sessions. Without a shared record, people have to reconstruct what was learned, why choices were made, and what should happen next.
 
-Coga is a local CLI for building software *and the understanding behind it*. It launches coding agents and tracks tasks around a project's evolving knowledge. **Plans, assumptions, decisions, and findings live in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
+**Coga helps you keep a project moving without losing what you've learned along the way.** It's a local CLI that launches coding agents and tracks tasks around evolving project knowledge. Plans, assumptions, decisions, and findings live in ordinary Markdown, organized in Git. Humans and agents can inspect, challenge, and update that knowledge between sessions—even outside Coga.
 
 That knowledge changes as you work. You can add an important constraint an agent missed, replace an assumption that proved wrong, or retire instructions that suited the prototype but no longer fit the product. What you learn becomes part of what subsequent work starts from.
 
