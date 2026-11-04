@@ -10061,3 +10061,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 10:47 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 10:47 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 10:47 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] launched via coga megalaunch
+2026-11-04 10:47 v1 [v1/19-install-link-for-claude-code-yields-the-desktop-ap] [human:zach] task done

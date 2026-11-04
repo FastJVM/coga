@@ -1,6 +1,6 @@
 ---
 title: Install link for Claude Code yields the desktop app not the CLI
-status: active
+status: done
 owner: zach
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 agent: claude
 ---
 
