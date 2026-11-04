@@ -59,6 +59,7 @@ At launch, Coga assembles the ticket, its selected contexts, and its current wor
 
 You keep using Claude Code or Codex to plan, investigate, and build. Coga gives you a shared plan and working knowledge that you can inspect, correct, and carry across sessions:
 
+- **Go where neither could alone.** Agents produce plans fast; people see the whole and question it. Coga keeps the whole plan in text you can see at once and rearrange: split a task, test a premise first, park work, change direction. Each later session, by any agent, starts from the rearranged plan.
 - **Understand and shape the plan.** Let the agent propose an approach, then read and refine what it intends to build. Add missing constraints, question assumptions, and decide what success means. The same edited plan helps you judge the work and gives the agent direction.
 - **Manage context rot with readable handoffs.** At each step, the agent records useful findings, decisions, and open questions. The next session starts fresh from the current ticket, notes, and selected knowledge. You can inspect, correct, and share what carries forward.
 - **Choose knowledge and skills for the task.** Select the facts, constraints, and procedures to include at launch. Make important guidance available from the start, and keep irrelevant or outdated instructions out of the task's prompt.

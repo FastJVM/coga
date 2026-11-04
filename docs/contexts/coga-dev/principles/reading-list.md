@@ -27,6 +27,28 @@ For a related argument about improving both tools and ways of working, read
 human capability as a system of people, tools, language, methods, and
 training, with improvements that can enable further improvements.
 
+## Human–AI combination and insight
+
+Read for when people and machines do better together than apart, and how
+seeing a problem whole changes it. The
+[2026-11-02 claim check](../../../archive/evidence/beyond-either-alone.md)
+weighs this evidence against Coga.
+
+- **Michelle Vaccaro, Abdullah Almaatouq, Thomas Malone — [When combinations
+  of humans and AI are useful (Nature Human Behaviour, 2024)](https://pmc.ncbi.nlm.nih.gov/articles/PMC11659167/).**
+  A meta-analysis finding that human–AI combinations do worse on average than
+  the better of the two alone, with synergy where the human holds the edge.
+  The reason "together" needs a deliberate process.
+- **Garry Kasparov — [Deep Thinking (2017)](https://cacm.acm.org/?p=225260).**
+  Freestyle chess, where "weak human + machine + better process" beat stronger
+  players with an inferior process.
+- **Gestalt insight research — Wolfgang Köhler, Karl Duncker, and Stellan
+  Ohlsson's representational change theory.** Insight as restructuring how a
+  problem is represented; a
+  [recent review](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10219327/)
+  covers the tradition. Read for why keeping the whole plan visible and
+  editable matters.
+
 ## Related contemporary work
 
 These projects share parts of that tradition; they are related work, not
