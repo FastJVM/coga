@@ -80,11 +80,17 @@ and it may hold untracked or ignored data. Autoclose preserves such a
 directory and never recommends deleting it.
 
 The branch stays debt in the repository that owns it, recorded as the entry's
-`owner` for foreign primary and foreign linked checkouts. When the recorded
-checkout is a primary or its directory is gone, autoclose never deletes a
-same-named branch in the sweeping clone; an existing foreign *linked*
-worktree is the exception, whose recorded branch is judged in the sweeping
-clone. A remaining foreign branch is reported for manual cleanup in its
+`owner` for foreign primary and foreign linked checkouts. A foreign
+checkout's branch is never judged in the invoking clone, under autoclose or
+`coga retire`: a same-named branch there is left untouched. While the
+recorded worktree exists and is not this repository's linked worktree or
+primary (a foreign linked worktree, another repository's primary, or a
+directory Git cannot classify), `checkout_disposal.dispose_checkout` skips
+all branch cleanup in the invoking clone with one note saying why, and leaves
+the directory in place. Once a primary checkout's directory is gone,
+autoclose judges its branch only through the recorded `owner`. Foreign
+worktrees are expected only for recurring; elsewhere such a record is a
+stray. A remaining foreign branch is reported for manual cleanup in its
 owning clone. The owning clone's own daily branch sweep runs the ordinary
 proofs on the entries that record it as `owner`, then discharges and
 publishes them (`coga/recurring/scheduling`), so the manual step remains only

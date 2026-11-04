@@ -48,6 +48,7 @@ from coga.branchcleanup import (
 )
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.retire_worklist import _recorded_relation
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -147,7 +148,9 @@ def dispose_checkout(
     (or a worklist entry's, whose ticket may be gone — `pr_url` is then None
     and the merge signal is looked up by head branch name). `owned_branches`
     are the ticket's other recorded `branch:` names. The claim scan runs first
-    in every path. A proof that raises preserves the checkout with the failure
+    in every path. A recorded worktree that exists but is not this
+    repository's own checkout skips all branch cleanup here: its branch is
+    judged only in the repository that owns it. A proof that raises preserves the checkout with the failure
     noted; this never aborts the caller.
     """
     disposal = CheckoutDisposal(branch=branch or None, worktree=worktree or None)
@@ -202,7 +205,16 @@ def dispose_checkout(
             else:
                 disposal.notes.extend(disposal.worktree_result.notes)
 
-    if disposal.branch is not None:
+    if disposal.branch is not None and _foreign_checkout(root, disposal.worktree):
+        # A recorded checkout that exists but is not this repository's linked
+        # worktree keeps its branch in the repository that owns it; a
+        # same-named branch here is not the ticket's and is never judged.
+        note(
+            f"Branch cleanup: skipped — recorded worktree {disposal.worktree!r} "
+            "is not this repository's linked worktree, so branch "
+            f"{disposal.branch!r} is not judged in this clone."
+        )
+    elif disposal.branch is not None:
         try:
             disposal.branch_result = delete_branch(
                 cfg, root, disposal.branch, pr_url=pr_url, echo=echo
@@ -220,6 +232,20 @@ def dispose_checkout(
     if disposal.worktree_gone:
         _sweep_owned_branches(cfg, root, disposal, owned, note=note, echo=echo)
     return disposal
+
+
+def _foreign_checkout(root: Path, worktree: str | None) -> bool:
+    """Whether a recorded `worktree:` exists but is not this repository's own.
+
+    Foreign linked worktrees, other repositories' primary checkouts, and
+    directories `git.classify_checkout` cannot answer for all count; this
+    repository's primary and linked checkouts do not. A missing directory is
+    not foreign: that is the ordinary already-gone path.
+    """
+    relation = _recorded_relation(root, worktree)
+    if relation is None:
+        return bool(worktree) and resolve_worktree_path(root, worktree).is_dir()
+    return relation.kind not in {"primary", "linked"}
 
 
 def _sweep_owned_branches(
