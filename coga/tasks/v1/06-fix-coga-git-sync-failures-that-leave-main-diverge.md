@@ -37,9 +37,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 9b8de330-3cff-4db5-89d7-ba58325846f2
 ---
 
 ## Description
@@ -343,6 +342,97 @@ The blackboard is a notepad to be written to often as the human and agent works 
    check is run.)
 
 ---
+
+## Evaluator review
+
+2026-11-04, Codex; reviewed against `c85ddbabd` on current `origin/main`.
+**Verdict: resolve the two test-design findings below before implementation.**
+The scratch-location change is otherwise a coherent, small PR in shared Git
+infrastructure. The specified realignment behavior already works; no new
+realignment path is needed. The ticket's body regions, attached contexts and
+frozen `code/design-then-implement` workflow fit this work.
+
+### Must fix before implementation
+
+1. **The missing-temp-directory regression can pass without the fix.**
+   `src/coga/oscompat.py::lock_dir` uses `tempfile.gettempdir()`, and
+   `src/coga/git.py::state_lock` creates that directory with
+   `mkdir(parents=True, exist_ok=True)` before `_publish_locked` runs. A
+   disposable-repo probe on unchanged code published both the ticket and log
+   successfully with `tempfile.tempdir` initially nonexistent: the lock
+   recreated it, all four `coga-git-index-*` allocations still used it, and
+   the proposed Git-dir cleanup assertions passed vacuously. An unusable
+   temp location instead fails at the state lock before any scratch site.
+   Correct the acceptance test to isolate the scratch dependency: for
+   example, acquire the real reentrant state lock before overriding
+   `tempfile.tempdir`, or fault only default-location scratch allocations.
+   Require the test to fail on current code and succeed with the change.
+   Keep lock placement outside this change, and narrow the rationale to
+   publication scratch files: this proposal does not remove the lock's
+   separate temp-filesystem dependency.
+
+2. **A `merge=union` audit-log edit does not exercise the union scratch code.**
+   `src/coga/git.py::_publish_locked` explicitly subtracts `log_rel` from
+   `union_merge_paths`; `_published_proof` likewise handles the configured
+   log through `log_publication.reconcile` before its union branch. The
+   probe confirmed zero `_merge_union_bytes` calls despite Git reporting
+   `merge=union` for `coga/log.md`. Use an actual non-log union file, such as
+   a `retires.md` worklist, with local and control contributions, and verify
+   their merged contents. The shipped
+   `src/coga/resources/templates/coga/.gitattributes` uses `/log.md -merge`
+   and `**/retires.md merge=union`; the older log attribute in
+   `tests/conftest.py::init_git_repo` does not change the publisher's special
+   handling. Exercise the union proof path as well as tree construction.
+   The proposed required `scratch` keyword also needs threading into the
+   existing direct call in
+   `tests/test_git.py::test_union_merge_never_re_adds_a_control_line`.
+
+### Optional recommendations
+
+- Add a linked-worktree placement check and an injected failure after
+  scratch creation. Acceptance promises per-worktree placement and cleanup
+  on failure, while the listed new checks cover success only. Inspect both
+  index and index-lock artifacts; the existing `finally` blocks explicitly
+  remove only the index filename.
+- Qualify the recovery wording: outer launch **retries** publication when
+  its access permits, rather than guaranteeing it heals every failure.
+  `src/coga/launch.py::_CheckoutBoundary.settle` can refuse return and set
+  `state_sweep_withheld`; `src/coga/cli.py::_sweep_coga_state` then skips.
+  Link the existing strict-publication recovery contract. Likewise, narrow
+  “never leaves main diverged” to safe state-only realignment or an explicit
+  refusal preserving other work, as the companion acceptance test requires.
+- Open Question 3 is resolved: the owner confirmed that `088c01908` landed
+  the pytest retention change separately. Remove the body's stale
+  “uncommitted” references when approving the spec. Edit the packaged
+  sandbox topic and its still-present inventoried counterpart together;
+  use a commit-pinned link when citing this retiring ticket's findings.
+
+### Verification and limits
+
+- Recounted Multiply's retained `coga/log.md`: 259 failures, with the stated
+  155 DNS / 77 hash-object EROFS / 4 index-lock EROFS / 22 rebase or
+  autostash / 1 ENOSPC split. The ENOSPC line names
+  `/tmp/coga-git-index-ugd16sug.lock`. Inspected Multiply commit `94da4bda`:
+  its paths are tickets and log only. Historical session-by-session sandbox
+  attribution was not independently repeated.
+- Both offline-sync → hand-commit → competing-remote → sweep sequences
+  passed one-shot real-Git probes using `tests/conftest.py::init_git_repo`.
+  Both landed the ticket and failure log; the state-only case was clean and
+  level, and the mixed case preserved its hand commit and named the remedy.
+- Existing focused tests, Python 3.12.12: **14 passed, 277 deselected**:
+
+  ```sh
+  PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py -k 'offline_publish_leaves or sweep_publishes_a_hand_committed_ticket_from_a_clean_control_checkout or launch_entry_order_recovers_a_hand_commit or prepare_refuses_a_local_commit_touching_state_and_code or erofs_hash_failure_keeps_git_stderr_and_the_location or union_merge_never_re_adds_a_control_line or state_lock_is_reentrant_within_a_thread'
+  ```
+
+- `coga validate --task v1/06-fix-coga-git-sync-failures-that-leave-main-diverge --json`
+  reported one valid task and no issues. `git diff --check` passed; a byte
+  comparison confirmed that the body, frontmatter and unrelated blackboard
+  sections were preserved.
+
+The full implementation suite and owner-run Multiply sessions remain for
+their specified later steps. This evaluation changes only the blackboard;
+no ticket-body edit, implementation, branch or PR was produced.
 
 ## Blockers
 
