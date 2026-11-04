@@ -1,6 +1,6 @@
 ---
 title: Preflight dirty tracked files before skill-update PR checkout
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:870e7eca-41b2-46ae-94c6-d7b0be036ca9
 ---
 
 ## Description
