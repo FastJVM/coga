@@ -14,8 +14,10 @@ scans unresolved asks on blocked tasks and paused recurring periods, posts
 owner reminders, and writes a compact `## Blocker reminders` watermark on
 the affected task's blackboard. It never launches or reactivates the task.
 
-Eligibility, recovery commands and deduplication are owned by
-[coga/notifications/producers](context:coga/notifications/producers).
+Eligibility, recovery guidance and deduplication (the one-attempt watermark)
+are owned by the [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md);
+[coga/notifications/producers](context:coga/notifications/producers) lists
+the reminder among Coga's notification producers.
 This includes an agent period whose block was followed by the recurring
 runner's unfinished-run pause; its unresolved ask stays visible without
 changing the pause or scheduler behavior.
