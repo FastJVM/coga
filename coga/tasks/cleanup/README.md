@@ -12,8 +12,10 @@ these tickets are those findings, plus the release that makes a first run
 possible at all. The dated [step-1 findings](../../../docs/archive/launch-programs/phase-0-audit/step-1-findings.md)
 hold the original evidence; check each ticket for its current state.
 
-The queue is drained: every ticket here is `done`, and each awaits
-retirement via `coga retire <slug>`.
+The queue is drained and retired: every ticket finished `done` and has been
+removed, so this README is the group's only remaining file. Find a retired
+ticket's body with the `git log --diff-filter=D` recipe in
+`coga/tickets/discovery`.
 
 ## Ordering
 

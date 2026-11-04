@@ -61,7 +61,10 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   GitHub-backed skills are updated one `gh skill update --dir coga/skills
   --all <ref>` call at a time, so every outcome names that skill. Here `--all`
   only suppresses gh's confirmation; the explicit ref still selects one skill.
-  Each outcome is `updated`, `unchanged`, `fetch-failed`, or `skipped-pinned`. `gh` is probed once before any write. A
+  Each outcome is `updated`, `unchanged`, `fetch-failed`, or `skipped-pinned`;
+  gh output Coga does not recognise is `failed`, carrying gh's own words, so an
+  unexpected gh change lands under follow-up rather than reading as a clean
+  no-op. `gh` is probed once before any write. A
   GitHub-backed skill nested below the root (`ns/<name>`) is `failed` without
   calling `gh`, which would move it to `coga/skills/<name>`.
 - URL-backed skills go through Coga's digest checks. Bundled refs without

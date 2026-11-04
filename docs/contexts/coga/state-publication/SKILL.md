@@ -82,11 +82,27 @@ reviewed PR.
   Git keeps its usual informational note instead of that warning.
 - **Guided authoring** (`coga ticket`) publishes its launch line before the
   session starts, as `coga chat` and launch do, so an attended session never
-  holds the log dirty. At the end it publishes the authored tickets and
-  every changed context, skill, workflow, or config file under the roots in
-  **one** guarded publish. An authored change to the Git destination (`[git]`
-  enabled, remote, or control branch) refuses. A refused or failed publish
-  keeps every edit on disk and `coga ticket` exits non-zero.
+  holds the log dirty. At the end it validates every surviving authored
+  ticket, including siblings edited during `coga ticket <slug>`, before
+  publishing any part of **one** guarded transaction with the changed
+  context, skill, workflow, and config files. An existing named target is
+  validated even when unchanged; canceling or deleting it does not hide
+  sibling edits. Deleted ticket and attachment paths and both sides of a
+  file-to-directory promotion are included, with no deleted body to validate.
+  Selection compares file content and mode with the interview's entry
+  snapshot. Untouched files are excluded even if already dirty, including
+  attachments beside an edited ticket. A previously dirty file edited again
+  is selected in full: the snapshot identifies files, not authorship of hunks.
+  An authored change to the Git destination (`[git]` enabled, remote, or
+  control branch) refuses. Ambiguous ticket identities, such as both shapes
+  left by an incomplete promotion, also refuse. Validation or publication
+  refusal keeps edits on disk, exits non-zero, withholds the command's sweep, and identifies the
+  retained roots and recovery command. Resolve the reported problem before
+  retrying the interview or using [strict publication](#strict-publication-on-demand).
+  The transaction covers finalization only: earlier lifecycle commands and
+  their sweeps may already have published state. An authorized cancellation
+  stands; recovery never replays or rolls it back. The ordinary sweep can
+  still publish entry dirt after successful finalization.
 - **Ordinary manual edits** inside the roots publish through the next
   command's sweep. Local prompt composition still reads local edits.
 
@@ -135,13 +151,27 @@ ahead of the local copy. Never `git add` `coga/tasks/**` or `coga/log.md`
 into a PR; `coga open-pr` excludes that state from its cleanliness gate and
 refuses a branch whose only commits are Coga state.
 
+**Committed-state boundary.** On a feature or detached checkout, clean
+committed files stay with the branch except for the configured task directory
+and log. The task directory includes materialized `tasks/recurring/` periods
+and their attachments. Files under the configured recurring directory wait
+for merge as whole files: template definitions, scripts, parent blackboards,
+and siblings such as `retires.md`. This covers additions, edits, deletions,
+renames, and repeated sweeps after control reverts an earlier publication.
+Contexts (including relocated ones), skills, workflows, and shared config
+also wait for merge. A clean control checkout still recovers hand commits
+of eligible files anywhere in the roots.
+
 **Pre-review publication hazard.** The sweep and guided authoring run from
-whichever checkout invoked them. A feature checkout's *dirty* files in the
-roots — ticket prose, log, recurring template (including `ticket.py`),
-context, skill, or workflow — land on control before review. Committed ones
-on a feature branch stay with the branch unless they are routine task, log,
-or recurring state, so commit an edit you want reviewed before running a
-sweeping Coga command in that checkout.
+whichever checkout invoked them. A feature or detached checkout's *dirty*
+files in the roots — ticket prose, log, recurring template (including
+`ticket.py`), context, skill, workflow, or shared config — land on control
+before review. Staged but uncommitted files are dirty too. Commit an edit you
+want reviewed before running a sweeping command and keep that file clean:
+a later runtime blackboard write makes the whole template publishable,
+including any committed definition changes in it. A clean committed sibling
+still waits for merge. Dirty runtime writes to recurring blackboards and
+machine-written siblings continue to publish normally.
 
 Committed state is adopted only when control still holds a version this
 checkout was based on. If control has moved on, reconcile with current
@@ -156,8 +186,10 @@ files to someone else's fresh clone runs `coga run publish-state [--message M]
 local control when no remote is configured), then publishes eligible changes
 under the roots and requires each named file to be on control. It uses the
 same dirty/committed selection as the sweep: naming a committed feature-branch
-knowledge edit does not make it publishable. Merge that reviewed edit first
-if the recipe refuses it.
+knowledge edit, including a recurring file, does not make it publishable.
+An excluded file must already match control, including its mode, or the
+recipe refuses before publishing accompanying task/log writes. Merge that
+reviewed edit first if the recipe refuses it.
 
 - **Exit 0**: every named file is on control (landed now or already
   matching), listed on stdout; or `[git].enabled = false` leaves no control

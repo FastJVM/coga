@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.11.0
+    github-ref: refs/tags/v1.12.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 876b67f46f0846d8b5c03c1d4571732b76372a84
+    github-tree-sha: adfa0ff15eeb52ac7c53d958b36a02af7fdae070
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.11.0
+    version: 1.12.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
@@ -21,7 +21,7 @@ Activate `/google-agents-cli-workflow` first for required development phases and
 
 ## 1. Study Recipes (No Project Needed)
 
-**Python — read the topic index in `references/samples.md` before answering "how do I build X".**
+**Python — read the topic index in `references/recipes.md` before answering "how do I build X".**
 Worked implementations exist for: sandboxed/per-user code execution, agent-loadable `SKILL.md`
 skills, cross-session memory, approval gates before risky actions, tool guardrails, per-user
 credentials, and scheduled/event-driven runs.
@@ -34,7 +34,7 @@ clone the repo and read the one matching the capability you need before implemen
 Do NOT write agent code until a project is scaffolded.
 
 1. Verify project: run `agents-cli info` (proceed if config exists).
-2. New project: run `agents-cli scaffold create <name> --agent adk --deployment-target <target>` — use `--agent adk_go` for Go.
+2. New project: run `agents-cli scaffold create <name> --agent adk_python --deployment-target <target>` — use `--agent adk_go` for Go.
 3. Existing code: run `agents-cli scaffold enhance .`.
 
 ## Quick Reference — Most Common Patterns
@@ -50,7 +50,7 @@ installed package.
 
 | Reference | Language | When to read |
 |------|------|-------------|
-| `references/samples.md` | Python | **Topic-indexed catalog of ADK reference recipes.** Read in workflow Phase 1 — before scaffolding and before writing code — maps a capability to the recipe that implements it. |
+| `references/recipes.md` | Python | **Topic-indexed catalog of ADK reference recipes.** Read in workflow Phase 1 — before scaffolding and before writing code — maps a capability to the recipe that implements it. |
 | `references/adk-python.md` | Python | Core ADK API: `Agent`, tools, callbacks, plugins, state, artifacts, multi-agent systems, `SequentialAgent` / `ParallelAgent` / `LoopAgent`, custom `BaseAgent`, `ManagedAgent` (server-hosted first-party agents), A2A protocol, A2UI. Default for most agents. |
 | `references/adk-python-workflows.md` | Python | Graph-based Workflow API (ADK Python 2.0): nodes, edges, fan-out/fan-in, HITL, parallel processing. Use when you need explicit graph topology. |
 | `references/adk-python-live.md` | Python | Live and voice agents: `Runner.run_live`, `LiveRequestQueue`, model and regional availability, voice/`speech_config`, VAD, session limits, `/run_live` serving. Use for real-time voice or video agents. |

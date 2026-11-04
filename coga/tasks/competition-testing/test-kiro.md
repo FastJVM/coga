@@ -1,6 +1,6 @@
 ---
 title: Test Kiro
-status: in_progress
+status: done
 owner: zach
 contexts:
 - coga-dev/principles
@@ -17,7 +17,6 @@ workflow:
     skills: []
     assignee: agent
 agent: claude
-step: 2 (human-owns-and-finishes)
 ---
 
 ## Description

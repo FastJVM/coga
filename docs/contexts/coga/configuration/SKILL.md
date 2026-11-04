@@ -20,6 +20,26 @@ example `coga launch --help`). Top-level `coga --help`
 still loads config to list the repo's `[aliases]`. Never commit real
 credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
+## Choosing an agent
+
+Init supplies definitions for Claude Code and Codex; the default Claude path
+needs no config edit. To use Codex for new tasks, place this top-level setting
+before any `[table]` in `coga/coga.local.toml`:
+
+```toml
+default_agent = "codex"
+```
+
+This does not change an already activated ticket or select the interviewer
+for `coga chat` and `coga ticket`. Use `coga chat --agent codex` or
+`coga ticket "Your task title" --agent codex` for those sessions.
+The comments beside `default_agent` and `[agents.*]` in the
+[shipped configuration](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/coga.toml)
+own precedence and routing details. Workflow roles and peer selection are
+explained in [coga/workflows](../workflows/SKILL.md); the
+[first-task walk](../first-task/SKILL.md) covers the prerequisites for a PR
+with either one agent or a peer reviewer.
+
 ## Allowlists
 
 `coga.toml` top level: `version` (must be `1`), `default_status`,

@@ -771,6 +771,47 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
     )
 
 
+@pytest.mark.parametrize("layout", ["foreign-linked", "foreign-primary"])
+def test_retire_leaves_a_same_named_branch_for_a_foreign_checkout(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, layout: str
+) -> None:
+    """A recorded checkout of another repository owns its branch there.
+
+    Retire refuses to remove that checkout, and must not then delete a
+    same-named, fully landed branch in the clone running retire.
+    """
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
+    _git(repo, "worktree", "remove", str(feature))
+    foreign = tmp_path / "foreign"
+    if layout == "foreign-linked":
+        upstream = tmp_path / "upstream"
+        _git(tmp_path, "clone", "-q", str(repo), str(upstream))
+        _git(upstream, "worktree", "add", str(foreign), "-b", "fix-retry-branch")
+    else:
+        _git(tmp_path, "clone", "-q", str(repo), str(foreign))
+        _git(foreign, "switch", "-c", "fix-retry-branch")
+    ticket = repo / "tasks" / slug / "ticket.md"
+    ticket.write_text(
+        ticket.read_text(encoding="utf-8").replace(str(feature), str(foreign)),
+        encoding="utf-8",
+        newline="\n",
+    )
+    # The recorded PR merged at the local tip: every branch proof would pass.
+    tip = _git(repo, "rev-parse", "refs/heads/fix-retry-branch").stdout.strip()
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "MERGED")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head", lambda _url: ("fix-retry-branch", tip)
+    )
+
+    result = CliRunner().invoke(retire_cmd.app, [slug, "--no-launch"])
+
+    assert "not this repository's linked worktree" in result.output, result.output
+    assert "Branch cleanup: deleted" not in result.output
+    assert foreign.is_dir()
+    _git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/fix-retry-branch")
+    _git(foreign, "rev-parse", "--verify", "--quiet", "refs/heads/fix-retry-branch")
+
+
 def _seed_retire_worklist(repo: Path, *entries: rw.RetireFollowUp) -> Path:
     """The autoclose sweep's durable worklist, naming `entries` as owed retires."""
     template = repo / "recurring" / "autoclose-merged"

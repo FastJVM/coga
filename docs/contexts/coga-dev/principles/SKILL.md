@@ -54,13 +54,32 @@ to build.
 
 ## In practice
 
-An agent-generated plan is a proposal, not a commitment to implement it.
-A human can question its assumptions, correct the tickets or context, add
-a review step, or stop the project. Later agent sessions use the revised
-files rather than relying on the original chat. The
-[Thinkpick case study](https://github.com/FastJVM/coga/blob/main/README.md#when-the-first-plan-was-wrong-thinkpick)
-shows a changed plan and a decision not to build yet — not a failed or
-finished implementation.
+Planning serves both people and agents. The agent's proposal gives the human
+something concrete to read: the intended outcome, assumptions, approach,
+and criteria for success. A human can question its assumptions, correct the
+tickets or context, add a review step, or stop the project. The revised text
+also directs later agent work. Coga uses the agent's planning capability and
+keeps that shared understanding editable across sessions. The
+[Coga history examples](../../../../README.md#when-coga-changed-its-own-mind)
+show a discarded architectural assumption and a maintenance workflow changed
+when it became clear that transient notes would not preserve key findings.
+
+Fresh sessions make written handoffs important. The agent records useful
+findings, decisions, and open questions in the
+[blackboard](../../coga/blackboard/SKILL.md); the next
+[launch](../../coga/prompt-composition/SKILL.md) starts from the current
+files. People can inspect, correct, and share the working knowledge carried
+forward. The record can be incomplete or wrong, so its reviewability matters
+as much as its persistence. This gives people a practical way to manage
+context rot and understand the work they delegate.
+
+Choose knowledge and procedures for their relevance to the task. Explicit
+attachment puts selected guidance into the starting prompt; deciding what is
+needed, missing, or obsolete remains work for people and agents. The
+[research on context and skills](reading-list.md#context-skills-and-plan-review)
+supports examining that choice carefully: useful guidance can help, while
+irrelevant or conflicting instructions can add cost or hurt results. Those
+studies do not establish a performance gain for Coga itself.
 
 These principles guide Coga's design. The
 [README](https://github.com/FastJVM/coga/blob/main/README.md) derives from them;

@@ -179,7 +179,9 @@ no `--force` and no retry cap. Pause provenance is the latest `paused` or
 `created` audit line for the period:
 
 - **Sweep pause** (actor `system:recurring`, or a legacy `human:` pause carrying
-  the "Agent recurring launch exited unfinished" suffix) — resumed once it has
+  the "Agent recurring launch exited unfinished" suffix; the legacy match is
+  text-only, so a human pause whose message ends with that suffix also
+  resumes) — resumed once it has
   no open `## Blockers` asks. Until then it stays parked: resuming would only
   block again. Answer with `coga unblock recurring/<name> --answer "..."`,
   which resolves the asks and leaves the period `paused` for the next sweep to
@@ -192,7 +194,10 @@ no `--force` and no retry cap. Pause provenance is the latest `paused` or
   still an unresolved failure: every sweep that admits the template through the
   inactivity gate shows `needs attention (watchdog timeout; resuming)`, counts
   it in `problems:`, notifies, and exits non-zero after other work, so a
-  timeout that keeps recurring stays loud while it is retried.
+  timeout that keeps recurring stays loud while it is retried. This applies
+  to the bare sweep only. In a `--force` sweep, a forced recovery that
+  completes clears the problem. A named `coga recurring launch <name>` resumes
+  a watchdog pause without problem or notify reporting.
 - **Anything else** — a human `coga mark paused` (an assist session's logs
   `agent:<name>`) or a pause whose origin is not positively identified — stays
   parked. Resume it with `coga launch recurring/<name>` or

@@ -43,6 +43,7 @@ With the default `fatal=True` both exit 1. With `fatal=False` both are
 reported and `post` returns; remaining channels are still attempted.
 
 Posts announcing a committed transition pass `fatal=False`: `mark_blocked`,
+the ordinary managed launch's start FYI (`launch.py`),
 `advance_step` (bump FYIs), `mark_done`/`mark_canceled` outcomes, the
 watchdog, scan-error and period-contradiction outcomes, the autoclose retire
 summary, and the recurring script-failure post. Crashing between `coga bump`'s
@@ -108,7 +109,10 @@ webhook call sites.
 down, so grep for the real call before editing a producer row:
 
 - Live: `mark.py` `mark_blocked`, `mark_in_progress`, and the stale-period
-  warning; `blocker_reminders.py` `remind_blocked_tasks`;
+  warning; `launch.py` `_LaunchInvocation._prepare_step_checkout`, which posts
+  the ordinary managed launch's `▶️ … started` FYI directly (`fatal=False`,
+  after the checkout-switch proof) instead of through `mark_in_progress`;
+  `blocker_reminders.py` `remind_blocked_tasks`;
   `commands/slack.py`; `bump.py` `advance_step` (`notify_slack=True`);
   `launch_script.py`; `dream_validate_drift.py`; `commands/megalaunch.py`;
   `autoclose.py` `_report_retire_followups` and `_report_followup`;

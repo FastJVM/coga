@@ -152,24 +152,23 @@ invoked, and launch never follows a recorded `worktree:`.
 
 - **Mutating commands publish from wherever they run.** The exit sweep
   publishes every dirty file under the Coga roots, plus eligible committed
-  state there (only routine task, log, and recurring state from a feature
-  branch), to control, even after a config failure. Write deliberate ticket
+  state there, to control, even after a config failure. Write deliberate ticket
   prose and knowledge edits on `main`; commit a knowledge edit that belongs
-  to a code PR before running a sweeping command on its branch. Committed
-  `coga/recurring/` changes on a feature branch are still adopted onto
-  control by the next sweep, ahead of the code PR, and re-adopted after a
-  revert: make such a template also work under current control code, or
-  keep it out of the Coga roots until the code lands. Which invocations
-  sweep is owned by
-  [coga/state-publication](../state-publication/SKILL.md#when-coga-publishes).
+  to a code PR before running a sweeping command on its branch, and keep it
+  clean. The [committed-state boundary and remaining dirty-file
+  hazard](../state-publication/SKILL.md#control-versus-feature-checkouts)
+  explain when recurring files wait for merge. Which invocations sweep is
+  owned by [coga/state-publication](../state-publication/SKILL.md#when-coga-publishes).
 - **`coga launch <target> --prompt-report` regenerates `.agent-skills/`.**
   It skips the state sweep. For a write-free view call
   `compose.compose_prompt_report` or `compose.compose_prompt` directly.
 - **Launch and megalaunch compose from the invoking checkout.** An ordinary
   ticket launch or direct chat brings it to fresh control first (the [launch
-  boundary](launch-boundary/SKILL.md)). Run megalaunch and exempt launches
-  only from a control checkout freshly synced to `origin/<control>`; a stale
-  one re-dispatches merged work.
+  boundary](launch-boundary/SKILL.md)). Megalaunch fast-forwards a control
+  checkout before queueing ([refresh first](../megalaunch/SKILL.md#refresh-first))
+  but only fetches on a feature branch, so run it and exempt launches from a
+  control checkout synced to `origin/<control>`; a stale one re-dispatches
+  merged work.
 
 ## Stranded ticket writes
 

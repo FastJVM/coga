@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: 49b8d3c0-8600-4c46-8388-787241dda16d
 ---
 
 ## Description
@@ -232,6 +231,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1159
 branch: coga/package-definitions-01-runtime-compat
 
 ## PR
@@ -239,11 +239,12 @@ branch: coga/package-definitions-01-runtime-compat
 ```yaml
 title: Resolve shipped definitions from the package with recurring selection and state carriers (stage A)
 author: claude/codex
-author_evidence: The implement handoff identifies Claude Code (claude-opus-5-5) as the original implementer. This
-  fresh peer-review session ran as Codex; Codex independently reviewed that implementation, then authored the four
-  review-fix commits.
-head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-base: bdffb5555d5757d766ebd1941e8bff313126ef2a
+author_evidence: Claude Code (claude-opus-5-5) implemented the feature. The prior Codex peer-review independently
+  reviewed Claude's implementation and authored four review-fix commits. This resumed Codex session reviewed the
+  reconciled diff directly and made no implementation changes; review remains conservatively labeled self because
+  Codex authored the fixes.
+head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
 depth: deep
 rationale: 'Review the diff: this changes definition resolution, initialization, recurring admission and shared-state
   publication across 162 paths. Tests cover compatibility and removal, but these contracts and the proposed fresh-init
@@ -257,79 +258,77 @@ implementation: Resolve reusable definitions from one package location, preservi
 deviations: Stage A retains all live counterparts and preserves live recurring instructions/siblings byte-for-byte.
   The existing seeded fixture continues to exercise pre-upgrade local-only activation; new catalog/init/wheel tests
   exercise selection. The group README contract is unchanged. Stage B owns the actual repository cutover.
-limitations: 'Checkout ownership interrupted this step: final ordinary-layout full-suite verification and reconciliation
-  remain before the step may advance. Fresh init selects all nine bundled jobs as proposed in the group README;
-  the owner must decide that default at review. Final fixes were self-reviewed by Codex after its independent review
-  of Claude''s implementation; no additional independent reviewer covered those fixes. Live external services and
-  native Windows/macOS runs were not exercised; outward effects were stubbed. Repository-wide validation has pre-existing
-  ticket-state findings, disclosed below.'
+limitations: Fresh init selects all nine bundled jobs as proposed in the group README; the owner must decide that
+  default at review. Codex authored and reviewed the fixes; no separate reviewer identity is claimed. Live external
+  services and native Windows/macOS were not exercised; outward effects were stubbed. Verification uses Python 3.12.12;
+  the available Python 3.11 interpreter lacks the test dependencies. Repository-wide validation has existing ticket-state
+  findings and an expected webhook warning with notification variables removed, disclosed below. Stage B owns the
+  real control migration and rollback rehearsal.
 files:
   AGENTS.md: Describe single package ownership and the stage A transitional checks.
   CONTRIBUTING.md: Links point at package owners instead of removable legacy copies.
   README.md: Links point at package owners instead of removable legacy copies.
-  coga/skills/code/implement/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/code/open-pr/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/code/peer-review/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/code/self-qa/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/coga/releasing/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/coga/show/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/coga/testing/clean-install/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Link package owners; keep live and packaged twins identical.
-  coga/skills/coga/testing/clean-install/windows-aws/SKILL.md: Link package owners; keep live and packaged twins
-    identical.
-  coga/skills/coga/ticket/finalize/SKILL.md: Link package owners; keep live and packaged twins identical.
+  coga/skills/code/implement/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/code/open-pr/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/code/peer-review/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/code/self-qa/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/releasing/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/show/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/testing/clean-install/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/testing/clean-install/windows-aws/SKILL.md: Link package owners; match packaged copy.
+  coga/skills/coga/ticket/finalize/SKILL.md: Link package owners; match packaged copy.
   docs/README.md: Link package owners; index the package-definitions release note.
-  docs/contexts/coga-dev/archive-access/SKILL.md: Update development guidance and owner links.
+  docs/contexts/coga-dev/archive-access/SKILL.md: Link package owners.
   docs/contexts/coga-dev/codebase/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/agent-config/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/claim-recovery/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/compose/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/notifications/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/recurring-clone/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/recurring-control/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: Update development guidance and owner
-    links.
-  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/internals/usage-pricing/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga-dev/microkernel/SKILL.md: Update development guidance and owner links.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/agent-config/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/blackboard-io/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/claim-recovery/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/compose/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/launch-claims/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/notifications/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/recurring-admission/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/recurring-autofix/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/recurring-clone/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/recurring-control/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/state-publication/log-writers/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/internals/usage-pricing/SKILL.md: Link package owners.
+  docs/contexts/coga-dev/microkernel/SKILL.md: Link package owners.
   docs/contexts/coga-dev/packaging/SKILL.md: Update development guidance and owner links.
   docs/contexts/coga-dev/testing/SKILL.md: Update development guidance and owner links.
-  docs/contexts/coga/architecture/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/blackboard/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/cli/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/configuration/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/context-layout/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/edge-code/SKILL.md: Update ownership/state guidance and package links.
+  docs/contexts/coga/architecture/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/blackboard/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/cli/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/configuration/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/context-layout/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/edge-code/SKILL.md: Document package ownership and state.
   docs/contexts/coga/edge-code/edge-code-upgrades.md: Upgrade carriers by selecting the package; keep full local
     overrides explicit.
-  docs/contexts/coga/init/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/install/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/knowledge/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/notifications/producers/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/period-task/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/prompt-composition/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/recurring/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/recurring/templates/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/script-tickets/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/skill-management/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/state-publication/SKILL.md: Update ownership/state guidance and package links.
-  docs/contexts/coga/usage/SKILL.md: Update ownership/state guidance and package links.
+  docs/contexts/coga/init/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/install/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/knowledge/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/notifications/producers/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/period-task/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/prompt-composition/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/recurring/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/recurring/templates/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/script-tickets/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/skill-management/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/state-publication/SKILL.md: Document package ownership and state.
+  docs/contexts/coga/usage/SKILL.md: Document package ownership and state.
   docs/release-notes/audit-retention.md: Describe selection-based adoption and link the packaged runbook.
   docs/release-notes/package-definitions.md: 'Release note: package ownership, selection, carriers, migration.'
   src/coga/agent_skills.py: Reject incomplete local overrides before exposing bundled agent skills.
@@ -351,95 +350,81 @@ files:
     first period and ledger.
   src/coga/recurring_state.py: Classify state carriers and overrides; initialize state under the shared lock without
     reseeding.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Update ownership/state guidance and package
-    links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Update ownership/state guidance
-    and package links.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Document package ownership and
+    state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Document package ownership and
+    state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Document package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Document package ownership and
+    state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md: Document package ownership and state.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md: Ship the carrier-aware
     upgrade procedure.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Update ownership/state guidance and package
-    links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Update ownership/state guidance and
-    package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: Update ownership/state
-    guidance and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Update ownership/state
-    guidance and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Update ownership/state
-    guidance and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Update ownership/state
-    guidance and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md: Update
-    ownership/state guidance and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Update ownership/state guidance
-    and package links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Update ownership/state guidance and
-    package links.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Document package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Document package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md: Document package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md: Document package ownership and
+    state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md: Document package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md: Document
+    package ownership and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Document package ownership
+    and state.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Document package ownership and state.
   src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/contract-audit/SKILL.md: Dream audits
     package source in the source repo and replaces the twin-divergence shard with the single-source check.
   src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/knowledge-scan/SKILL.md: Dream audits
     package source in the source repo and replaces the twin-divergence shard with the single-source check.
   src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md: Dream audits package
     source in the source repo and replaces the twin-divergence shard with the single-source check.
-  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Point shipped instructions at package
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Link package
     owners.
-  src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Point shipped instructions at package
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Link package
     owners.
-  src/coga/resources/templates/coga/bootstrap/skills/code/peer-review/SKILL.md: Point shipped instructions at package
-    owners.
-  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Point shipped instructions at package
-    owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md: Point shipped instructions at package
-    owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/show/SKILL.md: Point shipped instructions at package owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Point shipped instructions
-    at package owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Point shipped
-    instructions at package owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Point shipped
-    instructions at package owners.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/ticket/finalize/SKILL.md: Point shipped instructions at
-    package owners.
-  src/coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md: Move the reusable definition to its unique
+  src/coga/resources/templates/coga/bootstrap/skills/coga/ticket/finalize/SKILL.md: Link package owners.
+  src/coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md: Move the definition to its unique bootstrap
+    owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md: Move the definition to its unique
     bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/autoclose-merged/sweep.md: Move the reusable definition
-    to its unique bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md: Move the reusable definition to
-    its unique bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md: Move the reusable definition to its
-    unique bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: Move the reusable definition to its
-    unique bootstrap owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/blocker-reminders/run.md: Move the definition to its unique
+    bootstrap owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/branch-sweep/sweep.md: Move the definition to its unique
+    bootstrap owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: Move the definition to its unique bootstrap
+    owner.
   src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Links point at package owners
     instead of removable legacy copies (package copy and live twin kept identical).
-  src/coga/resources/templates/coga/bootstrap/workflows/direct/body.md: Move the reusable definition to its unique
-    bootstrap owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/direct/body.md: Move the definition to its unique bootstrap
+    owner.
   src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md: Links point at package owners instead
     of removable legacy copies (package copy and live twin kept identical).
-  src/coga/resources/templates/coga/bootstrap/workflows/phone-home/run.md: Move the reusable definition to its unique
-    bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/skill-update/run.md: Move the reusable definition to its
-    unique bootstrap owner.
-  src/coga/resources/templates/coga/bootstrap/workflows/trim-log/run.md: Move the reusable definition to its unique
-    bootstrap owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/phone-home/run.md: Move the definition to its unique bootstrap
+    owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/skill-update/run.md: Move the definition to its unique bootstrap
+    owner.
+  src/coga/resources/templates/coga/bootstrap/workflows/trim-log/run.md: Move the definition to its unique bootstrap
+    owner.
   src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md: Packaged recurring definition links point
     at package owners (live definition unchanged; difference pinned).
   src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md: Packaged recurring definition links point
@@ -454,24 +439,18 @@ files:
     at package owners (live definition unchanged; difference pinned).
   src/coga/resources/templates/coga/recurring/trim-log/ticket.md: Packaged recurring definition links point at package
     owners (live definition unchanged; difference pinned).
-  src/coga/resources/templates/coga/skills/direct/body/SKILL.md: Move the reusable definition to its unique bootstrap
+  src/coga/resources/templates/coga/skills/direct/body/SKILL.md: Move the definition to its unique bootstrap owner.
+  src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md: Move the definition to its unique bootstrap
     owner.
-  src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md: Move the reusable definition to its unique
-    bootstrap owner.
-  src/coga/resources/templates/coga/workflows/blocker-reminders/run.md: Move the reusable definition to its unique
-    bootstrap owner.
-  src/coga/resources/templates/coga/workflows/branch-sweep/sweep.md: Move the reusable definition to its unique
-    bootstrap owner.
-  src/coga/resources/templates/coga/workflows/build/onboarding.md: Move the reusable definition to its unique bootstrap
+  src/coga/resources/templates/coga/workflows/blocker-reminders/run.md: Move the definition to its unique bootstrap
     owner.
-  src/coga/resources/templates/coga/workflows/direct/body.md: Move the reusable definition to its unique bootstrap
+  src/coga/resources/templates/coga/workflows/branch-sweep/sweep.md: Move the definition to its unique bootstrap
     owner.
-  src/coga/resources/templates/coga/workflows/phone-home/run.md: Move the reusable definition to its unique bootstrap
-    owner.
-  src/coga/resources/templates/coga/workflows/skill-update/run.md: Move the reusable definition to its unique bootstrap
-    owner.
-  src/coga/resources/templates/coga/workflows/trim-log/run.md: Move the reusable definition to its unique bootstrap
-    owner.
+  src/coga/resources/templates/coga/workflows/build/onboarding.md: Move the definition to its unique bootstrap owner.
+  src/coga/resources/templates/coga/workflows/direct/body.md: Move the definition to its unique bootstrap owner.
+  src/coga/resources/templates/coga/workflows/phone-home/run.md: Move the definition to its unique bootstrap owner.
+  src/coga/resources/templates/coga/workflows/skill-update/run.md: Move the definition to its unique bootstrap owner.
+  src/coga/resources/templates/coga/workflows/trim-log/run.md: Move the definition to its unique bootstrap owner.
   src/coga/retire_worklist.py: A selected package-backed parent without a local ticket still owns its repo worklist.
   src/coga/tasks.py: Bootstrap ticket resolution reports an unusable local override (BootstrapOverrideError) instead
     of falling back.
@@ -511,20 +490,80 @@ review:
   reviewer: codex
   kind: self
   status: passed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: Direct review completed. Independently reviewed Claude's implementation after rebase (6b70eecc639702897da93b8d3d86498d46e7a5ed),
-    applied must-fix findings, then completed self-review of all fixes and the final head/base. No unresolved code
-    findings. No nested reviewer tool or agent was invoked.
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+  detail: Direct review completed against the final head/base. Reviewed selection/override boundaries, carrier publication
+    and retention guards, init, transitional packaging/navigation, and the subsequent README-only main changes.
+    All nine feature patches remain unchanged across the rebases; no unresolved code findings or new implementation
+    changes. Initial review was independent of Claude; Codex authored the fixes, so the overall receipt remains
+    self-review. No nested reviewer or subagent ran.
 checks:
-- command: .venv/bin/python -m pytest -q --basetemp=/home/n/Code/.coga-package-review-full -p no:cacheprovider
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/tmp/coga-package-review-reconciled-full
+    -p no:cacheprovider
+  status: passed
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+  detail: 4350 passed, 10 skipped in 571.65s on Python 3.12.12. Completed against this exact reconciled head in
+    the ordinary-layout primary checkout; checkout identity stayed stable throughout.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/.coga-package-review-final-full
+    -p no:cacheprovider
+  status: passed
+  detail: 4350 passed, 10 skipped in 623.35s on Python 3.12.12; stable ordinary-layout primary checkout.
+  head: cfbb75410bf276ab4fe810c069912ffb55ecf710
+  base: 53758fe388a1be3cc428f194843892ce175fea52
+- command: PYTHONPATH=/tmp/coga-package-review-reconciled-artifact/src /home/n/Code/coga/.venv/bin/python -m pytest
+    -q tests/test_packaging.py::test_wheel_includes_bootstrap_batteries tests/test_packaging.py::test_installed_wheel_init_and_phone_home_are_isolated
+    -p no:cacheprovider --basetemp=/home/n/Code/.coga-package-review-reconciled-wheel
+  status: passed
+  detail: 2 passed in 5.05s. Built from a clean disposable Git clone at this exact head; wheel imports outside source,
+    all resource types and nine parents, outward effects stubbed, read-only package resources unchanged.
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: .venv/bin/python /tmp/coga-package-review-reconciled-pre-a.py
+  status: passed
+  detail: 'Pre-A control 876f8b00453449cb748d5fd38e05b1963ddffd7c used its own publisher/imports/tests against this
+    feature head. Ordinary ticket and complete phone-home state published; all 170 checked recurring definition/sibling,
+    rollout and package-resource files unchanged. Control packaging/navigation, recurring shim, init, trim-log and
+    autoclose suites: 249 passed in 30.09s.'
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: .venv/bin/python /tmp/coga-package-review-resumed-pty.py > /tmp/coga-package-review-reconciled-pty-output.txt
+  status: passed
+  detail: 'Reran on this head in actual 80x24 and 120x40 PTYs: enabled package jobs, disabled job and parked carrier;
+    invalid selection at 80x24. Names, schedules, firing times and full remedies are visible. Long reasons follow
+    the table. Listing wrote no state.'
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: git diff --check origin/main...HEAD; git diff --name-only origin/main...HEAD -- coga/recurring rollout
+    coga/workflows coga/bootstrap
+  status: passed
+  detail: Whitespace clean. No branch diff in live recurring definitions/siblings, rollout, live workflows or bootstrap
+    tickets. All 162 diff paths are explained. The last rebase changed only README wording from main; every source,
+    test and protected resource byte is unchanged.
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: 'env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json (cwd: tests/fixtures/seeded-repo/coga)'
+  status: passed
+  detail: ok_count 5; no issues, exit 0.
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src .venv/bin/python
+    -m coga.cli validate --json
   status: failed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: 'Invalidated, not a verification receipt: the run started on this head, but another launch switched the
-    primary to pre-A main at 13:17:53 while tests were running. Subsequent fixture/source failures were environmental;
-    the run was interrupted. Rerun the ordinary-layout full suite after checkout ownership and reconciliation are
-    settled.'
+  detail: 'Exit 1; ok_count 95; 27 existing ticket findings: 6 stuck-in-progress, 14 unfrozen-workflow, 5 unsynthesized-draft-blackboard
+    and 2 large-blackboard, plus 1 expected missing-important-webhook warning with notification variables removed.
+    Pre-A control code produced identical findings on the same checkout state. No recurring/resource findings. This
+    ticket is below the size warning threshold.'
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+- command: env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src .venv/bin/python
+    -m coga.cli validate --task v1/package-definitions/01-runtime-compatibility-for-package-owned-definit --json
+  status: passed
+  head: 13da855da42dcf27bb29527875ce7ab956b96eb7
+  base: 876f8b00453449cb748d5fd38e05b1963ddffd7c
+  detail: Exit 0; ok_count 1; only the expected missing-important-webhook warning with notification variables removed.
+    No task findings.
 - command: PYTHONPATH=/tmp/coga-package-review-rer1uw26/cutover-complete/src /home/n/Code/coga/.venv/bin/python
     -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.coga-package-review-cutover-full
   status: passed
@@ -532,52 +571,8 @@ checks:
   base: bdffb5555d5757d766ebd1941e8bff313126ef2a
   detail: '4341 passed, 10 skipped in 774.46s. Full suite completed against this exact source head. Disposable clone:
     all 103 inventory entries removed or converted (95 removals; 8 carriers preserving complete blackboards); selection
-    preserves prior activation.'
-- command: PYTHONPATH=/tmp/coga-package-review-rer1uw26/artifact-final/src /home/n/Code/coga/.venv/bin/python -m
-    pytest -q tests/test_packaging.py::test_wheel_includes_bootstrap_batteries tests/test_packaging.py::test_installed_wheel_init_and_phone_home_are_isolated
-    -p no:cacheprovider --basetemp=/home/n/Code/.coga-package-review-wheel
-  status: passed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: 2 passed in 4.12s. Source was a clean disposable Git clone at this head. Wheel imports verified outside
-    the source tree; all resource types and nine parents exercised; outward effects stubbed; read-only resource
-    bytes unchanged.
-- command: .venv/bin/python /tmp/coga-package-review-pre-a-complete.py
-  status: passed
-  head: c4f7cb90c48e4e793e155afa9e9eb1e785025c58
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: 'Pre-A b8edf445f publisher and imports, final-feature rehearsal at c4f7cb90c: ordinary ticket and complete
-    phone-home state published; 170 recurring definition/sibling, rollout and package-resource files unchanged.
-    Its own packaging/navigation, recurring shim, init, trim-log and autoclose tests: 249 passed in 29.52s. Subsequent
-    feature change only moves CLI error text outside the status table.'
-- command: 'coga recurring list (real PTYs sized with TIOCSWINSZ: 80x24 and 120x40)'
-  status: passed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: Directly exercised enabled, disabled and parked jobs at both sizes, plus invalid selection at 80x24. Names,
-    firing times and complete remedies remain visible; long reasons/errors follow the table. Listing created no
-    carrier or period.
-- command: git diff --check bdffb5555d...coga/package-definitions-01-runtime-compat; git diff --name-only bdffb5555d...coga/package-definitions-01-runtime-compat
-    -- coga/recurring rollout coga/workflows coga/bootstrap
-  status: passed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: Whitespace clean; protected live recurring definitions/siblings, staged rollout definitions, live workflows
-    and bootstrap tickets have no branch diff.
-- command: 'PYTHONPATH=/tmp/coga-package-review-rer1uw26/artifact-final/src env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL
-    /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json (cwd: artifact-final/tests/fixtures/seeded-repo/coga)'
-  status: passed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: ok_count 5; no issues, exit 0.
-- command: 'PYTHONPATH=/tmp/coga-package-review-rer1uw26/artifact-final/src .venv/bin/python -m coga.cli validate
-    --json (cwd: primary checkout)'
-  status: failed
-  head: 5ce1c8a853a4a70915008e33e8b61e08881631ba
-  base: bdffb5555d5757d766ebd1941e8bff313126ef2a
-  detail: 'Exit 1, ok_count 95; 27 ticket-state findings: {''stuck-in-progress'': 6, ''unfrozen-workflow'': 14,
-    ''unsynthesized-draft-blackboard'': 5, ''large-blackboard'': 2}. No recurring-definition/resource findings.
-    Feature code imported from the pristine clone; validation read primary control plus concurrent draft state.'
+    preserves prior activation. Historical receipt from the preceding session; retained on its actual head/base.
+    All resumed rebases preserved the nine feature patches.'
 ```
 
 ## Implement handoff (Claude, 2026-11-03; summarized after review)
@@ -592,11 +587,15 @@ all-nine fresh-init default still belongs to the owner review.
 
 ## Peer review
 
-**Source review completed; workflow step blocked (Codex, 2026-11-03).** Final head `5ce1c8a853a4a70915008e33e8b61e08881631ba`;
-diff base `bdffb5555d5757d766ebd1941e8bff313126ef2a`. Initial review was independent of Claude's implementation;
-Codex then authored fixes and self-reviewed the resulting revision. No nested review
-process ran. Recommendation: **deep**, with the all-nine fresh-init default called out
-for the owner decision. No unresolved code findings.
+**Direct review completed (resumed Codex session, 2026-11-03).** Final head
+`13da855da42dcf27bb29527875ce7ab956b96eb7`, base
+`876f8b00453449cb748d5fd38e05b1963ddffd7c`. No unresolved code findings or new
+implementation changes. Claude implemented the feature; the prior Codex session
+independently reviewed it and then authored/self-reviewed the four fixes below.
+This fresh Codex session reviewed the final reconciled diff; the record retains
+`self` rather than inventing a distinct reviewer identity. No nested review or
+subagent ran. Recommendation remains **deep**: definition resolution and shared-state
+publication warrant inspection, and the owner must decide the all-nine init default.
 
 Must-fix findings resolved:
 - The first package-backed period omitted its new carrier from control publication.
@@ -618,34 +617,37 @@ Must-fix findings resolved:
   120x40 PTYs now show readable rows plus full reasons below; invalid selections are
   also legible at 80x24. Listing remains read-only.
 
-Verification: exact commands/results are in `## PR`. The pre-A publisher rehearsal
-used its own code/tests, preserved 170 definition/resource files, and published ordinary
-ticket and complete mutable phone-home state. Installed-wheel verification used a
-pristine clone, isolated imports, outward-effect stubs and read-only resources.
-Earlier full runs were stopped for fixes or invalidated by /tmp inode exhaustion;
-the isolated cutover receipt uses the larger workspace filesystem. The ordinary-layout
-run was subsequently invalidated when another launch switched the primary checkout
-from this branch to pre-A main during its test run.
-Stage A makes no live recurring definition/sibling or rollout changes. Stage B must
-still perform the actual control-repo migration and rollback rehearsal.
+Verification receipts are in `## PR`. The final ordinary-layout suite passed
+**4350 tests, 10 skipped in 571.65s** on Python 3.12.12. Earlier completed runs are
+historical; the current receipt covers the exact reconciled head above. Pre-A control's
+own publisher preserved 170 checked definition/resource files while publishing ordinary
+ticket and complete phone-home state; its own suites passed 249 tests. The pristine-clone
+wheel smoke passed for all resource types and nine parents with outward effects stubbed
+and read-only resources unchanged. Actual 80x24 and 120x40 PTYs showed readable names,
+schedules, times and full remedies, including invalid selection at 80x24; listing wrote
+no state. Seeded validation passed; ticket-scoped validation has no task findings.
+Repository-wide findings match pre-A control and are disclosed in the receipts.
 
-## Checkout interruption and remaining handoff
+Stage A changes no live recurring definition/sibling or rollout file. All 103 inventory
+entries remain present; the 20 inventoried recurring/rollout files match control bytes.
+Stage B owns the actual control migration and rollback rehearsal after A is merged and
+installed. No code or review findings remain open; the all-nine init default remains an
+explicit owner decision during PR review.
 
-The feature branch is pushed at `5ce1c8a853a4a70915008e33e8b61e08881631ba`. At 13:17:53 another launch's entry
-published this task's progress notes and switched the primary to main for
-`v1/25-position-op-as-optional`; its subsequent draft/evaluator edits remain owned
-by that session. Main at observation was `80d09f1ed2daffab5e549d0c142c0d5267b1ac7f`.
-The control ticket remains at peer-review and there is no PR. This session did not
-switch, stash, discard or edit the other task. Checkout recovery forbids switching
-another task's occupied checkout.
+## Resumed verification and handoff
 
-Resume only with the primary checkout released, or with an explicitly prepared and
-recorded clone. Fetch/rebase this preserved feature branch onto current main; run the
-ordinary-layout full suite on a stable checkout, update the preparation receipts,
-return main as required and bump peer-review once. The all-nine init default remains
-an owner-review choice. Do not advance from the source-review receipt alone.
+The human released this checkout from `v1/25-position-op-as-optional`; `coga unblock`
+recorded the resolution before review resumed. Its draft edits were already published.
+Rebased onto current main, then incorporated two subsequent README-only updates.
+`git range-diff` confirms all nine feature patches unchanged across the three rebases.
+The ticket projection was backed up and byte-verified around each rebase. No other task's
+edits were changed; the CLI-maintained blocker history below preserves the interruption.
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+Review and verification are complete. Final branch head is `13da855da42dcf27bb29527875ce7ab956b96eb7`
+on base `876f8b00453449cb748d5fd38e05b1963ddffd7c`, pushed with an explicit lease against
+`5ce1c8a85`. The review handoff is published and the primary checkout has returned to
+clean, current main. Ready for the single peer-review bump and the mechanical open-pr
+step; no PR has been opened in this session.
 
 ---
 

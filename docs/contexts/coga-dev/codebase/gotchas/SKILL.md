@@ -1,6 +1,6 @@
 ---
 name: coga-dev/codebase/gotchas
-description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, prospective validation, create guards, Typer calls, branch probes, resource packages, prompt resources).
+description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, prospective validation, create guards, Typer calls, branch probes, resource packages, prompt resources, native Windows imports and writes).
 ---
 
 # Editing gotchas in Coga's source
@@ -121,6 +121,30 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   alternating writes ([coga/period-task](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md)).
 - **A recorded "rebases clean" expires.** Re-measure drift at implement time;
   never let an inherited note stand in for running the rebase.
+- **Native Windows imports and writes.** `cli.py` eagerly imports every
+  command module, so a single top-level `fcntl`, `pty`, `termios`, `tty` or
+  `select` import anywhere on that path breaks the whole CLI on Windows. A
+  deliberate probe of that kind failed collection with 35
+  `ModuleNotFoundError`s. Guard those imports with `if os.name == "posix":`,
+  as `repl_supervisor` and `megalaunch` do, or import them inside the
+  function that runs the PTY. Use `oscompat` for locks and process-tree
+  ownership, not `fcntl` or process groups directly. Keep that module to
+  locks, liveness and process trees; it is not a home for one-off platform
+  checks. Text-mode writes turn `\n` into `\r\n` on Windows and break the
+  `expect=` byte comparisons in `git.publish` and `write_ticket`. Write any
+  file Coga or Git reads back through `atomicio.atomic_write_text`, or with
+  `encoding="utf-8", newline="\n"`, and read it with `encoding="utf-8"`.
+  A new agent-session entry point must call `launch.require_agent_sessions()`
+  (or check `agent_sessions_supported()`) before any checkout, publication or
+  draft write. Its exit code skips the CLI exit sweep.
+- **Known open: uninstall recovery hints use POSIX syntax on Windows.**
+  `commands/uninstall.py::_uninstall_via_tool` displays its env overrides as
+  `VAR=value` prefixes (`shlex.quote`) in the "Uninstalling global package"
+  line and in the manual-removal hint printed when the tool is not on PATH.
+  `cmd` and PowerShell cannot paste that form. The subprocess call itself is
+  correct because it passes `env=` directly. Found during the native Windows
+  port. The fix is owned by
+  `v1/15-uninstall-recovery-hints-use-posix-env-syntax-on-w`.
 - **Retired-ticket searches span two trees.** Tasks lived under
   `relay-os/tasks/` before the relay → coga rename (`d0645a197`, #454); add
   `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`

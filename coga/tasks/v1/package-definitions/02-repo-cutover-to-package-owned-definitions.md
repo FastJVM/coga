@@ -232,9 +232,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
   is `status: blocked` at `step: 2 (peer-review)` on `origin/main` (993005521),
   not merged. Per the ticket's Dependency section, no B work started; no branch
   created. Resume once A merges and every participating CLI is A or newer.
+- Re-checked 2026-11-03 (origin/main 44f26537e): A advanced to `step: 4 (review)`
+  (owner gate), PR https://github.com/FastJVM/coga/pull/1159 still OPEN, unmerged.
+  Dependency unchanged; re-blocked naming A's exact slug so megalaunch can retry.
 
 ---
 
 ## Blockers
 
 - [ ] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
+
+- [ ] [2026-11-03 15:14] [agent:claude] id=20261103T151432 Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.

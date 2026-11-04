@@ -354,7 +354,15 @@ def _run_authoring_session(
         # A retry sweep would separate an authored ticket from knowledge its
         # guarded transaction refused, potentially publishing broken refs.
         git.state_sweep_withheld.set(True)
-        _bail(str(exc))
+        _bail(
+            f"{exc}\n[ticket] Authoring edits are retained under {cfg.repo_root} "
+            f"and the configured contexts root ({cfg.contexts_root}); the state "
+            "sweep is withheld. Resolve the reported validation or publication "
+            "problem, then retry the interview or review the retained changes "
+            f"and run `coga run publish-state` from {cfg.repo_root}. "
+            "That recovery publishes all eligible Coga state without another "
+            "lifecycle transition; do not repeat cancellation or bump."
+        )
 
 
 def _bail(msg: str) -> None:

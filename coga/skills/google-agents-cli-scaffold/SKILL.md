@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.11.0
+    github-ref: refs/tags/v1.12.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: ccb2058b7481295121378af31e40e454fd430244
+    github-tree-sha: 486884783abc1e1bf43bc9ade9bbe671d016631f
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.11.0
+    version: 1.12.0
 name: google-agents-cli-scaffold
 ---
 # Project Scaffolding Guide
@@ -35,8 +35,8 @@ Use the `agents-cli` CLI to create new agent projects or enhance existing ones w
 
 | Choice | CLI flag |
 |--------|----------|
-| Retrieval/RAG, sandboxed execution, cross-session memory, OAuth consent, guardrails, scheduled runs | **No flag** — these come from clone-and-study recipes. **ADK Python:** see the topic index in `/google-agents-cli-adk-code` → `references/samples.md`; on other frameworks, see the sample index the framework template ships |
-| A2A protocol | built into the scaffolded app — scaffold normally (**ADK Python:** `--agent adk`, the default; **ADK Go:** `--agent adk_go`) |
+| Retrieval/RAG, sandboxed execution, cross-session memory, OAuth consent, guardrails, scheduled runs | **No flag** — these come from clone-and-study recipes. **ADK Python:** see the topic index in `/google-agents-cli-adk-code` → `references/recipes.md`; on other frameworks, see the agent catalog the framework template ships |
+| A2A protocol | built into the scaffolded app — scaffold normally (**ADK Python:** `--agent adk_python`, the default; **ADK Go:** `--agent adk_go`) |
 | Prototype (no deployment) | `--prototype` |
 | Deployment target | `--deployment-target <agent_runtime\|cloud_run\|gke>` |
 | CI/CD runner | `--cicd-runner <github_actions\|google_cloud_build>` |
@@ -70,7 +70,7 @@ agents-cli scaffold create <project-name> \
 **Constraints:**
 - Project name must be **26 characters or less**, lowercase letters, numbers, and hyphens only.
 - Do NOT `mkdir` the project directory before running `create` — the CLI creates it automatically. If you mkdir first, `create` will fail or behave unexpectedly.
-- Auto-detect the guidance filename based on the IDE you are running in and pass `--agent-guidance-filename` accordingly (`GEMINI.md` for Antigravity CLI, `CLAUDE.md` for Claude Code, `AGENTS.md` for OpenAI Codex/other).
+- Pass `--agent-guidance-filename` for your IDE: `GEMINI.md` for Antigravity CLI, `CLAUDE.md` for Claude Code, `AGENTS.md` otherwise.
 - When enhancing an existing project, check where the agent code lives. If it's not in `app/`, pass `--agent-directory <dir>` (e.g. `--agent-directory agent`). Getting this wrong causes enhance to miss or misplace files.
 
 ### Reference Files
@@ -125,20 +125,20 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 
 | Template | Language | Deployment | Description |
 |----------|----------|------------|-------------|
-| `adk` | Python | Agent Runtime, Cloud Run, GKE | Standard ADK agent (default); A2A protocol built in |
+| `adk_python` | Python | Agent Runtime, Cloud Run, GKE | Standard ADK agent (default); A2A protocol built in |
 | `adk_go` | Go | Agent Runtime, Cloud Run, GKE | Standard ADK Go agent; A2A protocol built in |
 
-> **`adk` and `adk_go` are the only built-in templates.** `adk` is the default, so a Go project
-> needs `--agent adk_go` explicitly.
+> **`adk_python` and `adk_go` are the only built-in templates.** `adk_python` is the default, so a Go project
+> needs `--agent adk_go` explicitly. `adk` is accepted as an alias for `adk_python`.
 > Other frameworks ship as template repos you scaffold
-> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.11.0`, with nothing installed. The first-party LangChain
-> template is `extensions/langchain/template/` in the agents-cli repo; see
+> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.12.0`, with nothing installed. First-party
+> templates live in `extensions/` (`langchain/template`, `claude/template`); see
 > `/google-agents-cli-workflow` → `references/extension.md` to publish your own. Capabilities
 > beyond the template — retrieval, sandboxed execution, memory, OAuth, guardrails — are
 > clone-and-study recipes, not templates. **ADK Python:** see the topic index in
-> `/google-agents-cli-adk-code` → `references/samples.md`.
+> `/google-agents-cli-adk-code` → `references/recipes.md`.
 
-> **Live and voice agents:** no template. Scaffold `adk`, then follow the conversion checklist
+> **Live and voice agents:** no template. Scaffold `adk_python`, then follow the conversion checklist
 > in `/google-agents-cli-adk-code` (`references/adk-python-live.md`, "Converting a scaffolded
 > project to Live"). The model swap is one of five edits.
 
@@ -159,7 +159,7 @@ Start with `--prototype` to skip CI/CD and Terraform. Focus on getting the agent
 
 ```bash
 # Step 1: Create a prototype
-agents-cli scaffold create my-agent --agent adk --prototype
+agents-cli scaffold create my-agent --agent adk_python --prototype
 
 # Step 2: Iterate on the agent code...
 
@@ -180,7 +180,7 @@ After scaffolding, immediately load `/google-agents-cli-workflow` — it contain
 What you edit differs by language; `/google-agents-cli-adk-code` has the annotated tree for each,
 in `references/adk-python.md` and `references/adk-go.md`.
 
-- **ADK Python (`--agent adk`)** — customize `app/agent.py` and `app/tools.py`.
+- **ADK Python (`--agent adk_python`)** — customize `app/agent.py` and `app/tools.py`.
 - **ADK Go (`--agent adk_go`)** — customize `app/agent.go`.
 
 `.env` is yours. Preserve everything else the template generated — it wires up serving, sessions
@@ -200,7 +200,7 @@ When you need specific files (Terraform, CI/CD workflows, Dockerfile) but don't 
 
 ```bash
 agents-cli scaffold create ref-project --output-dir /tmp \
-  --agent adk \
+  --agent adk_python \
   --deployment-target cloud_run
 ```
 
@@ -223,27 +223,17 @@ This is useful for:
 - **Agent Runtime clears session_type** — if deploying to `agent_runtime`, remove any `session_type` setting from your code
 - **Start with `--prototype`** for quick iteration — add deployment later with `enhance`
 - **Project names** must be ≤26 characters, lowercase, letters/numbers/hyphens only
-- **NEVER write A2A code from scratch** — A2A is built into the scaffolded app (the `adk` and `adk_go` templates and framework templates alike); each language's A2A surface (import paths, `AgentCard` schema etc.) is non-trivial and changes across versions. Scaffold normally; never hand-write the A2A surface. (The only sanctioned A2A hand-edit is *removing* the generated wiring for a **Live** agent, which can't be served over A2A — see `/google-agents-cli-adk-code`, `references/adk-python-live.md`.)
+- **NEVER write A2A code from scratch** — A2A is built into the scaffolded app (the `adk_python` and `adk_go` templates and framework templates alike); each language's A2A surface (import paths, `AgentCard` schema etc.) is non-trivial and changes across versions. Scaffold normally; never hand-write the A2A surface. (The only sanctioned A2A hand-edit is *removing* the generated wiring for a **Live** agent, which can't be served over A2A — see `/google-agents-cli-adk-code`, `references/adk-python-live.md`.)
 
 ---
 
 # Examples
 
-Using scaffold as reference:
-User says: "I need a Dockerfile for my non-standard project"
-Actions:
-1. Create temp project: `agents-cli scaffold create ref --output-dir /tmp --agent adk --deployment-target cloud_run`
-2. Copy relevant files (Dockerfile, etc.) from /tmp/ref
-3. Delete temp project
-Result: Infrastructure files adapted to the actual project
-
----
-
 A2A project:
 User says: "Build me a Python agent that exposes A2A and deploys to Cloud Run"
 Actions:
 1. Follow the standard flow (understand requirements, choose architecture, scaffold)
-2. `agents-cli scaffold create my-a2a-agent --agent adk --deployment-target cloud_run --prototype`
+2. `agents-cli scaffold create my-a2a-agent --agent adk_python --deployment-target cloud_run --prototype`
 Result: Valid A2A imports and Dockerfile — no manual A2A code written.
 
 ---
