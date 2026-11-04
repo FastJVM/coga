@@ -11,8 +11,10 @@ Default implementations of some edge jobs ship as the `coga_edge` package in
 the **same distribution** as `coga`: one version, one install and upgrade,
 no extra dependency, registry or CLI. Repo shims select the implementation.
 
-A repo-owned `ticket.py` may import a stable module `main` and return its exit
-code. Init seeds that shim; recurring creation copies its bytes. On the next
+A `ticket.py` shim may import a stable module `main` and return its exit
+code. The bundled recurring definition ships the shim in the package (init no
+longer seeds a repo copy); recurring creation copies the selected
+definition's shim bytes into each period. On the next
 process invocation it uses the installed implementation, even if the template
 script later changes or disappears. The shim contains no job logic or duplicate
 completion. A missing module is an ordinary script failure, never a fallback.
@@ -36,7 +38,9 @@ processes are not promised hot upgrades.
 ### Explicit local forks
 
 A full implementation replacing either template or period `ticket.py` is
-repo-owned. New periods copy the template fork; existing periods retain their
+repo-owned. A template fork is a full local override: the job's `ticket.md`
+and its siblings in `coga/recurring/<name>/`, never a lone `ticket.py` beside a
+state-only carrier (an incomplete fork that is reported, not inherited). New periods copy the template fork; existing periods retain their
 own script. Neither installation nor launch overwrites, merges or bypasses it.
 Editing a wrapper that still imports the default is not an implementation fork.
 A fork stops receiving upstream fixes and must remain compatible with the
@@ -48,10 +52,11 @@ commands; do not run production telemetry to find its source.
 
 ## Audit retention adoption
 
-Fresh init installs the weekly trim-log job with default-on 30-day retention.
-A wheel upgrade alone installs no new schedule into existing repos. After
+Fresh init selects the weekly trim-log job with default-on 30-day retention.
+A wheel upgrade alone enables no new schedule in an existing repo. After
 upgrading every writer, use the feature-specific `python -m
-coga_edge.trim_log --install` with the upgraded CLI's interpreter; follow the
+coga_edge.trim_log --install` with the upgraded CLI's interpreter; it records
+the selection and attribute rule instead of copying definitions. Follow the
 [adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
-two-phase rollout. The command installs only this feature's repo files.
+two-phase rollout. The command writes only this feature's selection and attribute.

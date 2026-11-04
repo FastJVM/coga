@@ -23,7 +23,7 @@ run on the merged result. An explicit local `launch_args = ""` clears a
 shared value. `file` is parsed and required, but launch does not currently
 read it. Removed keys (`auto`, `skip_permissions`, `skip_permissions_argv`)
 raise a migration error naming the file that holds them
-([coga/configuration](../../../coga/configuration/SKILL.md)).
+([coga/configuration](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md)).
 
 ## The default agent
 
@@ -57,7 +57,7 @@ default only after `[authoring] agent`, `COGA_AUTHORING_AGENT`, and the
 ticket's own `agent:`. The packaged `bootstrap/ticket`, `bootstrap/orient`,
 and onboarding tickets pin `agent: claude`, which outranks the default.
 Interactive `coga init` may write the key (`commands/init.py`
-`_write_default_agent`); see [coga/init](../../../coga/init/SKILL.md).
+`_write_default_agent`); see [coga/init](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 
 ## `peer` resolution
 
@@ -76,6 +76,6 @@ Interactive `coga init` may write the key (`commands/init.py`
   `coga.toml`.
 
 Step roles and handoff mechanics belong to
-[coga/workflows](../../../coga/workflows/SKILL.md) and
-[coga/lifecycle](../../../coga/lifecycle/SKILL.md); spawning to
+[coga/workflows](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md) and
+[coga/lifecycle](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md); spawning to
 [agent spawn](../agent-spawn/SKILL.md).

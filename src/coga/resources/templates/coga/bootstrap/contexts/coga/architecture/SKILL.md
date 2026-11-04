@@ -44,7 +44,7 @@ Coga acts as the OS user, through tools they already authenticate (`git`
 and its remote, `gh`); it stores no GitHub token and has no hosted account.
 A missing login fails with a setup hint. The optional weekly snapshot
 identifies the repo by a committed UUID, not a person; the
-[phone-home ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)
+[phone-home ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md)
 owns it. A ticket's `secrets:` declares intent, not confinement
 ([secrets](../secrets/SKILL.md)).
 

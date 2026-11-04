@@ -90,7 +90,7 @@ recommended `uv` installer can obtain a compatible Python for you.
 
 **Native Windows is not ready for a first task.** PyPI release 0.4.1
 does not run there. The development version runs deterministic commands but
-still refuses agent sessions; see the [launch platform boundary](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/launch/SKILL.md#phases-and-routing).
+still refuses agent sessions; see the [launch platform boundary](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
 WSL has not been verified as an alternative. The steps below are for macOS
 and Linux.
 
@@ -133,7 +133,7 @@ coga init --user YOUR_NAME
 
 In a repo new to Coga, init commits the Coga files. In a clone that already
 uses Coga, it sets up your local identity and agent links without a commit
-([init details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md)).
+([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
 In an interactive terminal, it offers agent CLI installation and login when
 neither supported CLI is installed and a supported installer is available;
 an already-installed CLI still needs authentication. It seeds the onboarding
@@ -157,25 +157,25 @@ In the shipped setup, chat and ticket interviews default to Claude even when
 new tasks use Codex.
 You can also edit any ticket directly in Markdown.
 
-For a walkthrough to a reviewed PR, follow [Your first task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md).
+For a walkthrough to a reviewed PR, follow [Your first task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md).
 That PR path needs a GitHub remote you can push to and [GitHub CLI](https://cli.github.com/)
 authentication (`gh auth login`). The guide explains the choice between a
 peer review using both agent CLIs and a workflow using one agent.
 GitHub CLI is optional for init and work that does not use GitHub;
-[1Password CLI](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/secrets/SKILL.md)
+[1Password CLI](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md)
 is needed only for tickets that declare `op://` secrets.
 
 Upgrade with `uv tool upgrade coga`. To remove Coga from a repo, run
-`coga uninstall`; the [uninstall guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/uninstall/SKILL.md)
+`coga uninstall`; the [uninstall guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md)
 explains what it removes and how to remove the global package too.
 
 ## What lives in your repo?
 
 Everything Coga manages is visible under `coga/`:
 
-- **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/tickets/SKILL.md).
-- **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/knowledge/SKILL.md).
-- **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/workflows/SKILL.md).
+- **Tickets** (`coga/tasks/`) — specific outcomes, attached context, workflow, and working notes. [How tickets work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md).
+- **Contexts** — durable facts, constraints, and decisions you choose to attach to tasks. [How knowledge works](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
+- **Workflows** — agent steps and human review gates. [How workflows work](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **History** (`coga/log.md`) — task transitions kept separately from the prompt sent to an agent.
 
 ## Principles

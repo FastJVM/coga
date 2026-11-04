@@ -382,6 +382,9 @@ def _print_recurring_templates(
     `due` is `TemplateStatus.due` — template-period state, not a count of
     launchable tasks.
     """
+    # Disabled and unselected bundled jobs are not scheduled; the full
+    # `coga recurring list` view names them with their reason.
+    templates = [s for s in templates if s.error or s.selection == "enabled"]
     if not templates:
         return
     if leading_blank:

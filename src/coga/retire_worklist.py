@@ -204,7 +204,14 @@ def worklist_for_period_task(cfg: Config, blackboard: Path | None) -> Path | Non
         return None
     template = parts[1]
     if not (recurring_dir(cfg) / template / "ticket.md").is_file():
-        return None
+        # A package-backed parent may have no local ticket yet; it still owns
+        # a durable repo worklist while it is selected. Removed or parked
+        # parents keep returning None.
+        from coga.recurring import resolve_template_source
+
+        source = resolve_template_source(cfg, template)
+        if not source.enabled or source.state_dir != recurring_dir(cfg) / template:
+            return None
     return template_worklist_path(cfg, template)
 
 

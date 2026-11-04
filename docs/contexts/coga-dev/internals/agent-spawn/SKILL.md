@@ -34,7 +34,7 @@ return a completed result before the next begins. Mutable config, target,
 routing and blocker state belong to that invocation; checkout return and
 blocker cleanup read its latest state after synchronization. This is internal
 organization, not a phase registry or extension surface; the ordering
-guarantees in [coga/launch](../../../coga/launch/SKILL.md) apply across those
+guarantees in [coga/launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md) apply across those
 boundaries. Entry preparation is `git.prepare_control_checkout`
 ([git refresh](../git-refresh/SKILL.md)); a prepared step spawns with the
 prompt composed before the switch
@@ -55,7 +55,7 @@ publication order.
 
 1. `apply_task_env` rewrites `COGA_TASK_*`; inherited `COGA_ASSIST_*` values
    are dropped and re-minted only for a proven recorded assist
-   ([human assist](../../../coga/human-assist/SKILL.md)).
+   ([human assist](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md)).
 2. Compose the prompt, or use a caller's preflighted `composed_prompt`
    bytes (megalaunch), then append `prompt_suffix` (launch arguments only).
 3. Write the prompt file; build argv with `build_agent_command`.
@@ -63,7 +63,7 @@ publication order.
    into the spawn gate or already published by the caller with
    `record_launch=False`) and, with `commit_log`, publish it at once. `coga
    launch` always sets `commit_log`, so a code step's start check
-   ([coga/checkouts](../../../coga/checkouts/SKILL.md)) finds a clean tree;
+   ([coga/checkouts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)) finds a clean tree;
    megalaunch's deferred audit publishes with its launch admission.
    `before_recompose` (recurring: after the audit
    publishes, exit this pass so the caller reloads and recomposes);
@@ -94,7 +94,7 @@ actor comes from `created_by`. Only `coga launch` adds
 prepared the invoking checkout. The boundary itself (publish, prepare,
 return) runs in `_launch` around this call, never inside it, because
 authoring and megalaunch spawn here under different admission contracts
-([coga/launch](../../../coga/launch/SKILL.md)).
+([coga/launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md)).
 Secrets are minted per step from the freshly read config and ticket.
 
 ## Per-caller parameters
@@ -143,7 +143,7 @@ match (slug, not path, so a bump from another checkout works). Ticket spawns
 also supply `launch._terminal_status_probe` through the supervisor's
 `terminal_status` callback. The completion backstop, signal diagnostics and
 recurring outcome contract live in
-[session liveness](../../../coga/recurring/scheduling/inactivity/SKILL.md#session-completion-and-liveness).
+[session liveness](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md#session-completion-and-liveness).
 Both completion paths send SIGTERM then SIGKILL after 2 s.
 
 `ReplOutcome.kind`: `natural` (own exit, own code), `done` (0, with sentinel
@@ -205,7 +205,7 @@ binary appears as the child's exit 127, not as that exception.
 ## No launch preflight for the Codex sandbox grant
 
 A `coga launch` preflight that warns or refuses when the Git common dir is not
-writable or the [Codex sandbox grant](../../../coga/sandboxes/SKILL.md#codex-sandbox-grant)
+writable or the [Codex sandbox grant](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md#codex-sandbox-grant)
 is missing was considered and left out (owner-confirmed plan, 2026-10-14). A
 write probe in the launch parent proves only the parent's access, not the
 child's effective sandbox; a check for the config file cannot establish child

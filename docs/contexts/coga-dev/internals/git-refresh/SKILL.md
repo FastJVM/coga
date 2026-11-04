@@ -135,7 +135,7 @@ no remote, or no remote control branch unless `require_remote_control`),
 `refused` (nothing but the remote-tracking ref changed), or `failed` (where
 it stopped after mutation began). Its only caller is the launch checkout
 boundary. The rules it enforces are owned by
-[coga/checkouts/launch-boundary](../../../coga/checkouts/launch-boundary/SKILL.md).
+[coga/checkouts/launch-boundary](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md).
 
 `fetch_control(cfg, root)` fetches and returns the commit to read control from
 (the tracking ref, or local control with no remote); megalaunch and the
@@ -186,8 +186,8 @@ automatically merging or overwriting either copy.
 
 ## Launch preparation details
 
-The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
-[its launch boundary](../../../coga/checkouts/launch-boundary/SKILL.md).
+The user contracts are [coga/checkouts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md) and
+[its launch boundary](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md).
 
 - **Order.** From a fresh control read, launch publishes routine state and
   prepares control, runs routing and refusing preflights, activates, prepares
@@ -242,11 +242,11 @@ The user contracts are [coga/checkouts](../../../coga/checkouts/SKILL.md) and
   restoration PR #1032 and feature PR #1033 later merged. The recurring
   exception has since been removed from `_routine_state_areas`: clean
   committed recurring files now wait for merge. The remaining dirty-file
-  hazard is owned by [state publication](../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+  hazard is owned by [state publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
 
 ## `coga open-pr` source notes
 
-The user contract is [coga/pr-publication](../../../coga/pr-publication/SKILL.md);
+The user contract is [coga/pr-publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/SKILL.md);
 the recipe is `src/coga/open_pr.py`.
 
 - The checkout gate is `_checkout_mode`. A `worktree:` naming this checkout,

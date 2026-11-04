@@ -7,7 +7,7 @@ description: How `src/coga/recurring_clone.py` runs one clone-scoped template â€
 
 The user contract (what clone scope is, what the sweep records and when it
 retries) is in
-[coga/recurring/scheduling](../../../coga/recurring/scheduling/SKILL.md#repo-scope-and-clone-scope).
+[coga/recurring/scheduling](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md#repo-scope-and-clone-scope).
 This page holds what a change to `src/coga/recurring_clone.py` or
 `recurring.scan_clone_due` must keep.
 

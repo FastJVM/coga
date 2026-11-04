@@ -7,7 +7,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from coga.paths import packaged_template_path
+from coga.paths import local_definition_entry, packaged_template_path
 
 
 AGENT_SKILLS_DIRNAME = ".agent-skills"
@@ -39,6 +39,12 @@ def refresh_agent_skill_view(coga_os: Path) -> AgentSkillViewResult:
     linked: list[str] = []
     skipped: list[str] = []
     for ref, source in sorted(refs.items()):
+        local = coga_os / "skills" / ref
+        # Discovery and composition must agree even when a local override
+        # contains attachments but has lost its SKILL.md. Never expose stock
+        # instructions for a ref the resolver rejects.
+        if local_definition_entry(local / "SKILL.md", kind="skill", owner=local):
+            source = local
         link = view_dir.joinpath(*ref.split("/"))
         if _has_symlink_parent(link, view_dir):
             skipped.append(ref)

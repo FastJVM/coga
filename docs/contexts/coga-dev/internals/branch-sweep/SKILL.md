@@ -5,7 +5,7 @@ description: How checkout disposal and the branch sweep implement the coga/check
 
 # Branch sweep and checkout disposal
 
-The user contract is [coga/checkout-cleanup](../../../coga/checkout-cleanup/SKILL.md)
+The user contract is [coga/checkout-cleanup](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md)
 and its leaves; this page is what a change to `checkout_disposal.py`,
 `branchcleanup.py`, `branchsweep.py`, or `retire_worklist.py` must keep.
 `checkout_disposal` runs the shared proofs for `coga retire` and autoclose
@@ -79,7 +79,7 @@ missing remote objects first. `_containing_tip` first looks for a tip that
 contains all the others. If none exists, tips covered by `pr_heads` are
 excluded and the remaining tips must have a containing tip for the tag;
 otherwise publication refuses. The user-facing recovery contract is the
-[archive rule](../../../coga/checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
+[archive rule](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
 The second worktree proof also requires the worktree's HEAD to still be the
 archived local tip; an initial refusal leaves the archive untouched.
 

@@ -6,7 +6,7 @@ description: Implementation constraints in `src/coga/recurring_autofix.py` — w
 # Recurring autofix internals
 
 The user contract (run record, analyst verdicts, autofix tickets, knobs) is in
-[coga/recurring/autofix](../../../coga/recurring/autofix/SKILL.md). This page
+[coga/recurring/autofix](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md). This page
 holds what a change to `src/coga/recurring_autofix.py` must keep.
 
 ## The record is built, not scraped

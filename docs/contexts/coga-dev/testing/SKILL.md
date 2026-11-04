@@ -29,7 +29,7 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 
 **A repo-wide `coga validate` refuses a shebang script that is not
 executable** (`non-executable-script`); the user-facing rule, remedy, and
-mode sources live in [coga/first-task](../../coga/first-task/SKILL.md#0-check-readiness).
+mode sources live in [coga/first-task](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md#0-check-readiness).
 When adding a script under `src/coga/resources/templates/coga/bootstrap/skills/`,
 commit it `100755` if it starts with `#!`; import-only modules carry no
 shebang and stay `100644`. A packaged-tree finding in an adopting repo is
@@ -38,19 +38,28 @@ The walk skips symlinks and prunes `.git`, `__pycache__`, `node_modules`, and
 `.venv` (`validate._check_shebang_executables`).
 
 For artifact-level reproduction, use the
-[Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI
+[Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
 continuation for agent login, the first-run `coga build`, and the first
 ticket. The
-[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
+[macOS harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md) runs the same walk on
 an EC2 Mac dedicated host, and the
-[Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
+[Windows harness on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md) on EC2 Windows
 Server. The
 [attended human walk](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/human-walk/SKILL.md)
 is their hand-run counterpart: a first-time user installs on a fresh
 `cogatest` VM while an agent records findings.
 
 ## Which code you are actually testing
+
+- **Package-owned definitions.** Tests and harnesses read shipped skills,
+  workflows and recurring definitions from the package tree
+  (`src/coga/resources/templates/coga/...`), never from this repo's legacy
+  live copies, which stage B of `v1/package-definitions` removes. A test that
+  must compare a legacy copy skips it when absent or when
+  `test_packaging.LEGACY_DEFINITION_DIFFERENCES` lists it. Pass
+  `--basetemp` on a roomy volume for full runs: the suite creates many
+  temporary repos and can fill a small `/tmp` tmpfs.
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets
@@ -100,7 +109,7 @@ is their hand-run counterpart: a first-time user installs on a fresh
   Confirm with `command -v coga` from the session, and read the results with
   that split in mind (seen in the 2026-10-15 Codex SIGINT reproduction).
 - Installed-versus-source skew warnings from `launch`/`validate` are owned by
-  [coga/launch](../../coga/launch/SKILL.md).
+  [coga/launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md).
 
 ## Test-writing rules
 
@@ -205,7 +214,7 @@ ANSI codes into plain-text assertions. It does not run
 `coga validate`, interactive launch (checked on EC2), or anything needing a
 real agent CLI, network, or AWS; such tests must skip cleanly rather than be
 excluded from CI. The publish-only `.github/workflows/release.yml`
-([coga/releasing](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/releasing/SKILL.md))
+([coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md))
 still inspects only metadata with `twine check`.
 
 CI does not replace step-level verification: implement / self-QA / review

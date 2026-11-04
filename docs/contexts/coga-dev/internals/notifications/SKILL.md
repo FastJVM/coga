@@ -8,8 +8,8 @@ description: How Coga's notification code behaves inside — the post/notify spl
 What a change to `src/coga/notification/`, `src/coga/slack_response.py`, or
 any `post(`/`notify(` call site must not break. The user contract — surfaces,
 destinations, the failure summary, the producer inventory — is
-[`coga/notifications`](../../../coga/notifications/SKILL.md) and its
-[producers](../../../coga/notifications/producers/SKILL.md) leaf; Slack keys
+[`coga/notifications`](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md) and its
+[producers](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/producers/SKILL.md) leaf; Slack keys
 are documented in the shipped `coga.toml`.
 
 ## Surfaces in code

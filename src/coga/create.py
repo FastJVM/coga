@@ -17,6 +17,7 @@ from coga.paths import (
     read_ticket_template,
     resolve_context_path,
     resolve_skill_path,
+    skill_unresolved,
     resolve_workflow_path,
     tasks_dir,
 )
@@ -132,7 +133,7 @@ def create_task(
         raise ValueError(f"Unknown contexts: {missing_ctx}")
 
     skills = _dedupe(list(skills or []))
-    missing_skills_top = [s for s in skills if resolve_skill_path(cfg, s) is None]
+    missing_skills_top = [s for s in skills if skill_unresolved(cfg, s)]
     if missing_skills_top:
         raise ValueError(f"Unknown skills: {missing_skills_top}")
 
@@ -142,7 +143,7 @@ def create_task(
         missing_step_skills: list[str] = []
         for s in wf.steps:
             for ref in s.skills:
-                if resolve_skill_path(cfg, ref) is None:
+                if skill_unresolved(cfg, ref):
                     missing_step_skills.append(ref)
         if missing_step_skills:
             details = "; ".join(

@@ -51,7 +51,7 @@ no successful completion or agent fallthrough occurs. Successful maintenance
 uses `Log: recurring/trim-log — ...`, which does not count as repo activity.
 The run report includes removed and retained counts/bytes; no-change needs no
 maintenance commit. See the persistent
-[operations guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md)
+[operations guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for explicit adoption, native Git conflict recovery and interrupted runs.
 
 <!-- coga:blackboard -->

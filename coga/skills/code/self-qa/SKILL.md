@@ -94,7 +94,7 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
-   After all fixes and any rebase, read [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/pr-publication/preparation/SKILL.md),
+   After all fixes and any rebase, read [coga/pr-publication/preparation](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/pr-publication/preparation/SKILL.md),
    “Presentation and review-depth rubric” and “Preparation record”, and refresh
    `## PR` in the live blackboard with the handoff. Preserve actual authorship;
    record the actual reviewing agent/tool, whether review was independent or
@@ -153,5 +153,5 @@ this step just makes sure the diff they see is already clean.
   human reviewer is one step away — leave the code in the safer state
   and note the disagreement on the blackboard.
 - Commit edits you want reviewed *before* running a `coga` command on the
-  feature branch. See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/state-publication/SKILL.md),
+  feature branch. See [coga/state-publication](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md),
   "Control versus feature checkouts" ("Pre-review publication hazard").

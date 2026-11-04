@@ -20,6 +20,7 @@ TEMPLATES = (
 DREAM = TEMPLATES.parent
 SCAN_TEMPLATES = DREAM / "scan"
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "coga" / "resources"
+CONTEXTS = RESOURCES / "templates" / "coga" / "bootstrap" / "contexts" / "coga"
 RECURRING_TEMPLATES = (
     RESOURCES / "templates" / "coga" / "recurring"
 )
@@ -234,12 +235,13 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "Frozen task artifacts under `coga/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
     assert "## Known Skill Contract" not in skill_text
-    # The audit shards too, and copy divergence checks explicit counterpart
-    # pairs instead of diffing intentionally different trees.
-    assert "bounded shards, not one sweep" in skill_norm
+    # The audit shards too, and the single-source shard reads the suite's
+    # derived inventory instead of diffing intentionally different trees.
+    assert "bounded shards, not one sweep" in skill_text or "bounded shards, not one sweep" in skill_norm
     assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
-    assert "`IDENTICAL_LIVE_PACKAGED_PAIRS`" in skill_text
-    assert "compare each pair with `cmp`" in skill_norm
+    assert "**single-source ownership**" in skill_text
+    assert "tests/legacy_removal_inventory.txt" in skill_text
+    assert "never edit installed package resources" in skill_norm
     assert "recursive diff" in skill_norm
     assert "diff -r coga/ src/coga/resources/templates/coga/" not in skill_text
     assert "never read it whole" in skill_norm
@@ -690,7 +692,7 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
 
 def test_sandboxes_topic_owns_the_codex_sandbox_grant() -> None:
     testing = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "sandboxes" / "SKILL.md")
+        (CONTEXTS / "sandboxes" / "SKILL.md")
         .read_text(encoding="utf-8")
         .split()
     )
@@ -722,7 +724,7 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
     assert "Skip this check for a claim the snapshot marks `owner: coga`." in retro
     assert "never as unshipped scope, a local context edit, or a knowledge PR" in retro
     lifecycle = " ".join(
-        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
+        (CONTEXTS / "lifecycle" / "SKILL.md")
         .read_text(encoding="utf-8")
         .split()
     )

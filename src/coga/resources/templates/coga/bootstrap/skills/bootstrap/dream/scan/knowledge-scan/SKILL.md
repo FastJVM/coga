@@ -52,7 +52,12 @@ refs.
   contexts directory (`coga/contexts/` unless `[layout] contexts` in
   `coga.toml` moves it — resolve that checkout-root-relative key before
   globbing), every repo-authored Markdown file under `coga/skills/**`, and
-  `coga/workflows/**`.
+  `coga/workflows/**`. In the Coga source repo (`repo-identity:
+  coga-source`) shipped knowledge is owned by the package: also read
+  `src/coga/resources/templates/coga/bootstrap/{contexts,skills,workflows}/**`
+  and `src/coga/resources/templates/coga/recurring/**`, and route a
+  correction to that package file. Never edit installed package resources in
+  an adopting repo.
 
 Which repo this is also shapes the corpus. Read the `repo-identity:` line at
 the top of the scan directory's `index.md`; the protocol's "Repo identity"

@@ -19,8 +19,10 @@ are unchanged.
 
 Upgrade every writer while sessions are quiesced, then run the feature-specific
 `"$COGA_PY" -m coga_edge.trim_log --install` using the upgraded CLI's interpreter.
-Wheel replacement alone does not install the schedule. The installer preserves
+Wheel replacement alone does not enable the schedule. The installer now writes
+the recurring selection and merge attribute; definitions resolve from the
+package. It preserves
 opt-outs, parked jobs and local forks and refuses conflicting customizations.
 Review and publish the named edits. The persistent
-[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/trim-log/operations.md) contains the
+[adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md) contains the
 interpreter-resolution link, exact allowlist, rollback and crash procedure.

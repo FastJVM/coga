@@ -59,13 +59,19 @@ are in [recurring-clone](https://github.com/FastJVM/coga/blob/main/docs/contexts
 Clone-scoped runs leave no runner-owned git-visible record. Their evidence is
 the clone-local ledger and log, the console, and the autofix run record. The
 shipped `branch-sweep` template uses clone scope for local refs and worktrees;
-its [ticket](https://github.com/FastJVM/coga/blob/main/coga/recurring/branch-sweep/ticket.md)
+its [ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md)
 owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
 because ticket closure is shared state. A `scope: clone` template serviced as a
 shared period task means the CLI predates clone scope
 ([coga/install](../../install/SKILL.md#cli-older-than-the-templates-it-sweeps)).
 
 ## What a sweep does per template
+
+A sweep walks the effective catalog, not the local directory: every
+**enabled** job, local or bundled, per
+[selection and state](../templates/SKILL.md#selection-and-state). Disabled,
+parked and unselected jobs are not scheduled, and a selection or state error
+is one template error that leaves healthy jobs running.
 
 One stable task per template:
 
@@ -94,7 +100,8 @@ This section owns the recurring command spellings' behavior; flags and syntax
 are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
 `recurring-scan` recipe through `coga run`.
 
-- `--force` runs every template regardless of schedule and status, reactivating
+- `--force` runs every enabled template regardless of schedule and status
+  (it never enables a disabled, parked or unselected job), reactivating
   `done` and `paused` periods — real Slack, sync and ledger advance. A `canceled`
   period gets a controlled refusal; the sweep continues and exits non-zero.
   Force does not bypass branch, owner or TTY gates.
@@ -180,7 +187,7 @@ no `--force` and no retry cap. Pause provenance is the latest `paused` or
   which resolves the asks and leaves the period `paused` for the next sweep to
   resume with the answer on its blackboard. The blocker-reminder job keeps those
   asks visible under its
-  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md).
+  [eligibility and deduplication contract](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md).
   Unreadable asks leave the period paused and report a template error; they
   are never treated as an empty blocker list.
 - **Watchdog pause** (actor `system:watchdog`) — resumed on every sweep, and

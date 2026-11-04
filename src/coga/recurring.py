@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import tomllib
+
 import yaml
 
 from coga.blackboard import open_blockers
@@ -31,11 +33,25 @@ from coga.paths import (
     RepoResourceUnreadable,
     log_path,
     missing_skill_message,
+    packaged_template_path,
     recurring_dir,
     resolve_skill_path,
+    skill_unresolved,
     resolve_workflow_path,
 )
 from coga.period_state import write_snapshot
+from coga.recurring_state import (
+    ABSENT,
+    CARRIER,
+    DEFINITION,
+    INCOMPLETE,
+    STATE_ONLY,
+    RecurringStateError,
+    active_parent_dir,
+    ensure_parent_state,
+    inspect_parent_dir,
+    parked_parent_dir,
+)
 from coga.recurring_clone import (
     SCOPE_CLONE,
     SCOPE_REPO,
@@ -325,7 +341,7 @@ def assert_template_workflow(cfg: Config, template: "Template") -> None:
         ref
         for step in workflow.steps
         for ref in step.skills
-        if resolve_skill_path(cfg, ref) is None
+        if skill_unresolved(cfg, ref)
     ]
     if missing:
         raise RecurringError(
@@ -383,13 +399,25 @@ class Template:
     `coga/log.md`, tagged `recurring/<name>`.
     """
 
-    path: Path  # the recurring task directory
+    path: Path  # the selected *definition* directory (local or packaged)
     name: str
     frontmatter: dict[str, Any]
     body: str
+    # The repo-local parent directory holding cross-run state. Equal to `path`
+    # for a local definition; the repo's `recurring/<name>/` (a state-only
+    # carrier) for a package-backed one. Never a package path.
+    state_dir: Path | None = None
+    origin: str = "local"
 
     @classmethod
-    def load(cls, path: Path, *, now: datetime | None = None) -> "Template":
+    def load(
+        cls,
+        path: Path,
+        *,
+        now: datetime | None = None,
+        state_dir: Path | None = None,
+        origin: str = "local",
+    ) -> "Template":
         fm, body = _read_template_source(path)
         rejected = sorted(set(fm) & REJECTED_TICKET_KEYS)
         if rejected:
@@ -444,7 +472,14 @@ class Template:
                 "`period_generation` is reserved for materialized period tasks; "
                 "remove it from the recurring template"
             )
-        return cls(path=path, name=path.name, frontmatter=fm, body=body)
+        return cls(
+            path=path,
+            name=path.name,
+            frontmatter=fm,
+            body=body,
+            state_dir=state_dir if state_dir is not None else path,
+            origin=origin,
+        )
 
     @property
     def scope(self) -> str:
@@ -498,6 +533,330 @@ class Template:
         `_record_run`), which is never composed.
         """
         return self.path / "ticket.md"
+
+    @property
+    def state_path(self) -> Path:
+        """The repo-local parent ticket whose blackboard holds cross-run state.
+
+        The definition's own ticket for a local template; the repo carrier at
+        `recurring/<name>/ticket.md` (or a uniquely parked one) for a
+        package-backed template. It may not exist before first use.
+        """
+        return (self.state_dir or self.path) / "ticket.md"
+
+    @property
+    def packaged(self) -> bool:
+        return self.origin == ORIGIN_PACKAGE
+
+
+# --- effective recurring catalog ----------------------------------------------
+
+JOBS_FILE = "jobs.toml"
+ORIGIN_LOCAL = "local"
+ORIGIN_PACKAGE = "package"
+
+SELECTION_ENABLED = "enabled"
+SELECTION_DISABLED = "disabled"
+SELECTION_PARKED = "parked"
+SELECTION_UNSELECTED = "unselected"
+SELECTION_ERROR = "error"
+
+
+@dataclass(frozen=True)
+class TemplateSource:
+    """One logical recurring job: its selected definition and its repo state.
+
+    `definition_dir` is where the job's definition (ticket, `ticket.py`,
+    runbooks) is read from — a repo override or the installed package — and
+    is never written. `state_dir` is the repo-local parent directory whose
+    `ticket.md` holds cross-run state; it may not exist yet.
+    """
+
+    name: str
+    definition_dir: Path | None
+    origin: str | None
+    state_dir: Path
+    selection: str
+    reason: str | None = None
+    error: str | None = None
+
+    @property
+    def enabled(self) -> bool:
+        return self.selection == SELECTION_ENABLED and self.error is None
+
+    @property
+    def ticket_path(self) -> Path | None:
+        return None if self.definition_dir is None else self.definition_dir / "ticket.md"
+
+    def load(self, *, now: datetime | None = None) -> Template:
+        """Load the selected definition, failing on configuration errors."""
+        if self.error is not None:
+            raise RecurringError(self.error)
+        if self.definition_dir is None:
+            raise RecurringError(self.reason or f"recurring/{self.name} has no definition")
+        return Template.load(
+            self.definition_dir,
+            now=now,
+            state_dir=self.state_dir,
+            origin=self.origin or ORIGIN_LOCAL,
+        )
+
+    def refusal(self) -> str:
+        """Why a named launch or force run must not run this job, with remedy."""
+        if self.error is not None:
+            return self.error
+        return self.reason or f"recurring/{self.name} is not enabled"
+
+
+def packaged_recurring_dir() -> Path:
+    """The installed package's recurring definitions (read-only)."""
+    return packaged_template_path("recurring")
+
+
+def jobs_file_path(cfg: Config) -> Path:
+    return recurring_dir(cfg) / JOBS_FILE
+
+
+def read_job_selection(cfg: Config) -> dict[str, bool]:
+    """Parse `coga/recurring/jobs.toml`'s `[jobs]` table; {} when absent.
+
+    Invalid TOML, unknown keys, invalid names or non-boolean values raise
+    `RecurringError`: selection is configuration and must not be guessed.
+    """
+    path = jobs_file_path(cfg)
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError as exc:
+        if path.is_symlink():
+            raise RecurringError(
+                f"{path} is unreadable: its symlink target is missing; repair "
+                "the selection file before running recurring jobs"
+            ) from exc
+        return {}
+    except OSError as exc:
+        raise RecurringError(f"{path} is unreadable: {exc}") from exc
+    try:
+        data = tomllib.loads(raw.decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as exc:
+        raise RecurringError(f"{path} is not valid TOML: {exc}") from exc
+    unknown = sorted(set(data) - {"jobs"})
+    if unknown:
+        raise RecurringError(
+            f"{path} has unknown top-level keys {unknown}; only `[jobs]` is allowed"
+        )
+    jobs = data.get("jobs", {})
+    if not isinstance(jobs, dict):
+        raise RecurringError(f"{path}: `jobs` must be a table of name = true/false")
+    out: dict[str, bool] = {}
+    for name, value in jobs.items():
+        if not _TEMPLATE_NAME_RE.match(name):
+            raise RecurringError(
+                f"{path}: {name!r} is not a recurring job name (parked `_name` "
+                "directories are not selected through jobs.toml)"
+            )
+        if not isinstance(value, bool):
+            raise RecurringError(
+                f"{path}: jobs.{name} must be true or false, got {value!r}"
+            )
+        out[name] = value
+    return out
+
+
+def render_job_selection(jobs: Mapping[str, bool]) -> str:
+    """A fresh `jobs.toml` body with explicit entries, in name order."""
+    lines = [
+        "# Recurring job selection: `name = true` enables a local definition, or",
+        "# the bundled one when no local definition exists; `false` disables",
+        "# either. A job with no entry keeps local-only activation, and a newly",
+        "# bundled job stays disabled until selected here. See coga/recurring.",
+        "[jobs]",
+    ]
+    lines += [f"{name} = {'true' if value else 'false'}" for name, value in sorted(jobs.items())]
+    return "\n".join(lines) + "\n"
+
+
+def planned_job_selection(cfg: Config, name: str, value: bool) -> bytes | None:
+    """`jobs.toml` bytes with `name` set to `value`, or None when unchanged.
+
+    Edits preserve every other entry, comment and formatting (tomlkit). The
+    current file must already be valid selection data.
+    """
+    import tomlkit
+
+    current = read_job_selection(cfg)
+    if current.get(name) is value:
+        return None
+    path = jobs_file_path(cfg)
+    if not path.exists():
+        return render_job_selection({name: value}).encode("utf-8")
+    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    if "jobs" not in doc:
+        doc["jobs"] = tomlkit.table()
+    doc["jobs"][name] = value
+    return tomlkit.dumps(doc).encode("utf-8")
+
+
+def _job_names(cfg: Config, selection: Mapping[str, bool]) -> list[str]:
+    names: set[str] = set(selection)
+    root = recurring_dir(cfg)
+    if root.is_dir():
+        for child in root.iterdir():
+            if not child.is_dir():
+                continue
+            name = child.name[1:] if child.name.startswith("_") else child.name
+            if name and _TEMPLATE_NAME_RE.match(name):
+                names.add(name)
+    packaged = packaged_recurring_dir()
+    if packaged.is_dir():
+        for child in packaged.iterdir():
+            if (child / "ticket.md").is_file() and not child.name.startswith("_"):
+                names.add(child.name)
+    return sorted(names)
+
+
+def _source_for(
+    cfg: Config, name: str, selection: Mapping[str, bool]
+) -> TemplateSource:
+    active = inspect_parent_dir(active_parent_dir(cfg, name))
+    parked = inspect_parent_dir(parked_parent_dir(cfg, name))
+    packaged = packaged_recurring_dir() / name
+    package_def = packaged if (packaged / "ticket.md").is_file() else None
+    chosen = selection.get(name)
+    jobs = jobs_file_path(cfg)
+
+    def source(**kw: Any) -> TemplateSource:
+        kw.setdefault("state_dir", active.path)
+        return TemplateSource(name=name, **kw)
+
+    if active.kind == INCOMPLETE:
+        return source(
+            definition_dir=active.path, origin=ORIGIN_LOCAL,
+            selection=SELECTION_ERROR, error=active.problem,
+        )
+    if parked.kind != ABSENT:
+        if active.kind == DEFINITION:
+            return source(
+                definition_dir=active.path, origin=ORIGIN_LOCAL,
+                selection=SELECTION_ERROR,
+                error=(
+                    f"recurring/{name} has both an active local definition and "
+                    f"a parked `_{name}/`; keep one of them"
+                ),
+            )
+        if active.kind in {CARRIER, STATE_ONLY}:
+            return source(
+                definition_dir=None, origin=None, selection=SELECTION_ERROR,
+                error=(
+                    f"recurring/{name} has state in both `{name}/` and parked "
+                    f"`_{name}/`; reconcile their cursors before running it"
+                ),
+            )
+        if parked.kind == INCOMPLETE:
+            definition, origin = parked.path, ORIGIN_LOCAL
+        elif parked.kind == DEFINITION:
+            definition, origin = parked.path, ORIGIN_LOCAL
+        else:
+            definition, origin = package_def, ORIGIN_PACKAGE if package_def else None
+        return source(
+            definition_dir=definition, origin=origin, state_dir=parked.path,
+            selection=SELECTION_PARKED,
+            reason=(
+                f"recurring/{name} is parked at {parked.path}; rename it to "
+                f"`{name}/` to resume it (its state moves with it)"
+            ),
+        )
+    local_def = active.path if active.kind == DEFINITION else None
+    definition = local_def or package_def
+    origin = ORIGIN_LOCAL if local_def else (ORIGIN_PACKAGE if package_def else None)
+    if chosen is False:
+        return source(
+            definition_dir=definition, origin=origin, selection=SELECTION_DISABLED,
+            reason=(
+                f"recurring/{name} is disabled by `{name} = false` in {jobs}; "
+                f"set it to true to run it"
+            ),
+        )
+    if chosen is True:
+        if definition is None:
+            return source(
+                definition_dir=None, origin=None, selection=SELECTION_ERROR,
+                error=(
+                    f"{jobs} enables {name!r}, but neither a local "
+                    f"recurring/{name}/ticket.md nor a bundled definition exists"
+                ),
+            )
+        return source(definition_dir=definition, origin=origin, selection=SELECTION_ENABLED)
+    if local_def is not None:
+        return source(definition_dir=local_def, origin=ORIGIN_LOCAL, selection=SELECTION_ENABLED)
+    if package_def is not None:
+        return source(
+            definition_dir=package_def, origin=ORIGIN_PACKAGE,
+            selection=SELECTION_UNSELECTED,
+            reason=(
+                f"bundled recurring/{name} is available but not selected; add "
+                f"`{name} = true` under [jobs] in {jobs} to enable it"
+            ),
+        )
+    return source(
+        definition_dir=None, origin=None, selection=SELECTION_UNSELECTED,
+        reason=(
+            None if active.kind == ABSENT
+            else f"recurring/{name} holds state but no definition"
+        ),
+    )
+
+
+def iter_template_sources(cfg: Config) -> list[TemplateSource]:
+    """Every logical recurring job, with its selection and definition origin.
+
+    Read-only: creates no state. A broken `jobs.toml` marks every job as a
+    configuration error (no job can be selected safely).
+    """
+    try:
+        selection = read_job_selection(cfg)
+    except RecurringError as exc:
+        return [
+            TemplateSource(
+                name=name, definition_dir=None, origin=None,
+                state_dir=active_parent_dir(cfg, name),
+                selection=SELECTION_ERROR, error=str(exc),
+            )
+            for name in _job_names(cfg, {})
+        ] or [
+            TemplateSource(
+                name=JOBS_FILE, definition_dir=None, origin=None,
+                state_dir=recurring_dir(cfg), selection=SELECTION_ERROR,
+                error=str(exc),
+            )
+        ]
+    return [_source_for(cfg, name, selection) for name in _job_names(cfg, selection)]
+
+
+def resolve_template_source(cfg: Config, name: str) -> TemplateSource:
+    """The effective source of one named job (also when it is not enabled)."""
+    try:
+        selection = read_job_selection(cfg)
+    except RecurringError as exc:
+        return TemplateSource(
+            name=name, definition_dir=None, origin=None,
+            state_dir=active_parent_dir(cfg, name),
+            selection=SELECTION_ERROR, error=str(exc),
+        )
+    return _source_for(cfg, name, selection)
+
+
+def load_effective_template(
+    cfg: Config, name: str, *, now: datetime | None = None
+) -> Template:
+    """Load `name`'s selected definition regardless of selection status.
+
+    For callers acting on an already materialized period (state keys, damage
+    checks): they need the definition metadata, not a new admission.
+    """
+    src = resolve_template_source(cfg, name)
+    if src.error is not None or src.definition_dir is None:
+        raise RecurringError(src.refusal())
+    return src.load(now=now)
 
 
 @dataclass
@@ -779,7 +1138,8 @@ def scan_due(
     # A non-None value is a local ISO date or "never" for machine-only history.
     now = now or datetime.now()
     root = recurring_dir(cfg)
-    if not root.is_dir():
+    sources = iter_template_sources(cfg)
+    if not root.is_dir() and not any(src.enabled for src in sources):
         return DueScan(tasks=[], errors=[])
 
     inactivity_skips: list[tuple[str, datetime | None]] = []
@@ -793,7 +1153,7 @@ def scan_due(
     # stay attached to their template so one bad high-water mark cannot hide
     # itself as "already serviced" or prevent healthy templates from running.
     period_targets = _template_period_targets(
-        root, now, skip_inactive=inactive_since is not None and not force
+        sources, now, skip_inactive=inactive_since is not None and not force
     )
     ledger = read_serviced_ledger(cfg, period_targets)
     # `_advance_serviced_period` mutates `ledger.periods` in place as this scan
@@ -803,23 +1163,27 @@ def scan_due(
     ledger_periods_before_scan = dict(ledger.periods)
     ledger_errors_before_scan = dict(ledger.errors)
     serviced = ledger.periods
-    for path in sorted(root.iterdir()):
-        if path.name.startswith("_"):
-            # Underscore-prefixed entries are templates/creates, not live
-            # recurring tasks.
+    for legacy in _legacy_single_file_templates(root):
+        # A recurring task is now a ticket-format directory, not a single
+        # file. Flag a leftover `<name>.md` loudly so the migration to
+        # `<name>/ticket.md` is not silently skipped.
+        msg = (
+            "legacy single-file recurring template — recurring tasks "
+            "are now directories (recurring/<name>/ticket.md)"
+        )
+        sys.stderr.write(f"[recurring] skipping {legacy.name}: {msg}\n")
+        errors.append((legacy.name, msg))
+    for src in sources:
+        if src.error is not None:
+            sys.stderr.write(f"[recurring] skipping {src.name}: {src.error}\n")
+            errors.append((src.name, src.error))
             continue
-        if not path.is_dir():
-            if path.suffix == ".md":
-                # A recurring task is now a ticket-format directory, not a
-                # single file. Flag a leftover `<name>.md` loudly so the
-                # migration to `<name>/ticket.md` is not silently skipped.
-                msg = (
-                    "legacy single-file recurring template — recurring tasks "
-                    "are now directories (recurring/<name>/ticket.md)"
-                )
-                sys.stderr.write(f"[recurring] skipping {path.name}: {msg}\n")
-                errors.append((path.name, msg))
+        if not src.enabled:
+            # Disabled, parked, and unselected bundled jobs are not scheduled
+            # (and `--force` does not enable them). Read-only views report why.
             continue
+        path = src.definition_dir
+        assert path is not None
         if _declares_clone_scope(path):
             # Serviced per clone by `scan_clone_due`, never as a shared period.
             continue
@@ -830,20 +1194,20 @@ def scan_due(
                 # nobody works on; it surfaces when the repo wakes.
                 exempt, skipped_fire = _read_inactivity_fields(path, now)
                 if not exempt:
-                    inactivity_skips.append((path.name, skipped_fire))
+                    inactivity_skips.append((src.name, skipped_fire))
                     continue
-            template = Template.load(path, now=now)
+            template = src.load(now=now)
         except RecurringError as exc:
-            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
-            errors.append((path.name, str(exc)))
+            sys.stderr.write(f"[recurring] skipping {src.name}: {exc}\n")
+            errors.append((src.name, str(exc)))
             continue
 
         ledger_error = ledger.errors.get(_recurring_slug(template.name))
         if ledger_error is not None:
             sys.stderr.write(
-                f"[recurring] skipping {path.name}: {ledger_error}\n"
+                f"[recurring] skipping {template.name}: {ledger_error}\n"
             )
-            errors.append((path.name, ledger_error))
+            errors.append((template.name, ledger_error))
             continue
 
         last_fire = _last_firing(template.schedule, now)
@@ -903,15 +1267,15 @@ def scan_due(
             ticket = read_ticket(outcome.ref)
             delegate = frozen_task_delegate(outcome.ref, ticket)
         except AgentUnavailableError as exc:
-            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            sys.stderr.write(f"[recurring] skipping {template.name}: {exc}\n")
             agent_refusals.append((template.name, last_fire, str(exc)))
             continue
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
             # interactive `coga recurring` honest; the command also posts a
             # Slack summary so the failure is never silent.
-            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
-            errors.append((path.name, str(exc)))
+            sys.stderr.write(f"[recurring] skipping {template.name}: {exc}\n")
+            errors.append((template.name, str(exc)))
             continue
 
         tasks.append(
@@ -1107,26 +1471,29 @@ def scan_clone_due(
     ledger is ignored, as `coga recurring launch <name>` does).
     """
     now = now or datetime.now()
-    root = recurring_dir(cfg)
     scan = CloneScan()
-    if not root.is_dir():
-        return scan
-    for path in sorted(root.iterdir()):
-        if path.name.startswith("_") or not path.is_dir():
+    for src in iter_template_sources(cfg):
+        if only is not None and src.name != only:
             continue
-        if only is not None and path.name != only:
+        if src.definition_dir is None or not _declares_clone_scope(src.definition_dir):
             continue
-        if not _declares_clone_scope(path):
+        if not src.enabled:
+            if src.error is not None or only is not None:
+                # A named clone launch of a disabled/parked job is refused
+                # with its remedy; a sweep just does not schedule it.
+                sys.stderr.write(f"[recurring] skipping {src.name}: {src.refusal()}\n")
+                scan.errors.append((src.name, src.refusal()))
             continue
+        path = src.definition_dir
         try:
             if inactive_since is not None and not force and only is None:
                 if not _read_inactivity_fields(path, now)[0]:
-                    scan.inactivity_skips.append(path.name)
+                    scan.inactivity_skips.append(src.name)
                     continue
-            template = Template.load(path, now=now)
+            template = src.load(now=now)
         except RecurringError as exc:
-            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
-            scan.errors.append((path.name, str(exc)))
+            sys.stderr.write(f"[recurring] skipping {src.name}: {exc}\n")
+            scan.errors.append((src.name, str(exc)))
             continue
         last_fire = _last_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
@@ -1160,10 +1527,14 @@ def create_named(
     instantiated task directory.
     """
     now = now or datetime.now()
-    path = recurring_dir(cfg) / name
-    if not path.is_dir():
+    src = resolve_template_source(cfg, name)
+    if src.definition_dir is None and src.error is None and src.reason is None:
         raise RecurringError(f"no recurring task `recurring/{name}/`")
-    template = Template.load(path, now=now)
+    if not src.enabled:
+        # Named launch never silently enables a disabled, parked, or
+        # unselected job; the refusal names the path and the remedy.
+        raise RecurringError(src.refusal())
+    template = src.load(now=now)
     if template.clone_scoped:
         raise RecurringError(
             f"recurring/{name} is `scope: clone`; it runs per clone with no "
@@ -1351,6 +1722,11 @@ class TemplateStatus:
     scope: str = SCOPE_REPO
     # For `scope: clone`: this clone's last serviced period, if any.
     clone_ledger: CloneLedgerEntry | None = None
+    # Where the selected definition comes from (`local` or `package`) and
+    # whether it is scheduled. A non-enabled row carries `reason`.
+    origin: str | None = ORIGIN_LOCAL
+    selection: str = SELECTION_ENABLED
+    reason: str | None = None
 
     @property
     def due(self) -> bool:
@@ -1361,12 +1737,14 @@ class TemplateStatus:
         deletes it and creates this period's task fresh. A template with no
         task but a serviced high-water mark does not: the sweep skips it, so
         `list` must agree instead of over-reporting dueness."""
-        return self.error is None and (
+        return self.error is None and self.selection == SELECTION_ENABLED and (
             self.stale_done or (self.instance is None and not self.serviced)
         )
 
 
-def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateStatus]:
+def list_templates(
+    cfg: Config, now: datetime | None = None, *, include_available: bool = False
+) -> list[TemplateStatus]:
     """Read-only scan of every recurring template. Creates nothing.
 
     For each `recurring/<name>/` template (skipping `_`-prefixed entries) this
@@ -1377,25 +1755,52 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     read-only view never mutates).
     """
     now = now or datetime.now()
-    root = recurring_dir(cfg)
     out: list[TemplateStatus] = []
-    if not root.is_dir():
+    sources = iter_template_sources(cfg)
+    if not sources:
         return out
-    ledger = read_serviced_ledger(cfg, _template_period_targets(root, now))
+    ledger = read_serviced_ledger(cfg, _template_period_targets(sources, now))
     serviced = ledger.periods
     # One read-only walk serves every template's lookups; the scan creates
     # nothing, so the tree cannot change underneath it.
     refs = list_tasks(cfg)
 
-    for path in sorted(root.iterdir()):
-        if path.name.startswith("_") or not path.is_dir():
+    for src in sources:
+        if src.selection == SELECTION_PARKED and not include_available:
+            # The status summary stays quiet; the full list explains parking.
+            continue
+        if (
+            src.selection == SELECTION_UNSELECTED
+            and src.error is None
+            and (not include_available or src.definition_dir is None)
+        ):
+            # Bundled jobs this repo never selected are offered only by the
+            # full `coga recurring list` view.
+            continue
+        if src.error is None and not src.enabled:
+            out.append(
+                TemplateStatus(
+                    name=src.name,
+                    schedule=None,
+                    last_fire=None,
+                    next_fire=None,
+                    period_key=None,
+                    target_slug=None,
+                    instance=None,
+                    instance_status=None,
+                    error=None,
+                    origin=src.origin,
+                    selection=src.selection,
+                    reason=src.reason,
+                )
+            )
             continue
         try:
-            template = Template.load(path, now=now)
+            template = src.load(now=now)
         except RecurringError as exc:
             out.append(
                 TemplateStatus(
-                    name=path.name,
+                    name=src.name,
                     schedule=None,
                     last_fire=None,
                     next_fire=None,
@@ -1425,6 +1830,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                     serviced=_clone_period_serviced(entry, period_key),
                     scope=SCOPE_CLONE,
                     clone_ledger=entry,
+                    origin=template.origin,
                 )
             )
             continue
@@ -1494,6 +1900,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 error=None,
                 stale_done=stale_done,
                 serviced=period_handled,
+                origin=template.origin,
             )
         )
     return out
@@ -1813,6 +2220,10 @@ def _create_at_slug(
             )
         shutil.copyfile(entry, out_ref.task_dir / SCRIPT_ENTRY_POINT)
 
+    # A package-backed parent's repo state is created on its first admitted
+    # run, before its keys are snapshotted; existing state is never reseeded.
+    ensure_template_state(cfg, template)
+
     # If the template declares the blackboard keys it owns, snapshot their
     # current values into the period task. `coga mark done` later diffs this
     # baseline against the live parent blackboard to catch a run that finished
@@ -1855,8 +2266,24 @@ def _write_state_snapshot(template: Template, ref: TaskRef) -> None:
     state_keys = template.frontmatter.get("state_keys") or []
     if state_keys:
         write_snapshot(
-            ref.path, template.name, template.ticket_path, list(state_keys)
+            ref.path, template.name, template.state_path, list(state_keys)
         )
+
+
+def ensure_template_state(cfg: Config, template: Template) -> Path:
+    """Initialize a package-backed parent's repo carrier once, on first use.
+
+    A local definition is its own state owner, so nothing is created. Called
+    only for an admitted repo-scoped execution, never by list/status/validate.
+    """
+    try:
+        return ensure_parent_state(
+            cfg,
+            template.name,
+            seed_ticket=template.ticket_path if template.packaged else None,
+        )
+    except RecurringStateError as exc:
+        raise RecurringError(str(exc)) from exc
 
 
 def _record_run(
@@ -2211,25 +2638,35 @@ def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime |
     return exempt, _last_firing(fm["schedule"], now)
 
 
+def _legacy_single_file_templates(root: Path) -> list[Path]:
+    if not root.is_dir():
+        return []
+    return [
+        path for path in sorted(root.iterdir())
+        if not path.name.startswith("_") and not path.is_dir() and path.suffix == ".md"
+    ]
+
+
 def _template_period_targets(
-    root: Path, now: datetime, *, skip_inactive: bool = False
+    sources: Sequence[TemplateSource], now: datetime, *, skip_inactive: bool = False
 ) -> dict[str, str]:
-    """Map each valid live template to the period a scan is deciding now.
+    """Map each valid enabled template to the period a scan is deciding now.
 
     Invalid templates are diagnosed by the ordinary scan/list loop. They have
     no trustworthy target with which to bound a ledger read, so they are left
     out here rather than guessed from a directory name.
     """
     targets: dict[str, str] = {}
-    for path in sorted(root.iterdir()):
-        if not path.is_dir() or path.name.startswith("_"):
+    for src in sources:
+        if not src.enabled or src.definition_dir is None:
             continue
+        path = src.definition_dir
         if _declares_clone_scope(path):
             continue
         try:
             if skip_inactive and not _read_inactivity_fields(path, now)[0]:
                 continue
-            template = Template.load(path, now=now)
+            template = src.load(now=now)
         except RecurringError:
             continue
         last_fire = _last_firing(template.schedule, now)

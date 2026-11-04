@@ -9,7 +9,7 @@ description: State publication invariants, shared root membership, the end-of-co
 
 1. **Control is canonical.** `[git].remote` + `[git].control_branch`
    (`origin` / `main` by default) is the only durable home of Coga state —
-   every eligible file under the [Coga roots](../../../coga/state-publication/SKILL.md#the-coga-roots); a write is
+   every eligible file under the [Coga roots](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#the-coga-roots); a write is
    durable when it is on that ref. `publish` builds a commit on control's tip and pushes it; it never
    commits on the checked-out branch, stashes, or rebases, and never pushes a
    hand commit as such — it lands that commit's state in a commit of its own.
@@ -54,7 +54,7 @@ Owner decision (2026-10-07): everything in the Coga roots publishes
 automatically, with no separate knowledge PR; the accepted tradeoff is that
 instruction edits land directly, and Git history is the record and the
 correction mechanism. The user contract is
-[coga/state-publication](../../../coga/state-publication/SKILL.md).
+[coga/state-publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
 
 ## The end-of-command sweep
 

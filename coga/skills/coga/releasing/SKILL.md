@@ -100,7 +100,7 @@ version such as `0.2.0.dev1`. A bad release can be yanked, not deleted.
 
 ## Clean first-install gate
 
-After publishing, use the [clean-install harness release continuation](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md#verify-a-published-release)
+After publishing, use the [clean-install harness release continuation](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md#verify-a-published-release)
 with the exact published version. It combines a fresh install with an attended,
 authenticated agent launch and verifies that the task finished with durable
 state and a clean repository. Keep the resulting receipts with the release

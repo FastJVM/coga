@@ -9,7 +9,7 @@ Megalaunch ([launch claims](../launch-claims/SKILL.md)) never reclaims its
 own claims and never compensates a refused one backward to `active`. What it
 leaves on disk is the human-legible reconciliation evidence. Recovery is an
 explicit human act through ordinary `coga launch <slug>`
-([launch](../../../coga/launch/SKILL.md)).
+([launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md)).
 
 ## Claim forms left behind
 

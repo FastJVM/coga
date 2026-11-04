@@ -7,7 +7,7 @@ description: Module seams and code-level hazards to respect when editing Coga's 
 
 Each item names a real seam a new caller must keep. Environment and test
 pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
-[coga/checkouts](../../../coga/checkouts/SKILL.md).
+[coga/checkouts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md).
 
 ## Seams
 
@@ -28,7 +28,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   prompt, env, and agent there, commits only after every refusal passes, and
   refuses if the ticket bytes moved. The dependency-drain call site activates
   before resolving blockers on purpose, so both land in one publication; see
-  [coga/megalaunch](../../../coga/megalaunch/SKILL.md).
+  [coga/megalaunch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md).
 - **Blackboard writers are fence-aware.** Persist state below
   `<!-- coga:blackboard -->` only through `taskfile.read_blackboard` /
   `replace_blackboard` or `blackboard.append_blackboard_report` /
@@ -69,7 +69,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `tests/test_recurring_shims.py` pins that shape. The other sanctioned shape is
   a wheel-owned edge shim that runs a `coga_edge` module's `main` (phone-home:
   `from coga_edge.phone_home import main`) and has no `RECIPES` entry; do not
-  turn it into a registry entry ([coga/edge-code](../../../coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
+  turn it into a registry entry ([coga/edge-code](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md#wheel-owned-edge-implementations)).
 - **`reminders.py` is only `run()` plus `SweepResult`** for downstream sweep
   scripts: it parses `--today` / `--tasks-dir` / `--dry-run`, prints the
   report, and posts alerts through `coga slack` by default (a `ticket.py` gets
@@ -118,7 +118,7 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   appended after it; the two writers then alternated, and every sweep re-fired
   the same period while the scan table showed an ordinary `ready` / `→ launch`.
   Bound each writer's region explicitly and test both orderings and repeated
-  alternating writes ([coga/period-task](../../../coga/period-task/SKILL.md)).
+  alternating writes ([coga/period-task](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md)).
 - **A recorded "rebases clean" expires.** Re-measure drift at implement time;
   never let an inherited note stand in for running the rebase.
 - **Native Windows imports and writes.** `cli.py` eagerly imports every
@@ -148,5 +148,5 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
 - **Retired-ticket searches span two trees.** Tasks lived under
   `relay-os/tasks/` before the relay → coga rename (`d0645a197`, #454); add
   `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`
-  to the [discovery](../../../coga/tickets/discovery/SKILL.md) pathspecs, or a
+  to the [discovery](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md) pathspecs, or a
   `coga/tasks/`-only search misses earlier deletions.

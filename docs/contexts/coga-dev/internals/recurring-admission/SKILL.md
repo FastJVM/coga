@@ -45,7 +45,7 @@ period so remote materialization, completion or replacement wins.
 ## Reading the serviced-period ledger
 
 The user contract is in
-[coga/recurring/scheduling](../../../coga/recurring/scheduling/SKILL.md#periods-and-the-serviced-period-ledger).
+[coga/recurring/scheduling](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md#periods-and-the-serviced-period-ledger).
 The scan takes the last firing with `recurring._last_firing` and buckets it
 with `_period_key`. One writer and one parser own the line
 (`format_serviced_log`, `parse_serviced_period_entries`), pinned by a test.
@@ -61,7 +61,7 @@ the stop point is allowed to heal.
 ## Inactivity gate ordering
 
 The user contract is in
-[coga/recurring/scheduling/inactivity](../../../coga/recurring/scheduling/inactivity/SKILL.md).
+[coga/recurring/scheduling/inactivity](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md).
 On an inactive, non-forced sweep each template's frontmatter is read leniently
 for `run_when_inactive` and its schedule (`recurring._read_inactivity_fields`),
 and a non-exempt template is skipped before strict `Template.load`, period or
@@ -77,6 +77,13 @@ the same fetch. A peer that serviced the period in between makes the publish
 refuse; the create re-reads control and adopts the peer's period, publishing
 only its own log line if the period is already handled.
 
+A package-backed parent's first-use state carrier participates in that same
+publication even when control has no parent file yet; its expected bytes are
+`None`. `_control_create_rels` distinguishes that validated state from an
+unpublished feature-only definition, which remains excluded. On a competing
+carrier creation, retry adopts control's complete blackboard rather than
+overwriting it with the seed. All overlays and restoration paths stay local.
+
 The pre-create ledger read is bound to the caught-up revision and reused while
 the fetched revision matches. A different revision before the first successful
 create refreshes the snapshot for the complete target set (also on a
@@ -89,7 +96,7 @@ only after full reads at both revisions prove unchanged greatest-period and
 error state, with no malformed evidence. Other templates stay
 serviceable, and audit-only changes invalidate nothing. Both create and
 audit-only publishes re-run the check through `publish`'s `guard` at every base
-([coga/sync](../../../coga/sync/SKILL.md)).
+([coga/sync](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md)).
 
 Freshness refusals are admission errors, not best-effort sync failures. A
 rejected local create is restored to control's task or its absence, never left
@@ -123,7 +130,7 @@ only once its guarded pause publishes.
 ## Why delegation rather than a nested launch
 
 The user rule is in
-[coga/recurring/delegation](../../../coga/recurring/delegation/SKILL.md). The
+[coga/recurring/delegation](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md). The
 recurring supervisor owns TTY admission only for sessions it spawns: it guards
 the session `coga recurring` spawns, never a launch that session makes from its
 own tool shell. Two tempting replacements for `delegate:` were rejected for

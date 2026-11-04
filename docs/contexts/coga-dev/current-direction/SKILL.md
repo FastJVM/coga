@@ -21,7 +21,7 @@ is `coga status` and the ticket bodies; stage posture is
   and Retro's isolated checkout, created and removed for one Retro pass so
   Retro runs while the operator keeps working in the main tree. Revisit if
   those worktrees leak or become operator-visible noise. Contract:
-  [`coga/checkouts`](../../coga/checkouts/SKILL.md).
+  [`coga/checkouts`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md).
 - **V1 prioritizes first users; architectural cleanup is parked (2026-10-27).**
   The owner requires easy installation and working first-task paths on macOS
   and native Windows, a finished README with matching user documentation, and
@@ -37,7 +37,7 @@ is `coga status` and the ticket bodies; stage posture is
   into prompts; dated evidence, proposals and history sit outside the
   contexts root. History:
   [`docs/archive/context-migration.md`](../../../archive/context-migration.md).
-  Authoring rule: [`coga/knowledge`](../../coga/knowledge/SKILL.md).
+  Authoring rule: [`coga/knowledge`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md).
 - **Marketing planning contexts are retired (2026-10-15).** The README is
   the public presentation; the idea-piece and launch tickets carry their own
   briefs and remaining publication decisions. Do not recreate a permanent
@@ -51,17 +51,17 @@ is `coga status` and the ticket bodies; stage posture is
   those differences. Reconsider the link after those scenes are corrected;
   a new recording is not a launch prerequisite. Current reader path:
   [README](https://github.com/FastJVM/coga/blob/main/README.md) and
-  [first task](../../coga/first-task/SKILL.md).
+  [first task](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md).
 - **PostHog adoption/activity measurement shipped (decided 2026-09-20,
   landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
   per-command or agent/session/token instrumentation. It reverses the earlier
-  instrumentation ban. Contract: [`coga/recurring/phone-home/ticket.md`](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md).
+  instrumentation ban. Contract: [`coga/recurring/phone-home/ticket.md`](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md).
 - **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
   `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
   drafts may be stale or contradictory and owe no verdict. Pull one forward
   only by explicit decision, through the premise check in
   [`coga/tasks/_v2/README.md`](../../../../coga/tasks/_v2/README.md); the
-  parked-directory rule is [`coga/tickets`](../../coga/tickets/SKILL.md).
+  parked-directory rule is [`coga/tickets`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md).
 - **Reliability before convenience (since 2026-09-02).** Bugs that block
   installation, launch, state sync or review take precedence over new
   convenience surfaces. Marketing and documentation work proceed
@@ -72,74 +72,74 @@ is `coga status` and the ticket bodies; stage posture is
   2026-09-02).** One `recurring/<name>` task per template, the serviced
   period recorded in `coga/log.md`, completed runs cleaned up by Dream,
   `--force` as a real forced run, and `--all <path>` as the one scheduler
-  entry point. Contracts: [`coga/recurring`](../../coga/recurring/SKILL.md),
-  [`coga/recurring/scheduling`](../../coga/recurring/scheduling/SKILL.md),
+  entry point. Contracts: [`coga/recurring`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md),
+  [`coga/recurring/scheduling`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md),
   [`coga-dev/internals/recurring-admission`](../internals/recurring-admission/SKILL.md).
 - **Dream is a recurring template plus an alias; REM is repo-owned recurring
   maintenance; dev hygiene is outside Dream.** Done-ticket cleanup is
   Retro-first, and every processed done ticket is deleted — in a knowledge PR
   when it holds durable knowledge, otherwise directly. Contract:
-  [`coga/recurring/dream/ticket.md`](https://github.com/FastJVM/coga/blob/main/coga/recurring/dream/ticket.md).
+  [`coga/recurring/dream/ticket.md`](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md).
 - **Ticket metadata is cut to what is read; routing is derived.** Operators
   come from the frozen step's role (`owner` | `agent` | `other-agent`) through
   one pure resolver; `agent:` is frozen at activation; overrides are
   ephemeral; removed fields are rejected, not tolerated. Contracts:
-  [`coga/tickets`](../../coga/tickets/SKILL.md), [`coga/lifecycle`](../../coga/lifecycle/SKILL.md),
+  [`coga/tickets`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md), [`coga/lifecycle`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md),
   [`coga-dev/internals/agent-config`](../internals/agent-config/SKILL.md).
 - **Delegated recurring periods are bounded to one explicit agent step.**
-  Contract: [`coga/recurring/delegation`](../../coga/recurring/delegation/SKILL.md).
+  Contract: [`coga/recurring/delegation`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/delegation/SKILL.md).
 - **Thin tickets are designed before they are built.** Use
   `code/design-then-implement` (design → cold evaluation → owner
   `review-design` gate) for one- or two-sentence tickets and
   `code/with-review` when the spec is clear. Both have the other agent review
   the code; `code/with-self-review` is the single-agent fallback. Contract:
-  [`coga/workflows`](../../coga/workflows/SKILL.md).
+  [`coga/workflows`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **Capability-gap detection stays judgment-based.** Unresolved skill refs are
   already errors (`coga validate` `broken-skill`, composition hard-fails); a
   skill that *should* exist is found at authoring (`bootstrap/ticket`,
   `bootstrap/import`) or by Dream/Retro, not by a lint.
 - **`coga create` makes a raw, Slack-silent draft; `coga ticket` runs the
   guided interview** on a new or existing ticket. Contract:
-  [`coga/tickets/authoring`](../../coga/tickets/authoring/SKILL.md).
+  [`coga/tickets/authoring`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md).
 - **Aliases are positional pass-through only** and print their expansion.
-  Contract: [`coga/extension-model`](../../coga/extension-model/SKILL.md).
+  Contract: [`coga/extension-model`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md).
 - **Manual edits stay silent.** Editing a ticket, blackboard or context does
   not post or log; notifications are for agent-driven transitions. Contract:
-  [`coga/notifications`](../../coga/notifications/SKILL.md).
+  [`coga/notifications`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md).
 - **Control and data planes stay split.** `coga launch` owns
   `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is
   recovery when a step went wrong but the premise holds. When the premise is
   wrong, cancel the ticket with its reason, fix the owning context and start
-  a new one. Contract: [`coga/lifecycle`](../../coga/lifecycle/SKILL.md).
+  a new one. Contract: [`coga/lifecycle`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md).
 - **Init offers to install missing external CLIs (owner reversal,
   2026-09-30).** Users read a missing `gh` as a broken, unprofessional
   install and churn. Interactive `coga init` offers `git`, `gh` and `op`; it
   still installs no Python package or skill, and nothing without a yes.
   Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
   may set or replace the default agent behind an explicit confirm. Contract:
-  [`coga/install`](../../coga/install/SKILL.md).
+  [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md).
 - **Native Windows core port landed (2026-10-23).** Non-interactive commands
   and deterministic work run natively. Interactive agent sessions still
   refuse until `v1/14-interactive-coga-launch-on-native-windows`
   lands; WSL remains the untested Windows route for those sessions.
-  User-facing contracts: [`coga/install`](../../coga/install/SKILL.md),
-  [`coga/launch`](../../coga/launch/SKILL.md#phases-and-routing).
+  User-facing contracts: [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md),
+  [`coga/launch`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no
   ticket does ADK work. `anthropic/skill-creator/` is the verbatim
   hand-vendored example. Contract:
-  [`coga/skill-management`](../../coga/skill-management/SKILL.md).
+  [`coga/skill-management`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md).
 - **No branch freshness guard at bump (2026-10-06).** The proposed
   branch/worktree freshness check predates ordinary tickets' move to the
   launch checkout; branch existence cannot tell a wrong old branch from a
   legitimate resumed one, and `open-pr` already checks existence and commits
   ahead of the base. Revisit on a concrete wrong-branch handoff under the
   current ordinary-ticket workflow; recurring worktrees are outside it.
-  Contract: [`coga/workflows`](../../coga/workflows/SKILL.md).
+  Contract: [`coga/workflows`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md).
 - **The code review step stays a human gate (2026-09-13).** Rather than
   auto-launching `code/address-pr-comments` or blocking merges on unresolved
   threads, `autoclose-merged` reports unanswered threads after the merge.
-  Contract: [`coga/workflows`](../../coga/workflows/SKILL.md) ("Code review
+  Contract: [`coga/workflows`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md) ("Code review
   gate", "Obligations the merge does not discharge"). Evidence for the
   obligations rule (Dream 2026-W43): three tickets closed with recorded,
   unowned obligations — `marketing/fix-installer/release-0-4-1-so-new-context-files-publish`
@@ -182,4 +182,4 @@ is `coga status` and the ticket bodies; stage posture is
   no oversized-ticket instruction in the `code/*` step skills (#899, removed
   in `2ffcd4f8b`). The rationale, sibling practice, and criterion for revisiting
   the decision belong to
-  [coga/tickets/discovery](../../coga/tickets/discovery/SKILL.md).
+  [coga/tickets/discovery](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md).

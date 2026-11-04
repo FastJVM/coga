@@ -103,7 +103,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         ),
         (
             LIVE_COGA_OS / "workflows" / "autoclose-merged" / "sweep.md",
-            PACKAGED_COGA_OS / "workflows" / "autoclose-merged" / "sweep.md",
+            PACKAGED_COGA_OS / "bootstrap" / "workflows" / "autoclose-merged" / "sweep.md",
             False,
         ),
         (
@@ -113,7 +113,15 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         ),
     ]
 
+    from test_packaging import LEGACY_DEFINITION_DIFFERENCES, REPO_ROOT
+
     for live, packaged, tolerant in pairs:
+        if not live.exists():
+            continue  # a removed legacy copy: the package is the only owner
+        if live.relative_to(REPO_ROOT).as_posix() in LEGACY_DEFINITION_DIFFERENCES:
+            # Stage A's reviewed difference (pinned in test_packaging); only
+            # the packaged definition is current.
+            continue
         live_text, packaged_text = live.read_text(encoding="utf-8"), packaged.read_text(encoding="utf-8")
         if tolerant:
             live_text = _strip_runtime_state(live_text)
@@ -149,23 +157,15 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
         """,
     )
     shutil.copytree(
-        LIVE_COGA_OS / "recurring" / "autoclose-merged",
+        PACKAGED_COGA_OS / "recurring" / "autoclose-merged",
         coga_os / "recurring" / "autoclose-merged",
     )
-    # The live template doubles as the canonical source but is serviced by real
-    # `coga recurring` runs in this repo, so its committed `ticket.md`
-    # blackboard region may carry a stale `last_serviced_period:`. Strip it so
-    # this test controls its own starting period regardless of dogfooding drift.
-    # (Single-file format: the high-water mark lives in ticket.md, not a
-    # separate blackboard.md.)
-    copied_ticket = coga_os / "recurring" / "autoclose-merged" / "ticket.md"
-    copied_ticket.write_text(_strip_runtime_state(copied_ticket.read_text(encoding="utf-8")) + "\n", encoding="utf-8", newline="\n")
     shutil.copytree(
-        LIVE_COGA_OS / "workflows" / "autoclose-merged",
+        PACKAGED_COGA_OS / "bootstrap" / "workflows" / "autoclose-merged",
         coga_os / "workflows" / "autoclose-merged",
     )
     shutil.copytree(
-        LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep",
+        PACKAGED_SKILL,
         coga_os / "skills" / "coga" / "autoclose" / "sweep",
     )
 

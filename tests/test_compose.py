@@ -580,11 +580,11 @@ def test_stock_step_prompt_escalates_per_launch_mode(
         resources = files("coga.resources").joinpath("templates/coga")
         _write(
             repo / "workflows" / "direct" / "body.md",
-            resources.joinpath("workflows/direct/body.md").read_text(encoding="utf-8"),
+            resources.joinpath("bootstrap/workflows/direct/body.md").read_text(encoding="utf-8"),
         )
         _write(
             repo / "skills" / "direct" / "body" / "SKILL.md",
-            resources.joinpath("skills/direct/body/SKILL.md").read_text(encoding="utf-8"),
+            resources.joinpath("bootstrap/skills/direct/body/SKILL.md").read_text(encoding="utf-8"),
         )
     cfg = load_config(repo)
     create_task(

@@ -4278,8 +4278,12 @@ def _refuse_tty_launch(
 
 
 def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
+    from coga.paths import LocalOverrideError
+
     try:
         result = refresh_agent_skill_view(coga_os)
+    except LocalOverrideError as exc:
+        raise LaunchBail(2, str(exc)) from exc
     except OSError as exc:
         _report(
             f"Warning: could not refresh agent skill view: {exc}",

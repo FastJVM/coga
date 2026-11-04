@@ -23,7 +23,7 @@ when a post fails, are defined in [`coga/notifications`](../SKILL.md).
 | Megalaunch drain summary (non-empty) | flow |
 | Autoclose checkout summaries (disposed checkouts flow; refused disposals important) | flow / important |
 | Autoclose unanswered review-thread summary on the PRs it closes (`coga/autoclose/sweep` skill) | flow |
-| `recurring/phone-home` weekly snapshot receipt ([job contract](https://github.com/FastJVM/coga/blob/main/coga/recurring/phone-home/ticket.md)); a delivery miss stays off `coga/log.md` | flow |
+| `recurring/phone-home` weekly snapshot receipt ([job contract](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/ticket.md)); a delivery miss stays off `coga/log.md` | flow |
 | Autofix filed a ticket for a problem run (failed, silently idle, or with recorded errors) | flow |
 
 Downstream reminder sweeps built on `src/coga/reminders.py` post their alerts
@@ -58,5 +58,5 @@ notification); and the `resolve-conflicts` and `address-pr-comments`
 templates, whose own period tasks emit nothing while their bootstrap
 delegates post one roll-up through `coga slack`.
 
-The [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md) owns reminder eligibility,
+The [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md) owns reminder eligibility,
 recovery guidance and its one-attempt watermark.

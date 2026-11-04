@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from coga.paths import (
+    LocalOverrideError,
     bootstrap_context_path,
     bootstrap_skill_path,
     bootstrap_workflow_path,
@@ -29,6 +30,28 @@ def _cfg(repo_root, contexts_root=None):
         repo_root=repo_root,
         contexts_root=contexts_root or repo_root / "contexts",
     )
+
+
+@pytest.mark.parametrize("shape", ["nested-attachment", "dangling-owner", "unreadable-owner"])
+def test_incomplete_skill_directory_never_selects_stock(tmp_path, monkeypatch, shape):
+    owner = tmp_path / "skills/code/implement"
+    owner.parent.mkdir(parents=True)
+    if shape == "dangling-owner":
+        owner.symlink_to(tmp_path / "missing", target_is_directory=True)
+    else:
+        owner.mkdir()
+        if shape == "nested-attachment":
+            (owner / "scripts").mkdir()
+            (owner / "scripts/helper.py").write_text("# attachment\n", encoding="utf-8")
+        else:
+            original = Path.iterdir
+            def denied(path):
+                if path == owner:
+                    raise PermissionError("unreadable override")
+                return original(path)
+            monkeypatch.setattr(Path, "iterdir", denied)
+    with pytest.raises(LocalOverrideError, match="local skill override"):
+        resolve_skill_path(_cfg(tmp_path), "code/implement")
 
 
 def test_resolve_context_path_falls_back_to_configured_contexts_dir(tmp_path):

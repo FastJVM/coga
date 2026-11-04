@@ -220,15 +220,100 @@ def bootstrap_skill_dir(cfg: Config, ref: str) -> Path:
     return packaged_template_path("bootstrap", "skills", *ref.split("/"))
 
 
+class LocalOverrideError(ValueError):
+    """A repo-local definition exists for a ref but cannot be used.
+
+    Resolution is by artifact: an override that is present but malformed (a
+    directory where a file belongs, a dangling link, supporting files with no
+    definition) fails visibly. Selecting the packaged text instead would
+    silently discard the repo's deliberate choice.
+    """
+
+
+# Runtime caches that never make a directory a definition override.
+IGNORABLE_OVERRIDE_ENTRIES = frozenset({"__pycache__", ".DS_Store"})
+
+
+def local_definition_entry(
+    definition: Path, *, kind: str, owner: Path | None = None,
+) -> bool:
+    """Whether a local definition file selects the local artifact.
+
+    False when nothing local exists for the ref; True when the definition file
+    is present (a regular file or a link to one). Raises `LocalOverrideError`
+    when the local artifact exists but is unusable: the entry is not a regular
+    file, is a dangling link, or `owner` (the override directory) holds
+    supporting files without the definition. A directory holding only nested
+    refs (a namespace) is not an override.
+    """
+    try:
+        mode = definition.lstat().st_mode
+    except FileNotFoundError:
+        mode = None
+    except OSError as exc:
+        raise LocalOverrideError(
+            f"local {kind} override {definition} cannot be inspected: {exc}"
+        ) from exc
+    if mode is not None:
+        if stat.S_ISLNK(mode) and not definition.is_file():
+            raise LocalOverrideError(
+                f"local {kind} override {definition} is a link to no regular "
+                "file; repair or remove it to use the packaged copy"
+            )
+        if not (stat.S_ISLNK(mode) or stat.S_ISREG(mode)):
+            raise LocalOverrideError(
+                f"local {kind} override {definition} is not a regular file; "
+                "repair or remove it to use the packaged copy"
+            )
+        return True
+    if owner is not None:
+        if (owner.exists() or owner.is_symlink()) and not owner.is_dir():
+            raise LocalOverrideError(f"local {kind} override {owner} is not a directory")
+        try:
+            stray = sorted(
+                child.name
+                for child in owner.iterdir()
+                if child.name not in IGNORABLE_OVERRIDE_ENTRIES
+                and not (child.is_dir() and any(child.rglob(definition.name)))
+            ) if owner.is_dir() else []
+        except OSError as exc:
+            raise LocalOverrideError(
+                f"local {kind} override {owner} cannot be inspected: {exc}"
+            ) from exc
+        if stray:
+            raise LocalOverrideError(
+                f"local {kind} override {owner} has supporting files "
+                f"({', '.join(stray)}) but no {definition.name}; restore the "
+                "definition or remove the incomplete override"
+            )
+    return False
+
+
 def resolve_skill_path(cfg: Config, ref: str) -> Path | None:
-    """Resolve a skill ref from local skills first, then bundled bootstrap skills."""
+    """Resolve a skill ref from local skills first, then bundled bootstrap skills.
+
+    A local skill owns its whole directory; an unusable local override raises
+    `LocalOverrideError` instead of falling through to the packaged skill.
+    """
     local = skill_path(cfg, ref)
-    if local.is_file():
+    if local_definition_entry(local, kind="skill", owner=local.parent):
         return local
     bundled = bootstrap_skill_path(cfg, ref)
     if bundled.is_file():
         return bundled
     return None
+
+
+def skill_unresolved(cfg: Config, ref: str) -> bool:
+    """True when a skill ref selects no usable definition.
+
+    An invalid local override counts as unresolved (never as the packaged
+    copy); `missing_skill_message` then names the override problem.
+    """
+    try:
+        return resolve_skill_path(cfg, ref) is None
+    except LocalOverrideError:
+        return True
 
 
 def skill_resolution_paths(cfg: Config, ref: str) -> tuple[Path, Path]:
@@ -237,6 +322,11 @@ def skill_resolution_paths(cfg: Config, ref: str) -> tuple[Path, Path]:
 
 def missing_skill_message(cfg: Config, ref: str, *, source: str) -> str:
     """Describe an unresolved skill, including known package migrations."""
+    local = skill_path(cfg, ref)
+    try:
+        local_definition_entry(local, kind="skill", owner=local.parent)
+    except LocalOverrideError as exc:
+        return f"{source} references skill {ref!r}, but {exc}."
     migration = _REMOVED_BUNDLED_SKILL_MESSAGES.get(ref)
     if migration is not None:
         return f"{source} references removed bundled skill {ref!r}: {migration}."
@@ -325,6 +415,9 @@ __all__ = [
     "bootstrap_skill_path",
     "bootstrap_skill_dir",
     "resolve_skill_path",
+    "LocalOverrideError",
+    "skill_unresolved",
+    "local_definition_entry",
     "skill_resolution_paths",
     "missing_skill_message",
     "context_path",

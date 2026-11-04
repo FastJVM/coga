@@ -22,6 +22,7 @@ from coga.paths import (
     missing_skill_message,
     repo_context_path,
     resolve_context_path,
+    LocalOverrideError,
     resolve_skill_path,
     resolve_workflow_path,
     workflow_path,
@@ -490,7 +491,7 @@ def _extract_section(body: str, heading: str) -> str:
 
 
 def _skill_layers(cfg: Config, skill_ref: str, *, slug: str) -> list[PromptLayer]:
-    sp = resolve_skill_path(cfg, skill_ref)
+    sp = _resolve_skill(cfg, skill_ref)
     if sp is None:
         raise ComposeError(_missing_skill_message(cfg, skill_ref, slug))
     return [PromptLayer(
@@ -513,7 +514,7 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
     if skill_refs:
         out: list[PromptLayer] = []
         for skill_ref in skill_refs:
-            sp = resolve_skill_path(cfg, skill_ref)
+            sp = _resolve_skill(cfg, skill_ref)
             if sp is None:
                 raise ComposeError(_missing_skill_message(cfg, skill_ref, slug))
             out.append(PromptLayer(
@@ -565,6 +566,14 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
 
 def _checked_context_paths(cfg: Config, ref: str) -> str:
     return ", ".join(str(path) for path in context_resolution_paths(cfg, ref))
+
+
+def _resolve_skill(cfg: Config, skill_ref: str) -> Path | None:
+    """Resolve a skill, reporting an invalid local override as unresolved."""
+    try:
+        return resolve_skill_path(cfg, skill_ref)
+    except LocalOverrideError:
+        return None
 
 
 def _missing_skill_message(cfg: Config, skill_ref: str, slug: str) -> str:

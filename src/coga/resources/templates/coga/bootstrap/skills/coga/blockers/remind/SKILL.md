@@ -15,7 +15,7 @@ owner reminders, and writes a compact `## Blocker reminders` watermark on
 the affected task's blackboard. It never launches or reactivates the task.
 
 Eligibility, recovery guidance and deduplication (the one-attempt watermark)
-are owned by the [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md);
+are owned by the [blocker-reminders template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.md);
 [coga/notifications/producers](context:coga/notifications/producers) lists
 the reminder among Coga's notification producers.
 This includes an agent period whose block was followed by the recurring

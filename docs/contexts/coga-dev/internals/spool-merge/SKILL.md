@@ -11,7 +11,7 @@ cross-checkout coordination is the push compare-and-swap in
 [`coga-dev/internals/state-publication/publish`](../state-publication/publish/SKILL.md). Files that
 many writers touch must therefore be correct **by shape**.
 
-**No spool exists.** Outcomes post live ([`coga/notifications`](../../../coga/notifications/SKILL.md)).
+**No spool exists.** Outcomes post live ([`coga/notifications`](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md)).
 There is no hidden queue, drain step, or high-water watermark for
 notifications. This page keeps the reusable merge rules that outlived it.
 

@@ -20,7 +20,7 @@ file-reading tools too. Authorized archive material remains historical
 evidence, not current instructions. This is an agent instruction, not a
 filesystem access restriction.
 
-This repo's dated archive, which [`coga/knowledge`](../../coga/knowledge/SKILL.md)
+This repo's dated archive, which [`coga/knowledge`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md)
 names generically, is `docs/archive/evidence/` (dated evidence and completed
 investigations), `docs/archive/design/` (archived, unimplemented proposals),
 and `docs/archive/` (other retired history). Shipped topics never link into

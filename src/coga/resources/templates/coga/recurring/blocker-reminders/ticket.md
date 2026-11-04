@@ -38,11 +38,11 @@ reminder leaves status and scheduling untouched.
 
 Blocked-task reminders point to `coga unblock <slug> --answer "..."`. Paused
 period reminders name the paused status and read the period's pause provenance
-([scheduling](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
+([scheduling](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
 A period the sweep or the watchdog paused points to the same unblock and says
 the next recurring sweep resumes it: unblock resolves a paused period's asks
 without changing its status
-([lifecycle](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/lifecycle/SKILL.md)).
+([lifecycle](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md)).
 A human-paused period stays paused after its asks are answered, so its
 reminder points to `coga launch <slug>` to resume and review the ask, then
 `coga unblock <slug> --answer "..."` inside the resumed session.

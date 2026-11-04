@@ -82,8 +82,8 @@ _TEMPLATES_COGA_OS = (
 )
 
 SHIPPED_DREAM_DIR = _TEMPLATES_COGA_OS / "recurring" / "dream"
-SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_COGA_OS / "skills" / "direct" / "body"
-SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md"
+SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_COGA_OS / "bootstrap" / "skills" / "direct" / "body"
+SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_COGA_OS / "bootstrap" / "workflows" / "direct" / "body.md"
 FLOW_WEBHOOK = "https://hooks.slack.com/services/flow"
 IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
 
@@ -4723,12 +4723,18 @@ def test_scan_due_rejects_non_five_field_year_scoped_schedule(
 
 
 def test_scan_due_skips_template_missing_ticket_md(repo: Path, capsys) -> None:
+    # A directory with definition files but no ticket.md is an incomplete
+    # override. (An empty or cache-only directory is absent, so a package
+    # fallback survives a deleted definition's leftover `__pycache__/`.)
     (repo / "recurring" / "missing-ticket").mkdir(parents=True)
+    (repo / "recurring" / "missing-ticket" / "ticket.py").write_text("", encoding="utf-8")
+    (repo / "recurring" / "empty").mkdir(parents=True)
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     assert len(scan.tasks) == 1  # the good template still creates
     assert len(scan.errors) == 1
-    assert scan.errors[0] == ("missing-ticket", "missing ticket.md")
+    assert scan.errors[0][0] == "missing-ticket"
+    assert "no ticket.md" in scan.errors[0][1]
     assert "skipping missing-ticket" in capsys.readouterr().err
 
 

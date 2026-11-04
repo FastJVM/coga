@@ -7,7 +7,12 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     skill = (
         repo_root
+        / "src"
         / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
         / "skills"
         / "code"
         / "address-pr-comments"

@@ -111,17 +111,59 @@ with patch("coga.commands.init._require_init_tools"), patch("coga.commands.init.
 assert result.exit_code == 0, result.output
 local = Path("coga/coga.local.toml")
 local.write_text(local.read_text() + "\\n[git]\\nenabled = false\\n")
-result = create_named(load_config(Path("coga")), "phone-home")
+from coga.recurring import resolve_template_source
+cfg = load_config(Path("coga"))
+source = resolve_template_source(cfg, "phone-home")
+assert source.enabled and source.origin == "package"
+result = create_named(cfg, "phone-home")
 assert result.created
-assert (result.ref.task_dir / "ticket.py").read_bytes() == Path("coga/recurring/phone-home/ticket.py").read_bytes()
+assert (result.ref.task_dir / "ticket.py").read_bytes() == (source.definition_dir / "ticket.py").read_bytes()
 ''')
     return root, installed, env, guard
+
+
+def _packaged(installed, *parts):
+    return installed.joinpath("coga", "resources", "templates", "coga", *parts)
+
+
+def _legacy_local_install(root, installed, name, *, workflow=None):
+    """Model a pre-package-ownership repo: init copied a full definition.
+
+    The repo's saved blackboard (a carrier, if one exists) is kept as the
+    override's state, exactly as a full local override owns its state.
+    """
+    from coga.taskfile import BLACKBOARD_FENCE
+
+    local = root / "coga/recurring" / name
+    packaged = _packaged(installed, "recurring", name)
+    state = (local / "ticket.md").read_text(encoding="utf-8") if (local / "ticket.md").is_file() else None
+    local.mkdir(parents=True, exist_ok=True)
+    for path in packaged.iterdir():
+        if path.is_file():
+            shutil.copyfile(path, local / path.name)
+    if state is not None:
+        definition = (local / "ticket.md").read_text(encoding="utf-8")
+        above = definition.split(BLACKBOARD_FENCE, 1)[0]
+        (local / "ticket.md").write_text(
+            above + BLACKBOARD_FENCE + state.split(BLACKBOARD_FENCE, 1)[1],
+            encoding="utf-8", newline="\n",
+        )
+    if workflow is not None:
+        destination = root / "coga/workflows" / workflow
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(_packaged(installed, "bootstrap", "workflows", workflow), destination)
 
 
 @pytest.mark.parametrize("fork", ["none", "template", "period"])
 def test_installed_wheel_upgrade_preserves_shims_and_full_forks(tmp_path, edge_wheels, fork):
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
-    template = root / "coga/recurring/phone-home/ticket.py"
+    # "none" runs the package-backed shim; a template fork is a deliberate
+    # full local override (definition + script) owning the saved state.
+    if fork == "template":
+        _legacy_local_install(root, installed, "phone-home")
+        template = root / "coga/recurring/phone-home/ticket.py"
+    else:
+        template = _packaged(installed, "recurring", "phone-home", "ticket.py")
     period = root / "coga/tasks/recurring/phone-home/ticket.py"
     if fork != "none":
         source = (installed / "coga_edge/phone_home.py").read_text(encoding="utf-8")
@@ -153,7 +195,8 @@ assert create_named(load_config(Path("coga")), "phone-home").created
         assert f"## Phone home {expected}" in _run(root, env, str(script))
         assert script.read_bytes() == before[script]
     # Selection comes from the period's file; it never consults the template.
-    template.unlink()
+    if fork == "template":
+        template.unlink()
     expected = "B" if fork == "none" else "FORK"
     assert f"## Phone home {expected}" in _run(root, env, str(period))
     assert period.read_bytes() == before[period]
@@ -162,7 +205,7 @@ assert create_named(load_config(Path("coga")), "phone-home").created
     assert Ticket.read(period.with_suffix(".md")).status == "done"
     assert f"## Phone home {expected}" in period.with_suffix(".md").read_text(encoding="utf-8")
     assert period.read_bytes() == before[period]
-    assert not template.exists()
+    assert (not template.exists()) if fork == "template" else template.is_file()
     assert not (guard / "called").exists()
     # Both the installed implementation and the copied fork carry their own
     # private entry, which independently preserves production suppression.
@@ -219,7 +262,7 @@ def test_installed_shim_launch_completes_or_fails_without_agent(tmp_path, edge_w
 
 
 FIXTURES = ROOT / "tests/fixtures/edge-migration"
-RUNBOOK = ROOT / "docs/contexts/coga/edge-code/edge-code-upgrades.md"
+RUNBOOK = ROOT / "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md"
 
 
 def _operator_command(name, root, env, *, success=True):
@@ -266,6 +309,8 @@ def test_documented_interpreter_refuses_unknown_launcher(tmp_path, shebang):
 @windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
 def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_path, edge_wheels):
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
+    # This runbook adopts legacy repos whose init copied full definitions.
+    _legacy_local_install(root, installed, "phone-home")
     env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
     env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
     template = root / "coga/recurring/phone-home/ticket.py"
@@ -367,13 +412,11 @@ def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_p
 def test_installed_trim_log_adoption_and_headless_period(tmp_path, edge_wheels, adopt, retention_days):
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
     coga_os = root / "coga"
-    paths = [coga_os / rel for rel in (
-        "recurring/trim-log/ticket.md", "recurring/trim-log/ticket.py",
-        "recurring/trim-log/operations.md", "workflows/trim-log/run.md",
-    )]
+    jobs = coga_os / "recurring/jobs.toml"
+    paths = [jobs]
     if adopt:
-        for path in paths:
-            path.unlink()
+        # A repo initialized before trim-log: no selection, stock union rule.
+        jobs.write_bytes(jobs.read_bytes().replace(b"trim-log = true\n", b""))
         attrs = coga_os / ".gitattributes"
         attrs.write_bytes(attrs.read_bytes().replace(b"/log.md -merge", b"**/log.md merge=union"))
     if retention_days == 0:
@@ -383,7 +426,10 @@ def test_installed_trim_log_adoption_and_headless_period(tmp_path, edge_wheels, 
     before = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
     _run(coga_os, env, "-m", "coga_edge.trim_log", "--install")
     after = {p: p.read_bytes() for p in coga_os.rglob("*") if p.is_file()}
+    # Adoption selects the packaged job; it copies no definitions.
     assert {p for p in before.keys() | after.keys() if before.get(p) != after.get(p)} <= set(paths) | {coga_os / ".gitattributes"}
+    assert not (coga_os / "recurring/trim-log").exists()
+    assert b"trim-log = true" in jobs.read_bytes()
     assert "already installed" in _run(coga_os, env, "-m", "coga_edge.trim_log", "--install")
     # Run real Git publication and the reserved script with no agent available.
     _run(coga_os, env, "-c", '''
@@ -431,8 +477,13 @@ def test_installed_trim_adoption_preserves_custom_or_parked_files(tmp_path, edge
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["B"])
     coga_os = root / "coga"
     if obstacle == "fork":
+        (coga_os / "recurring/trim-log").mkdir(parents=True)
+        # A complete local fork: ticket.md plus its script. A lone ticket.py
+        # is an incomplete override, refused with a different message.
+        (coga_os / "recurring/trim-log/ticket.md").write_bytes(b"---\ntitle: local trim-log\n---\n")
         (coga_os / "recurring/trim-log/ticket.py").write_bytes(b"# local implementation\n")
     elif obstacle == "parked":
+        _legacy_local_install(root, installed, "trim-log")
         (coga_os / "recurring/trim-log").rename(coga_os / "recurring/_trim-log")
     else:
         (coga_os / ".gitattributes").write_bytes(b"/log.md merge=custom\n")
