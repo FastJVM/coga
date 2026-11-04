@@ -2,19 +2,28 @@
 title: Init sends the user to edit a toml nothing can open
 status: draft
 owner: zach
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-`coga init` makes "Edit `<repo>/coga/coga.toml` — set your agents,
-notification channels, and aliases" the first of its next steps, at
-`src/coga/commands/init.py:1545`. A fresh Mac has no application registered for
-`.toml`, so a new user cannot open the file the first instruction points at.
-Decide whether that step is needed at all, and if it stays, say how to open the
-file.
+`coga init` ends with a "Next steps" list whose first item (after the PATH
+step, when needed) is "Edit `<repo>/coga/coga.toml` — set your agents,
+notification channels, and aliases". It is built in the next-steps block at
+the end of `commands/init.py` (the `steps.append(...)` that names
+`coga.toml`). A fresh Mac has no application registered for `.toml`, so a new
+user is sent to a file they cannot open as their first instruction.
 
-Done when: a new user on a fresh Mac is not sent to a file they cannot open.
+Decision (settled during ticket authoring): **drop the step.** The audience is
+developers comfortable with CLI tools, and nothing in a first run needs the
+edit — init already asks for the default agent, and the closing notifications
+note already shows the exact `coga.toml` lines for opting into Slack. Do not
+replace it with "how to open a .toml" guidance.
+
+Done when: `coga init`'s next steps no longer tell the user to edit
+`coga.toml`, the remaining steps renumber cleanly in both the empty-repo and
+existing-repo paths, and a test pins that the next-steps output does not send
+the user to edit `coga.toml`.
 
 ## Context
 
@@ -26,10 +35,31 @@ Done when: a new user on a fresh Mac is not sent to a file they cannot open.
 - Zach's Mac VM walk log: his run had no system application set to open the
   coga files, and his instinct was TextEdit over VS Code because TextEdit ships
   with macOS.
-- He also doubted the step belongs in the instructions at all, which is the
-  first question to settle.
+- He also doubted the step belongs in the instructions at all; authoring
+  decided to drop it (see Description).
 - `ask-which-agents-to-enable-during-coga-init` removes the agents half of that
-  edit, so decide what is left of the step after it lands.
+  edit; notifications are covered by init's closing notifications note, and
+  aliases are not first-run material. Nothing is left, so this ticket does not
+  wait on that one.
+
+### Scope
+
+- Remove the step from the next-steps block in `commands/init.py`. Numbering
+  comes from `enumerate(steps, 1)`, so it renumbers itself.
+- Add a test in `tests/test_init.py` beside
+  `test_init_next_steps_name_the_agent_cli_prerequisite`. Assert only on the
+  "Next steps:" block: `_print_notification_state` prints after it and still
+  (correctly) mentions `coga.toml` as a later Slack opt-in, so a whole-output
+  assertion would fail. No current test asserts the removed line.
+- Update the `coga/init` topic, which lists the next steps including "edit
+  `coga.toml`" (its next-steps passage). Edit the package owner
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`
+  and mirror it byte-identically into the legacy live copy
+  `docs/contexts/coga/init/SKILL.md` (pinned in
+  `tests/legacy_removal_inventory.txt`), or `tests/test_packaging.py` fails.
+  It is an editing target, so it is not attached. The README has no copy.
+- Out of scope: the notifications note itself, which is optional later
+  guidance, not a first instruction.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
