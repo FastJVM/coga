@@ -218,6 +218,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1168
 branch: coga/v1-10-preflight-dirty-skill-update
 
 ## Implementation and decisions
