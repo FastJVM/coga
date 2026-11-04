@@ -2,42 +2,103 @@
 title: Scan for an existing repo during install
 status: draft
 owner: zach
-workflow: null
+workflow: docs/with-review
+contexts:
+  - coga-dev/principles
 ---
 
 ## Description
 
-The install path assumes the user already has a git repository, and the first
-steps differ for someone who does not. Work out which case the user is in and
-give each case its own path. A user installing into a repo that already has
-files should not run `coga build`; their first step is `coga ticket` or
-`coga create`. A user starting a new repo runs `coga build`.
+The README's Get started section treats "no Git repo yet" as a path to walk
+the user through. It isn't one: Coga only runs inside a Git repo, and outside
+one it should stop. Make a Git repo a stated prerequisite, remove the
+create-a-repo steps, then stop in one case and route the other two by repo
+state:
 
-Done when: both cases have a path, and neither asks the user to work out which
-one applies to them.
+- **Not in a Git repo:** stop. The README states the prerequisite and does not
+  show how to create a repo. `coga init` already refuses here (see Context);
+  no code change.
+- **Git repo that is empty apart from starter files:** first step is
+  `coga build`.
+- **Git repo with existing files:** first step is `coga ticket "<title>"`,
+  not `coga build` and not `coga chat`.
+
+Done when the README's Get started section has no `mkdir`/`git init` block,
+states that Coga runs inside an existing Git repo as a prerequisite (the idea,
+not exact wording; it belongs with the opening "You'll need working Git…"
+sentence), and its
+"Choose how to begin" block sends the empty-repo case to `coga build` and the
+existing-project case to `coga ticket "<title>"`, so a reader never has to work
+out which case they are in beyond "is my repo empty?".
 
 ## Context
+
+### Current state (checked 2026-11-04)
+
+- `README.md`, Get started: after `uv tool install coga`, it says "For an
+  existing project, change into its Git repository. For a new project, create
+  the repository first:" and shows `mkdir myproject` / `cd myproject` /
+  `git init -b main`. Remove that block and the "new project" sentence.
+- The same section's "Choose how to begin" block shows `coga build` for "New,
+  otherwise empty Git repo", `coga chat` for "Existing project", and
+  `coga status`. Change the existing-project line to `coga ticket "<title>"`.
+  Keep `coga status`. The following paragraph lists `--agent codex` forms for
+  `build`, `chat`, and `ticket`; drop the `coga chat --agent codex` form so
+  it lists only the commands the block shows.
+- `coga init` already refuses outside a repo: `init._require_git_work_tree`
+  prints "<path> is not inside a git repository — coga is git-backed. Run
+  `git init` … first, then re-run `coga init`." and exits 2. That is the
+  required "stop", so this ticket changes no code. If the implementer finds a
+  path past install that does not refuse, record it on the blackboard rather
+  than widening this ticket.
+- `coga init`'s printed next steps already say `coga build` (empty repo) or
+  `coga ticket "<title>"` (filled repo), as `coga/init` documents ("printed
+  next steps"). The README should match that.
+- What counts as "empty": init seeds the onboarding ticket only for an
+  otherwise empty repo, and a short starter README, LICENSE or
+  `.gitattributes` still counts as empty. Reuse that wording; don't invent a
+  new definition. The README wording is looser than init's real rule; do not
+  expand it.
+- `coga/init`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`,
+  cited, not attached) says starting a brand-new project means `git init`
+  first, and owns the real "empty" rule. It needs no change.
+- Coga still tells a user how to create a repo in one place: init's refusal
+  message says "Run `git init`…". That stays; the README just stops
+  presenting it as a path.
+
+### Scope
+
+- README only. Read `coga/install`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`,
+  cited, not attached) for any statement that contradicts "a Git repo is a
+  prerequisite". Its "macOS: check Git before init" section mentions
+  `git init` only as a Git sanity check, which is fine. If it does contradict
+  the prerequisite, fix the package copy and its legacy live twin
+  `docs/contexts/coga/install/SKILL.md` together (see AGENTS.md).
+- `coga/first-task` suggests `coga chat` for planning a *batch* of tickets.
+  That is a different use and stays.
+- Out of scope: any feature where Coga scans a repo to generate docs (Nico's
+  separate idea); changing `coga init`'s behavior or messages.
+- Sibling `v1/24-mention-coga-build-in-the-install-flow` stays a separate
+  ticket. It covers where `coga build` sits in the install flow and edits the
+  same README lines, so whichever lands second rebases onto the other. As of
+  2026-11-04, 24's premise is partly stale (the README already names
+  `coga build` in "Choose how to begin"); don't take its line numbers as
+  current.
 
 ### Why
 
 - Finding 4 on `test-and-fix-install-on-macos-and-windows`: the README install
-  block assumes a repo exists.
-- This was the first dead end on the walk on 2026-10-15, with nothing to `cd`
-  into and no instruction to create a folder and run `git init`.
-- `coga init` fails without a repo, but its terminal message tells the user to
-  run `git init` and rerun, which worked.
-- The current README block hardcodes `mkdir myproject && cd myproject &&
-  git init`, so a user who already has a project and follows it literally
-  creates a throwaway directory.
-- Nico's position on 2026-10-19 is that having a repo is a prerequisite rather
-  than a step, and that someone who does not know that will not get far with
-  coga.
-- He separately floated scanning an existing repo to build documentation from
-  what is in it; that is a different idea and not this ticket.
-- Zach set the branch on 2026-10-21: an existing repo with files goes to
-  `coga ticket` or `coga create`, and a new repo goes to `coga build`.
-- That is the same branch `mention-coga-build-in-the-install-flow` turns on, so
-  the two tickets decide one thing between them.
+  block assumed a repo exists. This was the first dead end on the 2026-10-15
+  walk-through.
+- Following the `mkdir myproject && git init` block literally sends a user who
+  already has a project into a throwaway directory.
+- Nico (2026-10-19): having a repo is a prerequisite, not a step. Owner
+  decision (2026-11-04): with no repo, Coga stops and goes no further.
+- Zach (2026-10-21): an existing repo with files goes to `coga ticket`, and a
+  new (empty) repo goes to `coga build`. Owner decision (2026-11-04):
+  `coga ticket`, not `coga chat`, for the existing-project case.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
