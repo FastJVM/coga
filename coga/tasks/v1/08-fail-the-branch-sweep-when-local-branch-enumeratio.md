@@ -297,4 +297,5 @@ checks:
 
 ## Blockers
 
-- [ ] [2026-11-04 11:11] [agent:codex] id=20261104T111105 Resolve the pre-existing human pyproject.toml edit (tmp_path_retention_policy = "failed") so /home/n/Code/coga has a clean checkout, then resume peer-review. No checkout preparation was supplied; coga/checkouts/manual requires a clean main and forbids switching, stashing, or an alternate worktree around this dirt. The edit is preserved; review, rebase, and tests remain unperformed.
+- [x] [2026-11-04 11:11] [agent:codex] id=20261104T111105 Resolve the pre-existing human pyproject.toml edit (tmp_path_retention_policy = "failed") so /home/n/Code/coga has a clean checkout, then resume peer-review. No checkout preparation was supplied; coga/checkouts/manual requires a clean main and forbids switching, stashing, or an alternate worktree around this dirt. The edit is preserved; review, rebase, and tests remain unperformed.
+  resolved: [2026-11-04 12:13] [human:nicktoper] The human confirmed the checkout blocker is resolved and authorized resuming peer review. The pyproject.toml tmp_path_retention_policy edit is now committed in 088c01908; the primary checkout is clean on main, refreshed from origin/main.

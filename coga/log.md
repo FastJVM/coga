@@ -10088,3 +10088,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 12:12 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-04 12:13 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 12:13 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [megalaunch] launched via coga megalaunch
+2026-11-04 12:13 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [human:nicktoper] unblocked (asks resolved, still in_progress): The human confirmed the checkout blocker is resolved and authorized resuming peer review. The pyproject.toml tmp_path_retention_policy edit is now committed in 088c01908; the primary checkout is clean on main, refreshed from origin/main.
