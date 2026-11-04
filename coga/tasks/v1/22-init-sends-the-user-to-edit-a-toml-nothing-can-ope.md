@@ -173,3 +173,7 @@ Previous ref: `marketing/fix-installer/init-sends-the-user-to-edit-a-toml-nothin
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-22-init-drop-coga-toml-next-step
