@@ -34,9 +34,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 2894c7bb-e92d-4049-b1c0-54e40af508d0
 ---
 
 ## Description
@@ -553,3 +552,116 @@ bin directory or `~/.local/bin`, as route 2 after the package manager.
    (`xcode-select -p` failing) become its own ticket? It stops a fresh-Mac
    user before the `gh` offer, and the install topic covers it only by hand
    today.
+
+## Evaluator review
+
+Reviewed 2026-11-04 against `main` / `origin/main` at
+`33ca7d6dfe08e18eb22cab3f560a901e15dc3fc4`.
+**Verdict: not ready for implementation until the four findings below are
+resolved by the owner.** The archive approach is feasible; this is design
+feedback, not approval or an implementation review.
+
+### Must fix before implementation
+
+1. **Specify an atomic write that cannot overwrite another install.**
+   Acceptance criteria require both `os.replace` and never overwriting an
+   existing destination. `os.replace` deliberately replaces existing files;
+   an absence check before it cannot protect a file created between that
+   check and publication. A temporary-directory probe reproduced that loss.
+   Specify exclusive final publication, including the treatment of symlinks,
+   and test a destination created after the initial check. Otherwise a
+   second init or another installer can lose its binary despite satisfying
+   the proposed existing-file test. Evidence: ticket Acceptance criteria
+   (atomic write / existing destination) and
+   [Python's `os.replace` contract](https://docs.python.org/3.11/library/os.html#os.replace).
+
+2. **Separate directory planning from creation and determine actual PATH
+   membership.** Design decisions / Install directory says to create the
+   fallback, while Proposed shape calls `install_dir()` before confirming.
+   That conflicts with the declined-download criterion's "nothing written"
+   and the requirement to verify the digest before writing. Also, a missing
+   `~/.local/bin` can already be listed on `PATH`: rejecting it for not
+   existing, then creating it and unconditionally reporting `OFF_PATH`, is
+   incorrect. The current `src/coga/commands/init.py::_on_path` returns true
+   for this case both before and after creation (verified in a scratch
+   directory). Plan the destination without mutation, create it after
+   consent and verification, and classify the completed install from actual
+   PATH visibility so the authentication offer follows when usable. Add
+   cases for declining with a nonexistent fallback and for creating a
+   previously nonexistent directory already on `PATH`.
+
+3. **Resolve the conflicting first-prompt rule for a missing distro
+   package.** Description / Order of routes puts an unavailable distro
+   package among package-manager failures, followed by a second download
+   offer. Acceptance criteria instead says a "manager without a `gh`
+   package" makes the download the first prompt. Current
+   `src/coga/commands/init.py::_package_manager` checks executable presence,
+   and `_offer_install` checks only the static recipe in
+   `src/coga/dependencies.py::DEPENDENCIES`; every listed manager has a `gh`
+   recipe. Neither detects an absent package in the machine's configured
+   repositories before attempting installation. Distinguish a missing
+   manifest recipe from a package-manager install failure and align the
+   criterion with the two-offer chain, or explicitly specify a package
+   availability preflight. The implementer currently has to choose between
+   incompatible prompt sequences.
+
+4. **Resolve the core-placement rationale before prescribing the new
+   module.** Proposed shape explicitly calls `gh_release.py` single-consumer
+   implementation and cites `agent_cli_setup.py` as precedent. That precedent
+   has two real consumers: `src/coga/commands/init.py::_offer_agent_cli` and
+   `src/coga/launch.py`'s missing-agent offer. The rule in
+   `docs/contexts/coga-dev/microkernel/SKILL.md` / The microkernel rule
+   instead requires shared infrastructure or a reviewed command contract
+   naming a package-private invariant or transaction. Merely serving init,
+   moving a PATH helper, or keeping `init.py` short is not that rationale.
+   Resolve Open Questions item 3 in the spec with the applicable contract
+   justification or an explicitly reviewed placement decision; moving the
+   same single-consumer logic inside `init.py` alone does not answer it.
+
+### Optional recommendations and owner decisions
+
+- Turn "system directories are never written" into explicit eligibility
+  rules and tests. A writable coga-shim parent can be `/usr/local/bin`;
+  writability and PATH membership alone do not enforce the stated exclusion.
+- Strengthen failure tests around the new seam: download exceptions, missing
+  or duplicate archive members, missing/refused sudo, and a manager decline
+  that never reaches the downloader. Update both preflight tests that patch
+  `_offer_install`, particularly
+  `tests/test_init.py::test_init_offers_optional_tools_once_preflight_passes`,
+  when gh stops using that wrapper. Mocked platform names verify routing and
+  archive handling; record actual macOS/Windows execution evidence separately
+  before claiming their native binary execution is verified.
+- Resolve the existing pin/update-cadence and off-PATH policy questions at
+  owner review, making any exception to the Description's PATH-based success
+  definition explicit. The Git-stub follow-up can remain separate. The
+  ticket currently attaches no contexts; `coga/install` and
+  `coga-dev/microkernel` would help carry these contracts into implementation.
+- Related summaries already drift: `coga/init` still says init offers `op`,
+  and `coga-dev/current-direction` repeats that claim. When updating the
+  install owner, consider correcting these summaries and linking its
+  dependency policy, without duplicating the new installer specification.
+
+### Verification and scope
+
+- The live body uses the required `## Description` / `## Context` regions;
+  its acceptance criteria, shape and exclusions are composed `###` sections.
+  The frozen `code/design-then-implement` workflow correctly hands this
+  evaluator step to the owner's `review-design` gate. No branch or PR is
+  recorded for this ticket; the checkout is clean control before this review.
+- All six ticket digests match the official
+  [v2.103.3 checksum file](https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_checksums.txt).
+  The pinned release's
+  [build definition](https://github.com/cli/cli/blob/v2.103.3/.goreleaser.yml)
+  confirms the selected architectures, archive formats and wrapped versus
+  unwrapped layouts. This was metadata verification, not six native runs.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_init.py -k 'dep_check or preflight' -q`
+  passed: **24 passed, 126 deselected**. No new implementation exists to test;
+  the full suite was not run for this blackboard-only review.
+- The install topic, init topic and evaluator skill match their package
+  owners byte-for-byte. Reviewed the manifest, install/auth functions,
+  preflight order, test fakes, packaging rules and workflow definition.
+  Scratch probes confirmed the two filesystem findings above.
+- Fetched and reconciled with current `origin/main` before recording the
+  review. Ticket body, lifecycle fields, source, docs and existing blackboard
+  sections are unchanged by the review edit. Next action: one `coga bump`
+  to owner review; no implementation, feature branch or PR was produced.
