@@ -4,7 +4,7 @@
 
 Claude Code and Codex can turn an idea into a plan and start implementing it. But plans change, experiments overturn assumptions, and you discover that you’re building something different from what you first imagined. What needs updating? Which decisions still apply? What should the next agent know?
 
-Coga is a local CLI: an agent launcher and task tracker built around the project’s evolving knowledge. **Plans, assumptions, decisions, and findings live in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
+Coga is a local CLI for building software *and the understanding behind it*. It launches coding agents and tracks tasks around a project's evolving knowledge. **Plans, assumptions, decisions, and findings live in ordinary Markdown, organized in Git.** Humans and agents can browse, question, and improve that knowledge directly—even outside Coga sessions.
 
 That knowledge changes as you work. You can add an important constraint an agent missed, replace an assumption that proved wrong, or retire instructions that suited the prototype but no longer fit the product. What you learn becomes part of what subsequent work starts from.
 
@@ -13,6 +13,19 @@ For a specific task, `coga launch` brings its ticket, selected contexts, and cur
 Guide sessions interactively, add human review gates, or queue work to run unattended. **Discover and build progressively. Delegate as much—or as little—as you want.**
 
 [Browse real project tickets](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks)
+
+## How the plan evolves
+
+You don't need a finished specification to start. A ticket can be a question to research, a decision to make, or an implementation task. The work can change the plan, and what you learn can shape the next task.
+
+1. **Start with a question or outcome.** `coga build` can propose an initial plan; `coga ticket` helps discuss and refine one task. Both leave editable tickets, not a fixed spec.
+2. **Work and record what changes.** `coga launch` gives the agent the ticket, selected contexts, and current workflow step. Findings, decisions, and open questions can go into the ticket's blackboard.
+3. **Keep what outlives the ticket.** Move shared constraints and decisions into project contexts, and reusable procedures into skills. Work tickets can be retired without discarding the useful knowledge they produced.
+4. **Replan from the findings.** Revise, split, defer, or create tickets, then launch the next session with the updated context. Use human review gates or delegate unattended work where appropriate.
+
+**The loop:** question → ticket → work and findings → durable context + revised or new tickets → next session.
+
+This keeps the plan *evolvable*, not automatically correct. Humans can inspect, challenge, and correct both the work and what gets carried forward.
 
 ## See the workflow
 
@@ -26,7 +39,7 @@ coga launch add-a-health-check-endpoint --prompt-report  # inspect the prompt la
 coga launch add-a-health-check-endpoint                  # start the agent in your terminal
 ```
 
-The ticket is an ordinary Markdown file under `coga/tasks/`. Here's the essential part of a [real Thinkpick ticket](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/state-of-the-art-review.md):
+The ticket is an ordinary Markdown file under `coga/tasks/`. It need not start as an implementation spec: here's a research question from a [real Thinkpick ticket](https://github.com/FastJVM/thinkpick/blob/a980f5822c876776361b9709b9f6b2ad4b57e9bc/coga/tasks/classifier/state-of-the-art-review.md):
 
 ```md
 ## Description
@@ -63,9 +76,13 @@ The agent produced a concrete plan: [a library](https://github.com/FastJVM/think
 
 The plan was reasonable given our prompt. **But the prompt itself assumed the hard problem was solved:** that the right reasoning effort could be predicted reliably from a task description. We hadn't established that.
 
-So we parked the implementation tickets and [changed the plan](https://github.com/FastJVM/thinkpick/commit/6b32d453d6e0cf684f13d2cdc4484f8e51527b64) to investigate existing approaches and establish ground truth first. We eventually [paused Thinkpick](https://github.com/FastJVM/thinkpick/blob/main/coga/contexts/product/vision/SKILL.md#decision-2026-10-28-paused-not-abandoned) because validating the benefit in real coding-agent workflows would require more investment than we could justify.
+Instead of treating those tickets as a finished spec, we changed the work:
 
-**The agent followed the original plan. The human questioned its premise. Coga made it possible to change course without losing the work.**
+- **Park the implementation.** We [changed the plan](https://github.com/FastJVM/thinkpick/commit/6b32d453d6e0cf684f13d2cdc4484f8e51527b64) rather than building on an untested assumption.
+- **Capture the next question.** A [research ticket](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md) asks how existing approaches establish ground truth. It is still a draft, not a completed study.
+- **Keep the decision beyond any ticket.** The [product vision context](https://github.com/FastJVM/thinkpick/blob/main/coga/contexts/product/vision/SKILL.md#decision-2026-10-28-paused-not-abandoned) records why the owner paused Thinkpick, what remains unknown, and what could justify restarting.
+
+No classifier or benchmark was built. **The useful output was a corrected plan and a durable decision**, available to the next person or agent without reconstructing the previous sessions.
 
 Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks), too. Its task history lives in [`coga/log.md`](https://github.com/FastJVM/coga/blob/main/coga/log.md).
 
