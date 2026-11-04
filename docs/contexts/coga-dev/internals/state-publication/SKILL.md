@@ -95,7 +95,8 @@ checkout return. The sweep:
   alike — nothing outside them. `_candidates` then selects every dirty,
   unignored path there (new, modified, deleted, or renamed) plus eligible
   committed state (a hand commit whose control copy has not moved since;
-  routine state only on a feature checkout), so a clean checkout can still
+  only task-directory state and the log on a feature or detached checkout,
+  through `_routine_state_areas`), so a clean checkout can still
   publish; clean state behind control is never republished, and a committed
   path whose control copy moved beyond its provenance stays unselected until
   the operator rebases. Overlapping roots are one pathspec, so nothing is

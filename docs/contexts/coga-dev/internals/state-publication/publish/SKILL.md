@@ -21,12 +21,13 @@ control branch missing locally and on the remote
    moved past control from a copy this checkout derived from (a feature
    branch that committed state it had published, or a hand commit of state on
    local control). On a feature or detached checkout that committed adoption
-   is limited to routine state — the tasks and recurring directories and the
-   log — because a commit there is review work: a code PR's committed context
-   or skill edit waits for its merge rather than landing ahead of review (and
-   ahead of any packaged twin). A clean file merely behind control — HEAD's
-   copy unchanged since the merge base, even when control holds a copy this
-   worktree published — is not a write.
+   is limited by `_routine_state_areas` to the task directory and log. Clean
+   committed recurring files and other knowledge wait for merge under the
+   [committed-state boundary](../../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+   The dirty-path arm is independent of that allowlist and still selects
+   whole files, including recurring runtime writes. A clean file merely
+   behind control — HEAD's copy unchanged since the merge base, even when
+   control holds a copy this worktree published — is not a write.
    Each file in `require_paths` must be selected or already match control;
    otherwise publication refuses before writing anything. This check repeats
    against each retry's base, so authoring cannot report a completed handoff
