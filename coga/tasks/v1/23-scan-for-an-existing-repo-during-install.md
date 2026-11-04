@@ -80,12 +80,9 @@ out which case they are in beyond "is my repo empty?".
   That is a different use and stays.
 - Out of scope: any feature where Coga scans a repo to generate docs (Nico's
   separate idea); changing `coga init`'s behavior or messages.
-- Sibling `v1/24-mention-coga-build-in-the-install-flow` stays a separate
-  ticket. It covers where `coga build` sits in the install flow and edits the
-  same README lines, so whichever lands second rebases onto the other. As of
-  2026-11-04, 24's premise is partly stale (the README already names
-  `coga build` in "Choose how to begin"); don't take its line numbers as
-  current.
+- Sibling `v1/24-mention-coga-build-in-the-install-flow` was rescoped on
+  2026-11-04 to the `coga/install` page's Verify hand-off only. It does not
+  touch the README, so the two tickets don't overlap there.
 
 ### Why
 

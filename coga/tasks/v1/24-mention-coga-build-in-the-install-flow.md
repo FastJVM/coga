@@ -2,37 +2,100 @@
 title: Mention coga build in the install flow
 status: draft
 owner: zach
-workflow: null
+workflow: docs/with-review
 ---
 
 ## Description
 
-`coga build` is not named in the install flow, so a user who finishes the
-install is not told the next command. Name it as the first step for someone
-starting a new repo, and not for someone installing into a repo that already
-has files.
+The `coga/install` page ends its install path without naming the next
+command. Its `## Verify` section stops at "continue with
+[coga/first-task]", so a reader who installs from that page is never told
+that `coga build` is their next step. (The page mentions `coga build`
+only under Prerequisites, as the command that offers to install a missing
+agent CLI.) Add the next step there, split by repo state, matching
+what `coga init` prints:
 
-Done when: the install flow names `coga build` for the new-repo case and sends
-the existing-repo case somewhere else.
+- **Otherwise empty Git repo:** `coga build` (or `coga build --agent <other>`
+  for the other agent CLI).
+- **Repo that already has files:** `coga ticket "<title>"`, not `coga build`.
+
+Done when `coga/install`'s `## Verify` section (or the sentence that hands
+off from it) says the next step comes after `coga init`, names
+`coga build` for the empty-repo case and `coga ticket "<title>"` for the
+existing-repo case, keeps the link to `coga/first-task`, leaves the page with
+one next-step hand-off rather than two overlapping ones, and the packaged copy and its legacy live twin are
+byte-identical. No code change.
 
 ## Context
 
-### Why
+### Files to edit (cited, not attached)
 
-- Nico flagged the omission in the review on 2026-10-19.
-- `coga init`'s terminal next steps already name `coga build`, including
-  `--agent codex`, so the gap is in the written install path.
-- `README.md:127` covers `coga build` under First steps and correctly
-  conditions it on the repo being empty.
-- Self-QA on `test-and-fix-install-on-macos-and-windows` removed `coga build`
-  from the five-line block on 2026-10-18 because it duplicated First steps
-  unconditionally and exceeded the five-line cap.
-- So this is a question of where `coga build` belongs in the flow, not of
-  adding it back to the install block.
-- Zach on 2026-10-21: the install flow he floated to Nico is wrong as it
-  stands, and `coga build` belongs to the new-repo case only.
-- `scan-for-an-existing-repo-during-install` decides the branch this depends
-  on; settle them together.
+- Package owner:
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`.
+- Legacy live twin: `docs/contexts/coga/install/SKILL.md`. It is
+  byte-identical to the package copy today, and `tests/test_packaging.py`
+  requires them to stay identical. Edit both in the same commit (see
+  AGENTS.md), then run `python -m pytest tests/test_packaging.py`.
+- Current `## Verify` text ends: "These commands check the CLI installation,
+  not agent authentication or a completed first task; continue with
+  [coga/first-task](../first-task/SKILL.md)." The change belongs at that
+  hand-off.
+- A second hand-off sits at the end of `## Upgrading and removing`: "Next:
+  adopt Coga into a repository with [coga/init], then walk a first ticket
+  with [coga/first-task]." Put the build/ticket split in one place only. Either
+  write it at the Verify hand-off and leave the "Next:" line as a pointer, or
+  fold it into the "Next:" line and trim Verify. The reviewer must not find
+  two overlapping next-step paragraphs.
+
+### Facts to match, not restate
+
+- `coga init` already prints this split. In `init` (the next-steps block at
+  the end of the init command), an empty repo gets "Run `coga build` … or
+  `coga build --agent <other>`", where `<other>` is whichever agent is not the
+  configured default, and a filled repo gets
+  "Run `coga ticket "<title>"` to author your first task". `coga/init`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`,
+  "printed next steps") documents the same. The install page must agree with
+  both.
+- `coga/init` owns what "empty" means: nothing but `.git`, `.DS_Store`,
+  and a short starter README, LICENSE or `.gitattributes`. Link to it
+  instead of defining "empty" again on the install page (`coga/knowledge`:
+  one owner per fact).
+- `coga/first-task` already explains what `coga build` does (onboarding
+  chat, vision, starter batch). Keep the install page to one or two
+  sentences naming the command, and leave the explanation to first-task.
+- Installing never modifies a repo; `coga init` does. The next step comes
+  after `coga init`, so the sentence should say "after `coga init`" rather
+  than suggest `coga build` straight after `uv tool install`.
+
+### Scope and known tension
+
+- Edit only `coga/install`. The README already names `coga build` for the
+  empty-repo case in its "Choose how to begin" block, and
+  `v1/23-scan-for-an-existing-repo-during-install` owns the README's
+  existing-repo line (`coga chat` → `coga ticket "<title>"`). Do not touch
+  the README here.
+- Zach decided on 2026-10-17 to delete `coga/install` in favour of the
+  README, and `v1/26-make-the-readme-install-section-the-only-install-p`
+  owns that removal. The owner chose on 2026-11-04 to fix this page anyway
+  while it still ships. Keep the edit small so v1/26 can drop or carry it
+  over cheaply.
+- Order versus v1/23 is not enforced. If this lands first, the install page
+  says `coga ticket "<title>"` for existing repos while the README still says
+  `coga chat` until v1/23 merges. That short gap is accepted. Both tickets
+  touch `coga/install` only if v1/23 finds a prerequisite contradiction,
+  which would be in a different section, so a rebase is enough.
+
+### History
+
+- Nico flagged the missing `coga build` in the review on 2026-10-19.
+- Self-QA on `v1/29-test-and-fix-install-on-macos-and-windows` removed
+  `coga build` from the README install block on 2026-10-18, because it
+  told every reader to run it, including existing repos. Zach on 2026-10-21:
+  `coga build` belongs to the new-repo case only.
+- The ticket originally targeted the README. On 2026-11-04 it was rescoped
+  to `coga/install`, because the README now covers the new-repo case and
+  v1/23 covers the existing-repo one.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
