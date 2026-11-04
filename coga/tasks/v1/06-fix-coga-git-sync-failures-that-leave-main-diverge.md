@@ -3,7 +3,6 @@ title: Fix coga git sync failures that leave main diverged from origin
 status: draft
 owner: nicktoper
 contexts:
-  - coga/sync
   - coga/state-publication
   - coga-dev/internals/state-publication
 workflow: code/design-then-implement
@@ -24,7 +23,9 @@ ran in, and that process has to be identified.
 Done when:
 
 - Every failure class from the recount (see Context) is either fixed or
-  explicitly accepted, with the reason written down. If the fix is an
+  explicitly accepted, with the reason written down in the design spec's
+  per-class disposition; a durable decision (for example the `/tmp` ENOSPC
+  one) also lands in `coga-dev/internals/state-publication` in the same PR. If the fix is an
   owner-side `coga.toml` / `coga.local.toml` or agent-CLI settings change, the
   design names it as an open question for the `review-design` gate; the owner
   applying it counts as fixed.
@@ -37,7 +38,9 @@ Done when:
   owner installs the PR build in Multiply, a launched Codex session and a
   launched Claude session each finish a step with normal network access and
   add no `[git] sync failed` line for the classes marked fixed. The owner
-  attaches the `coga/log.md` excerpt to the PR.
+  attaches the `coga/log.md` excerpt to the PR, noting each session's agent
+  sandbox and network settings so a passing run doesn't hide the setting
+  that caused the failures.
 
 ## Context
 
@@ -77,7 +80,7 @@ As of 2026-11-02: 263 lines (68 in Aug, 163 in Sep, 32 in Oct), `[coga]` slug
 | `git fetch` / push → `Could not resolve host: github.com` | 08-14 → 09-21; 4 push failures in Oct | Network unavailable in the publishing process; DNS failure alone does not prove sandbox denial |
 | `git hash-object` → `unable to create temporary file: Read-only file system` | 09-22 → 10-14 (27 in Oct) | Process ran where `.git` objects were not writable. Check whether the current revision still produces it; last seen 10-14 |
 | `git add` → `.git/index.lock: Read-only file system` | 08-26 | Same shape, `~/Code/codex/multiply` checkout |
-| `git rm --cached` → `/tmp/coga-git-index-*.lock: No space left on device` | 10-27 | New class: temp-index write on a full `/tmp`. Decide fix vs. accept |
+| `git rm --cached` → `/tmp/coga-git-index-*.lock: No space left on device` | 10-27 | New class: temp-index write on a full `/tmp`. Decide fix vs. accept; the design may split it into its own ticket if the fix is more than small |
 | Rebase conflict (`1678fe5`), rebase blocked by untracked files, autostash reapply failure | 08-19, 09-13, 09-17 | Predate #848 "Simplify git sync" (`1210b7c39`, 2026-09-21); current `git.py` has no rebase/autostash sync path, only a hint string. Confirm and record as resolved |
 
 The fetch → `hash-object` switch lines up with #848: once publish writes
@@ -87,6 +90,14 @@ Multiply runs (owner machine had `coga 0.4.1` on 2026-11-02) against when each
 failure was logged.
 
 ### What to find out
+
+Start with the version check: Multiply's `coga` version against each
+failure's date. #848 and #948 both shipped in `v0.4.1` (tagged
+2026-10-20), and the October `hash-object` failures (last 10-14) predate
+it. The design reports how many failures remain after the owner installed
+0.4.1, per class. If the agent's sandbox cannot read `~/Code/multiply`,
+ask the owner to paste the grep output (that denial is itself evidence
+for question 1).
 
 1. Which process and environment ran each `hash-object` / `index.lock` /
    network failure, and why `.git` was unwritable or the network unreachable
@@ -111,9 +122,11 @@ failure was logged.
 
 ### Code pointers
 
-- `git.sync_task_state`, `git.publish` and its `hash-object` call, the
-  `hash-object` failure error class in `git.py`.
-- Literal `[git] sync failed` sites: `git.py`, `recurring_runner.py`,
+- `git.sync_task_state`, `git.publish` and its `hash-object` call;
+  `git.ObjectWriteError`, raised from `git._hash_blob`.
+- `git.py` writes `sync failed: …` under the `git` tag through
+  `git.record_sync_failure` and `git.sync_failure_report`. Literal
+  `[git] sync failed` sites: `recurring_runner.py`,
   `commands/recurring.py`. `mark.py`, `commands/mark.py` and `authoring.py`
   catch `git.GitError` and report through `git.py`'s helper.
 
