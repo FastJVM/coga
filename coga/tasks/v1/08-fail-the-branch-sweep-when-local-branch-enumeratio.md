@@ -1,6 +1,6 @@
 ---
 title: Fail the branch sweep when local branch enumeration fails
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
+launch_generation: pending:ecd8a384-8729-45c4-874d-00a7e49caf31
 ---
 
 ## Description
