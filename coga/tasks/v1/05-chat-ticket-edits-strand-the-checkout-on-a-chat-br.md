@@ -826,3 +826,12 @@ checks:
   detail: Passed for the unstaged live-ticket handoff.
 
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br`
+Recorded: 2026-11-04T22:08:48+00:00
+
+    Branch 'coga/chat-state-checkout-05' is not safe to publish. refs/heads/coga/chat-state-checkout-05 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: docs/contexts/coga-dev/internals/git-refresh/SKILL.md, docs/contexts/coga-dev/internals/state-publication/SKILL.md, docs/contexts/coga/checkouts/SKILL.md, docs/contexts/coga/state-publication/SKILL.md, src/coga/compose.py, src/coga/git.py, src/coga/launch.py, src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md, src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md, tests/test_git.py. Reconcile it and relaunch, or `coga block --task v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br`.
