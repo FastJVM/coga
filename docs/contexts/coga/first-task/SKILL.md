@@ -11,6 +11,19 @@ Each step links to the topic that owns its contract.
 
 ## 0. Check readiness
 
+Use a macOS or Linux terminal for agent sessions; the current native Windows
+boundary is in [coga/launch](../launch/SKILL.md#phases-and-routing).
+For this walk's GitHub PR, start on clean, current `main` (or your configured
+control branch) in a repo with a remote you can push to. Install GitHub CLI
+and run `gh auth login`; Git push credentials must also work.
+
+The example uses `code/with-review`. With the default configuration it needs
+both Claude Code and Codex installed and authenticated, because the second
+agent reviews the first agent's work. If you use only one agent, choose
+`code/with-self-review` in the create command below. It keeps the final human
+PR gate but uses the same agent for implementation and self-review
+([coga/workflows](../workflows/SKILL.md)).
+
 ```sh
 coga validate            # repo and task structure; non-zero exit on errors
 coga validate --json     # the same, machine-readable
@@ -23,6 +36,8 @@ warns when `user` is unset. Network probes are opt-in:
 `--check-slack` checks the Slack webhook
 ([coga/notifications](../notifications/SKILL.md)). Neither combines with
 `--task`.
+
+These checks do not test agent authentication or complete a first task.
 
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a
 default alias for `launch coga-build`: one question, an agent-led chat, a
@@ -47,6 +62,12 @@ batch, talk it through in `coga chat` and let the session create the drafts.
 Drafts are cheap and need no workflow yet, but a ticket cannot be activated
 without one ([coga/workflows](../workflows/SKILL.md)).
 
+For a Codex interview, use
+`coga ticket "Add a health-check endpoint" --agent codex` or
+`coga chat --agent codex`. The interviewer's selection is separate from the
+task's main agent. New tasks use the configured default at activation; see
+[agent configuration](../configuration/SKILL.md#choosing-an-agent).
+
 ## 2. Launch it
 
 ```sh
@@ -70,7 +91,10 @@ starts the next agent step, rotating to the peer agent for review
 
 The final `review` step is a human gate with an open PR. Review and merge it
 on GitHub, then run `coga bump <task>`; bumping the final step marks the
-ticket `done`. A repo that schedules the `autoclose-merged` recurring sweep
+ticket `done`. Confirm `coga show <task>` reports `done` and inspect the
+merged result; a successful install, prompt report, or agent exit alone
+does not establish a completed task. A repo that schedules the
+`autoclose-merged` recurring sweep
 also closes merged tickets on its next run, but that is opt-in
 ([coga/recurring](../recurring/SKILL.md)). To decline the work instead, use
 `coga mark canceled <task> --message "<reason>"`, which stays distinct from
