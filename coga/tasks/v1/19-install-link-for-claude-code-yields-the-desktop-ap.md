@@ -2,7 +2,7 @@
 title: Install link for Claude Code yields the desktop app not the CLI
 status: draft
 owner: zach
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
