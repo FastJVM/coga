@@ -62,6 +62,7 @@ You keep using Claude Code or Codex to plan, investigate, and build. Coga gives 
 - **Manage context rot with readable handoffs.** At each step, the agent records useful findings, decisions, and open questions. The next session starts fresh from the current ticket, notes, and selected knowledge. You can inspect, correct, and share what carries forward.
 - **Choose knowledge and skills for the task.** Select the facts, constraints, and procedures to include at launch. Make important guidance available from the start, and keep irrelevant or outdated instructions out of the task's prompt.
 - **Change the plan as you learn.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
+- **Let prepared tasks run with less steering.** A clear ticket plus relevant contexts and step skills gives an agent more of what it needs before it starts. Coga can continue across agent-assigned steps, including peer review, and stop at blockers or explicit human gates instead of asking you to restate project knowledge each session.
 - **Put reviews where they matter.** Work interactively, add human review gates, or delegate work to run unattended. Choose the points where you want to check the plan, findings, or implementation.
 - **Keep what you learn.** Record useful discoveries in project contexts and reusable methods in skills so later tasks can draw on them, even when a different agent does the work.
 
