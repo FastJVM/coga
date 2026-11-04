@@ -180,16 +180,6 @@ Rule these out before blaming the change under test.
   (`assert 0 == 1`). Reproduced on control on 2026-11-02. The default
   full-suite order passes, so the failure only shows up in reordered or
   focused selections. Confirm by running the failing test alone.
-- **The `release_env` fixture fails in a fresh `python -m venv` (open:
-  `v1/12-fix-release-env-fixture-interpreter-symlink-in-fre`).**
-  `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
-  fails with `ModuleNotFoundError: No module named 'yaml'`. The fixture
-  symlinks `sys.executable` to `tools/coga/bin/python`, and a venv interpreter
-  symlinked outside its venv starts as the base interpreter, which does not
-  have the venv's site-packages. The test passes only when the base
-  interpreter has PyYAML, as with a 3.12 base under the dev `.venv` or the
-  setup-python interpreter in CI. Workaround: run the suite from a copied
-  base interpreter that has the editable test install.
 - **Hosted `windows-latest` puts the checkout and the temp directory on
   different drives** (package on `D:`, temporary repos on `C:`).
   `os.path.relpath` raises `ValueError` across drives. A path computed
