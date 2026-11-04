@@ -125,6 +125,14 @@ is their hand-run counterpart: a first-time user installs on a fresh
   `tests/test_autoclose_sweep.py`) or freeze the period; assert structure.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
+- **Stand in for a tool interpreter with an `exec` wrapper, not a symlink.**
+  Python finds `pyvenv.cfg` beside the path it was invoked by, so a symlink
+  to `sys.executable` placed elsewhere runs the base interpreter without the
+  venv's packages; globally installed packages then hide the loss.
+  `tests/test_clean_install_harness.py` `_tool_python` writes a `/bin/sh`
+  wrapper that `exec`s the quoted interpreter, and its regression test
+  imports a module present only in a throwaway venv so no global package can
+  stand in.
 - **Native Windows fixtures use UTF-8 and LF explicitly.** `conftest` isolates
   HOME, USERPROFILE, APPDATA, LOCALAPPDATA and the temp variables. Fixture
   paths are resolved to their canonical spelling, including HOME and TEMP,
