@@ -87,8 +87,10 @@ recorded worktree exists and is not this repository's linked worktree or
 primary (a foreign linked worktree, another repository's primary, or a
 directory Git cannot classify), `checkout_disposal.dispose_checkout` skips
 all branch cleanup in the invoking clone with one note saying why, and leaves
-the directory in place. Once a primary checkout's directory is gone,
-autoclose judges its branch only through the recorded `owner`. Foreign
+the directory in place. If inspecting the path or its ownership raises an
+error, cleanup records the failure and preserves the branch. Once a primary
+checkout's directory is gone, autoclose judges its branch only through the
+recorded `owner`. Foreign
 worktrees are expected only for recurring; elsewhere such a record is a
 stray. A remaining foreign branch is reported for manual cleanup in its
 owning clone. The owning clone's own daily branch sweep runs the ordinary

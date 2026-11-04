@@ -572,6 +572,46 @@ def test_cross_repo_worktree_leaves_a_same_named_local_branch_untouched(
     assert _local_branch_exists(owner, "upstream-fix")
 
 
+def test_unreadable_recorded_worktree_preserves_checkout_and_branches(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    owner, worktree = _other_repo_worktree(tmp_path)
+    _git(git_repo.root, "branch", "upstream-fix")
+    _git(git_repo.root, "push", "origin", "upstream-fix")
+    _stub_gh(monkeypatch, git_repo)
+    local_tip = _git(git_repo.root, "rev-parse", "refs/heads/upstream-fix")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head", lambda url: ("upstream-fix", local_tip)
+    )
+    is_dir = Path.is_dir
+
+    def unreadable_recorded_path(path: Path) -> bool:
+        if path == worktree:
+            raise PermissionError("recorded worktree cannot be read")
+        return is_dir(path)
+
+    # Model an inaccessible parent directory without POSIX-only chmod rules.
+    # Both the removal proof and the branch ownership guard must fail closed.
+    monkeypatch.setattr(Path, "is_dir", unreadable_recorded_path)
+    outcome = dispose_checkout(
+        load_config(git_repo.coga_os), git_repo.root,
+        branch="upstream-fix", worktree=str(worktree), pr_url=PR_URL,
+    )
+
+    assert not outcome.disposed
+    assert outcome.local_branch_remains
+    assert (
+        "Branch cleanup: failed (recorded worktree cannot be read) — left in place."
+        in outcome.notes
+    )
+    assert is_dir(worktree)
+    assert _local_branch_exists(git_repo.root, "upstream-fix")
+    assert _remote_branch_exists(git_repo.root, "upstream-fix")
+    assert _local_branch_exists(owner, "upstream-fix")
+
+
 def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branch(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:

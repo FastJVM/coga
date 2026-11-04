@@ -205,17 +205,18 @@ def dispose_checkout(
             else:
                 disposal.notes.extend(disposal.worktree_result.notes)
 
-    if disposal.branch is not None and _foreign_checkout(root, disposal.worktree):
-        # A recorded checkout that exists but is not this repository's linked
-        # worktree keeps its branch in the repository that owns it; a
-        # same-named branch here is not the ticket's and is never judged.
-        note(
-            f"Branch cleanup: skipped — recorded worktree {disposal.worktree!r} "
-            "is not this repository's linked worktree, so branch "
-            f"{disposal.branch!r} is not judged in this clone."
-        )
-    elif disposal.branch is not None:
+    if disposal.branch is not None:
         try:
+            if _foreign_checkout(root, disposal.worktree):
+                # A recorded checkout that exists but is not this repository's
+                # linked worktree keeps its branch in the repository that owns
+                # it; a same-named branch here is never judged.
+                note(
+                    f"Branch cleanup: skipped — recorded worktree {disposal.worktree!r} "
+                    "is not this repository's linked worktree, so branch "
+                    f"{disposal.branch!r} is not judged in this clone."
+                )
+                return disposal
             disposal.branch_result = delete_branch(
                 cfg, root, disposal.branch, pr_url=pr_url, echo=echo
             )
