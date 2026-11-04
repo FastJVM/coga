@@ -1980,6 +1980,7 @@ def _skill_update_git_repo(
     _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "config", "user.email", "test@example.test")
     _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "config", "core.autocrlf", "false")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "init")
     _git(tmp_path, "switch", "-q", "-c", "feature")

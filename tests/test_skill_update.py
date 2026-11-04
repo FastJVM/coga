@@ -574,6 +574,7 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     # the checkout must be a repository, clean and on its control branch.
     for args in (
         ["init", "-q", "-b", "main"],
+        ["config", "core.autocrlf", "false"],
         ["add", "-A"],
         ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-q", "-m", "init"],
     ):
