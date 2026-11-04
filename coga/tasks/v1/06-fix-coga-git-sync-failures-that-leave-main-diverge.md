@@ -1,6 +1,6 @@
 ---
 title: Fix coga git sync failures that leave main diverged from origin
-status: blocked
+status: active
 owner: nicktoper
 contexts:
 - coga/state-publication
