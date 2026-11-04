@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: c820798e-d7a8-4874-a7c7-358d68662b4e
 ---
 
 ## Description
@@ -216,7 +215,7 @@ branch: fix/guard-foreign-worktree-branch-cleanup
 
 ## Handoff (implement)
 
-What changed (commit 3ef04cb5d on the branch, pushed):
+Original implementation (3ef04cb5d, rebased as a19bf3cbe during peer review):
 - `checkout_disposal.dispose_checkout`: after the claim scan and the
   (unchanged, refusing) worktree attempt, a new `_foreign_checkout` check
   skips `delete_branch` entirely when the recorded `worktree:` exists and is
@@ -241,41 +240,108 @@ What changed (commit 3ef04cb5d on the branch, pushed):
   PR as merged at the local tip so every branch proof would pass; on the
   unfixed code they showed "deleted local" (and remote, for autoclose).
 
-Next step (peer-review): check the guard placement and the doc wording.
+Peer review completed below. Next step: open-pr; the feature branch is committed and pushed.
+
+## Peer review
+
+Completed direct Codex review on 2026-11-04. Final reviewed head:
+`b9a04a71500ed3d0c85819365ed5d8be368d3097`; diff base: `0afa662d270c6ca47ce4cb0faa99c9ba87496dc6`.
+No review subprocess or nested agent was used. Codex independently reviewed
+Claude's implementation at `a19bf3cbe`, then applied and self-reviewed the
+must-fix below. The final PR receipt is marked self-review because it includes
+Codex's own fix; no second reviewer reviewed that addition.
+
+- **Resolved P2:** the ownership guard ran outside the branch proof's exception
+  handler. A recorded directory beneath an inaccessible parent raised
+  `PermissionError` from `Path.is_dir()` and escaped `dispose_checkout`, contrary
+  to its failure-as-a-note contract. Reproduced with an actual unreadable
+  directory and with the new portable regression (1 expected failure before
+  the fix). Commit `b9a04a715` moves the guard inside the existing exception
+  handler, using the existing failure note and preserving both branches and
+  the checkout. Repeated the real permission-denied probe successfully.
+- Re-reviewed all five final diff paths, both autoclose callers, retire's direct
+  caller, claim-scan order, primary exemption, missing-path behavior, and the
+  foreign-linked remedy. `branch_owner` remains untouched. No unresolved findings.
+- Negative control: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-foreign-checkout-baseline-review.py 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6`
+  injected only the base disposal module into a separate pytest process. All
+  3 new foreign-checkout cases failed as expected, showing local deletion in
+  both commands and remote deletion under autoclose; the working tree was unchanged.
+- Focused verification before committing the fix:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_autoclose_dispose.py tests/test_retire.py tests/test_packaging.py`
+  — 91 passed. Additional real-Git probes covered a missing path (no classifier
+  call; local and remote cleanup), no recorded path, an existing unclassifiable
+  relative path (both branches preserved), this repo's primary, and a foreign
+  linked backlog entry. All 5 passed. The probe command was
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-foreign-checkout-edge-review.py`.
+- Final-head verification: full suite 4310 passed, 10 skipped on Linux/Python
+  3.12.12; exact current receipts are in `## PR`. The earlier pre-fix full run
+  was 4309 passed, 10 skipped and is historical. No Python 3.11 or native Windows
+  run was performed. No raw-terminal, pager, or rendered-message surface changed;
+  the new plain-text diagnostics are exercised by the regression tests.
+- Rebased onto current main before review; the final fetch/rebase was a no-op.
+  Pushed `b9a04a71500ed3d0c85819365ed5d8be368d3097` with an explicit lease against the old remote
+  tip and returned this checkout to clean, current main before writing this
+  handoff. PR creation belongs to the next step.
 
 ## PR
 
 ```yaml
-title: Skip branch cleanup for a foreign recorded worktree
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
-head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
-base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
+title: Preserve branches for foreign or unreadable recorded checkouts
+author: claude/codex
+author_evidence: Claude Code (claude-opus-5-5) implemented the original guard, tests, and docs, as recorded
+  in the implement handoff and original commit. This Codex peer-review session added the ownership inspection
+  error fix and its regression in b9a04a715.
+head: b9a04a71500ed3d0c85819365ed5d8be368d3097
+base: 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6
 depth: skim
-rationale: Small, fail-closed guard in shared disposal code, with regression tests for autoclose and retire; read the doc rewrite.
-implementation: dispose_checkout skips delete_branch when the recorded worktree exists and git.classify_checkout says it is not this repository's primary or linked checkout, and adds one note. The worktree is still left in place, and the autoclose remedy is unchanged.
-deviations: None.
-limitations: An existing directory that Git cannot classify (None) also skips branch cleanup here, so a ticket recording a non-checkout directory keeps its local branch until a human looks. This is intended fail-closed behavior.
+rationale: This change limits branch cleanup. The full test suite and regressions using real Git repositories
+  passed. Skim the intended retention of unknown directories and the small fix applied during review;
+  the final review includes Codex's review of its own addition.
+implementation: After the live-claim scan and worktree proof, dispose_checkout skips local and remote
+  branch deletion for existing foreign or unclassifiable recorded directories, preserves the directory,
+  and adds one explanatory note. Missing paths and this repository's primary retain normal branch cleanup.
+  Ownership-inspection errors use the existing failure handler, returning a preserved disposal instead
+  of propagating the error. The foreign-linked autoclose remedy and branch_owner behavior are unchanged.
+deviations: No scope change. Peer review added a portable PermissionError regression and moved ownership
+  inspection inside the existing branch exception handler so a failed proof returns a refusal.
+limitations: Existing unclassifiable or unreadable directories deliberately keep branches until inspection.
+  Verification ran on Linux with Python 3.12.12; Python 3.11 and native Windows were not run. Codex independently
+  reviewed Claude's original change and self-reviewed its own follow-up; no second independent review
+  covers that follow-up.
 files:
-  src/coga/checkout_disposal.py: Add the foreign-checkout guard before delete_branch.
-  tests/test_autoclose_dispose.py: Regression test that autoclose leaves a same-named local/remote branch for a foreign linked worktree.
-  tests/test_retire.py: Regression test that retire leaves a same-named branch for foreign linked and foreign primary checkouts.
-  docs/contexts/coga/checkout-cleanup/SKILL.md: Replace the foreign-linked exception with the never-judged-here rule for autoclose and retire.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Packaged twin, byte-identical.
+  src/coga/checkout_disposal.py: Guard branch deletion by recorded checkout ownership, including inspection
+    failures, while allowing missing paths and this repository's primary.
+  tests/test_autoclose_dispose.py: Prove foreign linked worktrees and unreadable recorded paths preserve
+    same-named local and remote branches without changing the remedy.
+  tests/test_retire.py: Prove the direct retire path preserves same-named branches for foreign linked
+    and foreign primary checkouts.
+  docs/contexts/coga/checkout-cleanup/SKILL.md: Replace the foreign-linked exception with the ownership
+    guard and document preservation on inspection failure.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md: Byte-identical
+    packaged copy of the cleanup contract.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Code review happens in the later peer-review step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: b9a04a71500ed3d0c85819365ed5d8be368d3097
+  base: 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6
+  detail: Direct review completed on the final diff with no unresolved findings. Independent review of
+    Claude's initial implementation found one P2 ownership inspection exception; Codex fixed it in b9a04a715
+    and self-reviewed that addition. The receipt is self-review for the combined final diff.
 checks:
-  - command: .venv/bin/python -m pytest -q tests/test_retire.py tests/test_autoclose_dispose.py tests/test_packaging.py
-    status: passed
-    head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
-    base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
-    detail: 90 passed.
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: 3ef04cb5d3ba5b0909b7578842c2e3e35687d54d
-    base: 053f694b4feb4cc1601e1b1196029fdccc5c5aa0
-    detail: 4309 passed, 10 skipped. Ran on the pre-rebase tree; the rebase onto this base brought only coga/log.md and an unrelated ticket file, so the src/tests/docs content is identical.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q
+  status: passed
+  head: b9a04a71500ed3d0c85819365ed5d8be368d3097
+  base: 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6
+  detail: 4310 passed, 10 skipped in 624.08s on Linux with Python 3.12.12, run on this exact final commit.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: b9a04a71500ed3d0c85819365ed5d8be368d3097
+  base: 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6
+  detail: No whitespace errors in the complete final branch diff; checked before returning to main.
+- command: cmp docs/contexts/coga/checkout-cleanup/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md
+  status: passed
+  head: b9a04a71500ed3d0c85819365ed5d8be368d3097
+  base: 0afa662d270c6ca47ce4cb0faa99c9ba87496dc6
+  detail: Canonical and packaged cleanup topics are byte-identical at the final head.
 ```
