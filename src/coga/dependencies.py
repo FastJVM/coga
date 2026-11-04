@@ -96,13 +96,11 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         ),
         install="https://developer.1password.com/docs/cli/get-started/",
         required_at_init=False,
-        # Most repos never declare an `op://` secret: offered, default no.
-        # Linux distros need 1Password's own repo, so only brew/winget.
-        offer_install=False,
-        packages={
-            "brew": ("--cask", "1password-cli"),
-            "winget": ("--id", "AgileBits.1Password.CLI", "-e"),
-        },
+        # Never offered (and so no `packages`): a secrets manager is the
+        # user's own choice, and init installing 1Password would read as coga
+        # picking one for them. A missing `op` gets its own note instead
+        # (`init._note_missing_op`), naming what needs it.
+        offer_install=None,
     ),
     Dependency(
         name="claude",

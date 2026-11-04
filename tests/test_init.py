@@ -2580,8 +2580,9 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 #
 # `coga init` offers to install missing external CLIs in an interactive
 # terminal, then fails loud when a required-at-init one (only `git`) is still
-# not on PATH; a missing `gh`/`op` only warns — each is enforced at its point
-# of need.
+# not on PATH; a missing `gh` only warns — each is enforced at its point
+# of need. `op` is never offered and never warned about as a tool init
+# handles: it gets its own note naming what needs it.
 # Captured before the autouse `_stub_init_dep_check` fixture replaces
 # the module attributes, so these tests exercise the real implementation.
 _real_require_tools = init_cmd._require_init_tools
@@ -2654,15 +2655,19 @@ def test_dep_check_crashes_on_missing_git(
 def test_dep_check_warns_but_does_not_crash_on_optional_tools(
     monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """Non-interactive: a missing `gh`/`op` is a warning with its install
-    hint, never a prompt or a crash."""
+    """Non-interactive: a missing `gh` is a warning with its install hint,
+    never a prompt or a crash; a missing `op` gets its own note instead of a
+    line under the heading that reads as a tool init handles."""
     monkeypatch.setattr(
         "coga.commands.init.shutil.which", _which_missing({"gh", "op"})
     )
     _real_dep_check()  # must not raise
     err = capsys.readouterr().err
     assert "gh: install from https://cli.github.com" in err
-    assert "op: install from" in err
+    assert "op: install from" not in err  # not listed as a tool init handles
+    assert "init does not install it" in err
+    assert "a ticket declares an `op://vault/item/field` secret" in err
+    assert "https://developer.1password.com" in err
     assert "claude" not in err  # agent CLIs belong to the next steps
 
 
@@ -2717,7 +2722,7 @@ def _interactive(
                     argv, 1, "", "unknown flag: --active\n"
                 )
             return subprocess.CompletedProcess(argv, 0 if gh_logged_in else 1, "", "")
-        tool = {"github-cli": "gh", "1password-cli": "op"}.get(argv[-1], argv[-1])
+        tool = {"github-cli": "gh"}.get(argv[-1], argv[-1])
         absent.discard(tool)
         return subprocess.CompletedProcess(argv, 0)
 
@@ -2751,17 +2756,23 @@ def test_dep_check_linux_uses_sudo_and_distro_package(
     assert ["sudo", "pacman", "-S", "--noconfirm", "github-cli"] in calls
 
 
-def test_dep_check_skips_op_offer_without_a_package(
-    monkeypatch: pytest.MonkeyPatch, capsys
+@pytest.mark.parametrize("platform", ["darwin", "win32", "linux"])
+def test_dep_check_never_offers_to_install_op(
+    monkeypatch: pytest.MonkeyPatch, capsys, platform: str
 ) -> None:
-    """op has no apt package (1Password's own repo is needed), so Linux gets
-    the link rather than a prompt."""
-    calls = _interactive(monkeypatch, missing={"op"}, answers=[], platform="linux")
-    _real_dep_check()
+    """Interactive init never prompts to install `op`, under any package
+    manager: a secrets manager is the user's choice, not init's. An empty
+    `answers` would raise if anything asked. Brew and winget are the cases
+    that used to prompt, so all three platforms are covered."""
+    calls = _interactive(monkeypatch, missing={"op"}, answers=[], platform=platform)
+    _real_dep_check()  # must not raise
     assert calls == [
         ["/usr/bin/gh", "auth", "status", "--active", "--hostname", "github.com"]
     ]
-    assert "op: install from" in capsys.readouterr().err
+    out = capsys.readouterr()
+    assert "1password-cli" not in out.out  # never a "Will run: …" command
+    assert "Install it now?" not in out.out
+    assert "init does not install it" in out.err  # the note takes its place
 
 
 def test_dep_check_git_declined_still_crashes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2879,7 +2890,7 @@ def test_init_offers_optional_tools_once_preflight_passes(
     monkeypatch.setattr(init_cmd, "_offer_install", offer)
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert offers == ["gh", "op"]
+    assert offers == ["gh"]  # `op` is never offered, even when missing
 
 
 def _agent_picker(

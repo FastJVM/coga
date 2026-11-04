@@ -436,12 +436,15 @@ def _offer_optional_tools() -> None:
     `_do_init` calls it once every precondition has passed, just before the
     first write, so a malformed or redundant invocation never installs or
     authenticates anything. In an interactive terminal each missing optional
-    tool with an `offer_install` default (`gh`, `op`) is offered through the
+    tool with an `offer_install` default (`gh`) is offered through the
     machine's package manager, printing the exact command first, and `gh` is
     then offered `gh auth login` if its active github.com account is not
     logged in. A tool still missing is only a warning: each is enforced again
-    at its point of need. Agent CLIs are not warned about here:
-    `_offer_agent_cli` offers them, and the next steps name them.
+    at its point of need. `op` is deliberately not in that set — it carries
+    `offer_install=None`, so it is never offered and never listed as a tool
+    init handles; `_note_missing_op` notes it on its own instead. Agent CLIs
+    are not warned about here: `_offer_agent_cli` offers them, and the next
+    steps name them.
     """
     interactive = _interactive()
     manager = _package_manager() if interactive else None
@@ -466,6 +469,35 @@ def _offer_optional_tools() -> None:
             fg=typer.colors.YELLOW,
             err=True,
         )
+    _note_missing_op()
+
+
+def _note_missing_op() -> None:
+    """Note a missing `op` without offering it, in interactive mode or not.
+
+    Which secrets manager a user runs is their choice, so init never installs
+    1Password — `op`'s `offer_install=None` keeps it out of both the install
+    offer and the `_offer_optional_tools` warning list, which would otherwise
+    read as a tool init handles. That leaves nothing saying `op` exists, so
+    this prints one note naming what actually needs it, sourced from the
+    manifest `purpose` rather than restating it. A user with another manager
+    reads it and skips it knowing nothing is broken.
+    """
+    op = next((dep for dep in DEPENDENCIES if dep.name == "op"), None)
+    if op is None or shutil.which(op.name) is not None:
+        return
+    label, _, condition = op.purpose.partition(" — ")
+    typer.secho(
+        "\n".join(
+            [
+                f"`op` ({label}) is not on PATH, and init does not install it:",
+                f"  {condition.split('. ')[0]}.",
+                f"  Install it from {op.install} only if you need it.",
+            ]
+        ),
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
 
 
 def _package_manager() -> str | None:
