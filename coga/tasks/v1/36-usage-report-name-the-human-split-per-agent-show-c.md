@@ -33,21 +33,27 @@ post) renders three changes:
    `agent` (e.g. `claude`, `codex`) and its total tokens. Place it before the
    existing per-model rows, which stay and get a matching `By model:` label.
    An empty agent falls into `(unknown)` like the model buckets do, and it is
-   never dropped.
+   never dropped. Sort agent rows largest first, as the model rows are.
 
-`--json` carries the same new data (user, non-cache-read total, per-agent
-rows). Tests in `tests/test_usage_report.py` cover all three changes,
+When some sessions have unknown counts, the floor caveat follows the session
+count as it does today, for example
+`780.9M tokens (25.4M excluding cache reads + 755.5M cache reads) across 142 sessions (2 sessions have unknown counts, so this is a floor)`.
+The empty-window output keeps its header, user name included.
+
+`--json` carries the same new data, using the keys `user`,
+`non_cache_read_tokens`, and `agents: [{agent, total_tokens}]` (the same
+shape as the existing `models`). Tests in `tests/test_usage_report.py` cover all three changes,
 including the case with no user.
 
 ## Context
 
-- **Land this after** the sibling ticket
-  `dedupe-claude-transcript-usage-by-message-id`. It fixes a ~1.9× Claude
-  token overcount in `usage._parse_claude_session`, which is the real reason
-  the total looked too big. This ticket only changes how the report presents
-  the number. It does not fix the count. Old `coga/log.md` records stay
-  inflated, and the owner does not care about them, so don't add a recount
-  or caveat.
+- **Prerequisite already landed.** The sibling ticket
+  `dedupe-claude-transcript-usage-by-message-id` merged as PR #947 on
+  2026-10-02. It fixed a ~1.9× Claude token overcount in
+  `usage._parse_claude_session`, which was the real reason the total looked
+  too big. Nothing to wait for. This ticket only changes how the report
+  presents the number. Old `coga/log.md` records stay inflated, and the
+  owner does not care about them, so don't add a recount or caveat.
 - All the code is repo-local edge code beside the recurring template: the
   `Report` dataclass, `build_report`, `render`, and `main` in
   `coga/recurring/usage-report/report.py`, and its shim
@@ -60,7 +66,9 @@ including the case with no user.
   rollup in `build_report`.
 - `render` needs the user. Pass it in explicitly, either as a `Report` field
   set by `main`/the shim from `cfg.current_user` or as an argument. Keep
-  `render` pure so tests stay config-free.
+  `render` pure so tests stay config-free. The header names
+  `cfg.current_user`, the person running the job, not the ticket owner. The
+  shim's Slack ping (`ticket.owner or cfg.current_user`) is unchanged.
 - Slack routing (`post(cfg, text, important=True, fatal=False)` in the shim)
   is out of scope. Keep it as it is.
 - Update `coga/workflows/usage-report/post.md` (its `## post` prose lists
@@ -69,9 +77,23 @@ including the case with no user.
   has "no per-person attribution". Reword that line: the header names the
   configured user, but records are still not attributed per person. Both are
   repo-local files with no packaged twin.
-- Existing tests pin the old headline (e.g.
-  `test_main_renders_without_a_local_user` asserts
-  `"10 tokens across 1 session"`). Expect to update them.
+- Many existing tests in `tests/test_usage_report.py` pin the old header or
+  headline. Expect to update all of them, not just one. As of this writing
+  they include `test_render_keeps_every_model_bucket_and_states_the_floor`,
+  `test_render_omits_the_floor_caveat_when_every_session_is_counted`,
+  `test_render_names_a_window_that_is_not_a_calendar_week`,
+  `test_empty_window_still_renders_and_says_so`,
+  `test_main_prints_the_window_and_writes_nothing`,
+  `test_main_json_carries_the_report_fields`, and
+  `test_main_renders_without_a_local_user` (which asserts
+  `"10 tokens across 1 session"`).
+- Two period-task tests need extra care:
+  `test_period_task_posts_with_project_and_owner_before_bumping` and
+  `test_period_task_renders_last_week_from_the_template_and_closes_its_step`.
+  Each builds `expected` with `report.render(report.build_report(...))` and
+  no user, but the shim now renders with `cfg.current_user` (e.g. `"marc"`).
+  Pass that user when building `expected`, or the
+  `stderr.count(expected)` check fails.
 
 Previous ref: `usage-report-name-the-human-split-per-agent-show-c` (renamed 2026-10-27); earlier audit lines retain that ref.
 
