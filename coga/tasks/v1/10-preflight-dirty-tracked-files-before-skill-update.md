@@ -215,3 +215,7 @@ Previous ref: `preflight-dirty-tracked-files-before-skill-update` (renamed 2026-
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-10-preflight-dirty-skill-update
