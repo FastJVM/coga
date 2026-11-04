@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ecd8a384-8729-45c4-874d-00a7e49caf31
 ---
 
 ## Description
@@ -236,64 +235,112 @@ No independent review yet; the workflow's later steps own review and PR.
 
 ## Peer review (2026-11-04)
 
-Codex review is blocked at the manual checkout entry gate; it has not
-completed. No checkout preparation was supplied. The primary checkout is on
-`main` at `9443cc806756d0bbd6e0230d1cc586782262633f`, matching fetched
-`origin/main`, with the pre-existing human `pyproject.toml` edit setting
-`tmp_path_retention_policy = "failed"` as its only entry dirt.
-`coga/checkouts/manual` requires a clean checkout and explicitly forbids
-working around dirty files with a stash, switch, or alternate worktree.
-The edit was left untouched.
+Independent Codex direct review **completed**, with no must-fix findings and
+no code changes. Covered head `29dc632c51dcb6c862d19b7342344fc24f99bc6c`
+against base `e5e370fcc932b6202711dc58514f2ed0d9889273`. The implementation
+was authored by Claude Code, evidenced by the implement handoff and the
+original commit's Claude Opus 5.5 co-author trailer; this was an independent
+review in the resumed Codex session.
 
-The recorded branch `fail-sweep-on-local-enumeration` is present locally and
-on origin at `a65a8e686aa7b3b141ce26e0f2524400900ad4af`, one implementation
-commit ahead of main. GitHub reports no PR for that head branch. No rebase,
-code review, or test run was performed in this session; the preparation below
-remains the implement step's record, not a completed peer-review receipt.
+Reviewed all four diff paths and their callers: a failed or malformed local
+listing returns before remote enumeration or any branch/worktree deletion;
+the named failure reaches the report and recipe exit 2; a successful empty
+listing remains valid. The combined listing avoids the old per-branch
+rev-parse race. Both documentation copies match. This change has plain-text
+reporting only, so no raw-terminal, pager, or rendered Slack walkthrough was
+applicable.
 
-Next action: resolve the unrelated `pyproject.toml` edit so the checkout is
-clean, then resume peer-review for the required rebase, direct review,
-full-suite verification, and refreshed PR preparation. The historical full
-suite receipt below reports a teardown error despite `status: passed`; treat
-that run as failed when refreshing the preparation.
+The human explicitly resolved the earlier checkout blocker, and `coga
+unblock` recorded that resolution before review work. The pyproject setting
+landed in `088c01908`; main's `5e07fbcfe` fixes the scandir teardown
+interaction. The old implement full-suite receipt (4345 passed, 10 skipped,
+one teardown error) was a failed run, despite its old label; it is superseded
+by this session's clean full run: **4456 passed, 10 skipped** on Python 3.12.12.
+Exact commands and revision receipts are in `## PR` below.
+
+The recorded branch was rebased onto fetched main without conflicts and
+pushed with an explicit lease. Its final head is `29dc632c51dcb6c862d19b7342344fc24f99bc6c`.
+Main later advanced through unrelated task/log state only; the shared
+publication freshness probe accepted that non-overlapping drift at
+`9a716d24df5465a3569ad26b46b85e7551e5445e`. No tested or reviewed code
+changed afterward. The checkout was returned clean to current main before
+writing this handoff. Next step: the mechanical PR-opening step.
 
 ## PR
 
 ```yaml
 title: Stop the branch sweep when local branch enumeration fails
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
-head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
-base: 6ea506da11155179f63b8845108b950e887adae6
+author_evidence: The implement handoff identifies Claude Code (claude-opus-5-5); original commit a65a8e686
+  carries a Claude Opus 5.5 co-author trailer. Codex rebased and independently reviewed the implementation
+  without changing code.
+head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+base: e5e370fcc932b6202711dc58514f2ed0d9889273
 depth: skim
-rationale: Bounded fail-closed change in one sweep helper; read the description for the single-listing parse choice.
-implementation: _local_branches lists tip and name in one for-each-ref; a non-zero exit or unparseable entry sets local_unavailable, which stops sweep_branches before the remote listing, reports "the sweep stopped early", and makes the recipe exit 2.
-deviations: Replaced per-branch rev-parse with %(objectname) in the listing, as the ticket suggested; the "empty rev-parse" case is now an unparseable-entry case.
-limitations: Unrelated local pyproject.toml tweak in the primary checkout causes a teardown error in one test_validate test; not part of this diff.
+rationale: Bounded failure-handling change with completed independent review and a green full suite. Read
+  the description for the combined name/tip listing that replaces per-branch lookups.
+implementation: Read local branch names and tips in one for-each-ref. A non-zero exit or malformed entry
+  sets local_unavailable and stops the sweep before remote enumeration or deletion. The report says "the
+  sweep stopped early" and the recipe exits 2; an empty successful listing remains valid.
+deviations: Uses the combined objectname/refname listing suggested by the ticket, eliminating the per-branch
+  rev-parse race. An entry missing its tip or name is the replacement failure case.
+limitations: Verified on Linux with Python 3.12.12; Python 3.11 and Windows were not exercised. The separate
+  known non-UTF-8 ref decoding issue remains out of scope.
 files:
-  src/coga/branchsweep.py: Detect local enumeration failure, record local_unavailable, stop the sweep before any delete, and report it as stopped early.
-  tests/test_branchsweep.py: Regression tests for a failed listing and an unresolvable entry, plus the recipe exit-2/report case.
-  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: State that the sweep stops before deleting when local state cannot be established.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Byte-identical packaged twin of the topic.
+  src/coga/branchsweep.py: Record local enumeration failure, stop before the remote listing and deletion
+    loop, and expose the failure through the result and report.
+  tests/test_branchsweep.py: Prove failed and malformed listings preserve refs, and cover recipe exit
+    2 with the stopped-early report.
+  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Keep the surviving local topic identical
+    to its package owner and document the stop-before-delete rule.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Update
+    the packaged contract for failures to establish local state and legitimate empty listings.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; code review belongs to a later workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: Independent Codex direct review completed after rebase with no must-fix findings and no code
+    changes. Reviewed every diff path, local/remote deletion gates, caller compatibility, empty and malformed
+    listings, recipe failure reporting, and the documentation contract.
 checks:
-  - command: .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py tests/test_retire_worklist.py -q
-    status: passed
-    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
-    base: 6ea506da11155179f63b8845108b950e887adae6
-    detail: 234 passed (run on the working tree identical to the committed tree).
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
-    base: 6ea506da11155179f63b8845108b950e887adae6
-    detail: 4345 passed, 10 skipped, 1 teardown error in test_validate_prunes_skill_dependencies_before_scanning caused by the uncommitted local pyproject tmp_path_retention_policy edit; that test passes with -o tmp_path_retention_policy=all.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-v108-review-br8nho/pytest
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: 4456 passed, 10 skipped in 665.13 seconds on Linux/Python 3.12.12. Includes branch-sweep, packaging,
+    retire/disposal, and the formerly failing validate teardown test with the committed tmp_path_retention_policy
+    setting.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /home/n/Code/coga-v108-review-br8nho/enumeration_smoke.py
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: Passed two real-Git cases (unborn repository; nested branch with a same-name tag) and four injected
+    cases (silent failure; partial failed output; missing tip; missing name). All failure cases stopped
+    before remote enumeration and deletion and rendered the stopped-early report. The initial harness
+    attempt stopped at config validation; unsetting the inherited undeclared webhook variable resolved
+    that setup issue.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: Passed; no whitespace errors in the feature diff.
+- command: cmp docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: Passed; the local topic and packaged owner are byte-identical.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -c 'from coga.github_preflight import check_branch_contains_control;
+    result = check_branch_contains_control("origin", "main", cwd="/home/n/Code/coga", coga_root="/home/n/Code/coga/coga",
+    head="refs/heads/fail-sweep-on-local-enumeration"); print(result); assert result.ok, result.detail'
+  status: passed
+  head: 29dc632c51dcb6c862d19b7342344fc24f99bc6c
+  base: e5e370fcc932b6202711dc58514f2ed0d9889273
+  detail: 'Passed with state-only-drift: origin/main advanced to 9a716d24df5465a3569ad26b46b85e7551e5445e
+    only through non-overlapping Coga task/log state. No source, documentation, config, or overlapping
+    change; the reviewed head and merge base are unchanged.'
 ```
-
----
 
 ## Blockers
 
