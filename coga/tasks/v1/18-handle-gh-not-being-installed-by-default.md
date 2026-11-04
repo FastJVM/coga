@@ -1,6 +1,6 @@
 ---
 title: Handle gh not being installed by default
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: code/design-then-implement
@@ -36,6 +36,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:d8afc6fd-c745-4507-9b89-b5777526a29e
 ---
 
 ## Description
