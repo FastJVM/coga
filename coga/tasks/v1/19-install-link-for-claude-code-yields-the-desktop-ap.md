@@ -1,8 +1,30 @@
 ---
 title: Install link for Claude Code yields the desktop app not the CLI
-status: draft
+status: active
 owner: zach
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -16,6 +38,9 @@ fresh Mac is told to run so the user ends up with the CLI.
 
 Done when: a user on a fresh Mac who follows the install path ends up with a
 working, authenticated `claude` CLI.
+
+Closed 2026-11-04 without that fix. The reason is on the blackboard under
+`## Production notes`.
 
 ## Context
 
@@ -128,12 +153,32 @@ Previous ref: `marketing/fix-installer/install-link-for-claude-code-yields-the-d
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Documentation coordination — 2026-10-29
+## Production notes
+
+### Closed without the fix — 2026-11-04
+
+Zach's call: coga targets people who already use agentic coding tools. Users
+who need to be led through installing `claude` or `codex` are not an audience
+we serve, so coga does not own getting the CLI onto a fresh machine. The
+`https://claude.com/claude-code` link in `src/coga/dependencies.py` and the
+`installer_argv` brew/npm fallback in `src/coga/agent_cli_setup.py` are left
+as they are.
+
+Consequences to carry forward:
+
+- Finding 16 on `test-and-fix-install-on-macos-and-windows` — whether coga may
+  point at `https://claude.ai/install.sh` against the no-`curl | sh` policy —
+  is not ruled on, and no longer blocks anything.
+- Finding 15 on that ticket is closed by this decision, not by a change.
+- The same gap on Codex (manifest offers only brew and npm) is accepted.
+
+### Documentation coordination — 2026-10-29
 
 The documentation acceptance pass, `v1/33-review-all-doc`, pushed candidate
 `bd72b19d2a13972005285252b53df7504350bbc7` on `codex/v1-33-doc-acceptance`.
 README and coga/install now link the vendor's CLI quickstart and name the login
 command. This is not merged yet. `src/coga/dependencies.py` still points to
 `https://claude.com/claude-code`, and the install helper still needs brew/npm.
-Those product fixes and the fresh authenticated-Mac success criterion remain
-owned here; the documentation change is not a completion receipt.
+Those product fixes were owned here until the 2026-11-04 decision above
+dropped them; the documentation change was never a completion receipt for
+them.
