@@ -1,6 +1,6 @@
 ---
 title: Fix coga git sync failures that leave main diverged from origin
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/state-publication
@@ -39,6 +39,7 @@ workflow:
     assignee: owner
 step: 2 (evaluate-design)
 agent: claude
+launch_generation: pending:9b8de330-3cff-4db5-89d7-ba58325846f2
 ---
 
 ## Description
