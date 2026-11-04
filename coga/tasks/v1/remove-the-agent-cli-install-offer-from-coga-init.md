@@ -28,11 +28,86 @@ step: 1 (implement)
 
 ## Description
 
-coga init offers to install an agent CLI the user does not have. `_offer_agent_cli` in `src/coga/commands/init.py:581` prompts for Claude or Codex and calls `agent_cli_setup.offer_agent_cli` to run the vendor installer; `_do_init` calls it at `init.py:1174` and `init.py:1359`. Remove that offer from init.
+`coga init` offers to install an agent CLI the user does not have. Remove that
+offer.
 
-Done when: no `coga init` path offers to install an agent CLI, and `python -m pytest` passes.
+`init._offer_agent_cli` scans `PATH` for `claude` and `codex` and branches
+three ways. Only the found-nothing branch goes away: the one that prints "No
+agent CLI is installed" and prompts "Install which agent CLI?", then calls
+`agent_cli_setup.offer_agent_cli` to run the vendor installer.
+
+Keep the scan and the other two branches. With exactly one agent CLI on
+`PATH`, init still asks to make it the `default_agent` in `coga.toml`. With
+both, it still says nothing.
+
+Done when: no `coga init` path offers to install an agent CLI or says where to
+get one, init still offers an already-installed CLI as the default agent, and
+`python -m pytest` passes.
+
+### The two call sites are not the same
+
+- `_setup_initialized_clone` (the clone path, near line 1174) passes `None`
+  and discards the return, so the install offer is the call's only effect.
+  Delete the call.
+- `_do_init` (fresh init, near line 1359) feeds the return into the
+  `default_agent` written to `coga.toml`. Keep it.
+
+`launch.offer_agent_cli` stays. It fires only for the `coga build` onboarding
+task, and this reversal is init-only, so the shared function keeps a caller.
+
+### Stale text and tests this breaks
+
+- `agent_cli_setup`'s module docstring says it is shared by interactive `coga
+  init` and `coga build`; only `coga build` is left.
+- `init._offer_optional_tools`'s docstring says agent CLIs are not warned
+  about there because `_offer_agent_cli` offers them.
+- `conftest._stub_init_dep_check` stubs `_offer_agent_cli` by string with
+  `raising=False`, so renaming the function creates a dead attribute instead
+  of failing, and the real one then runs in every init test.
+- Eight tests in `tests/test_init.py` exercise the picker. The four
+  install-path ones go; the four covering the scan and the default stay,
+  including `test_agent_offer_proposes_the_only_installed_cli_as_default`.
+
+### Init says nothing about where to install
+
+Init names no install location at all. `_do_init`'s next-steps item 2
+currently carries both manifest URLs and prints unconditionally; drop the URLs
+and use the scan result, so a user with no agent CLI reads one statement of
+fact — coga drives Claude Code (`claude`) or Codex (`codex`), neither is on
+`PATH`, and launching agents needs one.
+
+Say it once, in next steps. The scan's found-nothing branch prints nothing
+where the prompt used to be.
+
+Out of scope: `agent_cli_missing_message` still prints the manifest install
+URL for `coga launch`'s point-of-need error, and the `install` field stays in
+the manifest for it. A later ticket builds the supported-agents list from this
+same scan and may put an install path there.
 
 ## Context
+
+### Why
+
+- Nico's direction, 2026-11-04: coga's users already run agentic coding tools,
+  so someone with no agent CLI installed is not the audience init should be
+  built around.
+- The offer dead-ends on a fresh Mac. With neither brew nor npm available,
+  picking `claude` prints "Install it from <url>, then re-run" and init then
+  runs to completion anyway, so the advice is wrong as given.
+- `v1/19-install-link-for-claude-code-yields-the-desktop-ap` closed
+  2026-11-04 without fixing the related dead end where the linked installer
+  yields the desktop app instead of the `claude` CLI.
+- `agent_cli_setup`'s stated policy is that the installer is the vendor's
+  package, never `curl | sh`, so there is no third fallback to reach for.
+
+### This lands before ticket 20
+
+`v1/20-ask-which-agents-to-enable-during-coga-init` rewrites the same function
+into a picker that asks which agents to enable. It is parked at owner
+`review-design` and unstarted; this ticket lands first and ticket 20 builds on
+what remains. Its blackboard carries the 2026-11-04 reversal and has already
+dropped the install offer from two acceptance criteria and a 2026-10-27 design
+decision.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
