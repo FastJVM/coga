@@ -1,8 +1,30 @@
 ---
 title: Fail the branch sweep when local branch enumeration fails
-status: draft
+status: blocked
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 2 (peer-review)
+agent: claude
 ---
 
 ## Description
@@ -104,10 +126,12 @@ ordinary ticket.
 - Model to copy: `branchsweep._worktree_branches`. On a non-zero exit it sets
   `result.worktree_unavailable` to stderr/stdout (or a fallback string), notes
   "... — sweep skipped: <detail>" via `_note`, and `sweep_branches` returns
-  before any delete. `_remote_branches` does the same with
-  `remote_unavailable`, but that one only skips the remote half (a "partial
-  sweep"); a local enumeration failure must stop the whole sweep, because no
-  per-branch decision is safe without local state.
+  before any delete. Unlike `_remote_branches` (a partial sweep), a local
+  enumeration failure stops the whole sweep: no per-branch decision is safe
+  without local state. `_local_branches` will need `result` and `echo`
+  parameters for this.
+- A successful but empty `for-each-ref` (no branches, unborn HEAD) is
+  legitimate and is not a failure.
 - Failure plumbing to extend: `BranchSweepResult` (add a field such as
   `local_unavailable`), its `failure` property, and `render_sweep_report`,
   which labels `worktree_unavailable` / `state_root_unavailable` as "the sweep
@@ -115,10 +139,16 @@ ordinary ticket.
 - Required too: `_local_branches` silently drops a listed branch whose
   `_rev_parse` comes back empty. That branch then looks remote-only, which is
   the same unsafe outcome, so treat it as the same enumeration failure.
-- Placement: the early return in `sweep_branches` must come before
-  `_remote_branches` is consulted, or at least before the per-branch loop.
-  Both `failure` and the "stopped early" condition in `render_sweep_report`
-  need the new field.
+  Consider `--format=%(refname:strip=2) %(objectname)` instead: it removes the
+  per-branch `rev-parse` and its empty case, and avoids failing the run when a
+  branch is deleted between the two calls.
+- Placement: the early return in `sweep_branches` goes before `_remote_branches`
+  is called. Then no `ls-remote` call is wasted, and `remote_unavailable`
+  cannot be reported ahead of the local failure. Add the new field to
+  `failure` and to the "stopped early" condition in `render_sweep_report`.
+- `checkout_disposal` also calls `sweep_branches(only=...)` and ignores
+  `result.failure`. A local failure there only leaves owned branches in place,
+  which is acceptable and needs no change.
 
 ### Tests
 
@@ -126,12 +156,11 @@ ordinary ticket.
 `test_worktree_prune_failure_stops_sweep`: monkeypatch `bs._git` so that
 `for-each-ref` returns a non-zero `CompletedProcess` while other calls pass
 through to the real `_git`. The fake must accept `**kwargs`, because `_git`
-takes `input=`; the model test's `fail_prune(root, *args)` does not. then assert the new failure field is set and `local_deleted` and
-`remote_deleted` are both empty. Ideally, set up a remote-only branch that
-would otherwise be deleted (the file's existing helpers such as
-`_merged_at_tip` / `_push_branch` set that up), so the test shows the delete
-is refused. Add the
-new field to the parametrized
+takes `input=`; the model test's `fail_prune(root, *args)` does not. Then
+assert the new failure field is set and `local_deleted` and `remote_deleted`
+are both empty. Ideally, set up a remote-only branch that would otherwise be
+deleted (with helpers such as `_merged_at_tip` / `_push_branch`), so the test
+shows the delete is refused. Add the new field to the parametrized
 `test_recipe_records_a_failed_sweep_on_the_blackboard` cases ("the sweep
 stopped early", exit 2).
 
@@ -147,18 +176,15 @@ this, and the user topic and its twin must state the rule.
 
 The rule is in `coga/checkout-cleanup/branch-sweep`
 (`docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md`; cited here, not
-attached because this ticket edits it). It currently covers only per-branch
-failures (archive read, fetch, or tag push), which keep that branch and exit 2
-after checking the others. It does not mention whole-sweep stops. Add a short
+attached because this ticket edits it). It covers only per-branch failures
+today. Add a short
 statement that the sweep stops before any delete, records the reason in
 `## Branch Sweep`, and exits 2 when it cannot establish local state: local
 branch enumeration (new), worktree probe, or Coga root prefix. Keep this
 separate from the per-branch paragraph. The packaged twin
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md`
-must stay byte-identical (`tests/test_packaging.py`). The topic's old "Known
-gap" note was already removed when this ticket was split out.
-`coga-dev/internals/branch-sweep` does not describe the failure fields, so it
-needs no change.
+must stay byte-identical (`tests/test_packaging.py`).
+`coga-dev/internals/branch-sweep` needs no change.
 
 ### Out of scope
 
@@ -166,8 +192,108 @@ The non-UTF-8 decode failure in `branchsweep._git` (the "Known failure mode"
 in `coga-dev/internals/branch-sweep`) is a separate, unowned bug. Do not fix
 it here.
 
-Previous ref: `fail-the-branch-sweep-when-local-branch-enumeratio` (renamed 2026-10-27); earlier audit lines retain that ref.
-
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fail-sweep-on-local-enumeration
+
+## Implement handoff (2026-11-04)
+
+What changed (commit a65a8e686, pushed):
+- `branchsweep._local_branches(root, result, echo)` now lists name and tip in
+  one `for-each-ref --format=%(objectname) %(refname:strip=2)` (no per-branch
+  `rev-parse`, no delete-between-calls race). A non-zero exit, or an entry it
+  cannot split into tip + name, sets new `BranchSweepResult.local_unavailable`
+  and notes "could not list local branches — sweep skipped: …". An empty
+  successful listing is still fine.
+- `sweep_branches` returns right after `_local_branches` on failure, before
+  `_remote_branches` (no `ls-remote`, no remote_unavailable masking).
+- `failure` includes `local_unavailable` (after state_root, before gh);
+  `render_sweep_report` labels it "the sweep stopped early"; recipe exits 2.
+- Docs: new paragraph in `coga/checkout-cleanup/branch-sweep` (+ byte-identical
+  packaged twin) stating the stop-before-delete rule for local enumeration,
+  worktree probe, and Coga root prefix.
+- Tests: `test_local_branch_listing_failure_stops_sweep` (merged "feat" that
+  would look remote-only stays on both sides), `test_unresolvable_local_branch_entry_stops_sweep`,
+  plus `local_unavailable` case in `test_recipe_records_a_failed_sweep_on_the_blackboard`.
+  Both new tests fail with the fix reverted.
+
+Decision: an unresolvable entry is detected as an unparseable line from the
+combined listing (the `rev-parse`-empty case no longer exists).
+
+Environment note (not this ticket): the primary checkout carries an
+uncommitted human edit to `pyproject.toml` (`tmp_path_retention_policy =
+"failed"`). It was left untouched and unstaged. With it,
+`tests/test_validate.py::test_validate_prunes_skill_dependencies_before_scanning`
+errors at teardown (pathlib TypeError); with `-o tmp_path_retention_policy=all`
+it passes. Whoever lands that pyproject tweak should fix that interaction.
+
+No independent review yet; the workflow's later steps own review and PR.
+
+## Peer review (2026-11-04)
+
+Codex review is blocked at the manual checkout entry gate; it has not
+completed. No checkout preparation was supplied. The primary checkout is on
+`main` at `9443cc806756d0bbd6e0230d1cc586782262633f`, matching fetched
+`origin/main`, with the pre-existing human `pyproject.toml` edit setting
+`tmp_path_retention_policy = "failed"` as its only entry dirt.
+`coga/checkouts/manual` requires a clean checkout and explicitly forbids
+working around dirty files with a stash, switch, or alternate worktree.
+The edit was left untouched.
+
+The recorded branch `fail-sweep-on-local-enumeration` is present locally and
+on origin at `a65a8e686aa7b3b141ce26e0f2524400900ad4af`, one implementation
+commit ahead of main. GitHub reports no PR for that head branch. No rebase,
+code review, or test run was performed in this session; the preparation below
+remains the implement step's record, not a completed peer-review receipt.
+
+Next action: resolve the unrelated `pyproject.toml` edit so the checkout is
+clean, then resume peer-review for the required rebase, direct review,
+full-suite verification, and refreshed PR preparation. The historical full
+suite receipt below reports a teardown error despite `status: passed`; treat
+that run as failed when refreshing the preparation.
+
+## PR
+
+```yaml
+title: Stop the branch sweep when local branch enumeration fails
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+base: 6ea506da11155179f63b8845108b950e887adae6
+depth: skim
+rationale: Bounded fail-closed change in one sweep helper; read the description for the single-listing parse choice.
+implementation: _local_branches lists tip and name in one for-each-ref; a non-zero exit or unparseable entry sets local_unavailable, which stops sweep_branches before the remote listing, reports "the sweep stopped early", and makes the recipe exit 2.
+deviations: Replaced per-branch rev-parse with %(objectname) in the listing, as the ticket suggested; the "empty rev-parse" case is now an unparseable-entry case.
+limitations: Unrelated local pyproject.toml tweak in the primary checkout causes a teardown error in one test_validate test; not part of this diff.
+files:
+  src/coga/branchsweep.py: Detect local enumeration failure, record local_unavailable, stop the sweep before any delete, and report it as stopped early.
+  tests/test_branchsweep.py: Regression tests for a failed listing and an unresolvable entry, plus the recipe exit-2/report case.
+  docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: State that the sweep stops before deleting when local state cannot be established.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Byte-identical packaged twin of the topic.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to a later workflow step.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py tests/test_retire_worklist.py -q
+    status: passed
+    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+    base: 6ea506da11155179f63b8845108b950e887adae6
+    detail: 234 passed (run on the working tree identical to the committed tree).
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: a65a8e686aa7b3b141ce26e0f2524400900ad4af
+    base: 6ea506da11155179f63b8845108b950e887adae6
+    detail: 4345 passed, 10 skipped, 1 teardown error in test_validate_prunes_skill_dependencies_before_scanning caused by the uncommitted local pyproject tmp_path_retention_policy edit; that test passes with -o tmp_path_retention_policy=all.
+```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-04 11:11] [agent:codex] id=20261104T111105 Resolve the pre-existing human pyproject.toml edit (tmp_path_retention_policy = "failed") so /home/n/Code/coga has a clean checkout, then resume peer-review. No checkout preparation was supplied; coga/checkouts/manual requires a clean main and forbids switching, stashing, or an alternate worktree around this dirt. The edit is preserved; review, rebase, and tests remain unperformed.

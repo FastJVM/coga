@@ -27,6 +27,7 @@ from coga.create import create_task
 from coga.megalaunch import (
     render_run_summary,
     run_megalaunch,
+    save_selection,
     trim_megalaunch_blackboard_text,
 )
 from coga.ticket import Ticket
@@ -164,6 +165,138 @@ def test_megalaunch_keeps_claim_and_admission_publications(
     assert git_repo.git("rev-parse", "HEAD").strip() == end
     git_module.sync_coga_state(cfg)
     assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == end
+
+
+def _peer_advances_control_behind_local(git_repo, cfg):  # type: ignore[no-untyped-def]
+    """Two published tickets; a peer moves both on control; local main lags.
+
+    `finished` goes `done` and `gated` reaches its owner-held step 2 on
+    control, while this checkout still holds both as `active` step 1.
+    """
+    from coga import git as git_module
+
+    created = {}
+    for name in ("finished", "gated"):
+        created[name] = create_task(
+            cfg=cfg, title=f"Peer {name}", workflow_name="code", contexts=[],
+            owner="marc", agent="claude", status="active",
+        )
+        git_module.sync_task_state(
+            cfg, Path(created[name]["path"]), message=f"Seed {name}"
+        )
+    peer_root = git_repo.root.parent / "peer-checkout"
+    git_repo.git("clone", str(git_repo.origin), str(peer_root), cwd=git_repo.root.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer_root)
+    git_repo.git("config", "user.name", "Peer", cwd=peer_root)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer_root)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
+    for name, edit in (
+        ("finished", lambda t: (t.frontmatter.update(status="done"), t.frontmatter.pop("step", None))),
+        ("gated", lambda t: (t.frontmatter.update(status="in_progress", step="2 (review)"), hold_by_owner(t))),
+    ):
+        rel = Path(created[name]["path"]).relative_to(git_repo.root)
+        peer_ticket = Ticket.read(peer_root / rel)
+        edit(peer_ticket)
+        peer_ticket.write(peer_root / rel)
+        git_repo.git("commit", "-am", f"Peer advances {name}", cwd=peer_root)
+    git_repo.git("push", "origin", "main", cwd=peer_root)
+    local_head = git_repo.git("rev-parse", "HEAD").strip()
+    assert local_head != git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    for name in created:
+        assert Ticket.read(created[name]["path"]).status == "active"
+    return created
+
+
+def _no_spawn(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch launched work control had already moved on")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", refuse)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.megalaunch.notification.post", lambda cfg, msg: None)
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+
+
+def test_megalaunch_pick_offers_control_state_not_stale_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    """The picker lists what control holds after a peer advanced it."""
+    from typer.testing import CliRunner
+
+    cfg = load_config(git_repo.coga_os)
+    created = _peer_advances_control_behind_local(git_repo, cfg)
+    _no_spawn(monkeypatch)
+    monkeypatch.setattr("coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True)
+    offered: list[tuple[str, str, str | None]] = []
+
+    def capture(candidates):  # type: ignore[no-untyped-def]
+        offered.extend((ref.id_slug, t.status, t.step) for ref, t in candidates)
+        return []
+
+    monkeypatch.setattr("coga.commands.megalaunch._pick_selection", capture)
+
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 0, result.output
+    assert offered == [(created["gated"]["slug"], "in_progress", "2 (review)")]
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "main", cwd=git_repo.origin
+    ).strip()
+
+
+@pytest.mark.parametrize("mode", ["sweep", "relaunch"])
+def test_megalaunch_queue_reflects_control_state_not_stale_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:  # type: ignore[no-untyped-def]
+    """Sweep and --relaunch queue from refreshed control, so nothing fails stale."""
+    from typer.testing import CliRunner
+    from coga import megalaunch as megalaunch_module
+
+    cfg = load_config(git_repo.coga_os)
+    created = _peer_advances_control_behind_local(git_repo, cfg)
+    _no_spawn(monkeypatch)
+    slugs = [created["finished"]["slug"], created["gated"]["slug"]]
+    if mode == "relaunch":
+        save_selection(cfg, slugs)
+    runs: list = []
+    real_run = megalaunch_module.run_megalaunch
+
+    def capture_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        runs.append(real_run(*args, **kwargs))
+        return runs[-1]
+
+    monkeypatch.setattr("coga.commands.megalaunch.run_megalaunch", capture_run)
+
+    argv = ["megalaunch"] + (["--relaunch"] if mode == "relaunch" else [])
+    result = CliRunner().invoke(app, argv)
+
+    assert result.exit_code == 0, result.output
+    outcomes = {r.slug: r.outcome for r in runs[0].results}
+    expected = {created["gated"]["slug"]: "skipped-human-gate"}
+    if mode == "relaunch":
+        expected[created["finished"]["slug"]] = "skipped-unlaunchable"
+    assert outcomes == expected
+    assert runs[0].counts["failed"] == 0
+
+
+def test_megalaunch_stops_when_refresh_cannot_level_control(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed refresh exits nonzero before any selection or ticket read."""
+    from typer.testing import CliRunner
+
+    monkeypatch.setattr("coga.commands.megalaunch.git.refresh", lambda cfg: False)
+
+    def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch read the stale checkout")
+
+    monkeypatch.setattr("coga.commands.megalaunch._resolve_selection", unreachable)
+    monkeypatch.setattr("coga.commands.megalaunch.run_megalaunch", unreachable)
+
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 1
+    assert "nothing was picked or launched" in result.output
 
 
 def test_megalaunch_runs_active_agent_task(

@@ -94,7 +94,9 @@ The local-only Coga-dev topics and maintainer skills cover implementation:
 - [Testing](contexts/coga-dev/testing/SKILL.md) and the clean-install skills
   ([Linux](../coga/skills/coga/testing/clean-install/SKILL.md),
   [macOS on AWS](../coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
-  [Windows on AWS](../coga/skills/coga/testing/clean-install/windows-aws/SKILL.md)),
+  [Windows on AWS](../coga/skills/coga/testing/clean-install/windows-aws/SKILL.md),
+  [attended human walk](../coga/skills/coga/testing/clean-install/human-walk/SKILL.md)
+  on a [fresh VM](../coga/skills/coga/testing/fresh-vm/SKILL.md)),
   [packaging](contexts/coga-dev/packaging/SKILL.md),
   [release skill](../coga/skills/coga/releasing/SKILL.md).
 - This repo's posture (dated, local to this repo):

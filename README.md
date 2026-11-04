@@ -1,14 +1,12 @@
 # Coga
 
-**Agents work in sessions. Humans make things. Coga helps you build better and go deeper.**
+**Build better. Go deeper. With your agents.**
 
 Claude Code and Codex can plan, investigate, and implement tasks. But a software project outlives any agent session. Assumptions change, and a discovery in one task can overturn the next. Important constraints get buried in conversations and working notes—even when those records are saved. Finding and re-explaining them to each new agent takes work.
 
-**Coga helps you keep a project moving without losing what you've learned along the way.** It's a local CLI for launching coding agents and tracking work around evolving project knowledge. Findings from temporary tickets can become durable contexts and skills, selected when later tasks need them. Plans, decisions, and constraints remain readable Markdown in Git, where humans and agents can inspect and correct them.
+**Coga keeps a project moving without losing what you've learned along the way.** It's a local CLI for launching coding agents and tracking work around evolving project knowledge. Findings from temporary tickets become durable contexts and skills, selected when later tasks need them. Plans, decisions, and constraints remain readable Markdown in Git, where humans and agents can inspect and correct them.
 
-**When the direction is stable, work can compound.** As project context and reusable skills mature, well-prepared tickets can run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
-
-**When the direction needs to change, humans steer.** An agent can expose a contradiction or propose a new plan, but Coga does not decide whether a product assumption is still worth pursuing. People make that judgment, change the plan and its durable context, and let subsequent tasks follow the new direction.
+**Work compounds.** As project context and reusable skills mature, tickets run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
 
 For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent’s prompt, using the current files. You choose the knowledge the task needs, with as much help from an agent as you want.
 
@@ -42,10 +40,11 @@ This keeps the plan *evolvable*, not automatically correct. Humans can inspect, 
 
 ## See the workflow
 
-In an existing Git repository, after installing Coga:
+In an existing Git repository, after installing Coga (replace `YOUR_NAME`
+with the name you want Coga to use for you):
 
 ```sh
-coga init --user <your-name>
+coga init --user YOUR_NAME
 coga ticket "Add a health-check endpoint"                 # discuss and draft a ticket
 coga show add-a-health-check-endpoint                    # inspect the ticket and history
 coga launch add-a-health-check-endpoint --prompt-report  # inspect the prompt layers
@@ -81,12 +80,23 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks).
 
 ## Get started
 
-Agent sessions run on Linux or macOS. You'll need Git and an authenticated [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) CLI to run agent sessions. Coga requires Python 3.11+, but the recommended `uv` installer can obtain a compatible Python for you.
+Agent sessions run on Linux or macOS. You'll need working Git and an installed,
+authenticated [Claude Code CLI](https://code.claude.com/docs/en/quickstart) or
+[Codex CLI](https://developers.openai.com/codex/cli/). Follow the chosen CLI's
+installation instructions, then run `claude` or `codex login` to sign in.
+Coga does not include either agent. Coga requires Python 3.11+, but the
+recommended `uv` installer can obtain a compatible Python for you.
+
+**Native Windows is not ready for a first task.** PyPI release 0.4.1
+does not run there. The development version runs deterministic commands but
+still refuses agent sessions; see the [launch platform boundary](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/launch/SKILL.md#phases-and-routing).
+WSL has not been verified as an alternative. The steps below are for macOS
+and Linux.
 
 On macOS, check that `git --version` works. If it prompts for developer
 tools, run `xcode-select --install`; Git installed another way works too.
-Full Xcode is not required. The [install guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/install/SKILL.md#macos-check-git-before-init)
-covers this and Windows support limits.
+Full Xcode is not required. On Linux, install Git with your distribution's
+package manager if `git --version` fails.
 
 If `uv` isn't installed yet, get it first (macOS/Linux):
 
@@ -100,11 +110,34 @@ Open a new terminal if `uv` isn't on your `PATH` after installation.
 ```sh
 uv tool install coga
 coga --version
-cd <your-git-repository>
-coga init --user <your-name>
 ```
 
-In an interactive terminal, init offers agent CLI installation and login when neither supported CLI is installed. It seeds the onboarding ticket only for an otherwise empty repo; a stock README, LICENSE or `.gitattributes` still counts as empty. Make sure your chosen agent CLI is signed in, then choose how to begin:
+For an existing project, change into its Git repository. For a new project,
+create the repository first:
+
+```sh
+mkdir myproject
+cd myproject
+git init -b main
+```
+
+Check `git var GIT_AUTHOR_IDENT` before init. If Git asks for an identity,
+set `git config user.name "Your Name"` and
+`git config user.email "you@example.com"` with your own details in this repo.
+Then run:
+
+```sh
+coga init --user YOUR_NAME
+```
+
+In a repo new to Coga, init commits the Coga files. In a clone that already
+uses Coga, it sets up your local identity and agent links without a commit
+([init details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/init/SKILL.md)).
+In an interactive terminal, it offers agent CLI installation and login when
+neither supported CLI is installed and a supported installer is available;
+an already-installed CLI still needs authentication. It seeds the onboarding
+ticket only for an otherwise empty repo; a short starter README, LICENSE or
+`.gitattributes` still counts as empty. Choose how to begin:
 
 ```sh
 # New, otherwise empty Git repo: discuss the idea and draft a first plan
@@ -117,7 +150,23 @@ coga chat
 coga status
 ```
 
-You can edit any ticket directly in Markdown or run `coga ticket <slug>` to refine it with an agent. For a walkthrough from a draft to a reviewed PR, see [Your first task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md).
+To use Codex explicitly, run `coga build --agent codex`,
+`coga chat --agent codex`, or `coga ticket "Your task title" --agent codex`.
+In the shipped setup, chat and ticket interviews default to Claude even when
+new tasks use Codex.
+You can also edit any ticket directly in Markdown.
+
+For a walkthrough to a reviewed PR, follow [Your first task](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/first-task/SKILL.md).
+That PR path needs a GitHub remote you can push to and [GitHub CLI](https://cli.github.com/)
+authentication (`gh auth login`). The guide explains the choice between a
+peer review using both agent CLIs and a workflow using one agent.
+GitHub CLI is optional for init and work that does not use GitHub;
+[1Password CLI](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/secrets/SKILL.md)
+is needed only for tickets that declare `op://` secrets.
+
+Upgrade with `uv tool upgrade coga`. To remove Coga from a repo, run
+`coga uninstall`; the [uninstall guide](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/uninstall/SKILL.md)
+explains what it removes and how to remove the global package too.
 
 ## What lives in your repo?
 

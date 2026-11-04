@@ -21,9 +21,9 @@ Specific rules — not just generic statements.
 ## Success Criteria
 Measurable outcomes for evaluation.
 
-## Reference Samples
+## Reference Recipes
 Recipes to study in Phase 1, from the topic index (`/google-agents-cli-adk-code` →
-`references/samples.md`). List every one that looks relevant — several is normal and better than
+`references/recipes.md`). List every one that looks relevant — several is normal and better than
 guessing at one.
 - `core/python/<recipe>` — <what you expect to take from it>
 ```

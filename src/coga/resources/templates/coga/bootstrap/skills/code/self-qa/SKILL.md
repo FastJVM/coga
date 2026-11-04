@@ -76,8 +76,8 @@ this step just makes sure the diff they see is already clean.
    findings — leave those for the human reviewer to call out if they
    care. Must-fix and should-fix items are in scope.
 5. **Re-run tests.** `python -m pytest` (and `coga validate --json`
-   against the example fixture if validation behavior may have
-   changed). If anything regressed, fix it before bumping.
+   against the repo's seeded fixture, named in its agent instruction
+   file, if validation behavior may have changed). If anything regressed, fix it before bumping.
 6. **Commit and push.** One commit summarizing the QA pass — e.g.
    `self-qa: apply /code-review and /simplify findings`. If `/simplify`
    already committed on its own, leave its commits as-is and add one more

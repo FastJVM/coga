@@ -1,8 +1,29 @@
 ---
 title: Position op as optional
-status: draft
+status: done
 owner: zach
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+agent: claude
 ---
 
 ## Description
@@ -165,7 +186,68 @@ Previous ref: `marketing/fix-installer/position-op-as-optional` (renamed 2026-10
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Evaluator review
+## Dev
+
+branch: coga/v1-25-op-not-offered-at-init
+pr: https://github.com/FastJVM/coga/pull/1162
+
+## Production notes
+
+Landed in PR #1162, authored directly in the ticket session at the owner's
+direction rather than through the `code/with-review` workflow.
+
+### What shipped
+
+- `op` carries `offer_install=None` and no `packages`, which removes it from
+  `init._offer_install` and from the `_offer_optional_tools` warning list.
+- `init._note_missing_op` prints one note when `op` is not on PATH, in
+  interactive mode and not. It runs after the "Optional tools not on PATH"
+  block, so the note sits outside that heading, and it sources its text from
+  the manifest `purpose` so the two cannot drift:
+
+  ```
+  `op` (1Password CLI) is not on PATH, and init does not install it:
+    needed only when a ticket declares an `op://vault/item/field` secret, which coga resolves live with `op read` at launch (run `op signin`).
+    Install it from https://developer.1password.com/docs/cli/get-started/ only if you need it.
+  ```
+
+- `docs/contexts/coga/install/SKILL.md` and its packaged twin describe the new
+  behaviour; the twin stayed byte-identical.
+
+### Decisions closed
+
+- `packages` removed rather than kept: `_offer_install` returns on
+  `offer_install is None` before reading them, so brew/winget entries would be
+  unreachable install data inviting reuse.
+- The note keeps the install URL and prints in both modes.
+- The install topic's prerequisites list already read correctly, so only the
+  install-offer paragraph changed.
+
+### Verification
+
+`tests/test_init.py` 149 passed and `tests/test_packaging.py` 31 passed
+locally; those are the only test files that reference the changed symbols. The
+full local suite was started and killed before it finished, so CI on PR #1162
+is the full-suite gate.
+
+New and changed tests: `test_dep_check_never_offers_to_install_op`
+parametrized over darwin, win32 and linux; the warning-list test asserts
+`"op: install from"` is absent and the note present;
+`test_init_offers_optional_tools_once_preflight_passes` expects
+`offers == ["gh"]`. Removed `test_dep_check_skips_op_offer_without_a_package`
+and the dead `"1password-cli": "op"` mapping in the `_interactive` fake.
+
+### Open follow-on
+
+`v1/18-handle-gh-not-being-installed-by-default` (draft) still cites `op` as
+`offer_install=False` at `dependencies.py:99` and says to "settle them
+together". Both are stale. Its implementer rebases onto this and keeps the
+`op` note and `_note_missing_op` intact. Not edited from this session.
+
+### Draft-authoring evaluator review (2026-11-03)
+
+Kept for the record. Its code citations describe `main` before PR #1162, so
+the line numbers and the `offer_install=False` claims are historical.
 
 **Code claims: all correct.** `op` has `offer_install=False` (dependencies.py ~:99); `_offer_install` (init.py:485) only skips on `offer_install is None` or a missing package, so brew/winget still get the "Will run: brew install --cask 1password-cli … [y/N]" prompt. `_offer_optional_tools` (init.py:433) filters `offer_install is not None`, so `None` silently drops `op` from output — exactly the trap the ticket warns about. Docstring does name `op` as offered. Install SKILL.md and its packaged twin are byte-identical and lines 31/35–41 match the ticket's description. README has no `op` mention.
 

@@ -14,8 +14,9 @@ Script-backed recurring task. `coga launch` runs the period task's reserved
 `ticket.py`, which scans blocked tasks and paused recurring periods with open asks,
 posts owner reminders for unresolved blockers without a matching
 `## Blocker reminders` watermark, and records that watermark on the task.
-The scan leaves lifecycle state untouched; eligibility and recovery commands
-are owned by [coga/notifications/producers](context:coga/notifications/producers).
+The scan leaves lifecycle state untouched; eligibility, recovery guidance
+and the one-attempt watermark are owned by the
+[blocker-reminders template](https://github.com/FastJVM/coga/blob/main/coga/recurring/blocker-reminders/ticket.md).
 
 ## No other-agent code review
 

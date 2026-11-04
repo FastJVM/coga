@@ -56,6 +56,9 @@ Issues = "https://github.com/FastJVM/coga/issues"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+# Keep tmp_path dirs only for failed tests: each test builds a full fake
+# home/repo, and passing runs otherwise exhaust /tmp inodes.
+tmp_path_retention_policy = "failed"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/coga", "src/coga_edge"]
