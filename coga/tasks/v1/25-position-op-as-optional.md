@@ -1,6 +1,6 @@
 ---
 title: Position op as optional
-status: active
+status: done
 owner: zach
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 agent: claude
 ---
 
