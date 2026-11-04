@@ -1,6 +1,6 @@
 ---
 title: Publish the argument for Coga as a human instrument
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: draft-for-human
