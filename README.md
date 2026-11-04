@@ -6,7 +6,9 @@ Claude Code and Codex can plan, investigate, and implement tasks. But a software
 
 **Coga helps you keep a project moving without losing what you've learned along the way.** It's a local CLI for launching coding agents and tracking work around evolving project knowledge. Findings from temporary tickets can become durable contexts and skills, selected when later tasks need them. Plans, decisions, and constraints remain readable Markdown in Git, where humans and agents can inspect and correct them.
 
-You can correct a constraint an agent missed, replace a disproven assumption, or retire instructions that no longer fit. The goal is not to load every past conversation into every prompt, but to carry forward the knowledge relevant to the work at hand.
+**When the direction is stable, work can compound.** As project context and reusable skills mature, well-prepared tickets can run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
+
+**When the direction needs to change, humans steer.** An agent can expose a contradiction or propose a new plan, but Coga does not decide whether a product assumption is still worth pursuing. People make that judgment, change the plan and its durable context, and let subsequent tasks follow the new direction.
 
 For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent’s prompt, using the current files. You choose the knowledge the task needs, with as much help from an agent as you want.
 
@@ -61,8 +63,8 @@ You keep using Claude Code or Codex to plan, investigate, and build. Coga gives 
 - **Understand and shape the plan.** Let the agent propose an approach, then read and refine what it intends to build. Add missing constraints, question assumptions, and decide what success means. The same edited plan helps you judge the work and gives the agent direction.
 - **Manage context rot with readable handoffs.** At each step, the agent records useful findings, decisions, and open questions. The next session starts fresh from the current ticket, notes, and selected knowledge. You can inspect, correct, and share what carries forward.
 - **Choose knowledge and skills for the task.** Select the facts, constraints, and procedures to include at launch. Make important guidance available from the start, and keep irrelevant or outdated instructions out of the task's prompt.
-- **Change the plan as you learn.** Split a vague task, test an assumption first, cancel work, or change the next step after seeing new evidence.
-- **Let prepared tasks run with less steering.** A clear ticket plus relevant contexts and step skills gives an agent more of what it needs before it starts. Coga can continue across agent-assigned steps, including peer review, and stop at blockers or explicit human gates instead of asking you to restate project knowledge each session.
+- **Change course when the premise changes.** Split a vague task, test an assumption first, or cancel work when the original direction no longer makes sense. Agents can surface evidence; people decide what is worth pursuing.
+- **Let stable work run with less steering.** A clear ticket plus relevant contexts and step skills gives an agent more of what it needs before it starts. Coga can continue across agent-assigned steps, including peer review, and stop at blockers or explicit human gates rather than requiring you to restate project knowledge each session.
 - **Put reviews where they matter.** Work interactively, add human review gates, or delegate work to run unattended. Choose the points where you want to check the plan, findings, or implementation.
 - **Keep what you learn.** Record useful discoveries in project contexts and reusable methods in skills so later tasks can draw on them, even when a different agent does the work.
 
