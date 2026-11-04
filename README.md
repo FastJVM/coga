@@ -1,12 +1,14 @@
 # Coga
 
-** Coga makes you build better and go deeper with your agents.**
+**Build better. Go deeper. With your agents.**
 
 Claude Code and Codex can plan, investigate, and implement tasks. But a software project outlives any agent session. Assumptions change, and a discovery in one task can overturn the next. Important constraints get buried in conversations and working notes—even when those records are saved. Finding and re-explaining them to each new agent takes work.
 
 **Coga keeps a project moving without losing what you've learned along the way.** It's a local CLI for launching coding agents and tracking work around evolving project knowledge. Findings from temporary tickets become durable contexts and skills, selected when later tasks need them. Plans, decisions, and constraints remain readable Markdown in Git, where humans and agents can inspect and correct them.
 
 **Work compounds.** As project context and reusable skills mature, tickets run through agent steps and peer review with less human steering. The next task starts from better shared knowledge instead of rediscovering the same constraints.
+
+**Humans steer when direction changes.** Agents can surface evidence and propose alternatives, but you choose which goals are worth pursuing. Revise the plan and shared context, and subsequent tickets start from that new direction.
 
 For a specific task, `coga launch` brings its ticket, selected contexts, and current workflow step into your agent’s prompt, using the current files. You choose the knowledge the task needs, with as much help from an agent as you want.
 
