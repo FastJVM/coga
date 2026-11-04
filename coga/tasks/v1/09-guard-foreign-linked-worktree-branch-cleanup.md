@@ -212,6 +212,7 @@ Previous ref: `guard-foreign-linked-worktree-branch-cleanup` (renamed 2026-10-27
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/1161
 branch: fix/guard-foreign-worktree-branch-cleanup
 
 ## Handoff (implement)
