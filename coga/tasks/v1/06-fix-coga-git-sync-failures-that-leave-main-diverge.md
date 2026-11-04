@@ -1,6 +1,6 @@
 ---
 title: Fix coga git sync failures that leave main diverged from origin
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/state-publication
@@ -39,7 +39,6 @@ workflow:
     assignee: owner
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: a8b5269f-a0ec-43f9-bcf6-1f7facc92741
 ---
 
 ## Description
@@ -341,3 +340,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
    makes version-vs-failure attribution impossible. Keep it, or pin a built
    wheel? (It doesn't block this ticket; it affects how the final review-gate
    check is run.)
+
+---
+
+## Blockers
+
+- [ ] [2026-11-04 10:56] [agent:codex] id=20261104T105633 Resolve the pre-existing uncommitted pyproject.toml edit (tmp_path_retention_policy = "failed") in /home/n/Code/coga, then relaunch evaluate-design. The runtime supplied no checkout preparation, and coga/checkouts/manual requires clean main before ticket edits. The edit is preserved unchanged; no evaluator review, code change, branch, PR, or workflow bump was produced.
