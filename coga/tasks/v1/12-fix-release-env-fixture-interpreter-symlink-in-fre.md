@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 901a705d-dbc5-4b26-a5fb-4a747e3994f1
 ---
 
 ## Description
@@ -189,3 +188,68 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: coga/v1-12-release-env-interpreter
+
+## Implement handoff (claude, 2026-11-04)
+
+- `tests/test_clean_install_harness.py`: new helper `_tool_python(path, interpreter)`
+  writes `#!/bin/sh` + `exec <shlex-quoted interpreter> "$@"` instead of the bare
+  symlink; `release_env` uses it with `sys.executable`. Tool path, metadata
+  `PYTHONPATH`, argv, exit status and PTY forwarding are unchanged (exec).
+- Regression `test_tool_python_keeps_the_running_environment`: makes a
+  `--without-pip` venv under a path with a space, drops `coga_venv_marker.py`
+  into its purelib, and runs the wrapper importing it with an argv containing
+  a space. Venv-only module, so global PyYAML cannot mask a fallback.
+- `docs/contexts/coga-dev/testing/SKILL.md` "Test-writing rules": new bullet on
+  exec wrapper vs symlink for tool interpreters (local topic, no twin).
+- Reproduced first: fresh 3.11 venv on old code → release success test failed
+  with `ModuleNotFoundError: No module named 'yaml'`.
+- Old-behavior detection verified by temporarily restoring the symlink in
+  `_tool_python`: fresh 3.11 venv → regression + release success test fail;
+  repo `.venv` (3.12, base has PyYAML) → release test passes (masked) but the
+  regression test fails. Restored afterwards.
+- Note: the failure-path parametrizations "pass" under the old symlink too
+  (any nonzero exit counts), so only the success test and the new regression
+  catch it.
+- Bare base `python3.12` cannot run the suite (no `tomlkit`), so "pytest from a
+  base interpreter" was not exercised directly; the regression builds its own
+  venv, so it is independent of whether pytest runs from a venv.
+- Review not run yet; peer-review is the next step.
+
+## PR
+
+```yaml
+title: Keep the venv for the release_env tool interpreter
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5); see implement handoff.
+head: 62e4eb7da1b4aad813ae7befb2b59d74bc764fb0
+base: 48c00f79cba7ae3df028ea4a5166bcb6f4b6ab11
+depth: skim
+rationale: Test-only fixture fix plus a doc bullet; read the description for the wrapper choice and verification matrix.
+implementation: Replaces the release_env tool-interpreter symlink with a /bin/sh exec wrapper (shlex-quoted path) via a new _tool_python helper, adds a regression test importing a module present only in a throwaway venv, and documents the lesson in coga-dev/testing.
+deviations: None.
+limitations: Not exercised with pytest running from a bare base interpreter (base python3.12 lacks test deps); the regression creates its own venv so it does not depend on that. Native Windows still skips this module by design.
+files:
+  tests/test_clean_install_harness.py: Exec wrapper helper, release_env uses it, regression test for venv package visibility.
+  docs/contexts/coga-dev/testing/SKILL.md: Test-writing rule on exec wrappers versus symlinks for tool interpreters.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; peer-review step follows.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src <scratch>/v311/bin/python -m pytest -q -p no:cacheprovider tests/test_clean_install_harness.py
+    status: passed
+    head: 62e4eb7da1b4aad813ae7befb2b59d74bc764fb0
+    base: 48c00f79cba7ae3df028ea4a5166bcb6f4b6ab11
+    detail: 38 passed. Fresh python3.11 -m venv (3.11.15) with .[test]; base /home/n/.local/bin/python3.11 cannot import yaml.
+  - command: PYTHONPATH=/home/n/Code/coga/src <scratch>/v311/bin/python -m pytest -q -x -p no:cacheprovider --basetemp ~/.cache/coga-pytest/bt
+    status: passed
+    head: ca4a256953256095465e0affde38ef3f07d99838
+    base: da0ec17244cc6870c1ec5c9386449cb126376564
+    detail: 4454 passed, 10 skipped on the pre-rebase commit; rebase added only a coga/ ticket commit and non-coga trees are identical.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_clean_install_harness.py
+    status: passed
+    head: ca4a256953256095465e0affde38ef3f07d99838
+    base: da0ec17244cc6870c1ec5c9386449cb126376564
+    detail: 38 passed on Python 3.12 venv (uncommitted tree identical to that commit).
+```
