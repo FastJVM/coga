@@ -1,6 +1,6 @@
 ---
 title: Test and fix install on macOS and Windows
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: code/with-self-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 contexts:
 - coga/install
 agent: claude
@@ -115,6 +114,46 @@ Previous ref: `marketing/fix-installer/test-and-fix-install-on-macos-and-windows
 pr: https://github.com/FastJVM/coga/pull/1043
 branch: install-walk-findings
 
+## Closing verification — review, 2026-11-04
+
+Owner asked whether the ticket can be marked done, having read the current
+README and judged this work superseded. Verified, and it can.
+
+What the review step found:
+
+- PR #1043 carries no review threads, reviews or comments, so the `review`
+  step's own skill had no input to address. It was closed by the owner on
+  2026-10-19; local HEAD `cdf2676b0` still matches its head exactly.
+- Six findings are fixed on main, three were closed by owner decision on
+  `v1/19`, and seven are tracked on live drafts. Per-finding evidence is under
+  `## Findings status`.
+- The walk's findings seeded a v1 install workstream rather than one PR:
+  `v1/16` and `v1/19` are done, `v1/17`, `v1/18`, `v1/23`, `v1/24`, `v1/26`,
+  `v1/27` and `v1/31` are drafts, and `v1/30` is blocked.
+- Two findings had nothing tracking them, so
+  `v1/cap-requires-python-and-stop-init-leading-with-a-c` was filed as a draft
+  with the owner's agreement: finding 7's uncapped `requires-python`, and
+  findings 9 through 11 on init's next steps. Closure would otherwise have
+  retired them with this blackboard.
+- The branch and its remote ref are deliberately left in place at
+  `cdf2676b0`, so the closed PR keeps the walk's reasoning discoverable.
+
+Done-when, as met:
+
+- The macOS walk is complete and every finding is listed and tagged. Done.
+- Fixes that fit the ticket are merged as PRs. Met in substance but not by
+  this ticket: the owner landed the equivalent README himself after closing
+  #1043.
+- The README carries install instructions in no more than five lines. **Not
+  met as written.** Main's "Get started" is seven command lines across four
+  blocks plus roughly twenty lines of prose. The owner wrote that himself on
+  2026-11-04, after closing the PR, so the five-line cap is superseded by his
+  own editorial decision rather than outstanding work. Raised with him before
+  closing and left as it stands.
+- The blackboard lists the facts from `docs/contexts/coga/install` that are
+  candidates for a surviving context. Done, under the 2026-10-17 decision
+  above. That topic is still present on main, and `v1/26` owns its removal.
+
 ## Blackboard maintenance, 2026-10-19
 
 Slimmed for `coga validate`'s large-blackboard warning by task
@@ -151,38 +190,55 @@ candidates for a surviving context, for review rather than as commitments:
 
 ## Findings status
 
-Live worklist for the sixteen walk findings. Full text, terminal output and
-reasoning are in [`macos-walk-findings.md`](macos-walk-findings.md); the
-section headings below point there. "Branch" means `install-walk-findings`
-(PR #1043, closed unmerged 2026-10-19).
+Final disposition of the sixteen walk findings, re-verified against
+`origin/main` at `717792674` on 2026-11-04. Full text, terminal output and
+reasoning are in [`macos-walk-findings.md`](macos-walk-findings.md).
 
-1. open — README says Coga runs on Windows; native Windows crashes on the
-   `fcntl` import. Branch drops the claim.
-2. confirmed — no documented route to `uv` or Python 3.11 on a fresh Mac;
-   `uv tool install coga` gives `command not found`. Branch installs uv first.
-3. open — Command Line Tools prerequisite absent from the README. Branch
-   line 1 is `xcode-select --install`.
-4. confirmed, low — README install block assumes a git repo exists. Branch
-   adds `mkdir … && git init`, plus prose for existing repos.
-5. open — `coga/install` describes prerequisites without supplying them;
-   largely dissolved by the decision to delete that topic.
-6. open — `uv tool install coga` raises the CLT dialog via a source build.
-   Installing CLT first removed it in the verification run.
-7. open, owner ruling — uncapped `requires-python` resolves CPython 3.15 and
-   forces source builds; cap recommended.
-8. open, owner decision — `coga init`'s install offer cannot fire on a Mac
-   without a package manager.
-9. open, positioning call — init's next steps assume shell knowledge.
-10. open — init's "Next steps" leads with an unnecessary `coga.toml` edit.
-11. open — nothing opens `.toml` on a fresh Mac.
-12. open — README never links `coga/uninstall`.
-13. open, owner decision — docs describe `main` while PyPI serves 0.4.0.
-    Branch drops the agent-CLI offer sentence.
-14. open, contingent on 13 — on `main`, the agent-CLI offer needs brew or npm.
-15. open, highest severity — the `claude` install link yields the desktop
-    app, not the CLI. Branch line 4 uses the native installer.
-16. open, owner ruling — the dependency manifest lacks the vendor's native
-    `curl | bash` installer, against `agent_cli_setup.py` policy.
+None were fixed by this ticket's PR. #1043 was closed unmerged by the owner on
+2026-10-19 with no review comments and no recorded reason, and the owner then
+rewrote the README install path himself across 2026-11-03 and 2026-11-04. The
+branch `install-walk-findings` stays unmerged and is not worth merging: main's
+version is better in three places, since it tells macOS users to check
+`git --version` before running `xcode-select --install`, links the vendor's
+CLI quickstart where the branch kept the desktop-app link, and names the
+release that fails on Windows instead of calling the platform unsupported.
+README line numbers below are `origin/main` at `717792674`.
+
+1. fixed on main — `README.md:84` scopes agent sessions to Linux and macOS;
+   `:91` names release 0.4.1 as not ready for a first task.
+2. fixed on main — `README.md:105` installs `uv` first and `:108` tells the
+   user to open a new terminal if it is not on `PATH`.
+3. fixed on main — `README.md:97` checks `git --version` first, then offers
+   `xcode-select --install`.
+4. fixed on main — `README.md:119` creates the repository, and the surrounding
+   prose covers an existing one and the Git identity check.
+5. tracked elsewhere — `v1/26-make-the-readme-install-section-the-only-install-p`,
+   draft. `docs/contexts/coga/install` is still present on main, so the facts
+   listed above are not orphaned yet.
+6. fixed on main by ordering — installing the Command Line Tools first removes
+   the dialog. The source build that caused it is finding 7.
+7. tracked elsewhere — `v1/cap-requires-python-and-stop-init-leading-with-a-c`,
+   draft, filed 2026-11-04. `pyproject.toml:10` is still uncapped, and
+   `nothing-exercises-python-3-11-the-declared-floor` is canceled.
+8. tracked elsewhere — `v1/17-separate-installing-coga-from-installing-its-depen`
+   and `v1/18-handle-gh-not-being-installed-by-default`, both drafts.
+9. tracked elsewhere — the draft filed for finding 7 covers it.
+10. tracked elsewhere — same draft; `src/coga/commands/init.py` still makes the
+    `coga.toml` edit init's second instruction.
+11. tracked elsewhere — same draft.
+12. fixed on main — `README.md:169` links the uninstall guide.
+    `v1/27-link-uninstall-from-the-readme` is still a draft and its substance
+    has landed.
+13. fixed on main — the README now separates PyPI release 0.4.1 from the
+    development version instead of describing `main` as what ships.
+14. closed by decision — `v1/19`, 2026-11-04. The brew/npm-only manifest is
+    accepted, for Codex as well as Claude.
+15. closed by decision — `v1/19`, 2026-11-04, by decision rather than by a
+    change. The README link is corrected, and
+    `src/coga/dependencies.py:117` deliberately still points at
+    `https://claude.com/claude-code`.
+16. closed by decision — `v1/19` records it as not ruled on and no longer
+    blocking anything.
 
 ## Host facts (Zach's Mac, 2026-10-15)
 
