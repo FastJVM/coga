@@ -1,6 +1,6 @@
 ---
 title: Fail the branch sweep when local branch enumeration fails
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
