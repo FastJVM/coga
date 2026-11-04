@@ -18,12 +18,23 @@ Guide sessions interactively, add human review gates, or queue work to run unatt
 
 You don't need a finished specification to start. A ticket can be a question to research, a decision to make, or an implementation task. The work can change the plan, and what you learn can shape the next task.
 
+```mermaid
+flowchart TD
+    Q["Question or outcome"] --> T["Ticket"]
+    T --> W["Agent session + workflow"]
+    W --> B["Blackboard: findings and decisions"]
+    B --> K["Durable contexts and skills"]
+    B --> P["Revised plan or follow-up tickets"]
+    K -. "Informs future sessions" .-> W
+    P --> T
+```
+
+Tickets and their blackboards capture the work in progress. Contexts and skills keep reusable knowledge beyond an individual ticket; that knowledge can guide later sessions, while discoveries can change which work comes next.
+
 1. **Start with a question or outcome.** `coga build` can propose an initial plan; `coga ticket` helps discuss and refine one task. Both leave editable tickets, not a fixed spec.
 2. **Work and record what changes.** `coga launch` gives the agent the ticket, selected contexts, and current workflow step. Findings, decisions, and open questions can go into the ticket's blackboard.
 3. **Keep what outlives the ticket.** Move shared constraints and decisions into project contexts, and reusable procedures into skills. Work tickets can be retired without discarding the useful knowledge they produced.
 4. **Replan from the findings.** Revise, split, defer, or create tickets, then launch the next session with the updated context. Use human review gates or delegate unattended work where appropriate.
-
-**The loop:** question → ticket → work and findings → durable context + revised or new tickets → next session.
 
 This keeps the plan *evolvable*, not automatically correct. Humans can inspect, challenge, and correct both the work and what gets carried forward.
 
