@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -522,8 +523,8 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
-    # nothing clean to update, so it commits nothing and opens no PR (never
-    # touching git), and the registered recipe reports a clean no-op
+    # nothing clean to update, so after its read-only preflight it commits
+    # nothing and opens no PR, and the registered recipe reports a clean no-op
     # on the task blackboard.
     src_path = str(Path(__file__).resolve().parents[1] / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
@@ -569,6 +570,14 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     ref = list_tasks(cfg)[0]
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
     monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+    # `--pr` preflights the branch switch with git before applying updates, so
+    # the checkout must be a repository, clean and on its control branch.
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["add", "-A"],
+        ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-q", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=repo.parent, check=True, capture_output=True)
 
     result = CliRunner().invoke(app, ["run", "skill-update"])
 

@@ -497,7 +497,6 @@ def run_skill_update_pr_flow(
 
     run = runner or run_subprocess
     git_cwd = cfg.repo_root.parent
-    _assert_no_unmerged_paths(run, git_cwd)
     original_branch = _current_git_branch(run, git_cwd)
     try:
         committed = _commit_skill_updates(
@@ -537,6 +536,83 @@ def run_skill_update_pr_flow(
         if original_branch and original_branch != branch:
             _checkout(run, git_cwd, original_branch)
     return summary
+
+
+def assert_skill_update_pr_preflight(
+    cfg: Config,
+    *,
+    runner: Runner | None = None,
+    branch: str = SKILL_UPDATE_BRANCH,
+) -> None:
+    """Refuse `--pr` before any update is applied if the branch trip would fail.
+
+    The PR flow runs `git checkout -B <branch> <control>`, commits only
+    `skills_root(cfg)`, then checks out the caller's branch again. Git refuses
+    that first checkout when a locally modified tracked path, or an untracked
+    path, also differs between `HEAD` and the control branch; an unrelated
+    edit that Git would carry over safely does not block. The skills tree
+    itself must also match the control branch, because the updates dirty it
+    only after this check runs. Pre-existing edits under the skills tree are
+    refused too: `git add` would sweep them into the PR commit and the return
+    checkout would remove them from the caller's branch.
+
+    Callers must run this before `update_skills`; checking afterwards would
+    leave the applied updates in the working tree on refusal.
+    """
+    run = runner or run_subprocess
+    cwd = cfg.repo_root.parent
+    control = cfg.git_control_branch
+    _assert_no_unmerged_paths(run, cwd)
+
+    dirty = _git_paths(run, cwd, ["git", "diff", "--name-only", "--no-renames", "-z", "HEAD"])
+    untracked = _git_paths(
+        run, cwd, ["git", "ls-files", "--others", "--exclude-standard", "-z"]
+    )
+    differs = set(
+        _git_paths(
+            run, cwd, ["git", "diff", "--name-only", "--no-renames", "-z", "HEAD", control]
+        )
+    )
+    skills_prefix = skills_root(cfg).relative_to(cwd).as_posix() + "/"
+
+    def in_skills(path: str) -> bool:
+        return path.startswith(skills_prefix)
+
+    blocking: dict[str, str] = {}
+    for path in dirty:
+        if in_skills(path):
+            blocking[path] = "uncommitted edit in the skills tree"
+        elif path in differs:
+            blocking[path] = f"uncommitted edit; differs on `{control}`"
+    for path in untracked:
+        if in_skills(path):
+            blocking.setdefault(path, "untracked file in the skills tree")
+        elif path in differs:
+            blocking.setdefault(path, f"untracked file; tracked on `{control}`")
+    if blocking:
+        listed = "\n".join(f"  - {path} ({reason})" for path, reason in sorted(blocking.items()))
+        raise SkillManagerError(
+            f"Cannot open a skill-update PR: switching to `{branch}` from "
+            f"`{control}` would overwrite or sweep up local work. Commit or "
+            f"stash these paths, then retry:\n{listed}"
+        )
+
+    skills_drift = sorted(path for path in differs if in_skills(path))
+    if skills_drift:
+        listed = "\n".join(f"  - {path}" for path in skills_drift)
+        raise SkillManagerError(
+            f"Cannot open a skill-update PR: the skills tree on this branch "
+            f"differs from `{control}`, so the updated files could not be "
+            f"carried onto `{branch}`. Run from `{control}`, or merge the "
+            f"skill changes into it first, then retry:\n{listed}"
+        )
+
+
+def _git_paths(run: Runner, cwd: Path, args: list[str]) -> list[str]:
+    result = run(args, cwd)
+    if result.returncode != 0:
+        raise SkillManagerError((result.stderr or result.stdout).strip())
+    return [path for path in result.stdout.split("\0") if path]
 
 
 def _assert_no_unmerged_paths(run: Runner, cwd: Path) -> None:

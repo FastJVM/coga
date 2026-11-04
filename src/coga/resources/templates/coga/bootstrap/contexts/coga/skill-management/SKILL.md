@@ -79,6 +79,12 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the
   [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
+  Before applying any update it refuses, listing each path, when the switch
+  to that branch would fail or sweep up local work: unmerged paths, local
+  edits or untracked files at paths that differ on the control branch, any
+  local edit under the skills tree, or a skills tree that differs from the
+  control branch. Commit or stash the listed local work (for a skills-tree
+  difference, run from the control branch), then retry.
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
 
