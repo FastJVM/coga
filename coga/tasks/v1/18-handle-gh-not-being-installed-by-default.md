@@ -19,6 +19,20 @@ not on PATH" warning. Give `init` a route to `gh` that works on all three
 platforms without a package manager, and present `gh` as needed rather than
 as one more optional tool.
 
+Order of routes when `gh` is missing:
+
+1. **A package manager is present.** Keep today's offer (`brew`, `winget`,
+   or `apt-get`/`dnf`/`pacman` with sudo).
+2. **That install fails, or no package manager is usable.** Ask again and
+   fall back to the package-manager-free route. Package-manager failures
+   include a non-zero exit, a missing package (older Debian/Ubuntu or RHEL
+   without GitHub's repo), sudo missing or refused, and `gh` still not on
+   `PATH` afterwards.
+3. **Everything fails or the user declines.** Show the plain "`gh` is
+   needed" message with the install link.
+
+A "no" at any prompt ends the chain. Never ask twice for the same route.
+
 Done when: on each of macOS, Windows and Linux, interactive `coga init` on
 a machine with no usable package manager and no `gh` asks to install `gh` and, on a yes, installs a working `gh`. Success means
 `gh` resolves on the current process's `PATH`, and init then offers
@@ -27,7 +41,8 @@ a new shell must say so explicitly, using `_offer_install`'s existing note. Decl
 non-interactive init prints a clear "`gh` is needed for PR workflows, install
 it from https://cli.github.com" message, not the "optional tools" heading.
 `init` still never fails because `gh` is missing. `tests/test_init.py`
-covers the no-package-manager path for each platform through an injectable install seam.
+covers the no-package-manager path for each platform, and the fallback
+after a failed package-manager install, through an injectable install seam.
 No test touches the network. The install topic describes the new
 behaviour.
 
