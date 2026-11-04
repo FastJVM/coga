@@ -1,6 +1,6 @@
 ---
 title: Fix release_env fixture interpreter symlink in fresh venvs
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:901a705d-dbc5-4b26-a5fb-4a747e3994f1
 ---
 
 ## Description
