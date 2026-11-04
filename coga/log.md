@@ -10082,3 +10082,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 12:04 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-11-04 12:04 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 12:04 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [megalaunch] launched via coga megalaunch
+2026-11-04 12:06 v1 [v1/06-fix-coga-git-sync-failures-that-leave-main-diverge] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner confirmed resolution: the pre-existing pyproject.toml tmp_path_retention_policy = "failed" edit landed separately in commit 088c01908 on origin/main. The main checkout is clean and level with origin/main. Proceed with evaluate-design; no pytest configuration edit is needed in this ticket.
