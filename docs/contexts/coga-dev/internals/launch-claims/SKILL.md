@@ -24,7 +24,12 @@ attempt.
 environment (with supervised witnesses), and agent that spawn will use, and
 builds the `in_progress` ticket with a new `launch_generation`:
 `pending:<uuid>` with Git sync, a plain UUID without. It refuses an
-`in_progress` ticket already carrying any generation form, and checks push
+`in_progress` ticket carrying a `pending:` or `released:` generation. A plain
+(admitted) generation left by an earlier session is replaced by the new
+claim: megalaunch does not judge whether that session still runs, so
+coordinating concurrent sessions on one ticket is the human's job, and the
+start audit line names the replaced claim. Claimers racing for the same
+bytes still meet the strict publication below. It also checks push
 auth. Nothing fallible is re-derived after lifecycle state is written.
 
 ## Strict claim publication
@@ -50,8 +55,8 @@ Every task publisher refuses to replace a control ticket carrying
 `pending:<uuid>` (`git.ticket_regression_reason`); the sole accepted
 replacement is the identical ticket with the prefix stripped. A working copy
 carrying `released:` is never published. `coga launch` refuses a pending
-ticket, and no megalaunch reclaims any generation form (it points at
-`coga launch <slug>` for recovery). Step advances and lifecycle transitions
+ticket, and no megalaunch reclaims a pending or released form (it points
+at `coga launch <slug>` for recovery). Step advances and lifecycle transitions
 that end or park the session drop the field.
 
 ## Held child and admission

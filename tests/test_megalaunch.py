@@ -3265,36 +3265,41 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
-def test_megalaunch_does_not_reclaim_a_published_session_claim(
+def test_megalaunch_resumes_over_an_earlier_admitted_claim(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A published generation cannot be rotated by another megalaunch."""
+    """A stale admitted generation is replaced, not refused.
+
+    Whether the earlier session still runs is the human's to coordinate; the
+    audit line names the claim this launch replaced.
+    """
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg,
-        title="Start claim race",
+        title="Stale claim resume",
         workflow_name="code",
         contexts=[],
         owner="marc",
         agent="claude",
         status="active",
     )
+    stale_generation = "11111111-2222-4333-8444-555555555555"
+    stale = Ticket.read(active["path"])
+    stale.frontmatter["status"] = "in_progress"
+    stale.frontmatter["launch_generation"] = stale_generation
+    stale.write(active["path"])
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
-    sync_calls = 0
-    outer_generation: str | None = None
-    peer_result = None
+    spawned_generations: list[str | None] = []
 
     class _Session:
         exit_code = 0
         termination_kind = "natural"
         done_signalled = False
 
-    def outer_spawn(
-        _cfg, _ref, claimed: Ticket, _agent, **kwargs
-    ):  # type: ignore[no-untyped-def]
-        assert claimed.launch_generation == outer_generation
+    def spawn(_cfg, _ref, claimed: Ticket, _agent, **kwargs):  # type: ignore[no-untyped-def]
+        spawned_generations.append(claimed.launch_generation)
         kwargs["validate_before_spawn"]()
         kwargs["validate_after_spawn"]()
         finished = Ticket.read(active["path"])
@@ -3304,32 +3309,21 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
         finished.write(active["path"])
         return _Session()
 
-    def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        nonlocal outer_generation, peer_result, sync_calls
-        sync_calls += 1
-        if sync_calls != 1:
-            return
-        outer_generation = Ticket.read(active["path"]).launch_generation
-        assert outer_generation is not None
-        peer_run = run_megalaunch(cfg, selection=[active["slug"]])
-        peer_result = peer_run.results[0]
-
-    monkeypatch.setattr("coga.mark.git.publish", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", outer_spawn)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
-    assert sync_calls == 1
     assert run.results[0].outcome == "completed"
     assert run.results[0].launched
-    assert peer_result is not None
-    assert peer_result.outcome == "failed"
-    assert not peer_result.launched
-    assert "already carries a published megalaunch claim" in peer_result.detail
-    retained = Ticket.read(active["path"])
-    assert retained.status == "done"
-    assert retained.launch_generation is None
-    assert _log_lines_for(cfg, active["slug"], "restored (") == []
+    assert len(spawned_generations) == 1
+    assert spawned_generations[0] is not None
+    assert stale_generation not in spawned_generations[0]
+    assert len(
+        _log_lines_for(
+            cfg, active["slug"], f"(replaced earlier claim {stale_generation})"
+        )
+    ) == 1
+    assert Ticket.read(active["path"]).status == "done"
 
 
 def test_megalaunch_dependency_drain_publishes_resolution_before_claim(

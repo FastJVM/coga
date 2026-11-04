@@ -1384,6 +1384,11 @@ def _launch_until_stop(
                         "started (active → in_progress) via coga megalaunch"
                         if prior_start_status == "active"
                         else "claimed in_progress resume via coga megalaunch"
+                        + (
+                            f" (replaced earlier claim {ticket.launch_generation})"
+                            if ticket.launch_generation is not None
+                            else ""
+                        )
                     ),
                     echo=None,
                     strict=cfg.git_enabled,
@@ -2057,6 +2062,10 @@ def _preflight_agent_launch(
     # cannot reach the agent spawn path.
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
+    # An admitted (plain) generation from an earlier session is replaced by
+    # this launch's new claim: whether that session still runs is the human's
+    # to coordinate. Concurrent claimers still race through the strict
+    # compare-and-set start publication and the pre-spawn claim proof.
     if ticket.status == "in_progress" and ticket.launch_generation is not None:
         if pending_launch_generation(ticket.launch_generation):
             return (
@@ -2069,11 +2078,6 @@ def _preflight_agent_launch(
                 "ticket carries a released megalaunch admission awaiting "
                 f"reconciliation — run `coga launch {ref.id_slug}` to recover"
             )
-        return (
-            "ticket already carries a published megalaunch claim; refusing "
-            "an automatic concurrent resume — use `coga launch "
-            f"{ref.id_slug}` to recover it explicitly"
-        )
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
     expected_source_bytes = (

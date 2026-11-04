@@ -5,8 +5,9 @@ description: How each retained megalaunch claim form is recovered — pending, a
 
 # Launch-claim recovery
 
-Megalaunch ([launch claims](../launch-claims/SKILL.md)) never reclaims its
-own claims and never compensates a refused one backward to `active`. What it
+Megalaunch ([launch claims](../launch-claims/SKILL.md)) never reclaims a
+pending or released claim and never compensates a refused one backward to
+`active`. What it
 leaves on disk is the human-legible reconciliation evidence. Recovery is an
 explicit human act through ordinary `coga launch <slug>`
 ([launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md)).
@@ -17,10 +18,13 @@ explicit human act through ordinary `coga launch <slug>`
 | --- | --- | --- |
 | `pending:<uuid>` | an uncertain start publication (no child yet), or a pre-release proof that changed or could not be verified (held child killed) | refuses: "admission is still pending" |
 | `released:<uuid>` | the child was released but the admission publish failed or its outcome is unknown; the child was then killed | reconciles, then starts a recovery session |
-| plain `<uuid>` | a successfully admitted session that crashed or was torn down | resumes it like any `in_progress` ticket |
+| plain `<uuid>` | an admitted session that ended without a step advance or lifecycle transition | resumes it like any `in_progress` ticket |
 
-Megalaunch itself refuses all three, naming `coga launch <slug>` as the
-recovery path for the released and plain forms. The unattended sweep never publishes a released witness.
+Megalaunch refuses the pending and released forms, naming `coga launch
+<slug>` as the recovery path for the released one. It resumes over a plain
+generation, replacing it with its own claim and naming the replaced claim in
+the start audit line; it cannot tell a finished session from a live one, so
+the human coordinates. The unattended sweep never publishes a released witness.
 Step advances and lifecycle transitions that end or park the session remove
 the field (`mark` and `bump` pop it), so a finished session leaves nothing.
 
