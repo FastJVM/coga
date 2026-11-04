@@ -32,7 +32,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from coga import notification
+from coga import git, notification
 from coga.launch import _interactive_stdio_has_tty
 from coga.config import Config, ConfigError, load_config
 from coga.megalaunch import (
@@ -123,6 +123,25 @@ def megalaunch(
         except ConfigError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             sys.exit(2)
+
+    # Pick and queue from control's state, not a stale local copy: every
+    # later read (picker list, sweep queue, saved selection) sees these files.
+    # A feature/detached checkout only fetches; Git-off, non-Git and no-remote
+    # repos skip. `False` means control could not be brought level, and
+    # refresh already said why on stderr.
+    if not git.refresh(cfg):
+        typer.secho(
+            "megalaunch: could not bring this checkout level with control; "
+            "nothing was picked or launched.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(1)
+    try:
+        cfg = load_config(cfg.repo_root)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
 
     try:
         selection = _resolve_selection(cfg, directory, pick=pick, relaunch=relaunch)

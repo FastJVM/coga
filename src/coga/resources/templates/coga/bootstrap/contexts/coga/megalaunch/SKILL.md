@@ -27,6 +27,15 @@ Megalaunch has no deterministic phase: it never runs a ticket's `ticket.py`
 ([script tickets](../script-tickets/SKILL.md)); each step is an agent
 session composed directly.
 
+## Refresh first
+
+Before it resolves a sweep, `--pick`, or `--relaunch`, or reads any ticket,
+megalaunch runs the same control refresh as `coga launch`: fetch, then
+fast-forward a control checkout to `origin/<control>`. If that refresh
+fails, the run stops with exit 1 and nothing is picked or launched. A
+feature or detached checkout is only fetched, so it still queues from its
+own copy. Git-disabled, non-Git, and no-remote repos skip the refresh.
+
 ## Bare sweep
 
 Silently ignores tickets whose `owner` is not `current_user` (owner-less
