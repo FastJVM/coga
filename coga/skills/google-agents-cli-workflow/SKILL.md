@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.11.0
+    github-ref: refs/tags/v1.12.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: ee9e6b5b54c7d8f080e5bd903cf9d4d2097f727e
+    github-tree-sha: b4a3168037ca4bbf87352e897d4067e92832aebd
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.11.0
+    version: 1.12.0
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.11.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.11.0"
+> Requires: google-agents-cli ~= 1.12.0
+> If version is behind, run: uv tool install "google-agents-cli~=1.12.0"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -35,7 +35,7 @@ Re-read the relevant skill **before** each phase — not after you've already st
 | Phase | Skill | When to load |
 |-------|-------|--------------|
 | 0 — Understand | — | No skill needed — read `.agents-cli-spec.md` if present, else clarify goals with the user |
-| 1 — Study recipes | `/google-agents-cli-adk-code` | **Load it during design**, before scaffolding. Python: the `references/samples.md` topic index maps a need to the recipe that implements it. Go: the upstream [examples/](https://github.com/google/adk-go/tree/main/examples) are the equivalent. Yes, load this early. |
+| 1 — Study recipes | `/google-agents-cli-adk-code` | **Load it during design**, before scaffolding. Python: the `references/recipes.md` topic index maps a need to the recipe that implements it. Go: the upstream [examples/](https://github.com/google/adk-go/tree/main/examples) are the equivalent. Yes, load this early. |
 | 2 — Scaffold | `/google-agents-cli-scaffold` | Before creating or enhancing a project |
 | 3 — Build | `/google-agents-cli-adk-code` | Before writing agent code — API patterns, tools, callbacks, state |
 | 4 — Evaluate | `/google-agents-cli-eval` | Before running any eval — dataset schema, metrics, eval-fix loop |
@@ -81,11 +81,11 @@ Do NOT proceed to planning, scaffolding, or coding until the user approves the s
 
 **Ask based on context:**
 
-- If the agent needs a **capability the scaffold doesn't ship** — retrieval over your data, sandboxed code execution, memory across sessions, OAuth consent, safety guardrails, event-driven triggers — that capability comes from a **clone-and-study recipe**, not a scaffold flag. Look the need up in the topic index in `/google-agents-cli-adk-code` → `references/samples.md` and study the matching recipe in Phase 1.
+- If the agent needs a **capability the scaffold doesn't ship** — retrieval over your data, sandboxed code execution, memory across sessions, OAuth consent, safety guardrails, event-driven triggers — that capability comes from a **clone-and-study recipe**, not a scaffold flag. Look the need up in the topic index in `/google-agents-cli-adk-code` → `references/recipes.md` and study the matching recipe in Phase 1.
 - If the agent is a **live or voice agent** (Live API, spoken conversation, barge-in, telephony) → load `/google-agents-cli-adk-code` (`references/adk-python-live.md`) **before writing the spec**. Live rules out A2A, the Gemini app, and the default model.
 - If agent should be **available to other agents** → **A2A protocol** is built into every Python agent scaffolded by agents-cli; no separate choice needed — just scaffold normally.
 - If **full deployment** chosen → **CI/CD runner?** GitHub Actions (default) or Google Cloud Build?
-- If agent should **remember user preferences or facts across sessions** → long-term memory across conversations. Load `/google-agents-cli-adk-code` — it has both the recipe (in `references/samples.md`) and the ADK memory API details.
+- If agent should **remember user preferences or facts across sessions** → long-term memory across conversations. Load `/google-agents-cli-adk-code` — it has both the recipe (in `references/recipes.md`) and the ADK memory API details.
 - If **Cloud Run** or **GKE** chosen → **Session storage?** In-memory (default), Cloud SQL (persistent), or Sessions in Gemini platform (managed).
 - If **deployment with CI/CD** chosen → **Git repository?** Does one already exist, or should one be created? If creating, public or private?
 
@@ -106,12 +106,12 @@ Once you have a clear understanding, proceed to **Phase 1**.
 > agent's quality from its production traces — then a recipe already
 > implements it. Look it up **before you commit to an implementation.**
 >
-> This list covers the same capabilities as the topic index in `/google-agents-cli-adk-code` → `references/samples.md`. If you extend one, extend the other.
+> This list covers the same capabilities as the topic index in `/google-agents-cli-adk-code` → `references/recipes.md`. If you extend one, extend the other.
 
 **Load `/google-agents-cli-adk-code` now**.Load it even though nothing is scaffolded and you are not writing code yet; "wrong phase for the code skill" is the rationalisation that makes agents skip this step, and that skill's *Prerequisites for writing code* does not apply to you.
 
 Look up each capability the design calls for. **ADK Python:** the **topic index** in
-`references/samples.md` maps needs (retrieval, sandboxed execution, memory, approval gates,
+`references/recipes.md` maps needs (retrieval, sandboxed execution, memory, approval gates,
 guardrails, per-user credentials, scheduling) to the recipe that teaches them and shows how to
 clone one. **ADK Go:** there is no references catalog — read `references/adk-go.md` for the API and
 the upstream [`examples/`](https://github.com/google/adk-go/tree/main/examples).
@@ -215,7 +215,7 @@ Agents routinely skip steps with plausible-sounding excuses. Recognize these and
 | "The user's request is clear enough, no need to clarify" | You're guessing at requirements. Phase 0 exists to confirm intent before scaffolding — even one question can prevent a full rework. |
 | "The agent responded correctly in `agents-cli run`, so eval isn't needed" | One prompt is not a test suite. Eval catches regressions, edge cases, and tool trajectory issues that a single run never will. |
 | "I'll use a newer/better model" | The scaffolded model was chosen deliberately. Changing it without being asked violates code preservation (Principle 1) and often breaks things — wrong location, deprecated version, or 404. Your training data is likely out of date — rely on the skills and the model listing command, not your knowledge of model names. |
-| "I already know how to build this — sandbox, memory, approval gates" | You are about to reinvent a recipe, worse. These capabilities are already implemented and battle-tested in `/google-agents-cli-adk-code` → `references/samples.md`; check the topic index and open the matching recipe's `AGENTS.md` before designing anything custom. |
+| "I already know how to build this — sandbox, memory, approval gates" | You are about to reinvent a recipe, worse. These capabilities are already implemented and battle-tested in `/google-agents-cli-adk-code` → `references/recipes.md`; check the topic index and open the matching recipe's `AGENTS.md` before designing anything custom. |
 | "I can skip the scaffold and set up manually" | Manual setup misses eval boilerplate, CI/CD config, and project configuration manifest conventions. Use `agents-cli create` even for quick experiments. |
 
 ## Principle 1: Code Preservation & Isolation

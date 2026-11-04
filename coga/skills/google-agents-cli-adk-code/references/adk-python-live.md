@@ -28,7 +28,7 @@ request/response agents (use a normal `Agent` with `run_async` for those).
 
 ## 2. Converting a scaffolded project to Live
 
-There is no Live scaffold template. Scaffold `adk` normally, then make these
+There is no Live scaffold template. Scaffold `adk_python` normally, then make these
 edits **together** — they are all consequences of one decision, and stopping
 after the first leaves a project whose `uv run pytest` fails.
 
@@ -138,7 +138,7 @@ import uuid
 import requests
 from websockets.asyncio.client import connect
 
-APP_NAME = "app"  # your agent_directory
+APP_NAME = "app"  # the basename of your agent_directory
 BASE_URL = "http://127.0.0.1:8000"
 HEADERS = {"Content-Type": "application/json"}
 
