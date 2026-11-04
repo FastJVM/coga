@@ -43,5 +43,45 @@ claims about where Coga's implementation came from.
   makes that lineage explicit. It is a concrete neighbour for thinking about
   humans and agents inspecting and shaping their working environment.
 
+## Context, skills, and plan review
+
+These sources inform the choice to make working knowledge explicit,
+selective, and reviewable. The studies evaluate their own tasks and agent
+setups; they do not measure Coga. Our practical takeaway is to inspect which
+guidance a task needs and revise it as the project changes.
+
+- **Chroma — [Context Rot: How Increasing Input Tokens Impacts LLM Performance
+  (2025)](https://www.trychroma.com/research/context-rot).** Controlled
+  experiments show that longer inputs can make performance less reliable,
+  including within the supported context window. This motivates focused
+  starting context; restarting alone does not establish that a handoff
+  retained every important fact.
+- **Li et al. — [SkillsBench (2026, v4)](https://arxiv.org/abs/2602.12670v4).**
+  Across 87 tasks and 18 model-harness configurations, curated skills raised
+  the average pass rate from 33.9% to 50.5%. Focused skill bundles performed
+  better than larger or exhaustive ones. This is evidence that selected
+  procedural guidance can help on the evaluated tasks, rather than a general
+  result about every skill or coding workflow.
+- **Han et al. — [SWE-Skills-Bench (2026, v2)](https://arxiv.org/abs/2603.15401v2).**
+  In a software-engineering evaluation, 92 of 98 skills had no statistically
+  significant effect, and average pass ratio changed from 76.6% to 76.9%.
+  Helpful skills supplied otherwise omitted procedures; harmful ones pushed
+  their own templates over task instructions. Relevance and compatibility
+  with the task matter.
+- **Gloaguen et al. — [Evaluating AGENTS.md (2026, v3)](https://arxiv.org/abs/2602.11988v3).**
+  Repository context files did not generally improve task success, and
+  increased inference cost by over 20% on average. The authors distinguish
+  useful non-standard practices from unhelpful repository overviews. A
+  context file's existence is not evidence of its value to a particular task.
+- **Anthropic — [Effective context engineering for AI agents](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents).**
+  Describes structured notes outside the context window and reading them
+  after resets to continue extended work. Coga's human-facing rationale is
+  that people can also inspect, correct, and share those written handoffs.
+- **Anthropic — [Claude Code plan mode as the default starting point](https://academy.claude.com/courses/ai-native-sdlc-playbook/plan-mode).**
+  Describes an engineer questioning and correcting a written implementation
+  plan before coding, then checking the result against it. This is practice
+  guidance for making intended work reviewable, not a controlled experiment
+  proving that reading any plan improves the result.
+
 The [origins essay](../../../archive/origins.md) preserves Coga's earlier
 founding narrative; it is historical context, not the current design principles.
