@@ -1,6 +1,6 @@
 ---
 title: Fail the branch sweep when local branch enumeration fails
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,7 +25,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: 01ce871b-ffe1-4c9f-82d9-0ab3bbe2f4bc
 ---
 
 ## Description
@@ -234,6 +233,29 @@ it passes. Whoever lands that pyproject tweak should fix that interaction.
 
 No independent review yet; the workflow's later steps own review and PR.
 
+## Peer review (2026-11-04)
+
+Codex review is blocked at the manual checkout entry gate; it has not
+completed. No checkout preparation was supplied. The primary checkout is on
+`main` at `9443cc806756d0bbd6e0230d1cc586782262633f`, matching fetched
+`origin/main`, with the pre-existing human `pyproject.toml` edit setting
+`tmp_path_retention_policy = "failed"` as its only entry dirt.
+`coga/checkouts/manual` requires a clean checkout and explicitly forbids
+working around dirty files with a stash, switch, or alternate worktree.
+The edit was left untouched.
+
+The recorded branch `fail-sweep-on-local-enumeration` is present locally and
+on origin at `a65a8e686aa7b3b141ce26e0f2524400900ad4af`, one implementation
+commit ahead of main. GitHub reports no PR for that head branch. No rebase,
+code review, or test run was performed in this session; the preparation below
+remains the implement step's record, not a completed peer-review receipt.
+
+Next action: resolve the unrelated `pyproject.toml` edit so the checkout is
+clean, then resume peer-review for the required rebase, direct review,
+full-suite verification, and refreshed PR preparation. The historical full
+suite receipt below reports a teardown error despite `status: passed`; treat
+that run as failed when refreshing the preparation.
+
 ## PR
 
 ```yaml
@@ -269,3 +291,9 @@ checks:
     base: 6ea506da11155179f63b8845108b950e887adae6
     detail: 4345 passed, 10 skipped, 1 teardown error in test_validate_prunes_skill_dependencies_before_scanning caused by the uncommitted local pyproject tmp_path_retention_policy edit; that test passes with -o tmp_path_retention_policy=all.
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-04 11:11] [agent:codex] id=20261104T111105 Resolve the pre-existing human pyproject.toml edit (tmp_path_retention_policy = "failed") so /home/n/Code/coga has a clean checkout, then resume peer-review. No checkout preparation was supplied; coga/checkouts/manual requires a clean main and forbids switching, stashing, or an alternate worktree around this dirt. The edit is preserved; review, rebase, and tests remain unperformed.
