@@ -23,7 +23,7 @@ control branch missing locally and on the remote
    local control). On a feature or detached checkout that committed adoption
    is limited by `_routine_state_areas` to the task directory and log. Clean
    committed recurring files and other knowledge wait for merge under the
-   [committed-state boundary](../../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+   [committed-state boundary](../../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
    The dirty-path arm is independent of that allowlist and still selects
    whole files, including recurring runtime writes. A clean file merely
    behind control — HEAD's copy unchanged since the merge base, even when

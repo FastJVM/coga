@@ -29,7 +29,7 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 
 **A repo-wide `coga validate` refuses a shebang script that is not
 executable** (`non-executable-script`); the user-facing rule, remedy, and
-mode sources live in [coga/first-task](../../coga/first-task/SKILL.md#0-check-readiness).
+mode sources live in [coga/first-task](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md#0-check-readiness).
 When adding a script under `src/coga/resources/templates/coga/bootstrap/skills/`,
 commit it `100755` if it starts with `#!`; import-only modules carry no
 shebang and stay `100644`. A packaged-tree finding in an adopting repo is

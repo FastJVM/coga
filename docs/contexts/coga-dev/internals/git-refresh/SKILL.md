@@ -242,7 +242,7 @@ The user contracts are [coga/checkouts](../../../../../src/coga/resources/templa
   restoration PR #1032 and feature PR #1033 later merged. The recurring
   exception has since been removed from `_routine_state_areas`: clean
   committed recurring files now wait for merge. The remaining dirty-file
-  hazard is owned by [state publication](../../../coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+  hazard is owned by [state publication](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
 
 ## `coga open-pr` source notes
 

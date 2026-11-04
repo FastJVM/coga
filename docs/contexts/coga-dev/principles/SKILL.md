@@ -66,8 +66,8 @@ when it became clear that transient notes would not preserve key findings.
 
 Fresh sessions make written handoffs important. The agent records useful
 findings, decisions, and open questions in the
-[blackboard](../../coga/blackboard/SKILL.md); the next
-[launch](../../coga/prompt-composition/SKILL.md) starts from the current
+[blackboard](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md); the next
+[launch](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md) starts from the current
 files. People can inspect, correct, and share the working knowledge carried
 forward. The record can be incomplete or wrong, so its reviewability matters
 as much as its persistence. This gives people a practical way to manage

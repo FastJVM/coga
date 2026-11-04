@@ -478,6 +478,9 @@ def test_installed_trim_adoption_preserves_custom_or_parked_files(tmp_path, edge
     coga_os = root / "coga"
     if obstacle == "fork":
         (coga_os / "recurring/trim-log").mkdir(parents=True)
+        # A complete local fork: ticket.md plus its script. A lone ticket.py
+        # is an incomplete override, refused with a different message.
+        (coga_os / "recurring/trim-log/ticket.md").write_bytes(b"---\ntitle: local trim-log\n---\n")
         (coga_os / "recurring/trim-log/ticket.py").write_bytes(b"# local implementation\n")
     elif obstacle == "parked":
         _legacy_local_install(root, installed, "trim-log")

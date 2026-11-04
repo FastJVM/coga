@@ -153,7 +153,9 @@ def test_listing_keeps_names_and_schedules_visible_with_disabled_reasons(
     assert "0 7 * * 1" in table
     assert "disabled" in table and "parked" in table
     assert "…" not in table
-    assert "jobs.toml" in text and "_skill-update" in text
+    # The note names an absolute tmp path, which Rich may wrap mid-word.
+    flat = text.replace("\n", "")
+    assert "jobs.toml" in flat and "_skill-update" in flat
 
 
 def test_local_override_wins_and_owns_its_state(repo: Path) -> None:
