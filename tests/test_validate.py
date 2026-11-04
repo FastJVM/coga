@@ -1072,8 +1072,11 @@ def test_validate_prunes_skill_dependencies_before_scanning(
     scanned: list[Path] = []
     real_scandir = os.scandir
 
-    def record_scandir(path: str | Path):  # type: ignore[no-untyped-def]
-        scanned.append(Path(path))
+    def record_scandir(path: str | Path | int):  # type: ignore[no-untyped-def]
+        # tmp_path cleanup (rmtree) can run while this patch is active and
+        # passes directory file descriptors; only record path scans.
+        if not isinstance(path, int):
+            scanned.append(Path(path))
         return real_scandir(path)
 
     monkeypatch.setattr(os, "scandir", record_scandir)
