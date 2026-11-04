@@ -10127,3 +10127,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 14:22 v1 [v1/remove-the-agent-cli-install-offer-from-coga-init] [human:zach] activated (draft → active) — auto on launch
 2026-11-04 14:22 v1 [v1/remove-the-agent-cli-install-offer-from-coga-init] [human:zach] started (active → in_progress) via coga launch
 2026-11-04 14:22 v1 [v1/remove-the-agent-cli-install-offer-from-coga-init] [human:zach] launched (operator=claude, agent=claude)
+2026-11-04 14:41 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [agent:codex] advanced to step 3 (open-pr) → claude — Peer review completed; fixed hidden staged edits and staged-work loss. Full suite: 4466 passed, 10 skipped. Branch pushed and PR preparation recorded.
