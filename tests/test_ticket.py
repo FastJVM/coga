@@ -13,7 +13,7 @@ def _supported_mock_agent_platform(monkeypatch):
 
 from typer.testing import CliRunner
 
-from conftest import seed_direct_body_workflow
+from conftest import seed_direct_body_workflow, windows_interactive_skip, write_executable
 from coga.blackboard import append_blocker
 from coga.cli import app
 from coga.config import load_config
@@ -436,6 +436,134 @@ def test_ticket_reports_post_exit_validation_errors(
     combined = result.output + (result.stderr or "")
     assert "task validation failed after ticket authoring" in combined
     assert "email/ghost" in combined
+
+
+@windows_interactive_skip
+@pytest.mark.parametrize(
+    ("failure", "child_sweep"),
+    [(None, "interrupted"), (None, "completed"),
+     ("validation", "interrupted"), ("validation", "completed"),
+     ("publication", "interrupted")],
+)
+def test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state(
+    git_repo, monkeypatch, tmp_path, failure, child_sweep,
+):
+    import json
+    import os
+    import subprocess
+    import sys
+
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    fixture = Path(__file__).parent / "fixtures" / "authoring_cancellation.py"
+    state = tmp_path / "synchronization"
+    state.mkdir()
+    (state / "settings.json").write_text(json.dumps({
+        "origin": str(git_repo.origin), "failure": failure, "child_sweep": child_sweep,
+    }), encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_executable(bin_dir / "stub-agent", f"""
+        import runpy, sys
+        sys.argv = [{str(fixture)!r}, 'agent', {str(state)!r}]
+        runpy.run_path({str(fixture)!r}, run_name='__main__')
+    """)
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text(config.read_text(encoding="utf-8").replace(
+        'cli = "claude"', 'cli = "stub-agent"'
+    ).replace('webhook = "env:SLACK_WEBHOOK_URL"', 'enabled = false'), encoding="utf-8")
+    cfg = load_config(git_repo.coga_os)
+    for name in ("Duplicate", "Sibling"):
+        create_task(cfg=cfg, title=name, workflow_name="direct/body", contexts=[],
+                    owner="marc", agent="claude", status="active")
+    target = git_repo.coga_os / "tasks/duplicate.md"
+    sibling = git_repo.coga_os / "tasks/sibling.md"
+    ticket = Ticket.read(sibling)
+    ticket.frontmatter["workflow"] = {
+        "name": "design", "steps": [{"name": "review-design", "assignee": "owner"}],
+    }
+    ticket.frontmatter["step"] = "1 (review-design)"
+    ticket.body += "\n## review-design\n\nOwner reviews the design.\n"
+    ticket.write(sibling)
+    _write(git_repo.coga_os / "workflows/design.md", """
+        ---
+        name: design
+        description: Owner design review.
+        steps:
+          - name: review-design
+            assignee: owner
+        ---
+        ## review-design
+
+        Owner reviews the design.
+    """)
+    sibling_frontmatter = dict(ticket.frontmatter)
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "seed authoring cancellation")
+    git_repo.git("push", "origin", "main")
+    if failure == "publication":
+        # Reject only the handoff. Lifecycle and usage-log commits still land,
+        # and even a later best-effort outer sweep cannot mask the refusal.
+        write_executable(git_repo.origin / "hooks/pre-receive", """
+            import subprocess, sys
+            for line in sys.stdin:
+                old, new, ref = line.split()
+                body = subprocess.check_output(['git', 'show', new + ':coga/tasks/sibling.md'])
+                if b'Sibling handoff.' in body:
+                    print('test remote rejects sibling handoff', file=sys.stderr)
+                    sys.exit(1)
+        """)
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
+    env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
+
+    result = subprocess.run(
+        [sys.executable, str(fixture), "outer", str(state)], cwd=git_repo.coga_os,
+        env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+        encoding="utf-8", timeout=40,
+    )
+
+    def receipt(name):
+        return json.loads((state / name).read_text(encoding="utf-8"))
+
+    output = result.stdout + result.stderr
+    assert result.returncode == (2 if failure else 0), output
+    assert receipt("outcome.json") == {"kind": "done", "exit_code": 0, "done_signalled": True}
+    assert receipt("cancel-exit.json") == (143 if child_sweep == "interrupted" else 0)
+    assert (state / "child-sweep-entered").exists()
+    assert (state / "child-sweep-completed").exists() == (child_sweep == "completed")
+    before = receipt("before-finalize.json")
+    assert Ticket.parse(before["target"]).status == "canceled"
+    assert ("Sibling handoff." in before["sibling"]) == (child_sweep == "completed")
+    remote = git_repo.git("show", "main:coga/tasks/sibling.md", cwd=git_repo.origin)
+    if failure:
+        assert "state sweep withheld" in output
+        assert "Authoring edits are retained" in output
+        assert str(git_repo.coga_os) in output
+        assert "coga run publish-state" in output
+        assert "sibling" in output
+        assert remote == before["sibling"]  # no rollback of an earlier sweep
+        assert (state / "finalizer-publish.json").exists() == (failure == "publication")
+        if failure == "validation":
+            assert "missing/context" in output
+    else:
+        assert "state sweep withheld" not in output
+        assert remote == sibling.read_text(encoding="utf-8")
+        assert "Published these knowledge edits" in output
+        assert str(sibling) in receipt("finalizer-publish.json")
+    assert receipt("outer-sweep.json") == {"withheld": bool(failure)}
+    assert Ticket.read(target).status == "canceled"
+    assert "Sibling handoff." in sibling.read_text(encoding="utf-8")
+    expected_frontmatter = dict(sibling_frontmatter)
+    if failure == "validation":
+        expected_frontmatter["contexts"] = ["missing/context"]
+    assert Ticket.read(sibling).frontmatter == expected_frontmatter
+    support = git_repo.coga_os / "contexts/team/SKILL.md"
+    assert support.is_file()
+    landed = not failure or child_sweep == "completed"
+    assert git_repo.origin_tracks("coga/contexts/team/SKILL.md") == landed
+    if landed:
+        assert git_repo.git("status", "--porcelain") == ""
+    else:
+        assert "coga/tasks/sibling.md" in git_repo.git("status", "--porcelain")
 
 
 def test_ticket_requires_tty_before_spawning(
