@@ -42,13 +42,19 @@ One agent is enough for a session. A workflow with an `other-agent` review
 step needs its configured peer as well; the [first-task walk](../first-task/SKILL.md)
 explains the one-agent and peer-review choices and GitHub prerequisites.
 
-In an interactive terminal, `coga init` offers to install a missing `git`,
+In an interactive terminal, `coga init` offers to install a missing `git` or
 `gh` (default yes, then `gh auth login` if the active github.com account is
-not logged in) or `op` (default no) with the machine's package manager —
-brew, winget, apt-get, dnf or pacman, with `sudo` on Linux — printing the
-exact command first. Without a terminal, a known package manager or a package
-for the tool, init prints the install link instead: a missing `git` still
-stops init, a missing `gh` or `op` is a warning.
+not logged in) with the machine's package manager — brew, winget, apt-get,
+dnf or pacman, with `sudo` on Linux — printing the exact command first.
+Without a terminal, a known package manager or a package for the tool, init
+prints the install link instead: a missing `git` still stops init, a missing
+`gh` is a warning.
+
+Init never offers to install `op`, under any package manager: which secrets
+manager you run is your choice. A missing `op` prints one note instead, in
+every mode, naming what needs it — only a ticket that declares an `op://`
+secret — with its install link, so a user who keeps secrets elsewhere skips
+it knowing nothing is broken.
 
 Agent CLIs take their own route. Interactive init, when neither `claude` nor
 `codex` is on `PATH`, asks which to install (or skip); `coga build` offers
