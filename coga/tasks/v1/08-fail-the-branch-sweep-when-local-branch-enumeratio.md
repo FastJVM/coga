@@ -199,6 +199,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1164
 branch: fail-sweep-on-local-enumeration
 
 ## Implement handoff (2026-11-04)
