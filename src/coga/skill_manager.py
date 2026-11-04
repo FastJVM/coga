@@ -564,7 +564,13 @@ def assert_skill_update_pr_preflight(
     control = cfg.git_control_branch
     _assert_no_unmerged_paths(run, cwd)
 
-    dirty = _git_paths(run, cwd, ["git", "diff", "--name-only", "--no-renames", "-z", "HEAD"])
+    # Compare both sides of the index separately: a staged edit followed by
+    # restoring the working file to HEAD disappears from `git diff HEAD`, but
+    # it still blocks checkout (and must not be swept into a skill commit).
+    dirty = set(_git_paths(run, cwd, ["git", "diff", "--name-only", "--no-renames", "-z"]))
+    dirty.update(_git_paths(
+        run, cwd, ["git", "diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD"]
+    ))
     untracked = _git_paths(
         run, cwd, ["git", "ls-files", "--others", "--exclude-standard", "-z"]
     )
@@ -677,9 +683,9 @@ def _commit_skill_updates(
     under `skills_root(cfg)`. `git checkout -B <branch> <base>` carries those
     uncommitted changes onto a dedicated branch based on Coga's configured
     control branch — so the commit never lands on the caller's branch, and the
-    PR never inherits unrelated feature commits. We stage only the skills tree
-    so the PR diff is exactly the skill update and nothing the caller left
-    uncommitted alongside it.
+    PR never inherits unrelated feature commits. We stage and commit only the
+    skills tree, preserving any unrelated staged or unstaged work for the
+    return checkout.
 
     Returns `True` when a commit was made, `False` when staging the skills tree
     produced no diff (e.g. an opaque `gh skill update` that changed nothing) so
@@ -693,7 +699,10 @@ def _commit_skill_updates(
     staged = run(["git", "diff", "--cached", "--quiet", "--", str(skills_root(cfg))], cwd)
     if staged.returncode == 0:
         return False
-    committed = run(["git", "commit", "-m", "Update Coga-managed skills"], cwd)
+    committed = run(
+        ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(skills_root(cfg))],
+        cwd,
+    )
     if committed.returncode != 0:
         raise SkillManagerError((committed.stderr or committed.stdout).strip())
     return True

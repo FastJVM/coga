@@ -83,8 +83,11 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   to that branch would fail or sweep up local work: unmerged paths, local
   edits or untracked files at paths that differ on the control branch, any
   local edit under the skills tree, or a skills tree that differs from the
-  control branch. Commit or stash the listed local work (for a skills-tree
-  difference, run from the control branch), then retry.
+  control branch. Staged and unstaged edits are checked separately. Commit
+  or stash the listed local work (for a skills-tree difference, run from the
+  control branch), then retry. Harmless edits outside the skills tree,
+  including staged edits, stay in place through the PR checkout and return;
+  only the skills tree is committed.
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
 

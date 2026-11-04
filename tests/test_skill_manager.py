@@ -1471,7 +1471,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             # returncode 1 == there are staged changes to commit.
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
+        if command == ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")]:
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
             assert command[4] == "coga/skill-update"
@@ -1502,7 +1502,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     # Updates are committed onto the dedicated branch and the checkout is
     # restored to where the caller left it (`main`), never committed there.
     assert ["git", "checkout", "-B", "coga/skill-update", "main"] in commands
-    assert ["git", "commit", "-m", "Update Coga-managed skills"] in commands
+    assert ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")] in commands
     assert _leased_push("coga/skill-update", "origin") in commands
     assert ["git", "checkout", "main"] in commands
 
@@ -1540,7 +1540,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
+        if command == ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")]:
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
             return _completed(command, stdout="")
@@ -1605,7 +1605,7 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
+        if command == ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")]:
             return _completed(command)
         lease = _lease_stub(command, "origin", "coga/skill-update", _REMOTE_OID)
         if lease is not None:
@@ -1834,7 +1834,7 @@ def test_dream_pr_summary_restores_branch_when_commit_fails(
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
+        if command == ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")]:
             return _completed(command, returncode=1, stderr="missing git identity")
         if command == ["git", "checkout", "feature/work"]:
             return _completed(command)
@@ -1934,7 +1934,7 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     assert result.verification == []
     # No commit, no PR — but the dedicated branch was created and the checkout
     # restored to where the caller left it.
-    assert ["git", "commit", "-m", "Update Coga-managed skills"] not in commands
+    assert ["git", "commit", "--only", "-m", "Update Coga-managed skills", "--", str(cfg.repo_root / "skills")] not in commands
     assert ["git", "checkout", "main"] in commands
 
 
@@ -1988,11 +1988,17 @@ def _skill_update_git_repo(
     return coga_os
 
 
+@pytest.mark.parametrize("edit_state", ["unstaged", "staged", "staged-then-restored"])
 def test_skill_update_preflight_refuses_dirty_path_the_checkout_would_overwrite(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit_state: str
 ) -> None:
     coga_os = _skill_update_git_repo(tmp_path, monkeypatch)
     _write(coga_os / "log.md", "feature\nlaunch append\n")
+    if edit_state != "unstaged":
+        _git(tmp_path, "add", "coga/log.md")
+    if edit_state == "staged-then-restored":
+        # The working tree matches HEAD but the index still blocks checkout.
+        _write(coga_os / "log.md", "feature\n")
     _write(coga_os / "notes.md", "harmless edit\n")
 
     with pytest.raises(SkillManagerError) as excinfo:
@@ -2026,6 +2032,49 @@ def test_skill_update_preflight_allows_dirty_path_the_checkout_carries_over(
     assert_skill_update_pr_preflight(load_config(coga_os))
 
 
+@pytest.mark.parametrize("edit_state", ["unstaged", "staged", "partially-staged"])
+def test_skill_update_pr_preserves_harmless_edits_on_return(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit_state: str
+) -> None:
+    coga_os = _skill_update_git_repo(tmp_path, monkeypatch)
+    cfg = load_config(coga_os)
+    _write(coga_os / "notes.md", "harmless edit\n")
+    if edit_state != "unstaged":
+        _git(tmp_path, "add", "coga/notes.md")
+    if edit_state == "partially-staged":
+        _write(coga_os / "notes.md", "harmless edit\nnot staged\n")
+    _write(coga_os / "scratch.txt", "untracked\n")
+    before_head = _git(tmp_path, "rev-parse", "HEAD")
+    before_status = _git(tmp_path, "status", "--porcelain", "-z")
+    before_index = _git(tmp_path, "diff", "--cached")
+    before_worktree = _git(tmp_path, "diff")
+    skill_path = coga_os / "skills" / "tools" / "example" / "SKILL.md"
+    original_skill = skill_path.read_bytes()
+
+    assert_skill_update_pr_preflight(cfg)
+    _write(skill_path, "updated skill\n")
+    summary = SkillUpdateSummary(results=[
+        SkillResult("tools/example", "url", "updated", "updated skill", changed=True)
+    ])
+    # Exercise the real checkout, staging, commit and return; only GitHub is fake.
+    monkeypatch.setattr(skill_manager, "open_or_update_pr", lambda *_args, **_kwargs: "pr-url")
+    result = run_skill_update_pr_flow(
+        cfg, summary, title="Update skills", verification_commands=[]
+    )
+
+    assert result.pr_url == "pr-url"
+    assert _git(tmp_path, "branch", "--show-current").strip() == "feature"
+    assert _git(tmp_path, "rev-parse", "HEAD") == before_head
+    assert _git(tmp_path, "status", "--porcelain", "-z") == before_status
+    assert _git(tmp_path, "diff", "--cached") == before_index
+    assert _git(tmp_path, "diff") == before_worktree
+    assert skill_path.read_bytes() == original_skill
+    assert (coga_os / "scratch.txt").read_text(encoding="utf-8") == "untracked\n"
+    assert _git(tmp_path, "diff", "--name-only", "main", "coga/skill-update").splitlines() == [
+        "coga/skills/tools/example/SKILL.md"
+    ]
+
+
 def test_skill_update_preflight_refuses_untracked_path_tracked_on_control(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2041,14 +2090,20 @@ def test_skill_update_preflight_refuses_untracked_path_tracked_on_control(
         assert_skill_update_pr_preflight(load_config(coga_os))
 
 
+@pytest.mark.parametrize("edit_state", ["unstaged", "staged-then-restored"])
 def test_skill_update_preflight_refuses_local_edits_in_the_skills_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit_state: str
 ) -> None:
     """`git add -- skills_root` would sweep these into the PR commit and the
     return checkout would drop them from the caller's branch."""
     coga_os = _skill_update_git_repo(tmp_path, monkeypatch)
     _git(tmp_path, "switch", "-q", "main")
-    _write(coga_os / "skills" / "tools" / "example" / "SKILL.md", "edited\n")
+    skill_path = coga_os / "skills" / "tools" / "example" / "SKILL.md"
+    original = skill_path.read_bytes()
+    _write(skill_path, "edited\n")
+    if edit_state == "staged-then-restored":
+        _git(tmp_path, "add", "coga/skills/tools/example/SKILL.md")
+        skill_path.write_bytes(original)
     _write(coga_os / "skills" / "tools" / "new" / "SKILL.md", "new\n")
 
     with pytest.raises(SkillManagerError) as excinfo:
@@ -2076,11 +2131,15 @@ def test_skill_update_preflight_refuses_skills_tree_that_differs_from_control(
     assert "coga/skills/tools/example/SKILL.md" in message
 
 
+@pytest.mark.parametrize("edit_state", ["unstaged", "staged-then-restored"])
 def test_update_cli_pr_refuses_before_any_update_is_applied(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit_state: str
 ) -> None:
     coga_os = _skill_update_git_repo(tmp_path, monkeypatch)
     _write(coga_os / "log.md", "feature\nlaunch append\n")
+    if edit_state == "staged-then-restored":
+        _git(tmp_path, "add", "coga/log.md")
+        _write(coga_os / "log.md", "feature\n")
 
     def fake_update_skills(*_args, **_kwargs):
         raise AssertionError("update_skills must not run after a refused preflight")
