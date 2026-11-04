@@ -2,14 +2,101 @@
 title: Guard foreign linked worktree branch cleanup
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-For a recorded `worktree:` that is another repository's existing linked worktree, `checkout_disposal.dispose_checkout` refuses the worktree removal but still calls `delete_branch(cfg, root, branch, ...)` against the invoking clone, so a same-named local branch there can be judged, and possibly deleted, in place of the foreign repository's branch. Autoclose reaches it through `_dispose_checkouts` / `dispose_worklist_backlog` (`_owner_held_branch` returns None while the foreign worktree directory still exists), and `retire/ticket.py` `_cleanup_checkout` passes the recorded `## Dev` values straight in. Found on PR #939; only the foreign-primary path is guarded. Fix: treat an existing foreign linked worktree like a foreign primary (report its branch for cleanup in the owning clone) and add a regression test. Moved from the coga/checkout-cleanup Known gap note by blocks/02.
+Foreign worktrees, meaning a recorded `worktree:` that is not a linked
+worktree of this repository, are not a supported layout outside recurring. A
+stray one must never cause branch deletion in the clone that is running the
+cleanup. Today it can. For a recorded worktree that exists and belongs to
+another repository, `checkout_disposal.dispose_checkout` refuses the worktree
+removal. It still calls `branchcleanup.delete_branch(cfg, root, branch, ...)`
+against the invoking clone. `delete_branch` has no ownership guard, so a
+same-named local branch there can be deleted, with `-d`/`-D` plus the leased
+remote delete. Found on PR #939. Both autoclose paths reach it, because
+`autoclose._owner_held_branch` returns `None` while the directory exists. So
+does `coga retire`, through `_cleanup_checkout` in the bundled
+`bootstrap/retire/ticket.py`. Retire also has the same hole for a *foreign
+primary* checkout, such as a sandbox clone.
+
+Fix, as defense in depth with no new reporting machinery:
+
+- In `dispose_checkout`, after the claim scan, check the recorded worktree. If
+  its directory exists and it is not this repository's linked worktree, skip
+  all branch cleanup in this clone and add one note saying why. "Not this
+  repository's linked worktree" means `"foreign-linked"`, `"foreign-primary"`,
+  or `None` from `git.classify_checkout`.
+- Leave the worktree in place, as today.
+
+Done means:
+
+- Under autoclose and `coga retire`, a recorded foreign linked worktree, and a
+  foreign primary under retire, leave a same-named local branch in the
+  invoking clone untouched.
+- A regression test fails on current `main` and passes with the fix.
+- Tickets whose worktree is already gone keep their normal branch cleanup.
+- `coga/checkout-cleanup` is updated in both copies.
+- `python -m pytest` passes.
 
 ## Context
+
+### Guard rules
+
+- Classify only when the recorded worktree is set *and* its directory exists.
+  `git.classify_checkout` also returns `None` for a missing path. Treating
+  that as foreign would break the ordinary `already_gone` path, which is the
+  common case. `retire_worklist._recorded_relation` already resolves the path
+  and checks that it is a directory, so reuse it or mirror it.
+- `"primary"` is this repository's own primary checkout. Its branch is judged
+  here as today, so the guard must not catch it.
+- `_sweep_owned_branches` runs only when `disposal.worktree_gone`, so a
+  surviving foreign worktree never reaches it. No test is needed for that
+  path.
+
+### Don't change the autoclose remedy
+
+- Do **not** set `CheckoutOutcome.branch_owner` for these entries. Its arm in
+  `manual_command` comes before the foreign-linked arm and would emit
+  `git -C <owner> branch -d`.
+- That would break `test_cross_repo_worktree_names_its_owning_checkout` in
+  `tests/test_autoclose_dispose.py`, which asserts there is no such text.
+- The existing foreign-linked remedy stays as it is.
+
+### Tests
+
+- Autoclose: in `tests/test_autoclose_dispose.py`, use the
+  `_other_repo_worktree` fixture and add a same-named branch in
+  `git_repo.root`. Follow the shape of
+  `test_another_clones_primary_is_preserved_and_discharged_without_reposting`,
+  which asserts that a same-named branch "must never be touched".
+- Retire: add a test in `tests/test_retire.py`, since retire calls
+  `dispose_checkout` directly. A fix inside `_owner_held_branch` alone would
+  pass the autoclose test and leave retire broken.
+
+### Docs (cited, not attached, because this ticket edits them)
+
+- In `docs/contexts/coga/checkout-cleanup/SKILL.md`, section "Primary checkouts
+  and other clones", the doc currently states the bug as intended: "an
+  existing foreign *linked* worktree is the exception, whose recorded branch
+  is judged in the sweeping clone."
+- Rewrite that passage so it says foreign checkouts never have their branch
+  judged in the invoking clone, for autoclose *and* `coga retire`, and that
+  foreign worktrees are expected only for recurring.
+- Keep the packaged twin
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/SKILL.md`
+  byte-identical; `tests/test_packaging.py` enforces it.
+- Fix the module docstrings in `autoclose.py` and `retire_worklist.py` if they
+  restate the old rule.
+- The recurring exception needs no special handling in this guard.
+
+### Out of scope
+
+- Removing foreign worktree directories.
+- Deleting anything in the owning repository.
+- New remedies or owner-reporting for these stray records.
+- Changing `classify_checkout`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
