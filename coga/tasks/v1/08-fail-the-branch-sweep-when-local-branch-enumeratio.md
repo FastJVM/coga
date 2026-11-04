@@ -104,10 +104,12 @@ ordinary ticket.
 - Model to copy: `branchsweep._worktree_branches`. On a non-zero exit it sets
   `result.worktree_unavailable` to stderr/stdout (or a fallback string), notes
   "... — sweep skipped: <detail>" via `_note`, and `sweep_branches` returns
-  before any delete. `_remote_branches` does the same with
-  `remote_unavailable`, but that one only skips the remote half (a "partial
-  sweep"); a local enumeration failure must stop the whole sweep, because no
-  per-branch decision is safe without local state.
+  before any delete. Unlike `_remote_branches` (a partial sweep), a local
+  enumeration failure stops the whole sweep: no per-branch decision is safe
+  without local state. `_local_branches` will need `result` and `echo`
+  parameters for this.
+- A successful but empty `for-each-ref` (no branches, unborn HEAD) is
+  legitimate and is not a failure.
 - Failure plumbing to extend: `BranchSweepResult` (add a field such as
   `local_unavailable`), its `failure` property, and `render_sweep_report`,
   which labels `worktree_unavailable` / `state_root_unavailable` as "the sweep
@@ -115,10 +117,16 @@ ordinary ticket.
 - Required too: `_local_branches` silently drops a listed branch whose
   `_rev_parse` comes back empty. That branch then looks remote-only, which is
   the same unsafe outcome, so treat it as the same enumeration failure.
-- Placement: the early return in `sweep_branches` must come before
-  `_remote_branches` is consulted, or at least before the per-branch loop.
-  Both `failure` and the "stopped early" condition in `render_sweep_report`
-  need the new field.
+  Consider `--format=%(refname:strip=2) %(objectname)` instead: it removes the
+  per-branch `rev-parse` and its empty case, and avoids failing the run when a
+  branch is deleted between the two calls.
+- Placement: the early return in `sweep_branches` goes before `_remote_branches`
+  is called. Then no `ls-remote` call is wasted, and `remote_unavailable`
+  cannot be reported ahead of the local failure. Add the new field to
+  `failure` and to the "stopped early" condition in `render_sweep_report`.
+- `checkout_disposal` also calls `sweep_branches(only=...)` and ignores
+  `result.failure`. A local failure there only leaves owned branches in place,
+  which is acceptable and needs no change.
 
 ### Tests
 
@@ -126,12 +134,11 @@ ordinary ticket.
 `test_worktree_prune_failure_stops_sweep`: monkeypatch `bs._git` so that
 `for-each-ref` returns a non-zero `CompletedProcess` while other calls pass
 through to the real `_git`. The fake must accept `**kwargs`, because `_git`
-takes `input=`; the model test's `fail_prune(root, *args)` does not. then assert the new failure field is set and `local_deleted` and
-`remote_deleted` are both empty. Ideally, set up a remote-only branch that
-would otherwise be deleted (the file's existing helpers such as
-`_merged_at_tip` / `_push_branch` set that up), so the test shows the delete
-is refused. Add the
-new field to the parametrized
+takes `input=`; the model test's `fail_prune(root, *args)` does not. Then
+assert the new failure field is set and `local_deleted` and `remote_deleted`
+are both empty. Ideally, set up a remote-only branch that would otherwise be
+deleted (with helpers such as `_merged_at_tip` / `_push_branch`), so the test
+shows the delete is refused. Add the new field to the parametrized
 `test_recipe_records_a_failed_sweep_on_the_blackboard` cases ("the sweep
 stopped early", exit 2).
 
@@ -147,26 +154,21 @@ this, and the user topic and its twin must state the rule.
 
 The rule is in `coga/checkout-cleanup/branch-sweep`
 (`docs/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md`; cited here, not
-attached because this ticket edits it). It currently covers only per-branch
-failures (archive read, fetch, or tag push), which keep that branch and exit 2
-after checking the others. It does not mention whole-sweep stops. Add a short
+attached because this ticket edits it). It covers only per-branch failures
+today. Add a short
 statement that the sweep stops before any delete, records the reason in
 `## Branch Sweep`, and exits 2 when it cannot establish local state: local
 branch enumeration (new), worktree probe, or Coga root prefix. Keep this
 separate from the per-branch paragraph. The packaged twin
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md`
-must stay byte-identical (`tests/test_packaging.py`). The topic's old "Known
-gap" note was already removed when this ticket was split out.
-`coga-dev/internals/branch-sweep` does not describe the failure fields, so it
-needs no change.
+must stay byte-identical (`tests/test_packaging.py`).
+`coga-dev/internals/branch-sweep` needs no change.
 
 ### Out of scope
 
 The non-UTF-8 decode failure in `branchsweep._git` (the "Known failure mode"
 in `coga-dev/internals/branch-sweep`) is a separate, unowned bug. Do not fix
 it here.
-
-Previous ref: `fail-the-branch-sweep-when-local-branch-enumeratio` (renamed 2026-10-27); earlier audit lines retain that ref.
 
 <!-- coga:blackboard -->
 
