@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 6055f317-21b7-4f71-9167-dca1a98d0540
 ---
 
 ## Description
