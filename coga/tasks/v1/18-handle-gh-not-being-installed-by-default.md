@@ -2,44 +2,159 @@
 title: Handle gh not being installed by default
 status: draft
 owner: zach
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
 
-`gh` is not installed on a fresh Mac and `coga init`'s offer to install it
-cannot fire there. `_package_manager` at `src/coga/commands/init.py:471`
-returns brew as the only macOS candidate, a fresh Mac has no brew, and
-`_offer_install` at `:485` returns False as soon as the manager is None.
-Decide how a new user gets `gh`, and say in the install path that `gh` is
-needed rather than listing it as one more optional tool.
+`coga init` should get `gh` onto the machine when it is missing, on every
+platform (macOS, Windows, Linux): offer to install it, and install it on a
+yes. Getting `gh` is the first step of every install. Today the offer works
+only when init finds a known package manager. `init._package_manager` tries
+`brew` on macOS, `winget` on Windows, and apt-get, dnf, pacman or brew on
+Linux. `init._offer_install` returns False when none is found, and also when
+sudo is needed but missing. The clearest case is a fresh Mac, which has no
+Homebrew. In those cases the user falls through to a yellow "Optional tools
+not on PATH" warning. Give `init` a route to `gh` that works on all three
+platforms without a package manager, and present `gh` as needed rather than
+as one more optional tool.
 
-Done when: a new user on a fresh Mac has a working or documented route to
-`gh`, and the install path does not present it as optional.
+Done when: on each of macOS, Windows and Linux, interactive `coga init` on
+a machine with no usable package manager and no `gh` asks to install `gh` and, on a yes, installs a working `gh`. Success means
+`gh` resolves on the current process's `PATH`, and init then offers
+`gh auth login` as it already does. An install that only becomes visible in
+a new shell must say so explicitly, using `_offer_install`'s existing note. Declining, a failed install, or a
+non-interactive init prints a clear "`gh` is needed for PR workflows, install
+it from https://cli.github.com" message, not the "optional tools" heading.
+`init` still never fails because `gh` is missing. `tests/test_init.py`
+covers the no-package-manager path for each platform through an injectable install seam.
+No test touches the network. The install topic describes the new
+behaviour.
+
+### Owner direction
+
+- Zach on 2026-11-04: "install it if it's not there! or ask the user". The
+  default is to install, behind the same yes/no confirm `_offer_install`
+  already uses (default yes). Nothing installs without a yes.
+- Zach on 2026-10-21: `gh` is required and should be installed, offered
+  through `coga init` if that is the way to do it.
+- "Required" means *presented* as needed. It does not mean `required_at_init`.
+  `git` is the only tool that stops init, and a user who never opens PRs must
+  still be able to init. Every `gh` consumer already enforces it at the point
+  of use. Ask the owner before turning a missing `gh` into an init failure.
+
+### Open for the design step
+
+The design step picks the mechanism. The owner approves it at `review-design`.
+Weigh at least these options:
+
+- **Download the official `gh` release for the platform** from
+  `github.com/cli/cli/releases` into a user-writable directory on `PATH`. No
+  package manager and no sudo are needed. The design must cover:
+  - platform and architecture detection (arm64 or amd64);
+  - checksum verification against the release's checksums file;
+  - which directory is on `PATH`, and what happens when none is writable;
+  - how the exact command or URL is shown before the confirm.
+- **Bootstrap a package manager first**, for example Homebrew and then
+  `brew install gh`. This is a much larger change to the user's machine:
+  Homebrew's curl-pipe-bash installer needs sudo and the Xcode Command Line
+  Tools, and takes minutes. It is probably out of proportion.
+- **Documented route only.** This is the fallback whatever is chosen: an
+  explicit, non-"optional" message with the install link.
+
+The design must also settle:
+
+- **Install directory, per platform.** The default macOS `PATH` is
+  `/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`. `/usr/local/bin` is
+  root-owned and may be absent on Apple Silicon without brew. `~/.local/bin`
+  is not on `PATH` by default. Consider the directory that holds the running
+  `coga` executable, such as uv tool's or pipx's `~/.local/bin`: the user can
+  already run coga from there. Windows and Linux need the same answer.
+- **Asset, per platform.** Releases ship:
+  - macOS: `gh_<v>_macOS_{arm64,amd64}.zip` and a universal `.pkg`. The
+    `.pkg` needs `installer` and sudo, so the zip is the no-sudo route.
+  - Windows: `.zip` and `.msi`.
+  - Linux: `.tar.gz`, `.deb` and `.rpm`.
+
+  Prefer the archive that needs no admin rights.
+- **Trust.** The checksums file comes from the same release over HTTPS, so it
+  proves integrity only. Decide whether that is enough, or pin the version
+  and digest in the package. Also decide how "latest" is resolved: the API
+  has rate limits and fails offline. Say how the user updates a `gh`
+  installed this way.
+- **Gatekeeper and SmartScreen.** On macOS, urllib downloads carry no
+  quarantine attribute and `gh` is notarized, so this is likely a non-issue.
+  Check the Windows equivalent too. State the conclusion explicitly for both.
+- **Fresh-Mac `git`.** `/usr/bin/git` on a fresh Mac is a shim that triggers
+  the Xcode Command Line Tools install, and `shutil.which` sees it as
+  present. Check what this user hits in `_require_init_tools` and the git
+  steps before the `gh` offer ever appears.
+- **Linux with a package manager but no sudo.** `_offer_install` already
+  gives up here. The download route should cover it.
+- **No package-manager bootstrap here.** If the design wants one, split it
+  into its own ticket.
 
 ## Context
 
+### Current code
+
+The functions below are in `src/coga/commands/init.py` unless named
+otherwise. Cite them by symbol; line numbers drift.
+
+- `_offer_optional_tools`:
+  - offers every missing non-`required_at_init` dependency whose
+    `offer_install` is not None. Today that is only `gh`.
+  - then calls `_offer_gh_login`.
+  - prints any tool still missing under "Optional tools not on PATH (init
+    continues without them):". That heading is the message to replace for
+    `gh`.
+- `_package_manager` returns the first available entry from a per-platform
+  candidate list. On darwin the list is `["brew"]`.
+- `_offer_install(dep, manager)`:
+  - returns False when `manager` is None or not in `dep.packages`;
+  - otherwise prints "Will run: <argv>" and confirms with
+    `default=dep.offer_install`;
+  - runs the command and re-checks `PATH`, printing a "not on PATH yet — open
+    a new shell" note.
+  - A new install route should reuse this confirm/verify shape rather than
+    fork it.
+- `dependencies.DEPENDENCIES` holds the `gh` entry:
+  - `offer_install=True`, `install="https://cli.github.com"`;
+  - `packages` for brew, apt-get, dnf, pacman and winget;
+  - a `purpose` string saying it is "Not required at init". Update that
+    wording if the positioning changes.
+- `PACKAGE_MANAGERS` and `NEEDS_ROOT` hold the per-manager argv prefixes and
+  the managers that need sudo.
+- The `gh` tests in `tests/test_init.py` are the `test_dep_check_*` family.
+  They monkeypatch `shutil.which`, `sys.platform` and the confirm. Extend
+  them.
+
+### `op` half already landed
+
+`v1/25-position-op-as-optional` is done. `op` now has `offer_install=None`,
+is never offered, and is kept out of the `_offer_optional_tools` list.
+`_note_missing_op` prints its own note. Leave that wording and behaviour
+intact.
+
+### Docs to update in the same PR
+
+- `src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`
+  is the owner. Its legacy live twin `docs/contexts/coga/install/SKILL.md`
+  must stay byte-identical, which `tests/test_packaging.py` enforces. Edit
+  both.
+- Two sections describe today's behaviour:
+  - "Prerequisites" calls `gh` "recommended but not required at init".
+  - The paragraph on what interactive `coga init` offers to install names
+    the package managers.
+- The README install section is out of scope.
+  `v1/17-separate-installing-coga-from-installing-its-depen` owns the README's
+  required/optional dependency split and will cite this ticket's outcome.
+
 ### Why
 
-- Finding 8 on `test-and-fix-install-on-macos-and-windows`, recorded there as
-  open and needing an owner decision.
-- The auto-install offer exists because of an owner reversal on 2026-09-30:
-  users read a missing `gh` as a broken, unprofessional install and churn.
-- The user it was built for is exactly the one who cannot receive it.
-- `coga init` enforces only `git` and continues without `gh`, so this is a
-  first-impression problem rather than a hard failure.
-- Zach's note from the walk on 2026-10-15: `gh` is listed as optional, and for
-  him it was not optional.
-- Zach on 2026-10-21: `gh` is required and should be installed, offered through
-  `coga init` if that is the way to do it.
-- The code already separates the two tools by prompt default — `gh` is
-  `offer_install=True` at `src/coga/dependencies.py:78`, `op` is
-  `offer_install=False` at `:99`.
-- The printed list does not: `_offer_optional_tools` at
-  `src/coga/commands/init.py:460` puts both under one "Optional tools not on
-  PATH (init continues without them)" heading with no sign `gh` matters more.
-- `position-op-as-optional` is the other half of the same decision about that
-  message; settle them together.
+This is finding 8 of the macOS/Windows install test. Owner reversal on
+2026-09-30: users read a missing `gh` as a broken, unprofessional install and
+churn.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
