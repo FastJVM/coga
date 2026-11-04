@@ -60,9 +60,9 @@ and criteria for success. A human can question its assumptions, correct the
 tickets or context, add a review step, or stop the project. The revised text
 also directs later agent work. Coga uses the agent's planning capability and
 keeps that shared understanding editable across sessions. The
-[Thinkpick case study](https://github.com/FastJVM/coga/blob/main/README.md#when-the-first-plan-was-wrong-thinkpick)
-shows a changed plan and a decision not to build yet — not a failed or
-finished implementation.
+[Coga history examples](https://github.com/FastJVM/coga/blob/main/README.md#when-coga-changed-its-own-mind)
+show a discarded architectural assumption and a maintenance workflow changed
+when it became clear that transient notes would not preserve key findings.
 
 Fresh sessions make written handoffs important. The agent records useful
 findings, decisions, and open questions in the
