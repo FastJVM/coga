@@ -3392,6 +3392,54 @@ def test_init_writes_the_chosen_default_agent(
     assert "`coga init` did not enable claude" in text
 
 
+def test_codex_only_init_resolves_an_agent_for_every_packaged_target(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repo without `[agents.claude]` still runs `coga ticket`, `coga chat`,
+    and `coga build`.
+
+    The packaged `bootstrap/ticket` and `bootstrap/orient` used to pin
+    `agent: claude`, and init cannot rewrite them — they live in the installed
+    package, and `_stamp_agent_into_delivered_tickets` only walks
+    `coga_os/tasks`. The regression this guards is
+    `Agent type 'claude' is not defined in [agents]`. `coga validate` is no
+    gate here: its unknown-agent check only reads `agent:` on
+    `list_tasks(cfg)` refs, never on a bootstrap target.
+    """
+    from coga.authoring import resolve_authoring_agent
+    from coga.bump import resolve_main_agent
+    from coga.launch import _target_operator
+    from coga.tasks import resolve_bootstrap
+
+    target = _make_git_repo(tmp_path / "repo")
+    _choose(monkeypatch, ("codex",), "codex")
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(target / "coga")
+    assert "claude" not in cfg.agents
+
+    # `coga ticket` — the bare interview, where the target *is* the bootstrap
+    # ticket, so term 4 is skipped, term 5 is now empty, and term 6 decides.
+    bootstrap = Ticket.read(resolve_bootstrap(cfg, "bootstrap/ticket").path / "ticket.md")
+    assert (
+        resolve_authoring_agent(
+            cfg, source_ticket=bootstrap, bootstrap_ticket=bootstrap
+        )
+        == "codex"
+    )
+    # `coga chat` — aliased to `launch bootstrap/orient`. Through the real
+    # call path: `_target_operator` is what passes
+    # `allow_prospective_default=True`, which is why an absent `agent:`
+    # reaches the configured default instead of raising.
+    orient_ref = resolve_bootstrap(cfg, "bootstrap/orient")
+    orient = Ticket.read(orient_ref.path / "ticket.md")
+    assert _target_operator(cfg, orient_ref, orient).name == "codex"
+    # `coga build` — the delivered onboarding ticket, stamped by init.
+    build = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
+    assert resolve_main_agent(cfg, build.frontmatter.get("agent")) == "codex"
+
+
 def test_init_claude_only_leaves_the_packaged_default_alone(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:

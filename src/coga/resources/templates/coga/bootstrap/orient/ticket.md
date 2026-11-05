@@ -1,6 +1,8 @@
 ---
 title: Orient an agent in this coga/ repo
-agent: claude
+# No `agent:` on purpose: a stateless bootstrap target with no explicit
+# main-agent choice resolves to the configured default, so a repository
+# without Claude still runs `coga chat` with its own agent.
 contexts:
   - coga/architecture
   - coga/cli
@@ -28,5 +30,6 @@ committing to a ticket up front. For ticket-bound work, exit and `coga launch
   **Checkout (runtime)** notice; `coga/checkouts/chat` owns the chat's branch
   and its one-chat-per-checkout guard.
 
-Launch and usage lines are still logged. Don't edit this ticket except to
-swap `agent:` to whichever agent type matches your `coga.toml`.
+Launch and usage lines are still logged. Don't edit this ticket: it carries no
+`agent:`, so it already follows `default_agent` in your `coga.toml`. Use
+`coga chat --agent <name>` to pick a different one for a single session.

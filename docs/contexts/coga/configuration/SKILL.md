@@ -102,7 +102,8 @@ generic check, so the actionable message survives:
 - `[assignees]` and `[megalaunch]` in `coga.toml`;
 - `[secrets]` in `coga.local.toml` (secrets are declared inline on tickets);
 - `[authoring]` in `coga.toml` (machine-local; the install-level default is
-  `bootstrap/ticket`'s `agent:`);
+  an `agent:` on a local `coga/bootstrap/ticket/ticket.md`, which the packaged
+  copy deliberately does not set);
 - `[slack]` in either file (moved under `[notification.slack]`);
 - `auto`, `skip_permissions`, `skip_permissions_argv` in any
   `[agents.<name>]`, reported against the file that contains them.

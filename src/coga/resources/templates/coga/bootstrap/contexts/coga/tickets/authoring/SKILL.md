@@ -32,10 +32,12 @@ syntax authority for every flag.
   `coga ticket` and megalaunch's picked drafts; the first set term wins:
   (1) `--agent`, `coga megalaunch --agent`, or the `--pick-agent` answer;
   (2) `COGA_AUTHORING_AGENT`; (3) `[authoring] agent` in `coga.local.toml`;
-  (4) the target ticket's `agent:`; (5) `bootstrap/ticket`'s `agent:`, the
-  install-level default; (6) the configured default agent. An unknown name
-  from any term fails loud naming that term, never falling through. The
-  choice selects the interviewer only and is never written to the ticket.
+  (4) the target ticket's `agent:`; (5) `bootstrap/ticket`'s `agent:`, which
+  only a local `coga/bootstrap/ticket/ticket.md` supplies — the packaged copy
+  sets none, so this term is empty by default; (6) the configured default
+  agent. An unknown name from any term fails loud naming that term, never
+  falling through. The choice selects the interviewer only and is never
+  written to the ticket.
   `--pick-agent` (TTY only) lists the configured types and marks the would-be
   default; it writes no config. Megalaunch never prompts: an unresolvable
   agent is reported and the draft left.

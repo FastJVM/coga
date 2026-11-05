@@ -10,8 +10,9 @@ default_status = "draft"
 # table below. Set it in coga.local.toml to override it on one machine only
 # (local wins); either value must name a configured type or config load fails.
 # Activation writes it into the ticket's `agent:`, so changing it affects only
-# tickets activated afterwards. It does not move `coga chat` or `coga ticket`:
-# their packaged tickets pin `agent: claude`. Use `--agent` for either command;
+# tickets activated afterwards. It also drives `coga chat` and `coga ticket`:
+# their packaged tickets set no `agent:`, so both fall through to this key. Use
+# `--agent` to override either for one run;
 # `[authoring] agent` in coga.local.toml also selects the `coga ticket` interviewer.
 # default_agent = "claude"
 

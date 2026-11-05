@@ -27,6 +27,12 @@ adopt it into. Installing the package never modifies a repo;
   Git, but any working Git installation is sufficient (below).
 - **An agent CLI**, installed and authenticated: Claude Code or Codex, for
   anything that launches an agent. `coga init` does not require one (below).
+  It does scan for them: interactive init prints every supported agent CLI
+  with its binary and whether that binary is on `PATH`, then asks which ones
+  this repo should declare, pre-checking the ones it found. It offers no
+  install — an absent agent is named with its binary so you can install it
+  yourself — and declaring one whose binary is missing is allowed, so you can
+  adopt the repo now and install the CLI after.
   Follow the [Claude Code CLI quickstart](https://code.claude.com/docs/en/quickstart)
   or [Codex CLI instructions](https://developers.openai.com/codex/cli/), then
   sign in with `claude` or `codex login`. Coga's install does not include

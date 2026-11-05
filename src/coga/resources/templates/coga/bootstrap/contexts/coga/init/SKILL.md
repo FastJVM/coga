@@ -102,19 +102,46 @@ external CLIs: in an interactive terminal it offers to install a missing
 `gh auth login` only once every precondition has passed, before scaffolding.
 Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
 details), so an invocation that must exit changes nothing on the machine.
-At the same point, with no agent CLI on `PATH`, it asks which agent CLI to
-install (`claude`, `codex`, or skip) and offers its install and login. When
-exactly one agent CLI is then on `PATH` and it is not the packaged default
-(`claude`), init asks whether to make it the default agent. On a yes it writes
-`default_agent = "<type>"` into the new `coga.toml` and leaves the
-`[agents.*]` table order alone (the `default_agent` comment in `coga.toml`
-explains the key). It also repoints delivered
-tickets that name the old default, such as the onboarding ticket's `agent:`.
-Both happen before the commit. If the edit would not parse back to the same
-config plus that one key, init skips it and prints a warning. A
-non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
-edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
-`coga ticket "<title>"` (filled repo).
+At the same point it scans for the supported agent CLIs and asks which ones
+coga should drive. The scan prints one row per agent in `dependencies.AGENT_CLIS`
+— display name, binary, and whether that binary is on `PATH` — and lists every
+supported agent in every state, so a machine with none installed reads a
+complete list of what coga can drive rather than an absence. The same agents
+are then offered as a multi-select with the found ones pre-checked, so
+accepting takes one ENTER. Init offers no install: an agent that is not on
+`PATH` is named with its binary so you can install it or put it there
+yourself, and choosing one anyway is allowed — it is declared, and init says
+the binary has to be on `PATH` before coga can launch it.
+
+The selection is written into the new `coga.toml` as one all-or-nothing edit.
+Each unchosen `[agents.*]` table is commented out in place with its key
+comments intact (both forms parse the same, so this is what a human sees in
+the committed file; re-enabling is deleting `# `s), and `default_agent =
+"<type>"` is written only when the packaged default (`claude`) was not chosen.
+Init also repoints delivered tickets that name the old default, such as the
+onboarding ticket's `agent:`. All of it happens before the commit. If the
+rewrite would not parse back to the packaged config minus exactly the unchosen
+agents, init writes nothing at all — `coga.toml` stays as packaged with every
+agent declared — and prints a warning.
+
+A single-agent selection is allowed and warned about: with one agent,
+`other-agent` steps have no peer and `coga validate` reports
+`unresolvable-step-assignee` on any ticket already frozen on a peer-review
+workflow, so `code/with-self-review` is the single-agent review workflow. An
+empty selection is confirmed rather than silent, naming what it costs — no
+`coga launch` works and `coga build` cannot run — and declining re-opens the
+picker. Quitting the picker with `q`/Esc changes nothing: every agent stays
+declared and `default_agent` stays as packaged. Ctrl-C aborts init instead,
+and because the question runs before anything is written, nothing is left
+behind.
+
+A non-interactive init never prompts, prints no scan, makes no `[agents.*]` or
+`default_agent` change, installs nothing and stays offline. The printed next
+steps follow the selection: put `coga` on `PATH` if it is missing; edit
+`coga.toml` for notification channels and aliases; put any declared-but-absent
+agent binary on `PATH`; then `coga build` (empty repo) or `coga ticket
+"<title>"` (filled repo). With no agents declared it advertises neither, and
+points at the `[agents.*]` table to uncomment instead.
 
 ## Clone of a repo that already uses Coga
 

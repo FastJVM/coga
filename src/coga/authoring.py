@@ -51,7 +51,8 @@ def resolve_authoring_agent(
     3. `[authoring] agent` in coga.local.toml;
     4. the target ticket's own `agent:` (skipped when the target *is* the
        bootstrap ticket, as on a bare `coga ticket`);
-    5. `bootstrap/ticket`'s `agent:` — the install-level default;
+    5. `bootstrap/ticket`'s `agent:` — supplied only by a local
+       `coga/bootstrap/ticket/ticket.md`, since the packaged copy sets none;
     6. `Config.default_agent()`: the top-level `default_agent` key, else the
        first declared `[agents.*]` type.
 

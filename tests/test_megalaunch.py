@@ -4755,8 +4755,9 @@ def _capture_author_draft(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 def test_author_draft_prefers_draft_agent_over_bootstrap(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The picked draft's own `agent:` beats the packaged bootstrap/ticket's
-    `agent: claude`."""
+    """The picked draft's own `agent:` (term 4) beats the configured default
+    (term 6), which is what the packaged bootstrap/ticket now falls through
+    to."""
     from coga.megalaunch import _author_draft
     from coga.tasks import resolve_task
 

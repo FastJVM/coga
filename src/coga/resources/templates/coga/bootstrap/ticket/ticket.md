@@ -2,7 +2,10 @@
 title: Create a new ticket
 skills:
   - bootstrap/ticket
-agent: claude
+# No `agent:` on purpose: a stateless bootstrap target with no explicit
+# main-agent choice resolves to the configured default, so a repository
+# without Claude still runs the bare `coga ticket` interview with its own
+# agent.
 ---
 
 ## Description
@@ -25,13 +28,16 @@ package `bootstrap/skills/bootstrap/ticket/SKILL.md` resources unless a local
 bare `coga launch bootstrap/ticket` sessions to that skill — read the skill if
 you're debugging the bootstrap flow.
 
-`agent:` here is the install-level default and last resort for which agent
+An `agent:` here is the install-level default and last resort for which agent
 runs a `coga ticket` or megalaunch picked-draft authoring interview. It
 governs the bare `coga ticket` interview and any target ticket without its
-own `agent:`; a target's `agent:` wins over it. It must name an effective
-`[agents.<type>]` block after `coga.local.toml` layers over `coga.toml`. To
-change it for the whole install, add a local `coga/bootstrap/ticket/ticket.md`
-(it overrides this packaged copy).
+own `agent:`; a target's `agent:` wins over it. This packaged copy sets none,
+so that term is empty by default and the interview falls through to
+`default_agent` in `coga.toml` — which is what lets a repository that never
+enabled Claude run `coga ticket` at all. To supply the term for the whole
+install, add a local `coga/bootstrap/ticket/ticket.md` with an `agent:` (it
+overrides this packaged copy). It must name an effective `[agents.<type>]`
+block after `coga.local.toml` layers over `coga.toml`.
 
 To switch the authoring agent for one run or one session — for example while
 one agent's quota is exhausted — don't edit this file. Use, highest first:
@@ -39,7 +45,7 @@ one agent's quota is exhausted — don't edit this file. Use, highest first:
 `coga ticket --pick-agent`, `COGA_AUTHORING_AGENT=<name>`, or
 `[authoring] agent = "<name>"` in `coga.local.toml`. The
 `coga/tickets/authoring` context owns the full order. A direct `coga launch bootstrap/ticket` reads
-none of these; it launches with this ticket's `agent:` unless given `--agent`.
+none of these; it launches with the configured default unless given `--agent`.
 
 Don't add `status:` or `owner:` to this frontmatter. The ticket is
 intentionally stateless — no lock, no status or `step` transitions (launch

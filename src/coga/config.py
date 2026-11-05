@@ -373,7 +373,8 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         )
     # `[authoring]` is machine-local: which agent a quota-limited operator
     # authors with is not repo policy. The committed install-level default is
-    # `bootstrap/ticket`'s own `agent:`.
+    # an `agent:` on a local `coga/bootstrap/ticket/ticket.md`; the packaged
+    # copy sets none, so without one the interview reaches `default_agent`.
     if "authoring" in shared:
         raise ConfigError(
             "[authoring] is machine-local and belongs in coga.local.toml, not "

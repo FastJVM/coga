@@ -54,10 +54,11 @@ More specific knobs win: a recurring agent-backed launch uses `--agent`,
 else the period's `agent:`; the autofix analyst uses `--agent`, else
 `[autofix] agent`, else the default; the authoring interviewer reaches the
 default only after `[authoring] agent`, `COGA_AUTHORING_AGENT`, and the
-ticket's own `agent:`. The packaged `bootstrap/ticket`, `bootstrap/orient`,
-and onboarding tickets pin `agent: claude`, which outranks the default.
-Interactive `coga init` may write the key (`commands/init.py`
-`_write_default_agent`); see [coga/init](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
+ticket's own `agent:`. The packaged `bootstrap/ticket` and `bootstrap/orient`
+set no `agent:`, so `coga ticket` and `coga chat` reach the default; the
+delivered onboarding ticket does pin one, and `coga init` repoints it when the
+default moves. Interactive `coga init` writes the key from the agent question
+(`commands/init.py` `_apply_agent_choice`); see [coga/init](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 
 ## `peer` resolution
 
