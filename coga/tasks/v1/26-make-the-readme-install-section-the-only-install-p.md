@@ -242,6 +242,7 @@ Previous ref: `marketing/fix-installer/make-the-readme-install-section-the-only-
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1174
 branch: coga/v1-26-retire-install-topic
 
 ## Implement handoff (2026-11-04, claude)
