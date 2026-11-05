@@ -10282,3 +10282,12 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-05 08:06 v1 [v1/remove-the-agent-cli-install-offer-from-coga-init] [human:zach] launched (operator=codex, agent=codex)
 2026-11-05 08:47 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] created (status=draft)
 2026-11-05 08:47 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-11-05 08:54 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-11-05 08:54 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-11-05
+2026-11-05 08:54 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-11-05
+2026-11-05 08:54 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-11-05 08:54 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-11-05
+2026-11-05 08:54 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-11-05
+2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-11-04
+2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-04
