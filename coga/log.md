@@ -10322,3 +10322,6 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-05 12:13 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)
 2026-11-05 13:16 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-11-05 13:17 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] rewound to step 1 (design) → claude
+2026-11-05 13:19 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] activated (draft → active) — auto on launch
+2026-11-05 13:19 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] started (active → in_progress) via coga launch
+2026-11-05 13:19 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] launched (operator=claude, agent=claude)

@@ -1,8 +1,30 @@
 ---
 title: filter by user for megalaunch
-status: draft
+status: in_progress
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -211,5 +233,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-filter-by-user-for-megalaunch-85c239
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
