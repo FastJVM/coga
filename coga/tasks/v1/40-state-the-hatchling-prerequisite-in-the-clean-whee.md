@@ -20,9 +20,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: b974f9ad-1033-4ea3-b0bf-c488414ca14c
 ---
 
 ## Description
@@ -99,11 +98,11 @@ reason for that copy is extended to name the new packaged content, and
 
 Previous ref: `marketing/state-the-hatchling-prerequisite-in-the-clean-whee` (renamed 2026-10-27); earlier audit lines retain that ref.
 
+<!-- coga:blackboard -->
+
 ## Dev
 
 branch: coga/v1-40-hatchling-prerequisite
-
-<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
