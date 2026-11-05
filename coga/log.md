@@ -10305,3 +10305,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-05 09:09 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-11-05 09:09 v1 [add-a-skill-for-the-attended-human-fresh-machine-i] [human:nicktoper] auto-bumped on merge of PR #1153 → done
 2026-11-05 09:09 v1 [document-the-non-executable-script-validate-check] [human:nicktoper] auto-bumped on merge of PR #1154 → done
+2026-11-05 09:09 v1 [publish-sibling-ticket-handoffs-during-targeted-au] [human:nicktoper] auto-bumped on merge of PR #1138 → done
