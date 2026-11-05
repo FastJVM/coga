@@ -206,3 +206,16 @@ Previous ref: `marketing/fix-installer/scan-for-an-existing-repo-during-install`
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-23-repo-prerequisite
+
+## Plan
+
+- README-only: state the Git-repo prerequisite in the opening "You'll need
+  working Git…" sentence, drop the "new project" sentence and the
+  mkdir/git init block, send the existing-project case to
+  `coga ticket "<title>"`, drop `coga chat --agent codex`.
+- `coga/install` checked: its `git init` mention is only a Git sanity check
+  in the macOS section; no contradiction, no change.
