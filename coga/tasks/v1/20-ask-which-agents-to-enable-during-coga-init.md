@@ -759,6 +759,11 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
+
+
 ## Design re-run 2026-11-05 (second pass, after the backward bump)
 
 The spec was re-derived against the code rather than against the earlier draft.
