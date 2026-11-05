@@ -1,6 +1,6 @@
 ---
 title: Scan for an existing repo during install
-status: active
+status: in_progress
 owner: zach
 workflow:
   name: docs/with-review
@@ -24,6 +24,7 @@ contexts:
 - coga-dev/principles
 step: 1 (implement)
 agent: claude
+launch_generation: pending:a7e7257e-cfe5-4265-b0b9-77e1a94bedb3
 ---
 
 ## Description
