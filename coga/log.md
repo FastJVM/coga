@@ -10197,3 +10197,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 16:25 v1 [v1/36-usage-report-name-the-human-split-per-agent-show-c] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 16:25 v1 [v1/36-usage-report-name-the-human-split-per-agent-show-c] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 16:25 v1 [v1/36-usage-report-name-the-human-split-per-agent-show-c] [megalaunch] launched via coga megalaunch
+2026-11-04 16:36 v1 [v1/36-usage-report-name-the-human-split-per-agent-show-c] [agent:claude] advanced to step 2 (peer-review) → codex

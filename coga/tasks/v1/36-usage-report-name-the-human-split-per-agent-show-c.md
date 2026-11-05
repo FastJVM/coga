@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 9a62f871-b156-4232-bf1f-4822284f3112
 ---
 
 ## Description
@@ -127,3 +126,71 @@ Previous ref: `usage-report-name-the-human-split-per-agent-show-c` (renamed 2026
 branch: usage-report-name-human-agent-split
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Handoff (implement, 2026-11-04)
+
+Implemented on `usage-report-name-human-agent-split` (pushed, one commit
+`e72c44948`, rebased on current `origin/main`). No PR yet.
+
+- `report.py`: `Report` gains `agents` and `user` (defaulted fields) and a
+  `non_cache_read_tokens` property (total − cache reads). `build_report(...,
+  *, user="")` takes the user as a keyword so `render` stays config-free and
+  runs a second `rollup(by="agent")` over the same half-open window; both
+  splits share `_largest_first`. `render` prints `Agent usage — <user> — …`
+  (name omitted when empty, also in the empty-window header), the headline
+  `X tokens (Y excluding cache reads + Z cache reads) across N sessions`
+  (floor caveat after), then `By agent:` and `By model:` blocks via `_rows`.
+  `main` passes `cfg.current_user` (`""` under `require_user=False`).
+  `--json` adds `user`, `non_cache_read_tokens`, `agents`.
+- `ticket.py` shim passes `user=cfg.current_user`; Slack routing and owner
+  ping unchanged (the shim AST test still pins imports/post/bump).
+- Prose: `coga/workflows/usage-report/post.md`, `coga/recurring/usage-report/ticket.md`
+  (step 2 + reworded "no per-person attribution" line), and also
+  `coga/skills/coga/usage-report/post/SKILL.md` step 2 + out-of-scope line,
+  which described the old content. All repo-local, no packaged twin.
+- Tests: updated every pinned header/headline; `_record` takes `agent=`;
+  new `test_render_leaves_the_name_out_when_no_user_is_configured`; the
+  bucket test covers codex + empty agent → `(unknown)`; JSON test asserts
+  the three new keys; period-task tests build `expected` with the shim's user.
+- Real-data smoke (week of 2026-10-26): `Agent usage — nicktoper — week of
+  2026-10-26 (Mon–Sun)` / `461.2M tokens (15.7M excluding cache reads +
+  445.4M cache reads) across 104 sessions (3 … floor)` / `By agent:` codex
+  284.3M, claude 176.9M / `By model:` ….
+
+## PR
+
+```yaml
+title: Name the human, split per agent, and show cache reads in the usage report
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch; see implement handoff.
+head: e72c44948dae87302adf3bcb19d8281824b0d670
+base: f2ce44d478a4c383d7267ba30e6c7e0cb9ba2a1b
+depth: skim
+rationale: Repo-local edge renderer and its prose; presentation-only change with no core code touched. Glance at the rendered sample in the tests.
+implementation: Report gains agents, user, and non_cache_read_tokens; build_report takes user as a keyword and adds an agent rollup over the same window; render names the user, splits the headline into non-cache-read and cache-read amounts, and prints labeled By agent and By model blocks; main and the shim pass cfg.current_user; JSON carries the new keys.
+deviations: Also updated coga/skills/coga/usage-report/post/SKILL.md, which the ticket did not list but which described the old message content.
+limitations: No live Slack post was exercised; the period-task tests cover the stubbed transport and the no-channel stderr echo.
+files:
+  coga/recurring/usage-report/report.py: Header user, cache-read headline split, per-agent rollup and labeled blocks, JSON keys.
+  coga/recurring/usage-report/ticket.py: Pass cfg.current_user to the report so the posted header names the user.
+  coga/recurring/usage-report/ticket.md: Describe the new message contents and reword the per-person attribution line.
+  coga/workflows/usage-report/post.md: List the new message contents in the post step prose.
+  coga/skills/coga/usage-report/post/SKILL.md: Keep the skill's content description and out-of-scope note in line with the new rendering.
+  tests/test_usage_report.py: Update pinned header/headline expectations and cover user, no-user, per-agent split with unknown agent, and new JSON keys.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the workflow's peer-review step (other-agent) has not run yet.
+checks:
+  - command: python -m pytest tests/test_usage_report.py
+    status: passed
+    head: e72c44948dae87302adf3bcb19d8281824b0d670
+    base: f2ce44d478a4c383d7267ba30e6c7e0cb9ba2a1b
+    detail: 22 passed.
+  - command: python -m pytest
+    status: passed
+    head: 00821ee9a77640b77080714b965f662fd0c314c3
+    base: e6e5c11da56bb56c131f588c5adaeea9355f1c61
+    detail: 4454 passed, 10 skipped on the pre-rebase tree (uncommitted, then committed identically as 00821ee9); the rebase brought only this ticket file, so code paths are identical to e72c4494, but the full suite was not re-run on the rebased head.
+```
