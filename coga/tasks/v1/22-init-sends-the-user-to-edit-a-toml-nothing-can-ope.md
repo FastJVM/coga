@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 84db61e6-00be-4474-8d0d-b92295021237
 ---
 
 ## Description
@@ -191,40 +190,83 @@ branch: coga/v1-22-init-drop-coga-toml-next-step
 - `coga/init` topic: dropped "edit `coga.toml`" from the next-steps sentence
   in the package owner; mirrored byte-identically to `docs/contexts/coga/init/SKILL.md`.
 - Note: the shell's `python` here lacks `tomlkit`; use `.venv/bin/python -m pytest`.
-- No independent code review yet; the next steps own that.
+
+## Peer review
+
+- Direct Codex review **completed**, independently of the Claude implementer,
+  with **no findings and no fixes needed**. Reviewed the complete four-file
+  diff and surrounding init output, test fixtures, notification boundary,
+  and owning topic. The implementation commit credits Claude Opus 5.5,
+  consistent with the implement handoff.
+- Reviewed and tested head: `8a8941a382b0721c453bded20c5a9be202e3e35f`.
+  Diff base: `2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa`.
+- Rebased onto fetched `origin/main` before review. Main's intervening
+  commits changed only ticket state. The final fetch/rebase left the reviewed
+  head/base unchanged; pushed with an explicit `--force-with-lease` and
+  returned this manual checkout to clean, current `main` before writing this
+  handoff. The remote feature branch has the reviewed head and remains one
+  commit ahead of main.
+- `.venv/bin/python -m pytest`: **4455 passed, 10 skipped** in 577.65 seconds
+  on Linux/Python 3.12.12, including both new regression cases and packaging.
+  `git diff --check main...HEAD` passed on the feature branch; the package
+  topic and its legacy copy compare byte-identically.
+- Real PTY checks ran the branch's `python -m coga.cli init <scratch-repo>
+  --user tester` against real temporary Git repositories. At **80x24**, both
+  empty and filled repositories with `coga` on PATH printed steps **1–3**.
+  At **120x40**, both paths without `coga` on PATH printed steps **1–4**,
+  beginning with the PATH instruction. Every run exited 0; no Next steps
+  block mentioned `coga.toml`, the empty/filled command remained `coga build`
+  / `coga ticket`, and the separate Slack opt-in note still named the TOML.
+  The exact helper invocations are in the PR checks below; the helper clears
+  inherited Coga launch and Slack environment variables for each scratch run.
+- Recommendation: **merge**. No design deviations or unresolved concerns.
+  No native macOS, Windows, or Python 3.11 run was performed; this deletion
+  changes printed guidance and uses the existing platform-neutral enumeration.
+  Next step owns the mechanical PR opening.
 
 ## PR
 
 ```yaml
 title: Drop the edit-coga.toml step from init's next steps
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue; see implement handoff.
-head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
-base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
-depth: skim
-rationale: A one-step removal from init's printed output plus a pinning test and a topic sentence; no behavior beyond the printed text changes.
+author_evidence: The implement handoff records Claude Code (claude-opus-5-5); the implementation commit credits Claude Opus 5.5. This fresh peer-review session ran as Codex and made no implementation changes.
+head: 8a8941a382b0721c453bded20c5a9be202e3e35f
+base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+depth: merge
+rationale: Small removal of unnecessary first-run guidance with no runtime behavior change. Independent Codex review completed without findings; the full suite and real PTY checks cover both repo paths and the optional PATH step.
 implementation: Removes the coga.toml edit step from init's Next steps list; enumerate renumbers the remaining steps in both the empty-repo and filled-repo paths.
 deviations: None.
-limitations: The notifications note after Next steps still names coga.toml as the later Slack opt-in, which is deliberate and out of scope.
+limitations: The separate notifications note intentionally retains coga.toml as a later Slack opt-in. Verification ran on Linux/Python 3.12.12; native macOS, Windows, and Python 3.11 were not run because the change only removes printed guidance and preserves the existing enumeration.
 files:
   src/coga/commands/init.py: Drop the coga.toml edit step from the Next steps list.
   tests/test_init.py: Pin that the Next steps block names no coga.toml and numbers contiguously, in the empty and filled paths; import re.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Remove the edit-coga.toml step from the coga/init topic's next-steps list.
   docs/contexts/coga/init/SKILL.md: Byte-identical legacy mirror of the package coga/init topic.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; code review belongs to a later workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 8a8941a382b0721c453bded20c5a9be202e3e35f
+  base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+  detail: Direct Codex review completed on the final rebased diff, independently of the Claude implementer. Inspected all four paths and their surrounding contracts; no findings, fixes, or unresolved concerns. Real PTY checks confirmed the displayed guidance.
 checks:
-  - command: .venv/bin/python -m pytest tests/test_init.py -k do_not_send
-    status: passed
-    head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
-    base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
-    detail: 2 passed; the same test failed in both cases against the pre-fix init.py.
   - command: .venv/bin/python -m pytest
     status: passed
-    head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
-    base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
-    detail: 4455 passed, 10 skipped.
+    head: 8a8941a382b0721c453bded20c5a9be202e3e35f
+    base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+    detail: 4455 passed, 10 skipped in 577.65 seconds on Linux/Python 3.12.12; includes the new empty/filled regression cases and packaging checks.
+  - command: |
+      .venv/bin/python /tmp/coga-v1-22-init-terminal-check.py --cols 80 --rows 24
+      .venv/bin/python /tmp/coga-v1-22-init-terminal-check.py --filled --cols 80 --rows 24
+      .venv/bin/python /tmp/coga-v1-22-init-terminal-check.py --missing-coga --cols 120 --rows 40
+      .venv/bin/python /tmp/coga-v1-22-init-terminal-check.py --filled --missing-coga --cols 120 --rows 40
+    status: passed
+    head: 8a8941a382b0721c453bded20c5a9be202e3e35f
+    base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+    detail: Four real PTY invocations of the branch CLI against temporary Git repos, all exit 0. Both repo paths numbered 1–3 with coga on PATH and 1–4 without it; no Next steps TOML edit, correct build/ticket command, and the separate Slack note retained. The temporary helper cleared inherited Coga launch and Slack environment variables.
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 8a8941a382b0721c453bded20c5a9be202e3e35f
+    base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+    detail: Passed on the final feature branch with no whitespace errors.
 ```
