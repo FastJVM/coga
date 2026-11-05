@@ -10262,3 +10262,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 21:08 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 21:08 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [megalaunch] launched via coga megalaunch
 2026-11-04 21:12 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [human:nicktoper] unblocked (asks resolved, still in_progress): The human authorized both limited ticket-history repairs: replace the completed v1/29 context attachment coga/install with coga/init, and classify the existing v1/31 coordination note under Production notes without changing its prose. These two edits are an explicit exception to this task history exclusion.
+2026-11-04 21:26 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [agent:codex] advanced to step 3 (open-pr) → claude
