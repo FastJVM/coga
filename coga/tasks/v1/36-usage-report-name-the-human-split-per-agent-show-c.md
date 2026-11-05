@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 942a1a51-a23e-4c20-88e0-2e311e5554bd
 ---
 
 ## Description
@@ -158,40 +157,168 @@ Implemented on `usage-report-name-human-agent-split` (pushed, one commit
   445.4M cache reads) across 104 sessions (3 … floor)` / `By agent:` codex
   284.3M, claude 176.9M / `By model:` ….
 
+## Peer review
+
+Completed direct, independent Codex review on 2026-11-04 of head
+`b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7` against base
+`a6c2ccedb5e624a45459ca58678d9c798dd2d941`. Claude authored the
+implementation, evidenced by the implement handoff and its commit's
+`Co-Authored-By: Claude Opus 5.5` trailer; this fresh Codex session reviewed
+it directly. No nested review CLI or additional reviewer ran.
+
+No must-fix findings and no code changes. Reviewed all six changed paths,
+the shared rollup implementation, and the usage/report contracts. Both
+rollups use the same half-open UTC bounds, retain unknown buckets and sort
+largest first. The headline counts input + cache write + output separately
+from cache reads; both entry points name `cfg.current_user`, while the
+period owner's Slack ping is unchanged. JSON contains the same new data.
+
+Rebased the branch unconditionally onto fetched main before review and
+testing. The final fetch found no further main commits. Force-with-lease
+pushed `usage-report-name-human-agent-split` at the reviewed head, then
+returned this checkout cleanly to main before writing this handoff. No PR
+exists yet; the next step owns opening it.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`:
+  4454 passed, 10 skipped on Linux / Python 3.12.12, including all 22
+  usage-report tests, after the rebase.
+- `git diff --check origin/main...HEAD`: passed on the feature branch.
+- Real PTYs at 80 columns / 24 rows and 120 columns / 40 rows ran
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python coga/recurring/usage-report/report.py --since 2026-10-26 --until 2026-11-02`.
+  Both returned the complete plain-text report: named header, 461.2M total,
+  15.7M excluding cache reads, 445.4M cache reads, 104 sessions with the
+  three-session floor caveat, codex 284.3M above claude 176.9M, and the
+  labeled model block including unknown and synthetic zero rows. The same
+  command with `--json` returned matching exact totals and the new keys.
+- An 80-by-24 PTY run with `--since 2000-01-03 --until 2000-01-10`
+  retained the named header and printed the empty-window message.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/36-usage-report-name-the-human-split-per-agent-show-c --json`:
+  one task valid, no issues.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json`:
+  exit 1 on both the reviewed feature head and clean main
+  `a6c2ccedb5e624a45459ca58678d9c798dd2d941` (base equal to head for that
+  main comparison): 92 valid, 3 errors, 12 warnings. The errors are
+  `unsynthesized-draft-blackboard` in
+  `v1/26-make-the-readme-install-section-the-only-install-p`,
+  `v1/27-link-uninstall-from-the-readme`, and
+  `v1/31-test-install-on-windows`. Their files and the validator are
+  unchanged by this branch. Those tickets still need their draft notes
+  synthesized into their bodies or intentionally classified as production
+  notes before activation; this review leaves their authors' intent intact.
+
+No live Slack message was sent or inspected; terminal output and the suite's
+stubbed transport/no-channel echo cover the changed report content. Python
+3.11 and native Windows were not run. The advisory depth is `deep` because
+the repository-wide validation failures remain visible; there are no
+unresolved findings against this implementation.
+
 ## PR
 
 ```yaml
 title: Name the human, split per agent, and show cache reads in the usage report
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch; see implement handoff.
-head: e72c44948dae87302adf3bcb19d8281824b0d670
-base: f2ce44d478a4c383d7267ba30e6c7e0cb9ba2a1b
-depth: skim
-rationale: Repo-local edge renderer and its prose; presentation-only change with no core code touched. Glance at the rendered sample in the tests.
-implementation: Report gains agents, user, and non_cache_read_tokens; build_report takes user as a keyword and adds an agent rollup over the same window; render names the user, splits the headline into non-cache-read and cache-read amounts, and prints labeled By agent and By model blocks; main and the shim pass cfg.current_user; JSON carries the new keys.
-deviations: Also updated coga/skills/coga/usage-report/post/SKILL.md, which the ticket did not list but which described the old message content.
-limitations: No live Slack post was exercised; the period-task tests cover the stubbed transport and the no-channel stderr echo.
+author_evidence: >-
+  The implement handoff identifies Claude Code (claude-opus-5-5), and the
+  implementation commit carries a Co-Authored-By trailer for Claude Opus
+  5.5. This fresh Codex session performed the independent review.
+head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+depth: deep
+rationale: >-
+  Bounded report presentation change with completed independent review, a
+  passing full suite, terminal inspection, and clean task validation.
+  Repository-wide validation fails on three unrelated draft tickets and
+  reproduces on clean main, so the failed check remains visible under the
+  publication rubric rather than presenting an all-green recommendation.
+implementation: >-
+  The weekly report names the configured user when present, keeps the total
+  first while separating cache reads from input plus cache write plus
+  output, and adds largest-first By agent rows before labeled By model rows.
+  Unknown buckets and the unknown-session floor caveat remain. Both the CLI
+  and period shim pass cfg.current_user, and JSON adds user,
+  non_cache_read_tokens, and agents.
+deviations: >-
+  Also updated coga/skills/coga/usage-report/post/SKILL.md, which described
+  the old message content. All six changed files are repo-local; there is no
+  packaged twin for this recurring report.
+limitations: >-
+  No live Slack post or Slack-client rendering was exercised; real terminal
+  output and the suite's stubbed transport/no-channel echo cover the content.
+  Verification ran on Linux with Python 3.12.12, not Python 3.11 or native
+  Windows. Repository-wide validation reports unsynthesized draft
+  blackboards in v1/26-make-the-readme-install-section-the-only-install-p,
+  v1/27-link-uninstall-from-the-readme, and v1/31-test-install-on-windows;
+  the same errors occur on clean main and their paths are outside this diff.
 files:
   coga/recurring/usage-report/report.py: Header user, cache-read headline split, per-agent rollup and labeled blocks, JSON keys.
   coga/recurring/usage-report/ticket.py: Pass cfg.current_user to the report so the posted header names the user.
   coga/recurring/usage-report/ticket.md: Describe the new message contents and reword the per-person attribution line.
   coga/workflows/usage-report/post.md: List the new message contents in the post step prose.
   coga/skills/coga/usage-report/post/SKILL.md: Keep the skill's content description and out-of-scope note in line with the new rendering.
-  tests/test_usage_report.py: Update pinned header/headline expectations and cover user, no-user, per-agent split with unknown agent, and new JSON keys.
+  tests/test_usage_report.py: Cover user and no-user headers, cache-read amounts, ordered agent buckets including unknown, JSON keys, and period-shim behavior.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the workflow's peer-review step (other-agent) has not run yet.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+  base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+  detail: >-
+    Direct independent Codex review completed on the final rebased diff
+    across all six paths and relevant contracts. No must-fix findings or
+    code changes. Inspected actual report output in 80x24 and 120x40 PTYs.
 checks:
-  - command: python -m pytest tests/test_usage_report.py
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
     status: passed
-    head: e72c44948dae87302adf3bcb19d8281824b0d670
-    base: f2ce44d478a4c383d7267ba30e6c7e0cb9ba2a1b
-    detail: 22 passed.
-  - command: python -m pytest
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: >-
+      4454 passed, 10 skipped in 565.71s on Linux with Python 3.12.12,
+      including all 22 usage-report tests. Run after the final rebase.
+  - command: git diff --check origin/main...HEAD
     status: passed
-    head: 00821ee9a77640b77080714b965f662fd0c314c3
-    base: e6e5c11da56bb56c131f588c5adaeea9355f1c61
-    detail: 4454 passed, 10 skipped on the pre-rebase tree (uncommitted, then committed identically as 00821ee9); the rebase brought only this ticket file, so code paths are identical to e72c4494, but the full suite was not re-run on the rebased head.
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: No whitespace errors in the final feature diff.
+  - command: |
+      stty cols 80 rows 24 && PYTHONPATH=/home/n/Code/coga/src .venv/bin/python coga/recurring/usage-report/report.py --since 2026-10-26 --until 2026-11-02
+      stty cols 120 rows 40 && PYTHONPATH=/home/n/Code/coga/src .venv/bin/python coga/recurring/usage-report/report.py --since 2026-10-26 --until 2026-11-02
+    status: passed
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: >-
+      Both real PTYs emitted the full named report with 461.2M total,
+      15.7M excluding cache reads, 445.4M cache reads, 104 sessions and
+      the three-session floor caveat. Agent and model blocks retained all
+      buckets and descending totals.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python coga/recurring/usage-report/report.py --since 2026-10-26 --until 2026-11-02 --json
+    status: passed
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: >-
+      user is nicktoper; total_tokens 461186503 equals non_cache_read_tokens
+      15748721 plus cache_read_input_tokens 445437782. Agent totals codex
+      284315710 and claude 176870793 agree with the overall total.
+  - command: stty cols 80 rows 24 && PYTHONPATH=/home/n/Code/coga/src .venv/bin/python coga/recurring/usage-report/report.py --since 2000-01-03 --until 2000-01-10
+    status: passed
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: The empty-window output kept nicktoper in the header and stated that no sessions were recorded.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/36-usage-report-name-the-human-split-per-agent-show-c --json
+    status: passed
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: One task valid, no issues.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
+    status: failed
+    head: b3903b4e83b9a9f1a516a7ef1b5dcb863d0f25f7
+    base: a6c2ccedb5e624a45459ca58678d9c798dd2d941
+    detail: >-
+      Exit 1; 92 valid, 3 unsynthesized-draft-blackboard errors in the
+      unrelated v1/26, v1/27, and v1/31 tickets listed under limitations,
+      and 12 warnings. No errors concern this ticket or changed files.
+      Repeating the same command on clean main
+      a6c2ccedb5e624a45459ca58678d9c798dd2d941 reproduced the same errors;
+      the full comparison receipt is under Peer review.
 ```
