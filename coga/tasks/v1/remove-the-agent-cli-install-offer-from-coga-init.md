@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -200,5 +200,155 @@ ordinary ticket.
 
 branch: coga/v1-remove-the-agent-cli-install-offer-from-coga--9980a6
 
-
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement handoff (2026-11-04, claude)
+
+The install offer is gone. `init._offer_agent_cli` now only scans `PATH` and
+offers an already-installed CLI as `default_agent`; nothing in init installs
+an agent CLI or names a place to get one.
+
+What changed:
+
+- `init._installed_agent_clis` is the new named scan (`AGENT_CLIS` on `PATH`,
+  manifest order). `_offer_agent_cli` and `_do_init`'s next steps both read
+  it, which is also the single scan ticket 20 can build its picker on.
+- `_offer_agent_cli` lost the found-nothing branch, so its guard is
+  `len(installed) != 1` instead of `> 1`. The `offer_agent_cli` and
+  `install_hint` imports are gone with it.
+- `_setup_initialized_clone` no longer calls `_offer_agent_cli(None)`; the
+  call's only effect was the install offer.
+- The next-steps prerequisite dropped both manifest URLs and is now
+  conditional on the scan: "Install an agent CLI — coga drives Claude Code
+  (`claude`) or Codex (`codex`), and neither is on your PATH." A user who
+  already has one is not told to install one.
+
+Decisions:
+
+- **Kept the name `_offer_agent_cli`.** `conftest._stub_init_dep_check` stubs
+  it by string with `raising=False`, so a rename silently creates a dead
+  attribute and runs the real function in every init test. Ticket 20 rewrites
+  this function anyway, so the rename buys nothing and risks that trap.
+- **Kept the `default_agent is None` guard** even though the clone call site
+  is deleted. `_template_default_agent` still returns `str | None`, and
+  without the guard a template declaring no agents would prompt "instead of
+  `None`". It is now the only untested branch in the function; the deleted
+  clone test was an install-path test.
+- **Added two tests beyond the ticket's four-stay set**, for the two scan
+  branches whose behavior this change merged: nothing installed (asks
+  nothing, returns None) and both installed. `_agent_picker` now makes
+  `typer.prompt` raise, so any future install prompt in init fails a test.
+- **Next-steps text is a statement of fact, not advice.** It names the two
+  CLIs and says neither is on `PATH`; where to get them is the vendor's
+  business and stays out of init.
+
+`agent_cli_setup.offer_agent_cli` is untouched and still called by
+`launch.offer_agent_cli` for `coga build`. Its module docstring no longer
+claims `coga init` shares it. `agent_cli_missing_message` still carries the
+manifest URL for `coga launch`, as the ticket scoped out.
+
+Context library: `coga/init` and `coga/install` both documented the picker;
+both package copies were edited and byte-mirrored into their `docs/contexts/`
+legacy twins (`tests/test_packaging.py` pins the pair). README's init
+paragraph said init offers agent CLI installation; it now says init installs
+none and offers an installed one as the default.
+
+Verification: `python -m pytest` is 1 failed, 4450 passed, 11 skipped. The
+one failure is pre-existing and unrelated (below). The real CLI was also run
+twice against scratch repos — with the agent CLIs hidden from `PATH` init
+printed the new next-steps item 2 and no prompt; with them on `PATH` the item
+was absent.
+
+The branch was then rebased onto `origin/main`, which had moved 43 commits
+during the suite run — all of them ticket and log state, no source path
+(`git diff 45a92ac86 origin/main` outside `coga/tasks` and `coga/log.md` is
+empty), so nothing needed re-testing for drift. The focused suites were
+re-run at the rebased head anyway; the full-suite and manual receipts keep
+their own pre-rebase OIDs rather than being re-stamped.
+
+The suite ran in a clone in the session scratchpad, because a full
+`python -m pytest` in this checkout has been observed switching its own
+branch mid-run and voiding the results. Note for anyone repeating it: the
+editable install makes a clone's pytest import `/Users/zach2179/dev/coga/src`,
+not the clone's `src/`, so the isolation is of the *working tree*, not the
+source under test. The primary tree was clean at the tested commit, so the
+source matched; use `PYTHONPATH=<clone>/src` to actually pin the source.
+
+### Adjacent finding — pre-existing, not fixed here
+
+`tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
+fails on this machine for want of ripgrep.
+
+- Symptom: `assert [] == ['coga/recurring/_custom-phone-home/ticket.py', ...]`
+  at `tests/test_edge_distribution.py:347`.
+- Cause: the `migration:inventory` snippet in
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md`
+  is `rg --files ... | LC_ALL=C sort`. No `rg` binary is installed here (what
+  this session's shell has is an `rg` *function* from Claude Code's shell
+  snapshot, which a `bash -c` subprocess never sees). The missing command
+  exits 127, but `sort` exits 0, so `_operator_command`'s
+  `returncode == 0` assertion passes and the test compares empty output.
+- Evidence it is not this change: it fails identically on `origin/main`
+  (45a92ac86) run with main's own source
+  (`PYTHONPATH=<clone>/src python -m pytest <that test>`), and this diff
+  touches none of edge distribution, recurring, or the runbook.
+- Related, not a duplicate: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+  records that CI's pytest job carries a "Linux ripgrep setup" step, so the
+  suite's dependency on `rg` is known for CI but is not declared or skipped
+  for a local run. No ticket covers the skip.
+- Not filed as a ticket: this is a finding to hand to the owner, not scope
+  this ticket owns.
+
+## PR
+
+```yaml
+title: Remove the agent CLI install offer from coga init
+author: claude
+author_evidence: This implement session ran as Claude (Opus 5) under `coga launch`; no agent override.
+head: 1fb7524a175376a5d1a7e24e3e8afd4e701374af
+base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+depth: deep
+rationale: The change itself is a bounded removal with tests, but no code review has run on this diff — peer-review is the next workflow step. Re-judge once it returns.
+implementation: Drops the found-nothing branch of `init._offer_agent_cli` (the "Install which agent CLI?" picker and its `agent_cli_setup.offer_agent_cli` call), names the surviving PATH scan `_installed_agent_clis`, deletes the clone path's install-only call, and makes the next-steps agent prerequisite conditional on that scan with both manifest URLs removed.
+deviations: Kept the function name `_offer_agent_cli` — the conftest stub matches it by string with `raising=False`, so a rename would silently go dead and run the real function in every init test. Added two tests beyond the ticket's four-stay set, covering the no-CLI and both-installed scan branches whose behavior changed.
+limitations: Interactive init was not exercised against a real terminal; coverage fakes the tty and PATH through monkeypatch, as the existing suite does. The `default_agent is None` guard in `_offer_agent_cli` is now untested — the deleted clone test was an install-path test, and `_template_default_agent` can still return None.
+files:
+  src/coga/commands/init.py: Removes the install offer and its imports, adds `_installed_agent_clis`, deletes the clone call site, and conditions the next-steps prerequisite on the scan.
+  src/coga/agent_cli_setup.py: Module docstring no longer claims interactive `coga init` shares the installer; only `coga build` does.
+  tests/test_init.py: Deletes the four install-path tests, rewrites `_agent_picker` so `typer.prompt` raises, repoints the declined/tty tests at an installed CLI, adds no-CLI and both-installed coverage, and splits the next-steps assertion into present/absent cases.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Package owner of `coga/init` — documents the scan-only behavior and the conditional next step instead of the picker.
+  docs/contexts/coga/init/SKILL.md: Legacy live twin of that topic, byte-mirrored as `tests/test_packaging.py` requires.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Package owner of `coga/install` — the agent-CLI route is now `coga build` only.
+  docs/contexts/coga/install/SKILL.md: Legacy live twin of that topic, byte-mirrored.
+  README.md: Init paragraph said it offers agent CLI installation; it now says init installs none.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review has not run. `code/with-review` puts peer-review (other-agent) after implement; this record is written before it.
+checks:
+  - command: python -m pytest tests/test_init.py tests/test_packaging.py tests/test_dependencies.py tests/test_agent_cli_setup.py
+    status: passed
+    head: 1fb7524a175376a5d1a7e24e3e8afd4e701374af
+    base: 2b4bb7b45a5433e0c970fd27a3bfcfda2f4a30aa
+    detail: 199 passed in 49s, run at this exact head after the rebase onto origin/main.
+  - command: python -m pytest
+    status: failed
+    head: 44afc942d638482ecbe10f78db96100489ca253f
+    base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+    detail: 1 failed, 4450 passed, 11 skipped in 1:27:25. The failure is `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`, pre-existing and unrelated — it fails identically on origin/main with main's own source, because no `rg` binary is installed on this machine. See "Adjacent finding" above. Pre-rebase head, kept with its own OIDs rather than re-stamped; `git diff 44afc942d 1fb7524a1` touches only `coga/log.md` and `coga/tasks/**`, so no source path moved.
+  - command: python -m pytest tests/test_launch.py
+    status: passed
+    head: 44afc942d638482ecbe10f78db96100489ca253f
+    base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+    detail: 261 passed, covering that `launch.offer_agent_cli` keeps its caller. Pre-rebase head, as above; also subsumed by the full-suite run.
+  - command: coga init <scratch repo> --user demo, run twice with and without the agent CLIs on PATH
+    status: passed
+    head: 44afc942d638482ecbe10f78db96100489ca253f
+    base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+    detail: With `claude` and `codex` hidden from PATH, next-steps item 2 read "Install an agent CLI — coga drives Claude Code (`claude`) or Codex (`codex`), and neither is on your PATH." with no install prompt and no URL. With both on PATH the item was absent and the remaining steps renumbered. Pre-rebase head, as above.
+  - command: coga validate --json
+    status: not-run
+    detail: No validation behavior changed — this diff touches init's interactive offers, two context topics, and the README.
+```
+
