@@ -20,9 +20,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 0e19a813-0e1f-444c-9ee5-e2a2a89e74eb
 ---
 
 ## Description
@@ -131,3 +130,106 @@ matches the pinned digest.
 
 Verification: `.venv/bin/python -m pytest tests/test_packaging.py -q` → 37 passed;
 `sha256sum` of the legacy copy = pinned `80fee364…820a`.
+
+## Peer review
+
+2026-11-04 — Codex independent content review: passed, no must-fix findings
+and no review edits needed. Authorship is evidenced by the implement launch
+receipt in `coga/log.md` (Claude session
+`139937db-a439-4f7f-842e-5ba238887da2`) and the Claude co-author trailer in
+implementation commit `8e0c3c8a60408ec0608b06868575cbd01ce723e4`.
+
+Reviewed the markdown and reason-string diff after rebasing onto current
+`origin/main`. Final reviewed head:
+`0ac717cb6c1b9da85d1d837fff57a33a6517d46f`; base:
+`9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d`.
+
+- The prerequisite matches `pyproject.toml`, `coga-dev/testing`, and the
+  installed pip implementation: disabling build isolation requires the
+  builder's installed build backend; Coga's `[test]` extra provides hatchling
+  and pip. The example keeps `--no-build-isolation` and uses the checkout venv.
+- The builder is clearly distinct from the fresh external installation.
+  The explanation of proof-time gates agrees with
+  `src/coga_edge/phone_home.py::_admitted` and the packaged phone-home ticket.
+- Scope is limited to the package runbook and the documented divergence
+  reason. No links were added; the sibling `ticket.md` reference resolves.
+  The note is self-contained and requires no local-only development topic.
+- The additional legacy/package divergence is intended under stage A.
+  The live runbook and its pinned digest are unchanged; its SHA-256 remains
+  `80fee3648b7ca9cc4051e142d73c33642cdad23e089a1879cd4ee9dff559820a`.
+- `.venv/bin/python -m pytest tests/test_packaging.py -q`: **37 passed**
+  in 3.75s, Python 3.12.12. `git diff --check main...HEAD`: passed.
+  The full runtime suite and owner-run live ingestion proof were not needed
+  for this prose/reason-string change.
+
+Final fetch confirmed no further main drift. Pushed the rebased branch with
+an explicit lease and returned this checkout to clean, current `main` before
+writing this handoff. The next step can publish from the preparation below.
+
+## PR
+
+```yaml
+title: State the hatchling prerequisite in the clean-wheel proof
+author: claude
+author_evidence: >-
+  coga/log.md records implement session 139937db-a439-4f7f-842e-5ba238887da2
+  running Claude; implementation commit 8e0c3c8a60408ec0608b06868575cbd01ce723e4
+  also carries the Claude co-author trailer. Codex performed this review.
+head: 0ac717cb6c1b9da85d1d837fff57a33a6517d46f
+base: 9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d
+depth: merge
+rationale: >-
+  Small runbook clarification with independent source-backed review,
+  all 37 packaging tests passing, and no unresolved findings or behavior changes.
+implementation: >-
+  Explain beside the wheel command that --no-build-isolation needs a builder
+  with Coga's [test] extra, which supplies hatchling and pip. Use .venv/bin/python
+  for the build and distinguish that builder from the fresh external venv
+  where the no-editable and no-test/CI proof rules apply. Extend the packaged
+  runbook's divergence reason while preserving the legacy bytes and digest.
+deviations: >-
+  None. Further package-only divergence is required by the ticket and stage A
+  of package-definitions.
+limitations: >-
+  Verification used Python 3.12.12. The owner-run live PostHog ingestion proof
+  was not executed; this change only documents its builder prerequisite.
+files:
+  src/coga/resources/templates/coga/recurring/phone-home/operations.md: >-
+    State the builder prerequisite beside the command and explain its scope.
+  tests/test_packaging.py: >-
+    Extend only the legacy-definition divergence reason; retain its digest
+    and all test logic.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 0ac717cb6c1b9da85d1d837fff57a33a6517d46f
+  base: 9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d
+  detail: >-
+    No must-fix findings. Checked accuracy against pyproject.toml, installed
+    pip, testing guidance, and telemetry admission; confirmed scope, references,
+    self-contained shipped prose, and intentional legacy-copy divergence.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_packaging.py -q
+    status: passed
+    head: 0ac717cb6c1b9da85d1d837fff57a33a6517d46f
+    base: 9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d
+    detail: 37 passed in 3.75s on Python 3.12.12.
+  - command: git diff --check main...HEAD
+    status: passed
+    head: 0ac717cb6c1b9da85d1d837fff57a33a6517d46f
+    base: 9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d
+    detail: No whitespace errors in the reviewed feature diff.
+  - command: sha256sum coga/recurring/phone-home/operations.md
+    status: passed
+    head: 0ac717cb6c1b9da85d1d837fff57a33a6517d46f
+    base: 9c0de2d8efc9733e4aa343dc6bff678dfd2cd89d
+    detail: >-
+      Matches the unchanged pinned digest
+      80fee3648b7ca9cc4051e142d73c33642cdad23e089a1879cd4ee9dff559820a.
+  - command: .venv/bin/python -m pytest
+    status: not-run
+    detail: >-
+      Only prose and a packaging reason string changed; the ticket's required
+      packaging suite passed. No runtime logic or fixtures changed.
+```
