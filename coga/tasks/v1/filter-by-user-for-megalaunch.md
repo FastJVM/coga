@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -238,5 +238,79 @@ ordinary ticket.
 
 branch: coga/v1-filter-by-user-for-megalaunch-85c239
 
+## Implement handoff (2026-11-05, claude / claude-opus-5-5)
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+Pushed `871f6e54a` (rebased on origin/main `68dcf2215`, which brought only
+coga/ state commits). No PR yet.
+
+What changed:
+- `coga.megalaunch.resolve_owner_filter(cfg, owner=, all_owners=)` returns
+  one target owner (`None` = every owner). `_owner_in_scope` applies it at all
+  four sweep gates: queue scan (`_run_sweep`), both checks in
+  `_drain_satisfied_blockers`, and the exact reread in `_launch_until_stop`.
+  `owner_filter` is a required kw-only param on `_launch_until_stop`; the
+  selection path passes `None` together with `explicit=True`.
+- `run_megalaunch(..., owner=, all_owners=)` refuses either flag combined with
+  `selection`. `MegalaunchRun.owner_scope` ("zach" / "every owner" / None)
+  adds an `Owner:` line to the summary and an "owner X" label to the Slack drain line.
+- `launchable_candidates(..., owner=, all_owners=)` filters the picker list.
+- CLI: `--owner NAME` and `--all-owners`. `_resolve_selection` rejects
+  `--owner`+`--all-owners` and either flag with `--relaunch` (exit 2). An
+  empty picker names the owner. An empty `--owner` sweep prints
+  "No launchable tasks owned by X." The confirmed pick runs without the owner flags.
+- The reread skip message is now "owner X is outside the owner filter (T)".
+- Re-block notifications are unchanged (operator = current_user, the owner answers).
+- Docs: added an "Owner filter" section, plus edits to Bare sweep (claim
+  takeover across owners), Explicit selection, Dependency drain, and the
+  description. Mirrored byte-for-byte into `docs/contexts/coga/megalaunch/SKILL.md`.
+
+Decisions:
+- Owner-less tickets fail `validate` at launch (`owner` is a required key).
+  They are listable under `--all-owners`, so the tests cover the owner-less case only in the
+  picker list.
+- `--owner` with an empty string is not specially rejected. It matches nothing,
+  so the run is an empty sweep.
+
+Adjacent findings: none.
+
+## PR
+
+```yaml
+title: Filter megalaunch by ticket owner
+author: claude
+author_evidence: Implement session ran Claude Code on claude-opus-5-5 (this session).
+head: 871f6e54a5a837e2ee166ad4b4090acdbd42d5c5
+base: 68dcf2215f21f996c24b0e1e62105782e3a6b6c4
+depth: skim
+rationale: Bounded CLI flag addition; one filter value threaded through existing gates, default sweep unchanged, tests per gate.
+implementation: Adds --owner/--all-owners to coga megalaunch; --pick defaults to the operator's tickets; one owner filter gates scan, reread, and drain.
+deviations: None from the ticket design.
+limitations: Owner-less tickets appear under --all-owners but cannot launch (owner is a required key), so they report failed if picked or swept.
+files:
+  src/coga/megalaunch.py: Owner filter resolution and threading through sweep, drain, reread, picker candidates, and run summary.
+  src/coga/commands/megalaunch.py: New --owner/--all-owners flags, conflict errors, empty-result messages, docstring/help fixes.
+  tests/test_megalaunch.py: Cover picker filtering, --owner sweep, reread gate, drain, unknown owner, and flag conflicts; update the reread message and the all-owners candidate test.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Document the owner filter, cross-owner claim takeover, and drain scope.
+  docs/contexts/coga/megalaunch/SKILL.md: Byte-identical legacy live copy of the package topic.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review has run yet; review belongs to later workflow steps.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_megalaunch.py tests/test_cli.py tests/test_packaging.py -q
+    status: passed
+    head: 871f6e54a5a837e2ee166ad4b4090acdbd42d5c5
+    base: 68dcf2215f21f996c24b0e1e62105782e3a6b6c4
+    detail: 219 passed on the rebased head.
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: b5bf9c23627fff4b2b358d23c655b4ff7ae7000b
+    base: 0dbe4a1e615aea6abd67f0f25a66cdcc5d81528e
+    detail: 4462 passed, 10 skipped on the pre-rebase commit; the rebase changed only coga/ state files (src/tests/docs trees identical).
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: b5bf9c23627fff4b2b358d23c655b4ff7ae7000b
+    base: 0dbe4a1e615aea6abd67f0f25a66cdcc5d81528e
+    detail: Exit 0.
+```
