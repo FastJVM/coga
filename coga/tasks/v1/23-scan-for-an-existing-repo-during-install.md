@@ -1,10 +1,29 @@
 ---
 title: Scan for an existing repo during install
-status: draft
+status: active
 owner: zach
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 contexts:
-  - coga-dev/principles
+- coga-dev/principles
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
