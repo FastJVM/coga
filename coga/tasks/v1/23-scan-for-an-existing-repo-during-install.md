@@ -24,6 +24,7 @@ contexts:
 - coga-dev/principles
 step: 3 (open-pr)
 agent: claude
+launch_generation: pending:f7b2e894-71f5-4c02-8f3d-a03b2aae9aa3
 ---
 
 ## Description
