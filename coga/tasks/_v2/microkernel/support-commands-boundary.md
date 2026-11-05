@@ -7,7 +7,7 @@ contexts:
   - coga-dev/principles
   - coga/secrets
   - coga/uninstall
-  - coga/install
+  - coga/init
   - coga-dev/codebase
   - coga-dev/testing
   - coga-dev/current-direction
