@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 6bbb4a23-1791-4dcc-afe3-877cb6b9e92a
+period_generation: de72a2e4-c2c6-45c2-8630-4ef71cfc40f3
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -85,13 +86,3 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-11-03T18:44:14+00:00
-Task: `recurring/autoclose-merged`
-
-2 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `blocks/06-collapse-state-publication-into-one-user-topic` (worklist backlog): branch `blocks-06-collapse-state-publication`
-- `blocks/08-trim-launch-prompt-and-workflow-topics` (worklist backlog): branch `coga/blocks-08-trim-launch-prompt-workflow`
