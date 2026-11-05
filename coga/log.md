@@ -10171,3 +10171,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 16:14 v1 [v1/23-scan-for-an-existing-repo-during-install] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 16:14 v1 [v1/23-scan-for-an-existing-repo-during-install] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 16:14 v1 [v1/23-scan-for-an-existing-repo-during-install] [megalaunch] launched via coga megalaunch
+2026-11-04 16:15 v1 [v1/23-scan-for-an-existing-repo-during-install] [agent:claude] advanced to step 2 (peer-review) → codex

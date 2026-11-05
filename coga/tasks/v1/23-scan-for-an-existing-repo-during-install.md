@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: a7e7257e-cfe5-4265-b0b9-77e1a94bedb3
 ---
 
 ## Description
@@ -219,3 +218,21 @@ branch: coga/v1-23-repo-prerequisite
   `coga ticket "<title>"`, drop `coga chat --agent codex`.
 - `coga/install` checked: its `git init` mention is only a Git sanity check
   in the macOS section; no contradiction, no change.
+
+## Handoff (implement)
+
+- Commit on `coga/v1-23-repo-prerequisite` (pushed, rebased on origin/main):
+  README Get started now opens with "Coga runs inside an existing Git
+  repository; outside one, `coga init` stops."; the "new project" sentence
+  and `mkdir`/`git init` block are gone ("Change into your project's Git
+  repository." remains); the begin block shows `coga build` (empty repo),
+  `coga ticket "<title>"` (repo with existing files), `coga status`; the
+  Codex paragraph lists only `build` and `ticket`.
+- Verification: `.venv/bin/python -m pytest -q
+  tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+  passed (system `python` lacks `tomlkit`; use the venv). No code touched.
+- Kept: "chat and ticket interviews default to Claude" sentence (still
+  accurate). No path past install found that skips the refusal.
+- Follow-up candidates (out of scope): `coga/configuration` and
+  `coga/first-task` still cite `coga chat --agent codex`, which is correct
+  for their own uses.
