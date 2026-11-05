@@ -10184,3 +10184,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 16:19 v1 [v1/24-mention-coga-build-in-the-install-flow] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 16:19 v1 [v1/24-mention-coga-build-in-the-install-flow] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 16:19 v1 [v1/24-mention-coga-build-in-the-install-flow] [megalaunch] launched via coga megalaunch
+2026-11-04 16:20 v1 [v1/24-mention-coga-build-in-the-install-flow] [agent:claude] advanced to step 2 (peer-review) → codex

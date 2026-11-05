@@ -20,9 +20,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: c526e129-ccff-4a11-a74e-85ea0070809f
 ---
 
 ## Description
@@ -218,3 +217,28 @@ branch: coga/v1-24-mention-coga-build-install
 - Remove the duplicate "Next:" line under `## Upgrading and removing` so the
   page has one next-step hand-off; its `coga/init` link moves into Verify.
 - Edit package owner and `docs/contexts/coga/install/SKILL.md` twin together.
+
+## Handoff (implement → peer-review)
+
+Done on `coga/v1-24-mention-coga-build-install` (commit 0cb12b242, pushed,
+rebased on origin/main). Docs-only; no code touched.
+
+- `## Verify` now ends: CLI check caveat, then one paragraph: "Next, adopt
+  Coga … with `coga init`. After `coga init`, run `coga build` in an
+  otherwise empty repo (`coga build --agent <other>` …), or
+  `coga ticket "<title>"` in a repo that already has files;
+  coga/first-task walks through both." "Empty" links to
+  `coga/init#fresh-repo` (owner of the definition), not redefined.
+- Removed the "Next: adopt Coga … coga/init … coga/first-task" line from
+  `## Upgrading and removing` (would have overlapped). Its links live on
+  in the Verify paragraph.
+- Matches `coga/init` "printed next steps" and first-task (which covers
+  both `coga build` and `coga ticket`). README untouched (v1/23 owns it).
+- Package copy and `docs/contexts/coga/install/SKILL.md` are byte-identical.
+
+Verification: `.venv/bin/python -m pytest tests/test_packaging.py -q` →
+37 passed. (System `python` lacks `tomlkit`; use the repo venv.)
+
+Reviewer focus: wording of the single hand-off paragraph; whether dropping
+the "Next:" line (vs. leaving a pointer) is acceptable — ticket allowed
+either fold or pointer; I chose one hand-off only.
