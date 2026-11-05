@@ -1,6 +1,6 @@
 ---
 title: Retire the coga/install topic
-status: blocked
+status: active
 owner: zach
 contexts:
 - coga-dev/principles
