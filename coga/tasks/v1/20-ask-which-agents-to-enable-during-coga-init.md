@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -969,68 +969,55 @@ for the owner.
 
 ## Evaluator review
 
-Verdict as given: not ready for implementation until the two must-fix gaps
-below are resolved. **Both are answered as of the 2026-11-05 design re-run**
-— see the disposition under each.
+Verdict: not ready for implementation until the three must-fix gaps below are
+resolved. The earlier evaluator findings are answered by the revised body; this
+review is against that revision and PR #1176's current diff.
 
 ### Must fix
 
-1. **A Codex-only selection leaves Coga's packaged authoring and chat targets
-   routed to the now-undeclared Claude agent.**
-   `src/coga/resources/templates/coga/bootstrap/ticket/ticket.md` and
-   `bootstrap/orient/ticket.md` both pin `agent: claude`.
-   `authoring.resolve_authoring_agent` considers the bootstrap ticket's agent
-   before `Config.default_agent()`, while `launch._target_operator` resolves a
-   bootstrap ticket's explicit agent through `resolve_main_agent`; both fail
-   when `[agents.claude]` is commented out. The proposed stamping helper only
-   scans scaffolded `coga/tasks/**/*.md`, so it cannot repair either packaged
-   target. This also makes `_do_init`'s filled-repo next step, bare
-   `coga ticket`, fail immediately after a Codex-only init. Specify how these
-   stateless targets follow the enabled/default agent and add coverage for the
-   advertised bare commands in a Codex-only config.
+1. **The empty selection has no complete data or next-steps contract.**
+   Proposed Shape 4 defines `AgentChoice.default` as the first enabled agent
+   when the packaged default is absent, but an accepted empty selection has no
+   such agent. Proposed Shape 8 then computes `build_agent` from that value or
+   `AGENT_CLIS[0]`, so an empty-repo init would still tell the user to run
+   `coga build` with an undeclared agent; a filled repo would still advertise
+   `coga ticket`. Both contradict the empty-selection confirmation that no
+   launch works. `Config.default_agent()` explicitly returns `None` when
+   `cfg.agents` is empty, and `authoring.resolve_authoring_agent` and
+   `bump.resolve_main_agent` then fail loud. Specify the empty choice's
+   `default` value and selection-aware next steps for both empty and filled
+   repos, and test that no unusable agent-backed command is advertised.
 
-   *Answered — Proposed shape item 7.* Confirmed on the code, and the finding
-   understates it: `coga chat` is the same failure through
-   `aliases.py` → `bootstrap/orient`, and `init.AGENT_GUIDE_TEMPLATE` commits
-   `CLAUDE.md`/`AGENTS.md` telling the reader to run that target. Fixed by
-   deleting both pins, so each falls through to `Config.default_agent()` the
-   way `bootstrap/resolve-conflicts` already does. Coverage added to item 9 for
-   all three commands after a codex-only init. One sub-claim corrected:
-   `coga validate` was never a gate here, so the criteria make it behavioral.
+2. **Unpinning the packaged stateless targets leaves several owned surfaces
+   false, beyond the two docstrings named in item 7.** The body of
+   `bootstrap/ticket/ticket.md` says its `agent:` is the install-level default,
+   and `bootstrap/orient/ticket.md` says to swap its `agent:`; replacing only
+   their frontmatter leaves both tickets internally contradictory. The shipped
+   `coga.toml` says `coga chat` and `coga ticket` do not follow
+   `default_agent` because their packaged tickets pin Claude.
+   `coga/configuration` and its bundled twin repeat that term 5 is the
+   install-level default, while `coga-dev/internals/agent-config` and the
+   comment in `config.load_config` also say the packaged targets pin Claude.
+   Repository guidance requires the same PR to repair every surface that
+   summarizes the changed owner. Add these files and their tests to the shape;
+   the ticket currently says `coga/configuration` stays correct, which is
+   demonstrably false.
 
-   The rejected alternative was init scaffolding local overrides of both
-   tickets; it keeps the pins but stales the copies against `coga update`
-   (Zach, 2026-11-05).
+3. **The deferred install-policy decision is not fully reconciled with the
+   prerequisite PR.** Out of Scope says no code or context may assert that
+   Coga *never* offers agent installation, but PR #1176 currently introduces
+   exactly that invariant in the `dependencies` module contract and the
+   configured-CLI check in `launch._LaunchInvocation._prepare_agent` (as well
+   as in the `coga/init` and `coga/install` topics that this ticket already
+   plans to revise). Proposed Shape only revisits the topics. Require a post-merge
+   search and soften the remaining code statements to describe present
+   behavior, so this ticket does not ship the permanent rule it explicitly
+   rejects.
 
-2. **The config edit is not designed as the all-or-nothing transaction the
-   acceptance criteria require.** Proposed Shape 6 writes
-   `_disable_unchosen_agents` first and then independently calls
-   `_write_default_agent`. If disabling fails but the default write succeeds,
-   unchosen agents remain declared; if disabling succeeds but the default
-   write fails, `coga.toml` has already changed. Moreover, the proposed
-   disable helper returns `()` both for a valid all-enabled no-op and for
-   failure, and the test plan has no integrated failure-path assertion or
-   warning check. The existing `_write_default_agent` only preserves the bytes
-   it receives, not the pre-disable template. Define one validated write (or
-   explicit rollback/gating against the original bytes) and test that any
-   failure leaves the complete original `coga.toml` untouched and warns.
+### Dependency note
 
-   *Answered — Proposed shape items 5 and 6.* One validated write against the
-   held original bytes; `_disable_unchosen_agents` distinguishes its two
-   zero-length outcomes; ticket stamping is gated on the write succeeding; item
-   9 asserts the failure path leaves `coga.toml` byte-identical, moves no
-   `default_agent`, stamps no ticket, and warns. Item 6 adds one thing the
-   finding did not ask for: the failure must warn rather than raise, because
-   these writes sit inside `_do_init`'s "Init is atomic" rollback `try`, where
-   an exception deletes the whole half-built `coga/`.
-
-### Optional clarification
-
-- Proposed Shape 4 says `_offer_agent_cli` will take no arguments while the
-  clone caller remains "unchanged"; clarify that the clone behavior is
-  unchanged but its call becomes `_offer_agent_cli()`.
-
-  *Moot.* #1176 deletes the clone path's `_offer_agent_cli(None)` call
-  outright, and this ticket replaces the function with `_choose_agents`, which
-  the clone path never calls. The clone invariant now holds by construction:
-  there is no call there to keep correct.
+PR #1176 remains open at head `3badabee50b3e046ddf9205db0c1ff13c6454855`;
+current `main` still has `_offer_agent_cli`, `agent_cli_setup`, and no
+`_installed_agent_clis`. The ticket correctly says #1176 lands first and tells
+the implementer to re-read the merged source. Do not start implementation on
+the current base.
