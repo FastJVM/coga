@@ -1,6 +1,6 @@
 ---
 title: Recheck Codex usage completeness after the session matching fix
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-self-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:efb311c8-e9b9-4f08-b758-ebefb7ad961c
 ---
 
 ## Description
