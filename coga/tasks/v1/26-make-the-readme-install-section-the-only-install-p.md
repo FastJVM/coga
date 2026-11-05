@@ -1,6 +1,6 @@
 ---
 title: Retire the coga/install topic
-status: in_progress
+status: blocked
 owner: zach
 contexts:
 - coga-dev/principles
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: f1bbaa2b-411e-4443-b4d7-127c4f1be80e
 ---
 
 ## Description
@@ -291,14 +290,15 @@ Changes:
   Python and ignores pip config, so those failures cannot occur on the documented
   path. coga/uninstall still documents pipx/pip *removal* detection (behavior).
   The editable dev install stays in AGENTS.md.
-- Why the floor is 3.11 (tomllib): it was not in the topic; nothing to move.
-  `requires-python` in pyproject is the authority.
+- Why the floor is 3.11 (tomllib): it was not in the retired topic and is
+  **already owned** by coga-dev/testing. `requires-python` in pyproject declares
+  the supported floor.
 - Removal -> already owned by coga/uninstall.
 
 ### Follow-ups / notes
-- coga/init was already over the review thresholds before this change (10,851 bytes,
-  ~2.7k tokens, no `Size exception:`). It is now 11,540 bytes / 197 lines. A split or
-  size-exception review is needed; it is not done here (out of scope).
+- Peer review completed the required coga/init size review and recorded the
+  exception in the owning topic and its legacy twin. See the peer-review receipt
+  below; the size-review follow-up is resolved.
 - Open tickets whose premise changes because `coga/install` is gone (prose mentions
   only; left unedited as instructed): v1/14 (interactive Windows launch: its contract
   update should target coga/launch/README), v1/18, v1/20, v1/23, v1/24, v1/43,
@@ -309,60 +309,176 @@ Changes:
   v1/30 (clean-install audit).
 - v1/33's final acceptance should recheck this result.
 
+## Peer review
+
+2026-11-04, Codex: direct review **completed** against final head `3843c2f3eecd45f37f912d6b68f5fe6e15848ff2`
+and base `b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5`. All 26 diff paths were reviewed,
+including the post-review correction. Claude authored the retirement change;
+Codex independently reviewed that implementation, then authored and self-reviewed
+only the two-file size-exception correction. No child review CLI or subagent ran.
+The final combined receipt uses `self` to disclose that limited overlap.
+
+Findings:
+- **Fixed:** the enlarged coga/init topic needed the size review required by
+  coga/knowledge. Its closing exception now records why the fresh-repo and clone
+  contracts stay together; package and legacy copy match. Commit `3843c2f3e`.
+- **Open, P2:** completed
+  `coga/tasks/v1/29-test-and-fix-install-on-macos-and-windows/ticket.md`
+  still attaches `coga/install` in frontmatter. Validation checks that attachment
+  even though the ticket is done, so deletion introduces a `broken-context` error.
+  The history exclusion in the reference search does not exempt context resolution.
+- **Existing validation blocker:**
+  `coga/tasks/v1/31-test-install-on-windows.md` has an
+  `unsynthesized-draft-blackboard` error on unchanged main as well. Its existing
+  documentation-coordination note needs synthesis or an explicit Production notes
+  classification. The earlier PR receipt calling full validation passed is
+  superseded by the failing receipt below.
+
+Verification: the full suite passed with 4453 passed and 10 skipped; this ticket's
+scoped validation passes, but repository validation exits 1 with the two errors
+above. Exact commands and revisions are in `## PR`. Checked all ten affected
+package/live pairs (nine identical, one deleted on both sides), the three unique
+replacement link targets and their anchors, and the dependency/agent-offer,
+version, uninstall and recurring compatibility statements against their code.
+The Python-floor rationale already lives in coga-dev/testing. No runtime terminal
+surface changed and no cloud clean-install walk was run.
+
+The PATH wording was independently checked with `uv tool update-shell --help`
+on uv 0.13.6 and the current
+[Astral tools guide](https://docs.astral.sh/uv/guides/tools/#installing-tools).
+
+Test setup note: the first full attempt used a basetemp inside this checkout and
+was interrupted after missing-repo tests found the real parent Coga config.
+A fail-fast reproduction had 1 failed and 34 passed and confirmed that cause.
+The complete passing run used a directory outside the checkout. The repository
+and ticket state were unchanged by those attempts.
+
+The branch was rebased onto fetched main, the final diff reviewed, and pushed
+with an explicit force-with-lease. This manual session returned to clean main
+before writing this handoff. No PR has been opened and no workflow bump is due
+until the required validation passes.
+
+The ticket explicitly says `coga/tasks/` history is left alone, so neither
+historical ticket was edited. A concrete, **unapplied** repair is available at
+`/tmp/coga-v1-26-proposed-ticket-repairs.patch` and passes `git apply --check`:
+change only v1/29's context attachment to `coga/init`, and put v1/31's existing
+coordination note under `## Production notes` without changing its prose.
+Owner permission for these two limited repairs, or resolution by those ticket
+owners, is needed before this peer-review step can advance. After resolution,
+reconcile with main, recheck the final diff and validation, refresh the receipts,
+and bump once. The queue stop is `coga block`, preserving step 2.
+
 ## PR
 
 ```yaml
-title: Retire the coga/install topic; README Get started is the only install path
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
-head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
-base: d7e5825bf26391735930c00dca236f8a27ce0755
-depth: skim
-rationale: Docs-only retirement plus test bookkeeping. Read the orphan-fact triage on the ticket for what was dropped on purpose and the coga/init install-offer rewrite.
-implementation: Deletes coga/install and its legacy twin, moves its unique facts to coga/init, coga/recurring/scheduling, coga/cli and the macos-aws harness skill, repoints every link to README Get started or the owning topic, and adds a README PATH line for uv tool installs.
-deviations: Also corrects coga/init's stale claim that init offers to install op (the code never offers it).
-limitations: The README PATH line was checked against uv 0.13.6 help text, not a fresh machine. coga/init remains over the topic size review thresholds (pre-existing).
+title: Retire the coga/install topic
+author: claude/codex
+author_evidence: The implement handoff records Claude Code (claude-opus-5-5) as the implementation
+  author. This Codex peer-review session added only the init size-exception sentence and its legacy
+  twin in commit 3843c2f3e.
+head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+depth: deep
+rationale: 'The documentation retirement is bounded and the full suite passes, but full validation
+  fails: retiring the context breaks a completed ticket attachment, and main already has an unrelated
+  Windows draft-blackboard error. Approval to repair those excluded historical tickets is required
+  before the workflow advances. Codex independently reviewed the Claude change and self-reviewed
+  its own small correction.'
+implementation: Deletes the install topic and its legacy twin, removes its packaging entries, moves
+  surviving facts into init, recurring scheduling, the CLI index and the macOS harness, repoints
+  installation links to README Get started, and adds the uv tool PATH remedy. The init topic now
+  records its reviewed size exception.
+deviations: Also corrects the stale init claim that op is offered for installation. Peer review records
+  the required init topic size exception. Historical task files are left unchanged as the ticket
+  directs, so the broken attachment remains an unresolved finding.
+limitations: No new macOS/AWS or clean-machine installation was run. The PATH remedy was checked
+  against uv 0.13.6 help and current Astral documentation. Tests ran on Linux with Python 3.12.12,
+  not a new Python 3.11 or Windows run. Full repository validation is failing; the earlier passed
+  receipt is superseded.
 files:
   README.md: Add the uv tool PATH line (uv tool update-shell).
   docs/README.md: Drop the installation reference link; README is the only install path.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Repoint init-offer and Windows contracts to coga/init and coga/launch.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Repoint init-offer and Windows contracts to
+    coga/init and coga/launch.
   docs/contexts/coga/architecture/SKILL.md: Legacy twin mirror of the package edit.
   docs/contexts/coga/cli/SKILL.md: Legacy twin mirror of the package edit.
   docs/contexts/coga/first-task/SKILL.md: Legacy twin mirror of the package edit.
-  docs/contexts/coga/init/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/init/SKILL.md: Legacy twin of the init contract changes and reviewed size exception.
   docs/contexts/coga/install/SKILL.md: Deleted legacy twin of the retired topic.
   docs/contexts/coga/recurring/scheduling/SKILL.md: Legacy twin mirror of the package edit.
   docs/contexts/coga/uninstall/SKILL.md: Legacy twin mirror of the package edit.
   src/coga/dependencies.py: Docstring names coga/init instead of the retired topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Topic map install entry points to README Get started.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Init install-first link to README; describe --version in the index row.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Repoint install, upgrade and agent-install links.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Absorb external-CLI check and install-offer details; fix stale op claim.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Deleted the retired topic.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Absorb the CLI-older-than-templates note.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Explain uv-tool install via README instead of the retired topic.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Install link to README Get started.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Inline the headless CLT softwareupdate steps and git check; install link to README.
-  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Install link to README Get started.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Topic map install
+    entry points to README Get started.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Init install-first link
+    to README; describe --version in the index row.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Repoint install,
+    upgrade and agent-install links.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Absorb external-CLI checks
+    and install offers, correct the stale op claim, and record the reviewed size exception.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Deleted the retired
+    topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Absorb
+    the CLI-older-than-templates note.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Explain uv-tool install
+    via README instead of the retired topic.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Install
+    link to README Get started.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Inline
+    the headless CLT softwareupdate steps and git check; install link to README.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Install
+    link to README Get started.
   coga/skills/coga/testing/clean-install/SKILL.md: Legacy live copy mirror.
   coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Legacy live copy mirror.
   coga/skills/coga/testing/clean-install/windows-aws/SKILL.md: Legacy live copy mirror.
   tests/legacy_removal_inventory.txt: Remove the coga/install twin row.
   tests/test_packaging.py: Remove coga/install from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No code review has run yet; the workflow's later review step covers it.
+  reviewer: codex
+  kind: self
+  status: failed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: 'Direct review completed for all 26 diff paths and the final size-exception fix. Codex
+    independently reviewed the Claude implementation; the combined revision is conservatively classified
+    as self-review because Codex authored and reviewed the small follow-up. One unresolved P2 finding:
+    completed v1/29-test-and-fix-install-on-macos-and-windows still attaches coga/install, introducing
+    a broken-context validation error. The v1/31 draft-blackboard error is independently present
+    on main.'
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
-    base: d7e5825bf26391735930c00dca236f8a27ce0755
-    detail: 4453 passed, 10 skipped. Ran on the working tree committed as 08d26f92 (pre-rebase). The rebase onto d7e5825 added only this ticket's Dev line (git diff 08d26f92 05d15be4 outside coga/tasks is empty).
-  - command: coga validate --json
-    status: passed
-    head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
-    base: d7e5825bf26391735930c00dca236f8a27ce0755
-    detail: No new issues vs main except "context 'coga/install' does not exist" for draft _v2/microkernel/support-commands-boundary. That was fixed on main by swapping the attachment to coga/init. The remaining issues are pre-existing ticket warnings and one draft-blackboard error, unchanged from main.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/.coga-pytest-v1-26-peer-review-20261105
+  status: passed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: 4453 passed, 10 skipped in 594.68 seconds on Python 3.12.12. Executed on the final working
+    tree, subsequently committed unchanged at the recorded head.
+- command: coga validate --json
+  status: failed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: 'Exit 1: 93 OK, 12 warnings, 2 errors. New broken-context on completed v1/29-test-and-fix-install-on-macos-and-windows;
+    pre-existing unsynthesized-draft-blackboard on v1/31-test-install-on-windows. Baseline main at
+    the recorded base had 94 OK, the same 12 warning kinds/tasks, and only the latter error.'
+- command: coga validate --task v1/26-make-the-readme-install-section-the-only-install-p --json
+  status: passed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: 'Exit 0: 1 OK, no issues.'
+- command: rg -n -F 'coga/install' . --glob '!docs/archive/**' --glob '!coga/tasks/**' --glob '!coga/log.md'
+  status: passed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: No matches outside the explicitly excluded history; rg exit 1 is the expected no-match
+    result. The completed ticket attachment inside the excluded history still affects validation.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 3843c2f3eecd45f37f912d6b68f5fe6e15848ff2
+  base: b0a9929d36828dd2fc933ccebedf6ba2c0aa18a5
+  detail: No whitespace errors.
 ```
+
+---
+
+## Blockers
+
+- [ ] [2026-11-04 18:39] [agent:codex] id=20261104T183935 Authorize two limited ticket-history repairs so required coga validate --json can pass: replace coga/install with coga/init in the completed v1/29-test-and-fix-install-on-macos-and-windows context attachment, and classify the existing coordination note in v1/31-test-install-on-windows as Production notes. This task explicitly leaves coga/tasks history alone. The first error is introduced by retirement; the second already exists on main. The exact unapplied patch is recorded on the blackboard.
