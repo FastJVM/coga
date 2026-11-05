@@ -1,11 +1,33 @@
 ---
 title: Retire the coga/install topic
-status: draft
+status: active
 owner: zach
 contexts:
-  - coga-dev/principles
-  - coga/knowledge
-workflow: code/with-review
+- coga-dev/principles
+- coga/knowledge
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills:
+    - code/peer-review
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
