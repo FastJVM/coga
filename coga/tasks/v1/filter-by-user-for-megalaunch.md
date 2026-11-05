@@ -28,7 +28,10 @@ Done means the following, with tests and docs updated in the same PR:
 - `--pick --owner zach` shows only zach's.
 - `--pick --all-owners` shows everyone's.
 - `coga megalaunch --owner zach` sweeps zach's tickets through the same
-  launchability gates that the default sweep applies to mine.
+  launchability gates that the default sweep applies to mine, including
+  the dependency drain of zach's blocked tickets.
+- `--owner` with `--all-owners`, and either flag with `--relaunch`, are
+  rejected with a clear error.
 - The default bare sweep behaves exactly as it does today.
 
 ## Context
@@ -46,8 +49,17 @@ Done means the following, with tests and docs updated in the same PR:
   and its docstring states "every non-terminal task of any owner". The
   command wiring is in `commands/megalaunch.py`
   (`megalaunch`, `_resolve_selection`).
-- **Current user.** `cfg.current_user` comes from `user` in
-  `coga.local.toml`.
+- **Owner gates.** There are four, all in `coga.megalaunch`: the queue scan,
+  the launch reread, and two inside `_drain_satisfied_blockers` (the
+  blocked-ticket scan and the dependency-activation reread). There is no
+  separate "ask" path. The drain resolves only blockers whose named
+  dependency has finished, then relaunches.
+- **Claim takeover.** In the start path (`_prepare_agent_launch`'s claim
+  check), an `in_progress` ticket with a plain `launch_generation` from an
+  earlier session gets its claim replaced without checking whether that
+  session still runs. Pending and released claims are refused.
+- **Re-block notifications** already name `current_user` as the operator
+  and the ticket owner as the person who must answer. Keep that as is.
 
 ### Design notes
 
@@ -69,25 +81,50 @@ Done means the following, with tests and docs updated in the same PR:
 - **Unknown owner.** An `--owner` value that matches no ticket should give an
   empty picker or sweep with a clear message, not an error. Owners are free
   strings on tickets, and there is no user registry to validate against.
+- **Dependency drain follows the chosen owner (decided).** It only resolves
+  blockers whose dependency has finished, so draining zach's tickets is
+  mechanical work and does not answer a question on his behalf.
+- **Claim takeover is allowed across owners (decided by the owner).** A
+  sweep of zach's tickets treats his `in_progress` claims exactly as the
+  default sweep treats mine: it replaces a plain claim and refuses pending
+  and released claims. Don't add any special case. Coordinating with the
+  other owner is the operator's responsibility. Note this in the
+  `coga/megalaunch` docs.
+- **The filter is on `owner:` only.** It never looks at who holds the
+  current step. Owner-less tickets match only `--all-owners`.
+- **Notifications go to the ticket owner (accepted).** Lifecycle posts for
+  zach's tickets still notify zach, as the accountable human. Log actor
+  attribution (`megalaunch`) is out of scope.
+- **Reread message.** The launch-reread skip message currently says the
+  owner "is not current operator {current_user}". It should name the target
+  owner, or say that the ticket is outside the owner filter.
 
 ### Docs to update in the same PR (edit these, not attached)
 
 - `src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md`:
   the "Bare sweep" and "Explicit selection" sections, and the frontmatter
-  description ("owner-scoped sweep"). Mirror any legacy live copy as
-  required by `tests/test_packaging.py`.
-- Check `coga/cli` (`.../contexts/coga/cli/SKILL.md`) for a flag listing
-  that needs the new options.
-- Update the `--pick` help text in `commands/megalaunch.py`, which currently
-  says "any owner".
+  description ("owner-scoped sweep"). Mirror the edit byte-for-byte into the
+  legacy live copy `docs/contexts/coga/megalaunch/SKILL.md`, which is pinned
+  in `tests/legacy_removal_inventory.txt`, and commit both together.
+- Fix the stale "any owner" text in the `--pick` help and the module
+  docstring in `commands/megalaunch.py`. In `coga.megalaunch`, fix the
+  module docstring, the run-staging docstring, and the
+  `launchable_candidates` docstring.
+- `coga/cli` has no flag list for megalaunch (it links to
+  `coga/megalaunch`), so it needs no edit.
 
 ### Tests
 
 Picker candidate filtering covers default, `--owner`, and `--all-owners`.
 The sweep with `--owner <other>` launches that owner's ticket and still
 skips other owners at the reread. Flag conflicts to test: `--owner` with
-`--all-owners`, and either flag with `--relaunch`. Existing megalaunch tests
-live in `tests/test_megalaunch.py`.
+`--all-owners`, and either flag with `--relaunch`. Also cover:
+- the drain under `--owner <other>`;
+- an unknown `--owner` giving an empty result.
+
+Check for existing tests, including tests of the `pick` alias, that assume
+the picker lists every owner. Existing megalaunch tests live in
+`tests/test_megalaunch.py`.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -176,35 +213,3 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-**Clarity and "done."** The ticket is clear enough to start work. The five "Done means" bullets are behaviours a reviewer can check, and the Tests section names concrete cases. One gap: it doesn't say whether `--owner` or `--all-owners` on the bare sweep also changes the dependency drain. The design notes suggest yes, but a done bullet should say so.
-
-**Workflow.** `code/with-review` fits. This is a CLI and engine change with a docs twin, and it ends in a PR.
-
-**Contexts.** Leaving them unattached is defensible, since the implementer has to read `coga/megalaunch` closely anyway. Two additions would help:
-- Name the legacy live copy explicitly. `docs/contexts/coga/megalaunch/SKILL.md` is pinned in `tests/legacy_removal_inventory.txt`, so it must be mirrored.
-- Drop or soften the `coga/cli` pointer. That topic has only a table row pointing at `coga/megalaunch`; flags are documented by `--help`, not in a flag list.
-- Optionally attach `coga-dev/testing`.
-
-**Scope.** Reasonable as one PR. No split needed.
-
-**Gate claims: accurate, with gaps.** I found four owner gates in `coga.megalaunch`:
-- the queue scan (`:360`)
-- the launch reread (`:1250`, the `not explicit and …` gate)
-- the drain scan (`:457`)
-- the drain's dependency-activation reread (`:525`)
-
-The last two are both inside `_drain_satisfied_blockers`. The ticket's "blocked/ask paths" are those same two drain gates; there isn't a separate ask path. The ticket also misses these:
-- **Stale docstrings.** "any owner" text at `megalaunch.py:13`, `:229` and `:1003`, plus the command module docstring at `commands/megalaunch.py:9`, all need updating, not just the `--pick` help at `:67`.
-- **Report message.** The reread message says "is not current operator {current_user}". Under `--owner` it should name the target owner.
-- **Re-block notifications.** The re-block path (`:1966-1984`) correctly uses `current_user` as the operator and the ticket owner as the one who must answer. Keep it that way; no change is needed there.
-
-**Is sweeping another owner's tickets safe? Raise this before launch.**
-- **Claims.** Megalaunch replaces an earlier plain `launch_generation` claim on `in_progress` tickets "without checking whether that session still runs" (`:2066`; SKILL.md "Bare sweep"). So `--owner zach` can take over a session zach left running on another machine. Pending and released claims are still refused. The ticket should state whether that is acceptable, or exclude `in_progress` work under `--owner`.
-- **Dependency drain.** The drain auto-answers zach's open asks and relaunches them. That is the operator answering another person's blocker. It should be an explicit decision, not inherited silently.
-- **Notifications.** Lifecycle posts (start, block, done) notify zach for work he didn't start. Log lines record actor `megalaunch`, not the operator.
-- **Default change.** Making `--pick` mine-only also changes the `pick` alias. Check for tests that assume every owner appears.
-
-**Prompt size.** Task_context is 43%, just over the ~40% line. Most of it is the required field-guide comment, so trim only the prose. The "Current behaviour" section can drop the line references and the `cfg.current_user` source note to save about 100 tokens. No other layer is near the limit.
