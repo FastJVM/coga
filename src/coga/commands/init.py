@@ -592,7 +592,8 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
     """
     if not _interactive():
         return None
-    installed = [name for name in AGENT_CLIS if shutil.which(name) is not None]
+    installed = _installed_agent_clis()
+    _print_agent_scan(installed)
     if len(installed) > 1:
         return None
     if installed:
@@ -643,6 +644,38 @@ _AGENT_LABELS = {"claude": "Claude Code", "codex": "Codex"}
 _TABLE_START = re.compile(r"^[ \t]*\[")
 _DEFAULT_AGENT_KEY = re.compile(r"^[ \t]*default_agent[ \t]*=")
 _DEFAULT_AGENT_EXAMPLE = re.compile(r"^[ \t]*#[ \t]*default_agent[ \t]*=")
+
+
+def _installed_agent_clis() -> tuple[str, ...]:
+    """The `AGENT_CLIS` whose binary is on PATH, in supported order."""
+    return tuple(name for name in AGENT_CLIS if shutil.which(name) is not None)
+
+
+def _print_agent_scan(installed: tuple[str, ...]) -> None:
+    """Print one line per supported agent CLI with its PATH status.
+
+    Every name in `AGENT_CLIS` is listed in every state, so a machine with
+    nothing installed reads a complete list of what coga can drive rather than
+    an absence — and a machine with everything installed still sees the list,
+    which is what makes "I have the critical piece" legible. Each row carries
+    the display name, the binary, and the status, because the binary is what
+    the user acts on. `_AGENT_LABELS.get` so an agent added to `AGENT_CLIS`
+    without a label renders under its slug instead of raising.
+
+    Plain text on purpose: this is the first thing a user reads on a clean
+    machine, so it has to stay legible in a terminal transcript.
+    """
+    label_width = max(len(_AGENT_LABELS.get(name, name)) for name in AGENT_CLIS)
+    binary_width = max(len(name) for name in AGENT_CLIS)
+    typer.echo("Checking for agent CLIs...")
+    for name in AGENT_CLIS:
+        found = name in installed
+        label = _AGENT_LABELS.get(name, name)
+        typer.secho(
+            f"  {'●' if found else '○'} {label:<{label_width}}  "
+            f"{name:<{binary_width}}  {'found' if found else 'not found'}",
+            fg=typer.colors.GREEN if found else None,
+        )
 
 
 def _write_default_agent(coga_toml: Path, name: str) -> bool:
