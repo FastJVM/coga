@@ -10217,3 +10217,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 17:55 v1 [v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 17:55 v1 [v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 17:55 v1 [v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits] [megalaunch] launched via coga megalaunch
+2026-11-04 17:58 v1 [v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design: refuse (not carry-forward) with pre-update guard + guarded-OID lease; 3 open questions on blackboard
