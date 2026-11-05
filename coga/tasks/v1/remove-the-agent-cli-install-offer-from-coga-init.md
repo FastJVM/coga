@@ -210,6 +210,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1176
 branch: coga/v1-remove-the-agent-cli-install-offer-from-coga--9980a6
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
