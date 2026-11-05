@@ -20,9 +20,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 5e305631-8239-4639-82dd-945ca1f4c295
 ---
 
 ## Description
@@ -243,3 +242,95 @@ Verification: `.venv/bin/python -m pytest tests/test_packaging.py -q` →
 Reviewer focus: wording of the single hand-off paragraph; whether dropping
 the "Next:" line (vs. leaving a pointer) is acceptable — ticket allowed
 either fold or pointer; I chose one hand-off only.
+
+## Peer review
+
+2026-11-04 — Codex: passed, no must-fix findings or content edits.
+
+- Reviewed the complete two-file Markdown diff against current main. The
+  hand-off explicitly follows `coga init`, names the build/other-agent and
+  existing-repo ticket commands, and keeps first-task guidance in its owner.
+  It agrees with `src/coga/commands/init.py:1591-1605` and `coga/init`.
+- Removing the old "Next:" paragraph is within scope and leaves one
+  next-step hand-off. The init and first-task links resolve in both copies;
+  the `#fresh-repo` anchor exists. README, code, and fixtures are untouched.
+- Independent authorship is established by the implementation audit receipt
+  in `coga/log.md` (Claude session
+  `99564b46-452e-489f-9b9f-de07b0fae0f9`, step `implement`) and its Claude
+  co-author trailer, rather than the configured agent assignment.
+- Rebased onto `b446530c153d4d9e52d50c92f0934c45bd651b90`; only ticket/log
+  state had advanced. Reviewed head is
+  `c6019d577d2d7cfffc44e4adb8263c59e09efe59`, pushed with an explicit lease.
+  The install pages and reference sources are unchanged by the rebase.
+  Returned to clean, current `main` before writing this handoff.
+- `cmp` of the package owner and legacy twin and `git diff --check main...HEAD`
+  both passed on that head. Pytest was not rerun for this prose-only review;
+  the implement handoff's 37 passing packaging tests remain historical
+  evidence for `0cb12b2423f36907cc2010883f8ec9d259b2b98a`.
+- `coga validate --task v1/24-mention-coga-build-in-the-install-flow --json`
+  passed with no issues after recording the review and PR preparation.
+
+Ready for `open-pr`; no blockers or remaining review findings.
+
+## PR
+
+```yaml
+title: Name coga build and coga ticket after coga init
+author: claude
+author_evidence: >-
+  The coga/log.md implementation receipt identifies CLI claude, model
+  claude-opus-5-5, session 99564b46-452e-489f-9b9f-de07b0fae0f9, and step
+  implement. The implementation commit also has a Claude co-author trailer.
+head: c6019d577d2d7cfffc44e4adb8263c59e09efe59
+base: b446530c153d4d9e52d50c92f0934c45bd651b90
+depth: merge
+rationale: >-
+  Small documentation change with independent Codex review and no unresolved
+  findings. Source comparison, link inspection, twin equality, and whitespace
+  checks cover the changed prose; no runtime code or fixtures changed.
+implementation: >-
+  The install Verify hand-off now names coga build (including the other-agent
+  option) for an otherwise empty repo and coga ticket "<title>" for an existing
+  repo after coga init. It links the empty-repo definition and first-task walk,
+  and removes the duplicate next-step paragraph under Upgrading and removing.
+deviations: None; only the install topic and its legacy twin changed.
+limitations: >-
+  No end-to-end install run or pytest rerun during peer review because the
+  change is prose only. Implementation reported 37 passing packaging tests
+  before the rebase; that historical result is not a current-head test receipt.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: >-
+    Package owner of the single install hand-off with the repo-state split.
+  docs/contexts/coga/install/SKILL.md: >-
+    Legacy live twin kept byte-identical to the package owner.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: c6019d577d2d7cfffc44e4adb8263c59e09efe59
+  base: b446530c153d4d9e52d50c92f0934c45bd651b90
+  detail: >-
+    Reviewed both complete Markdown diffs, init's next-steps implementation,
+    init and first-task contexts, internal links and the fresh-repo anchor.
+    All acceptance criteria are satisfied; no must-fix findings.
+checks:
+  - command: cmp src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md docs/contexts/coga/install/SKILL.md
+    status: passed
+    head: c6019d577d2d7cfffc44e4adb8263c59e09efe59
+    base: b446530c153d4d9e52d50c92f0934c45bd651b90
+    detail: Exit 0; package owner and legacy live twin are byte-identical.
+  - command: git diff --check main...HEAD
+    status: passed
+    head: c6019d577d2d7cfffc44e4adb8263c59e09efe59
+    base: b446530c153d4d9e52d50c92f0934c45bd651b90
+    detail: Exit 0; no whitespace errors in the reviewed branch diff.
+  - command: .venv/bin/python -m pytest tests/test_packaging.py -q
+    status: not-run
+    detail: >-
+      Not rerun during prose-only peer review. The implement handoff reports
+      37 passed on 0cb12b2423f36907cc2010883f8ec9d259b2b98a; current twin
+      equality was checked separately after rebasing over ticket/log updates.
+  - command: python -m pytest
+    status: not-run
+    detail: No code or fixtures changed; the peer-review step excludes a full-suite run for pure prose.
+```
