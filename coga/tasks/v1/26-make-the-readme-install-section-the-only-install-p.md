@@ -241,3 +241,7 @@ Previous ref: `marketing/fix-installer/make-the-readme-install-section-the-only-
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-26-retire-install-topic
