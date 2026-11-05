@@ -667,6 +667,9 @@ def _print_agent_scan(installed: tuple[str, ...]) -> None:
     """
     label_width = max(len(_AGENT_LABELS.get(name, name)) for name in AGENT_CLIS)
     binary_width = max(len(name) for name in AGENT_CLIS)
+    # Leading blank: the scan lands at the tail of init's optional-tools
+    # output, and without separation it reads as another line of that block.
+    typer.echo()
     typer.echo("Checking for agent CLIs...")
     for name in AGENT_CLIS:
         found = name in installed

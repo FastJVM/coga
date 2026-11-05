@@ -16,21 +16,9 @@ Three ways in, one engine:
 
 from __future__ import annotations
 
-import os
-
-if os.name == "posix":
-    import select
-    import termios
-    import tty
-
-import signal
 import sys
 
 import typer
-from rich.console import Console, Group
-from rich.live import Live
-from rich.table import Table
-from rich.text import Text
 
 from coga import git, notification
 from coga.launch import _interactive_stdio_has_tty
@@ -44,6 +32,7 @@ from coga.megalaunch import (
     run_megalaunch,
     save_selection,
 )
+from coga.picker import PickerColumn, PickerRow, pick
 from coga.tasks import TaskRef, UnknownDirectoryError, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 
@@ -275,196 +264,47 @@ def _saved_selection_still_on_disk(cfg: Config) -> list[str]:
     return kept
 
 
-def _decode_key(data: bytes) -> str:
-    """Map a raw keypress byte sequence to a picker action ('' = ignore)."""
-    if data in (b"\x1b[A", b"\x1bOA", b"k"):
-        return "up"
-    if data in (b"\x1b[B", b"\x1bOB", b"j"):
-        return "down"
-    if data == b" ":
-        return "space"
-    if data in (b"\r", b"\n"):
-        return "enter"
-    if data in (b"q", b"\x1b", b"\x03"):  # q, bare Esc, Ctrl-C
-        return "quit"
-    if data == b"a":
-        return "all"
-    if data == b"n":
-        return "none"
-    return ""
-
-
-def _read_key(resize_fd: int) -> str:
-    """Read one keypress from the terminal in raw mode, decoded to an action.
-
-    `resize_fd` is the read end of the picker's SIGWINCH self-pipe (see
-    `_pick_selection`); a byte there wins over a keypress and comes back as
-    the synthetic "resize" action. Returning — rather than redrawing here —
-    matters: the `finally` restores cooked mode first, so the caller never
-    renders while raw mode (no OPOST) would staircase the output.
-    """
-    fd = sys.stdin.fileno()
-    old = termios.tcgetattr(fd)
-    try:
-        # TCSADRAIN, not setraw's default TCSAFLUSH: a keypress that lands
-        # between reads (e.g. racing a resize redraw) must survive re-entry,
-        # not be flushed with the queue.
-        tty.setraw(fd, termios.TCSADRAIN)
-        ready = select.select([fd, resize_fd], [], [])[0]
-        if resize_fd in ready:
-            # Drain so a flurry of resizes coalesces into one redraw.
-            os.read(resize_fd, 1024)
-            return "resize"
-        data = os.read(fd, 1)
-        if data == b"\x1b":
-            # Arrow keys arrive as ESC [ A / ESC O A; a bare Esc sends nothing
-            # more, so a short poll distinguishes the two.
-            while len(data) < 3 and select.select([fd], [], [], 0.02)[0]:
-                data += os.read(fd, 1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old)
-    return _decode_key(data)
-
-
 def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
     """Arrow-key picker: ↑/↓ (or j/k) move, Space toggles, Enter launches.
 
     Nothing starts checked — the list reaches wide (other owners' tickets,
     drafts, paused, blocked), so every launch is an explicit opt-in. Returns
     the confirmed slugs, or an empty list when the human backed out (`q`/Esc,
-    or confirming with nothing checked).
+    Ctrl-C, or confirming with nothing checked).
     """
-    console = Console()
-    cursor = 0
-    selected: set[int] = set()
-    # SIGWINCH self-pipe: `_read_key` blocks in os.read/select, and PEP 475
-    # retries reads around signals, so a flag set by a handler would never be
-    # seen while the read stays blocked. The wakeup fd turns the signal into a
-    # readable byte `_read_key` can select on. The no-op handler is required —
-    # SIGWINCH is ignored by default, and only signals with a Python-level
-    # handler reach the wakeup fd. Installed for the whole picker so a resize
-    # landing between keypresses (cooked mode) is buffered, not lost.
-    resize_read, resize_write = os.pipe()
-    os.set_blocking(resize_write, False)
-    previous_wakeup = signal.set_wakeup_fd(resize_write)
-    previous_handler = signal.signal(signal.SIGWINCH, lambda signum, frame: None)
-    try:
-        with Live(
-            _picker_view(candidates, selected, cursor, console),
-            console=console,
-            auto_refresh=False,
-            transient=True,
-        ) as live:
-            while True:
-                key = _read_key(resize_read)
-                if key == "quit":
-                    return []
-                if key == "enter":
-                    return [candidates[i][0].id_slug for i in sorted(selected)]
-                if key == "up":
-                    cursor = (cursor - 1) % len(candidates)
-                elif key == "down":
-                    cursor = (cursor + 1) % len(candidates)
-                elif key == "space":
-                    selected ^= {cursor}
-                elif key == "all":
-                    selected = set(range(len(candidates)))
-                elif key == "none":
-                    selected = set()
-                # "resize" needs no branch: falling through re-renders, and
-                # _picker_view reads console.size fresh on every render.
-                live.update(
-                    _picker_view(candidates, selected, cursor, console), refresh=True
-                )
-    finally:
-        signal.signal(signal.SIGWINCH, previous_handler)
-        signal.set_wakeup_fd(previous_wakeup)
-        os.close(resize_read)
-        os.close(resize_write)
-
-
-def _picker_window(total: int, cursor: int, rows: int) -> tuple[int, int]:
-    """Half-open [start, end) of candidate indices to show for this cursor.
-
-    Rich's Live defaults to vertical_overflow="ellipsis", which keeps the
-    *first* screenful of a taller-than-terminal render (LiveRender renders
-    `lines[: height - 1]` plus an ellipsis line). So without windowing the
-    bottom of a long list is never drawn and the cursor vanishes on the way
-    down. We scroll the viewport to keep the cursor inside it, leaving a
-    one-row margin at each edge when there is more list to reveal.
-
-    This only holds if each candidate costs exactly one terminal line —
-    `_picker_view` is responsible for that, by truncating rather than wrapping.
-    """
-    if rows <= 0 or total <= rows:
-        return 0, total
-    # Anchor the window on the "page" the cursor falls in, then nudge so the
-    # cursor is never pinned to the very top/bottom edge while more rows exist.
-    start = max(0, min(cursor - rows // 2, total - rows))
-    return start, start + rows
-
-
-def _picker_view(
-    candidates: list[tuple[TaskRef, Ticket]],
-    selected: set[int],
-    cursor: int,
-    console: Console,
-) -> Group:
-    # Chrome is an unconditional 5 lines: 2 for the table (header row + header
-    # rule), 1 for the hint, and 2 for the scroll indicators — which are always
-    # rendered, blank when there is nothing above/below, so the reserve holds at
-    # the list ends too and the frame doesn't jitter by a row as you scroll past
-    # them.
-    rows = max(1, console.size.height - 5)
-    start, end = _picker_window(len(candidates), cursor, rows)
-
-    # `_picker_window` budgets in candidates, so every row must cost exactly one
-    # terminal line. `no_wrap`/`ellipsis` on every column is what buys that —
-    # a wrapped row costs more than its one budgeted line and overflows.
-    #
-    # The ratios matter as much as the truncation. Left to itself, an
-    # all-no_wrap table measures wider than the terminal (slugs and titles run
-    # long), Rich falls through to its last-resort even reduction, and *every*
-    # column shrinks — the marker and checkbox collapse to nothing. Declaring
-    # the elastic columns flexible (`ratio` + `expand`) hands Rich the
-    # slack it needs from them alone, so the fixed narrow columns survive down
-    # to ~50 cells.
-    table = Table(show_lines=False, show_edge=False, pad_edge=False, expand=True)
-    table.add_column("", width=1, no_wrap=True, overflow="ellipsis")
-    table.add_column("sel", width=3, no_wrap=True, overflow="ellipsis")
-    table.add_column("slug", ratio=2, no_wrap=True, overflow="ellipsis")
-    table.add_column("status", no_wrap=True, overflow="ellipsis")
-    table.add_column("owner", ratio=1, no_wrap=True, overflow="ellipsis")
-    table.add_column("step", ratio=1, no_wrap=True, overflow="ellipsis")
-    table.add_column("title", ratio=3, no_wrap=True, overflow="ellipsis")
-    for index in range(start, end):
-        ref, ticket = candidates[index]
-        table.add_row(
-            Text("❯" if index == cursor else " "),
-            # Text, not str: a bare "[x]" would be eaten as Rich markup.
-            Text("[x]" if index in selected else "[ ]"),
-            ref.id_slug,
-            ticket.status,
-            ticket.owner or "-",
-            ticket.step or "-",
-            ticket.title,
-            style="reverse" if index == cursor else None,
+    rows = [
+        PickerRow(
+            key=ref.id_slug,
+            cells=(
+                ref.id_slug,
+                ticket.status,
+                ticket.owner or "-",
+                ticket.step or "-",
+                ticket.title,
+            ),
         )
-    # These sit outside the table and wrap on their own, so they need the same
-    # truncation the columns got — the hint line alone is 64 cells wide.
-    def _line(text: str) -> Text:
-        return Text(text, style="dim", no_wrap=True, overflow="ellipsis")
-
-    return Group(
-        _line(f"  ↑ {start} more above" if start > 0 else ""),
-        table,
-        _line(
-            f"  ↓ {len(candidates) - end} more below"
-            if end < len(candidates)
-            else ""
-        ),
-        _line("↑/↓ move · Space toggle · a all · n none · Enter launch · q quit"),
+        for ref, ticket in candidates
+    ]
+    columns = (
+        PickerColumn("slug", ratio=2),
+        PickerColumn("status"),
+        PickerColumn("owner", ratio=1),
+        PickerColumn("step", ratio=1),
+        PickerColumn("title", ratio=3),
     )
+    try:
+        chosen = pick(
+            rows,
+            columns,
+            hint="↑/↓ move · Space toggle · a all · n none · Enter launch · q quit",
+        )
+    except KeyboardInterrupt:
+        # Ctrl-C used to decode as "quit" alongside `q`, and quitting here
+        # launches nothing — so folding both into [] keeps megalaunch's
+        # behaviour byte-for-byte. `coga init` cannot do the same: there, a
+        # confirmed-empty answer writes a coga.toml, so it lets this propagate.
+        return []
+    return chosen if chosen is not None else []
 
 
 def _drain_post_text(run: MegalaunchRun) -> str | None:
