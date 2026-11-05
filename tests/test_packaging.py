@@ -595,7 +595,6 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/first-task",
         "coga/important",
         "coga/init",
-        "coga/install",
         "coga/human-assist",
         "coga/pr-publication",
         "coga/pr-publication/preparation",

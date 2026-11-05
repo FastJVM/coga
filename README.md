@@ -113,6 +113,9 @@ uv tool install coga
 coga --version
 ```
 
+If `coga` isn't found, uv's tool directory isn't on your `PATH`: run
+`uv tool update-shell`, then open a new terminal.
+
 For an existing project, change into its Git repository. For a new project,
 create the repository first:
 

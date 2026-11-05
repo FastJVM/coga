@@ -98,12 +98,22 @@ Init installs no Coga software. It builds no virtualenv, installs no Python
 package or skill and writes no `PATH` shim, so an editable checkout can
 scaffold a scratch repo without publishing a release. The one exception is
 external CLIs: in an interactive terminal it offers to install a missing
-`git` when the `git` precondition is reached, and a missing `gh` or `op` and
-`gh auth login` only once every precondition has passed, before scaffolding.
-Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
-details), so an invocation that must exit changes nothing on the machine.
-At the same point, with no agent CLI on `PATH`, it asks which agent CLI to
-install (`claude`, `codex`, or skip) and offers its install and login. When
+`git` when the `git` precondition is reached, and a missing `gh` (then
+`gh auth login` if the active github.com account is not logged in) only once
+every precondition has passed, before scaffolding. Only `git` is enforced;
+other tools are checked where used, and `coga.dependencies` is the source of
+truth for the set. Offers default to yes, use the machine's package manager
+(brew, winget, apt-get, dnf or pacman; `sudo` on Linux) and print the command
+first. Without a terminal, a known manager or a package, init prints the
+install link instead: missing `git` still stops init, missing `gh` warns.
+Init never offers `op` (your secrets manager is your choice); a missing `op`
+gets one note naming what needs it. Each install runs only on a yes, so an
+invocation that must exit changes nothing on the machine. At the same point,
+with no agent CLI on `PATH`, it asks which agent CLI to install (`claude`,
+`codex`, or skip) and offers its install and login, using the vendor's
+package (brew cask on macOS, else global `npm`, else only the URL), never a
+`curl | sh` script; `coga build` offers a missing onboarding agent the same
+way. When
 exactly one agent CLI is then on `PATH` and it is not the packaged default
 (`claude`), init asks whether to make it the default agent. On a yes it writes
 `default_agent = "<type>"` into the new `coga.toml` and leaves the

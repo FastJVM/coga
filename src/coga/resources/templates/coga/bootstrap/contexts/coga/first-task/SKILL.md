@@ -5,7 +5,7 @@ description: A short walk from a first draft ticket to a merged PR, with the rea
 
 # Your first task
 
-This walk assumes Coga is installed ([coga/install](../install/SKILL.md)) and
+This walk assumes Coga is installed ([Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started)) and
 the repo is initialized with your name set ([coga/init](../init/SKILL.md)).
 Each step links to the topic that owns its contract.
 
@@ -37,8 +37,8 @@ a shebang declares the file is run directly, so a missing executable bit is a
 check. Fix your own file with `chmod +x <file>` and commit the new mode, or
 use `git add --chmod=+x <file>` where Git ignores filesystem modes. A hit
 under the packaged `bootstrap/skills` comes from the installed Coga, not your
-repo: upgrade or reinstall Coga
-([coga/install](../install/SKILL.md#upgrading-and-removing)). On POSIX the
+repo: upgrade or reinstall Coga (`uv tool upgrade coga` for the recommended
+uv install). On POSIX the
 check reads the working-tree mode; on Windows, or with a repo-local
 `core.fileMode=false`, it reads the git index and skips untracked files. It
 skips a root that has neither source.
@@ -58,7 +58,7 @@ short vision, then a batch of starter tickets, offered for launch only once
 the vision and the batch are confirmed on the control branch. Use `coga build --agent
 codex` for Codex. It dispatches through `coga launch`, so it needs an
 initialized repo. When the onboarding agent's CLI is not on `PATH`, it offers
-to install it and log in first ([coga/install](../install/SKILL.md)). There is no separate `coga setup`.
+to install it and log in first ([coga/init](../init/SKILL.md)). There is no separate `coga setup`.
 
 ## 1. Create a draft
 

@@ -51,8 +51,8 @@ on the machine) and the command prints `uv tool uninstall coga` /
 through the installer that owns the running CLI's venv, detected from a
 marker in the unresolved `sys.executable` venv root:
 
-- `uv-receipt.toml` (the preferred `uv tool install coga`,
-  [coga/install](../install/SKILL.md)) → `uv tool uninstall coga` with
+- `uv-receipt.toml` (the `uv tool install coga` that
+  [Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started) recommends) → `uv tool uninstall coga` with
   `UV_TOOL_DIR` set to the venv root's parent, so a nondefault tools
   directory is targeted even when `$UV_TOOL_DIR` is now unset or different.
   A uv tool venv normally has no pip, so pip is never tried there;
