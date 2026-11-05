@@ -176,6 +176,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1169
 branch: coga/v1-22-init-drop-coga-toml-next-step
 
 ## Handoff (implement)
