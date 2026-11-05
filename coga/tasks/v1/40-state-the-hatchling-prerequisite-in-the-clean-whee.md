@@ -103,6 +103,7 @@ Previous ref: `marketing/state-the-hatchling-prerequisite-in-the-clean-whee` (re
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1173
 branch: coga/v1-40-hatchling-prerequisite
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
