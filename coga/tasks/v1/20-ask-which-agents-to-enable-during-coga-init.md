@@ -34,30 +34,40 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 1 (design)
 agent: claude
 ---
 
 ## Description
 
 `coga init` never shows the user which agent CLIs coga supports or which ones
-it found. It asks a question only when no agent CLI is on PATH, decides
-silently when exactly one is, and asks nothing at all when more than one is.
-The packaged `coga.toml` then ships `[agents.claude]` and `[agents.codex]`
-regardless, so someone with only Claude commits a config declaring a Codex
-binary they do not have.
+it found. It scans `PATH`, then keeps the result to itself: it decides silently
+when exactly one agent is installed, and asks nothing at all when none or more
+than one is. The packaged `coga.toml` then ships `[agents.claude]` and
+`[agents.codex]` regardless, so someone with only Claude commits a config
+declaring a Codex binary they do not have.
 
-Make init scan for the supported agent CLIs, show what it found, ask which
-ones coga should drive, and write only those into `coga.toml`. Offer to
-install a chosen agent that is not on PATH.
+Make init scan for the supported agent CLIs, show the result, ask which ones
+coga should drive, and write only those into `coga.toml`. The scan is the
+visible part and the first thing to get right: a user should be able to run
+`coga init` on a clean machine and read, from the output alone, which agents
+coga can drive and which of them it found.
+
+Init offers no install. An agent that is not on `PATH` is named with its
+binary so the user can install it or put it on `PATH` themselves.
 
 ### Acceptance criteria
 
-- [ ] Interactive `coga init` on a fresh repo prints a scan line naming the
-      agent CLIs found on `PATH`, or saying plainly that none were found.
-- [ ] It then lists every agent in `dependencies.AGENT_CLIS` with its display
-      name, binary, and `PATH` status, pre-checks the ones found, and asks
-      which to enable.
+- [ ] Interactive `coga init` on a fresh repo prints a scan of the supported
+      agent CLIs before it asks anything: a heading, then one line per agent in
+      `dependencies.AGENT_CLIS` carrying its display name, its binary, and
+      whether that binary was found on `PATH`. The list is complete in every
+      state, including when nothing was found.
+- [ ] Nothing in the scan or the question is hardcoded: both are built from
+      `AGENT_CLIS` and `_AGENT_LABELS`, so an agent added to `AGENT_CLIS`
+      appears in both with no further edit here.
+- [ ] The scan then drives the question — the same agents offered as a
+      multi-select with the found ones pre-checked, asking which to enable.
 - [ ] Accepting the pre-checked set takes one ENTER and no other keystroke.
 - [ ] The scaffolded `coga.toml` declares exactly the chosen agents; each
       unchosen `[agents.*]` table is commented out in place with its key
@@ -66,32 +76,50 @@ install a chosen agent that is not on PATH.
       any mismatch init leaves `coga.toml` untouched and warns.
 - [ ] `default_agent` names the first chosen agent when the packaged default
       (`claude`) is not chosen, and is otherwise left as packaged.
-- [ ] Choosing an agent that is not on `PATH` leaves it declared and offers no
-      install; init names its binary and tells the user to install it or put it
-      on `PATH`. The `offer_agent_cli` call here was dropped 2026-11-04; see
-      the blackboard.
+- [ ] Init offers no install anywhere in this flow. Choosing an agent that is
+      not on `PATH` leaves it declared and prints its binary with the fact that
+      coga needs that binary on `PATH` before it can launch the agent.
 - [ ] A single-agent selection prints a warning naming `code/with-self-review`
       and the `coga validate` error that `other-agent` workflows now produce.
 - [ ] An empty selection is confirmed by a prompt naming the cost — no launch
       works and `coga build` cannot run — and declining re-opens the picker.
 - [ ] `q`/Esc leaves every agent declared and `default_agent` as packaged,
       prints one line saying so, and init continues.
-- [ ] After any non-empty selection every delivered ticket's `agent:` names a
-      declared agent: `Config.agent_type()` resolves it and `coga validate`
-      reports no `unknown-agent`.
-- [ ] The next-steps list in `_do_init` matches the selection: no "set your
-      agents" edit instruction, no install step for an agent already on
-      `PATH`, and no `coga build --agent <other>` naming an undeclared agent.
+- [ ] After any non-empty selection every ticket that names an agent names a
+      *declared* one — `Config.agent_type()` resolves it and `coga validate`
+      reports no `unknown-agent`. This covers the scaffolded tickets under
+      `coga/tasks/` and the packaged stateless targets
+      (`bootstrap/ticket`, `bootstrap/orient`), which ship `agent: claude` from
+      the installed package where init cannot rewrite them.
+- [ ] In a repo where `claude` was not enabled, the bare commands init
+      advertises still work: `coga ticket` and `coga build` resolve an agent
+      rather than failing on an undeclared one.
+- [ ] The next-steps list in `_do_init` matches the selection: the
+      `Edit <coga_os>/coga.toml` step no longer says "set your agents", and the
+      `coga build --agent <other>` clause is built from the enabled agents and
+      omitted when there is no second one. Today's
+      `next(name for name in AGENT_CLIS if name != build_agent)` has no default
+      and raises `StopIteration` the moment one agent is enabled.
 - [ ] `coga init` asks the question on Windows through a numbered-entry path
       that calls no `termios`, `tty`, `select`, or `signal` function, and a
       test exercises that path on POSIX.
-- [ ] Non-interactive init and the clone path write no `[agents.*]` or
-      `default_agent` change, and neither offers to install a missing agent
-      CLI.
-- [ ] `coga/init` and `coga/install` describe the new question, and
-      `python -m pytest` passes.
+- [ ] Non-interactive init asks nothing and writes no `[agents.*]` or
+      `default_agent` change; the clone path asks nothing about agents at all.
+      (Whether non-interactive still *prints* the scan is open — see the
+      blackboard.)
+- [ ] `coga/init` and `coga/install` describe the scan and the question as what
+      init does now, and `python -m pytest` passes.
 
 ### Proposed shape
+
+Rebased 2026-11-05 onto sibling PR #1176
+(`v1/remove-the-agent-cli-install-offer-from-coga-init`), which is in review
+and lands first. Re-read `commands/init.py` before starting: #1176 already
+deletes `agent_cli_setup` and the install prompt, adds
+`init._installed_agent_clis()` — the `AGENT_CLIS`-ordered `PATH` scan this
+ticket builds the display on — removes the clone path's `_offer_agent_cli`
+call entirely, and makes the next-steps agent line conditional on that scan.
+If #1176 changed further by merge time, the shape below yields to the code.
 
 **1. Extract the picker into `src/coga/picker.py` (new).** Move `_decode_key`,
 `_read_key`, `_picker_window`, and the body of `_pick_selection` out of
@@ -124,27 +152,38 @@ module's `if os.name == "posix"` guard and `_pick_numbered` reaches no
 `signal`, `termios`, `tty`, `select`, or `rich.Live` call. Dispatching at call
 time rather than import time is what lets a POSIX test reach it.
 
-**3. Ask the question in `commands/init._choose_agents`.** It replaces the
+**3. Render the scan in `commands/init._print_agent_scan`.** Its own function,
+printed before the picker opens, built from `_installed_agent_clis()` (#1176)
+plus `AGENT_CLIS` and `_AGENT_LABELS.get(name, name)` — the `.get` so an agent
+added to `AGENT_CLIS` without a label cannot `KeyError`. A heading, then one
+row per supported agent: display name, binary, found / not found. Every
+supported agent appears in every state, so the found-nothing case is a list of
+"not found" rows rather than an absence. This is the part to eyeball on a
+clean machine, so keep it plain text an implementer can read in a terminal
+transcript; `rich` is available but nothing here needs it.
+
+**4. Ask the question in `commands/init._choose_agents`.** It replaces the
 fresh-repo half of `_offer_agent_cli`, as
 `_choose_agents(packaged_default: str) -> AgentChoice | None` where
 `AgentChoice` is a frozen dataclass of `enabled: tuple[str, ...]` (in
 `AGENT_CLIS` order) and `default: str | None` — the first enabled agent when
 `packaged_default` is not enabled, else `None`. `None` means "make no agent
-edits": non-interactive, or the human quit. Display names come from
-`_AGENT_LABELS.get(name, name)`, so an agent added to `AGENT_CLIS` without a
-label cannot `KeyError`. The install offer, the single-agent warning, and the
-empty-selection confirm all live here.
+edits": non-interactive, or the human quit. The single-agent warning, the
+empty-selection confirm, and the "not on `PATH`" note for a chosen-but-missing
+agent all live here. There is no install branch to write: #1176 removed the
+only one init had.
 
-**4. Keep the clone path on its own function.** Narrow the existing
-`_offer_agent_cli` to take no arguments: ask which CLI to install when none is
-on `PATH`, call `offer_agent_cli`, return nothing. Its default-agent half only
-ever ran with a non-`None` argument, which now only the fresh path supplies.
-`_setup_initialized_clone` keeps calling it, unchanged.
+The clone path needs nothing. #1176 deletes its `_offer_agent_cli(None)` call
+outright, so the invariant that a clone never rewrites committed team config
+holds by construction — just do not add a new call there.
 
 **5. Comment the unchosen tables out in `commands/init`.**
-`_disable_unchosen_agents(coga_toml: Path, enabled: Collection[str]) ->
-tuple[str, ...]` returns the names it commented out, or `()` when it wrote
-nothing. It extends `_write_default_agent`'s approach instead of round-tripping
+`_disable_unchosen_agents(coga_toml: Path, enabled: Collection[str])` returns
+the names it commented out. It must distinguish its two zero-length outcomes —
+"nothing needed commenting out" from "the rewrite failed its check" — because
+item 6 gates the rest of the config edit on the difference; returning `()` for
+both, as an earlier draft did, makes a failure indistinguishable from an
+all-agents-enabled no-op. It extends `_write_default_agent`'s approach instead of round-tripping
 the document: find each `[agents.<name>]` header line, take the lines through
 to the next line matching the existing `_TABLE_START`, prefix `# ` to the lines
 that are not already comments, and insert one line above the header saying init
@@ -156,28 +195,53 @@ it is the wrong tool here: it has no "comment this table out" operation, and
 its comment trivia attaches the `# --- Agents ---` block and the trailing
 `# peer = "codex"` example to neighbouring items unpredictably.
 
-**6. Wire it into `_do_init`.** `_choose_agents` replaces the
+**6. Wire it into `_do_init`, as one all-or-nothing config edit.**
+`_print_agent_scan` then `_choose_agents` replace the
 `_offer_agent_cli(template_default_agent)` call in the same place — after
 `_offer_optional_tools()` and before `target.mkdir()` — so a refused run still
-leaves the disk untouched. The config edits land where `_write_default_agent`
-is called today: `_disable_unchosen_agents` first, then the existing
-`_write_default_agent` and `_stamp_agent_into_delivered_tickets` pair when
-`AgentChoice.default` is set. Report lines go beside the existing
-``Made `...` the default agent`` line.
+leaves the disk untouched.
 
-**7. Fix the three next-steps strings.** Drop "set your agents" from the
-`Edit {coga_os}/coga.toml` step; skip the "Install an agent CLI" step when
-every enabled agent is on `PATH` and name only the missing ones otherwise; and
-build the `coga build --agent <other>` clause from the enabled agents,
-omitting it when there is no second one. The current
-`next(name for name in AGENT_CLIS if name != build_agent)` has no default and
-raises `StopIteration` as soon as one agent is enabled.
+The config edits land where `_write_default_agent` is called today, but they
+are one transaction, not two independent writes. Today's sequence —
+`_disable_unchosen_agents`, then `_write_default_agent`, then
+`_stamp_agent_into_delivered_tickets` — has two partial-failure states that
+the acceptance criteria forbid: disabling fails while the default write
+succeeds, leaving unchosen agents declared under a moved default; or disabling
+succeeds and the default write fails, leaving `coga.toml` already rewritten.
+`_write_default_agent` only preserves the bytes handed to it, not the
+pre-disable template, so it cannot undo the first write.
+
+Hold the original packaged bytes, compute the full edited text in memory,
+validate the parse-back once, and write a single time; on any failure write
+nothing, leave the complete original `coga.toml` in place, and warn. Ticket
+stamping runs only after that write succeeds. Report lines go beside the
+existing ``Made `...` the default agent`` line.
+
+**7. Fix the next-steps strings in `_do_init`.** There is no
+`_print_next_steps`; they are built inline in the `steps` list after the commit
+report. Two are this ticket's:
+
+- Drop "set your agents" from the `Edit {coga_os}/coga.toml` step. The question
+  has already set them, so the instruction now sends the user to re-do what
+  init just did.
+- Build the `coga build --agent <other>` clause from the *enabled* agents and
+  omit it when there is no second one. Today's
+  `next(name for name in AGENT_CLIS if name != build_agent)` has no default and
+  raises `StopIteration` as soon as one agent is enabled.
+
+The third, the agent-CLI prerequisite line, belongs to #1176, which already
+gates it on `if not _installed_agent_clis()`. Retune it to the selection
+rather than the raw scan — an enabled agent that is missing from `PATH` is the
+case worth naming — and leave it alone if that already reads correctly after
+the merge.
 
 **8. Tests.**
 
-- `tests/conftest.py` — add `_choose_agents` to `_stub_init_dep_check`'s tuple.
-  It patches with `raising=False`, so a renamed function silently stops being
-  stubbed and real prompts leak into every init-invoking test.
+- `tests/conftest.py` — add `_print_agent_scan` and `_choose_agents` to
+  `_stub_init_dep_check`'s tuple. It patches with `raising=False`, so a
+  function it names but that no longer exists is silently not stubbed, and the
+  real one then prompts in every init-invoking test. Check the tuple still
+  matches the post-#1176 function names rather than assuming it does.
 - `tests/test_picker.py` (new) — the geometry tests (`_picker_window`, and
   `_picker_view` at every terminal size) move here from `test_megalaunch.py`.
   Add `pick()` coverage for pre-checked rows, space/`a`/`n`/ENTER, quit
@@ -187,22 +251,46 @@ raises `StopIteration` as soon as one agent is enabled.
 - `tests/test_megalaunch.py` — repoint the moved imports and `_feed_keys`'
   patch target to `coga.picker._read_key`. The `test_megalaunch_cli_picker_*`
   tests stay as the adapter's coverage.
-- `tests/test_init.py` — unit-test `_disable_unchosen_agents` the way
-  `test_write_default_agent_*` tests its sibling: packaged template in, exact
-  text out, parse-back equality, unparseable file left untouched. Rework the
-  `_agent_picker` helper to feed the new picker and cover claude-only (codex
-  commented, `default_agent` untouched), codex-only (claude commented,
-  `default_agent = "codex"`, `coga-build.md` repointed), both chosen
-  (`coga.toml` byte-identical to the packaged template), none found then
-  installed, the empty selection confirmed and declined, the single-agent
-  warning text, `q`/Esc, non-interactive, and the clone path.
-  `test_init_writes_the_chosen_default_agent` is the end-to-end test to rewrite
-  against the new shape.
-- `tests/test_agent_cli_setup.py` — no change; `offer_agent_cli` is reused
-  as-is.
+- `tests/test_init.py` — cover the scan, the write, and the selection cases.
+  - `_print_agent_scan` on its own: both found, one found, none found. Assert
+    every supported agent appears in all three, and that the rows come from
+    `AGENT_CLIS` — a test that monkeypatches an extra name into `AGENT_CLIS`
+    and sees it rendered without a label is what keeps the Gemini sibling from
+    needing an edit here.
+  - `_disable_unchosen_agents` the way `test_write_default_agent_*` tests its
+    sibling: packaged template in, exact text out, parse-back equality,
+    unparseable file left untouched.
+  - The transaction from item 6: force the parse-back check to fail and assert
+    `coga.toml` is byte-identical to the packaged template afterwards, that no
+    `default_agent` moved, that no delivered ticket was stamped, and that init
+    warned.
+  - Rework the `_agent_picker` helper to feed the new picker and cover
+    claude-only (codex commented, `default_agent` untouched), codex-only
+    (claude commented, `default_agent = "codex"`, `coga-build.md` repointed),
+    both chosen (`coga.toml` byte-identical to the packaged template), an
+    enabled agent that is not on `PATH` (declared, binary named, no install
+    offered), the empty selection confirmed and declined, the single-agent
+    warning text, `q`/Esc, non-interactive, and the clone path.
+  - A codex-only init followed by resolving the agent for the bare commands
+    init advertises — `coga ticket` and `coga build` — so the packaged
+    `bootstrap/*` targets pinned to `agent: claude` cannot regress to
+    `Agent type 'claude' is not defined in [agents]`.
+  - `test_init_writes_the_chosen_default_agent` is the end-to-end test to
+    rewrite against the new shape.
+- `tests/test_agent_cli_setup.py` — gone with #1176; nothing to do here.
 
 ### Out of scope
 
+- **Offering to install an agent CLI.** Out for this ticket, not ruled out
+  forever. Build the scan first; whether init should offer an install, and in
+  what shape, is a question to answer after seeing the scan run on a clean
+  machine (Zach, 2026-11-05). So: add no install offer here, and equally,
+  write no rule anywhere that says coga never offers one. The context updates
+  in particular describe what init does now rather than declaring an
+  invariant, so a later ticket can add an offer back without first having to
+  retract a promise. Sibling `v1/remove-the-agent-cli-install-offer-from-coga-init`
+  (PR #1176) is what removes the existing offer; this ticket just does not
+  reintroduce it.
 - **Gemini.** Carved out to sibling ticket
   `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive`. Nothing
   here blocks on it: the picker lists whatever `AGENT_CLIS` holds, so Gemini
@@ -245,8 +333,17 @@ raises `StopIteration` as soon as one agent is enabled.
 - Zach on 2026-10-27: the point of this ticket is making the install moment
   clear, not making the config tidy. Seeing the supported agents listed and
   scanned tells a user "I have the critical piece, this should be easy." For
-  the user who has none — not really the audience — saying so plainly and
-  being able to install it for them is what matters.
+  the user who has none — not really the audience — saying so plainly is what
+  matters. (The same remark originally also valued installing it for them;
+  that half was reversed on 2026-11-04, below.)
+- Nico on 2026-11-04: init should not offer to install an agent CLI at all.
+  Coga's users already run agentic coding tools, so a user with none installed
+  is not the audience init is built around.
+- Zach on 2026-11-05: build the scan first and ship it with no install offer.
+  Seeing it render on a fresh VM is what decides whether an install offer
+  comes back later and in what form, so nothing here should prejudge that.
+  The reference point for the display is GitHub Spec Kit's `specify check`,
+  which lists every supported agent tool with a found / not-found marker.
 
 ### What init does today
 
@@ -257,37 +354,48 @@ packaged default is already `claude`; codex-only instead reaches a confirm
 asking whether to make `codex` the default agent in coga.toml. Only the
 no-agent-on-PATH case prompts, as free text (`claude/codex/skip`).
 
+After #1176 that last branch is gone: a user with no agent CLI is asked
+nothing, and `_offer_agent_cli` handles only the exactly-one case. Nothing in
+any branch shows the user the supported list — that absence is what this
+ticket fixes.
+
 A successful answer changes exactly one line: `default_agent = "..."`, written
 by `init._write_default_agent`. Both `[agents.*]` tables land either way,
 because init copies the packaged `coga.toml` verbatim — its agents section is
 literal text, not a template.
 
-### The shape of the question (agreed with Zach, 2026-10-27)
+### The shape of the scan and the question (Zach, 2026-10-27 and 2026-11-05)
 
-A scan line, then a complete list of supported agents with PATH status,
-pre-checked from the scan. Rendering below is **illustrative, not normative** —
-match whatever the reused picker already draws:
+A scan of every supported agent with its `PATH` status, then the same list as
+a question, pre-checked from the scan. Rendering below is **illustrative, not
+normative** — the scan is plain text and the question matches whatever the
+reused picker draws:
 
 ```
-Found on PATH: Claude Code.
+Checking for agent CLIs...
+  ● Claude Code   claude   found
+  ○ Codex         codex    not found
 
 Which agents should coga drive in this repo?
 Each one gets an [agents.*] block in coga.toml, which is committed,
 so this applies to everyone who clones the repo.
 
   [x] Claude Code   claude   found
-  [ ] Codex         codex    not installed — coga can install it
+  [ ] Codex         codex    not found
 ```
 
 The binding rules are:
 
-- The scan line states what was found, and says so plainly when nothing was
-  ("No agent CLI found on PATH — coga runs every launch through one").
-- The list stays complete in every state. Listing only what was found would
-  remove the ability to enable an agent the user is about to install, which is
-  the case `agent_cli_setup.offer_agent_cli` exists to serve.
+- The scan lists every supported agent in every state, found or not. A user
+  with nothing installed reads a complete list of what coga can drive, not an
+  absence. A user with everything installed still sees the list, which is what
+  makes "I have the critical piece" legible.
+- Each row carries the display name, the binary, and the `PATH` status, because
+  the binary name is what the user acts on.
 - Found agents start checked, so ENTER is the right answer for the common case.
-- Checking an agent that is not on PATH leads to the existing install offer.
+- Enabling an agent that is not on `PATH` is allowed and is not an error. It is
+  declared, and init says the binary has to be on `PATH` before coga can launch
+  it. Init does not offer to install it (see *Out of scope*).
 - An empty selection is confirmed, not silent. Say what it costs: with no
   agents declared, every launch fails and `coga build` cannot run.
 - A single-agent selection is allowed and warned about (see below).
@@ -302,11 +410,10 @@ The binding rules are:
   generalizing to a generic item list with an initial selection. No new
   dependency; `_picker_view` renders a `rich.Table`, which is why the mock
   above is illustrative.
-- `agent_cli_setup.offer_agent_cli` already offers the vendor's package (brew
-  cask, else global npm, else the install URL), prints the exact command,
-  runs only on an explicit yes, re-checks PATH, then offers the login. Reuse
-  it rather than writing a second install path. (`launch.py` also calls it
-  when a configured agent's CLI is absent.)
+- `init._installed_agent_clis()` — added by #1176 — is the `PATH` scan itself:
+  the `AGENT_CLIS` on `PATH`, in supported order. The scan display and the
+  pre-checked set both come from it; do not re-derive either with a second
+  `shutil.which` loop.
 - `dependencies.AGENT_CLIS` is the ordered list of supported agents, and
   `init._AGENT_LABELS` maps slug to display name. Drive the picker from those
   rather than a new hardcoded list, so the Gemini sibling needs no edit here.
@@ -327,11 +434,12 @@ The binding rules are:
 
 ### Constraints that are easy to miss
 
-- **The clone path must not change.** `init` calls `_offer_agent_cli` twice.
-  The second call, in the clone branch, passes `None` precisely because a
-  clone's `coga.toml` is committed team config; `coga/init` ("Clone of a repo
-  that already uses Coga") states the invariant that a clone never changes the
-  default agent. A picker that writes `[agents.*]` tables must not run there.
+- **The clone path must not change.** A clone's `coga.toml` is committed team
+  config; `coga/init` ("Clone of a repo that already uses Coga") states the
+  invariant that a clone never changes the default agent. A scan or picker that
+  writes `[agents.*]` tables must not run there. After #1176 the clone branch
+  calls nothing about agents at all, so this is a matter of not adding a call —
+  but the invariant is the reason, and it survives #1176 either way.
 - **Delivered tickets pin an agent.** The packaged `coga-build.md` ships
   `agent: claude`. If a codex-only selection leaves no `[agents.claude]`,
   `Config.agent_type` raises `Agent type 'claude' is not defined in [agents]`
@@ -366,12 +474,18 @@ open them on demand.
 
 ### Contexts to update in the same PR
 
-- `coga/init` (`docs/contexts/coga/init/SKILL.md`), "Fresh repo" — states that
-  init asks which agent CLI to install only when neither is on PATH, and that
-  it writes `default_agent` while leaving the `[agents.*]` tables alone. Both
-  halves become wrong.
+#1176 edits both of these files first; read them as they are at merge, not as
+described here. Write both updates as *what init does*, not as a rule about
+what coga will never do — see *Out of scope* on keeping the install question
+open.
+
+- `coga/init` (`docs/contexts/coga/init/SKILL.md`), "Fresh repo" — describes
+  the agent question and says init writes `default_agent` while leaving the
+  `[agents.*]` tables alone. The second half becomes wrong: init now also
+  comments out the tables for unchosen agents.
 - `coga/install` (`docs/contexts/coga/install/SKILL.md`), "Prerequisites" —
-  states the same no-agent-on-PATH condition and lists the installer routes.
+  describes what a user needs on `PATH` before init. Add that init scans for
+  the supported agent CLIs and shows what it found.
 
 Two more contexts describe this config and stay correct *because* the unchosen
 table is commented rather than deleted; check them, do not edit them.
@@ -468,6 +582,50 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 <!-- coga:blackboard -->
 
+## Scope decision 2026-11-05 (Zach, at the review-design gate)
+
+Build the agent scan first; it is the deliverable to judge this ticket by.
+Scope stays scan **plus** picker plus the `coga.toml` write — the ticket keeps
+its original fix — and loses only the install offer.
+
+- **No install offer, and no rule against one.** Ship with none. Whether init
+  should offer an install later, and in what form, gets decided after seeing
+  the scan run on a clean machine. So nothing in the code, the contexts, or
+  this ticket should assert that coga never offers installs — the question is
+  deferred, not closed. Recorded in `## Description` → *Out of scope*.
+- **Zach will test on a fresh VM from the implementation branch** to see how
+  the scan renders before deciding what else to add. Keep the scan's output
+  plain and legible in a terminal transcript for that reason.
+- **Supported set stays Claude Code and Codex**, which needs no work:
+  `AGENT_CLIS` is already exactly `("claude", "codex")`. Drive the scan and the
+  picker off it so the Gemini sibling needs no edit here.
+- The body was rewritten this session against the above and rebased onto
+  #1176; see the next section. Zach bumps backward from here to re-run
+  `design` and `implement` on the new scope.
+
+## Rebase onto PR #1176 (2026-11-05)
+
+Sibling `v1/remove-the-agent-cli-install-offer-from-coga-init` is at step 4
+(review) as PR #1176, open and unmerged at the time of writing — `agent_cli_setup.py`
+is still on `main`. It lands first and changes this ticket's starting point:
+
+- Adds `init._installed_agent_clis()` — the `AGENT_CLIS`-ordered `PATH` scan.
+  This ticket builds its display on that rather than a new `shutil.which` loop.
+- Deletes `agent_cli_setup` and the install prompt, so there is no install
+  branch left to drop. **This settles the 2026-11-04 open question of which
+  ticket deletes `_offer_agent_cli`: #1176 does.**
+- Deletes the clone path's `_offer_agent_cli(None)` call, which retired the
+  old Proposed-shape item 4 ("keep the clone path on its own function").
+- Makes the next-steps agent-CLI line conditional on the scan, which overlaps
+  the old item 7. The `StopIteration` in
+  `next(name for name in AGENT_CLIS if name != build_agent)` is untouched by
+  #1176 and is still this ticket's to fix.
+- Also edits `docs/contexts/coga/init` and `coga/install`, so read both as of
+  the merge rather than as this ticket's `## Context` describes them.
+
+The design step should re-read `commands/init.py` rather than trusting the
+shape above, which was written against the PR diff, not merged code.
+
 ## Direction change 2026-11-04
 
 - **init no longer offers to install an agent CLI** (Nico, 2026-11-04). Coga's
@@ -476,12 +634,16 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
   declined-install decision below and changed two acceptance criteria. The
   removal from init is its own ticket,
   `v1/remove-the-agent-cli-install-offer-from-coga-init`; keep the two
-  consistent, and settle which one actually deletes `_offer_agent_cli`.
+  consistent. *Settled 2026-11-05: #1176 deletes `_offer_agent_cli`'s install
+  branch; this ticket replaces what remains.* Note the decision was that init
+  does not offer an install **now** — see the 2026-11-05 scope decision above
+  for why it is not written down as a permanent rule.
 - **Telling the user to put their agent CLI on `PATH` is an acceptable
   outcome** (Zach, 2026-11-04) if the scan and picker turn out not to be worth
   building. A printed line naming the supported binaries and asking the user to
   install one or add it to `PATH` satisfies the underlying need; the scan is the
-  better version of that, not the only acceptable one.
+  better version of that, not the only acceptable one. *Resolved 2026-11-05:
+  build the scan and the picker.*
 
 ## Decisions from the design step
 
@@ -520,6 +682,12 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
   commenting out the better of the two options rather than merely the safer.
 
 ## Open Questions
+
+- Does non-interactive `coga init` print the agent scan? It asks nothing and
+  writes nothing either way. Printing it puts "codex — not found" in a CI or
+  provisioning log, which is useful; not printing it keeps scripted output
+  unchanged and avoids churning any test that asserts on it. Raised
+  2026-11-05 while rewriting the criteria; no strong view, design's call.
 
 - Handoff from `show-which-agents-are-available-on-the-machine-dur`
   (2026-10-28, human approved closing it as a duplicate): decide whether init
