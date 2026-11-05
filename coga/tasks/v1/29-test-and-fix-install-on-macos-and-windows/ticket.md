@@ -24,7 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 contexts:
-- coga/install
+- coga/init
 agent: claude
 ---
 
