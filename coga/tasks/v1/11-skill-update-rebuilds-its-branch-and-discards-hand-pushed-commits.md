@@ -54,127 +54,268 @@ observation.
 The ask: when the remote branch carries commits the job did not make, carry
 them forward or refuse to overwrite them. Do not discard them.
 
-Done looks like: a commit pushed by hand onto an open `coga/skill-update` PR
-survives the next run. It is either kept on the rebuilt branch, or the run
-stops with a named failure that says which commits it would have dropped.
-A merged-then-deleted branch, which is the case #734 fixed, still pushes
-cleanly.
+**Decision: refuse.** Before any update is applied, the run checks the remote
+`coga/skill-update` branch. If an open PR's branch carries commits the job did
+not make, the run stops with a named error that lists those commits. It does
+not carry them forward. Reasons:
+
+- A hand-pushed fix on this PR most often touches the skill files the job
+  regenerates. Cherry-picking it onto the rebuilt branch would conflict, or
+  would quietly re-apply an edit over a newer upstream version. Neither
+  should happen in an unattended weekly job.
+- Hand commits mean a human is already working on the PR. The useful action
+  is to merge or close it. Refusing tells that human to finish the job; a
+  carry-forward would mix new upstream changes into a PR under review.
+- A refusal is deterministic, and the existing recipe failure path already
+  reports it (exit 2, stderr on the period blackboard). A carry-forward needs
+  new conflict handling and a new report status.
+
+The cost: while the PR stays open with hand commits, every weekly run exits 2,
+including weeks with no upstream change. That is deliberate. The guard runs
+before the updates are known, for the same reason v1/10's preflight does: a
+refusal must leave the working tree untouched. A failing period task is the
+signal that the PR needs a human. Closing the PR is the explicit way to
+abandon its hand commits.
+
+### Acceptance criteria
+
+- [ ] **Hand commit on an open PR → refusal.** The remote `coga/skill-update`
+      has an open PR, and its branch carries a commit that is not one of the
+      job's own commits and is not on (or patch-equivalent to a commit on) the
+      freshly fetched `<remote>/<control>`. Then `coga skill update --all --pr`
+      exits non-zero before `update_skills` runs. Nothing is pushed. The PR,
+      the caller's branch, HEAD, and the working tree are unchanged. No
+      skill file is written.
+- [ ] The error names the branch and the open PR URL. It lists each foreign
+      commit as `<short-sha> <subject>`. It says how to resolve: merge the PR,
+      move the commits elsewhere, or close the PR to discard them deliberately,
+      then retry.
+- [ ] Through the recurring job, that error reaches the period blackboard via
+      `skill_update.run_update_json` → `RuntimeError` → `runner.run_recipe`
+      (stderr tail), and the period task exits 2. No new swallow path.
+- [ ] **Only job commits → proceeds.** An open PR whose branch holds only job
+      commits (the full message is exactly `Update Coga-managed skills`) and
+      merge commits (for example GitHub "Update branch" from the control
+      branch) is rebuilt and force-pushed as today.
+- [ ] **Hand commit already on control → proceeds.** A hand commit that is
+      also on `<remote>/<control>`, as an ancestor or as a patch-equivalent
+      cherry-pick, is not foreign.
+- [ ] **No open PR → proceeds.** If the remote branch exists but no open PR
+      uses it (merged or closed, branch left behind, including a squash merge),
+      the guard does not inspect commits and the run proceeds. This is
+      documented as deliberate: merging or closing is the human decision.
+- [ ] **No remote branch → proceeds.** With no remote branch (the #734
+      merged-then-deleted case), the guard makes no `gh` or `fetch` call. The
+      push is unchanged: no lease, pushed cleanly.
+- [ ] **The lease uses the guarded tip.** When the guard observed a remote
+      tip, `open_or_update_pr` leases the push against that OID and skips
+      its own fresh `ls-remote`. A hand push that lands after the guard, while
+      updates and verification run, fails the lease instead of being
+      overwritten.
+- [ ] If the fetched `<remote>/<branch>` does not equal the OID the guard
+      observed with `ls-remote`, the run refuses with a "branch moved while
+      checking, retry" error. It does not guess.
+- [ ] Weeks with no upstream change: if the guard passes, the existing early
+      return in `run_skill_update_pr_flow` is unchanged (nothing committed,
+      nothing pushed). If the guard refuses, the run exits non-zero as above.
+- [ ] Docs updated in the same PR: `coga/skill-management` (package copy and
+      legacy twin), and the package `recurring/skill-update/ticket.md`. That
+      includes its "A week with no upstream changes is a quiet no-op"
+      paragraph, which must now name this exception.
+- [ ] Tests (see Proposed shape) pass. `python -m pytest` and
+      `coga validate --json` are green.
+
+### Proposed shape
+
+1. **`src/coga/skill_manager.py`: name the job commit.** Add the module
+   constant `SKILL_UPDATE_COMMIT_SUBJECT = "Update Coga-managed skills"`.
+   `_commit_skill_updates` uses it for `git commit -m`. Do not add a trailer.
+   Do not touch `recurring_activity` or the `--pr-title` default; they keep
+   their own literal.
+   *Identifying the job's own commits:* a commit is the job's own when its
+   whole message, stripped, equals that constant (subject only, empty body).
+   The author cannot tell the job from a human, because the sweep commits as
+   its operator. A trailer would mark only future commits, and a human could
+   copy it as easily as the subject. Because the branch is rebuilt every
+   period, at most one job commit is expected. The remaining risk is a human
+   writing exactly the bot's message with no body. Accept it and document it.
+
+2. **`skill_manager`: new guard `assert_skill_update_branch_unclaimed(cfg, *,
+   runner=None, branch=SKILL_UPDATE_BRANCH) -> str | None`.** It returns the
+   remote tip OID it verified, or `None` when there is no remote branch.
+   Steps, all run in `cfg.repo_root.parent`:
+   1. `oid = _remote_branch_oid(run, cfg.git_remote, branch, cwd)`. Reuse it
+      so the guard and the push agree about push URLs. If `None`, return
+      `None`.
+   2. Look up the open PR with `gh pr list --head <branch> --state open
+      --json url --jq '.[0].url // ""'`. Factor that call, and the
+      `FileNotFoundError` → "gh is required" translation, out of
+      `open_or_update_pr`'s nested `run_gh` into a module helper (for example
+      `_run_gh(run, args, cwd)` plus `_open_pr_url(run, branch, cwd)`), so
+      both call sites share one copy. If there is no open PR, return `oid`.
+   3. Run `git fetch --no-tags <remote>
+      +refs/heads/<control>:refs/remotes/<remote>/<control>
+      +refs/heads/<branch>:refs/remotes/<remote>/<branch>`. A non-zero exit
+      raises `SkillManagerError` naming the command. "On the control branch"
+      means this freshly fetched `<remote>/<control>`, not local
+      `cfg.git_control_branch`, so a stale local `main` cannot make merged
+      work look foreign. (`_commit_skill_updates` still builds from the
+      local control branch; that is unchanged.)
+   4. `git rev-parse --verify refs/remotes/<remote>/<branch>` must equal
+      `oid`. Otherwise raise the "moved while checking" error.
+   5. List candidates with `git log --no-merges --cherry-pick --right-only
+      --format=%H%x00%s%x00%B%x1e
+      refs/remotes/<remote>/<control>...<oid>`. Merge commits are skipped,
+      and so are commits already on control or patch-equivalent to one
+      there. Drop job commits (step 1 rule). Anything left is foreign.
+   6. If anything is foreign, raise `SkillManagerError` with the message from
+      the acceptance criteria. Otherwise return `oid`.
+
+3. **`src/coga/commands/skill.py` `update`: call the guard before
+   `update_skills` when `pr` is set.** The "--pr needs --all" refusal comes
+   first. If v1/10 (PR #1168) has merged, call the guard right after
+   `assert_skill_update_pr_preflight(cfg)`. Local checks run first because
+   they are cheap and need no network. If v1/10 has not merged, place the
+   call in the same position, before `update_skills`, and reconcile when it
+   lands. Pass the returned OID to `run_skill_update_pr_flow`.
+
+4. **Thread the OID to the push.** `run_skill_update_pr_flow` gains the
+   keyword `expected_remote_oid: str | None = None` and passes it to
+   `open_or_update_pr(..., expected_remote_oid=...)`. In `open_or_update_pr`,
+   a non-`None` value is used as the lease OID and the `_remote_branch_oid`
+   call is skipped. With `None`, behaviour is exactly today's: a fresh
+   `ls-remote`, and no lease when the branch is absent. Other callers of
+   `open_or_update_pr` are unaffected.
+
+5. **Docs.**
+   - `coga/skill-management`, package copy
+     `src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md`
+     plus the legacy twin `docs/contexts/coga/skill-management/SKILL.md`,
+     which must stay byte-identical. Add a bullet to "Rules for managed
+     packs". It covers: the shared branch is rebuilt each run; hand commits
+     on an open PR make `--pr` refuse and list them; how to resolve; closing
+     the PR discards them deliberately; and the job's commits are recognised
+     by the exact message. Also add a short clause to the `--pr` bullet in
+     the command section. Keep it consistent with whatever v1/10 adds there.
+   - Package `src/coga/resources/templates/coga/recurring/skill-update/ticket.md`:
+     in step 3 and the "quiet no-op" / exit-2 paragraphs, state that an open
+     PR carrying hand commits fails the run with exit 2 and lists the commits.
+     The live recurring copy `coga/recurring/skill-update/ticket.md` must not
+     be hand-edited. Follow AGENTS.md: record the reviewed difference in
+     `LEGACY_DEFINITION_DIFFERENCES` in `tests/test_packaging.py` if the
+     packaging test requires it.
+
+6. **Tests.**
+   - `tests/test_skill_manager.py`, guard unit tests with fake runners:
+     - (a) no remote branch: returns `None`; no `gh`, `fetch`, or `log` calls;
+     - (b) branch present, no open PR: returns the OID with no fetch;
+     - (c) open PR with only job commits: returns the OID;
+     - (d) open PR with a hand commit: raises, and the message carries the
+       short SHA, the subject, and the PR URL;
+     - (e) fetched tip ≠ observed OID: raises.
+   - One real-git `tmp_path` test with a bare remote, where the runner sends
+     `git` to `run_subprocess` and stubs `gh`. Cover: a hand commit (refused);
+     a GitHub-style merge of control into the branch plus the job commit
+     (passes); and a hand commit cherry-picked onto control (passes).
+   - `open_or_update_pr` with `expected_remote_oid`: the push argv carries
+     `--force-with-lease=refs/heads/coga/skill-update:<that oid>`, and no
+     `ls-remote` runs. The existing `_lease_stub` tests stay as they are for
+     the `None` path.
+   - CLI (`CliRunner`, as in `test_update_cli_emits_json_summary`):
+     `skill update --all --pr` with the guard raising exits non-zero, prints
+     the error, and never calls `update_skills`. Assert with a monkeypatched
+     sentinel and an unchanged skill file.
+   - Existing PR-flow tests that assert exact command sequences: update them
+     only as far as the new keyword requires. The guard lives outside
+     `run_skill_update_pr_flow`, so most sequences should not change.
+
+### Out of scope
+
+- Carrying hand commits forward onto the rebuilt branch.
+- Restoring the working tree after a late refusal. The guard runs before any
+  write instead.
+- Changing the commit subject, adding a trailer, changing `--pr-title`, or
+  changing `recurring_activity`'s machine-commit pattern.
+- Leasing on branch absence (`--force-with-lease=<ref>:` with an empty
+  expectation). The `None` path keeps #734's behaviour.
+- Detecting hand edits hidden inside a merge commit's conflict resolution.
+  `--no-merges` skips merges; record this as a known limit in the code
+  comment only.
+- PRs opened from forks under the same head branch name.
+- v1/10's dirty-file preflight itself. Reconcile with it; do not re-implement
+  it.
 
 ## Context
 
-Every symbol below was checked on `origin/main` `9203c3b66` (2026-10-08) and
-re-checked on `f9bebb53b` (2026-11-04).
+Every symbol below was checked on `origin/main` `ed32d6052` (2026-11-04).
+v1/10's code was read from `origin/coga/v1-10-preflight-dirty-skill-update`
+(PR #1168, unmerged at design time).
 
-- `skill_manager.run_skill_update_pr_flow` calls `_commit_skill_updates`
-  with `base_branch=cfg.git_control_branch`.
-- `_commit_skill_updates` calls `_checkout(run, cwd, branch, create=True,
-  start_point=base_branch)`, which is `git checkout -B <branch> <base>`. The
-  branch is recreated from base each period, so every push is a history
-  rewrite.
-- `open_or_update_pr` takes its lease from `_remote_branch_oid`, which runs
-  `ls-remote` against the push URLs at push time. It then pushes with
-  `--force-with-lease=refs/heads/<branch>:<that oid>`. Nothing ran in between
-  inside the job that could move the remote, so a hand-pushed tip already
-  present is accepted. Only a concurrent push after the observation can make
-  the lease fail. With no remote branch, it pushes with no lease.
-
-**Where this was agreed.** When #734
-(`autofix/fix-skill-update-push-rejected-by-stale-force-with`, merged
-2026-09-01) shipped the explicit lease, its review recorded this gap under
-"Deliberately not done here — follow-ups to file". The note reads
-"Ship-as-is + follow-up ticket agreed with zach". It is in FastJVM/admin
-commit `7e6da920`, on that ticket's blackboard. The same note points out that
-the old bare lease did not protect this case either. It only rejected when the
-tracking ref was stale, so the protection was accidental. This ticket is that
-follow-up.
-
-**Fix.** Before the rebuild, read the remote tip. If it carries commits that
-are not on the control branch and are not the job's own `Update Coga-managed
-skills` commits, there are two options:
-
-- Rebuild on top of the remote tip, so those commits are carried forward.
-- Refuse with a named error that lists those commits.
-
-A plain "remote tip must be an ancestor" guard does not work here. The
-rebuilt branch never descends from the remote tip, so that guard would reject
-every push. Whichever check is chosen has to tell the job's own commits apart
-from foreign ones.
-
-**Telling the job's commits apart.** `_commit_skill_updates` hard-codes the
-commit subject `Update Coga-managed skills`. The `--pr-title` option on
-`coga skill update` and on the `skill-update` recipe
-(`skill_update.recipe_parser`) changes only the PR title, not that subject.
-A subject match is therefore a usable first signal, but a human can type the
-same subject. The design step should decide whether the subject alone is
-enough, or whether to also check the author, a trailer, or that the commit's
-tree matches a rebuild. `recurring_activity` matches the same subject for
-inactivity detection, so do not change it casually.
-
-**Choice left to design.** The owner left carry-forward versus refuse to the
-`design` step. That step chooses one, records why, and turns the done sentence
-above into the acceptance checklist. Things to weigh:
-
-- Carry-forward can conflict with the regenerated skill files.
-- Refuse needs a human to resolve the PR before the weekly job can proceed.
-- A failure must surface through the recurring job's normal failure path.
-  It must not be swallowed.
-
-**Neighbouring work.** `v1/10-preflight-dirty-tracked-files-before-skill-update`
-(in progress) changes the same `run_skill_update_pr_flow` checkout path.
-Reconcile with it. The same remote-tip read may also fit its preflight.
-
-**Tests.** The existing coverage is in `tests/test_skill_manager.py`, which
-covers `open_or_update_pr` and the lease, and `tests/test_skill_update.py`.
-Add cases for three remote states: a hand-pushed commit on the branch, only
-the job's own commits, and no remote branch (the #734 merged-then-deleted case).
-
-**Docs owner.** `coga/skill-management` owns the skill-update behaviour.
-This ticket edits it, so it is cited here, not attached. The package copy is
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md`
-and the legacy twin is `docs/contexts/coga/skill-management/SKILL.md`. Read
-"Rules for managed packs" there, and document the new guard in the same PR.
-`coga/pr-publication` describes the `open-pr` lease. It is not this code
-path, but its "leased push" step is the pattern `open_or_update_pr` mirrors.
-
-**Design questions from ticket review (2026-11-04).** The design step must
-answer these:
-
-- **State on refusal.** `update_skills` writes the new skill files into the
-  working tree before `run_skill_update_pr_flow` runs. A refusal must leave
-  the caller's branch and working tree as they were. Either run the guard
-  before `update_skills`, or restore on refusal. Add a test for it. This
-  interacts with v1/10's dirty-file preflight.
-- **Getting the commits.** `_remote_branch_oid` returns only an OID from
-  `ls-remote`. Listing foreign commits needs a fetch of the remote branch.
-  `_checkout` builds from the local `cfg.git_control_branch`, not
-  `<remote>/<control>`. Decide which one "on the control branch" means, so a
-  stale local `main` does not make commits look foreign.
-- **Identifying the job's own commits.** The job commits as whoever runs the
-  sweep, usually the owner, so the author cannot tell the job from a human.
-  The choice is the subject, a trailer, or both. A trailer only marks commits
-  made after this change, so commits already on the branch still need the
-  subject match. Today `--pr-title` defaults to the same string as the
-  commit subject.
-- **Remote states to handle:**
-  - GitHub "Update branch" merge commits from the control branch. They are
-    foreign by subject but harmless.
-  - A PR merged or closed with its branch left behind. After a squash merge,
-    the hand commit is in main but not as an ancestor, so a naive refuse
-    blocks the job forever. Check for an open PR, or use patch equivalence
-    (`git cherry`).
-  - Weeks with no updates. The flow returns early before any check; done
-    should say that this is fine.
-- **Failure path.** `recurring/skill-update/ticket.py` → `run_recipe` records
-  stderr on the period blackboard and exits non-zero. That is where the named
-  failure should appear.
-- **Extra docs.** Also update the package `recurring/skill-update/ticket.md`,
-  which describes the flow and has a legacy twin in the inventory.
-- **Test churn.** `tests/test_skill_manager.py` matches exact command
-  sequences (`_lease_stub`), so a new fetch or `ls-remote` changes many
-  expected sequences.
+- `skill_manager.run_skill_update_pr_flow`: returns early when no result has
+  `changed`. Otherwise it calls `_assert_no_unmerged_paths` (v1/10 moves that
+  into its preflight), records `original_branch`, then calls
+  `_commit_skill_updates(base_branch=cfg.git_control_branch)`, runs the
+  verify commands, and calls `open_or_update_pr(title, body, branch=,
+  remote=cfg.git_remote)`. A `finally` returns to `original_branch`.
+- `_commit_skill_updates` → `_checkout(create=True, start_point=base)`, which
+  is `git checkout -B <branch> <base>`. It then commits with the literal
+  `"Update Coga-managed skills"`. v1/10 changes this call to
+  `git commit --only -m ... -- <skills_root>`; keep whichever form is on
+  main and swap in the constant.
+- `open_or_update_pr` calls `_remote_branch_oid(run, remote, branch, cwd)`,
+  which runs `ls-remote` per push URL and refuses if the URLs disagree. It
+  leases `--force-with-lease=refs/heads/<branch>:<oid>`, or uses no lease
+  when the branch is absent. It then calls `gh pr list --head <branch>
+  --state open` and edits that PR or creates a draft. `run_gh` is a closure
+  there today.
+- `commands/skill.py` `update` calls `update_skills` first, then (with
+  `--pr`) the PR flow, and turns `SkillManagerError` into `_bail` (non-zero
+  exit, message on stderr). v1/10 adds `assert_skill_update_pr_preflight(cfg)`
+  before `update_skills`.
+- The recurring path is `recurring/skill-update/ticket.py` →
+  `runner.run_recipe(cfg, "skill-update", [])` →
+  `skill_update.run_skill_update_recipe` → `run_update_json`, which runs
+  `python -m coga.cli skill update --all --json --pr --pr-title ...`. A
+  non-zero exit raises `RuntimeError` with stderr in its detail.
+  `run_recipe` records the failure on the period blackboard. Keep the error
+  message compact: the blackboard keeps a bounded stderr tail.
+- The literal `Update Coga-managed skills` also appears in
+  `skill_update.recipe_parser` (the `--pr-title` default), in
+  `commands/skill.py` (the `--pr-title` default), in `recurring_activity`
+  (the machine-commit regex), and in the inactivity topic. None of these
+  change.
+- Config: `cfg.git_remote` (default `origin`), `cfg.git_control_branch`
+  (default `main`). `SKILL_UPDATE_BRANCH` is `coga/skill-update`.
+- Origin of this ticket: when #734 shipped the explicit lease, its review
+  recorded this gap as an agreed follow-up (FastJVM/admin `7e6da920`). The
+  bare lease it replaced protected this case only by accident.
 
 Previous ref: `skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits` (renamed 2026-10-27); earlier audit lines retain that ref.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design notes
+
+- Chose **refuse** over carry-forward (reasons under Description). Guard runs
+  pre-`update_skills` in the CLI handler, after v1/10's local preflight, and
+  hands its observed OID to the push lease to close the guard→push window.
+- Job-commit identity = exact message `Update Coga-managed skills`, no
+  trailer. "On control" = freshly fetched `<remote>/<control>` with
+  `--cherry-pick` patch equivalence; merges skipped via `--no-merges`.
+- No open PR (merged/closed, branch left) → guard skips the commit check.
+- v1/10 is PR #1168 (unmerged at design time); its preflight is the
+  insertion point.
+
+## Open Questions
+
+- Quiet weeks: an open PR with hand commits makes every weekly run exit 2,
+  even with no upstream change, because the guard runs before updates are
+  known. Accept (proposed), or prefer post-update guard + restore of the
+  skills tree so no-change weeks stay silent?
+- Closed-without-merge PR whose branch still holds hand commits: proposed
+  behaviour treats closing as the decision to discard and overwrites. OK, or
+  should a closed (not merged) PR also refuse?
+- Subject-only job-commit identification (no trailer): acceptable residual
+  risk of a human using the exact bot message with an empty body?
