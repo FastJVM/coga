@@ -220,6 +220,22 @@ def test_main_json_carries_the_report_fields(
     assert payload["models"] == [{"model": "claude-opus-5", "total_tokens": 20}]
 
 
+def test_main_counts_duplicated_log_lines_once(
+    coga_os: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Retained union copies of a record line count once in the report."""
+    log = coga_os / "log.md"
+    lines = log.read_text(encoding="utf-8").splitlines(keepends=True)
+    log.write_text("".join(lines + lines[:1] + lines), encoding="utf-8", newline="\n")
+
+    code = report.main(["--since", "2026-08-31", "--until", "2026-09-14", "--json"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["sessions"] == 2
+    assert payload["total_tokens"] == 20
+
+
 def test_main_renders_without_a_local_user(
     coga_os: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
