@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -362,6 +362,31 @@ Verification so far:
 Checkout alignment completed: the primary feature ref is at the pushed final
 head, and the mixed-reset state drift was restored while preserving this
 projected ticket as the checkout's only uncommitted path.
+
+## Open-PR handoff (2026-11-05, claude)
+
+PR #1176 is open at head `3badabee5`: https://github.com/FastJVM/coga/pull/1176.
+`coga open-pr` confirmed `origin/main` advanced only through non-overlapping
+Coga task/log state, so the branch published without a rebase.
+
+Zach is testing the branch in a UTM macOS VM before merging, from a fresh VM
+clone and a from-scratch install.
+
+Harness note for that test: `scripts/clean-install/run.sh` and `aws-mac.sh`
+build only `pypi` or `origin/main` and hardcode `git fetch origin main`, so
+neither tests this branch. Testing this code needs a wheel built from
+`3badabee5` and handed to the inner `wheel` mode (`container.sh`,
+`macos-walk.sh`), or installed directly in the VM.
+
+Two items are open for the owner's review gate:
+
+- No clean `python -m pytest` receipt exists at the final head. Both earlier
+  runs failed for environment reasons that reproduce on clean main: the local
+  run wants an `rg` binary, and the Codex sandbox rejects `/dev/fd`. The
+  focused 449-test init/launch/megalaunch/dependencies/packaging suite passes
+  at `3badabee5`.
+- The ripgrep finding above is still unfiled. Zach has it and has not yet said
+  whether it becomes its own draft.
 
 ## PR
 
