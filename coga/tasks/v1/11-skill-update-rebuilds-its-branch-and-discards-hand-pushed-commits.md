@@ -1,7 +1,7 @@
 ---
 title: Skill update rebuilds its PR branch every period and silently discards hand-pushed
   commits
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -37,6 +37,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:c4675b27-864b-4610-910a-e07ac167a507
 ---
 
 ## Description
