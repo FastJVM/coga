@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
@@ -85,47 +85,59 @@ binary so the user can install it or put it on `PATH` themselves.
       works and `coga build` cannot run — and declining re-opens the picker.
 - [ ] `q`/Esc leaves every agent declared and `default_agent` as packaged,
       prints one line saying so, and init continues.
-- [ ] After any non-empty selection every ticket that names an agent names a
-      *declared* one — `Config.agent_type()` resolves it and `coga validate`
-      reports no `unknown-agent`. This covers the scaffolded tickets under
-      `coga/tasks/` and the packaged stateless targets
-      (`bootstrap/ticket`, `bootstrap/orient`), which ship `agent: claude` from
-      the installed package where init cannot rewrite them.
-- [ ] In a repo where `claude` was not enabled, the bare commands init
-      advertises still work: `coga ticket` and `coga build` resolve an agent
-      rather than failing on an undeclared one.
+- [ ] Ctrl-C in the picker aborts init instead of meaning `q`. Nothing is
+      written, because the picker runs before `target.mkdir()`. Megalaunch's
+      `--pick` behaviour on Ctrl-C does not change.
+- [ ] After any non-empty selection every scaffolded ticket that names an agent
+      names a declared one: `Config.agent_type()` resolves it and
+      `coga validate` reports no `unknown-agent`.
+- [ ] The packaged stateless targets stop pinning `claude`. `bootstrap/ticket`
+      and `bootstrap/orient` carry no `agent:`, so each resolves to the
+      configured default the way `bootstrap/resolve-conflicts` already does.
+- [ ] In a repo where `claude` was not enabled, `coga build`, `coga ticket`,
+      and `coga chat` each resolve a declared agent instead of raising on
+      `claude`. `coga validate` is the gate only for the first — it checks
+      `agent:` on `list_tasks(cfg)` targets, never on a bootstrap target — so
+      the other two are gated by resolving the agent directly.
 - [ ] The next-steps list in `_do_init` matches the selection: the
       `Edit <coga_os>/coga.toml` step no longer says "set your agents", and the
       `coga build --agent <other>` clause is built from the enabled agents and
       omitted when there is no second one. Today's
-      `next(name for name in AGENT_CLIS if name != build_agent)` has no default
-      and raises `StopIteration` the moment one agent is enabled.
+      `next(name for name in AGENT_CLIS if name != build_agent)` cannot raise
+      because `AGENT_CLIS` always holds two names; it advertises an agent the
+      selection may not have declared, and it needs a default once it reads the
+      enabled list instead.
 - [ ] `coga init` asks the question on Windows through a numbered-entry path
       that calls no `termios`, `tty`, `select`, or `signal` function, and a
       test exercises that path on POSIX.
-- [ ] Non-interactive init asks nothing and writes no `[agents.*]` or
-      `default_agent` change; the clone path asks nothing about agents at all.
-      (Whether non-interactive still *prints* the scan is open — see the
-      blackboard.)
+- [ ] Non-interactive init asks nothing, prints no scan, and writes no
+      `[agents.*]` or `default_agent` change; the clone path asks nothing about
+      agents at all.
 - [ ] `coga/init` and `coga/install` describe the scan and the question as what
-      init does now, and `python -m pytest` passes.
+      init does now, `coga/tickets/authoring` says what supplies its term 5
+      after the unpinning, each context's bundled twin matches, and
+      `python -m pytest` passes.
 
 ### Proposed shape
 
 Rebased 2026-11-05 onto sibling PR #1176
 (`v1/remove-the-agent-cli-install-offer-from-coga-init`), which is in review
-and lands first. Re-read `commands/init.py` before starting: #1176 already
-deletes `agent_cli_setup` and the install prompt, adds
+and lands first. Verified against that PR's diff on 2026-11-05, with `main`
+still unmerged: #1176 deletes `agent_cli_setup` and the install prompt, adds
 `init._installed_agent_clis()` — the `AGENT_CLIS`-ordered `PATH` scan this
 ticket builds the display on — removes the clone path's `_offer_agent_cli`
 call entirely, and makes the next-steps agent line conditional on that scan.
-If #1176 changed further by merge time, the shape below yields to the code.
+It also deletes `dependencies.install_hint` and the `claude`/`codex`
+`Dependency` entries, so the next-steps rewrite in item 7 has no install URL
+left to drop. `AGENT_CLIS` keeps its shape, `("claude", "codex")`.
+`_AGENT_LABELS` is untouched. Re-read `commands/init.py` before starting; if
+#1176 changed further by merge time, the shape below yields to the code.
 
 **1. Extract the picker into `src/coga/picker.py` (new).** Move `_decode_key`,
-`_read_key`, `_picker_window`, and the body of `_pick_selection` out of
-`coga/commands/megalaunch.py`, matching the existing split where
-`src/coga/<name>.py` holds the engine and `src/coga/commands/<name>.py` the CLI
-wrapper. One public entry:
+`_read_key`, `_picker_window`, `_picker_view`, and the body of
+`_pick_selection` out of `coga/commands/megalaunch.py`, matching the existing
+split where `src/coga/<name>.py` holds the engine and
+`src/coga/commands/<name>.py` the CLI wrapper. One public entry:
 
 ```python
 def pick(rows, columns, *, checked=(), hint) -> list[str] | None
@@ -142,6 +154,20 @@ exactly as it does today. Considered and rejected: generalize in place and
 import the private helper into init — `commands/init.py` importing
 `commands/megalaunch.py` inverts that engine/CLI split.
 
+Two details of `_picker_view` are load-bearing and must not become caller
+choices. It sets `no_wrap=True, overflow="ellipsis"` on every column, which is
+what makes each row cost exactly one terminal line — the budget
+`_picker_window` is computed in; `pick()` applies both itself, so
+`PickerColumn` carries only the header and the width or ratio. And
+`_picker_view`'s row budget, `max(1, console.size.height - 5)`, reserves one
+line for the hint, so `hint` must be a single line.
+
+Ctrl-C gets its own action. `_decode_key` currently folds `b"\x03"` in with
+`b"q"` and bare Esc as `"quit"` — raw mode clears `ISIG`, so Ctrl-C arrives as
+a byte, not a signal. Decode it as `"cancel"` and have `pick()` raise
+`KeyboardInterrupt`; `_pick_selection` catches that and returns `[]`, keeping
+megalaunch's behaviour byte-for-byte while init can abort (Zach, 2026-11-05).
+
 **2. Add the Windows input path as `picker._pick_numbered`.** `pick()`
 dispatches on `os.name == "posix"` at call time: POSIX gets the moved
 arrow-key loop, anything else gets `_pick_numbered`, which echoes the same rows
@@ -151,6 +177,10 @@ separate function, not a wrapper: the POSIX-only imports stay behind the
 module's `if os.name == "posix"` guard and `_pick_numbered` reaches no
 `signal`, `termios`, `tty`, `select`, or `rich.Live` call. Dispatching at call
 time rather than import time is what lets a POSIX test reach it.
+
+This path needs no Ctrl-C handling of its own. It reads through
+`typer.prompt`, which is in cooked mode, so Ctrl-C raises `click.Abort` and
+aborts the command already.
 
 **3. Render the scan in `commands/init._print_agent_scan`.** Its own function,
 printed before the picker opens, built from `_installed_agent_clis()` (#1176)
@@ -168,41 +198,71 @@ fresh-repo half of `_offer_agent_cli`, as
 `AgentChoice` is a frozen dataclass of `enabled: tuple[str, ...]` (in
 `AGENT_CLIS` order) and `default: str | None` — the first enabled agent when
 `packaged_default` is not enabled, else `None`. `None` means "make no agent
-edits": non-interactive, or the human quit. The single-agent warning, the
-empty-selection confirm, and the "not on `PATH`" note for a chosen-but-missing
-agent all live here. There is no install branch to write: #1176 removed the
-only one init had.
+edits": non-interactive, or the human quit with `q`/Esc. A `KeyboardInterrupt`
+from `pick()` is not caught here; letting it propagate is what aborts init.
+The single-agent warning, the empty-selection confirm, and the "not on `PATH`"
+note for a chosen-but-missing agent all live here. There is no install branch
+to write: #1176 removed the only one init had.
+
+Non-interactive returns `None` before printing anything, so `_print_agent_scan`
+is called from `_choose_agents` rather than beside it — a scripted init prints
+no scan. The scan exists to drive the question, a CI log cannot act on it, and
+keeping scripted output unchanged avoids churning the init tests that assert on
+it. Cheap to reverse if a provisioning log turns out to want it.
 
 The clone path needs nothing. #1176 deletes its `_offer_agent_cli(None)` call
 outright, so the invariant that a clone never rewrites committed team config
 holds by construction — just do not add a new call there.
 
 **5. Comment the unchosen tables out in `commands/init`.**
-`_disable_unchosen_agents(coga_toml: Path, enabled: Collection[str])` returns
-the names it commented out. It must distinguish its two zero-length outcomes —
-"nothing needed commenting out" from "the rewrite failed its check" — because
-item 6 gates the rest of the config edit on the difference; returning `()` for
-both, as an earlier draft did, makes a failure indistinguishable from an
-all-agents-enabled no-op. It extends `_write_default_agent`'s approach instead of round-tripping
-the document: find each `[agents.<name>]` header line, take the lines through
-to the next line matching the existing `_TABLE_START`, prefix `# ` to the lines
-that are not already comments, and insert one line above the header saying init
-did not enable this agent and that uncommenting re-enables it. Then parse back
-with `tomllib` and require the result to equal the original config minus
-exactly those `agents` keys; on any mismatch write nothing and return `()`.
+
+```python
+def _disable_unchosen_agents(
+    text: str, enabled: Collection[str]
+) -> tuple[str, tuple[str, ...]] | None
+```
+
+A pure text transform, not a writer: the edited document plus the names it
+commented out, or `None` when the rewrite fails its own check. Item 6 is what
+writes, once, so this must not touch the disk — and `None` rather than `()`
+for failure, so the caller can tell "the rewrite is unsafe" from "every agent
+was enabled, nothing to comment out". Those two collapsing into one return is
+what let the earlier draft's partial-write states exist.
+
+It extends `_write_default_agent`'s approach instead of round-tripping the
+document: find each `[agents.<name>]` header line, take the lines through to
+the next line matching the existing `_TABLE_START`, prefix `# ` to the lines in
+that range that are **neither blank nor already comments**, and insert one line
+above the header saying init did not enable this agent and that uncommenting
+re-enables it. Then parse back with `tomllib` and require the result to equal
+the original config minus exactly those `agents` keys; return `None` on any
+mismatch or on input that does not parse.
+
+Skipping blank lines is not cosmetic, it is the correctness condition.
+`_TABLE_START` is `^[ \t]*\[`, so it does not match a commented table header,
+and the packaged `coga.toml` ships `[recurring]` and `[launch]` commented out.
+The next line it matches after `[agents.codex]` is therefore `[notification]`,
+roughly eighty lines later, swallowing the whole `# --- Unattended runs ---`
+block. Already-comment lines there survive untouched, but the blank separator
+lines would each become a bare `# `, and the parse-back check cannot see it
+because comments do not affect the parse. With blanks skipped, the range
+yields exactly the five `[agents.codex]` key lines plus its header, and six
+lines for `[agents.claude]`. Verify that on the packaged template rather than
+trusting these counts; the surrounding comment blocks are free to move.
+
 `tomlkit` is already a dependency and already used by `_write_local_user`, but
 it is the wrong tool here: it has no "comment this table out" operation, and
 its comment trivia attaches the `# --- Agents ---` block and the trailing
 `# peer = "codex"` example to neighbouring items unpredictably.
 
 **6. Wire it into `_do_init`, as one all-or-nothing config edit.**
-`_print_agent_scan` then `_choose_agents` replace the
-`_offer_agent_cli(template_default_agent)` call in the same place — after
-`_offer_optional_tools()` and before `target.mkdir()` — so a refused run still
-leaves the disk untouched.
+`_choose_agents` replaces the `_offer_agent_cli(template_default_agent)` call
+in the same place — after `_offer_optional_tools()` and before
+`target.mkdir()` — so a refused run, and a Ctrl-C, still leave the disk
+untouched. One call site: the scan prints from inside `_choose_agents`.
 
 The config edits land where `_write_default_agent` is called today, but they
-are one transaction, not two independent writes. Today's sequence —
+are one transaction, not two independent writes. The obvious sequence —
 `_disable_unchosen_agents`, then `_write_default_agent`, then
 `_stamp_agent_into_delivered_tickets` — has two partial-failure states that
 the acceptance criteria forbid: disabling fails while the default write
@@ -211,13 +271,71 @@ succeeds and the default write fails, leaving `coga.toml` already rewritten.
 `_write_default_agent` only preserves the bytes handed to it, not the
 pre-disable template, so it cannot undo the first write.
 
-Hold the original packaged bytes, compute the full edited text in memory,
-validate the parse-back once, and write a single time; on any failure write
-nothing, leave the complete original `coga.toml` in place, and warn. Ticket
-stamping runs only after that write succeeds. Report lines go beside the
-existing ``Made `...` the default agent`` line.
+So: read the packaged `coga.toml` once and keep those bytes. Run
+`_disable_unchosen_agents` on the text, then the `default_agent` edit on its
+result, both in memory. Write only if every stage returned a value; otherwise
+write nothing, leave the complete original in place, and warn. Ticket stamping
+runs only after that write succeeds. Report lines go beside the existing
+``Made `...` the default agent`` line.
 
-**7. Fix the next-steps strings in `_do_init`.** There is no
+That means factoring the text half of `_write_default_agent` out from its
+read-and-write half, so the same `str -> str | None` transform can run on the
+disabled text. Keep `_write_default_agent(Path, str) -> bool` as a thin
+wrapper over it: `_do_init` is its only production caller, but three
+`test_write_default_agent_*` tests drive it by path, and leaving the signature
+alone keeps them as regression cover for the transform.
+
+Warn, specifically — do not raise. These writes sit inside `_do_init`'s
+rollback `try`, whose comment ("Init is atomic") states that any exception
+below it removes the half-built `coga/` and re-raises. So a failed config edit
+that raises costs the user the entire init, where the acceptance criteria want
+the packaged `coga.toml` and a warning.
+
+**7. Unpin the packaged stateless targets.** Delete `agent: claude` from
+`resources/templates/coga/bootstrap/ticket/ticket.md` and
+`bootstrap/orient/ticket.md`, replacing it with the comment
+`bootstrap/resolve-conflicts/ticket.md` already carries for the same reason
+("No `agent:` on purpose … resolves to the configured default, so a repository
+without Claude still runs …"). Decided with Zach, 2026-11-05, over the
+alternative of init scaffolding local overrides.
+
+Both are packaged files, so init cannot rewrite them — they live in
+site-packages, and `_stamp_agent_into_delivered_tickets` only walks
+`coga_os / "tasks"`. Left pinned, a selection without `claude` breaks three
+commands at the point of use, none of which `coga validate` covers:
+
+- `coga ticket` — `authoring.resolve_authoring_agent` tries
+  `bootstrap/ticket`'s `agent:` as term 5 and calls `cfg.agent_type(name)`,
+  which raises before term 6 (`Config.default_agent()`) can be reached. This is
+  the bare command `_do_init` advertises as the filled-repo next step.
+- `coga chat` — `aliases.py` maps it to `launch bootstrap/orient`, and
+  `launch._target_operator` resolves a `BootstrapRef`'s explicit `agent:`
+  through `bump.resolve_main_agent`, which raises on an unconfigured name.
+- the agent guides init itself writes — `init.AGENT_GUIDE_TEMPLATE` tells the
+  reader to `Run coga launch bootstrap/orient`, so init would commit
+  instructions for a command that cannot run in the repo it just made.
+
+Removing the pin makes each fall through to `Config.default_agent()`, which
+by construction names a declared agent after any non-empty selection. The
+install-level override survives: both ticket bodies already document that a
+local `coga/bootstrap/<name>/ticket.md` beats the packaged copy.
+
+Accepted behaviour change, outside init: in an existing repo that declares both
+agents and sets `default_agent = "codex"`, a bare `coga ticket` interviews with
+`claude` today, because term 5 beats term 6, and will interview with `codex`
+after this. Coga's own repo is unaffected — it sets no `default_agent`, so its
+default is the first declared table, `claude`.
+
+The mechanism tests are safe: `tests/test_ticket.py`'s `_authoring_setup`
+writes a *local* bootstrap ticket to exercise term 5, and
+`test_ticket_bare_interview_falls_back_to_the_default_agent_key` already covers
+`bootstrap_agent=None`. Two docstrings go stale and should be reworded —
+`test_megalaunch.py`'s `test_author_draft_prefers_draft_agent_over_bootstrap`
+names "the packaged bootstrap/ticket's `agent: claude`" (the test itself still
+passes, since term 4 beats term 6), and `authoring.resolve_authoring_agent`'s
+own docstring calls term 5 "the install-level default".
+
+**8. Fix the next-steps strings in `_do_init`.** There is no
 `_print_next_steps`; they are built inline in the `steps` list after the commit
 report. Two are this ticket's:
 
@@ -226,8 +344,17 @@ report. Two are this ticket's:
   init just did.
 - Build the `coga build --agent <other>` clause from the *enabled* agents and
   omit it when there is no second one. Today's
-  `next(name for name in AGENT_CLIS if name != build_agent)` has no default and
-  raises `StopIteration` as soon as one agent is enabled.
+  `next(name for name in AGENT_CLIS if name != build_agent)` cannot raise,
+  because it iterates the two-name `AGENT_CLIS`; the bug is that it names an
+  agent the selection may have commented out. Reading the enabled list instead
+  is what introduces the one-element case, so give the `next()` a default.
+  While there, `build_agent = default_agent or AGENT_CLIS[0]` still wants
+  `AGENT_CLIS[0]` as its fallback, since `AgentChoice.default` is `None`
+  exactly when the packaged `claude` default stands.
+
+Both surviving label lookups spell `_AGENT_LABELS[name]`, which `KeyError`s on
+an agent added to `AGENT_CLIS` without a label. Use `.get(name, name)` here
+too, matching item 3.
 
 The third, the agent-CLI prerequisite line, belongs to #1176, which already
 gates it on `if not _installed_agent_clis()`. Retune it to the selection
@@ -235,22 +362,27 @@ rather than the raw scan — an enabled agent that is missing from `PATH` is the
 case worth naming — and leave it alone if that already reads correctly after
 the merge.
 
-**8. Tests.**
+**9. Tests.**
 
 - `tests/conftest.py` — add `_print_agent_scan` and `_choose_agents` to
   `_stub_init_dep_check`'s tuple. It patches with `raising=False`, so a
   function it names but that no longer exists is silently not stubbed, and the
   real one then prompts in every init-invoking test. Check the tuple still
   matches the post-#1176 function names rather than assuming it does.
-- `tests/test_picker.py` (new) — the geometry tests (`_picker_window`, and
-  `_picker_view` at every terminal size) move here from `test_megalaunch.py`.
-  Add `pick()` coverage for pre-checked rows, space/`a`/`n`/ENTER, quit
-  returning `None`, and `_pick_numbered` driven through a monkeypatched
-  `typer.prompt` (toggle by number, bare ENTER, `q`, garbage re-prompts), plus
-  one dispatch test that sets `picker.os.name` to `"nt"`.
+- `tests/test_picker.py` (new) — four tests move here from
+  `test_megalaunch.py`: `test_decode_key`, `test_picker_window_keeps_cursor_visible`,
+  `test_picker_view_fits_the_terminal_at_every_size`, and
+  `test_read_key_resize_beats_pending_keypress`. `test_decode_key` grows the
+  `b"\x03"` → `"cancel"` case it currently asserts as `"quit"`.
+  Add `pick()` coverage for pre-checked rows, space/`a`/`n`/ENTER, `q`
+  returning `None`, Ctrl-C raising `KeyboardInterrupt`, and `_pick_numbered`
+  driven through a monkeypatched `typer.prompt` (toggle by number, bare ENTER,
+  `q`, garbage re-prompts), plus one dispatch test that sets `picker.os.name`
+  to `"nt"`.
 - `tests/test_megalaunch.py` — repoint the moved imports and `_feed_keys`'
   patch target to `coga.picker._read_key`. The `test_megalaunch_cli_picker_*`
-  tests stay as the adapter's coverage.
+  tests stay as the adapter's coverage; add one that Ctrl-C still yields no
+  launch rather than propagating.
 - `tests/test_init.py` — cover the scan, the write, and the selection cases.
   - `_print_agent_scan` on its own: both found, one found, none found. Assert
     every supported agent appears in all three, and that the rows come from
@@ -258,25 +390,36 @@ the merge.
     and sees it rendered without a label is what keeps the Gemini sibling from
     needing an edit here.
   - `_disable_unchosen_agents` the way `test_write_default_agent_*` tests its
-    sibling: packaged template in, exact text out, parse-back equality,
-    unparseable file left untouched.
+    sibling, but on text rather than a path: packaged template in, exact text
+    out, parse-back equality, `None` for unparseable input, and an all-enabled
+    call returning the text unchanged with an empty name tuple — distinct from
+    the `None`. Assert directly that the
+    `# --- Unattended runs ---` block below `[agents.codex]` comes through
+    unchanged — that is the blank-line bug, and nothing else in the suite
+    would catch it.
   - The transaction from item 6: force the parse-back check to fail and assert
     `coga.toml` is byte-identical to the packaged template afterwards, that no
-    `default_agent` moved, that no delivered ticket was stamped, and that init
-    warned.
+    `default_agent` moved, that no delivered ticket was stamped, that init
+    warned, and that init still exited 0 with `coga/` intact rather than
+    rolling the whole scaffold back.
   - Rework the `_agent_picker` helper to feed the new picker and cover
     claude-only (codex commented, `default_agent` untouched), codex-only
     (claude commented, `default_agent = "codex"`, `coga-build.md` repointed),
     both chosen (`coga.toml` byte-identical to the packaged template), an
     enabled agent that is not on `PATH` (declared, binary named, no install
     offered), the empty selection confirmed and declined, the single-agent
-    warning text, `q`/Esc, non-interactive, and the clone path.
-  - A codex-only init followed by resolving the agent for the bare commands
-    init advertises — `coga ticket` and `coga build` — so the packaged
-    `bootstrap/*` targets pinned to `agent: claude` cannot regress to
+    warning text, `q`/Esc, Ctrl-C leaving no `coga/` behind, non-interactive
+    printing no scan, and the clone path.
+  - A codex-only init, then resolve the agent for each command the packaged
+    `bootstrap/*` targets used to break: `coga ticket`
+    (`resolve_authoring_agent`), `coga chat` (`launch._target_operator`), and
+    `coga build`. The regression they guard is
     `Agent type 'claude' is not defined in [agents]`.
   - `test_init_writes_the_chosen_default_agent` is the end-to-end test to
     rewrite against the new shape.
+- `tests/test_ticket.py` and `tests/test_launch.py` — re-run both after item
+  7. They exercise `bootstrap/ticket` and `bootstrap/orient` heavily, and the
+  unpinning is the change most likely to surface there.
 - `tests/test_agent_cli_setup.py` — gone with #1176; nothing to do here.
 
 ### Out of scope
@@ -312,7 +455,9 @@ the merge.
   the user and the precedence rules are fiddly (`coga/init`, "Instruction
   files and skill discovery": Claude Code reads `AGENTS.md` only when no
   `CLAUDE.md` or `CLAUDE.local.md` exists at or above cwd, so this is not a
-  simple per-agent toggle).
+  simple per-agent toggle). `AGENT_GUIDE_TEMPLATE`'s
+  `coga launch bootstrap/orient` line needs no edit either — item 7 makes that
+  command work in a repo without Claude, which is the whole problem with it.
 - **An `enabled` key under `[agents.*]`.** `config._parse_agents` rejects
   unknown keys loudly, so a flag would be a schema change; absence from
   `[agents]` is already how coga knows it cannot drive an agent.
@@ -405,11 +550,17 @@ The binding rules are:
 - `coga.commands.megalaunch._pick_selection` (the CLI module, not the
   `coga.megalaunch` engine) is a hand-rolled arrow-key multi-select picker on
   `termios`/`tty` plus `rich.Live`: ↑/↓ and `j`/`k`, SPACE toggle, ENTER
-  confirm, `a`/`n` all/none, `q`/Esc quit. It takes
+  confirm, `a`/`n` all/none, `q`/Esc/Ctrl-C quit. It takes
   `list[tuple[TaskRef, Ticket]]` and pre-checks nothing, so it needs
   generalizing to a generic item list with an initial selection. No new
   dependency; `_picker_view` renders a `rich.Table`, which is why the mock
   above is illustrative.
+  Ctrl-C is in that quit set because `_read_key` calls `tty.setraw`, which
+  clears `ISIG`: the keypress arrives as a `b"\x03"` byte and `_decode_key`
+  maps it alongside `q`. Harmless in megalaunch, where quitting launches
+  nothing; in init it would mean "commit the packaged both-agents config",
+  which is the outcome this ticket exists to prevent. Hence the separate
+  `"cancel"` action in Proposed shape item 1.
 - `init._installed_agent_clis()` — added by #1176 — is the `PATH` scan itself:
   the `AGENT_CLIS` on `PATH`, in supported order. The scan display and the
   pre-checked set both come from it; do not re-derive either with a second
@@ -446,6 +597,18 @@ The binding rules are:
   and onboarding is dead on arrival. Today
   `init._stamp_agent_into_delivered_tickets` repoints delivered tickets when
   the default moves; the new flow has to keep that working for every selection.
+- **Two packaged tickets pin one that init cannot reach.**
+  `bootstrap/ticket/ticket.md` and `bootstrap/orient/ticket.md` also ship
+  `agent: claude`, but they live in the installed package, and
+  `_stamp_agent_into_delivered_tickets` only walks `coga_os / "tasks"`. They
+  break `coga ticket`, `coga chat`, and the guides init writes. Proposed shape
+  item 7 unpins them.
+- **`coga validate` does not cover a bootstrap target's `agent:`.** Its
+  unknown-agent check reads `ticket.frontmatter["agent"]` for the refs
+  `list_tasks(cfg)` returns. It resolves a recurring template's `delegate:`
+  through `resolve_bootstrap` to prove the target exists, and checks nothing
+  about that target's agent. So validate is the right gate for the scaffolded
+  tickets and no gate at all for `bootstrap/ticket` or `bootstrap/orient`.
 - **Windows is not a `NameError` to catch.** `_pick_selection` is POSIX-shaped
   end to end: it installs a `signal.SIGWINCH` handler (that signal does not
   exist on Windows) and a `signal.set_wakeup_fd` self-pipe (Windows accepts
@@ -463,6 +626,11 @@ The binding rules are:
   may no longer be declared. Sibling ticket
   `init-sends-the-user-to-edit-a-toml-nothing-can-ope` already assumes this
   ticket removes the agents half of that edit.
+- **Init writes instruction files that advertise a bootstrap target.**
+  `init.AGENT_GUIDE_TEMPLATE` — the text of the `CLAUDE.md` and `AGENTS.md`
+  that `_write_agent_guides` commits — says to run
+  `coga launch bootstrap/orient`. That is a second reason item 7 unpins
+  `bootstrap/orient`, independent of `coga chat`.
 
 ### Testing conventions
 
@@ -486,6 +654,15 @@ open.
 - `coga/install` (`docs/contexts/coga/install/SKILL.md`), "Prerequisites" —
   describes what a user needs on `PATH` before init. Add that init scans for
   the supported agent CLIs and shows what it found.
+- `coga/tickets/authoring` (`docs/contexts/coga/tickets/authoring/SKILL.md`),
+  "Authoring agent" — numbers term 5 as "`bootstrap/ticket`'s `agent:`, the
+  install-level default". After item 7 the packaged copy sets no `agent:`, so
+  term 5 fires only for a repo that adds a local
+  `coga/bootstrap/ticket/ticket.md`. Keep the term; say what now supplies it.
+
+Each context has a bundled twin under
+`src/coga/resources/templates/coga/bootstrap/contexts/`. #1176 edits both
+copies of `coga/init` and `coga/install`; match that.
 
 Two more contexts describe this config and stay correct *because* the unchosen
 table is commented rather than deleted; check them, do not edit them.
@@ -582,6 +759,63 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 <!-- coga:blackboard -->
 
+## Design re-run 2026-11-05 (second pass, after the backward bump)
+
+The spec was re-derived against the code rather than against the earlier draft.
+Both evaluator must-fixes are now answered in `## Description`, and five claims
+the spec rested on turned out to be wrong.
+
+**Decided with Zach this session.**
+
+- **The packaged `bootstrap/ticket` and `bootstrap/orient` lose their
+  `agent: claude`** (Proposed shape item 7). Chosen over having init scaffold
+  local overrides, which would copy two packaged files into every repo where
+  they then go stale across `coga update`. `bootstrap/resolve-conflicts`
+  already does exactly this and carries the comment explaining why, so this is
+  following an existing convention, not inventing one. Accepted cost: in an
+  existing repo declaring both agents with `default_agent = "codex"`, a bare
+  `coga ticket` switches interviewer from claude to codex. Coga's own repo sets
+  no `default_agent`, so it is unaffected.
+- **Ctrl-C in the picker aborts init**, where `q`/Esc keeps the packaged config
+  and continues. `tty.setraw` clears `ISIG`, so Ctrl-C is a `b"\x03"` byte that
+  `_decode_key` currently folds in with `q` — meaning Ctrl-C would commit the
+  both-agents config this ticket exists to prevent. The shared decoder gains a
+  `"cancel"` action; megalaunch's adapter catches the `KeyboardInterrupt` and
+  returns `[]`, so `megalaunch --pick` is unchanged.
+
+**Corrections to the previous draft's shape.**
+
+- **Item 5 would have mangled the config.** `_TABLE_START` (`^[ \t]*\[`) does
+  not match a commented table header, and the packaged `coga.toml` ships
+  `[recurring]` and `[launch]` commented out — so the first line it matches
+  after `[agents.codex]` is `[notification]`, about eighty lines later. "Prefix
+  `# ` to the lines that are not already comments" would have commented every
+  blank separator line in the `# --- Unattended runs ---` block, and the
+  parse-back check cannot catch it because comments do not affect the parse.
+  Fixed by skipping blank lines as well; verified on the packaged template that
+  the ranges then yield exactly the two tables' header and key lines.
+- **`coga validate` was the wrong gate for the bootstrap targets.** Its
+  unknown-agent check only reads `agent:` on `list_tasks(cfg)` refs. It
+  resolves a recurring `delegate:` through `resolve_bootstrap` to prove the
+  target exists and checks nothing about that target's agent. The criteria now
+  gate those two behaviorally, through `coga ticket` / `coga chat` /
+  `coga build`.
+- **The `StopIteration` claim was wrong.**
+  `next(name for name in AGENT_CLIS if name != build_agent)` iterates the
+  two-name `AGENT_CLIS`, so it cannot raise today. The real defect is that it
+  advertises an agent the selection may have commented out; the raise becomes
+  possible only once it reads the enabled list, which is why it needs a
+  default.
+- **Item 1's move list was short.** `_picker_view` also moves, and with it
+  `test_decode_key` and `test_read_key_resize_beats_pending_keypress` alongside
+  the two geometry tests. `_picker_view`'s `no_wrap`/`ellipsis` and its
+  `height - 5` budget are load-bearing, so `pick()` owns them rather than
+  exposing them through `PickerColumn`.
+- **A third reason to unpin `bootstrap/orient`**, beyond `coga chat`:
+  `init.AGENT_GUIDE_TEMPLATE` tells the reader to run
+  `coga launch bootstrap/orient`, so init would commit instructions for a
+  command that cannot run in the repo it just made.
+
 ## Scope decision 2026-11-05 (Zach, at the review-design gate)
 
 Build the agent scan first; it is the deliverable to judge this ticket by.
@@ -617,14 +851,25 @@ is still on `main`. It lands first and changes this ticket's starting point:
 - Deletes the clone path's `_offer_agent_cli(None)` call, which retired the
   old Proposed-shape item 4 ("keep the clone path on its own function").
 - Makes the next-steps agent-CLI line conditional on the scan, which overlaps
-  the old item 7. The `StopIteration` in
-  `next(name for name in AGENT_CLIS if name != build_agent)` is untouched by
-  #1176 and is still this ticket's to fix.
+  the old item 7. `next(name for name in AGENT_CLIS if name != build_agent)` is
+  untouched by #1176 and is still this ticket's to fix — see the correction
+  above for what is actually wrong with it.
 - Also edits `docs/contexts/coga/init` and `coga/install`, so read both as of
   the merge rather than as this ticket's `## Context` describes them.
 
-The design step should re-read `commands/init.py` rather than trusting the
-shape above, which was written against the PR diff, not merged code.
+Re-verified against the PR diff on 2026-11-05, still open and unmerged. Two
+further facts the earlier note missed:
+
+- It deletes `dependencies.install_hint` and the `claude`/`codex` `Dependency`
+  entries. `_do_init`'s next steps currently interpolate `install_hint('claude')`
+  and `install_hint('codex')`, so that line cannot survive #1176 in its present
+  form; by the time this ticket starts it is already rewritten.
+- `AGENT_CLIS` keeps its shape, `("claude", "codex")`, and `_AGENT_LABELS` is
+  untouched. Both criteria that rest on driving the scan and question off them
+  hold after the merge.
+
+Still re-read `commands/init.py` before implementing: the shape is written
+against the PR diff, not merged code.
 
 ## Direction change 2026-11-04
 
@@ -683,11 +928,21 @@ shape above, which was written against the PR diff, not merged code.
 
 ## Open Questions
 
-- Does non-interactive `coga init` print the agent scan? It asks nothing and
-  writes nothing either way. Printing it puts "codex — not found" in a CI or
-  provisioning log, which is useful; not printing it keeps scripted output
-  unchanged and avoids churning any test that asserts on it. Raised
-  2026-11-05 while rewriting the criteria; no strong view, design's call.
+Two of the four below were resolved in this design pass; the remaining two are
+for the owner.
+
+- *Resolved 2026-11-05 (design's call).* **Non-interactive init prints no
+  scan.** The scan exists to drive the question, a CI or provisioning log
+  cannot act on it, and keeping scripted output unchanged avoids churning the
+  init tests that assert on it. `_choose_agents` returns before printing, which
+  is why item 4 puts the print inside it rather than beside it. Cheap to
+  reverse if a provisioning log turns out to want the line.
+- *Resolved 2026-11-05 (design's call).* **The empty-selection confirm
+  re-opens the picker on every decline, with no retry limit.** The picker's own
+  `q`/Esc is already the escape hatch, and it lands on a defined outcome — keep
+  the packaged config, continue — so a retry counter would add a second way to
+  reach the same place. Ctrl-C now aborts outright, which gives the stuck user
+  a second exit.
 
 - Handoff from `show-which-agents-are-available-on-the-machine-dur`
   (2026-10-28, human approved closing it as a duplicate): decide whether init
@@ -700,18 +955,23 @@ shape above, which was written against the PR diff, not merged code.
   findings stayed in a private document and are not a prerequisite for this
   decision. This is a handoff for this ticket's owner review, not a change to
   its approved requirements or a disposition of the evaluator findings below.
-- The empty-selection confirm re-opens the picker when declined, with no retry
-  limit — the human can always Esc out. Fine, or should a second decline fall
-  through to the Esc behaviour (keep the packaged config)?
 - Users who already have both agent CLIs installed get a question today's init
   never asks them. The ticket treats "asks nothing when more than one is
   installed" as the defect, so this is intended; flagging it because it is the
   one behaviour change an existing user will notice on a new repo.
+- New 2026-11-05, from Proposed shape item 7: unpinning the packaged
+  `bootstrap/ticket` changes a bare `coga ticket` in *existing* repos that set
+  `default_agent` to something other than `claude` — the interviewer becomes
+  that default instead of `claude`. Zach accepted it this session as the right
+  behaviour. Flagging it here because it is a behaviour change outside init,
+  reachable by `coga update` with no re-init, and the only part of this ticket
+  that touches a repo nobody ran the new picker in.
 
 ## Evaluator review
 
-Verdict: not ready for implementation until the two must-fix gaps below are
-resolved.
+Verdict as given: not ready for implementation until the two must-fix gaps
+below are resolved. **Both are answered as of the 2026-11-05 design re-run**
+— see the disposition under each.
 
 ### Must fix
 
@@ -729,6 +989,19 @@ resolved.
    stateless targets follow the enabled/default agent and add coverage for the
    advertised bare commands in a Codex-only config.
 
+   *Answered — Proposed shape item 7.* Confirmed on the code, and the finding
+   understates it: `coga chat` is the same failure through
+   `aliases.py` → `bootstrap/orient`, and `init.AGENT_GUIDE_TEMPLATE` commits
+   `CLAUDE.md`/`AGENTS.md` telling the reader to run that target. Fixed by
+   deleting both pins, so each falls through to `Config.default_agent()` the
+   way `bootstrap/resolve-conflicts` already does. Coverage added to item 9 for
+   all three commands after a codex-only init. One sub-claim corrected:
+   `coga validate` was never a gate here, so the criteria make it behavioral.
+
+   The rejected alternative was init scaffolding local overrides of both
+   tickets; it keeps the pins but stales the copies against `coga update`
+   (Zach, 2026-11-05).
+
 2. **The config edit is not designed as the all-or-nothing transaction the
    acceptance criteria require.** Proposed Shape 6 writes
    `_disable_unchosen_agents` first and then independently calls
@@ -742,8 +1015,22 @@ resolved.
    explicit rollback/gating against the original bytes) and test that any
    failure leaves the complete original `coga.toml` untouched and warns.
 
+   *Answered — Proposed shape items 5 and 6.* One validated write against the
+   held original bytes; `_disable_unchosen_agents` distinguishes its two
+   zero-length outcomes; ticket stamping is gated on the write succeeding; item
+   9 asserts the failure path leaves `coga.toml` byte-identical, moves no
+   `default_agent`, stamps no ticket, and warns. Item 6 adds one thing the
+   finding did not ask for: the failure must warn rather than raise, because
+   these writes sit inside `_do_init`'s "Init is atomic" rollback `try`, where
+   an exception deletes the whole half-built `coga/`.
+
 ### Optional clarification
 
 - Proposed Shape 4 says `_offer_agent_cli` will take no arguments while the
   clone caller remains "unchanged"; clarify that the clone behavior is
   unchanged but its call becomes `_offer_agent_cli()`.
+
+  *Moot.* #1176 deletes the clone path's `_offer_agent_cli(None)` call
+  outright, and this ticket replaces the function with `_choose_agents`, which
+  the clone path never calls. The clone invariant now holds by construction:
+  there is no call there to keep correct.
