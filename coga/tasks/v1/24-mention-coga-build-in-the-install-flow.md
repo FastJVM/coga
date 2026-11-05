@@ -1,8 +1,27 @@
 ---
 title: Mention coga build in the install flow
-status: draft
+status: active
 owner: zach
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
