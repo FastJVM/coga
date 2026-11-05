@@ -35,9 +35,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 8b1c8438-60af-4a1d-b6c9-ca7d13c09fae
 ---
 
 ## Description
@@ -319,3 +318,101 @@ The blackboard is a notepad to be written to often as the human and agent works 
   should a closed (not merged) PR also refuse?
 - Subject-only job-commit identification (no trailer): acceptable residual
   risk of a human using the exact bot message with an empty body?
+
+## Evaluator review
+
+**Verdict: resolve the three must-fix findings before implementation.**
+Reviewed the body independently against fresh `origin/main` `880ce84ed`.
+PR #1168 remains open; its preflight placement and commit changes match the
+Context section. The ticket's section hierarchy and frozen workflow are
+correct. The scope fits one PR in the existing skill tooling; relocating
+`skill *` is explicitly deferred by `coga-dev/microkernel` (Open command
+placements).
+
+### Must fix
+
+1. **P1 — Bind PR lookup and history inspection to the push destination.**
+   Proposed shape 2 reads the OID from the effective push URL, but its bare
+   `gh pr list` uses gh's default repository and `git fetch <remote>` uses
+   the fetch URL. Those need not identify the repository that will be
+   overwritten. If gh's default repository has no matching open PR while
+   the push destination does, the guard takes the "no open PR" bypass,
+   returns the destination's OID, and the later lease permits overwriting
+   its hand commits. This leaves the ticket's central loss scenario open.
+   Evidence: `src/coga/skill_manager.py::_remote_push_urls`,
+   `_remote_branch_oid`, and `open_or_update_pr`; existing
+   `tests/test_skill_manager.py::test_skill_update_pr_leases_against_the_push_url_not_the_fetch_url`
+   and `test_dream_pr_summary_pushes_to_configured_non_origin_remote`
+   deliberately support these configurations. A read-only gh 2.92.0 probe
+   with origin fetching `git/git` and pushing `FastJVM/coga` resolved bare
+   `gh repo view --json nameWithOwner` to `git/git`.
+   Specify how the guard proves that PR lookup, fetched control/history,
+   and every push destination describe the same repository. Resolve the
+   intended repository explicitly, or refuse unsupported mappings before
+   treating an empty PR lookup as permission. Add a regression with an
+   open PR only at the configured push destination, plus split fetch/push
+   and non-origin coverage.
+
+2. **P1 — A handler refusal does not meet the no-push/unchanged-HEAD promise.**
+   `src/coga/commands/skill.py::_bail` exits 2, but
+   `src/coga/cli.py::main` calls `_sweep_coga_state` on that exit;
+   `_SWEEPING_SKILL_SUBCOMMANDS` includes `update`. Existing dirty Coga
+   state can therefore be committed and pushed after the new guard
+   refuses. v1/10 permits unrelated local edits, so its preflight does not
+   close this gap. Reproduced against a temporary bare remote using the
+   real `cli.main` dispatch, with `update_skills` replaced by an immediate
+   `SkillManagerError` to model the pre-update refusal: exit was 2, an
+   unrelated untracked `coga/context.md` was published, local HEAD and
+   remote main both advanced, and the worktree became clean.
+   Specify how this refusal withholds the outer state sweep while retaining
+   exit 2 and recurring failure reporting (the existing
+   `git.state_sweep_withheld` mechanism is relevant). Add an entrypoint
+   regression with pre-existing unrelated Coga edits and a real local
+   remote. The proposed `CliRunner().invoke(app, ...)` test bypasses
+   `cli.main`, so it cannot verify this acceptance criterion.
+
+3. **P2 — The proposed symmetric-difference query misses patch equivalence
+   after control is merged into the PR branch.** Git's `--cherry-pick`
+   compares commits on opposite sides of the symmetric difference, not
+   every commit reachable from control. Reproduced with Git 2.43.0:
+   create a job commit and hand fix on the PR branch, cherry-pick the hand
+   fix onto main, then merge main into the PR branch. Before the merge,
+   the exact proposed `git log --no-merges --cherry-pick --right-only`
+   query returns only the job commit. After the merge it also returns the
+   original hand fix, although `git patch-id --stable` confirms its patch
+   equals the copy on main. The copy is now shared ancestry and cannot be
+   the left-side match. Thus the guard incorrectly refuses the "Hand commit
+   already on control" case after an ordinary "Update branch" operation.
+   Specify a comparison that also recognizes equivalent patches in shared
+   control history, and add this combined cherry-pick-then-merge case to
+   the real-Git test. Testing those operations separately misses it.
+
+### Recommendations and owner decisions
+
+- Update `docs/contexts/coga-dev/packaging/SKILL.md` (Canonical copies and
+  twins) alongside the listed docs: it currently requires a reused-branch
+  lease to resolve the tip "at push time". Align that summary with the
+  intended earlier guarded OID, preferably linking the owning topic.
+- Explicitly test fail-closed behavior for PR lookup, fetch, `rev-parse`,
+  and history-command errors, and distinguish the exact job message from
+  the same subject with a nonempty body.
+- Quiet-week refusal, intentional abandonment by closing, exact-message
+  identity, and the merge-resolution/branch-absence limitations are
+  stated product tradeoffs. The existing Open Questions remain for the
+  owner; this review does not approve them. The error-reporting chain
+  through `skill_update.run_update_json`, `run_skill_update_recipe`, and
+  `runner.run_recipe` is present and retains exit 2 and blackboard evidence.
+
+### Verification
+
+- Fresh fetch confirmed local main equals `origin/main`; no task feature
+  branch or PR is recorded. No ticket-body or implementation edits made.
+- Three isolated probes verified the patch-equivalence counterexample,
+  the real CLI's post-refusal publication, and gh's repository selection.
+  All Git writes from those probes stayed in temporary local repositories.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_skill_manager.py -k 'dream_pr_summary or skill_update_pr or update_cli_emits_json_summary'`
+  — **13 passed, 82 deselected**. These verify the current baseline, not
+  the proposed guard; the full implementation suite remains for that step.
+- `coga validate --task v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits --json`
+  — **1 valid ticket, no issues**. `git diff --check` passed; byte comparison
+  against HEAD confirmed the entire ticket body and frontmatter unchanged.
