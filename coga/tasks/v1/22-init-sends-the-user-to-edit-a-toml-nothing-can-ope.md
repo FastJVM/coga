@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 1425ae3a-e772-4650-9599-aa2e4c2baf90
 ---
 
 ## Description
@@ -177,3 +176,54 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: coga/v1-22-init-drop-coga-toml-next-step
+
+## Handoff (implement)
+
+- Removed the `Edit <repo>/coga/coga.toml …` step from the next-steps block in
+  `src/coga/commands/init.py` (`init` command, the `steps` list); numbering
+  comes from `enumerate(steps, 1)`, so the rest renumbers itself.
+- New test `tests/test_init.py::test_init_next_steps_do_not_send_the_user_to_edit_coga_toml`,
+  parametrized empty/filled. It slices only the "Next steps:" block (up to the
+  blank line `_print_notification_state` emits first), asserts no `coga.toml`,
+  and asserts the step numbers are contiguous from 1. It fails on the old code
+  (both cases) and passes with the fix.
+- `coga/init` topic: dropped "edit `coga.toml`" from the next-steps sentence
+  in the package owner; mirrored byte-identically to `docs/contexts/coga/init/SKILL.md`.
+- Note: the shell's `python` here lacks `tomlkit`; use `.venv/bin/python -m pytest`.
+- No independent code review yet; the next steps own that.
+
+## PR
+
+```yaml
+title: Drop the edit-coga.toml step from init's next steps
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue; see implement handoff.
+head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
+base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
+depth: skim
+rationale: A one-step removal from init's printed output plus a pinning test and a topic sentence; no behavior beyond the printed text changes.
+implementation: Removes the coga.toml edit step from init's Next steps list; enumerate renumbers the remaining steps in both the empty-repo and filled-repo paths.
+deviations: None.
+limitations: The notifications note after Next steps still names coga.toml as the later Slack opt-in, which is deliberate and out of scope.
+files:
+  src/coga/commands/init.py: Drop the coga.toml edit step from the Next steps list.
+  tests/test_init.py: Pin that the Next steps block names no coga.toml and numbers contiguously, in the empty and filled paths; import re.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Remove the edit-coga.toml step from the coga/init topic's next-steps list.
+  docs/contexts/coga/init/SKILL.md: Byte-identical legacy mirror of the package coga/init topic.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to a later workflow step.
+checks:
+  - command: .venv/bin/python -m pytest tests/test_init.py -k do_not_send
+    status: passed
+    head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
+    base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
+    detail: 2 passed; the same test failed in both cases against the pre-fix init.py.
+  - command: .venv/bin/python -m pytest
+    status: passed
+    head: 1bd6425ca2507193f82f9c1471ee7296bd5400c0
+    base: 2f93e4126cc705a949f5dd02e8b1b6cc1b908b51
+    detail: 4455 passed, 10 skipped.
+```

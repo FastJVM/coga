@@ -10158,3 +10158,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 15:49 v1 [v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 15:49 v1 [v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 15:49 v1 [v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope] [megalaunch] launched via coga megalaunch
+2026-11-04 16:01 v1 [v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope] [agent:claude] advanced to step 2 (peer-review) → codex
