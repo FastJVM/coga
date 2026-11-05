@@ -388,6 +388,30 @@ Two items are open for the owner's review gate:
 - The ripgrep finding above is still unfiled. Zach has it and has not yet said
   whether it becomes its own draft.
 
+## Fresh-VM verification walk (2026-11-05, zach)
+
+Attended walk on a fresh macOS guest in UTM, user `cogatest`, with no agent CLI,
+no Homebrew, and no npm. That is the machine state where the removed offer
+dead-ended.
+
+Source under test: `uv tool install --force git+https://github.com/FastJVM/coga@3badabee5`.
+uv resolved it to `coga==0.4.1 (from git+...@3badabee50b3e046ddf9205db0c1ff13c6454855)`,
+so the run is the PR head and not the PyPI release.
+
+Passed:
+
+- `coga init --user zach` in a new `git init -b main` repo printed no install prompt and no agent-install URL.
+- Next steps item 2 read "No agent CLI was found on PATH — coga drives Claude Code (`claude`) or Codex (`codex`). Coga requires one on PATH for agent-backed commands (`coga build`, `coga launch`, `coga ticket`)."
+- `coga build` failed with "Agent CLI 'claude' not found in PATH. Coga requires the configured agent CLI on PATH for agent-backed commands." and printed nothing else.
+- The `gh` and `op` install URLs still print, as this ticket intends.
+
+Not covered: the single-installed-CLI default-agent offer needs an agent CLI in
+the guest. The walk does not close the missing full-suite receipt.
+
+An earlier run on the same guest installed from PyPI by mistake and showed the
+old picker. It is the before-image, not a finding. Its `op` wording also differs,
+because `_note_missing_op` landed on main after 0.4.1 shipped.
+
 ## PR
 
 ```yaml
@@ -452,4 +476,9 @@ checks:
     head: 3badabee50b3e046ddf9205db0c1ff13c6454855
     base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
     detail: One task OK; no issues.
+  - command: uv tool install --force git+https://github.com/FastJVM/coga@3badabee5; coga init --user zach; coga build
+    status: passed
+    head: 3badabee50b3e046ddf9205db0c1ff13c6454855
+    base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
+    detail: Attended fresh macOS UTM guest with no agent CLI, Homebrew, or npm. Init printed no install prompt or agent URL and stated the PATH requirement once; coga build failed with only the PATH-only message.
 ```
