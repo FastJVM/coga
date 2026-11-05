@@ -59,6 +59,7 @@ def _record(
     ts: str,
     *,
     model: str | None = "claude-opus-5",
+    agent: str = "claude",
     tokens: tuple[int, int, int, int] | None = (1, 2, 3, 4),
 ) -> UsageRecord:
     """A usage record ending at `ts`; `tokens=None` is a `usage_status: unknown` session."""
@@ -68,8 +69,8 @@ def _record(
         title="Work",
         slug="work",
         step="implement",
-        agent="claude",
-        cli="claude",
+        agent=agent,
+        cli=agent,
         provider="anthropic",
         model=model,
         session_id="abc",
@@ -121,13 +122,20 @@ def test_build_report_refuses_an_inverted_window() -> None:
 def test_render_keeps_every_model_bucket_and_states_the_floor() -> None:
     records = [
         _record("2026-09-01T10:00:00Z", tokens=(1_100_000, 2_000_000, 300_000_000, 9_100_000)),
-        _record("2026-09-02T10:00:00Z", model="gpt-5.6-sol", tokens=(0, 0, 140_200_000, 0)),
+        _record(
+            "2026-09-02T10:00:00Z",
+            model="gpt-5.6-sol",
+            agent="codex",
+            tokens=(0, 0, 140_200_000, 0),
+        ),
         _record("2026-09-03T10:00:00Z", model="<synthetic>", tokens=(0, 0, 500, 0)),
         _record("2026-09-04T10:00:00Z", model=None, tokens=None),
-        _record("2026-09-05T10:00:00Z", model=None, tokens=None),
+        _record("2026-09-05T10:00:00Z", model=None, agent="", tokens=None),
     ]
 
-    result = report.build_report(records, date(2026, 8, 31), date(2026, 9, 7))
+    result = report.build_report(
+        records, date(2026, 8, 31), date(2026, 9, 7), user="nicktoper"
+    )
 
     assert result.unknown_sessions == 2
     # Largest first; the null-model and synthetic buckets are rows, not drops.
@@ -137,11 +145,23 @@ def test_render_keeps_every_model_bucket_and_states_the_floor() -> None:
         ("<synthetic>", 500),
         ("(unknown)", 0),
     )
+    # An empty agent is an `(unknown)` row too, never dropped.
+    assert result.agents == (
+        ("claude", 312_200_500),
+        ("codex", 140_200_000),
+        ("(unknown)", 0),
+    )
+    assert result.non_cache_read_tokens == 12_200_000
     assert report.render(result) == dedent(
         """\
-        Agent usage — week of 2026-08-31 (Mon–Sun)
-        452.4M tokens across 5 sessions (2 sessions have unknown counts, so this is a floor)
+        Agent usage — nicktoper — week of 2026-08-31 (Mon–Sun)
+        452.4M tokens (12.2M excluding cache reads + 440.2M cache reads) across 5 sessions (2 sessions have unknown counts, so this is a floor)
           input 1.1M · cache write 2.0M · cache read 440.2M · output 9.1M
+        By agent:
+          claude     312.2M
+          codex      140.2M
+          (unknown)       0
+        By model:
           claude-opus-5  312.2M
           gpt-5.6-sol    140.2M
           <synthetic>       500
@@ -154,7 +174,20 @@ def test_render_omits_the_floor_caveat_when_every_session_is_counted() -> None:
         [_record("2026-09-01T10:00:00Z")], date(2026, 8, 31), date(2026, 9, 7)
     )
 
-    assert report.render(result).splitlines()[1] == "10 tokens across 1 session"
+    assert report.render(result).splitlines()[1] == (
+        "10 tokens (7 excluding cache reads + 3 cache reads) across 1 session"
+    )
+
+
+def test_render_leaves_the_name_out_when_no_user_is_configured() -> None:
+    result = report.build_report(
+        [_record("2026-09-01T10:00:00Z")], date(2026, 8, 31), date(2026, 9, 7)
+    )
+
+    assert result.user == ""
+    assert report.render(result).splitlines()[0] == (
+        "Agent usage — week of 2026-08-31 (Mon–Sun)"
+    )
 
 
 def test_render_names_a_window_that_is_not_a_calendar_week() -> None:
@@ -168,11 +201,11 @@ def test_render_names_a_window_that_is_not_a_calendar_week() -> None:
 
 
 def test_empty_window_still_renders_and_says_so() -> None:
-    result = report.build_report([], date(2026, 8, 31), date(2026, 9, 7))
+    result = report.build_report([], date(2026, 8, 31), date(2026, 9, 7), user="marc")
 
     assert result.sessions == 0
     assert report.render(result) == (
-        "Agent usage — week of 2026-08-31 (Mon–Sun)\n"
+        "Agent usage — marc — week of 2026-08-31 (Mon–Sun)\n"
         "No Coga-launched sessions recorded in this window."
     )
 
@@ -202,7 +235,9 @@ def test_main_prints_the_window_and_writes_nothing(
     code = report.main(["--since", "2026-08-31", "--until", "2026-09-07"])
 
     assert code == 0
-    assert capsys.readouterr().out.splitlines()[1] == "10 tokens across 1 session"
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "Agent usage — marc — week of 2026-08-31 (Mon–Sun)"
+    assert lines[1] == "10 tokens (7 excluding cache reads + 3 cache reads) across 1 session"
     assert (coga_os / "log.md").read_bytes() == before
 
 
@@ -217,7 +252,10 @@ def test_main_json_carries_the_report_fields(
     assert payload["until"] == "2026-09-14"
     assert payload["sessions"] == 2
     assert payload["total_tokens"] == 20
+    assert payload["non_cache_read_tokens"] == 14
+    assert payload["user"] == "marc"
     assert payload["models"] == [{"model": "claude-opus-5", "total_tokens": 20}]
+    assert payload["agents"] == [{"agent": "claude", "total_tokens": 20}]
 
 
 def test_main_renders_without_a_local_user(
@@ -230,7 +268,9 @@ def test_main_renders_without_a_local_user(
     code = report.main(["--since", "2026-08-31", "--until", "2026-09-07"])
 
     assert code == 0
-    assert capsys.readouterr().out.splitlines()[1] == "10 tokens across 1 session"
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "Agent usage — week of 2026-08-31 (Mon–Sun)"
+    assert lines[1] == "10 tokens (7 excluding cache reads + 3 cache reads) across 1 session"
 
 
 def test_main_rejects_an_inverted_window(coga_os: Path) -> None:
@@ -371,10 +411,11 @@ def test_period_task_posts_with_project_and_owner_before_bumping(
     ]
     for record in records:
         append_record(cfg, record)
-    expected = report.render(report.build_report(records, since, until))
-    assert expected.splitlines()[0] == "Agent usage — week of 2026-08-31 (Mon–Sun)"
+    expected = report.render(report.build_report(records, since, until, user="marc"))
+    assert expected.splitlines()[0] == "Agent usage — marc — week of 2026-08-31 (Mon–Sun)"
     assert expected.splitlines()[1] == (
-        "100 tokens across 2 sessions (1 session has unknown counts, so this is a floor)"
+        "100 tokens (70 excluding cache reads + 30 cache reads) across 2 sessions"
+        " (1 session has unknown counts, so this is a floor)"
     )
 
     # Fix the window and restore the shim's module/search-path changes at teardown.
@@ -445,9 +486,12 @@ def test_period_task_renders_last_week_from_the_template_and_closes_its_step(
     ]
     for record in records:
         append_record(cfg, record)
-    expected = report.render(report.build_report(records, since, until))
+    expected = report.render(
+        report.build_report(records, since, until, user=cfg.current_user)
+    )
     assert expected.splitlines()[1] == (
-        "100 tokens across 2 sessions (1 session has unknown counts, so this is a floor)"
+        "100 tokens (70 excluding cache reads + 30 cache reads) across 2 sessions"
+        " (1 session has unknown counts, so this is a floor)"
     )
 
     outcome = create_named(cfg, "usage-report")
