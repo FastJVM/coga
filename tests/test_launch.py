@@ -4134,6 +4134,7 @@ def test_launch_preflights_resolved_step_one_agent_before_activation(
 
     assert result.exit_code == 2, result.output
     assert "Agent CLI 'claude' not found" in result.output
+    assert "requires the configured agent CLI on PATH" in result.output
     assert calls == []
     assert ticket_path.read_bytes() == before
     assert "activated (draft" not in _read_log(active_task)
@@ -4542,73 +4543,31 @@ def test_launch_auto_activate_bails_without_workflow(
     assert Ticket.read(ref.ticket_path).status == "draft"
 
 
-def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("slug", ["fix-retry-logic", "coga-build"])
+def test_launch_agent_not_in_path(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, slug: str
+) -> None:
+    """Every launch, including onboarding, gives only the PATH requirement."""
+    if slug == "coga-build":
+        create_task(
+            cfg=load_config(active_task),
+            title="coga-build",
+            workflow_name="direct/body",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="active",
+        )
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    result = runner.invoke(app, ["launch", slug])
     assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
     assert "not found in PATH" in combined
-    # The point-of-need error carries the manifest's install hint for the
-    # configured agent CLI (`claude` in the example fixture).
-    assert "https://claude.com/claude-code" in combined
-
-
-@pytest.mark.parametrize("slug", ["coga-build", "fix-retry-logic"])
-def test_launch_offers_agent_cli_install_only_for_build(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch, slug: str
-) -> None:
-    """`coga build` (the onboarding launch) offers to install and log in a
-    missing agent CLI; every other launch keeps the plain not-found error."""
-    create_task(
-        cfg=load_config(active_task),
-        title="coga-build",
-        workflow_name="direct/body",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("coga.launch.shutil.which", lambda name: None)
-    offered: list[str] = []
-    monkeypatch.setattr(
-        "coga.launch.offer_agent_cli",
-        lambda name: offered.append(name) or False,
-    )
-    result = CliRunner().invoke(app, ["launch", slug])
-    assert result.exit_code == 2
-    assert "not found in PATH" in result.output + (result.stderr or "")
-    assert offered == (["claude"] if slug == "coga-build" else [])
-
-
-def test_launch_build_continues_once_agent_cli_installed(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    create_task(
-        cfg=load_config(active_task),
-        title="coga-build",
-        workflow_name="direct/body",
-        contexts=[],
-        owner="marc",
-        agent="claude",
-        status="active",
-    )
-    calls = _launch_single_spawn(monkeypatch)
-    installed: set[str] = set()
-    monkeypatch.setattr(
-        "coga.launch.shutil.which",
-        lambda name, **kwargs: f"/usr/bin/{name}" if name in installed else None,
-    )
-    monkeypatch.setattr(
-        "coga.launch.offer_agent_cli",
-        lambda name: installed.add(name) or True,
-    )
-    result = CliRunner().invoke(app, ["launch", "coga-build"])
-    assert result.exit_code == 0, result.output
-    assert "found agent CLI at /usr/bin/claude" in result.output
-    assert calls and calls[0][0] == "claude"
+    assert "requires the configured agent CLI on PATH" in combined
+    assert "http" not in combined
+    assert "install" not in combined.lower()
 
 
 def test_launch_warns_for_large_blackboard(
@@ -7025,7 +6984,8 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert len(calls) == 1, calls
     assert calls[0][0] == "claude"
     assert "not found in PATH" in result.output
-    assert "https://github.com/openai/codex" in result.output
+    assert "requires the configured agent CLI on PATH" in result.output
+    assert "http" not in result.output
 
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
@@ -7175,7 +7135,7 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`AgentCliNotFound` keeps the install-the-CLI remedy."""
+    """`AgentCliNotFound` keeps the shared PATH-only requirement."""
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
 
@@ -7191,7 +7151,12 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
     result = CliRunner().invoke(app, ["launch", slug])
 
     assert result.exit_code != 0
-    assert "Failed to spawn agent: 'claude' not found." in result.output
+    assert (
+        "Failed to spawn agent: Agent CLI 'claude' not found in PATH."
+        in result.output
+    )
+    assert "requires the configured agent CLI on PATH" in result.output
+    assert "http" not in result.output
 
 
 def test_missing_launch_file_message_survives_a_filename_less_error() -> None:

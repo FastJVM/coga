@@ -1502,7 +1502,7 @@ def _launch_until_stop(
             return _result(
                 ref,
                 "failed",
-                f"agent CLI {agent.cli!r} not found",
+                agent_cli_missing_message(agent.cli),
                 launch_agent,
             )
 

@@ -2978,6 +2978,7 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
     result = next(r for r in run.results if r.slug == draft["slug"])
     assert result.outcome == "failed"
     assert "claude" in result.detail
+    assert "requires the configured agent CLI on PATH" in result.detail
     assert Path(draft["path"]).read_bytes() == before
     assert Ticket.read(draft["path"]).status == "draft"
     assert _log_lines_for(cfg, draft["slug"], "activated") == []

@@ -1,10 +1,10 @@
 """`coga init` — create a new coga repo, or finish setting up a clone of one.
 
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
-from the installed coga package. Init installs no Python packages or skills;
-in an interactive terminal it offers (never forces) to install missing
-external CLIs such as `gh` and an agent CLI, only after every precondition
-has passed. On a repo whose `coga/` already exists it
+from the installed coga package. Init installs no Python packages, skills, or
+agent CLIs; in an interactive terminal it offers (never forces) to install
+missing supporting CLIs such as `gh`, only after every precondition has
+passed. On a repo whose `coga/` already exists it
 refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
@@ -577,7 +577,7 @@ def _gh_logged_in(gh: str) -> bool:
 
 
 def _installed_agent_clis() -> list[str]:
-    """The `AGENT_CLIS` on PATH, in manifest order."""
+    """The `AGENT_CLIS` on PATH, in stable supported order."""
     return [name for name in AGENT_CLIS if shutil.which(name) is not None]
 
 
@@ -585,14 +585,13 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
     """Offer an installed agent CLI as the default; that agent, or None.
 
     Interactive init only, after `_offer_optional_tools`. Init never installs
-    an agent CLI: the vendor installer dead-ends on a machine with neither
-    brew nor npm, and coga's users already run an agentic coding tool. A user
-    with none on PATH is asked nothing here and reads the prerequisite once,
-    in `_do_init`'s next steps. When exactly one agent CLI is on PATH and it
-    is not `default_agent` — the default agent of the coga.toml init is about
-    to write — init asks to make it the default (written as `default_agent`)
-    and returns it on a yes. Nothing is returned when the packaged template
-    declares no default to replace.
+    an agent CLI or names an installer. A user with none on PATH is asked
+    nothing here and reads the prerequisite once, in `_do_init`'s next steps.
+    When exactly one agent CLI is on PATH and it is not `default_agent` — the
+    default agent of the coga.toml init is about to write — init asks to make
+    it the default (written as `default_agent`) and returns it on a yes.
+    Nothing is returned when the packaged template declares no default to
+    replace.
     """
     if not _interactive():
         return None
@@ -1337,9 +1336,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
-    # Every precondition has passed: only now offer optional installs,
-    # `gh auth login`, and an agent CLI, so a doomed invocation never changes
-    # the machine. The chosen default agent is written once coga.toml exists.
+    # Every precondition has passed: only now offer optional supporting-tool
+    # installs and `gh auth login`, then choose an installed default agent, so
+    # a doomed invocation never changes the machine. The chosen default agent
+    # is written once coga.toml exists.
     _offer_optional_tools()
     template_default_agent = _template_default_agent(template_root)
     default_agent = _offer_agent_cli(template_default_agent)
@@ -1567,10 +1567,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # fresh user isn't sent into the flow only to hit "not found in PATH".
     if not _installed_agent_clis():
         steps.append(
-            "Install an agent CLI — coga drives Claude Code (`claude`) or "
-            "Codex (`codex`), and neither is on your PATH. Launching agents "
-            "(`coga build`, `coga launch`, `coga ticket`) needs one installed "
-            "and authenticated."
+            "No agent CLI was found on PATH — coga drives Claude Code "
+            "(`claude`) or Codex (`codex`). Coga requires one on PATH for "
+            "agent-backed commands (`coga build`, `coga launch`, `coga ticket`)."
         )
     if is_empty:
         build_agent = default_agent or AGENT_CLIS[0]

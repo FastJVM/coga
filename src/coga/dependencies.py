@@ -1,18 +1,16 @@
-"""Coga's external command-line dependencies — the single source of truth.
+"""Coga's external command-line dependency handling.
 
-Coga shells out to a few human-installed CLIs. This manifest names each, why
-coga needs it, where to install it, and whether it is required at `coga init`
-(a hard crash up front) or only when a specific feature is actually used (a
-softer, deferred failure at the point of need).
+Coga shells out to supporting tools and agent CLIs. `DEPENDENCIES` names the
+supporting tools, why Coga needs them, where to install them, and whether they
+are required at `coga init` (a hard crash up front) or only when a specific
+feature is used (a softer, deferred failure at the point of need).
 
-`coga init` reads `required_at_init` to decide what to enforce before doing
-anything, and `offer_install` / `packages` to offer installing a missing tool
-through the machine's package manager. Agent CLIs (`AGENT_CLIS`) carry
-`packages` and `login` for `coga.agent_cli_setup` instead, which offers them
-through brew or npm rather than the system package manager. The
-`coga/install` topic (`docs/contexts/coga/install/SKILL.md`) describes the same
-set for humans. Keeping the list here means the init check and the docs can't
-drift.
+`coga init` reads `DEPENDENCIES` to decide which supporting tools to enforce,
+offer, or note. Agent CLIs are separate: `AGENT_CLIS` is the supported scan
+order, and Coga only requires the configured CLI on `PATH` at the point of
+need. Coga never installs an agent CLI or names an agent installer. The
+`coga/install` topic (`docs/contexts/coga/install/SKILL.md`) owns the human
+contract.
 """
 
 from __future__ import annotations
@@ -31,8 +29,7 @@ class Dependency:
     offers to install the missing binary, or None to never offer; `packages`
     maps a package manager (see `PACKAGE_MANAGERS`) to the argv tail that
     installs the binary with it. A manager absent from `packages` falls back
-    to the `install` URL. `login` is the argv tail that logs the installed
-    binary in (empty runs the bare binary), or None when coga offers no login.
+    to the `install` URL.
     """
 
     name: str
@@ -41,7 +38,6 @@ class Dependency:
     required_at_init: bool
     offer_install: bool | None = None
     packages: dict[str, tuple[str, ...]] = field(default_factory=dict)
-    login: tuple[str, ...] | None = None
 
 
 DEPENDENCIES: tuple[Dependency, ...] = (
@@ -102,86 +98,29 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         # (`init._note_missing_op`), naming what needs it.
         offer_install=None,
     ),
-    Dependency(
-        name="claude",
-        purpose=(
-            "Claude Code — an agent CLI coga drives for `coga launch`, "
-            "`coga ticket`, and `coga build`. Not required at init: which "
-            "binary a launch needs comes from the launched agent's `cli` in "
-            "coga.toml, and the launch fails loud at the point of need. "
-            "Interactive `coga init` and `coga build` offer to install and "
-            "log it in."
-        ),
-        install="https://claude.com/claude-code",
-        required_at_init=False,
-        packages={
-            "brew": ("--cask", "claude-code"),
-            "npm": ("@anthropic-ai/claude-code",),
-        },
-        login=(),
-    ),
-    Dependency(
-        name="codex",
-        purpose=(
-            "Codex — an agent CLI coga drives for `coga launch`, "
-            "`coga ticket`, and `coga build`. Not required at init: which "
-            "binary a launch needs comes from the launched agent's `cli` in "
-            "coga.toml, and the launch fails loud at the point of need. "
-            "Interactive `coga init` and `coga build` offer to install and "
-            "log it in."
-        ),
-        install="https://github.com/openai/codex",
-        required_at_init=False,
-        packages={
-            "brew": ("--cask", "codex"),
-            "npm": ("@openai/codex",),
-        },
-        login=("login",),
-    ),
 )
 
 
 # Package managers coga knows how to drive, each mapped to the argv head that
 # installs a package non-interactively. Linux managers need root; init
-# prefixes `sudo` when it is not already root. `npm` serves only agent CLIs
-# (`coga.agent_cli_setup`); init's system-manager detection never picks it.
+# prefixes `sudo` when it is not already root.
 PACKAGE_MANAGERS: dict[str, tuple[str, ...]] = {
     "brew": ("brew", "install"),
     "winget": ("winget", "install"),
     "apt-get": ("apt-get", "install", "-y"),
     "dnf": ("dnf", "install", "-y"),
     "pacman": ("pacman", "-S", "--noconfirm"),
-    "npm": ("npm", "install", "-g"),
 }
 NEEDS_ROOT = frozenset({"apt-get", "dnf", "pacman"})
 
-# Agent CLIs coga knows how to offer, in the order a picker lists them; the
-# first is the shipped `coga.toml`'s default agent.
+# Agent CLIs Coga knows how to drive, in stable scan order; the first is the
+# shipped `coga.toml`'s default agent.
 AGENT_CLIS: tuple[str, ...] = ("claude", "codex")
 
 
-def install_hint(name: str) -> str | None:
-    """The manifest's install URL for the binary `name`, or None if unlisted.
-
-    Lets point-of-need "not found in PATH" errors carry the same install hint
-    the init check prints, without each call site re-embedding URLs.
-    """
-    for dep in DEPENDENCIES:
-        if dep.name == name:
-            return dep.install
-    return None
-
-
 def agent_cli_missing_message(cli: str) -> str:
-    """Error text for an agent CLI missing from PATH.
-
-    `cli` is the launched agent's `cli` value from coga.toml — usually
-    `claude` or `codex`, but any binary a repo configures. When the manifest
-    knows the binary, the message carries its install hint; an unlisted one
-    still fails loud, just without a URL.
-    """
-    message = f"Agent CLI {cli!r} not found in PATH."
-    hint = install_hint(cli)
-    if hint is not None:
-        message += f" Install it from {hint} and authenticate, then re-run."
-    return message
+    """Error text for a configured agent CLI missing from PATH."""
+    return (
+        f"Agent CLI {cli!r} not found in PATH. Coga requires the configured "
+        "agent CLI on PATH for agent-backed commands."
+    )

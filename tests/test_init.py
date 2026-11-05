@@ -1252,10 +1252,12 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "Install an agent CLI" in result.output
-    assert "neither is on your PATH" in result.output
-    assert "https://claude.com/claude-code" not in result.output
-    assert "https://github.com/openai/codex" not in result.output
+    assert "No agent CLI was found on PATH" in result.output
+    assert "Coga requires one on PATH" in result.output
+    agent_step = next(
+        line for line in result.output.splitlines() if "No agent CLI was found" in line
+    )
+    assert "http" not in agent_step
     assert "Run `coga build` with Claude Code" in result.output
     assert "`coga build --agent codex` with Codex" in result.output
 
@@ -1280,7 +1282,7 @@ def test_init_next_steps_skip_the_prerequisite_when_a_cli_is_installed(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "Install an agent CLI" not in result.output
+    assert "No agent CLI was found on PATH" not in result.output
 
 
 @pytest.mark.parametrize("filled", [False, True], ids=["empty", "filled"])

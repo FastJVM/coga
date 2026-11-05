@@ -81,11 +81,9 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks).
 
 ## Get started
 
-Agent sessions run on Linux or macOS. You'll need working Git and an installed,
-authenticated [Claude Code CLI](https://code.claude.com/docs/en/quickstart) or
-[Codex CLI](https://developers.openai.com/codex/cli/). Follow the chosen CLI's
-installation instructions, then run `claude` or `codex login` to sign in.
-Coga does not include either agent. Coga requires Python 3.11+, but the
+Agent sessions run on Linux or macOS. You'll need working Git and either
+Claude Code (`claude`) or Codex (`codex`) on `PATH`; Coga does not install or
+link to an installer for either agent. Coga requires Python 3.11+, but the
 recommended `uv` installer can obtain a compatible Python for you.
 
 **Native Windows is not ready for a first task.** PyPI release 0.4.1
@@ -134,9 +132,9 @@ coga init --user YOUR_NAME
 In a repo new to Coga, init commits the Coga files. In a clone that already
 uses Coga, it sets up your local identity and agent links without a commit
 ([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
-Init installs no agent CLI: in an interactive terminal, when exactly one
-supported CLI is installed, it offers to make that one your default agent, and
-an already-installed CLI still needs authentication. It seeds the onboarding
+Coga installs no agent CLI and provides no agent-installer link. In an
+interactive terminal, when exactly one supported CLI is on `PATH`, init offers
+to make that one your default agent. It seeds the onboarding
 ticket only for an otherwise empty repo; a short starter README, LICENSE or
 `.gitattributes` still counts as empty. Choose how to begin:
 

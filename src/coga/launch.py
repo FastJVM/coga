@@ -37,7 +37,6 @@ from uuid import uuid4
 from typer import Exit as NotificationExit
 
 from coga import usage as usage_tracking
-from coga.agent_cli_setup import offer_agent_cli
 from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
@@ -1795,16 +1794,9 @@ class _LaunchInvocation:
                 f"(cli={self.agent.cli})"
             )
 
-            # Verify CLI binary exists. `coga build` is a new user's first launch,
-            # so it offers the install and login (the TTY is proven above) rather
-            # than failing on a missing agent CLI.
+            # Verify the configured CLI binary exists. Coga never installs agent
+            # CLIs; every agent-backed command uses the same point-of-need error.
             agent_path = shutil.which(self.agent.cli)
-            if (
-                agent_path is None
-                and self.ref.id_slug == ONBOARDING_TASK
-                and offer_agent_cli(self.agent.cli)
-            ):
-                agent_path = shutil.which(self.agent.cli)
             if agent_path is None:
                 _bail(agent_cli_missing_message(self.agent.cli))
             _report(f"Launch: found agent CLI at {agent_path}")
@@ -2136,7 +2128,10 @@ class _LaunchInvocation:
                 except ComposeError as exc:
                     _bail(str(exc))
                 except AgentCliNotFound:
-                    _bail(f"Failed to spawn agent: {self.agent.cli!r} not found.")
+                    _bail(
+                        "Failed to spawn agent: "
+                        f"{agent_cli_missing_message(self.agent.cli)}"
+                    )
                 except FileNotFoundError as exc:
                     _bail(missing_launch_file_message(exc))
 

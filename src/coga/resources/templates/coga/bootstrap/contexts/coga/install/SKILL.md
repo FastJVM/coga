@@ -25,12 +25,9 @@ adopt it into. Installing the package never modifies a repo;
   sync layer: state changes are commits. On macOS, check that
   `git --version` works; the Xcode Command Line Tools are one way to obtain
   Git, but any working Git installation is sufficient (below).
-- **An agent CLI**, installed and authenticated: Claude Code or Codex, for
-  anything that launches an agent. `coga init` does not require one (below).
-  Follow the [Claude Code CLI quickstart](https://code.claude.com/docs/en/quickstart)
-  or [Codex CLI instructions](https://developers.openai.com/codex/cli/), then
-  sign in with `claude` or `codex login`. Coga's install does not include
-  these tools or authenticate an existing installation.
+- **An agent CLI on `PATH`**: Claude Code (`claude`) or Codex (`codex`), for
+  agent-backed commands. `coga init` does not require one (below), and Coga
+  provides no agent installer command or URL.
 - **GitHub CLI (`gh`)**, recommended but not required at init. PR workflows,
   the merged-ticket autoclose sweep, and `coga skill install` check for it at
   their point of use and fail with an install hint.
@@ -56,17 +53,12 @@ every mode, naming what needs it — only a ticket that declares an `op://`
 secret — with its install link, so a user who keeps secrets elsewhere skips
 it knowing nothing is broken.
 
-Agent CLIs take their own route. `coga init` never installs one and never
-says where to get one: it only names the prerequisite in its next steps when
-neither `claude` nor `codex` is on `PATH`. `coga build` does offer the
-onboarding ticket's missing agent CLI before failing. That installer is the
-vendor's package, never a `curl | sh` script: on macOS the brew cask
-(`claude-code`, `codex`), else `npm install -g @anthropic-ai/claude-code` or
-`@openai/codex` when `npm` is on `PATH`, else only the install URL. The
-command runs only on a yes, then offers the login (`claude`, which signs in
-on first run, or `codex login`). Without a terminal, nothing is offered or
-installed. How init may change the default agent is in
-[coga/init](../init/SKILL.md).
+Agent CLIs are never installed by Coga, and Coga provides no agent-installer
+command or URL. Init scans `PATH`; when neither `claude` nor `codex` is there,
+its next steps state that an agent CLI is required for agent-backed commands.
+At every point of need, including `coga build`, a missing configured CLI fails
+loud with the same requirement: put that CLI on `PATH`. How init may offer an
+already-installed CLI as the default agent is in [coga/init](../init/SKILL.md).
 
 ### macOS: check Git before init
 

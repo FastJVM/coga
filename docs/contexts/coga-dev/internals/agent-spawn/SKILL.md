@@ -257,10 +257,10 @@ observation never establishes who did. Observation limits:
 Compose, prompt-file write, and audit happen before exec, so a
 `FileNotFoundError` from this call usually means a vanished skill, context,
 or prompt destination. Callers catch `repl_supervisor.AgentCliNotFound` for
-the install-the-CLI remedy and report every other one through
-`missing_launch_file_message`, naming the path. On the PTY path a missing
-binary appears as the child's exit 127, not as that exception. On Windows the
-child-environment resolution raises it before any spawn.
+the shared configured-CLI-on-`PATH` requirement and report every other one
+through `missing_launch_file_message`, naming the path. On the PTY path a
+missing binary appears as the child's exit 127, not as that exception. On
+Windows the child-environment resolution raises it before any spawn.
 
 ## No launch preflight for the Codex sandbox grant
 

@@ -102,8 +102,8 @@ external CLIs: in an interactive terminal it offers to install a missing
 `gh auth login` only once every precondition has passed, before scaffolding.
 Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
 details), so an invocation that must exit changes nothing on the machine.
-Agent CLIs are not in that set: no init path installs one or says where to
-get one. Init only scans `PATH` for them. When exactly one agent CLI is on
+Agent CLIs are not in that set: Coga never installs one or says where to get
+one. Init only scans `PATH` for them. When exactly one agent CLI is on
 `PATH` and it is not the packaged default (`claude`), init asks whether to
 make it the default agent. On a yes it writes `default_agent = "<type>"` into
 the new `coga.toml` and leaves the `[agents.*]` table order alone (the
@@ -113,9 +113,9 @@ delivered tickets that name the old default, such as the onboarding ticket's
 the same config plus that one key, init skips it and prints a warning. With
 neither agent CLI on `PATH`, or with both, init asks nothing. A
 non-interactive init never prompts, installs nothing and stays offline. The
-printed next steps are: put `coga` on `PATH` if it is missing; install an
-agent CLI when the scan found none; then `coga build` (empty repo) or
-`coga ticket "<title>"` (filled repo).
+printed next steps are: put `coga` on `PATH` if it is missing; note that an
+agent CLI is required on `PATH` when the scan found none; then `coga build`
+(empty repo) or `coga ticket "<title>"` (filled repo).
 
 ## Clone of a repo that already uses Coga
 
