@@ -168,11 +168,22 @@ def _stub_init_dep_check(monkeypatch):
 
     `coga init` hard-fails when `git` is not on PATH and warns about (or, in a
     terminal, offers to install) `gh`/`op`, which CI and dev machines may
-    legitimately lack. Default both phases to no-ops so init-invoking tests
-    run anywhere; the dedicated dependency tests call the real
-    `_require_init_tools` / `_offer_optional_tools` / `_offer_agent_cli`
-    with `shutil.which` mocked."""
-    for name in ("_require_init_tools", "_offer_optional_tools", "_offer_agent_cli"):
+    legitimately lack. It also scans for agent CLIs and asks which to enable,
+    which would block on a picker. Default every such phase to a no-op so
+    init-invoking tests run anywhere; the dedicated tests call the real
+    `_require_init_tools` / `_offer_optional_tools` / `_offer_agent_cli` /
+    `_print_agent_scan` / `_choose_agents` with `shutil.which` mocked.
+
+    Names here must track the real function names: `raising=False` means a
+    name that no longer exists is silently not stubbed, and the real one then
+    prompts in every init-invoking test."""
+    for name in (
+        "_require_init_tools",
+        "_offer_optional_tools",
+        "_offer_agent_cli",
+        "_print_agent_scan",
+        "_choose_agents",
+    ):
         monkeypatch.setattr(
             f"coga.commands.init.{name}", lambda *args: None, raising=False
         )

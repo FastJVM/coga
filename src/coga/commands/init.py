@@ -13,6 +13,7 @@ that half and commits nothing.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from importlib.resources.abc import Traversable
 import json
@@ -58,6 +59,7 @@ from coga.dependencies import (
 )
 from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
+from coga.picker import PickerColumn, PickerRow, pick
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -593,7 +595,6 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
     if not _interactive():
         return None
     installed = _installed_agent_clis()
-    _print_agent_scan(installed)
     if len(installed) > 1:
         return None
     if installed:
@@ -681,8 +682,210 @@ def _print_agent_scan(installed: tuple[str, ...]) -> None:
         )
 
 
-def _write_default_agent(coga_toml: Path, name: str) -> bool:
-    """Set top-level `default_agent = "<name>"` in coga.toml; True on success.
+@dataclass(frozen=True)
+class AgentChoice:
+    """What the agent question decided.
+
+    `enabled` is in `AGENT_CLIS` order. `default` names the agent to write as
+    `default_agent`, or None to leave the packaged value alone — which is the
+    case both when the packaged default is among the chosen and when nothing
+    was chosen at all.
+    """
+
+    enabled: tuple[str, ...]
+    default: str | None
+
+
+def _choose_agents(packaged_default: str) -> AgentChoice | None:
+    """Scan for the supported agent CLIs, then ask which ones to enable.
+
+    None means "make no agent edits": either init is non-interactive, or the
+    human quit the picker with `q`/Esc. Both leave every packaged `[agents.*]`
+    table declared and `default_agent` as shipped.
+
+    `_print_agent_scan` is called from inside here rather than beside it so a
+    scripted init prints nothing: the scan exists to drive this question, and a
+    CI or provisioning log cannot act on it.
+
+    A `KeyboardInterrupt` from `pick` is deliberately not caught. Ctrl-C aborts
+    init outright, and because this runs before `target.mkdir()` nothing has
+    been written yet.
+
+    Init offers no install anywhere in here. An agent chosen while its binary
+    is absent is declared and named, so the human can install it or put it on
+    PATH themselves.
+    """
+    if not _interactive():
+        return None
+    installed = _installed_agent_clis()
+    _print_agent_scan(installed)
+
+    rows = [
+        PickerRow(
+            key=name,
+            cells=(
+                _AGENT_LABELS.get(name, name),
+                name,
+                "found" if name in installed else "not found",
+            ),
+        )
+        for name in AGENT_CLIS
+    ]
+    columns = (
+        PickerColumn("agent", ratio=2),
+        PickerColumn("binary", ratio=1),
+        PickerColumn("on PATH", ratio=1),
+    )
+    typer.echo()
+    typer.echo("Which agents should coga drive in this repo?")
+    typer.echo(
+        "Each one gets an [agents.*] block in coga.toml, which is committed, "
+        "so this applies to everyone who clones the repo."
+    )
+    while True:
+        # Found agents start checked, so ENTER alone is the right answer for
+        # the common case.
+        chosen = pick(
+            rows,
+            columns,
+            checked=installed,
+            hint=(
+                "↑/↓ move · Space toggle · a all · n none · Enter confirm · "
+                "q keep all"
+            ),
+        )
+        if chosen is None:
+            typer.echo(
+                "Leaving coga.toml as packaged: every agent stays declared."
+            )
+            return None
+        if chosen:
+            break
+        # An empty selection is confirmed, not silent — and declining re-opens
+        # the picker. The picker's own `q` already lands on a defined outcome,
+        # so there is no retry limit to add on top of it.
+        if typer.confirm(
+            "Declare no agents at all? No `coga launch` would work in this "
+            "repo and `coga build` could not run",
+            default=False,
+        ):
+            break
+
+    enabled = tuple(name for name in AGENT_CLIS if name in chosen)
+    for name in enabled:
+        if name not in installed:
+            typer.secho(
+                f"{_AGENT_LABELS.get(name, name)} is declared, but `{name}` is "
+                f"not on PATH — coga needs that binary there before it can "
+                f"launch the agent.",
+                fg=typer.colors.YELLOW,
+            )
+    if len(enabled) == 1:
+        # `bump.resolve_other_agent` raises without exactly one peer candidate,
+        # and validate reports this at severity="error" — so a one-agent repo
+        # errors on any ticket already frozen on a peer-review workflow, rather
+        # than merely failing later at handoff.
+        typer.secho(
+            "Only one agent is declared, so `other-agent` workflow steps have "
+            "no peer to resolve: `coga validate` reports "
+            "unresolvable-step-assignee on any ticket already frozen on "
+            "`code/with-review` or `code/design-then-implement`. "
+            "`code/with-self-review` is the single-agent review workflow.",
+            fg=typer.colors.YELLOW,
+        )
+    # None when the packaged default stands, and also when nothing was chosen:
+    # with no `[agents]` there is no agent to name, and `Config.default_agent`
+    # already returns None there.
+    default = None if packaged_default in enabled or not enabled else enabled[0]
+    return AgentChoice(enabled=enabled, default=default)
+
+
+def _disable_unchosen_agents(
+    text: str, enabled: Collection[str]
+) -> tuple[str, tuple[str, ...]] | None:
+    """Comment out every `[agents.*]` table not in `enabled`.
+
+    Returns the edited document plus the names commented out, or None when the
+    rewrite fails its own parse-back check. A pure text transform, not a
+    writer: `_do_init` writes once, after both edits succeed, so a failure here
+    can leave the packaged file completely untouched. None rather than `()` on
+    failure is what lets the caller tell "this rewrite is unsafe" from "every
+    agent was enabled, nothing to comment out" — collapsing those two is how
+    partial-write states get in.
+
+    Commenting rather than deleting: both parse to the same config (there is no
+    on/off key — `config._parse_agents` builds `cfg.agents` from the tables
+    that exist), so this is purely what a human sees in the committed file.
+    Re-enabling later is deleting `# `s, `coga update` never rewrites
+    coga.toml, and `coga/configuration` and `coga/sandboxes` both point at the
+    shipped file as the explanation of record for these keys.
+
+    Blank lines are skipped, and that is a correctness condition rather than a
+    cosmetic one. `_TABLE_START` does not match a commented table header, and
+    the packaged coga.toml ships `[recurring]` and `[launch]` commented out —
+    so the next line it matches after `[agents.codex]` is `[notification]`,
+    some eighty lines below, and a naive "prefix every line that is not already
+    a comment" would turn each blank separator in the `# --- Unattended runs
+    ---` block into a bare `# `. The parse-back check cannot see that, because
+    comments do not affect the parse.
+    """
+    try:
+        before = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return None
+    agents = before.get("agents")
+    if not isinstance(agents, dict):
+        return None
+    unchosen = tuple(name for name in agents if name not in enabled)
+    if not unchosen:
+        return text, ()
+    lines = text.splitlines(keepends=True)
+    for name in unchosen:
+        header = re.compile(rf"^[ \t]*\[agents\.{re.escape(name)}\][ \t]*$", re.M)
+        # Re-found each pass: the insert below shifts every later index.
+        start = next(
+            (index for index, line in enumerate(lines) if header.match(line)), None
+        )
+        if start is None:
+            return None
+        end = next(
+            (
+                index
+                for index in range(start + 1, len(lines))
+                if _TABLE_START.match(lines[index])
+            ),
+            len(lines),
+        )
+        for index in range(start, end):
+            stripped = lines[index].strip()
+            if stripped and not stripped.startswith("#"):
+                lines[index] = f"# {lines[index]}"
+        lines.insert(
+            start,
+            f"# `coga init` did not enable {name}. Uncomment this table to let "
+            "coga drive it.\n",
+        )
+    new_text = "".join(lines)
+    try:
+        after = tomllib.loads(new_text)
+    except tomllib.TOMLDecodeError:
+        return None
+    expected = {key: value for key, value in before.items() if key != "agents"}
+    kept = {name: table for name, table in agents.items() if name in enabled}
+    if kept:
+        expected["agents"] = kept
+    if after != expected:
+        return None
+    return new_text, unchosen
+
+
+def _default_agent_text(text: str, name: str) -> str | None:
+    """`text` with top-level `default_agent = "<name>"` set, or None if unsafe.
+
+    The text half of `_write_default_agent`, split out so `_do_init` can run it
+    on an in-memory document that `_disable_unchosen_agents` already edited —
+    the two config edits are one transaction, and neither may touch the disk
+    before the other has succeeded.
 
     `Config.default_agent` honours the key over declaration order, so init
     names the chosen agent rather than reordering the `[agents.*]` tables. A
@@ -690,19 +893,18 @@ def _write_default_agent(coga_toml: Path, name: str) -> bool:
     place; otherwise the template's commented example is uncommented, or the
     line goes ahead of the first table (and the comments that introduce it),
     where a top-level key must sit. Only a type declared under `[agents.*]` is
-    written, and the rewrite must parse to the original config plus exactly
-    that key, or coga.toml is left untouched and this returns False.
+    accepted, and the rewrite must parse to the original config plus exactly
+    that key, or this returns None and the caller writes nothing.
     """
-    text = coga_toml.read_text(encoding="utf-8")
     try:
         before = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
-        return False
+        return None
     agents = before.get("agents")
     if not isinstance(agents, dict) or name not in agents:
-        return False
+        return None
     if before.get("default_agent") == name:
-        return True
+        return text
     lines = text.splitlines(keepends=True)
     top = next(
         (index for index, line in enumerate(lines) if _TABLE_START.match(line)),
@@ -722,11 +924,68 @@ def _write_default_agent(coga_toml: Path, name: str) -> bool:
     try:
         after = tomllib.loads(new_text)
     except tomllib.TOMLDecodeError:
-        return False
+        return None
     if after != {**before, "default_agent": name}:
+        return None
+    return new_text
+
+
+def _write_default_agent(coga_toml: Path, name: str) -> bool:
+    """Set top-level `default_agent = "<name>"` in coga.toml; True on success.
+
+    A thin wrapper over `_default_agent_text`, kept at its original signature
+    because the `test_write_default_agent_*` tests drive it by path and are the
+    transform's regression cover.
+    """
+    text = coga_toml.read_text(encoding="utf-8")
+    new_text = _default_agent_text(text, name)
+    if new_text is None:
         return False
-    coga_toml.write_text(new_text, encoding="utf-8", newline="\n")
+    if new_text != text:
+        coga_toml.write_text(new_text, encoding="utf-8", newline="\n")
     return True
+
+
+@dataclass(frozen=True)
+class AgentConfigEdit:
+    """What the one all-or-nothing coga.toml agent edit actually did."""
+
+    disabled: tuple[str, ...]
+    default_set: str | None
+
+
+def _apply_agent_choice(coga_toml: Path, choice: AgentChoice) -> AgentConfigEdit | None:
+    """Apply `choice` to coga.toml as a single transaction; None if nothing was
+    written.
+
+    Read the file once, run both transforms in memory, and write only when
+    every stage returned a value. Done as two independent writes instead, this
+    has two partial-failure states the acceptance criteria forbid: disabling
+    fails while the default write succeeds, leaving unchosen agents declared
+    under a moved default; or disabling succeeds and the default write fails,
+    leaving coga.toml already rewritten. `_write_default_agent` only preserves
+    the bytes handed to it, not the pre-disable template, so it cannot undo the
+    first write.
+
+    The caller warns on None rather than raising. These writes sit inside
+    `_do_init`'s rollback `try`, whose contract is that any exception below it
+    removes the half-built `coga/` and re-raises — so a config edit that raised
+    would cost the user the entire init, where what they should get is the
+    packaged coga.toml and a warning.
+    """
+    text = coga_toml.read_text(encoding="utf-8")
+    disabled_result = _disable_unchosen_agents(text, choice.enabled)
+    if disabled_result is None:
+        return None
+    new_text, disabled = disabled_result
+    if choice.default is not None:
+        with_default = _default_agent_text(new_text, choice.default)
+        if with_default is None:
+            return None
+        new_text = with_default
+    if new_text != text:
+        coga_toml.write_text(new_text, encoding="utf-8", newline="\n")
+    return AgentConfigEdit(disabled=disabled, default_set=choice.default)
 
 
 def _stamp_agent_into_delivered_tickets(coga_os: Path, old: str, new: str) -> None:
@@ -1392,7 +1651,13 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # the machine. The chosen default agent is written once coga.toml exists.
     _offer_optional_tools()
     template_default_agent = _template_default_agent(template_root)
-    default_agent = _offer_agent_cli(template_default_agent)
+    # Before `target.mkdir()` on purpose: a quit, and a Ctrl-C (which `pick`
+    # raises as KeyboardInterrupt), both leave the disk untouched.
+    agent_choice = (
+        _choose_agents(template_default_agent)
+        if template_default_agent is not None
+        else None
+    )
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -1447,12 +1712,21 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         if pinned_branch is not None:
             _pin_control_branch(coga_os, pinned_branch, default_control_branch)
 
-        default_agent_set = default_agent is not None and _write_default_agent(
-            coga_os / "coga.toml", default_agent
+        agent_edit = (
+            _apply_agent_choice(coga_os / "coga.toml", agent_choice)
+            if agent_choice is not None
+            else None
         )
-        if default_agent_set and template_default_agent is not None:
+        # Stamping runs only after the config write succeeded: a delivered
+        # ticket repointed at an agent coga.toml does not declare is worse
+        # than one still naming the packaged default.
+        if (
+            agent_edit is not None
+            and agent_edit.default_set is not None
+            and template_default_agent is not None
+        ):
             _stamp_agent_into_delivered_tickets(
-                coga_os, template_default_agent, default_agent
+                coga_os, template_default_agent, agent_edit.default_set
             )
 
         if is_empty:
@@ -1537,17 +1811,24 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f'    control_branch = "<your-branch>"',
             fg=typer.colors.YELLOW,
         )
-    if default_agent_set:
-        typer.echo(
-            f"Made `{default_agent}` the default agent (`default_agent` in "
-            f"{coga_os / 'coga.toml'})."
-        )
-    elif default_agent is not None:
+    if agent_edit is not None:
+        if agent_edit.disabled:
+            names = ", ".join(f"`{name}`" for name in agent_edit.disabled)
+            typer.echo(
+                f"Commented out {names} in {coga_os / 'coga.toml'} — uncomment "
+                f"the table to let coga drive it."
+            )
+        if agent_edit.default_set is not None:
+            typer.echo(
+                f"Made `{agent_edit.default_set}` the default agent "
+                f"(`default_agent` in {coga_os / 'coga.toml'})."
+            )
+    elif agent_choice is not None:
         typer.secho(
-            f"Could not make `{default_agent}` the default agent: "
-            f"{coga_os / 'coga.toml'} did not take a `default_agent` line "
-            f"cleanly. Add `default_agent = \"{default_agent}\"` near its top, "
-            f"before any [table].",
+            f"Could not apply your agent selection to {coga_os / 'coga.toml'}: "
+            f"the rewrite did not parse back to the packaged config, so the "
+            f"file is exactly as shipped and every agent stays declared. "
+            f"Comment out the [agents.*] tables you do not want by hand.",
             fg=typer.colors.YELLOW,
         )
     if host_gitignore_changed:
@@ -1611,26 +1892,59 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "software, so the CLI you run is your own:\n"
             "       uv tool install coga"
         )
+    # The agents coga.toml actually declares now: the selection where it was
+    # applied, and the packaged pair wherever it was not (non-interactive, a
+    # quit, or a refused rewrite). Every step below reads this rather than
+    # `AGENT_CLIS`, so init never advertises an agent it just commented out.
+    enabled_agents = agent_choice.enabled if agent_edit is not None else AGENT_CLIS
+
+    # The agents question has already set these, so this no longer says to.
     steps.append(
-        f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
-        "and aliases."
+        f"Edit {coga_os}/coga.toml — set your notification channels and aliases."
     )
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # does not require (see `coga.dependencies`) — name the prerequisite here
     # so a fresh user isn't sent into the flow only to hit "not found in PATH".
-    steps.append(
-        "Install an agent CLI, if you haven't — coga drives Claude Code "
-        f"({install_hint('claude')}) or Codex ({install_hint('codex')}). "
-        "Launching agents (`coga build`, `coga launch`, `coga ticket`) needs "
-        "one installed and authenticated."
-    )
-    if is_empty:
-        build_agent = default_agent or AGENT_CLIS[0]
-        other = next(name for name in AGENT_CLIS if name != build_agent)
+    # Only the agents this repo declares are worth naming; init offers no
+    # install, so this names the binary and leaves it to the user.
+    absent = [name for name in enabled_agents if shutil.which(name) is None]
+    if absent:
+        binaries = ", ".join(f"`{name}`" for name in absent)
         steps.append(
-            f"Run `coga build` with {_AGENT_LABELS[build_agent]}, or "
-            f"`coga build --agent {other}` with {_AGENT_LABELS[other]} "
-            "— it launches the coga-build onboarding: one question "
+            f"Put {binaries} on your PATH — this repo declares "
+            f"{'that agent' if len(absent) == 1 else 'those agents'}, and "
+            "launching one (`coga build`, `coga launch`, `coga ticket`) needs "
+            "the binary installed and authenticated."
+        )
+    if not enabled_agents:
+        # An accepted empty selection. `Config.default_agent()` returns None
+        # with no [agents] at all, so every agent-backed command fails at the
+        # point of use — advertising one here would walk the user into it.
+        steps.append(
+            f"Uncomment an [agents.*] table in {coga_os}/coga.toml — until this "
+            "repo declares one, no `coga launch` works and `coga build` cannot "
+            "run."
+        )
+    elif is_empty:
+        # Mirrors `Config.default_agent`: the `default_agent` key when it names
+        # a declared type, else the first declared table.
+        build_agent = (
+            template_default_agent
+            if template_default_agent in enabled_agents
+            else enabled_agents[0]
+        )
+        # Needs a default now that it reads the selection: a one-agent repo has
+        # no second name to offer. Over `AGENT_CLIS` this could not raise, but
+        # it advertised an agent the selection may have commented out.
+        other = next((name for name in enabled_agents if name != build_agent), None)
+        alternative = (
+            f", or `coga build --agent {other}` with {_AGENT_LABELS.get(other, other)}"
+            if other is not None
+            else ""
+        )
+        steps.append(
+            f"Run `coga build` with {_AGENT_LABELS.get(build_agent, build_agent)}"
+            f"{alternative} — it launches the coga-build onboarding: one question "
             "about what you want to build, then an agent-led chat that ends in "
             "a short vision you sign off on and a flat batch of starter tickets "
             "you can immediately `coga launch`."

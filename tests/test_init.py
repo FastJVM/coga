@@ -1235,21 +1235,58 @@ def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
 
 
 def test_init_next_steps_name_the_agent_cli_prerequisite(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Init's next steps name the binary of a declared agent not on PATH.
+
+    The `coga build` coax otherwise sends a fresh user into a flow whose
+    "not found in PATH" failure arrives only after they've committed to it.
+    Init offers no install, so the binary name is what the user acts on.
+    """
+    target = _make_git_repo(tmp_path / "company")
+    # Deterministically absent: this must not depend on what the machine
+    # running the suite happens to have installed.
+    real_which = shutil.which
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: None if name in set(init_cmd.AGENT_CLIS) else real_which(name),
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Put `claude`, `codex` on your PATH" in result.output
+    assert "Run `coga build` with Claude Code" in result.output
+    assert "`coga build --agent codex` with Codex" in result.output
+
+
+def test_init_next_steps_omit_the_path_line_when_both_agents_are_present(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing to install means no prerequisite step at all."""
+    target = _make_git_repo(tmp_path / "company")
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "on your PATH —" not in result.output
+    assert "Run `coga build` with Claude Code" in result.output
+
+
+def test_init_next_steps_no_longer_send_the_user_to_set_agents(
     tmp_path: Path, fake_vendor
 ) -> None:
-    """Init's next steps name the agent-CLI prerequisite with install URLs —
-    the `coga build` coax otherwise sends a fresh user into a flow whose
-    "not found in PATH" failure arrives only after they've committed to it."""
+    """The question has already set them, so the coga.toml step must not say to."""
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "Install an agent CLI" in result.output
-    assert "https://claude.com/claude-code" in result.output
-    assert "https://github.com/openai/codex" in result.output
-    assert "Run `coga build` with Claude Code" in result.output
-    assert "`coga build --agent codex` with Codex" in result.output
+    assert "set your agents" not in result.output
+    assert "set your notification channels and aliases" in result.output
 
 
 def test_init_filled_repo_ignores_coga_managed_files(
@@ -2617,6 +2654,8 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 _real_require_tools = init_cmd._require_init_tools
 _real_offer_tools = init_cmd._offer_optional_tools
 _real_offer_agent = init_cmd._offer_agent_cli
+_real_print_agent_scan = init_cmd._print_agent_scan
+_real_choose_agents = init_cmd._choose_agents
 
 
 def _real_dep_check() -> None:
@@ -3081,30 +3120,355 @@ def test_write_default_agent_leaves_an_unparseable_file_untouched(
     assert coga_toml.read_text(encoding="utf-8") == original
 
 
+def test_print_agent_scan_lists_every_supported_agent_in_every_state(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The list is complete whatever is installed — a machine with nothing
+    reads what coga can drive, not an absence."""
+    for installed in ((), ("claude",), ("claude", "codex")):
+        _real_print_agent_scan(installed)
+        out = capsys.readouterr().out
+        assert "Checking for agent CLIs" in out
+        for name in init_cmd.AGENT_CLIS:
+            # Display name, binary, and PATH status on one row each.
+            assert init_cmd._AGENT_LABELS[name] in out
+            assert name in out
+        assert out.count("found") == len(init_cmd.AGENT_CLIS)
+
+
+def test_print_agent_scan_is_driven_by_agent_clis(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An agent added to AGENT_CLIS shows up with no edit here, and one
+    without a label renders under its slug rather than raising."""
+    monkeypatch.setattr(init_cmd, "AGENT_CLIS", ("claude", "codex", "gemini"))
+
+    _real_print_agent_scan(("gemini",))
+
+    out = capsys.readouterr().out
+    assert "gemini" in out
+    assert out.count("not found") == 2  # claude and codex
+
+
+def test_disable_unchosen_agents_comments_out_the_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The packaged template in, the exact table commented out, parse-back equal."""
+    text = _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+
+    result = init_cmd._disable_unchosen_agents(text, ("claude",))
+    assert result is not None
+    new_text, disabled = result
+
+    assert disabled == ("codex",)
+    assert tomllib.loads(new_text)["agents"].keys() == {"claude"}
+    assert "# [agents.codex]" in new_text
+    assert '# cli = "codex"' in new_text
+    assert "`coga init` did not enable codex" in new_text
+    # Claude's table is untouched.
+    assert "\n[agents.claude]\n" in new_text
+
+
+def test_disable_unchosen_agents_leaves_the_block_below_intact() -> None:
+    """The `# --- Unattended runs ---` block must survive byte-identical.
+
+    This is the blank-line bug and nothing else in the suite would catch it.
+    `_TABLE_START` does not match a commented table header, and the packaged
+    coga.toml ships `[recurring]` and `[launch]` commented out — so the next
+    header it matches after `[agents.codex]` is `[notification]`, some eighty
+    lines below. Prefixing every not-already-comment line in that range would
+    turn each blank separator into a bare `# `, and the parse-back check cannot
+    see it because comments do not affect the parse.
+    """
+    text = _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+    block = text[text.index("# --- Unattended runs ---") : text.index("[notification]")]
+
+    for enabled in (("claude",), ("codex",), ()):
+        result = init_cmd._disable_unchosen_agents(text, enabled)
+        assert result is not None
+        new_text, _ = result
+        assert block in new_text, f"block mangled for enabled={enabled}"
+        # A commented-out blank line is exactly "# " with a trailing space.
+        assert not [line for line in new_text.splitlines() if line == "# "]
+
+
+def test_disable_unchosen_agents_distinguishes_no_op_from_refusal() -> None:
+    """`()` means nothing to comment out; None means the rewrite is unsafe.
+
+    Collapsing the two is what lets partial-write states exist, so the caller
+    depends on telling them apart.
+    """
+    text = _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+
+    unchanged = init_cmd._disable_unchosen_agents(text, ("claude", "codex"))
+    assert unchanged == (text, ())
+
+    assert init_cmd._disable_unchosen_agents("not = [valid", ("claude",)) is None
+    # No [agents] at all is equally unsafe to rewrite.
+    assert init_cmd._disable_unchosen_agents("version = 1\n", ("claude",)) is None
+
+
+def _fake_pick(monkeypatch: pytest.MonkeyPatch, *answers):
+    """Answer `pick` in order; an answer may be an exception to raise."""
+    pending = iter(answers)
+    seen: list[tuple] = []
+
+    def fake(rows, columns, *, checked=(), hint):
+        seen.append((tuple(row.key for row in rows), tuple(checked)))
+        answer = next(pending)
+        if isinstance(answer, BaseException):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(init_cmd, "pick", fake)
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    return seen
+
+
+def test_choose_agents_offers_every_agent_prechecked_from_the_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scan drives the question: all agents offered, found ones checked."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("codex",))
+    seen = _fake_pick(monkeypatch, ["codex"])
+
+    choice = _real_choose_agents("claude")
+
+    assert seen == [(("claude", "codex"), ("codex",))]
+    assert choice == init_cmd.AgentChoice(enabled=("codex",), default="codex")
+
+
+def test_choose_agents_keeps_the_packaged_default_when_it_is_chosen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude", "codex"))
+    _fake_pick(monkeypatch, ["claude", "codex"])
+
+    choice = _real_choose_agents("claude")
+
+    assert choice == init_cmd.AgentChoice(enabled=("claude", "codex"), default=None)
+
+
+def test_choose_agents_returns_none_when_the_human_quits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`q`/Esc changes nothing and says so in one line."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude",))
+    _fake_pick(monkeypatch, None)
+
+    assert _real_choose_agents("claude") is None
+    assert "every agent stays declared" in capsys.readouterr().out
+
+
+def test_choose_agents_lets_ctrl_c_abort_init(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ctrl-C is not `q`: it propagates so init aborts rather than committing
+    the packaged both-agents config this ticket exists to prevent."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude",))
+    _fake_pick(monkeypatch, KeyboardInterrupt())
+
+    with pytest.raises(KeyboardInterrupt):
+        _real_choose_agents("claude")
+
+
+def test_choose_agents_asks_nothing_when_non_interactive(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Scripted init prints no scan and makes no agent edits."""
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: False)
+    monkeypatch.setattr(
+        init_cmd, "pick", lambda *a, **kw: pytest.fail("asked in a script")
+    )
+
+    assert _real_choose_agents("claude") is None
+    assert capsys.readouterr().out == ""
+
+
+def test_choose_agents_confirms_an_empty_selection_and_reopens_on_decline(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Declining the cost re-opens the picker; accepting it is allowed."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude",))
+    seen = _fake_pick(monkeypatch, [], ["claude"])
+    confirms = iter([False])
+    monkeypatch.setattr(
+        "coga.commands.init.typer.confirm", lambda *a, **kw: next(confirms)
+    )
+
+    choice = _real_choose_agents("claude")
+
+    assert len(seen) == 2  # declined, so the picker re-opened
+    assert choice == init_cmd.AgentChoice(enabled=("claude",), default=None)
+
+
+def test_choose_agents_accepts_a_confirmed_empty_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An accepted empty selection names no default — there is no agent to name."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude",))
+    _fake_pick(monkeypatch, [])
+    monkeypatch.setattr("coga.commands.init.typer.confirm", lambda *a, **kw: True)
+
+    assert _real_choose_agents("claude") == init_cmd.AgentChoice(
+        enabled=(), default=None
+    )
+
+
+def test_choose_agents_warns_about_a_single_agent_selection(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One agent means `other-agent` steps cannot resolve a peer."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ("claude",))
+    _fake_pick(monkeypatch, ["claude"])
+
+    _real_choose_agents("claude")
+
+    out = capsys.readouterr().out
+    assert "code/with-self-review" in out
+    assert "unresolvable-step-assignee" in out
+
+
+def test_choose_agents_names_the_binary_of_an_agent_not_on_path(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Enabling an absent agent is allowed, declared, and named — not installed."""
+    monkeypatch.setattr(init_cmd, "_installed_agent_clis", lambda: ())
+    _fake_pick(monkeypatch, ["claude", "codex"])
+    monkeypatch.setattr(
+        init_cmd, "offer_agent_cli", lambda *a: pytest.fail("init offered an install")
+    )
+
+    choice = _real_choose_agents("claude")
+
+    out = capsys.readouterr().out
+    assert choice.enabled == ("claude", "codex")  # declared anyway
+    assert "`claude` is not on PATH" in out
+    assert "`codex` is not on PATH" in out
+
+
+def _choose(
+    monkeypatch: pytest.MonkeyPatch, enabled: tuple[str, ...], default: str | None
+) -> list[str]:
+    """Answer the agent question with a fixed selection; returns the packaged
+    defaults it was asked about."""
+    seen: list[str] = []
+
+    def choose(packaged_default: str) -> init_cmd.AgentChoice:
+        seen.append(packaged_default)
+        return init_cmd.AgentChoice(enabled=enabled, default=default)
+
+    monkeypatch.setattr(init_cmd, "_choose_agents", choose)
+    return seen
+
+
 def test_init_writes_the_chosen_default_agent(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A codex-only selection comments claude out, moves the default, and
+    repoints the delivered onboarding ticket."""
     target = _make_git_repo(tmp_path / "repo")
-    defaults: list[str | None] = []
+    seen = _choose(monkeypatch, ("codex",), "codex")
 
-    def offer(default_agent: str | None) -> str:
-        defaults.append(default_agent)
-        assert not (target / "coga").exists()  # chosen before any write
-        return "codex"
-
-    monkeypatch.setattr(init_cmd, "_offer_agent_cli", offer)
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert defaults == ["claude"]
+    assert seen == ["claude"]
     cfg = load_config(target / "coga")
     assert cfg.default_agent().name == "codex"
-    assert list(cfg.agents)[0] == "claude"  # named, not reordered
+    assert list(cfg.agents) == ["codex"]  # claude is commented out, not deleted
     onboarding = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
     assert onboarding.frontmatter["agent"] == "codex"
     assert "Made `codex` the default agent" in result.output
+    assert "Commented out `claude`" in result.output
     assert "Run `coga build` with Codex" in result.output
-    assert "`coga build --agent claude` with Claude Code" in result.output
+    # One declared agent leaves no second one to advertise.
+    assert "coga build --agent" not in result.output
+    # Commented, not deleted: the keys stay readable in the committed file,
+    # which `coga/configuration` and `coga/sandboxes` both defer to.
+    text = (target / "coga" / "coga.toml").read_text(encoding="utf-8")
+    assert "# [agents.claude]" in text
+    assert '# cli = "claude"' in text
+    assert "`coga init` did not enable claude" in text
+
+
+def test_init_claude_only_leaves_the_packaged_default_alone(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`claude` is already the packaged default, so only codex is commented."""
+    target = _make_git_repo(tmp_path / "repo")
+    _choose(monkeypatch, ("claude",), None)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(target / "coga")
+    assert list(cfg.agents) == ["claude"]
+    assert cfg.default_agent().name == "claude"
+    assert "Commented out `codex`" in result.output
+    assert "the default agent" not in result.output  # nothing moved
+    onboarding = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
+    assert onboarding.frontmatter["agent"] == "claude"
+
+
+def test_init_both_agents_leaves_coga_toml_byte_identical(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Choosing everything is a no-op on the packaged file."""
+    target = _make_git_repo(tmp_path / "repo")
+    _choose(monkeypatch, ("claude", "codex"), None)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    packaged = _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+    assert (target / "coga" / "coga.toml").read_text(encoding="utf-8") == packaged
+    assert "Commented out" not in result.output
+
+
+def test_init_empty_selection_advertises_no_agent_backed_command(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no agents declared, `Config.default_agent()` is None and every
+    agent-backed command fails at the point of use — so init must not coax the
+    user into one. It names the re-enable path instead."""
+    target = _make_git_repo(tmp_path / "repo")
+    _choose(monkeypatch, (), None)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(target / "coga")
+    assert cfg.agents == {}
+    assert cfg.default_agent() is None
+    assert "Uncomment an [agents.*] table" in result.output
+    assert "no `coga launch` works and `coga build` cannot run" in result.output
+    assert "Run `coga build`" not in result.output
+    assert "coga ticket" not in result.output
+
+
+def test_init_leaves_coga_toml_untouched_when_the_rewrite_is_unsafe(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused rewrite writes nothing at all and warns — it does not roll the
+    whole scaffold back, and it does not half-apply the two config edits."""
+    target = _make_git_repo(tmp_path / "repo")
+    _choose(monkeypatch, ("codex",), "codex")
+    monkeypatch.setattr(init_cmd, "_disable_unchosen_agents", lambda *a: None)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    # The scaffold survives; only the agent edit was abandoned.
+    assert (target / "coga").is_dir()
+    packaged = _PACKAGED_COGA_TOML.read_text(encoding="utf-8")
+    assert (target / "coga" / "coga.toml").read_text(encoding="utf-8") == packaged
+    # No default moved, and no delivered ticket was stamped.
+    cfg = load_config(target / "coga")
+    assert cfg.default_agent().name == "claude"
+    onboarding = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
+    assert onboarding.frontmatter["agent"] == "claude"
+    assert "Could not apply your agent selection" in result.output
 
 
 def test_init_bails_before_scaffolding_when_required_dep_missing(
