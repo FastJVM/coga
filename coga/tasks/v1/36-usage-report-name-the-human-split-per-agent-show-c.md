@@ -124,6 +124,7 @@ Previous ref: `usage-report-name-the-human-split-per-agent-show-c` (renamed 2026
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1172
 branch: usage-report-name-human-agent-split
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
