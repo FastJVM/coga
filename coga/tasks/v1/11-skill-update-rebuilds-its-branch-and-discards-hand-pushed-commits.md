@@ -2,7 +2,7 @@
 title: Skill update rebuilds its PR branch every period and silently discards hand-pushed commits
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
@@ -27,7 +27,8 @@ cleanly.
 
 ## Context
 
-Every symbol below was checked on `origin/main` `9203c3b66` (2026-10-08).
+Every symbol below was checked on `origin/main` `9203c3b66` (2026-10-08) and
+re-checked on `f9bebb53b` (2026-11-04).
 
 - `skill_manager.run_skill_update_pr_flow` calls `_commit_skill_updates`
   with `base_branch=cfg.git_control_branch`.
@@ -63,6 +64,79 @@ A plain "remote tip must be an ancestor" guard does not work here. The
 rebuilt branch never descends from the remote tip, so that guard would reject
 every push. Whichever check is chosen has to tell the job's own commits apart
 from foreign ones.
+
+**Telling the job's commits apart.** `_commit_skill_updates` hard-codes the
+commit subject `Update Coga-managed skills`. The `--pr-title` option on
+`coga skill update` and on the `skill-update` recipe
+(`skill_update.recipe_parser`) changes only the PR title, not that subject.
+A subject match is therefore a usable first signal, but a human can type the
+same subject. The design step should decide whether the subject alone is
+enough, or whether to also check the author, a trailer, or that the commit's
+tree matches a rebuild. `recurring_activity` matches the same subject for
+inactivity detection, so do not change it casually.
+
+**Choice left to design.** The owner left carry-forward versus refuse to the
+`design` step. That step chooses one, records why, and turns the done sentence
+above into the acceptance checklist. Things to weigh:
+
+- Carry-forward can conflict with the regenerated skill files.
+- Refuse needs a human to resolve the PR before the weekly job can proceed.
+- A failure must surface through the recurring job's normal failure path.
+  It must not be swallowed.
+
+**Neighbouring work.** `v1/10-preflight-dirty-tracked-files-before-skill-update`
+(in progress) changes the same `run_skill_update_pr_flow` checkout path.
+Reconcile with it. The same remote-tip read may also fit its preflight.
+
+**Tests.** The existing coverage is in `tests/test_skill_manager.py`, which
+covers `open_or_update_pr` and the lease, and `tests/test_skill_update.py`.
+Add cases for three remote states: a hand-pushed commit on the branch, only
+the job's own commits, and no remote branch (the #734 merged-then-deleted case).
+
+**Docs owner.** `coga/skill-management` owns the skill-update behaviour.
+This ticket edits it, so it is cited here, not attached. The package copy is
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md`
+and the legacy twin is `docs/contexts/coga/skill-management/SKILL.md`. Read
+"Rules for managed packs" there, and document the new guard in the same PR.
+`coga/pr-publication` describes the `open-pr` lease. It is not this code
+path, but its "leased push" step is the pattern `open_or_update_pr` mirrors.
+
+**Design questions from ticket review (2026-11-04).** The design step must
+answer these:
+
+- **State on refusal.** `update_skills` writes the new skill files into the
+  working tree before `run_skill_update_pr_flow` runs. A refusal must leave
+  the caller's branch and working tree as they were. Either run the guard
+  before `update_skills`, or restore on refusal. Add a test for it. This
+  interacts with v1/10's dirty-file preflight.
+- **Getting the commits.** `_remote_branch_oid` returns only an OID from
+  `ls-remote`. Listing foreign commits needs a fetch of the remote branch.
+  `_checkout` builds from the local `cfg.git_control_branch`, not
+  `<remote>/<control>`. Decide which one "on the control branch" means, so a
+  stale local `main` does not make commits look foreign.
+- **Identifying the job's own commits.** The job commits as whoever runs the
+  sweep, usually the owner, so the author cannot tell the job from a human.
+  The choice is the subject, a trailer, or both. A trailer only marks commits
+  made after this change, so commits already on the branch still need the
+  subject match. Today `--pr-title` defaults to the same string as the
+  commit subject.
+- **Remote states to handle:**
+  - GitHub "Update branch" merge commits from the control branch. They are
+    foreign by subject but harmless.
+  - A PR merged or closed with its branch left behind. After a squash merge,
+    the hand commit is in main but not as an ancestor, so a naive refuse
+    blocks the job forever. Check for an open PR, or use patch equivalence
+    (`git cherry`).
+  - Weeks with no updates. The flow returns early before any check; done
+    should say that this is fine.
+- **Failure path.** `recurring/skill-update/ticket.py` → `run_recipe` records
+  stderr on the period blackboard and exits non-zero. That is where the named
+  failure should appear.
+- **Extra docs.** Also update the package `recurring/skill-update/ticket.md`,
+  which describes the flow and has a legacy twin in the inventory.
+- **Test churn.** `tests/test_skill_manager.py` matches exact command
+  sequences (`_lease_stub`), so a new fetch or `ls-remote` changes many
+  expected sequences.
 
 Previous ref: `skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits` (renamed 2026-10-27); earlier audit lines retain that ref.
 
