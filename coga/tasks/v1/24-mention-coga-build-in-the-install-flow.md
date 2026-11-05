@@ -209,6 +209,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1171
 branch: coga/v1-24-mention-coga-build-install
 
 ## Plan (implement)
