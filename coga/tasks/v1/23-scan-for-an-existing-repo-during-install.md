@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ee928fe9-a541-4867-93d8-7f77e53c9b27
 ---
 
 ## Description
@@ -237,3 +236,86 @@ branch: coga/v1-23-repo-prerequisite
 - Follow-up candidates (out of scope): `coga/configuration` and
   `coga/first-task` still cite `coga chat --agent codex`, which is correct
   for their own uses.
+
+## Peer review
+
+- Passed with no must-fix findings. Codex reviewed the complete README diff
+  against current main; no content edits or extra review commit were needed.
+  Authorship is independently evidenced by the implement audit record
+  (Claude, session `fe2bc416-57c3-4854-8a7f-779ed35041e6`) and the
+  implementation commit's Claude co-author trailer, not the ticket assignment.
+- The opening states the Git-repo prerequisite and init's refusal; the
+  create-a-repo block is gone. The begin block keeps `coga status`, sends
+  an otherwise empty repo to `coga build`, and sends an existing project
+  to `coga ticket "<title>"`. The Codex examples match those entry points.
+- Accuracy checked against `src/coga/commands/init.py`: both fresh and clone
+  setup call `_require_git_work_tree`, which exits 2 outside Git; the
+  starter-file rule and printed next steps agree with the README. The
+  `build` alias and `ticket` title/`--agent` arguments exist. No path past
+  the Git prerequisite was found in these init paths.
+- `coga/init` and `coga/install` support the wording; the install topic
+  needs no change. No links were added or retargeted, and the cited local
+  init/install topics resolve. README has no packaged twin; the unchanged
+  install topic and its legacy live twin compare byte-for-byte equal.
+- Verification: `git diff --check origin/main...HEAD` passed; the install
+  twin `cmp` passed. Pytest was not run because the diff touches only README
+  prose, with no code or fixture changes. The implementer's earlier test
+  result is historical, not a new check on this rebased revision.
+- Reconciled with `origin/main` at
+  `e5efd0a87168372f2ebed85060d62056f1117d5a`, reviewed and pushed rebased head
+  `27bc895f17e41b800bd34f8175e45677b3371043` with an explicit force-with-lease,
+  and returned to clean, current `main` before writing this handoff.
+  The next step can publish the README-only PR from the recorded branch.
+
+## PR
+
+```yaml
+title: Require an existing Git repo in README onboarding
+author: claude
+author_evidence: >-
+  The implement audit records Claude session fe2bc416-57c3-4854-8a7f-779ed35041e6;
+  the implementation commit also carries a Claude co-author trailer.
+head: 27bc895f17e41b800bd34f8175e45677b3371043
+base: e5efd0a87168372f2ebed85060d62056f1117d5a
+depth: merge
+rationale: >-
+  Small README-only correction with independent content review and passing
+  whitespace and context-copy checks. Source inspection confirms the Git
+  prerequisite and both onboarding routes; runtime tests are inapplicable
+  because no code or fixtures changed.
+implementation: >-
+  States that Coga requires an existing Git repository and init stops outside
+  one, removes the repository-creation walkthrough, routes empty repositories
+  to coga build and existing projects to coga ticket, and aligns the Codex
+  examples with those commands.
+deviations: None; the install topic required no correction.
+limitations: >-
+  No runtime suite or end-to-end installation walkthrough was run in peer review;
+  verification covered the prose diff and its existing source contracts.
+files:
+  README.md: Clarifies the Git prerequisite and selects the first command by repository state.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 27bc895f17e41b800bd34f8175e45677b3371043
+  base: e5efd0a87168372f2ebed85060d62056f1117d5a
+  detail: >-
+    No must-fix findings. Reviewed the full README diff against ticket acceptance
+    criteria, design principles, init/install topics, Git refusal and onboarding
+    source paths, command arguments, unchanged links, and copy-sync requirements.
+checks:
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 27bc895f17e41b800bd34f8175e45677b3371043
+    base: e5efd0a87168372f2ebed85060d62056f1117d5a
+    detail: No whitespace errors in the final README-only diff.
+  - command: cmp docs/contexts/coga/install/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md
+    status: passed
+    head: 27bc895f17e41b800bd34f8175e45677b3371043
+    base: e5efd0a87168372f2ebed85060d62056f1117d5a
+    detail: The unchanged install topic and its legacy live twin are byte-identical.
+  - command: python -m pytest
+    status: not-run
+    detail: Docs peer-review instructions omit pytest for pure prose changes; no code or fixtures changed.
+```
