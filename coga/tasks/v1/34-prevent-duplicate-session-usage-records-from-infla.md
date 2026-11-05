@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -130,6 +130,64 @@ branch: coga/v1-34-prevent-duplicate-session-usage-records-fr-666e38
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 coga-launch: bd0d85c9-93f3-4b3c-aeee-592a75ad2d2d
+
+## Implement handoff (2026-11-04)
+
+Commit `938a2cce9` on the branch above, pushed. No PR yet.
+
+What changed:
+- `usage.load_records` skips a record line whose decoded JSON message text was already accepted. It keeps first-occurrence order and adds a text to `seen` only after `UsageRecord.from_json` succeeds. For v1-marked lines the identity is the *decoded* message; that decoded text is the record JSON. `rollup`, `capture_session`, and `append_record` are unchanged.
+- Docs: `coga/usage` "The read API" (canonical and packaged twin, byte-identical) now states the identity and why `session_id` is not it. `coga-dev/internals/spool-merge` "`merge=union` files" adds the retained-union-duplicates fact.
+- Tests: `tests/test_usage.py` covers the union duplicate, non-adjacent x2/x3/x4 copies with first-occurrence order and differing prefixes, repeated capture of a resumed session, appending an identical record twice, equal tokens / null `session_id` / unknown, text-versus-parsed-value identity (key order and whitespace), schema-1/2 duplicates, and the `coga usage --json` CLI. `tests/test_usage_report.py::test_main_counts_duplicated_log_lines_once` covers the report. Without the fix, 9 of the new tests fail.
+
+Deviations from the Description, caused by main moving since design:
+- **`scripts/human_minutes.py` no longer exists.** `6a1eceea2` "Retire obsolete scripts…" deleted it along with `tests/test_human_minutes_script.py`, so its acceptance item is moot. No other consumer has its own usage-record reader.
+- **The publish root cause already landed** (`dcfa6be41` "Stop publish union merges from re-adding lines already on control"). `_merge_union_bytes` now caps re-added lines, and `log.md` is no longer a union path. The union test therefore reproduces the *legacy* landing with plain `git merge-file --union` (helper `_legacy_union_merge`) rather than `_merge_union_bytes`, which no longer duplicates. The reader dedupe is still needed: this repo's log holds 19 retained duplicate record lines.
+- `coga-dev/internals/activity-capture` was unchanged; "exactly one record" per launch still holds.
+
+Verification (`coga usage --json --by task` in this repo, 2026-11-04):
+- before: 1,532 sessions, 130 unknown, 8,153,908,239 total tokens
+- after: 1,513 sessions, 129 unknown, 8,091,415,423 total tokens (−19 sessions, −1 unknown, −62,492,816 tokens)
+
+No log was rewritten.
+
+## PR
+
+```yaml
+title: Count each logical usage record once when loading the log
+author: claude
+author_evidence: Implement session ran as Claude Code (Opus 5.5, claude-opus-5-5); no agent override.
+head: 938a2cce99ea4aae3a477de04166a75a4a99f428
+base: ac00176c37d57f99698af8073ddd1e727f4fa52f
+depth: skim
+rationale: A small reader-only change (one seen-set in load_records) plus tests and docs. The identity choice is the only judgment call, and the design gate already approved it.
+implementation: usage.load_records keys usage records on their exact decoded JSON message text and skips later byte-identical copies, keeping first-occurrence order; the append-only log is untouched.
+deviations: The human_minutes.py items were dropped because main retired the script (6a1eceea2). The union fixture uses plain git merge-file --union, because _merge_union_bytes now caps re-added lines (dcfa6be41).
+limitations: Identity is exact text, so a reformatted copy of the same record would count twice. No such copy is observed; the writer serializes canonically.
+files:
+  src/coga/usage.py: Dedupe usage records by exact message text in load_records.
+  tests/test_usage.py: Regression tests for union, repeated, distinct, null-session, legacy-schema, and CLI cases.
+  tests/test_usage_report.py: The usage report counts duplicated log lines once.
+  docs/contexts/coga/usage/SKILL.md: Document the record identity in the read API.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Packaged twin of the coga/usage topic.
+  docs/contexts/coga-dev/internals/spool-merge/SKILL.md: Record that retained logs hold union duplicates readers must collapse.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review belongs to the later self-qa/review steps; design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 2863bb0c4489d131ddc0ed31784f4ba22bb997f8
+    base: 6fb76b35d67dbb074a273bf73f10f711310640fe
+    detail: 4464 passed, 10 skipped. Ran on the pre-rebase commit; the rebase only added ac00176c3, which changes the ticket file and one coga/log.md line.
+  - command: .venv/bin/python -m pytest -q tests/test_usage.py tests/test_usage_report.py tests/test_packaging.py
+    status: passed
+    head: 938a2cce99ea4aae3a477de04166a75a4a99f428
+    base: ac00176c37d57f99698af8073ddd1e727f4fa52f
+    detail: 108 passed after the rebase.
+```
 
 ## Design notes (2026-10-08)
 
