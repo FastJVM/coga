@@ -206,3 +206,15 @@ Previous ref: `marketing/fix-installer/mention-coga-build-in-the-install-flow` (
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: coga/v1-24-mention-coga-build-install
+
+## Plan (implement)
+
+- Put the build/ticket split at `coga/install` `## Verify` hand-off (after
+  `coga init`), link `coga/init#fresh-repo` for "empty", keep first-task link.
+- Remove the duplicate "Next:" line under `## Upgrading and removing` so the
+  page has one next-step hand-off; its `coga/init` link moves into Verify.
+- Edit package owner and `docs/contexts/coga/install/SKILL.md` twin together.
