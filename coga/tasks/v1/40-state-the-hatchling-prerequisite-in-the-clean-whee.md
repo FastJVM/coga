@@ -99,6 +99,10 @@ reason for that copy is extended to name the new packaged content, and
 
 Previous ref: `marketing/state-the-hatchling-prerequisite-in-the-clean-whee` (renamed 2026-10-27); earlier audit lines retain that ref.
 
+## Dev
+
+branch: coga/v1-40-hatchling-prerequisite
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
