@@ -22,9 +22,8 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: f7b2e894-71f5-4c02-8f3d-a03b2aae9aa3
 ---
 
 ## Description
