@@ -195,3 +195,7 @@ than copying definitions; follow the
 [adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command writes only this feature's selection and attribute.
+
+Size exception: this topic keeps the fresh-repo and clone init contracts together
+because their shared preconditions, optional tool offers and local setup must be
+read together to distinguish what each invocation writes.
