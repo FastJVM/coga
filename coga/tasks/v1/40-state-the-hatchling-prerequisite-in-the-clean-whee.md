@@ -106,3 +106,28 @@ branch: coga/v1-40-hatchling-prerequisite
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement handoff (2026-11-04)
+
+Branch `coga/v1-40-hatchling-prerequisite`, commit `8e0c3c8a6` (rebased on
+origin/main, pushed). Diff:
+
+- `src/coga/resources/templates/coga/recurring/phone-home/operations.md`:
+  prose before the build block explains `--no-build-isolation` imports the
+  build backend from the running interpreter (the `BackendUnavailable` error),
+  says to build with a `[test]`-extra Python (e.g. `.venv/bin/python` after
+  `python -m pip install -e ".[test]"`), that the builder is not the install
+  target, and that "no editable installation" / "no test/CI environment"
+  govern the proof run, not the builder. Code block now invokes
+  `.venv/bin/python -m pip wheel ...` with a one-line comment. No links added.
+- `tests/test_packaging.py`: phone-home `operations.md` reason extended
+  (`_LINKS_TO_PACKAGE_OWNERS + "; packaged instructions also state the
+  [test]-extra builder prerequisite ..."`). Digest unchanged.
+
+**For the reviewer:** the legacy copy `coga/recurring/phone-home/operations.md`
+was deliberately left untouched and now diverges further from the package
+owner — intended under stage A of `v1/package-definitions`; its SHA-256 still
+matches the pinned digest.
+
+Verification: `.venv/bin/python -m pytest tests/test_packaging.py -q` → 37 passed;
+`sha256sum` of the legacy copy = pinned `80fee364…820a`.
