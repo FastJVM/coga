@@ -10292,3 +10292,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-11-04
 2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-04
 2026-11-05 08:54 v1 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
+2026-11-05 08:55 v1 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
