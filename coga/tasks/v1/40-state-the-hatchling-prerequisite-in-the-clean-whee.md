@@ -1,6 +1,6 @@
 ---
 title: State the hatchling prerequisite in the clean-wheel proof
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -22,6 +22,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:b974f9ad-1033-4ea3-b0bf-c488414ca14c
 ---
 
 ## Description
