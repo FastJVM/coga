@@ -20,6 +20,21 @@ step: 2 (human-owns-and-finishes)
 
 ## Description
 
+**Parked out of v1 — owner decision, 2026-11-04.** Previous ref:
+`v1/44-build-the-launch-plan`. The public launch is no longer a v1 step; v1
+ends with the verified 1.0 release (`v1/43`), and PostHog proof (`v1/41`)
+stays in v1. The idea piece (`v1/42`) was already canceled, so the plan below
+is historical. Revised direction when this comes back:
+
+- A simple launch on HN, Bookface and Lobsters that presents the product as
+  it is, with videos/demos produced in parallel and relaunched over time.
+- Expect low direct adoption: Coga is structuring and its authors are unknown.
+  The main adoption path is proof through a real product built with Coga (the
+  owner's second product), like Rails through Basecamp. That product is not
+  finished yet, so this is not imminent.
+- Rewrite this ticket (or replace it with smaller sibling tickets: launch
+  post, videos/demos, product-proof story) before pulling it out of `_v2/`.
+
 Execute the approved V1 marketing plan: publish one argument for Coga as a
 human instrument, learn from the response, then launch the working product on
 Show HN. The owner approved this simplification on 2026-09-21 and explicitly
