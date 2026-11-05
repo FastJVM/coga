@@ -1,6 +1,6 @@
 ---
 title: Link uninstall from the README
-status: draft
+status: canceled
 owner: zach
 workflow: null
 ---
@@ -124,3 +124,10 @@ Get started names `coga uninstall` and links the owning uninstall topic beside
 upgrade guidance. The link returned HTTP 200 and renders on the candidate's
 GitHub page and PyPI-compatible preview. The branch is not merged and this
 note does not close this ticket; verify the landed result before accepting it.
+
+## Resolution — 2026-11-04
+
+Canceled as already satisfied. `README.md` on main (Get started, after the
+install block) now says to run `coga uninstall` and links the packaged
+uninstall guide (`src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md`),
+which covers upgrade and global-package removal. Landed via `v1/33-review-all-doc`.
