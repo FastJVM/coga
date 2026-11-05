@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -86,3 +85,19 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-11-05T17:10:29+00:00
+Task: `recurring/autoclose-merged`
+
+8 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `add-a-skill-for-the-attended-human-fresh-machine-i` "Add a skill for the attended human fresh-machine install walk": branch `coga/add-a-skill-for-the-attended-human-fresh-machine-i-84cdf7`
+- `document-the-non-executable-script-validate-check` "Document the non-executable-script validate check in the user-facing coga validate topic": branch `document-non-executable-script-check`
+- `publish-sibling-ticket-handoffs-during-targeted-au` "Publish sibling ticket handoffs during targeted authoring": branch `coga/publish-sibling-ticket-handoffs`
+- `v1/03-state-sync-published-unmerged-recurring-templates` "State sync published unmerged recurring templates from a feature branch": branch `coga/v1-03-recurring-publication-boundary`
+- `v1/09-guard-foreign-linked-worktree-branch-cleanup` "Guard foreign linked worktree branch cleanup": branch `fix/guard-foreign-worktree-branch-cleanup`
+- `v1/33-review-all-doc` "review all doc": branch `codex/v1-33-doc-acceptance`
+- `v1/package-definitions/01-runtime-compatibility-for-package-owned-definit` "01 Runtime compatibility for package-owned definitions": branch `coga/package-definitions-01-runtime-compat`
+- `v1/refresh-main-before-megalaunch-builds-its-queue` "Refresh main before megalaunch builds its queue": branch `coga/v1-refresh-main-before-megalaunch`
