@@ -26,9 +26,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 8b1dd412-0a98-47d1-8cb4-7eb2ee754046
 ---
 
 ## Description
@@ -240,8 +239,129 @@ Previous ref: `marketing/fix-installer/make-the-readme-install-section-the-only-
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
 ## Dev
 
 branch: coga/v1-26-retire-install-topic
+
+## Implement handoff (2026-11-04, claude)
+
+Done on branch `coga/v1-26-retire-install-topic` (commit 05d15be), pushed, no PR yet.
+v1/33's PR #1139 had already merged into main, so there was no branch to reconcile.
+
+Changes:
+- Deleted `coga/install` (package copy + `docs/contexts` legacy twin); dropped its
+  `REQUIRED_BOOTSTRAP_CONTEXT_REFS` entry and its `legacy_removal_inventory.txt` row.
+- Repointed links: coga/init, first-task, cli, uninstall, architecture,
+  recurring/scheduling (package + live twins), the 3 clean-install skills (package +
+  `coga/skills` live copies), `docs/README.md`, coga-dev/current-direction, and the
+  `coga.dependencies` docstring. Install links now go to README `#get-started`.
+- README: added "If `coga` isn't found, uv's tool directory isn't on your `PATH`: run
+  `uv tool update-shell`, then open a new terminal." Checked against uv 0.13.6
+  (`uv tool update-shell`: "Ensure that the tool executable directory is on the `PATH`").
+- On main (published): draft `_v2/microkernel/support-commands-boundary` attached
+  `coga/install` in `contexts:`, which would become a `coga validate` error. Swapped it
+  for `coga/init`.
+
+### Orphan-fact triage
+- External CLI checks/offers (only git enforced; package managers, sudo, no-TTY
+  fallback, `op` never offered + note, agent CLI via brew cask/npm, never curl|sh,
+  `coga build` offer) -> **moved to coga/init**. That also fixes init's stale claim
+  that init offers `op` (code: `op` has `offer_install=None`, `init._note_missing_op`).
+- Headless macOS CLT `softwareupdate` route -> **moved to the macos-aws harness skill**
+  (its only consumer), with the same `git --version` check, "full Xcode not
+  required" and "other Git sources are fine". The README covers the basic
+  `xcode-select --install` path.
+- CLT ships an old system python3 -> kept as one line in macos-aws. **Dropped** from
+  user docs: uv supplies its own Python (the README says so).
+- "CLI older than the templates it sweeps" -> **moved to coga/recurring/scheduling**.
+- `--version` (`unknown` without metadata; one CLI, no per-repo version) -> **coga/cli**
+  index row.
+- Upgrade note (bundled batteries need no per-repo refresh) -> **already owned** by
+  coga/context-layout ("an upgrade changes the fallback without touching the repo").
+  The `uv tool upgrade coga` command is in the README and first-task.
+- Audit retention adoption (`coga_edge.trim_log --install`) -> **already owned** by
+  coga/init and coga/edge-code.
+- Native Windows -> **already owned** by coga/launch "Phases and routing" (README
+  links it). The stale `fcntl` explanation was not carried forward (the topic did not
+  contain it anyway).
+- Python <3.11 failure (yanked 0.0.1, `--python 3.11`, older venv), `--require-hashes`
+  workarounds, pipx/venv/pip alternatives, pip/pipx/editable upgrade commands ->
+  **dropped on purpose**. The README offers only uv, which downloads a compatible
+  Python and ignores pip config, so those failures cannot occur on the documented
+  path. coga/uninstall still documents pipx/pip *removal* detection (behavior).
+  The editable dev install stays in AGENTS.md.
+- Why the floor is 3.11 (tomllib): it was not in the topic; nothing to move.
+  `requires-python` in pyproject is the authority.
+- Removal -> already owned by coga/uninstall.
+
+### Follow-ups / notes
+- coga/init was already over the review thresholds before this change (10,851 bytes,
+  ~2.7k tokens, no `Size exception:`). It is now 11,540 bytes / 197 lines. A split or
+  size-exception review is needed; it is not done here (out of scope).
+- Open tickets whose premise changes because `coga/install` is gone (prose mentions
+  only; left unedited as instructed): v1/14 (interactive Windows launch: its contract
+  update should target coga/launch/README), v1/18, v1/20, v1/23, v1/24, v1/43,
+  v1/package-definitions/01, `_v2/install-smoke-ci-matrix`,
+  `_v2/rewrite-the-coga-dev-current-direction-native-wind`,
+  `document-the-non-executable-script-validate-check`,
+  `marketing/fix-installer/add-gemini-...`, `context-audiences/README.md`, and blocked
+  v1/30 (clean-install audit).
+- v1/33's final acceptance should recheck this result.
+
+## PR
+
+```yaml
+title: Retire the coga/install topic; README Get started is the only install path
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
+head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
+base: d7e5825bf26391735930c00dca236f8a27ce0755
+depth: skim
+rationale: Docs-only retirement plus test bookkeeping. Read the orphan-fact triage on the ticket for what was dropped on purpose and the coga/init install-offer rewrite.
+implementation: Deletes coga/install and its legacy twin, moves its unique facts to coga/init, coga/recurring/scheduling, coga/cli and the macos-aws harness skill, repoints every link to README Get started or the owning topic, and adds a README PATH line for uv tool installs.
+deviations: Also corrects coga/init's stale claim that init offers to install op (the code never offers it).
+limitations: The README PATH line was checked against uv 0.13.6 help text, not a fresh machine. coga/init remains over the topic size review thresholds (pre-existing).
+files:
+  README.md: Add the uv tool PATH line (uv tool update-shell).
+  docs/README.md: Drop the installation reference link; README is the only install path.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Repoint init-offer and Windows contracts to coga/init and coga/launch.
+  docs/contexts/coga/architecture/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/cli/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/first-task/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/init/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/install/SKILL.md: Deleted legacy twin of the retired topic.
+  docs/contexts/coga/recurring/scheduling/SKILL.md: Legacy twin mirror of the package edit.
+  docs/contexts/coga/uninstall/SKILL.md: Legacy twin mirror of the package edit.
+  src/coga/dependencies.py: Docstring names coga/init instead of the retired topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md: Topic map install entry points to README Get started.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Init install-first link to README; describe --version in the index row.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Repoint install, upgrade and agent-install links.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Absorb external-CLI check and install-offer details; fix stale op claim.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Deleted the retired topic.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Absorb the CLI-older-than-templates note.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Explain uv-tool install via README instead of the retired topic.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Install link to README Get started.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Inline the headless CLT softwareupdate steps and git check; install link to README.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Install link to README Get started.
+  coga/skills/coga/testing/clean-install/SKILL.md: Legacy live copy mirror.
+  coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Legacy live copy mirror.
+  coga/skills/coga/testing/clean-install/windows-aws/SKILL.md: Legacy live copy mirror.
+  tests/legacy_removal_inventory.txt: Remove the coga/install twin row.
+  tests/test_packaging.py: Remove coga/install from REQUIRED_BOOTSTRAP_CONTEXT_REFS.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review has run yet; the workflow's later review step covers it.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
+    base: d7e5825bf26391735930c00dca236f8a27ce0755
+    detail: 4453 passed, 10 skipped. Ran on the working tree committed as 08d26f92 (pre-rebase). The rebase onto d7e5825 added only this ticket's Dev line (git diff 08d26f92 05d15be4 outside coga/tasks is empty).
+  - command: coga validate --json
+    status: passed
+    head: 05d15be4c2d7cda97b01d29b9fa551e334ffd832
+    base: d7e5825bf26391735930c00dca236f8a27ce0755
+    detail: No new issues vs main except "context 'coga/install' does not exist" for draft _v2/microkernel/support-commands-boundary. That was fixed on main by swapping the attachment to coga/init. The remaining issues are pre-existing ticket warnings and one draft-blackboard error, unchanged from main.
+```

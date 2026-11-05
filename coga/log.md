@@ -10226,3 +10226,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-04 18:06 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-04 18:06 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-04 18:06 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [megalaunch] launched via coga megalaunch
+2026-11-04 18:20 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [agent:claude] advanced to step 2 (peer-review) → codex
