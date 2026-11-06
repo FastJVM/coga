@@ -26,6 +26,7 @@ from coga.skill_manager import (
     SkillResult,
     SkillUpdateSummary,
     apply_include_allowlist,
+    assert_skill_update_branch_unclaimed,
     hash_skill_tree,
     install_github_skill,
     install_local_skill,
@@ -2401,3 +2402,447 @@ def test_url_update_self_heal_reports_changed_so_the_pr_flow_commits(
     assert read_source_metadata(skill_dir)["installed_tree_digest"] == hash_skill_tree(
         skill_dir
     )
+
+
+# --- branch-claim guard (v1/11) ---------------------------------------------
+#
+# `coga skill update --all --pr` rebuilds `coga/skill-update` from control and
+# force-pushes it. The guard refuses, before any skill file is written, when an
+# open PR's branch carries commits the job did not make.
+
+_GUARD_PR_URL = "https://github.com/FastJVM/coga/pull/321"
+_GUARD_BRANCH_REF = "refs/coga/skill-update-guard/branch"
+
+
+def _guard_log(*records: tuple[str, str, str]) -> str:
+    """`git log --format=%H%x00%h%x00%s%x00%B%x1e` output for (sha, subject, body)."""
+    out = []
+    for sha, subject, body in records:
+        message = subject + (f"\n\n{body}" if body else "") + "\n"
+        out.append(f"{sha}\x00{sha[:7]}\x00{subject}\x00{message}\x1e\n")
+    return "".join(out)
+
+
+def _guard_runner(
+    commands: list[list[str]],
+    *,
+    oid: str | None = _REMOTE_OID,
+    pr_url: str = _GUARD_PR_URL,
+    fetched: str = _REMOTE_OID,
+    log: str = "",
+    fail: str | None = None,
+):
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        lease = _lease_stub(command, "origin", "coga/skill-update", oid)
+        if lease is not None:
+            return lease
+        if command[:2] == ["gh", "pr"]:
+            if fail == "gh":
+                return _completed(command, 1, stderr="gh: auth required")
+            return _completed(command, stdout=f"{pr_url}\n" if pr_url else "\n")
+        if command[:2] == ["git", "fetch"]:
+            if fail == "fetch":
+                return _completed(command, 128, stderr="fatal: unreachable")
+            return _completed(command)
+        if command[:3] == ["git", "rev-parse", "--verify"]:
+            return _completed(command, stdout=f"{fetched}\n")
+        if command[:2] == ["git", "log"]:
+            if fail == "log":
+                return _completed(command, 128, stderr="fatal: bad revision")
+            return _completed(command, stdout=log)
+        if command[:3] == ["git", "update-ref", "-d"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    return runner
+
+
+def test_guard_without_remote_branch_returns_none_and_asks_nothing_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    oid = assert_skill_update_branch_unclaimed(
+        cfg, runner=_guard_runner(commands, oid=None)
+    )
+
+    assert oid is None
+    assert not any(c[0] == "gh" for c in commands)
+    assert not any(c[:2] in (["git", "fetch"], ["git", "log"]) for c in commands)
+
+
+def test_guard_without_open_pr_returns_oid_without_fetching(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    oid = assert_skill_update_branch_unclaimed(
+        cfg, runner=_guard_runner(commands, pr_url="")
+    )
+
+    assert oid == _REMOTE_OID
+    # The PR lookup is bound to the push destination, not gh's default repo.
+    gh = [c for c in commands if c[0] == "gh"]
+    assert gh and gh[0][:5] == ["gh", "pr", "list", "--repo", "FastJVM/coga"]
+    assert not any(c[:2] in (["git", "fetch"], ["git", "log"]) for c in commands)
+
+
+def test_guard_passes_open_pr_holding_only_job_commits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    log = _guard_log(("a" * 40, "Update Coga-managed skills", ""))
+
+    oid = assert_skill_update_branch_unclaimed(
+        cfg, runner=_guard_runner(commands, log=log)
+    )
+
+    assert oid == _REMOTE_OID
+    fetch = next(c for c in commands if c[:2] == ["git", "fetch"])
+    # Fetched from the push URL into private refs, never the tracking refs.
+    assert fetch == [
+        "git",
+        "fetch",
+        "--no-tags",
+        _PUSH_URL,
+        "+refs/heads/main:refs/coga/skill-update-guard/control",
+        f"+refs/heads/coga/skill-update:{_GUARD_BRANCH_REF}",
+    ]
+    assert ["git", "update-ref", "-d", _GUARD_BRANCH_REF] in commands
+
+
+def test_guard_refuses_hand_commit_on_open_pr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    monkeypatch.setattr(skill_manager, "_verbatim_patch_ids", lambda *a, **k: {})
+    hand = "b" * 40
+    log = _guard_log(
+        ("a" * 40, "Update Coga-managed skills", ""),
+        (hand, "Fix the tools/example frontmatter", ""),
+    )
+
+    with pytest.raises(SkillManagerError) as excinfo:
+        assert_skill_update_branch_unclaimed(cfg, runner=_guard_runner([], log=log))
+
+    message = str(excinfo.value)
+    assert "coga/skill-update" in message
+    assert _GUARD_PR_URL in message
+    assert f"{hand[:7]} Fix the tools/example frontmatter" in message
+    assert "a" * 7 not in message
+    assert "close the PR" in message
+
+
+def test_guard_treats_job_subject_with_a_body_as_foreign(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    monkeypatch.setattr(skill_manager, "_verbatim_patch_ids", lambda *a, **k: {})
+    log = _guard_log(("c" * 40, "Update Coga-managed skills", "Plus a hand fix."))
+
+    with pytest.raises(SkillManagerError, match="c" * 7):
+        assert_skill_update_branch_unclaimed(cfg, runner=_guard_runner([], log=log))
+
+
+def test_guard_refuses_when_branch_moved_while_checking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    with pytest.raises(SkillManagerError, match="moved while checking"):
+        assert_skill_update_branch_unclaimed(
+            cfg, runner=_guard_runner(commands, fetched="2" * 40)
+        )
+    assert not any(c[:2] == ["git", "log"] for c in commands)
+
+
+@pytest.mark.parametrize("fail", ["gh", "fetch", "log"])
+def test_guard_fails_closed_when_a_lookup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: str
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    with pytest.raises(SkillManagerError):
+        assert_skill_update_branch_unclaimed(cfg, runner=_guard_runner([], fail=fail))
+
+
+@pytest.mark.parametrize(
+    "push_urls",
+    [
+        "/srv/mirror/coga.git\n",
+        "https://gitlab.com/FastJVM/coga.git\n",
+        f"{_PUSH_URL}\nhttps://github.com/someone/fork.git\n",
+    ],
+)
+def test_guard_refuses_push_destinations_it_cannot_bind_to_one_github_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, push_urls: str
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command[:3] == ["git", "remote", "get-url"]:
+            return _completed(command, stdout=push_urls)
+        if command[:2] == ["git", "ls-remote"]:
+            return _completed(command, stdout=f"{_REMOTE_OID}\trefs/heads/x\n")
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="Cannot check"):
+        assert_skill_update_branch_unclaimed(cfg, runner=runner)
+    assert not any(c[0] == "gh" for c in commands)
+
+
+def test_guard_binds_to_non_origin_push_destination_not_fetch_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The fetch URL of `upstream` is another repository; gh's default repo
+    # might be too. Only the push destination may say whether a PR is open.
+    coga_os = _repo(tmp_path, monkeypatch)
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [git]
+        remote = "upstream"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    cfg = load_config(coga_os)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(skill_manager, "_verbatim_patch_ids", lambda *a, **k: {})
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        lease = _lease_stub(command, "upstream", "coga/skill-update", _REMOTE_OID)
+        if lease is not None:
+            return lease
+        if command[:5] == ["gh", "pr", "list", "--repo", "FastJVM/coga"]:
+            return _completed(command, stdout=f"{_GUARD_PR_URL}\n")
+        if command[:2] == ["git", "fetch"]:
+            assert command[3] == _PUSH_URL
+            return _completed(command)
+        if command[:3] == ["git", "rev-parse", "--verify"]:
+            return _completed(command, stdout=f"{_REMOTE_OID}\n")
+        if command[:2] == ["git", "log"]:
+            return _completed(command, stdout=_guard_log(("d" * 40, "Hand fix", "")))
+        if command[:3] == ["git", "update-ref", "-d"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match=_GUARD_PR_URL):
+        assert_skill_update_branch_unclaimed(cfg, runner=runner)
+
+
+def test_open_or_update_pr_leases_against_the_guarded_oid(tmp_path: Path) -> None:
+    guarded = "3" * 40
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == _leased_push("coga/skill-update", oid=guarded):
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout=f"{_GUARD_PR_URL}\n")
+        if command[:3] == ["gh", "pr", "edit"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    url = open_or_update_pr(
+        "Update Coga-managed skills",
+        "summary",
+        branch="coga/skill-update",
+        runner=runner,
+        cwd=tmp_path,
+        expected_remote_oid=guarded,
+    )
+
+    assert url == _GUARD_PR_URL
+    assert _leased_push("coga/skill-update", oid=guarded) in commands
+    assert not any(c[:2] in (["git", "ls-remote"], ["git", "remote"]) for c in commands)
+
+
+# Real git: a bare origin, with `gh` stubbed to report an open PR. The guard
+# must judge the history itself, including merges of control into the branch.
+
+
+def _guard_real_runner(pr_url: str = _GUARD_PR_URL):
+    def runner(args, cwd=None):
+        if args[0] == "gh":
+            return _completed(list(args), stdout=f"{pr_url}\n")
+        return skill_manager.run_subprocess(args, cwd)
+
+    return runner
+
+
+def _guard_git_repo(repo, monkeypatch: pytest.MonkeyPatch):
+    """Point the guard's repo binding at the bare origin and seed a job commit."""
+    monkeypatch.setattr(
+        skill_manager,
+        "_push_destination_github_repo",
+        lambda run, remote, cwd: ("FastJVM/coga", str(repo.origin)),
+    )
+    repo.git("checkout", "-b", "coga/skill-update")
+    _write(repo.coga_os / "skills" / "tools" / "example" / "SKILL.md", "v2\n")
+    repo.git("add", "-A")
+    repo.git("commit", "-m", "Update Coga-managed skills")
+
+
+def _commit_file(repo, relpath: str, text: str, message: str) -> str:
+    _write(repo.root / relpath, text)
+    repo.git("add", "--", relpath)
+    repo.git("commit", "-m", message)
+    return repo.git("rev-parse", "HEAD").strip()
+
+
+def _publish_and_return_to_main(repo) -> None:
+    repo.git("push", "-f", "origin", "coga/skill-update", "main")
+    repo.git("checkout", "main")
+
+
+def test_guard_real_git_refuses_hand_commit(git_repo, monkeypatch) -> None:
+    _guard_git_repo(git_repo, monkeypatch)
+    hand = _commit_file(git_repo, "notes/fix.md", "fix\n", "Hand fix on the PR")
+    _publish_and_return_to_main(git_repo)
+    head = git_repo.git("rev-parse", "HEAD")
+
+    with pytest.raises(SkillManagerError) as excinfo:
+        assert_skill_update_branch_unclaimed(
+            load_config(git_repo.coga_os), runner=_guard_real_runner()
+        )
+
+    assert hand[:7] in str(excinfo.value)
+    assert "Hand fix on the PR" in str(excinfo.value)
+    assert git_repo.git("rev-parse", "HEAD") == head
+    # The private refs are cleaned up; the tracking refs are untouched.
+    assert git_repo.git("for-each-ref", "refs/coga/") == ""
+
+
+def test_guard_real_git_passes_job_commit_plus_merge_of_control(
+    git_repo, monkeypatch
+) -> None:
+    _guard_git_repo(git_repo, monkeypatch)
+    git_repo.git("checkout", "main")
+    _commit_file(git_repo, "src/later.py", "x = 1\n", "Later control work")
+    git_repo.git("checkout", "coga/skill-update")
+    git_repo.git("merge", "--no-ff", "-m", "Merge branch 'main' into coga/skill-update", "main")
+    _publish_and_return_to_main(git_repo)
+
+    oid = assert_skill_update_branch_unclaimed(
+        load_config(git_repo.coga_os), runner=_guard_real_runner()
+    )
+
+    assert oid == git_repo.git("rev-parse", "coga/skill-update").strip()
+
+
+@pytest.mark.parametrize("merge_control_back", [False, True])
+def test_guard_real_git_passes_hand_commit_cherry_picked_onto_control(
+    git_repo, monkeypatch, merge_control_back: bool
+) -> None:
+    # With `merge_control_back`, GitHub's "Update branch" merges control (which
+    # now holds the cherry-pick) into the PR branch; the copy becomes shared
+    # history, and `--cherry-pick` alone would report the original as foreign.
+    _guard_git_repo(git_repo, monkeypatch)
+    hand = _commit_file(git_repo, "notes/fix.md", "fix\n", "Hand fix on the PR")
+    git_repo.git("checkout", "main")
+    _commit_file(git_repo, "src/later.py", "x = 1\n", "Later control work")
+    git_repo.git("cherry-pick", hand)
+    if merge_control_back:
+        git_repo.git("checkout", "coga/skill-update")
+        git_repo.git("merge", "--no-ff", "-m", "Merge main", "main")
+    _publish_and_return_to_main(git_repo)
+
+    oid = assert_skill_update_branch_unclaimed(
+        load_config(git_repo.coga_os), runner=_guard_real_runner()
+    )
+
+    assert oid == git_repo.git("rev-parse", "coga/skill-update").strip()
+
+
+def test_update_cli_refuses_before_update_skills_when_guard_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    skill_file = cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md"
+    _write(skill_file, "---\nname: tools/example\n---\n")
+    before = skill_file.read_bytes()
+
+    def refuse(cfg_arg):
+        raise SkillManagerError("Refusing to rebuild coga/skill-update: hand commits")
+
+    def sentinel(*args, **kwargs):
+        raise AssertionError("update_skills must not run after a guard refusal")
+
+    monkeypatch.setattr("coga.commands.skill.assert_skill_update_branch_unclaimed", refuse)
+    monkeypatch.setattr("coga.commands.skill.update_skills", sentinel)
+    result = CliRunner().invoke(app, ["skill", "update", "--all", "--pr", "--json"])
+
+    assert result.exit_code == 2
+    assert "Refusing to rebuild coga/skill-update" in result.output
+    assert skill_file.read_bytes() == before
+
+
+def test_update_cli_passes_guarded_oid_to_the_pr_flow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    load_config(_repo(tmp_path, monkeypatch))
+    seen: dict[str, object] = {}
+
+    def fake_flow(cfg_arg, summary, **kwargs):
+        seen.update(kwargs)
+        return summary
+
+    monkeypatch.setattr(
+        "coga.commands.skill.assert_skill_update_branch_unclaimed", lambda cfg: "4" * 40
+    )
+    monkeypatch.setattr(
+        "coga.commands.skill.update_skills",
+        lambda *a, **k: SkillUpdateSummary(results=[]),
+    )
+    monkeypatch.setattr("coga.commands.skill.run_skill_update_pr_flow", fake_flow)
+    result = CliRunner().invoke(app, ["skill", "update", "--all", "--pr", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert seen["expected_remote_oid"] == "4" * 40
+
+
+def test_update_entrypoint_refusal_publishes_nothing(git_repo, monkeypatch) -> None:
+    # Through the real `cli.main`: a guard refusal exits 2 without the
+    # end-of-command state sweep committing and pushing unrelated Coga state.
+    from coga.cli import main
+
+    dirty = git_repo.coga_os / "context.md"
+    dirty.write_text("unrelated local edit\n", encoding="utf-8", newline="\n")
+    head = git_repo.git("rev-parse", "HEAD")
+    origin_main = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    def refuse(cfg_arg):
+        raise SkillManagerError("Refusing to rebuild coga/skill-update: hand commits")
+
+    def sentinel(*args, **kwargs):
+        raise AssertionError("update_skills must not run after a guard refusal")
+
+    monkeypatch.setattr("coga.commands.skill.assert_skill_update_branch_unclaimed", refuse)
+    monkeypatch.setattr("coga.commands.skill.update_skills", sentinel)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr("sys.argv", ["coga", "skill", "update", "--all", "--pr"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 2
+    assert git_repo.git("rev-parse", "HEAD") == head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == origin_main
+    assert "?? coga/context.md" in git_repo.git("status", "--porcelain")

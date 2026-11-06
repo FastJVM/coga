@@ -79,6 +79,8 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the
   [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
+  Before writing any skill file it refuses when that branch's open PR carries
+  hand-pushed commits (see Rules for managed packs).
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
 
@@ -130,6 +132,17 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   pack's own bootstrap instructions (for example a skill telling the agent
   to run the pack's setup command); following them installs an unmanaged
   second copy.
+- **Don't push fixes onto the open skill-update PR.** Each `--pr` run
+  rebuilds `coga/skill-update` from the control branch and force-pushes it.
+  Before writing anything, it refuses when the branch's open PR carries a
+  commit that is neither the job's own nor already on the push destination's
+  control branch, by ancestry or by patch. The error lists each commit as
+  `<short-sha> <subject>`, and the weekly job exits 2 until a human resolves
+  it, even in weeks with no upstream change. Merge the PR, move the commits
+  elsewhere, or close the PR to discard them deliberately, then retry. With no
+  open PR, commits are not inspected. The job's own commit is recognized only
+  by its exact message, `Update Coga-managed skills` with an empty body.
+  Hand edits inside a merge commit's conflict resolution are not detected.
 - **Keep Coga-managed skills flat** at `coga/skills/<ref>/`; `gh skill update
   --dir` has a known bug that relocates skills in nested directories.
 

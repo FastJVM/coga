@@ -34,6 +34,15 @@ SOURCE_SCHEMA = "coga.skill-source.v1"
 # launched from the control-plane checkout (on `main` during a Dream run), so
 # updates must never be committed or pushed on the caller's branch.
 SKILL_UPDATE_BRANCH = "coga/skill-update"
+# The exact message of the job's own commit on `SKILL_UPDATE_BRANCH`. The
+# branch-claim guard recognizes job commits by this whole message (subject,
+# empty body): the sweep commits as its operator, so the author cannot tell
+# the job from a human. A human writing exactly this message with no body is
+# an accepted residual risk.
+SKILL_UPDATE_COMMIT_SUBJECT = "Update Coga-managed skills"
+# Private refs the guard fetches the push destination's branches into, so the
+# remote-tracking refs (and any fetch-URL view of them) are left untouched.
+_GUARD_REF_PREFIX = "refs/coga/skill-update-guard"
 GH_SKILL_REQUIRED = (
     "GitHub CLI 2.90.0+ with `gh skill` is required for this command. "
     "Upgrade `gh`, then verify with `gh skill --help`."
@@ -487,6 +496,7 @@ def run_skill_update_pr_flow(
     verification_commands: Sequence[str],
     runner: Runner | None = None,
     branch: str = SKILL_UPDATE_BRANCH,
+    expected_remote_oid: str | None = None,
 ) -> SkillUpdateSummary:
     changed = [result for result in summary.results if result.changed]
     if not changed:
@@ -530,6 +540,7 @@ def run_skill_update_pr_flow(
             remote=cfg.git_remote,
             runner=runner,
             cwd=git_cwd,
+            expected_remote_oid=expected_remote_oid,
         )
     finally:
         # Return the checkout to where the caller left it. A Dream run launches
@@ -617,7 +628,7 @@ def _commit_skill_updates(
     staged = run(["git", "diff", "--cached", "--quiet", "--", str(skills_root(cfg))], cwd)
     if staged.returncode == 0:
         return False
-    committed = run(["git", "commit", "-m", "Update Coga-managed skills"], cwd)
+    committed = run(["git", "commit", "-m", SKILL_UPDATE_COMMIT_SUBJECT], cwd)
     if committed.returncode != 0:
         raise SkillManagerError((committed.stderr or committed.stdout).strip())
     return True
@@ -802,6 +813,205 @@ def _remote_branch_oid(
     return observed[0]
 
 
+def _run_gh(
+    run: Runner, args: Sequence[str], cwd: Path | None
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return run(["gh", *args], cwd)
+    except FileNotFoundError as exc:
+        raise SkillManagerError(
+            "GitHub CLI (`gh`) is required to open a skill-update PR. "
+            "Install it from https://cli.github.com, run `gh auth login`, "
+            "then retry."
+        ) from exc
+
+
+def _open_pr_url(
+    run: Runner, branch: str, cwd: Path | None, *, repo: str | None = None
+) -> str:
+    """URL of the open PR whose head is `branch`, or "" when there is none."""
+    args = ["pr", "list"]
+    if repo is not None:
+        args += ["--repo", repo]
+    args += [
+        "--head",
+        branch,
+        "--state",
+        "open",
+        "--json",
+        "url",
+        "--jq",
+        '.[0].url // ""',
+    ]
+    result = _run_gh(run, args, cwd)
+    if result.returncode != 0:
+        raise SkillManagerError((result.stderr or result.stdout).strip())
+    return result.stdout.strip()
+
+
+def _push_destination_github_repo(
+    run: Runner, remote: str, cwd: Path | None
+) -> tuple[str, str]:
+    """Return (`owner/repo`, push URL) for the repository `git push <remote>` writes.
+
+    The guard must inspect the repository the push would overwrite, not gh's
+    default repository or the remote's fetch URL. Every push URL must name the
+    same github.com repository; anything else is refused rather than guessed.
+    """
+    urls = _remote_push_urls(run, remote, cwd)
+    repos: dict[str, str] = {}
+    for url in urls:
+        value = url.strip()
+        is_url = "://" in value or value.startswith("git@github.com:")
+        repo = github_owner_repo(value) if is_url else None
+        if repo is None:
+            raise SkillManagerError(
+                f"Cannot check {SKILL_UPDATE_BRANCH} for hand-pushed commits: "
+                f"push URL {value!r} of remote {remote!r} is not a github.com "
+                "repository."
+            )
+        repos.setdefault(repo.lower(), repo)
+    if len(repos) != 1:
+        raise SkillManagerError(
+            f"Cannot check {SKILL_UPDATE_BRANCH} for hand-pushed commits: push "
+            f"URLs of remote {remote!r} name different repositories "
+            f"({', '.join(sorted(repos.values())) or 'none'})."
+        )
+    return next(iter(repos.values())), urls[0]
+
+
+def _git_checked(run: Runner, args: Sequence[str], cwd: Path | None) -> str:
+    result = run(["git", *args], cwd)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "no output"
+        raise SkillManagerError(f"`git {' '.join(args)}` failed: {detail}")
+    return result.stdout
+
+
+def _verbatim_patch_ids(
+    root: Path, revisions: list[str], *, no_walk: bool = False
+) -> dict[str, str] | None:
+    # Imported lazily: `branchsweep` imports this module.
+    from coga.branchsweep import _verbatim_patch_ids as patch_ids
+
+    return patch_ids(root, revisions, no_walk=no_walk)
+
+
+def assert_skill_update_branch_unclaimed(
+    cfg: Config,
+    *,
+    runner: Runner | None = None,
+    branch: str = SKILL_UPDATE_BRANCH,
+) -> str | None:
+    """Refuse to rebuild `branch` when its open PR carries hand-pushed commits.
+
+    The `--pr` flow rebuilds `branch` from the control branch every run and
+    force-pushes it, which would silently discard a fix someone pushed onto the
+    open PR. Run before `update_skills` writes anything, this returns the
+    remote tip it verified (for the push lease) or `None` when the branch does
+    not exist. It raises `SkillManagerError` listing the foreign commits.
+
+    Deliberate scope: with no *open* PR (merged, closed, or squash-merged with
+    the branch left behind) commits are not inspected; merging or closing is
+    the human decision. "On control" means the control branch freshly fetched
+    from the push destination, compared by ancestry and by patch. Known limit:
+    merge commits are skipped (`--no-merges`), so a hand edit hidden in a
+    merge's conflict resolution is not detected.
+    """
+    run = runner or run_subprocess
+    cwd = cfg.repo_root.parent
+    remote = cfg.git_remote
+    oid = _remote_branch_oid(run, remote, branch, cwd)
+    if oid is None:
+        return None
+    repo, push_url = _push_destination_github_repo(run, remote, cwd)
+    pr_url = _open_pr_url(run, branch, cwd, repo=repo)
+    if not pr_url:
+        return oid
+
+    control_ref = f"{_GUARD_REF_PREFIX}/control"
+    branch_ref = f"{_GUARD_REF_PREFIX}/branch"
+    control = cfg.git_control_branch
+    try:
+        _git_checked(
+            run,
+            [
+                "fetch",
+                "--no-tags",
+                push_url,
+                f"+refs/heads/{control}:{control_ref}",
+                f"+refs/heads/{branch}:{branch_ref}",
+            ],
+            cwd,
+        )
+        fetched = _git_checked(run, ["rev-parse", "--verify", branch_ref], cwd).strip()
+        if fetched != oid:
+            raise SkillManagerError(
+                f"{branch} moved while checking it for hand-pushed commits "
+                f"(saw {oid[:12]}, then fetched {fetched[:12]}); retry."
+            )
+        log = _git_checked(
+            run,
+            [
+                "log",
+                "--no-merges",
+                "--cherry-pick",
+                "--right-only",
+                "--format=%H%x00%h%x00%s%x00%B%x1e",
+                f"{control_ref}...{oid}",
+            ],
+            cwd,
+        )
+        candidates: list[tuple[str, str, str]] = []
+        for record in log.split("\x1e"):
+            record = record.strip("\n")
+            if not record:
+                continue
+            full, short, subject, message = record.split("\x00", 3)
+            if message.strip() == SKILL_UPDATE_COMMIT_SUBJECT:
+                continue
+            candidates.append((full, short, subject))
+        if candidates:
+            candidates = _drop_patches_on_control(cwd, control_ref, candidates)
+    finally:
+        for ref in (control_ref, branch_ref):
+            run(["git", "update-ref", "-d", ref], cwd)
+    if candidates:
+        listed = "\n".join(f"  {short} {subject}" for _, short, subject in candidates)
+        raise SkillManagerError(
+            f"Refusing to rebuild {branch}: its open PR {pr_url} carries commits "
+            f"the skill-update job did not make:\n{listed}\n"
+            "Merge the PR, move these commits elsewhere, or close the PR to "
+            "discard them deliberately, then retry."
+        )
+    return oid
+
+
+def _drop_patches_on_control(
+    cwd: Path, control_ref: str, candidates: list[tuple[str, str, str]]
+) -> list[tuple[str, str, str]]:
+    """Drop candidates whose patch already landed on control.
+
+    `--cherry-pick` only compares the two sides of the symmetric difference,
+    so once control is merged into the PR branch a cherry-picked copy on
+    control becomes shared history and stops matching. Compare each leftover
+    against control's commits since that candidate's parent instead, by
+    whitespace-sensitive patch ID; an uncomparable patch stays foreign.
+    """
+    commits = [full for full, _, _ in candidates]
+    landed = _verbatim_patch_ids(
+        cwd, [control_ref, *(f"^{commit}^" for commit in commits)]
+    )
+    local = _verbatim_patch_ids(cwd, commits, no_walk=True)
+    if landed is None or local is None:
+        raise SkillManagerError(
+            f"Could not compare {SKILL_UPDATE_BRANCH} commits against "
+            "control by patch; refusing to overwrite them."
+        )
+    landed_ids = set(landed.values())
+    return [c for c in candidates if local.get(c[0]) not in landed_ids]
+
+
 def open_or_update_pr(
     title: str,
     body: str,
@@ -810,18 +1020,20 @@ def open_or_update_pr(
     remote: str = "origin",
     runner: Runner | None = None,
     cwd: Path | None = None,
+    expected_remote_oid: str | None = None,
 ) -> str:
+    """Push `branch` and open or update its draft PR.
+
+    `expected_remote_oid` is the tip a caller already verified (the
+    branch-claim guard). When given, the push leases against it instead of a
+    fresh `ls-remote`, so a hand push landing between that check and this push
+    fails the lease rather than being overwritten. `None` keeps the fresh
+    lookup, with no lease when the branch is absent.
+    """
     run = runner or run_subprocess
 
     def run_gh(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        try:
-            return run(["gh", *args], cwd)
-        except FileNotFoundError as exc:
-            raise SkillManagerError(
-                "GitHub CLI (`gh`) is required to open a skill-update PR. "
-                "Install it from https://cli.github.com, run `gh auth login`, "
-                "then retry."
-            ) from exc
+        return _run_gh(run, args, cwd)
 
     if branch is None:
         branch_result = run(["git", "branch", "--show-current"], cwd)
@@ -838,7 +1050,11 @@ def open_or_update_pr(
         # matching `open_pr.py`. A bare `--force-with-lease` would instead take
         # its expected value from the remote-tracking ref, which the unpruned
         # sweep leaves pointing at a branch GitHub already deleted.
-        remote_oid = _remote_branch_oid(run, remote, branch, cwd)
+        remote_oid = (
+            expected_remote_oid
+            if expected_remote_oid is not None
+            else _remote_branch_oid(run, remote, branch, cwd)
+        )
         lease = (
             [f"--force-with-lease=refs/heads/{branch}:{remote_oid}"]
             if remote_oid
@@ -847,23 +1063,7 @@ def open_or_update_pr(
         pushed = run(["git", "push", *lease, "-u", remote, branch], cwd)
         if pushed.returncode != 0:
             raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
-        existing = run_gh(
-            [
-                "pr",
-                "list",
-                "--head",
-                branch,
-                "--state",
-                "open",
-                "--json",
-                "url",
-                "--jq",
-                ".[0].url // \"\"",
-            ]
-        )
-        if existing.returncode != 0:
-            raise SkillManagerError((existing.stderr or existing.stdout).strip())
-        existing_url = existing.stdout.strip()
+        existing_url = _open_pr_url(run, branch, cwd)
         if existing_url:
             edited = run_gh(
                 [

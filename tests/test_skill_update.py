@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -522,9 +523,17 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
-    # nothing clean to update, so it commits nothing and opens no PR (never
-    # touching git), and the registered recipe reports a clean no-op
-    # on the task blackboard.
+    # nothing clean to update, so it commits nothing and opens no PR, and the
+    # registered recipe reports a clean no-op on the task blackboard. The
+    # pre-update branch guard asks the remote first; a bare origin without
+    # `coga/skill-update` lets it pass without calling `gh`.
+    origin = repo.parent / "origin.git"
+    for args in (
+        ["git", "init", "-q", "--bare", str(origin)],
+        ["git", "init", "-q", "-b", "main", str(repo.parent)],
+        ["git", "-C", str(repo.parent), "remote", "add", "origin", str(origin)],
+    ):
+        subprocess.run(args, check=True, capture_output=True)
     src_path = str(Path(__file__).resolve().parents[1] / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
     pythonpath = (
