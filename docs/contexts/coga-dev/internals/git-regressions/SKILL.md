@@ -86,6 +86,39 @@ raises `TicketChangedError` if the file moved since preparation. Commands
 never prompt while holding the lock: `unblock`'s interactive answer
 prepares again before writing.
 
+The narrow exception to "refuse and stop" is the unrankable status pair.
+Its `TicketConflictError.review` carries a `StatusConflict` (root, rel,
+control revision, base/local/control bytes and blob ids, the formatted
+`fields`, and `provenance`: the newest control commit that set the ticket
+to the base blob, from `_introducing_commit`). `prepare_lifecycle_ticket`
+hands it to `coga.review_conflict.escalate`, the only GitHub caller on this
+path (every `gh` call goes through its `_gh`, which the real-Git tests in
+`tests/test_review_conflict.py` stub). Escalation keys the conflict by
+`sha256(rel, base, local, control)`, looks up `coga/human-review/<slug>-<key>`
+with `gh pr list --state all`, and only when nothing exists builds the head
+in a throwaway `GIT_INDEX_FILE` (provenance tree plus the local blob),
+`commit-tree`s it onto the provenance commit, and pushes `<oid>:refs/heads/…`
+when the remote branch is absent: no local ref, worktree, or index changes,
+and never a force-push. It never raises; an `unavailable` outcome is
+reported beside the ordinary refusal, which still exits 75. It deliberately
+shares nothing with `open_pr` (no `Closes ticket:` footer, no `## Dev`
+linkage). User contract:
+[human review of status conflicts](../../../coga/state-publication/SKILL.md#human-review-of-status-conflicts).
+
+The return path is `prepare_ticket(..., review_base=, on_resolved=)`
+(`_prepare_reviewed`): the merged PR's local blob replaces the shared base,
+so an unchanged copy adopts control's resolution and later local edits
+merge onto it. The merged state comes from the per-worktree
+`.coga/human-review.json` record (`review_conflict.merged_record`), or, when
+the human kept control's blob, from the unchanged conflict key. Provenance
+is deliberately deferred: `PreparedTicket.resolved` runs on the first
+prepared write (or at once when the copies already match) and records
+control's blob under `PUBLISHED_REF`. Recording it at preparation would let
+a command that refuses for another reason leave the unresolved local copy
+over a recorded base, which the next preparation would read as a one-sided
+local edit and republish over the resolution. A successful ordinary
+preparation that adopts or matches control drops the record.
+
 ## Other refusals
 
 - **Symlink** — refused outright; publishing would land the target's bytes,

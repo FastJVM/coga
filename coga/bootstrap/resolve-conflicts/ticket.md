@@ -45,6 +45,13 @@ an absent section means the launch had no positional arguments:
 Only update PRs targeting `main`. Report a PR with another base as
 `conflict` with the base named; do not retarget or rebase it.
 
+Leave human-review PRs to the human. A PR whose title starts with
+`Human Review needed` was opened by a lifecycle command for an ambiguous
+ticket status conflict (`coga/state-publication`, "Human review of status
+conflicts"); its conflict with `main` is the question it asks. Report it as
+`skipped-human-review` before any refresh, worktree, or rebase, even when it
+is the selected PR.
+
 ### Run order
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
@@ -126,6 +133,7 @@ Use these status tokens exactly:
 - `conflict`
 - `skipped-dirty`
 - `verify-failed`
+- `skipped-human-review`
 
 After all PRs, post one compact count roll-up (and the PR numbers needing human
 attention) with the command below. This must be the final action: a successful

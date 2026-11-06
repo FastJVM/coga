@@ -110,6 +110,11 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
      stays unknown;
    - head repository other than this repository (a fork) → `skipped-fork`.
      Resolving a writable fork remote is not attempted.
+   - title starting with `Human Review needed` → `skipped-human-review`,
+     even when it is the selected PR. A lifecycle command opened it for an
+     ambiguous ticket status conflict (`coga/state-publication`, "Human
+     review of status conflicts"); its comments and resolution are the
+     human's.
 
    Before reading comments or changing files, apply the skill's §1 items 3–5
    to this PR: read the configured `[git].remote` (default `origin`), require
@@ -251,6 +256,7 @@ Use these status tokens exactly:
 - `skipped-dirty`
 - `skipped-fork`
 - `skipped-base`
+- `skipped-human-review`
 - `conflicting`
 - `verify-failed`
 - `push-failed`
