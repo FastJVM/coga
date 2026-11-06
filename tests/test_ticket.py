@@ -6,14 +6,10 @@ from textwrap import dedent
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _supported_mock_agent_platform(monkeypatch):
-    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 from typer.testing import CliRunner
 
-from conftest import seed_direct_body_workflow, windows_interactive_skip, write_executable
+from conftest import seed_direct_body_workflow, windows_skip, write_executable
 from coga.blackboard import append_blocker
 from coga.cli import app
 from coga.config import load_config
@@ -438,7 +434,10 @@ def test_ticket_reports_post_exit_validation_errors(
     assert "email/ghost" in combined
 
 
-@windows_interactive_skip
+@windows_skip(
+    "POSIX pty.fork and process-group SIGTERM; the Windows supervisor's "
+    "sentinel teardown is covered in tests/test_repl_supervisor_nt.py"
+)
 @pytest.mark.parametrize(
     ("failure", "child_sweep"),
     [(None, "interrupted"), (None, "completed"),

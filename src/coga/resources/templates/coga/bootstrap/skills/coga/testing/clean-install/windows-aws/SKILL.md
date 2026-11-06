@@ -136,9 +136,8 @@ Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
 and the first `FAIL (exit N)`), and `init-passed.txt` when init succeeds.
 Native commands retain their exit code; cmdlet errors fail with code 1,
 including non-terminating errors. Native stderr alone is not a failure.
-The core port verifies this entire walk. Agent-session checks are separate:
-until `v1/14-interactive-coga-launch-on-native-windows` lands,
-those commands refuse before starting an agent.
+The core port verifies this entire walk. Agent sessions are checked
+separately, in the [attended check](#attended-agent-session-over-ssh) below.
 
 To continue as the walk user, the driver prints an
 `ssh <user>@<ip>` command that takes the password from `password.txt`.
@@ -181,6 +180,24 @@ pytest temp, `C:\Program Files\Git`) need owner approval and must be removed
 and verified before teardown. An expired SSO session blocks `teardown`, so
 refresh it before the session ends.
 
+## Attended agent session over SSH
+
+The agent inherits the console, so an attended `coga launch` works over
+`ssh -tt`, whose sshd side is a ConPTY. An agent can run the check itself
+from a host-side PTY: fork a PTY (Python `pty.fork`) that runs the harness's
+`ssh` with `-tt`, send keystrokes on a timer, and render the screen (for
+example with `pyte`) to assert what the REPL shows. Write a sentinel or run a
+lifecycle command from a second SSH connection when needed.
+
+For Claude Code, install it with its native installer and authenticate on the
+box. Pass an `ANTHROPIC_API_KEY` over stdin into that session's environment
+only, never on a command line or in a file outside the box. Pin a throwaway
+repo's agent to a small model (`launch_args = "--model haiku"` in the box's
+`coga.local.toml`). Use one disposable ticket per lifecycle command under
+test (`coga bump`, `coga mark done`, `coga block`). After each run, check
+that `tasklist` shows no `claude.exe`, `node` or `bash` the session left, and
+that the console modes match their values before the launch.
+
 ## RDP
 
 ```sh
@@ -194,8 +211,9 @@ minutes after first boot; retry if it is not ready). It saves the password in
 `ssh … -N -L 13389:localhost:3389 Administrator@<ip>` (`COGA_WIN_RDP_PORT`
 changes the local port). With the tunnel open, connect an RDP client to
 `localhost:13389`, for example Microsoft Remote Desktop, `xfreerdp` or
-Remmina, as Administrator or as a walk user with its `password.txt`. Use RDP
-for the attended `coga launch` check, which needs a real console.
+Remmina, as Administrator or as a walk user with its `password.txt`. RDP is
+the fallback for the attended `coga launch` check when SSH's console is not
+enough, for example to watch a desktop console host.
 
 Known gap (unverified, no follow-up ticket): the harness's acceptance required
 the owner to confirm that an RDP desktop session opens, and that check was
@@ -203,7 +221,7 @@ never run. The review instance was torn down first, so confirming it needs a
 fresh provision. The `rdp` password retrieval and its SSH tunnel were checked
 (the tunnel answered with an RDP Connection Confirm), but no desktop login was.
 Until someone logs in to a desktop through that tunnel, treat the RDP desktop
-path, and so the attended `coga launch` check above, as unverified.
+path as unverified; the SSH attended check above does not depend on it.
 
 ## Teardown
 

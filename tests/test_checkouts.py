@@ -283,7 +283,6 @@ class _Agent:
 
 @pytest.fixture
 def launch_env(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr("coga.launch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("coga.launch._preflight_push_auth", lambda *a, **k: None)
@@ -743,7 +742,6 @@ def test_abrupt_launch_death_is_recovered_at_the_next_entry(
         import os
         from pathlib import Path
         from coga import cli, launch
-        launch.agent_sessions_supported = lambda: True
         launch._interactive_stdio_has_tty = lambda: True
         launch._preflight_push_auth = lambda *a, **k: None
         launch.shutil.which = lambda name: '/usr/bin/' + name
