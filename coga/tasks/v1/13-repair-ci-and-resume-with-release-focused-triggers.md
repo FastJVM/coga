@@ -417,7 +417,7 @@ checks:
   - cmd: actionlint 1.7.7 (release binary) .github/workflows/release.yml
     result: exit 0, no findings
   - cmd: env -u SLACK_WEBHOOK_URL coga validate --json
-    result: 97 ok, 0 errors, 9 warnings (all unrelated tickets: unfrozen-workflow, stuck-in-progress)
+    result: "97 ok, 0 errors, 9 warnings (all unrelated tickets: unfrozen-workflow, stuck-in-progress)"
 omissions:
   - Python 3.11 suite not run (3.11 is available locally; docs-only change, tier 1 permits reporting the interpreter).
   - No Windows/macOS run: not platform-sensitive. macOS procedure unverified; see v1/44.
@@ -969,3 +969,13 @@ Recorded: 2026-11-06T06:40:32+00:00
       in "<unicode string>", line 27, column 63:
          ...  warnings (all unrelated tickets: unfrozen-workflow, stuck-in-pr ... 
                                              ^
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+Recorded: 2026-11-06T06:40:42+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review must be a mapping.
