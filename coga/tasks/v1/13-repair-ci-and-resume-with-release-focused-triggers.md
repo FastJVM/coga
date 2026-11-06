@@ -32,7 +32,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -337,6 +337,92 @@ Previous ref: `windows-native/repair-ci-and-resume-with-release-focused-triggers
 
 branch: coga/v1-13-repair-ci-and-resume-with-release-focused--a448a8
 
+## Implement handoff — 2026-11-05
+
+Attended session (agent: claude, model claude-opus-5-5). Branch pushed at
+`cc2f64255177c9c92caf4b9b0444631e7f549b6c`, rebased on origin/main
+`a8fe8af9cd79f7873325f6ca45211451d8d770a0`. No PR yet.
+
+What changed:
+- `0e5d03567` **Sync packaged twins with live copies (owner decision this
+  session).** Main's packaging suite was red at start (2 failed / 35 passed):
+  state sync `421ee15c0` published v1/14 (interactive launch on native
+  Windows) live-copy edits without package twins: windows-aws harness,
+  launch-boundary, first-task, install, launch, recurring/scheduling,
+  script-tickets, tickets/authoring, plus a `coga/install#windows-baseline`
+  link in coga-dev/current-direction. Owner chose "sync package to live":
+  the eight package owners now carry the published live text verbatim. **v1/14's
+  PR must reconcile with this** (its package twins already match its live
+  text on main once this merges).
+- `cc2f64255` the ticket's change: `test.yml` deleted; `release.yml` comment
+  path fixed only (actionlint clean); `coga-dev/testing` "CI posture and
+  receipts" replaced by "Verification tiers and receipts" (decision + history,
+  three tiers, platform-sensitive list, 3.11 floor evidence, receipt fields,
+  local-run facts); stale setup-python / hosted-Windows text in "Known suite
+  failures" rewritten; `coga-dev/codebase` map line; AGENTS.md Testing
+  Guidelines pointer; releasing skill (both copies, byte-identical) pre-tag
+  gate requires tier-3 receipts, tags the captured full SHA and checks it via
+  `git ls-remote ... ^{}` before publishing, TestPyPI described as a real
+  upload; macOS harness (both copies) gains "Full suite at a commit", marked
+  **unverified**, follow-up filed: `v1/44-verify-the-macos-full-suite-procedure-on-the-ec`.
+- Windows harness needed no tier text: the policy links its fix loop / long
+  native runs; its `checkout` already syncs with uv-managed Python 3.11, which
+  the policy cites as floor evidence.
+
+Decisions / notes:
+- Remaining grep hits for `CI` are generic adopting-repo text (open-pr
+  "resolve CI failures", bootstrap/import, coga.toml template comments,
+  phone-home `CI` env suppression, notifications, edge-code) — not claims
+  of Coga hosted CI; left unchanged.
+- This change is not platform-sensitive (docs/workflow deletion only), so no
+  tier-2 Windows receipt.
+- Observed during the step (adjacent, owned by
+  `v1/03-state-sync-published-unmerged-recurring-templates`): `coga create`
+  triggered "Sync coga state" `a8fe8af9c`, which published this branch's
+  committed **live** copies (releasing, macos-aws, coga-dev/testing,
+  coga-dev/codebase) to main without their package twins. Main's packaging
+  twin check is therefore red until this PR merges. Same incident class as
+  the one this ticket started from.
+- GitHub rechecked 2026-11-05: workflow 394591152 `disabled_manually`, main
+  unprotected (404), rulesets `[]`. No post-merge obligation found.
+- Follow-up proposed, not filed: one-command pre-release run across all
+  platforms, if tier 3 proves tedious.
+
+## PR
+
+```yaml
+title: Delete hosted test CI; move verification to agent-run tiers
+author: claude (claude-opus-5-5), attended session
+head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+review_depth: standard — docs/policy and one workflow deletion; no Python changes. The twin sync commit carries another ticket's text and needs reviewer attention.
+files:
+  .github/workflows/test.yml: deleted (owner decision 2026-11-05, no hosted CI)
+  .github/workflows/release.yml: stale setup-comment path only
+  AGENTS.md: one-line pointer to the tier policy
+  docs/contexts/coga-dev/testing/SKILL.md: owns no-CI decision, tiers, receipts
+  docs/contexts/coga-dev/codebase/SKILL.md: source-map line wording
+  coga/skills/coga/releasing/SKILL.md + package twin: tier-3 pre-tag gate, tag tested SHA
+  coga/skills/coga/testing/clean-install/macos-aws/SKILL.md + package twin: unverified full-suite procedure
+  src/coga/resources/.../windows-aws, launch-boundary, first-task, install, launch, recurring/scheduling, script-tickets, tickets/authoring: package twins synced to live text published by 421ee15c0 (owner decision)
+checks:
+  - cmd: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    platform: Linux, Pop!_OS 24.04 LTS
+    python: 3.12.12
+    result: 4453 passed, 10 skipped, 0 failed in 557.09s
+  - cmd: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    result: 37 passed (was 2 failed / 35 passed on main 604add79c before the twin sync)
+  - cmd: actionlint 1.7.7 (release binary) .github/workflows/release.yml
+    result: exit 0, no findings
+  - cmd: env -u SLACK_WEBHOOK_URL coga validate --json
+    result: 97 ok, 0 errors, 9 warnings (all unrelated tickets: unfrozen-workflow, stuck-in-progress)
+omissions:
+  - Python 3.11 suite not run (3.11 is available locally; docs-only change, tier 1 permits reporting the interpreter).
+  - No Windows/macOS run: not platform-sensitive. macOS procedure unverified; see v1/44.
+review: none yet; code review has not run (design approval is not code review).
+```
 
 ## Design investigation — 2026-10-27
 
