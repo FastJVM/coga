@@ -236,6 +236,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1177
 branch: coga/v1-filter-by-user-for-megalaunch-85c239
 
 ## Implement handoff (2026-11-05, claude / claude-opus-5-5)
