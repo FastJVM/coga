@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -551,6 +551,53 @@ behaviour, not this ticket's.
 None. The one the design raised — flat rows versus Spec Kit's box-drawing
 tree — was put to Zach in-session on 2026-11-06 and answered: copy the tree.
 The chosen rendering is in `### Proposed shape`.
+
+
+## Evaluator review
+
+Verdict: not ready for implementation. Two scope contradictions need owner
+resolution; the remaining proposed scan shape matches the current code and
+PR #1176's head (`3badabee50b3e046ddf9205db0c1ff13c6454855`).
+
+### Must resolve before implementation
+
+1. **Reconcile the no-question/no-write acceptance criterion with the
+   preserved default-agent flow.** The Description says init "asks no
+   question," and an acceptance criterion says it writes no `default_agent`
+   change. But Proposed shape deliberately calls `_offer_agent_cli` and says
+   its confirmation is untouched. On PR #1176's head,
+   `src/coga/commands/init.py::_offer_agent_cli` asks a Codex-only user whether
+   to change the default, and `_do_init` applies that answer through
+   `_write_default_agent`. An implementer cannot satisfy both instructions.
+   Either narrow the prohibition to the new scan itself and explicitly retain
+   #1176's existing confirmation/write, or expand this ticket to remove that
+   behavior and update the proposed shape and tests accordingly.
+
+2. **Bound the "one record adds an agent" promise to the surfaces it actually
+   covers, or include the remaining registries.** The acceptance criteria and
+   opening rationale currently say adding an agent is one record in one
+   module, and that every other label reader is total. Yet
+   `src/coga/commands/init.py::_AGENT_SKILL_DIRS` remains a separate labeled
+   Claude/Codex registry used by `_link_skills_for_agents`, while
+   `src/coga/resources/templates/coga/coga.toml` separately declares the agent
+   types Coga can drive. A third agent therefore cannot literally be added to
+   Coga with only the proposed `AgentCLI` record. If the intended guarantee is
+   only "one record adds a row to the scan and supplies init's next-step
+   labels," say that consistently; otherwise the proposed shape is missing
+   current consumers.
+
+### Optional recommendations
+
+1. **Repeat the fresh-VM rendering check before handoff.** Zach requested a
+   second interactive fresh-repo init run on the fresh VM. Inspect the leading
+   separation from the `op` note, heading and blank line, tree branches and
+   glyphs, color treatment, binaries, and found/not-found text in the real
+   terminal; retain the result as implementation evidence.
+
+The post-#1176 helper and control-flow claims were verified: that PR is still
+open, it defines `_installed_agent_clis`, the proposed fresh-init call site is
+before `target.mkdir`, and `_setup_initialized_clone` is a separate path. The
+ticket's explicit wait-for-#1176 sequencing handles the open PR.
 
 
 ## Superseded designs
