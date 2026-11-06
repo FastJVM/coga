@@ -129,6 +129,29 @@ def tmp_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
+def _windows_agent_resolution_follows_which(monkeypatch, request):
+    """On Windows, resolve the agent CLI the way the test models it.
+
+    Tests model an installed agent by faking `shutil.which` and usually the
+    supervisor too. The Windows command planner deliberately resolves
+    against the child's PATH and PATHEXT instead, so without this the fake
+    agent is "not found" before the faked supervisor runs. `shutil.which` is
+    looked up per call, so a test's own fake (or its absence) still decides.
+    `test_repl_supervisor_nt.py` owns the real resolver contract and keeps it.
+    """
+    if os.name != "nt" or request.module.__name__.endswith("test_repl_supervisor_nt"):
+        return
+    from coga import repl_supervisor_nt
+
+    real = repl_supervisor_nt.resolve_executable
+
+    def resolve(name, env):  # type: ignore[no-untyped-def]
+        return real(name, env) or shutil.which(name)
+
+    monkeypatch.setattr(repl_supervisor_nt, "resolve_executable", resolve)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_home(tmp_path_factory, monkeypatch):
     # Pointing HOME at a tmp dir is enough — `_try_install_shim` resolves
     # `Path.home() / ".local" / "bin"` against entries on $PATH, and the fake
