@@ -28,7 +28,7 @@ if os.name == "posix":
 import signal
 import sys
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import typer
 from rich.console import Console, Group

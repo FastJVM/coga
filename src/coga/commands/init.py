@@ -55,7 +55,6 @@ from coga.dependencies import (
     NEEDS_ROOT,
     PACKAGE_MANAGERS,
     Dependency,
-    install_hint,
 )
 from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
