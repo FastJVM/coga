@@ -51,12 +51,12 @@ The model is GitHub Spec Kit's `specify check`, which lists every supported
 agent tool with a found / not-found marker. Copy it.
 
 Coga drives Claude Code and Codex today, and the scan lists those two. The
-other half of this ticket is making a third cheap: one record in one place,
-with no edit to the scan. Users commonly arrive with an off-mainstream agent,
-so the registry is the part of this with a future.
+other half of this ticket is making a third cheaper: one record feeds the scan
+and init's next-steps labels, with no edit to either. Users commonly arrive
+with an off-mainstream agent, so the registry is the part of this with a future.
 
-Init offers no install and asks no question. An agent that is not on `PATH` is
-named with its binary so the user can install it or put it on `PATH`.
+The scan offers no install and asks no question. An agent that is not on `PATH`
+is named with its binary so the user can install it or put it on `PATH`.
 
 ### Acceptance criteria
 
@@ -68,19 +68,20 @@ named with its binary so the user can install it or put it on `PATH`.
       absence.
 - [ ] Nothing in the scan is hardcoded. Rows are built from the supported-agent
       registry, so an agent added there renders with no edit to the scan.
-- [ ] Adding an agent is one record in one module. Today the list is split
-      between `dependencies.AGENT_CLIS` and `init._AGENT_LABELS`, which sit in
+- [ ] Adding an agent is one record for the scan and for init's next-steps
+      labels. Today those two readers are split between
+      `dependencies.AGENT_CLIS` and `init._AGENT_LABELS`, which sit in
       different layers.
 - [ ] A test adds an agent to the registry and asserts it renders, so the
       claim above is enforced rather than asserted.
 - [ ] A registry entry with no display name renders under its slug instead of
-      raising, in the scan and in every other reader of the labels.
+      raising, in the scan and in init's next-steps strings.
 - [ ] The scan is a standalone function taking no init state, so a later
       `coga check` can call it without a refactor.
 - [ ] The scan prints on every interactive fresh-repo init, including when
       more than one agent CLI is installed.
-- [ ] Init asks no question about agents and writes no `[agents.*]` or
-      `default_agent` change.
+- [ ] The scan asks no question and writes nothing. The pre-existing
+      default-agent confirm is left exactly as it is.
 - [ ] Non-interactive init prints no scan, and the clone path prints no scan.
 - [ ] The scan is separated from whatever init printed above it by a blank
       line, so it does not read as another line of the `op` note.
@@ -209,6 +210,18 @@ agent and the input string for an unknown one.
   complaint — a Claude-only user commits a config declaring a Codex binary
   they do not have — stays unfixed. It is unfiled; file it if it still matters
   once the scan has run.
+- **Changing what init does with `default_agent`.** `_offer_agent_cli` already
+  asks a user whose only agent CLI is `codex` whether to make it the default,
+  and on a yes uncomments `default_agent = "codex"` in `coga.toml` and rewrites
+  the `agent:` field of `coga/tasks/coga-build.md`. This confirm is on `main`
+  and predates both this ticket and #1176; #1176 only narrows when it fires by
+  deleting the install branch above it. It is untouched here. Zach and Nico
+  will discuss what it should be before anyone changes it (Zach, 2026-11-06).
+- **The other two places a third agent still needs.**
+  `init._AGENT_SKILL_DIRS` carries its own label pairs for
+  `_link_skills_for_agents`, and the packaged `coga.toml` declares each
+  `[agents.*]` table as shipped text. Neither is folded into the registry
+  here, so adding Gemini goes from four edits to three, not to one.
 - **Offering to install an agent CLI.** Out now, not ruled out forever (Nico,
   2026-11-04). Sibling `v1/remove-the-agent-cli-install-offer-from-coga-init`
   (PR #1176) removes the existing offer. Do not reintroduce one, and do not
@@ -593,6 +606,107 @@ PR #1176's head (`3badabee50b3e046ddf9205db0c1ff13c6454855`).
    separation from the `op` note, heading and blank line, tree branches and
    glyphs, color treatment, binaries, and found/not-found text in the real
    terminal; retain the result as implementation evidence.
+
+### Disposition (Zach, 2026-11-06, review-design)
+
+Both must-fix findings were real and are resolved in the ticket text, not by
+changing the planned code. Zach's instruction: this ticket does the scan and
+nothing else, and #1176 removes the install offer and nothing else. The
+`default_agent` behaviour is a separate question he and Nico will discuss
+before anyone changes it.
+
+1. **Resolved by narrowing the criterion.** "Init asks no question about
+   agents and writes no `[agents.*]` or `default_agent` change" now reads "the
+   scan asks no question and writes nothing," and a new Out-of-scope bullet
+   records that the pre-existing confirm is untouched. The behaviour was
+   verified by executing #1176's code rather than reading it: with only
+   `codex` on `PATH`, `_offer_agent_cli('claude')` prompts "Make `codex` the
+   default agent in coga.toml (instead of `claude`)?" with `default=True` and
+   returns `'codex'`; `_write_default_agent` then uncomments line 16 of the
+   shipped template to `default_agent = "codex"`. Three facts the evaluator did
+   not state: that confirm is on `main` at `init.py:616` and predates both
+   tickets, so #1176 neither adds nor edits it; the template ships
+   `default_agent` commented out, so `claude` is the default only by
+   declaration order and nothing is overwritten; and a yes also rewrites
+   `agent: claude` in `coga/tasks/coga-build.md` (not in `bootstrap/`, which
+   the glob does not reach). Deleting the confirm would also leave the
+   empty-repo next-steps line telling a codex-only user to run `coga build`
+   with Claude Code, since `build_agent` falls back to `AGENT_CLIS[0]` —
+   fixable only by redesigning the coax, which is out of scope.
+
+2. **Resolved by narrowing the claim.** "One record in one module" now reads
+   "one record for the scan and for init's next-steps labels," in both the
+   acceptance criteria and the Description. `_AGENT_SKILL_DIRS` and the
+   packaged `coga.toml` are named in Out of scope as the surfaces a third
+   agent still needs. Adding Gemini goes from four edits to three. Absorbing
+   `_AGENT_SKILL_DIRS` into the record was considered and declined as outside
+   the scan.
+
+The optional fresh-VM render check stands as implementation evidence; the
+collision with the `op` note that the first VM run found is already an
+acceptance criterion.
+
+## Parked 2026-11-06 — waiting on #1176
+
+Zach parked this at `review-design` rather than bumping. #1176 has merge
+conflicts; the order is: fix #1176, present it to Nico, he merges if he likes
+it, then restart this ticket. **Not bumped — `review-design` is still the
+current step.** Both evaluator must-fix findings are already resolved in the
+ticket text above, so the next session can bump without redoing review.
+
+### #1176's conflicts, verified
+
+`git merge-tree origin/main pr/1176` against main at `16cb28a57` conflicts in
+four files, and they are docs and tests only:
+
+- `docs/contexts/coga/init/SKILL.md`
+- `src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`
+  (the bundled twin of the above — one topic, two copies)
+- `docs/contexts/coga-dev/internals/agent-spawn/SKILL.md`
+- `tests/test_init.py`
+
+`src/coga/commands/init.py`, `src/coga/dependencies.py` and `src/coga/launch.py`
+all auto-merge clean. GitHub reports `mergeable: UNKNOWN`, so check locally
+rather than trusting the API. Note that `coga/init` is a file *this* ticket
+also edits, so whatever resolution #1176 lands with is the text to edit from.
+
+### What is actually on the branch
+
+`4c7751674` is the only commit, and it is the pre-rescope scan. Treat it as a
+sketch, not a starting point to extend — five acceptance criteria are unmet:
+
+- it renders the flat three-column layout, not the Spec Kit tree Zach chose
+- `_print_agent_scan(installed)` is private and takes an argument, so a later
+  `coga check` cannot call it
+- it is called from inside `_offer_agent_cli`, not from `_do_init`
+- no registry: it still reads `_AGENT_LABELS.get(name, name)`
+- no leading blank line, so the `op`-note collision is still there
+
+It also adds its own tuple-returning `_installed_agent_clis`, which conflicts
+with #1176's list-returning one. Resolve in favour of #1176's.
+
+**Correction to the re-scope note above:** it says the scan "returns early when
+both agents are installed." It does not — the call sits above
+`if len(installed) > 1: return None`, so it prints in that case. The reason to
+move the scan into `_do_init` is the five items listed here, not an early
+return.
+
+### When restarting
+
+Base implement on #1176's head, or on main once #1176 merges. Do not implement
+against current main: `_installed_agent_clis` does not exist there, and the
+`AgentCLI` records would land beside the `Dependency` records #1176 deletes.
+The fresh-VM render check wants the redesigned scan, so it comes after
+implement, not before.
+
+### A referenced sibling went away
+
+`17a3b37a5` on main **canceled**
+`marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive`. *Out of scope*
+still points at it as the owner of the third agent. Nico's reason for the
+registry — users arrive with off-mainstream agents such as Kimi or Grok Build —
+does not depend on Gemini, so the registry's justification stands. Decide
+whether to re-point that bullet at the general case when the ticket restarts.
 
 The post-#1176 helper and control-flow claims were verified: that PR is still
 open, it defines `_installed_agent_clis`, the proposed fresh-init call site is
