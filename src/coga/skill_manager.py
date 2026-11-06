@@ -571,15 +571,23 @@ def assert_skill_update_pr_preflight(
     dirty.update(_git_paths(
         run, cwd, ["git", "diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD"]
     ))
+    # `git diff` names paths relative to the checkout root wherever it runs;
+    # `ls-files` is cwd-relative unless asked for `--full-name`. In the nested
+    # layout (`coga init tools/ops`) `cwd` is not the checkout root, so every
+    # path and the skills prefix are compared in checkout-relative coordinates.
     untracked = _git_paths(
-        run, cwd, ["git", "ls-files", "--others", "--exclude-standard", "-z"]
+        run, cwd, ["git", "ls-files", "--others", "--exclude-standard", "--full-name", "-z"]
     )
     differs = set(
         _git_paths(
             run, cwd, ["git", "diff", "--name-only", "--no-renames", "-z", "HEAD", control]
         )
     )
-    skills_prefix = skills_root(cfg).relative_to(cwd).as_posix() + "/"
+    toplevel = run(["git", "rev-parse", "--show-toplevel"], cwd)
+    if toplevel.returncode != 0:
+        raise SkillManagerError((toplevel.stderr or toplevel.stdout).strip())
+    checkout_root = Path(toplevel.stdout.strip()).resolve()
+    skills_prefix = skills_root(cfg).resolve().relative_to(checkout_root).as_posix() + "/"
 
     def in_skills(path: str) -> bool:
         return path.startswith(skills_prefix)

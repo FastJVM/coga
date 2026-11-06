@@ -2132,6 +2132,42 @@ def test_skill_update_preflight_refuses_skills_tree_that_differs_from_control(
     assert "coga/skills/tools/example/SKILL.md" in message
 
 
+def test_skill_update_preflight_compares_checkout_relative_paths_in_nested_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga init tools/ops` puts the coga root at `tools/ops/coga`, so the
+    preflight runs below the checkout root while `git diff` still reports
+    checkout-relative paths. Skills-tree edits, untracked skills, and skills
+    drift must all be caught in that layout too."""
+    nested = tmp_path / "tools" / "ops"
+    coga_os = _repo(nested, monkeypatch)
+    skill_path = coga_os / "skills" / "tools" / "example" / "SKILL.md"
+    _write(skill_path, "---\nname: tools/example\n---\n")
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "config", "user.email", "test@example.test")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "config", "core.autocrlf", "false")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "init")
+
+    _write(skill_path, "edited\n")
+    _write(coga_os / "skills" / "tools" / "new" / "SKILL.md", "new\n")
+    with pytest.raises(SkillManagerError) as excinfo:
+        assert_skill_update_pr_preflight(load_config(coga_os))
+    message = str(excinfo.value)
+    assert "tools/ops/coga/skills/tools/example/SKILL.md (uncommitted edit in the skills tree)" in message
+    assert "tools/ops/coga/skills/tools/new/SKILL.md (untracked file in the skills tree)" in message
+
+    _git(tmp_path, "switch", "-q", "-c", "feature")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "feature skill")
+    with pytest.raises(SkillManagerError) as excinfo:
+        assert_skill_update_pr_preflight(load_config(coga_os))
+    message = str(excinfo.value)
+    assert "skills tree on this branch differs from `main`" in message
+    assert "tools/ops/coga/skills/tools/example/SKILL.md" in message
+
+
 @pytest.mark.parametrize("edit_state", ["unstaged", "staged-then-restored"])
 def test_update_cli_pr_refuses_before_any_update_is_applied(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit_state: str
