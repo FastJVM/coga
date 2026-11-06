@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 ---
 
@@ -629,3 +629,12 @@ checks:
   base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
   detail: Both tests fail identically in a clean export of unchanged origin/main. This is baseline diagnosis, not verification of the feature head.
 ```
+
+## Open-PR (2026-11-06)
+
+Opened https://github.com/FastJVM/coga/pull/1182 from head `2c05ec3e8` (the
+reviewed head). Obligations: none filed. PR #1168 (v1/10) is still open; the
+preflight ordering is reconciled by whichever branch merges second, as part of
+that merge, so nothing outlives this PR's merge. Baseline test failures
+(launch-boundary twin drift, current-direction/testing anchors) predate this
+diff and are not owed here.
