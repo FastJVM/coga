@@ -348,50 +348,175 @@ owner-run Multiply check are done:
   implementation does not rewrite the approved spec.
 - Owner-run check at the `review` gate is still pending.
 
+## Peer review
+
+2026-11-06, Codex (independent of the Claude implementation). Direct code
+review **completed** with no must-fix code findings at head
+`3ee1653b283e866ae7ecb6241ffc6325be8e9b19`, base
+`7c63c8228637292b1f9b023c0b204793d3bf8707`. Rebased onto fresh control before
+review, preserving the projected ticket byte-for-byte outside the checkout.
+The five-path implementation diff is unchanged from `f9dfb5966`; realignment,
+provenance and log semantics remain unchanged. No interactive UI changed.
+
+Local verification completed (Pop!_OS 24.04 LTS, Python 3.12.12):
+
+- Focused suite: `PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.coga-peer-review-3754f566-focused tests/test_git.py tests/test_packaging.py`
+  -> **340 passed, 2 failed in 73.43s**. Failures are the pre-existing
+  launch-boundary twin mismatch and missing navigation anchors
+  (`coga-dev/current-direction` -> `coga/install#windows-baseline`,
+  `coga-dev/testing` -> macOS harness `#full-suite-at-a-commit`). The failed
+  checks and their relevant files are unchanged from current control.
+- A preliminary run put `--basetemp` inside `.coga/`, incorrectly making
+  non-repository fixtures see this checkout. Its 336 passed / 6 failed
+  result (74.18s) is invalid environment evidence; the external-fixture run
+  above removes all four induced failures.
+- Additional disposable-repo probes passed: a linked worktree whose path
+  contains spaces publishes a ticket, a real union worklist and provenance
+  with a missing temp directory after acquiring the state lock; injected
+  failures in `_build_tree`, `_write_published` and `_merge_union_bytes`
+  leave no scratch entries. Probe command:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-peer-review-3754f566-ya_p5tdj/probe_scratch.py`.
+- Full Linux suite: `PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/.coga-peer-review-3754f566-full`
+  -> **4491 passed, 10 skipped, 2 failed in 626.65s**. The only failures
+  are the same pre-existing packaging checks. `git diff --check`, the sandbox
+  twin comparison and task-scoped validation passed.
+- The final fetch found control `873feb449ab2a39ea2dca085277e9c65f993258b`,
+  which adds only a different ticket's PR-presentation edit. Inspected it and
+  ran `github_preflight.check_branch_contains_control`: passed as
+  non-overlapping task/log drift under `coga/pr-publication`. Kept the
+  reviewed and tested head/base unchanged. Branch `3ee1653b` is pushed with
+  an explicit lease on the prior remote head `f9dfb5966`.
+- Native Windows evidence is missing. `coga-dev/testing` requires it before
+  approval for filesystem/Git changes. Existing harness resources are
+  recorded terminated; provisioning for this non-`windows-native/` ticket
+  needs owner approval per the Windows harness skill. Asked the attending
+  owner whether to run it now, defer it to the final owner review gate, or
+  explicitly waive it. No provisioning or workflow advance yet.
+- Owner-run Multiply Codex and Claude sessions remain the final `review`
+  gate's acceptance check.
+
 ## PR
 
 ```yaml
 title: Keep publication scratch files in the Git dir and pin the sync-divergence chain
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5); see implement handoff.
-head: f9dfb5966409312b293c3e34666861a672bfa36c
-base: 62ad05095998418652d2b3ee70531fc5ef99fe8d
+author_evidence: The implement handoff records Claude Code (claude-opus-5-5), corroborated by the implementation
+  commit trailer. Codex performed this independent peer review and made no implementation changes.
+head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+base: 7c63c8228637292b1f9b023c0b204793d3bf8707
 depth: deep
-rationale: Recorded checks include two pre-existing packaging failures and no code review yet. Small change to shared Git publication infrastructure (scratch file location only) plus regression tests and doc notes; read the description for the state_lock temp-dir limitation.
-implementation: Publication's temporary GIT_INDEX_FILE files and union-merge copies now live in the checkout's own Git dir (git._scratch_dir, per-worktree) instead of $TMPDIR, so a full or missing temp filesystem cannot fail a publish. New tests pin this and the 2026-09-29 offline-sync, hand-commit, sweep chain (state-only realigns; mixed refuses with the rebase remedy).
-deviations: Per the evaluator, the scratch test holds the reentrant state lock before removing the temp dir and uses a retires.md union worklist instead of the log. Added an optional linked-worktree and failure-cleanup test.
-limitations: git.state_lock still keeps its lock file under the temp dir, so an unusable temp dir still fails at the lock. Owner-run Multiply sessions at the review gate are pending.
+rationale: Direct independent code review completed with no must-fix findings. Linux verification has
+  only two confirmed pre-existing packaging failures (4491 passed, 10 skipped); required native Windows
+  evidence and the final owner-run Multiply checks are outstanding. This is not merge approval.
+implementation: 'Temporary publication indexes and union-merge copies now use the checkout''s own Git
+  directory, including its private directory for linked worktrees. These scratch allocations no longer
+  depend on $TMPDIR. Regression tests pin missing-temp behavior, cleanup, and the offline-sync -> hand-commit
+  -> sweep chain: state-only commits realign, while mixed commits are preserved with a rebase remedy.'
+deviations: The evaluator-corrected scratch regression holds the reentrant state lock before overriding
+  the temp directory and uses an actual retires.md union worklist, since the audit log uses its own reconciler.
+  Added per-worktree/failure-cleanup coverage. No realignment, provenance or log-semantics changes.
+limitations: state_lock still uses the temp directory; this change removes only the scratch-file dependency.
+  Known packaging failures are unchanged from main. Native Windows evidence and the owner-run Multiply
+  sessions remain outstanding. No interactive UI changed, so no TTY exercise applies. Python 3.11 floor
+  and native Windows behavior are not established by the Linux Python 3.12 run.
 files:
-  src/coga/git.py: Add _scratch_dir and route _build_tree, _write_published and _merge_union_bytes scratch files into the Git dir.
-  tests/test_git.py: Scratch-location, per-worktree/failure-cleanup, and incident-chain regression tests; pass scratch to the existing direct union-merge test.
-  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the scratch-location and sandboxed-publication decisions.
+  src/coga/git.py: Add _scratch_dir and route _build_tree, _write_published and _merge_union_bytes scratch
+    files into the Git dir.
+  tests/test_git.py: Scratch-location, per-worktree/failure-cleanup, and incident-chain regression tests;
+    pass scratch to the existing direct union-merge test.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the scratch-location and sandboxed-publication
+    decisions.
   docs/contexts/coga/sandboxes/SKILL.md: Live twin of the packaged sandboxes topic (byte-identical).
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Name the log symptoms of a missing Codex grant and the machine-level requirements.toml alternative.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Name the log symptoms
+    of a missing Codex grant and the machine-level requirements.toml alternative.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Code review is the workflow's later step; not yet run.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: Direct review completed on the rebased five-file diff, with no must-fix code findings. Checked
+    scratch placement, both union callers, cleanup, incident-chain assertions and documentation. This
+    code-review receipt does not waive the failed or outstanding checks.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_git.py tests/test_packaging.py
-    status: failed
-    head: f9dfb5966409312b293c3e34666861a672bfa36c
-    base: 62ad05095998418652d2b3ee70531fc5ef99fe8d
-    detail: 340 passed, 2 failed. Both failures (test_live_and_packaged_copies_stay_identical on launch-boundary; test_context_navigation_has_no_broken_links in current-direction) fail identically on base a581c9dd5 without this change.
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: failed
-    head: 90e98c880e7ff1622447167ee4debb54a610ea62
-    base: a581c9dd5905ea109e54b53c7259fae6add409df
-    detail: 4491 passed, 10 skipped, 2 failed (the same two pre-existing packaging failures). Ran on the pre-rebase commit; its non-coga tree is identical to f9dfb5966409, since the rebase only took a ticket-state commit.
-  - command: .venv/bin/python -m pytest -q tests/test_git.py -k scratch (with src/coga/git.py stashed)
-    status: passed
-    head: 90e98c880e7ff1622447167ee4debb54a610ea62
-    base: a581c9dd5905ea109e54b53c7259fae6add409df
-    detail: Red check. Both new scratch tests fail on the unchanged code (FileNotFoundError in the missing temp dir; no _scratch_dir).
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    --basetemp=/home/n/Code/.coga-peer-review-3754f566-focused tests/test_git.py tests/test_packaging.py
+  status: failed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: 'Pop!_OS 24.04 LTS, Python 3.12.12: 340 passed, 2 failed in 73.43s. Both are pre-existing packaging
+    failures: launch-boundary twin drift and missing navigation anchors. Their affected files and test
+    definitions are byte-identical to current control.'
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    --basetemp=/home/n/Code/.coga-peer-review-3754f566-full
+  status: failed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: 'Pop!_OS 24.04 LTS, Python 3.12.12: 4491 passed, 10 skipped, 2 failed in 626.65s. Both failures
+    are the same pre-existing packaging checks seen in the focused run; no additional failure. Tests ran
+    on the exact reviewed head/base.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-peer-review-3754f566-ya_p5tdj/probe_scratch.py
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: 'Four disposable-repo probes passed: real publication from a linked worktree with spaces and
+    a missing temp directory, plus cleanup after injected failures in all three scratch users. Ticket,
+    union worklist and provenance landed; no scratch remained. The state lock was acquired before removing
+    the temp directory.'
+- command: git diff --check
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: No whitespace errors.
+- command: cmp docs/contexts/coga/sandboxes/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: Changed sandbox topic twins are byte-identical.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/06-fix-coga-git-sync-failures-that-leave-main-diverge
+    --json
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: One valid task, no issues.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -c 'from coga.github_preflight import check_branch_contains_control;
+    result = check_branch_contains_control("origin", "main", cwd="/home/n/Code/coga", coga_root="/home/n/Code/coga/coga");
+    print(result); assert result.ok'
+  status: passed
+  head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
+  base: 7c63c8228637292b1f9b023c0b204793d3bf8707
+  detail: Fresh control 873feb449ab2a39ea2dca085277e9c65f993258b adds only a different ticket's blackboard.
+    Freshness gate passed with state-only-drift and no overlaps; reviewed source and receipts remain unchanged.
+- command: Native Windows full suite through scripts/clean-install/aws-windows.sh
+  status: not-run
+  detail: Required before merge by coga-dev/testing for this filesystem/Git change. Owner decision pending
+    on provisioning, deferral to owner review, or an explicit waiver. All recorded harness runs are torn
+    down.
+- command: Owner-run Multiply Codex and Claude launched-session checks
+  status: not-run
+  detail: Reserved by the ticket for the final owner review gate. Requires log excerpts and effective
+    sandbox/network settings; not performed by this peer-review session.
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_git.py tests/test_packaging.py
+  status: failed
+  head: f9dfb5966409312b293c3e34666861a672bfa36c
+  base: 62ad05095998418652d2b3ee70531fc5ef99fe8d
+  detail: 340 passed, 2 failed. Both failures (test_live_and_packaged_copies_stay_identical on launch-boundary;
+    test_context_navigation_has_no_broken_links in current-direction) fail identically on base a581c9dd5
+    without this change.
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: failed
+  head: 90e98c880e7ff1622447167ee4debb54a610ea62
+  base: a581c9dd5905ea109e54b53c7259fae6add409df
+  detail: 4491 passed, 10 skipped, 2 failed (the same two pre-existing packaging failures). Ran on the
+    pre-rebase commit; its non-coga tree is identical to f9dfb5966409, since the rebase only took a ticket-state
+    commit.
+- command: .venv/bin/python -m pytest -q tests/test_git.py -k scratch (with src/coga/git.py stashed)
+  status: passed
+  head: 90e98c880e7ff1622447167ee4debb54a610ea62
+  base: a581c9dd5905ea109e54b53c7259fae6add409df
+  detail: Red check. Both new scratch tests fail on the unchanged code (FileNotFoundError in the missing
+    temp dir; no _scratch_dir).
 ```
-
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Design handoff (2026-11-04, claude)
 
