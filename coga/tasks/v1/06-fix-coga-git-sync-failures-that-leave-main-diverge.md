@@ -296,6 +296,11 @@ repo-wide sweep; other slugs are ticket-scoped syncs.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-06-fix-coga-git-sync-failures-that-leave-main-1212e6
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Design handoff (2026-11-04, claude)
