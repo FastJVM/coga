@@ -335,6 +335,7 @@ Previous ref: `windows-native/repair-ci-and-resume-with-release-focused-triggers
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1179
 branch: coga/v1-13-repair-ci-and-resume-with-release-focused--a448a8
 
 ## Implement handoff — 2026-11-05
@@ -396,7 +397,7 @@ author: claude
 author_evidence: Implement step ran as an attended Claude session (claude-opus-5-5); see Implement handoff — 2026-11-05.
 head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
 base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
-depth: standard
+depth: deep
 rationale: Docs/policy changes plus one workflow deletion; no Python changes. The twin-sync commit 0e5d03567 carries v1/14's published live text into package owners (owner decision) and needs reviewer attention.
 implementation: Deletes .github/workflows/test.yml (owner decision 2026-11-05, no hosted CI); fixes only release.yml's stale setup comment; adds an AGENTS.md pointer to the tiered verification policy; makes the releasing skill's pre-tag gate require tier-3 receipts and tag the tested full SHA; adds an unverified macOS full-suite procedure; syncs eight package twins to live text published by 421ee15c0. The coga-dev/testing and coga-dev/codebase rewrites and the live releasing/macos-aws copies reached main early through state sync a8fe8af9c, so they are already in the base and absent from this diff.
 deviations: Twin sync of v1/14's live text (commit 0e5d03567) is outside this ticket's scope; the owner chose it in the implement session because main's packaging suite was red.
