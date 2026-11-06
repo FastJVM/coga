@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -123,11 +123,11 @@ ordinary ticket.
 
 branch: coga/v1-human-review-pr-for-ambiguous-lifecycle-statu-a4ef81
 
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
 ## Decisions — 2026-11-06 (owner, attended)
 
+- **Windows waiver for this ticket:** owner explicitly selected “Waive Windows
+  verification for this ticket” during peer review on 2026-11-06. No Windows
+  instance was provisioned. This is a ticket-specific verification exception.
 - **Stacked on PR #1180** (owner choice): its commit `5de611c6b` is
   cherry-picked onto this branch because preparation/`TicketConflictError`
   are not on main yet. This PR must merge after #1180; rebase drops the copy.
@@ -143,88 +143,244 @@ The blackboard is a notepad to be written to often as the human and agent works 
   control churn while a PR is open opens another PR (4-part key per ticket);
   PR body versions truncated to fit GitHub's body limit.
 
-## Implementation handoff — 2026-11-06 (claude, attended)
+## Implementation origin
 
-Branch pushed at `9e542eadad4e63fe1acdc2321e250275e096884f`: two commits on
-origin/main `25091f7e7` — `d86a864c9` (PR #1180's commit, cherry-picked, see
-Decisions) and `9e542eada` (this ticket). No PR yet. **The open-pr step must
-make this PR depend on #1180** (merge after it, or rebase once #1180 lands so
-its copy drops out).
+Claude implemented this ticket in `9e542eadad4e63fe1acdc2321e250275e096884f`,
+stacked on the owner-approved cherry-pick of PR #1180. The original handoff
+and check receipts remain in that ticket's control history. The peer-review
+record and `## PR` below supersede the initial verification and presentation.
 
-- `src/coga/git.py`: `StatusConflict` attached as `TicketConflictError.review`
-  for unrankable status pairs (`status_conflict_fields`, `_introducing_commit`
-  for the provenance root). `prepare_ticket(..., review_base=, on_resolved=)`
-  → `_prepare_reviewed` (merged-PR return path). `PreparedTicket.resolved`
-  runs on the first prepared write and records control's blob in
-  `PUBLISHED_REF` (deferred on purpose; see git-regressions).
-- `src/coga/review_conflict.py` (new): key/branch naming, `_gh` boundary,
-  `escalate` (lookup → isolated-index commit → push only if remote branch
-  absent → `gh pr create`), `.coga/human-review.json` records,
-  `merged_record`, `report`.
-- `src/coga/commands/common.py`: `prepare_lifecycle_ticket` checks merged
-  records first (only when the record file exists, so no extra Git calls
-  otherwise), escalates on a status conflict, adopts a merged same-key PR,
-  and always exits 75 on refusal.
-- Bootstrap `resolve-conflicts` / `address-pr-comments` (live + packaged):
-  new `skipped-human-review` status for `Human Review needed` PRs.
-- Docs: `coga/state-publication` "Human review of status conflicts" (live +
-  packaged), `coga-dev/internals/git-regressions`, `coga-dev/codebase`.
-- Tests: `tests/test_review_conflict.py` (13): each ambiguous pair end to end
-  through `coga bump`, reuse of an open PR without pushing over a human edit,
-  existing branch with no PR reused not force-pushed, closed unmerged, gh
-  unavailable, push refused, merged adopt + provenance, local edits after the
-  PR merged onto its resolution, `-s ours` merge recognized without a record,
-  non-status conflict never calls gh. `tests/conftest.py` stub accepts kwargs.
-- Fixed during verification: the record lookup initially ran `git toplevel`
-  before every preparation and broke 5 `test_launch` tests that fake
-  `subprocess.run`; now gated on the record file existing.
-- Pre-existing failures (not caused here, same as #1180 recorded):
-  `test_packaging.py::test_live_and_packaged_copies_stay_identical`
-  (launch-boundary drift) and `::test_context_navigation_has_no_broken_links`
-  (current-direction anchors).
-- Not done: no independent code review; peer-review step owns it.
+## Peer review
+
+**Completed — direct Codex review**, covering final head
+`7db1cdf0349d71f6d81a04249fa6610c308529fb` against diff base
+`1ab16cd484844e97ca621dd43ad1891c51248ae4`. Codex independently reviewed
+Claude's implementation, applied the findings, and self-reviewed the final
+corrections. No second independent reviewer of those corrections is claimed.
+No unresolved code findings. Recommendation: **deep** for lifecycle/GitHub
+publication and provenance behavior, the stacked prerequisite, mixed review
+independence, and the disclosed verification limits.
+
+Fixes in `c634bad38`:
+
+- Shared non-exiting review preparation covers batch/post-prompt unblock
+  and autoclose.
+- Owner recovery retires a merged review only after confirmed publication,
+  keeps its record on rollback, and preserves the newer published provenance.
+- Unavailable GitHub execution and review preparation keep the exit-75 refusal.
+- GitHub explicitly selects the configured repository; mismatched/multiple
+  push destinations refuse. URL parsing is shared with PR-assist verification.
+- The machine-local review record never publishes, even without an ignore rule.
+- Both maintenance tickets fetch titles before skipping human-review PRs.
+- Lifecycle progress cannot cross a replaced frozen workflow (the prerequisite
+  could otherwise merge step 4 into a two-step workflow).
+
+Final documentation fix in `7db1cdf03`: point three lifecycle-contract links
+at their package owners. The full-run trace exposed these new broken links
+inside a test that already failed on base; they are now fixed.
+
+Validation: the full Linux suite at `c634bad38` had **4556 passed, 10 skipped,
+2 failed in 974.25s**. Its navigation failure included three new links in
+addition to the two baseline anchor errors. After the link fix, the final-head
+focused run had **46 passed, 2 failed in 18.04s**; the remaining failures are
+exactly the baseline launch-boundary twin drift and two broken anchors.
+Both failing tests were reproduced on exact base `1ab16cd48` (2 failed in
+1.03s), and direct comparison of navigation diagnostics confirms the final
+branch matches that baseline. Source and tests are byte-identical between
+`c634bad38` and final head; the full suite was not repeated after the three
+link-only corrections. Scoped ticket validation: 1 task, 0 issues; seeded
+fixture: 5 tasks, 0 issues. Linux Pop!_OS 24.04 LTS, Python 3.12.12; native
+Windows waived by the owner for this ticket, and no Python 3.11 run. Exact
+commands and revision scopes are in `## PR`.
+
+Human-visible check: drove the actual refusal in real 80x24 and 120x30 PTYs;
+the conflict, remedy, and PR URL remained readable. Inspected the generated
+PR body's field list and fenced base/local/control versions. Tests used real
+Git repositories with the GitHub boundary stubbed; no live test PR was created.
+
+Rebased before final review/tests and pushed with an explicit lease. The
+projected ticket was backed up/restored byte-for-byte and never committed.
+Final fetch saw `origin/main` at
+`28982d66c6eee700713e18a890afac968260dc97`: only `coga/log.md` advanced since
+the reviewed base, with no feature overlap. This is the generated-state drift
+allowed by `coga/pr-publication`; tested head/base receipts remain exact.
+
+**Next step:** mechanically open the PR using the preparation below. PR
+#1180 is still open/unmerged; this branch includes its cherry-picked commit
+`22a1a4985ee685be87595b978c8c1a54bd4e9f66` and must merge after #1180. Do not
+claim an independent final-patch review or a green full suite. Bump only once.
 
 ## PR
 
 ```yaml
-title: Open a human-review PR for ambiguous lifecycle status conflicts
-author: claude
-author_evidence: Attended implement session run by Claude (claude-opus-5-5); this handoff.
-head: 9e542eadad4e63fe1acdc2321e250275e096884f
-base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
+title: Open human-review PRs for ambiguous lifecycle status conflicts
+author: claude/codex
+author_evidence: Claude implemented the prerequisite and this ticket (implement handoff); Codex applied
+  peer-review corrections in c634bad38 and documentation fixes in 7db1cdf03 after owner approval.
+head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
 depth: deep
-rationale: Adds GitHub writes and a pushed branch to every lifecycle command's refusal path, a new preparation mode that adopts a human resolution, and deferred provenance recording; stacked on unreviewed PR #1180.
-implementation: On an unrankable status conflict, lifecycle commands still exit 75 unapplied and additionally find or open a `Human Review needed` PR keyed by path plus base/local/control blob ids, whose head is the local ticket committed onto the commit that introduced the shared base (isolated index, push only when the remote branch is absent). Merged PRs are adopted on the next preparation (later local edits merge onto the resolution), closed ones refuse without a new PR, open ones are reused; unavailable GitHub/Git reports that no PR was created.
-deviations: Stacked on PR #1180 (owner choice) because the preparation API it extends is not on main; the branch carries #1180's commit d86a864c9.
-limitations: The merged return path relies on the refusing checkout's local .coga/human-review.json record (except when the merge kept control's blob). A changed control or local copy is a new conflict key and opens another PR. PR body ticket versions are truncated past 18,000 characters each.
+rationale: 'Changes lifecycle reconciliation, external GitHub writes, and provenance/rollback behavior.
+  Includes the still-open #1180 prerequisite, and final corrections were self-reviewed. Two baseline packaging
+  failures remain; the full suite predates a three-link documentation fix, and Windows verification was
+  explicitly waived by the owner.'
+implementation: Unrankable status conflicts leave the operation unapplied and find or create a Human Review
+  needed PR on configured control. The head preserves the local ticket above proven provenance using an
+  isolated index; open PRs are reused without overwriting human edits, closed PRs remain refused, and
+  merged PRs reconcile later local edits onto control. Shared handling covers batch/post-prompt unblock
+  and autoclose. Owner recovery retires records only after confirmed publication, private records never
+  publish, and progress across replaced workflows refuses.
+deviations: Depends on FastJVM/coga#1180 and must merge after it; the branch carries its cherry-picked
+  implementation (22a1a4985ee685be87595b978c8c1a54bd4e9f66). Peer review also fixed the prerequisite workflow-replacement
+  merge defect. Owner explicitly waived native Windows verification for this ticket on 2026-11-06.
+limitations: Merged resolution normally relies on this checkout’s .coga/human-review.json record; unchanged-control
+  resolutions can be recognized by the conflict key. Control/local blob changes generate another key.
+  PR body versions truncate past 18,000 characters. The configured remote must have one matching fetch/push
+  repository. Real Git fixtures exercise local bare remotes with the GitHub boundary stubbed; no live
+  GitHub test PR was created. Native Windows and Python 3.11 were not run (Linux used Python 3.12.12).
+  The inherited Windows-description divergence between the live/package launch topics also exists on the
+  base; this branch adds identical teardown text to both. The full suite ran at c634bad38; final head
+  differs only by three documentation links, checked with focused tests and verified source/test equivalence.
+  Two baseline packaging failures remain.
 files:
-  src/coga/git.py: StatusConflict payload, review_base preparation mode, deferred provenance hook (plus #1180's commit).
-  src/coga/review_conflict.py: Escalation, review branch construction, gh boundary, return-path records.
-  src/coga/commands/common.py: Escalate on status conflicts and adopt merged review PRs before lifecycle preparation.
-  tests/test_review_conflict.py: Real-git coverage of every escalation and return-path outcome with only gh faked.
-  tests/conftest.py: Preparation stub accepts the new keyword arguments.
-  coga/bootstrap/resolve-conflicts/ticket.md: Skip Human Review needed PRs (live twin).
-  coga/bootstrap/address-pr-comments/ticket.md: Skip Human Review needed PRs (live twin).
-  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: Skip Human Review needed PRs.
-  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: Skip Human Review needed PRs.
-  docs/contexts/coga/state-publication/SKILL.md: Own the human-review contract (live twin).
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Own the human-review contract.
-  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Internals of escalation and the deferred provenance record.
-  docs/contexts/coga-dev/codebase/SKILL.md: Source-map entry for review_conflict.py.
+  coga/bootstrap/address-pr-comments/ticket.md: 'Live counterpart: fetch titles and leave human-review
+    PRs for the human.'
+  coga/bootstrap/resolve-conflicts/ticket.md: 'Live counterpart: fetch titles and skip human-review PRs
+    before reconciliation.'
+  docs/contexts/coga-dev/codebase/SKILL.md: Source map for shared lifecycle review handling.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: 'Prerequisite: session-teardown ticket and log
+    publication boundary.'
+  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: 'Prerequisite: prepared lifecycle writes
+    and session teardown publication.'
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: 'Prerequisite: per-ticket preparation exception
+    to whole-checkout refresh; link to the owning package contract.'
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Preparation/refusal internals, escalation,
+    configured remote, deferred resolution and owner rollback. Link to the owning package contracts.
+  docs/contexts/coga/launch/SKILL.md: 'Live counterpart: prerequisite session-teardown publication.'
+  docs/contexts/coga/lifecycle/SKILL.md: 'Live counterpart: eligibility and bump checks use the prepared
+    ticket.'
+  docs/contexts/coga/state-publication/SKILL.md: Live counterpart of the preparation and human-review
+    publication contract.
+  docs/contexts/coga/sync/SKILL.md: 'Live counterpart: overview links to prepared lifecycle transactions.'
+  src/coga/autoclose.py: Prepare from fresh control, recheck implementation PR linkage, and use shared
+    review handling.
+  src/coga/blackboard.py: 'Prerequisite: pure blocker transforms for a single prepared ticket write.'
+  src/coga/bump.py: 'Prerequisite: advance and publish the prepared snapshot with an exact control expectation.'
+  src/coga/commands/block.py: 'Prerequisite: derive status and append the blocker in one prepared write.'
+  src/coga/commands/bump.py: 'Prerequisite: eligibility, workflow and artifact gates use fresh control
+    before advancing.'
+  src/coga/commands/common.py: Shared preparation, human-review escalation/recovery, and non-exiting boundary
+    for loops.
+  src/coga/commands/mark.py: 'Prerequisite: every mark command checks and writes the prepared ticket.'
+  src/coga/commands/owner.py: Prepare owner changes and retire a merged review only after confirmed strict
+    publication.
+  src/coga/commands/unblock.py: Prepare answers atomically; batch and post-prompt writes share review
+    escalation/recovery.
+  src/coga/git.py: Prepared snapshots, exact pending publication expectations, status-conflict payloads,
+    merged-review provenance, machine-local exclusions, and refusal across replaced workflows.
+  src/coga/github_source.py: Shared remote repository identity parser used by escalation and PR-assist
+    verification.
+  src/coga/launch.py: 'Prerequisite: retry the started session ticket with its usage log before chaining.'
+  src/coga/mark.py: 'Prerequisite: shared lifecycle writers accept prepared snapshots and preserve publication
+    expectations.'
+  src/coga/pr_assist.py: Use the extracted shared remote identity parser with unchanged assist verification
+    behavior.
+  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: Fetch titles and leave human-review
+    PR comments and resolution for humans.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Own the prerequisite session-teardown
+    publication description.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Own prepared lifecycle
+    eligibility and stale supervised-step checks.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Own preparation,
+    workflow conflicts, the human-review exception, return path, and private records.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: Summarize and link the prerequisite
+    transaction and retry behavior.
+  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: Fetch titles and skip human-review
+    PRs before automatic reconciliation.
+  src/coga/review_conflict.py: Conflict identity, isolated review branch, configured GitHub boundary,
+    refusal reporting, and merged-review records.
+  src/coga/taskfile.py: 'Prerequisite: in-memory blackboard replacement used by prepared blocker updates.'
+  tests/conftest.py: 'Prerequisite: stub new preparation/retry boundaries outside real-Git fixtures.'
+  tests/test_checkouts.py: 'Prerequisite: verify session-teardown publication without an unnecessary commit.'
+  tests/test_git.py: Real-Git preparation/provenance/race/retry coverage plus workflow replacement refusal
+    regressions.
+  tests/test_launch.py: Prerequisite teardown coverage and assist-publication expectations.
+  tests/test_mark.py: Prerequisite terminal-control eligibility refusal and prepared write forwarding.
+  tests/test_owner.py: Prerequisite owner decisions use fresh control and preserve newer notes.
+  tests/test_review_conflict.py: Real-Git coverage for all 24 ordered ambiguous pairs, PR reuse and recovery,
+    owner rollback, unblock variants, private records, unavailable tools, and configured remotes; gh boundary
+    tests.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the workflow's peer-review step owns code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 'Direct review completed on the final head/base: independently reviewed Claude’s original diff,
+    applied the findings, and self-reviewed the corrections. No unresolved code findings; no claim of
+    a second independent reviewer of the final corrections. Reviewed configured-remote selection, the
+    isolated index, merged/closed/open recovery, strict owner rollback and provenance, loop callers, and
+    workflow compatibility. Drove refusal output in real PTYs at 80x24 and 120x30; messages and PR URL
+    remained readable. Inspected the generated PR body and its fenced base/local/control copies. Re-reviewed
+    the final documentation fixes; no new navigation errors remain compared with the base.'
 checks:
-  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider -rf
-    status: failed
-    head: 9e542eadad4e63fe1acdc2321e250275e096884f
-    base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
-    detail: 4523 passed, 10 skipped, 2 failed; both are pre-existing test_packaging failures (launch-boundary twin drift, current-direction anchors) that #1180 also recorded on its base. Run on the committed tree with only the projected ticket dirty.
-  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_review_conflict.py
-    status: passed
-    head: 9e542eadad4e63fe1acdc2321e250275e096884f
-    base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
-    detail: 13 passed (also included in the full run). Seeded-fixture validate omitted because validation behavior did not change.
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    -rf
+  status: failed
+  head: c634bad380eeb25d914235131bf493f211967307
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 'Historical full-suite receipt: 4556 passed, 10 skipped, 2 failed in 974.25s on Linux (Pop!_OS
+    24.04 LTS), Python 3.12.12. test_live_and_packaged_copies_stay_identical failed on baseline launch-boundary
+    drift; test_context_navigation_has_no_broken_links included two baseline anchors plus three new legacy-copy
+    links. The three new links were fixed in 7db1cdf03. Source/tests are unchanged at final head; the
+    full suite was not repeated after those documentation-only corrections.'
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    tests/test_review_conflict.py tests/test_git.py::test_prepare_refuses_progress_across_a_replaced_workflow
+    tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_navigation_has_no_broken_links
+    -rf
+  status: failed
+  head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: '46 passed, 2 failed in 18.04s at final head, Linux/Python 3.12.12. All focused behavior tests
+    pass. Remaining failures match exact base: launch-boundary twin drift and two existing navigation
+    anchors (install#windows-baseline and macos-aws#full-suite-at-a-commit). Direct comparison confirms
+    final navigation diagnostics equal the baseline; all three added link errors are fixed.'
+- command: git diff --exit-code c634bad380eeb25d914235131bf493f211967307 HEAD -- src tests
+  status: passed
+  head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 'Exit 0: source and tests at final head exactly match the full-suite revision; only three links
+    in two development topics changed afterward.'
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    tests/test_git.py::test_prepare_refuses_progress_across_a_replaced_workflow tests/test_review_conflict.py
+    -rf
+  status: passed
+  head: c634bad380eeb25d914235131bf493f211967307
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 46 passed in 13.02s on Linux (Pop!_OS 24.04 LTS), Python 3.12.12; tested working source tree
+    equals this commit.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/human-review-pr-for-ambiguous-lifecycle-status-con
+    --json
+  status: passed
+  head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 1 task checked, 0 issues, 0 fixes.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 7db1cdf0349d71f6d81a04249fa6610c308529fb
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 'Run from tests/fixtures/seeded-repo: 5 tasks checked, 0 issues, 0 fixes.'
+- command: PYTHONPATH=/tmp/coga-human-review-peer-1b4195q4/baseline/src TERM=dumb /home/n/Code/coga/.venv/bin/python
+    -m pytest -q -p no:cacheprovider tests/test_packaging.py::test_live_and_packaged_copies_stay_identical
+    tests/test_packaging.py::test_context_navigation_has_no_broken_links -rf
+  status: failed
+  head: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  base: 1ab16cd484844e97ca621dd43ad1891c51248ae4
+  detail: 'Baseline comparison only: both tests fail in 1.03s on an isolated snapshot of exact base 1ab16cd484844e97ca621dd43ad1891c51248ae4;
+    docs/archive excluded. Confirms these failures predate the branch. Linux, Python 3.12.12.'
+- command: Native Windows full suite
+  status: not-run
+  detail: Explicitly waived by the attending owner for this ticket on 2026-11-06; no Windows resources
+    provisioned.
 ```
