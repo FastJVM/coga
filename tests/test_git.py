@@ -22,6 +22,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
@@ -569,9 +570,10 @@ def _lines(spec: str) -> bytes:
         ("", "A X", "Q A X Z", "A X Q Z"),
     ],
 )
-def test_union_merge_never_re_adds_a_control_line(base, control, working, landed):
+def test_union_merge_never_re_adds_a_control_line(base, control, working, landed, tmp_path):
     merged = git._merge_union_bytes(
-        current=_lines(control), base=_lines(base), other=_lines(working)
+        current=_lines(control), base=_lines(base), other=_lines(working),
+        scratch=tmp_path,
     )
     assert merged == _lines(landed)
 
@@ -631,6 +633,97 @@ def test_union_publish_caps_control_lines_after_clean_filtering(git_repo):
     landed = _control(git_repo, "coga/log.md")
     assert landed.count("first line") == 1
     assert "second line" in landed
+
+
+# --- publication scratch files live in the Git dir, not $TMPDIR ---------------
+
+
+def _scratch_leftovers(git_dir: Path) -> list[str]:
+    return sorted(
+        entry.name for entry in git_dir.iterdir()
+        if entry.name.startswith(("coga-git-index-", "coga-union-merge-"))
+    )
+
+
+def _union_worklist(git_repo) -> Path:
+    """A `merge=union` worklist (not the log, which publishes through its own
+    reconciler) that control and this checkout each appended to."""
+    attributes = git_repo.coga_os / ".gitattributes"
+    attributes.write_text(
+        attributes.read_text(encoding="utf-8") + "**/retires.md merge=union\n",
+        encoding="utf-8", newline="\n",
+    )
+    git_repo.git("add", "coga/.gitattributes")
+    rel = "coga/recurring/weekly/retires.md"
+    _hand_commit(git_repo, rel, "A\n")
+    git_repo.git("push", "origin", "main")
+    git_repo.push_competing_commit(rel, "A\nP\n")
+    git_repo.git("fetch", "--quiet", "origin")
+    worklist = git_repo.root / rel
+    worklist.write_text("A\nM\n", encoding="utf-8", newline="\n")
+    return worklist
+
+
+def test_publication_scratch_files_never_touch_the_temp_dir(git_repo, monkeypatch, tmp_path):
+    """The 2026-10-27 ENOSPC: a full `/tmp` failed a publish at its temporary
+    index. Tree construction, the published-blob record, and both union
+    merge callers now work with no usable temp dir at all."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    worklist = _union_worklist(git_repo)
+    git_repo.checkout_branch("feature/x")
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
+    git_dir = Path(git_repo.git("rev-parse", "--absolute-git-dir").strip())
+    real_merge = git._merge_union_bytes
+    scratches: list[Path] = []
+
+    def merge(**kwargs):  # type: ignore[no-untyped-def]
+        scratches.append(kwargs["scratch"])
+        return real_merge(**kwargs)
+
+    monkeypatch.setattr(git, "_merge_union_bytes", merge)
+    missing = tmp_path / "no-such-tmp"
+    # The state lock lives in the temp dir and is out of scope here; hold it
+    # (it is reentrant) before the temp dir disappears.
+    with git.state_lock(cfg):
+        monkeypatch.setattr(tempfile, "tempdir", str(missing))
+        assert git.publish(cfg, [ticket, worklist], "Ticket: demo — blocked") is True
+        # A feature checkout keeps the published worklist dirty; returning to
+        # control proves it is on control through the union proof.
+        outcome = git.prepare_control_checkout(cfg)
+
+    _assert_prepared(git_repo, outcome)
+    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
+    assert _control(git_repo, "coga/recurring/weekly/retires.md") == "A\nP\nM\n"
+    assert len(scratches) >= 2 and set(scratches) == {git_dir}
+    assert not missing.exists()
+    assert _scratch_leftovers(git_dir) == []
+
+
+def test_publication_scratch_is_per_worktree_and_removed_on_failure(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    linked = git_repo.root.parent / "linked"
+    git_repo.git("worktree", "add", "--quiet", "-b", "feature/x", str(linked))
+    own = Path(git_repo.git("rev-parse", "--absolute-git-dir", cwd=linked).strip())
+    assert own != git_repo.root / ".git" and own.parent.name == "worktrees"
+    assert git._scratch_dir(linked) == own
+
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
+    real_run_git = git.run_git
+
+    def failing_write_tree(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if args[:1] == ("write-tree",):
+            assert _scratch_leftovers(git_repo.root / ".git"), "index not in the Git dir"
+            raise git.GitError("injected write-tree failure")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "run_git", failing_write_tree)
+    git.sync_coga_state(cfg)
+
+    assert "status: in_progress" in _control(git_repo, "coga/tasks/demo.md")
+    assert _scratch_leftovers(git_repo.root / ".git") == []
+    assert _scratch_leftovers(own) == []
 
 
 def test_expect_pins_the_exact_control_copy(git_repo):
@@ -3566,6 +3659,56 @@ def test_prepare_refuses_a_local_commit_touching_state_and_code(git_repo):
     assert "touches local.txt" in outcome.reason
     assert "git pull --rebase --autostash origin main` and push" in outcome.reason
     assert _snapshot(git_repo) == before
+
+
+def _hand_commit_after_offline_sync(git_repo, cfg: Config, *, code: bool) -> str:
+    """The 2026-09-29 Multiply chain up to the divergence: an offline sync
+    fails and keeps the ticket and its `sync failed` line dirty, an agent
+    hand-commits that retained state (plus, with `code`, a non-state file)
+    on `main`, the remote returns, and a peer advances control."""
+    ticket = _seed_ticket(git_repo)
+    url = git_repo.git("remote", "get-url", "origin").strip()
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "missing.git"))
+    ticket.write_text(_ticket_text(status="blocked"), encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is None
+    assert _dirty(git_repo) == {"coga/tasks/demo.md", "coga/log.md"}
+    if code:
+        (git_repo.root / "local.txt").write_text("code\n", encoding="utf-8", newline="\n")
+        git_repo.git("add", "local.txt")
+    git_repo.git("add", "coga/tasks/demo.md", "coga/log.md")
+    git_repo.git("commit", "-m", "hand commit of retained state")
+    tip = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git("remote", "set-url", "origin", url)
+    git_repo.push_competing_commit("coga/tasks/other.md", _ticket_text())
+    return tip
+
+
+def test_a_hand_commit_of_state_an_offline_sync_retained_is_realigned(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    _hand_commit_after_offline_sync(git_repo, cfg, code=False)
+    capsys.readouterr()
+
+    git.sync_coga_state(cfg)
+
+    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
+    assert "sync failed" in _control(git_repo, "coga/log.md")
+    assert _head(git_repo) == ("main", _origin_tip(git_repo))
+    assert _dirty(git_repo) == set()
+    assert "realigned local 'main' to origin/main" in capsys.readouterr().err
+
+
+def test_a_mixed_hand_commit_after_an_offline_sync_lands_state_and_keeps_main(
+    git_repo, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    tip = _hand_commit_after_offline_sync(git_repo, cfg, code=True)
+    capsys.readouterr()
+
+    git.sync_coga_state(cfg)
+
+    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
+    assert _head(git_repo) == ("main", tip)
+    assert "git pull --rebase --autostash origin main" in capsys.readouterr().err
 
 
 def test_prepare_realigns_from_a_feature_branch_with_no_control_holder(git_repo, capsys):

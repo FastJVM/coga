@@ -837,7 +837,8 @@ def _build_tree(
     landed: dict[str, bytes | None],
 ) -> str:
     """`base`'s tree with `rels` overlaid (union-merged for `merge=union` paths)."""
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-")
+    scratch = _scratch_dir(root)
+    fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=scratch)
     os.close(fd)
     os.unlink(index)
     env = {"GIT_INDEX_FILE": index}
@@ -851,6 +852,7 @@ def _build_tree(
                     current=tree_bytes(root, base, rel) or b"",
                     base=(tree_bytes(root, ancestor, rel) or b"") if ancestor else b"",
                     other=_clean_bytes(root, data, rel),
+                    scratch=scratch,
                 )
                 landed[rel] = data
             run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env)
@@ -870,15 +872,30 @@ def _build_tree(
             pass
 
 
-def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
+def _scratch_dir(root: Path) -> Path:
+    """Where publication puts its temporary index and merge files.
+
+    The checkout's own Git dir (per-worktree for a linked worktree), where
+    Git keeps its `index.lock`: publication already needs it writable, so
+    scratch files add no second filesystem. A full or missing `$TMPDIR` must
+    not fail a publish (the 2026-10-27 ENOSPC). Resolved per call, never
+    cached.
+    """
+    return Path(run_git(root, "rev-parse", "--absolute-git-dir").strip())
+
+
+def _merge_union_bytes(
+    *, current: bytes, base: bytes, other: bytes, scratch: Path
+) -> bytes:
     """`git merge-file --union` of the three copies, minus re-added lines.
 
     A union-merged publication never increases the occurrence count of a
     line already on control (`current`); see `coga-dev/internals/spool-merge`.
     Pass `other` through `_clean_bytes` first so all three copies compare in
-    the blob form control stores.
+    the blob form control stores. The copies are written under `scratch`
+    (see `_scratch_dir`).
     """
-    with tempfile.TemporaryDirectory(prefix="coga-union-merge-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="coga-union-merge-", dir=scratch) as tmp:
         files = [Path(tmp) / name for name in ("current", "base", "other")]
         for path, data in zip(files, (current, base, other)):
             path.write_bytes(data)
@@ -978,7 +995,7 @@ def record_projected_baseline(cfg: Config, root: Path, rel: str, oid: str) -> No
 
 
 def _write_published(root: Path, blobs: Mapping[str, str | None]) -> None:
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-")
+    fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=_scratch_dir(root))
     os.close(fd)
     os.unlink(index)
     env = {"GIT_INDEX_FILE": index}
@@ -1807,7 +1824,8 @@ def _published_proof(
     control_bytes = _blob_bytes(root, published[1])
     base = _blob_bytes(root, head_entry[1]) if head_entry is not None else b""
     merged = _merge_union_bytes(
-        current=control_bytes, base=base, other=_clean_bytes(root, data, rel)
+        current=control_bytes, base=base, other=_clean_bytes(root, data, rel),
+        scratch=_scratch_dir(root),
     )
     return None if merged == control_bytes else "lines not yet on control"
 

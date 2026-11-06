@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/state-publication
-description: State publication invariants, shared root membership, the end-of-command sweep's selection and skips, guided-authoring finalization, and the strict recipe's wiring; the publish primitive lives in its leaf.
+description: State publication invariants, shared root membership, the end-of-command sweep's selection and skips, guided-authoring finalization, the strict recipe's wiring, and publication scratch files and sandbox failures; the publish primitive lives in its leaf.
 ---
 
 # State publication implementation
@@ -181,6 +181,31 @@ local remote that rejects the sibling handoff. Interrupting only the child
 sweep is insufficient to explain a missing handoff when the outer sweep
 succeeds; a refusal there can leave state behind. This controlled failure
 path alone does not establish the cause of a live missing-handoff incident.
+
+## Scratch files and sandboxed publication
+
+Publication's scratch files (`_build_tree`'s and `_write_published`'s
+temporary `GIT_INDEX_FILE`, `_merge_union_bytes`' three merge copies) live in
+the checkout's own Git dir, `git._scratch_dir` (`rev-parse
+--absolute-git-dir`, per-worktree in a linked worktree), and are removed in
+`finally`. Publication already needs that dir writable for objects and refs,
+so it adds no second filesystem: a full or missing `$TMPDIR` (a tmpfs out of
+inodes failed a 2026-10-27 publish) cannot fail it. `state_lock` still keeps
+its lock file under the temp dir; that dependency is separate.
+
+A publication failure inside an agent's sandbox (no network, read-only
+`.git`) keeps the write dirty as invariant 2 requires. The outer `coga
+launch` runs outside the sandbox and retries at checkout return and in its
+exit sweep, when its own access permits; a refused return withholds that
+sweep and leaves [strict recovery](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#recovering-a-failed-publication)
+to the operator. There is deliberately no deferred-publication state. A
+hand commit of retained state on control realigns when it is state-only and
+otherwise refuses with the rebase remedy (`tests/test_git.py`, the
+realignment block). Diagnose recurring `[git] sync failed` lines from the
+enclosing session's sandbox, per
+[coga/sandboxes](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md#codex-sandbox-grant);
+the Multiply investigation behind these decisions is in
+[v1/06's findings](https://github.com/FastJVM/coga/blob/a581c9dd5905ea109e54b53c7259fae6add409df/coga/tasks/v1/06-fix-coga-git-sync-failures-that-leave-main-diverge.md#findings-design-step-2026-11-04).
 
 The [publish primitive](publish/SKILL.md) owns the transaction mechanics.
 
