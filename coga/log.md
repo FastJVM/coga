@@ -10390,3 +10390,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-06 11:23 v1 [recurring/blocker-reminders] [system] created (status=active)
 2026-11-06 11:23 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-11-06
 2026-11-06 11:23 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-06
+2026-11-06 11:23 v1 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
