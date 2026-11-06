@@ -262,6 +262,11 @@ Previous ref: `windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-15-uninstall-recovery-hints-use-posix-env-syn-9a5041
+
+
 ## Design handoff
 
 - Investigated on 2026-10-26 at `3f73f5ed285b8c78ad923b1e65d86a0ae8f20efe`.
