@@ -295,6 +295,7 @@ Previous ref: `skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1182
 branch: coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198
 
 
