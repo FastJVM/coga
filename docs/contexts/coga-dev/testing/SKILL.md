@@ -135,8 +135,10 @@ is their hand-run counterpart: a first-time user installs on a fresh
   Python shebang on POSIX and a `.cmd` launcher on Windows. Use
   `remove_test_checkout` when a fixture deliberately removes a Git clone;
   Git for Windows marks object files read-only.
-- **All Windows exclusions use `conftest.windows_skip(reason)`.** The shared
-  `windows_interactive_skip` names the interactive Windows ticket. Keep
+- **All Windows exclusions use `conftest.windows_skip(reason)`.** A POSIX
+  PTY-mechanics test (`pty.fork`, `TIOCSWINSZ`, SIGWINCH, fork gates) may skip
+  only when its reason names the Windows-run equivalent of the same contract,
+  usually in `tests/test_repl_supervisor_nt.py`. Keep
   mocked orchestration tests running; skip only actual PTY/agent behavior,
   POSIX modes or Unix host/runbook scripts, and list every non-interactive
   exclusion with its reason in the PR. Native locks and Job Object recovery

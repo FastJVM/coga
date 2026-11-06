@@ -542,6 +542,99 @@ branch: coga/v1-14-interactive-coga-launch-on-native-windows-e8b518
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Implement — phase 1 (2026-11-05, attended, Claude Opus 5.5)
+
+**Scope split (owner, in session):** this session landed all code, Linux tests
+and docs on the branch. **No bump.** The box acceptance loop (phase 2) runs in
+a relaunch of this same `implement` step. At that point, ask the owner for the
+API key per Open Question 1. The core ticket `windows-native/01` is merged, so
+the prerequisite is met.
+
+### Deltas from the spec (the landed core port's shape)
+
+- The core port added more refusal sites than the spec lists:
+  `require_agent_sessions()`, `_preflight_platform_target()` (launch entry and
+  `_launch`), `_require_agent_after_script`'s Windows branch, and both
+  `recurring_runner` sites (scan admission and paused-period resume). All are
+  deleted, along with their tests and docs (`coga/launch` *Phases and routing*,
+  `script-tickets`, `recurring/scheduling`, `tickets/authoring`,
+  `checkouts/launch-boundary`, `first-task`, `current-direction`). The refusal
+  used exit 75 (`RETRY_WITHOUT_SWEEP`). The idle-timeout refusal instead sets
+  `git.state_sweep_withheld` and exits 2, as §4 requires. The sweep-withheld
+  diagnostic in `cli._sweep_coga_state` now also covers "refused before
+  changing state".
+- `ProcessTree` had no gate, group or interrupt. It gained
+  `interactive`/`gate`/`shell` (Windows-only) and `new_process_group`, plus
+  `release()` and `interrupt()`. The interactive wrapper is the stdlib file
+  `src/coga/_nt_session_wrapper.py`, run by path as `python -I` under the base
+  interpreter. Base python has no `coga`, so `python -m` was not possible.
+  The existing `-c` wrapper and the recurring/clone behavior are unchanged.
+- Zach's guide: `v1/29` is done, and `guide-for-zach.md` now only points to the
+  generic human-walk operator guide (`coga/skills/.../human-walk/operator-guide.md`).
+  That guide has no PyPI-only instruction or `fcntl` stop to remove, so no
+  guide edit was needed. The exact PR-wheel command
+  (`uv tool install --force --python 3.11 <wheel>`) plus the source commit and
+  digest belong in the PR/handoff for the human check.
+- README (owner, in session): the "Native Windows is not ready" paragraph is
+  replaced with a pointer to `coga/install#windows-baseline`. The platform
+  sentence is unedited.
+
+### Decisions made while implementing
+
+- `classify_exit` treats an NTSTATUS error (≥0xC0000000, except 0xC000013A) as
+  `crash` even when Coga never stopped the child. This mirrors POSIX, where an
+  untouched signal death is a crash. Full DWORDs below that range are
+  `natural` with the raw code.
+- The DWORD→signed conversion is `oscompat.process_exit_status`, applied only in
+  the `commands/launch.py` adapter (both LaunchBail and result routes) and
+  `commands/ticket.py`'s agent exit. It only changes values ≥2^31 on Windows,
+  so no other CLI exit is affected.
+- Planner: `repl_supervisor_nt.plan_agent_command` (pure, importable on POSIX).
+  Launch calls it via `launch._plan_windows_agent_command`, using
+  `_agent_command_parts` for role tags. Preflight is `agent_command_refusal`
+  (pointer form, fixed-width placeholders). Call sites: launch
+  `_prepare_agent` (after secrets, before push-auth and lifecycle writes),
+  `coga ticket` (new `before_create` hook on `_resolve_or_create_target`,
+  which also moves `--pick-agent` before draft creation for new drafts), and
+  megalaunch `_preflight_agent_launch` (per-ticket failure, no global sweep
+  withhold). Spawn-time refusal raises `AgentCommandRefused` (a
+  `ComposeError`, which every caller already catches) and withholds the sweep.
+- Watcher notices on Windows go to stderr (spec §2) in ASCII.
+- Picker: `_PosixKeys`/`_WindowsKeys` key sources share `_decode_key`.
+  Windows installs a quit-flag SIGINT handler and saves/restores console modes
+  for the whole picker. Cancellation is checked after each read and redraw,
+  and wins over Enter.
+
+### POSIX-only tests kept under `windows_skip` (each names its Windows equivalent)
+
+`tests/test_repl_supervisor.py`: all 31 former `windows_interactive_skip`
+cases (`_classify_exit` ×4, no-TTY fork gate ×8, PTY loop ×19). Their Windows
+equivalents are in `tests/test_repl_supervisor_nt.py`.
+`tests/test_ticket.py::test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state`
+(pty.fork + group SIGTERM fixture). `tests/test_megalaunch.py::test_read_key_resize_beats_pending_keypress`
+(raw PTY/SIGWINCH), whose equivalent is `test_windows_keys_resize_and_extended_keys`.
+These now run on Windows unskipped: the 7 megalaunch picker CLI tests (they
+patch the key-source `read`), `test_launch_functionally_auto_restarts_through_three_steps`
+(fake agent via `write_executable`, a `.cmd` on Windows, which also exercises
+the batch transport), and `test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout`.
+None of these have run on Windows yet; that is phase 2.
+
+### Phase 2 checklist (box, next session)
+
+1. Provision; `checkout` the branch; run the full native suite (long-run
+   scheduled-task recipe in `windows-aws`). Fix failures, especially the 21
+   `windows_only` cases in `test_repl_supervisor_nt.py`, the picker signal
+   tests, the batch round-trip and the outer-CLI DWORD cases.
+2. Attended `ssh -tt` acceptance driven from a host PTY (pyte): bump to an
+   owner step, mark done, block, a two-agent-step chain, `--max-session`,
+   `--idle-timeout` exit 2 with no sweep, Ctrl+C as input, closing SSH
+   mid-session, and the megalaunch picker keys/resize/Ctrl+C. Each check needs
+   Job count 0, no `claude.exe`/node/bash left, and console modes equal.
+   Also check `coga.exe` and `python -m coga.cli` DWORD exits seen by a
+   native parent.
+3. Teardown + `status`; record instance/AMI/zone/teardown time here.
+4. Then the PR-preparation record (`## PR`), and bump.
+
 ## Design session 2026-10-19 (design step)
 
 The core ticket was still at `review-design` (not merged). The owner chose

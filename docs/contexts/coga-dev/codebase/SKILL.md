@@ -40,14 +40,19 @@ The repo separates implementation from the OS it operates:
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `oscompat.py`: per-user lock paths and descriptor locks for publication
-  and chat, and owned process trees for both recurring runners. POSIX uses
-  flock/process groups; Windows uses byte-range locks and Job Objects.
+  and chat, and owned process trees for both recurring runners and the
+  Windows agent supervisor. POSIX uses flock/process groups; Windows uses
+  byte-range locks and Job Objects. Its interactive mode runs
+  `_nt_session_wrapper.py`, a stdlib-only script run by path under the base
+  interpreter.
 - `launch.py` (launch API, preparation and supervision),
   `checkout_policy.py` (pure step-to-entry-checkout table) and
   `checkouts.py` (shared branch preparation for launch and the
   `prepare-checkout` chat recipe; [coga/checkouts](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md)),
   `launch_script.py` (reserved `ticket.py` phase), `task_env.py`
-  (`COGA_TASK_*`), `repl_supervisor.py`, `megalaunch.py` plus
+  (`COGA_TASK_*`), `repl_supervisor.py` with its native Windows backend
+  and command planner `repl_supervisor_nt.py` (imported only on Windows by
+  the shared entry), `megalaunch.py` plus
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`,
   `recurring_clone.py`. `recurring.py` also owns the effective recurring
   catalog (`iter_template_sources`, `resolve_template_source`, `jobs.toml`

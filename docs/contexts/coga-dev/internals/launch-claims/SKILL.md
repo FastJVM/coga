@@ -68,19 +68,23 @@ that end or park the session drop the field.
 1. Before the audit: `_revalidate_launch_claim_before_spawn` requires local
    bytes, then control's copy after a fresh `fetch_control`, then local
    bytes again, all equal to the claim.
-2. The PTY child is created but held on a private pipe before exec; the same
-   proof runs.
-3. Under `git.state_lock`: append the audit, prove again, write the gate
-   byte (SIGINT/SIGTERM masked across the write and the released-state
-   update), then `_admit_launch_claim_after_release` records a local
+2. The child is created but held before exec; the same proof runs. On
+   POSIX it waits on a private pipe. On native Windows the wrapper has joined
+   its Job Object and waits on a per-spawn named event
+   (`Local\coga-gate-<uuid>`).
+3. Under `git.state_lock`: append the audit, prove again, release the child
+   (the one-byte pipe write on POSIX, `SetEvent` on Windows; SIGINT/SIGTERM
+   are masked across it and the released-state update where the platform has
+   a signal mask), then `_admit_launch_claim_after_release` records a local
    `released:<uuid>` witness and publishes the plain UUID with `expect`
    pinned to the pending copy. The lock is reentrant, so publish re-enters
    it.
 
 Failures: a changed or unverifiable claim before release removes only the
 owned audit line, kills the held child, and retains the pending state. A
-failed gate write runs compensation first (audit removed, no usage
-teardown). An audit failure kills the held child. An admission failure after
+failed gate write or `SetEvent` runs compensation first (audit removed, no usage
+teardown). An audit failure kills the held child (on Windows by terminating its Job).
+Both platforms run the same `repl_supervisor._admit_held_child` sequence. An admission failure after
 release kills the child but keeps its audit and restores the local
 `released:` witness, whether publication was refused or uncertain. An
 interrupt observed after delivery keeps the audit and treats the child as
