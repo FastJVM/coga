@@ -764,6 +764,107 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
 
 
+## Implement progress 2026-11-05
+
+**Built on pre-#1176 `main`, deliberately.** #1176 was still open
+(`mergeStateStatus: CLEAN`, no reviews) when implement started, and the
+evaluator's "do not start on the current base" assumed every item needed it.
+Re-checked against the code: the scan needs only `AGENT_CLIS` (unchanged by
+#1176), `_AGENT_LABELS` (untouched), and the `shutil.which` loop that already
+existed inline in `_offer_agent_cli`. So `_installed_agent_clis()` was written
+here, in #1176's shape, rather than waited for. Zach's call, to unblock the
+fresh-VM test his own scope decision makes the gate for the rest of the ticket.
+
+Accepted cost: a rebase conflict when #1176 lands, concentrated in
+`commands/init.py` (its deletions vs these additions — this ticket replaces
+`_offer_agent_cli` wholesale anyway) and `tests/test_init.py` (#1176 rewrites
+64+/55−, and this ticket's test additions land in the same file). Re-read
+`commands/init.py` and re-run the suite after that rebase.
+
+**Done and verified.**
+
+- Scan: `_installed_agent_clis()` + `_print_agent_scan()` in `commands/init.py`,
+  printed from inside the interactive guard so scripted init stays silent.
+  Commit `ff502c154`. **Verified on a fresh macOS VM** at that sha via
+  `uv tool install --force git+…@ff502c154` — uv's `(from git+…)` clause
+  confirmed the branch, not PyPI. The no-agent case rendered as two "not found"
+  rows, which is the criterion that mattered.
+  - Fix the VM run surfaced: the scan collided with the `op` paragraph above
+    it and read as another line of that block. Leading blank line added.
+- Picker: `src/coga/picker.py` with `pick()`, `PickerRow`, `PickerColumn`,
+  and `_pick_numbered`; `_pick_selection` stays in `commands/megalaunch.py` as
+  the adapter. Commit `9e7fa6d2a`. `tests/test_picker.py` (13) and
+  `tests/test_megalaunch.py` (129, plus a new Ctrl-C adapter test) pass.
+
+- Question and config write: `_choose_agents` + `AgentChoice`,
+  `_disable_unchosen_agents`, `_apply_agent_choice` + `AgentConfigEdit`,
+  `_default_agent_text` split out of `_write_default_agent`, and item 8's
+  next-steps strings. Commit `77c1106aa`.
+- Item 7's unpinning plus every falsified surface, and the `coga/init` /
+  `coga/install` context updates. Commit `dd239551e`.
+
+**Remaining:** must-fix 3 (deferred to the #1176 rebase, see below), and a
+clean full-suite run.
+
+### Verified against the packaged template, not assumed
+
+`_disable_unchosen_agents` was run against the real
+`resources/templates/coga/coga.toml`: commenting codex touches exactly 6 lines
+(header + 5 keys), claude exactly 7 (header + 6) — the design predicted 6 for
+claude, which is why it said to verify rather than trust the count. No blank
+line becomes a bare `# `, and the `# --- Unattended runs ---` block comes
+through byte-identical. `tests/test_init.py` pins all three.
+
+Two things the design got wrong that the code corrected:
+
+- **`resolve_main_agent` raises on `agent=None`** unless
+  `allow_prospective_default=True`. Item 7 would break `coga chat` rather than
+  fix it if launch did not already pass that flag — `launch._target_operator`
+  does, which is what makes the unpinning safe. The test drives that real call
+  path rather than calling `resolve_main_agent` directly, so it would catch a
+  regression in the flag.
+- **`fake_vendor` does not reach `_do_init`.** It patches
+  `update_cmd.packaged_template_root`, but `commands/init.py` imported the
+  name directly, so init copies the *real* packaged template. Tests comparing
+  against the packaged coga.toml must use `_PACKAGED_COGA_TOML`, not
+  `fake_vendor / "coga.toml"` (which is a stub `version = 1\n`).
+
+### Evaluator must-fix 1 — resolved (Zach, 2026-11-05)
+
+An accepted empty selection: `AgentChoice.default` stays `None`, and init's
+next steps **name the re-enable path and advertise no agent-backed command**.
+No `coga build`, no `coga ticket` — `Config.default_agent()` returns `None`
+with no `[agents]`, so both would fail at the point of use. Init says no agents
+are declared, that no launch works and `coga build` cannot run, and points at
+`coga.toml` to uncomment an `[agents.*]` table.
+
+### Evaluator must-fix 2 — confirmed real, all surfaces repaired
+
+Verified against the code rather than taken on faith. Item 7's unpinning
+falsifies these, and the Proposed shape lists none of them. None collide with
+#1176:
+
+- `src/coga/resources/templates/coga/coga.toml:13-15` — "It does not move
+  `coga chat` or `coga ticket`: their packaged tickets pin `agent: claude`."
+  This is the file every repo gets, so it matters most.
+- `docs/contexts/coga/configuration/SKILL.md:104` **and its bundled twin** —
+  "the install-level default is `bootstrap/ticket`'s `agent:`". The ticket's
+  `## Context` says `coga/configuration` stays correct; that holds for the
+  `[agents.<name>]` key list, not for this line.
+- `docs/contexts/coga-dev/internals/agent-config/SKILL.md:58` — "onboarding
+  tickets pin `agent: claude`, which outranks the default."
+- `src/coga/config.py:374-376` comment — same stale claim.
+
+Plus the two docstrings item 7 already names.
+
+### Evaluator must-fix 3 — deferred to the #1176 rebase
+
+Needs #1176's merged text to search. Do it then: find any statement that coga
+*never* offers an agent install (the `dependencies` module contract and
+`launch._LaunchInvocation._prepare_agent` are the two the evaluator named) and
+soften it to describe present behaviour, per `## Description` → *Out of scope*.
+
+
 ## Design re-run 2026-11-05 (second pass, after the backward bump)
 
 The spec was re-derived against the code rather than against the earlier draft.
