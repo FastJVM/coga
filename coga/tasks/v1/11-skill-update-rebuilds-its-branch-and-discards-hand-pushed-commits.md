@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -314,6 +314,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Open Questions
 
+All three resolved by the owner on 2026-11-06: accepted as proposed (see
+Implementation decisions). Kept below for the record.
+
 - Quiet weeks: an open PR with hand commits makes every weekly run exit 2,
   even with no upstream change, because the guard runs before updates are
   known. Accept (proposed), or prefer post-update guard + restore of the
@@ -323,6 +326,24 @@ The blackboard is a notepad to be written to often as the human and agent works 
   should a closed (not merged) PR also refuse?
 - Subject-only job-commit identification (no trailer): acceptable residual
   risk of a human using the exact bot message with an empty body?
+
+## Implementation decisions (owner, 2026-11-06, attended implement session)
+
+Owner approved resolutions to the evaluator's must-fix findings and accepted
+all three Open Questions as proposed (weekly refusal while hand commits sit on
+an open PR; closing the PR discards deliberately; exact-message job identity).
+
+- P1 repo binding: the guard parses owner/repo from every push URL of
+  `cfg.git_remote` (github.com only, via `github_source.github_owner_repo`;
+  shorthand rejected). All must agree, otherwise it refuses. Then
+  `gh pr list --repo <owner/repo>`, and fetch control + branch from the push
+  URL into private refs `refs/coga/skill-update-guard/{control,branch}`
+  (tracking refs untouched). `open_or_update_pr`'s own gh calls unchanged.
+- P1 sweep: a guard refusal sets `git.state_sweep_withheld` before `_bail`,
+  so cli.main does not publish unrelated dirty Coga state; exit stays 2.
+- P2 patch equivalence: after `--cherry-pick --right-only`, re-check the
+  leftover non-job commits with `branchsweep._verbatim_patch_ids` against the
+  control commits since the branch's base (stricter, fails closed).
 
 ## Evaluator review
 
@@ -421,3 +442,87 @@ placements).
 - `coga validate --task v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits --json`
   — **1 valid ticket, no issues**. `git diff --check` passed; byte comparison
   against HEAD confirmed the entire ticket body and frontmatter unchanged.
+
+## Implement handoff (2026-11-06)
+
+Branch `coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198` pushed
+at `1dac58ab8`, rebased on origin/main `d4dc3ac2d`. Rebasing brought in only
+Coga state, no src/tests/docs changes.
+
+- `skill_manager`: `SKILL_UPDATE_COMMIT_SUBJECT`; guard
+  `assert_skill_update_branch_unclaimed` plus helpers `_run_gh`,
+  `_open_pr_url(repo=)`, `_push_destination_github_repo`, `_git_checked`, and
+  `_drop_patches_on_control` (lazy wrapper over `branchsweep._verbatim_patch_ids`,
+  because branchsweep imports skill_manager). The `ls-remote` OID check runs
+  first, then repo binding, the PR lookup, a fetch from the push URL into
+  `refs/coga/skill-update-guard/*` (deleted in `finally`), a `rev-parse`
+  equality check, `log --no-merges --cherry-pick --right-only`, dropping job
+  commits, and the patch-ID recheck against `control ^<candidate>^`.
+  `run_skill_update_pr_flow` and `open_or_update_pr` take
+  `expected_remote_oid`.
+- `commands/skill.py update`: the `--pr` needs `--all` refusal now comes first
+  (before, `update_skills` ran and only then refused). The guard runs before
+  `update_skills`, and a refusal sets `git.state_sweep_withheld`.
+- v1/10 (PR #1168) is still open and its preflight is not on main. When it
+  lands, call the guard after `assert_skill_update_pr_preflight(cfg)` and keep
+  the `-m SKILL_UPDATE_COMMIT_SUBJECT` constant in its `commit --only` form.
+- Behavior note: `--pr` now needs a git repo whose remote push URLs name one
+  github.com repo, even when nothing would change. The old
+  `test_skill_update` no-op test ran in a non-git directory; it now gets a
+  bare origin. GitHub Enterprise or non-GitHub push hosts are refused (fail
+  closed).
+- Mutation-checked: removing the sweep withholding fails
+  `test_update_entrypoint_refusal_publishes_nothing`. Removing the patch-ID
+  recheck fails `test_guard_real_git_passes_hand_commit_cherry_picked_onto_control[True]`.
+- Pre-existing, unrelated failures, identical on unchanged origin/main:
+  `test_packaging.py::test_live_and_packaged_copies_stay_identical` (drift in
+  the `coga/checkouts/launch-boundary` twin) and
+  `test_context_navigation_has_no_broken_links` (anchors in
+  `coga-dev/current-direction`). Not fixed here.
+- `LEGACY_DEFINITION_DIFFERENCES` already lists the package
+  `recurring/skill-update/ticket.md`; the live copy was left untouched.
+
+## PR
+
+```yaml
+title: Refuse to rebuild skill-update branch over hand-pushed commits
+author: claude
+author_evidence: Implemented in this attended Claude Code session (claude-opus-5-5), coga-launch 71ea29e2-5009-4e12-8cfa-16dd1dda98da.
+head: 1dac58ab8239fa672edad9746629e01fdfb7517e
+base: d4dc3ac2d6bf28675db1487b99f2599aad827db6
+depth: deep
+rationale: Changes force-push and overwrite rules for an unattended job, plus CLI sweep withholding; no review has run yet.
+implementation: Adds a pre-update guard to `coga skill update --all --pr`. It binds to the push destination's GitHub repo, refuses when the open PR's branch carries commits that are neither the job's own nor on freshly fetched control (by ancestry, --cherry-pick, or verbatim patch ID), withholds the state sweep on refusal, and leases the later push against the tip it verified.
+deviations: Per owner-approved evaluator fixes, PR lookup uses --repo from the push URL, history is fetched from the push URL into private refs rather than refs/remotes, and leftovers get a patch-ID recheck. The --pr needs --all check moved ahead of update_skills.
+limitations: github.com push URLs only (others refused). Hand edits inside merge conflict resolution are not detected. A human commit with exactly the job message and no body is treated as the job's. v1/10 preflight is not yet on main; ordering must be reconciled when PR 1168 lands.
+files:
+  src/coga/skill_manager.py: Job commit constant, branch-claim guard and helpers, and the expected_remote_oid lease threading.
+  src/coga/commands/skill.py: Call the guard before update_skills, withhold the sweep on refusal, and pass the guarded OID to the PR flow.
+  tests/test_skill_manager.py: Guard unit tests (fake runner), real-git history cases, lease, CLI, and cli.main entrypoint regressions.
+  tests/test_skill_update.py: The no-op recipe test now gives the --pr subprocess a git repo with a bare origin, which the guard needs.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Document the refusal, how to resolve it, and the job-commit identity.
+  docs/contexts/coga/skill-management/SKILL.md: Byte-identical legacy twin of the package topic.
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.md: Name the hand-commit exception to the quiet no-op and the exit-2 report.
+  docs/contexts/coga-dev/packaging/SKILL.md: Align the lease summary with leasing against the guard's observed tip.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: The workflow's review comes after implement; design evaluator approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: failed
+    head: 1dac58ab8239fa672edad9746629e01fdfb7517e
+    base: d4dc3ac2d6bf28675db1487b99f2599aad827db6
+    detail: 4508 passed, 10 skipped, 2 failed. Both failures (test_packaging live/packaged twin drift and context navigation anchors) also fail on unchanged origin/main and are unrelated.
+  - command: .venv/bin/python -m pytest -q tests/test_skill_manager.py tests/test_skill_update.py
+    status: passed
+    head: 1dac58ab8239fa672edad9746629e01fdfb7517e
+    base: d4dc3ac2d6bf28675db1487b99f2599aad827db6
+    detail: Included in the full run above; all 139 tests in these files passed.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: 1dac58ab8239fa672edad9746629e01fdfb7517e
+    base: d4dc3ac2d6bf28675db1487b99f2599aad827db6
+    detail: 98 ok, no error-severity issues (pre-existing warnings only).
+```
