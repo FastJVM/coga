@@ -333,6 +333,11 @@ Previous ref: `windows-native/repair-ci-and-resume-with-release-focused-triggers
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-13-repair-ci-and-resume-with-release-focused--a448a8
+
+
 ## Design investigation — 2026-10-27
 
 Started on clean `main` at `7cd26919d`; fetched `origin/main` and confirmed
