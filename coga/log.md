@@ -10371,3 +10371,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-05 22:53 v1 [v1/07-lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] advanced to step 4 (implement) → claude
 2026-11-05 22:54 v1 [v1/07-lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-05 23:20 v1 [v1/human-review-pr-for-ambiguous-lifecycle-status-con] [human:nicktoper] created (status=draft)
+2026-11-05 23:31 v1 [v1/07-lifecycle-writes-read-control-s-ticket-before-modi] [agent:claude] advanced to step 5 (open-pr) — Implemented on branch; human-review PR path split to v1/human-review-pr-for-ambiguous-lifecycle-status-con
