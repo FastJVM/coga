@@ -91,7 +91,9 @@ Its `TicketConflictError.review` carries a `StatusConflict` (root, rel,
 control revision, base/local/control bytes and blob ids, the formatted
 `fields`, and `provenance`: the newest control commit that set the ticket
 to the base blob, from `_introducing_commit`). `prepare_lifecycle_ticket`
-hands it to `coga.review_conflict.escalate`, the only GitHub caller on this
+delegates to the non-exiting `reconcile_lifecycle_ticket`, also used by
+unblock's post-prompt/batch writes and autoclose. It hands the conflict to
+`coga.review_conflict.escalate`, the only GitHub caller on this
 path (every `gh` call goes through its `_gh`, which the real-Git tests in
 `tests/test_review_conflict.py` stub). Escalation keys the conflict by
 `sha256(rel, base, local, control)`, looks up `coga/human-review/<slug>-<key>`
@@ -102,7 +104,10 @@ when the remote branch is absent: no local ref, worktree, or index changes,
 and never a force-push. It never raises; an `unavailable` outcome is
 reported beside the ordinary refusal, which still exits 75. It deliberately
 shares nothing with `open_pr` (no `Closes ticket:` footer, no `## Dev`
-linkage). User contract:
+linkage). `_gh` explicitly selects the configured remote's repository with
+`--repo`; its URL parser is shared with PR-assist verification. The remote
+must fetch and push one matching repository. OS errors at the GitHub/process
+and temporary-index boundaries retain the exit-75 refusal. User contract:
 [human review of status conflicts](../../../coga/state-publication/SKILL.md#human-review-of-status-conflicts).
 
 The return path is `prepare_ticket(..., review_base=, on_resolved=)`
@@ -111,13 +116,19 @@ so an unchanged copy adopts control's resolution and later local edits
 merge onto it. The merged state comes from the per-worktree
 `.coga/human-review.json` record (`review_conflict.merged_record`), or, when
 the human kept control's blob, from the unchanged conflict key. Provenance
-is deliberately deferred: `PreparedTicket.resolved` runs on the first
+is deliberately deferred: `PreparedTicket.finish_resolution` runs on the first
 prepared write (or at once when the copies already match) and records
 control's blob under `PUBLISHED_REF`. Recording it at preparation would let
 a command that refuses for another reason leave the unresolved local copy
 over a recorded base, which the next preparation would read as a one-sided
 local edit and republish over the resolution. A successful ordinary
 preparation that adopts or matches control drops the record.
+Owner reassignment instead finalizes only after confirmed strict publication;
+failed publication restores its original ticket and keeps the review record.
+Its successful publication already recorded the new owner, so finalization
+must not overwrite that provenance with the older resolution blob.
+`_publish_locked` excludes `.coga/human-review.json` even without an ignore
+rule, just as it excludes pending publication expectations.
 
 ## Other refusals
 

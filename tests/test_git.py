@@ -4258,6 +4258,23 @@ def test_prepared_write_refuses_a_ticket_changed_after_preparation(git_repo):
     assert "hand edit" in path.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("control_status", ["active", "in_progress"])
+def test_prepare_refuses_progress_across_a_replaced_workflow(git_repo, control_status):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo, status="active")
+    git_repo.checkout_branch("feature/replaced-workflow")
+    path.write_text(_lifecycle_text(step=4), encoding="utf-8", newline="\n")
+    original = path.read_bytes()
+    control = Ticket.parse(_lifecycle_text(status=control_status))
+    control.frontmatter["workflow"]["steps"] = control.frontmatter["workflow"]["steps"][:2]
+    _peer_writes(git_repo, rel, control.render())
+
+    with pytest.raises(git.TicketConflictError, match="replaced its frozen workflow") as exc:
+        git.prepare_ticket(cfg, path)
+    assert not exc.value.status_conflict  # ordinary workflow conflict, not human-review status escalation
+    assert path.read_bytes() == original
+
+
 def test_retryable_prepared_failure_keeps_its_expectation_for_the_retry(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     path, rel = _seed_lifecycle(git_repo)

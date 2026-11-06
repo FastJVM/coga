@@ -226,9 +226,7 @@ def write_ticket(
         ticket.write(path)
         if prepared is not None:
             prepared.local = path.read_bytes()
-            resolved, prepared.resolved = prepared.resolved, None
-            if resolved is not None:
-                resolved()
+            prepared.finish_resolution()
     return rendered
 
 
@@ -615,7 +613,8 @@ def _publish_locked(
         # The pending-expectation record is machine-local even where `.coga/`
         # is not ignored.
         pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)
-        rels = [rel for rel in rels if rel != pending_rel]
+        review_rel = relative_to_root(root, cfg.repo_root / ".coga" / "human-review.json")
+        rels = [rel for rel in rels if rel not in (pending_rel, review_rel)]
         # A prepared ticket participates whenever it differs from control,
         # even when its final bytes happen to equal HEAD.
         for rel in _ticket_rels(cfg, root, [rel for rel in expected if rel not in rels]):
@@ -1180,7 +1179,17 @@ class PreparedTicket:
     outcome: str = "local"
     # Set when this preparation applied a merged human-review resolution:
     # run once by the first prepared write (`write_ticket(..., prepared=)`).
-    resolved: Callable[[], None] | None = None
+    resolved: Callable[[bool], None] | None = None
+
+    def finish_resolution(self, *, published: bool = False) -> None:
+        """Retire an adopted review after writing, or after a strict publish.
+
+        A confirmed publication already recorded the resulting ticket, so
+        do not replace that provenance with the older resolution snapshot.
+        """
+        resolved, self.resolved = self.resolved, None
+        if resolved is not None:
+            resolved(published)
 
     def expect(self) -> dict[Path, bytes | None] | None:
         """The exact-control expectation for publication, or `None` offline."""
@@ -1297,13 +1306,21 @@ def prepare_ticket(
             )
         except TicketConflictError as exc:
             if exc.status_conflict:
-                exc.review = StatusConflict(
-                    root=root, rel=rel, revision=rev,
-                    provenance=_introducing_commit(root, rev, rel, base_oid),
-                    base_oid=base_oid, local_oid=local_oid, control_oid=control_oid,
-                    base=base, local=local, control=control,
-                    fields=status_conflict_fields(base, local, control),
-                )
+                try:
+                    exc.review = StatusConflict(
+                        root=root, rel=rel, revision=rev,
+                        provenance=_introducing_commit(root, rev, rel, base_oid),
+                        base_oid=base_oid, local_oid=local_oid, control_oid=control_oid,
+                        base=base, local=local, control=control,
+                        fields=status_conflict_fields(base, local, control),
+                    )
+                except (GitError, OSError) as unavailable:
+                    # Once a conflict is known, an unavailable diagnostic or
+                    # temporary file must not turn it into an offline write.
+                    raise TicketConflictError(
+                        f"{exc}. No human-review PR was created: {unavailable}",
+                        rel=rel, status_conflict=True,
+                    ) from unavailable
             raise
         return result(merged, "merged")
 
@@ -1319,13 +1336,14 @@ def _prepare_reviewed(
     if control is None or control_oid is None:
         raise conflict("control deleted this ticket after its human-review PR merged")
 
-    def resolve() -> None:
-        _record_published(root, {rel: control_oid})
+    def resolve(published: bool) -> None:
+        if not published:
+            _record_published(root, {rel: control_oid})
         if on_resolved is not None:
             on_resolved()
 
     if local_oid == control_oid:
-        resolve()
+        resolve(False)
         return result(local, "same")
     if local_oid == review_base:
         prepared = result(control, "adopted")
@@ -1474,13 +1492,15 @@ def lifecycle_winner(
     unparseable step.
     """
     (my_status, my_step), (their_status, their_step) = mine, theirs
+    if not same_workflow:
+        return None
     if my_status != their_status:
         my_rank = _STATUS_RANK.get(my_status or "")
         their_rank = _STATUS_RANK.get(their_status or "")
         if my_rank is None or their_rank is None or my_rank == their_rank:
             return None
         return "mine" if my_rank > their_rank else "theirs"
-    if not same_workflow or my_step is None or their_step is None or my_step == their_step:
+    if my_step is None or their_step is None or my_step == their_step:
         return None
     return "mine" if my_step > their_step else "theirs"
 
@@ -1523,19 +1543,22 @@ def merge_ticket_bytes(
     position = tuple(
         tuple(fm.get(key, _MISSING) for key in _LIFECYCLE_KEYS) for fm in (b, l, c)
     )
+    workflows = tuple(fm.get("workflow", _MISSING) for fm in (b, l, c))
+    if workflows[1] != workflows[2] and (
+        (position[1] != position[0] and workflows[2] != workflows[0])
+        or (position[2] != position[0] and workflows[1] != workflows[0])
+    ):
+        raise conflict("one side moved its lifecycle while the other replaced its frozen workflow")
     lifecycle = _merge_value(*position)
     if lifecycle is _CONFLICT:
-        same_workflow = (
-            b.get("workflow", _MISSING) == l.get("workflow", _MISSING)
-            == c.get("workflow", _MISSING)
-        )
+        same_workflow = workflows[0] == workflows[1] == workflows[2]
         winner = lifecycle_winner(
             (l.get("status"), tickets[1].step_index()),
             (c.get("status"), tickets[2].step_index()),
             same_workflow=same_workflow,
         )
         if winner is None:
-            status = l.get("status") != c.get("status")
+            status = same_workflow and l.get("status") != c.get("status")
             raise conflict(
                 f"both sides moved its lifecycle (control: status={c.get('status')!r} "
                 f"step={c.get('step')!r}; here: status={l.get('status')!r} "

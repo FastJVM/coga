@@ -99,22 +99,22 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
    `[git].remote` from `coga.toml` (default `origin`) — the same remote the
    publication checks below read; do not assume an `origin` remote exists.
    Query PR metadata with
-   `gh pr view <n> --json number,url,state,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeable`
+   `gh pr view <n> --json number,title,url,state,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeable`
    (in sweep mode, from the complete/paginated `gh pr list --state open
    --limit 10000` result described above). Process PRs sequentially and keep
    each observed head OID for its push lease. Report and skip before reading
    any comment:
+   - title starting with `Human Review needed` → `skipped-human-review`,
+     even when it is the selected PR. A lifecycle command opened it for an
+     ambiguous ticket status conflict (`coga/state-publication`, "Human
+     review of status conflicts"); its comments and resolution are the
+     human's. Apply this check before the remaining skip rules.
    - base other than `main` → `skipped-base` with the base named;
    - `mergeable` is `CONFLICTING` → `conflicting`; if it is `UNKNOWN`, retry
      the read a small, bounded number of times and report `conflicting` if it
      stays unknown;
    - head repository other than this repository (a fork) → `skipped-fork`.
      Resolving a writable fork remote is not attempted.
-   - title starting with `Human Review needed` → `skipped-human-review`,
-     even when it is the selected PR. A lifecycle command opened it for an
-     ambiguous ticket status conflict (`coga/state-publication`, "Human
-     review of status conflicts"); its comments and resolution are the
-     human's.
 
    Before reading comments or changing files, apply the skill's §1 items 3–5
    to this PR: read the configured `[git].remote` (default `origin`), require

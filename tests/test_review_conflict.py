@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import subprocess
+from itertools import permutations
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from coga import git, review_conflict
 from coga.commands.common import prepare_lifecycle_ticket
@@ -29,9 +31,13 @@ class FakeGitHub:
         self.calls: list[list[str]] = []
         self.bodies: list[str] = []
         self.fail: str | None = None
+        self.repositories: list[str] = []
 
-    def __call__(self, args: list[str], *, cwd: Path, stdin: str | None = None) -> str:
+    def __call__(
+        self, args: list[str], *, cwd: Path, repository: str, stdin: str | None = None,
+    ) -> str:
         self.calls.append(args)
+        self.repositories.append(repository)
         if self.fail is not None:
             raise review_conflict.ReviewUnavailable(self.fail)
         verb = args[:2]
@@ -101,9 +107,12 @@ def _remote_tip(git_repo, branch: str) -> str | None:
 @pytest.mark.parametrize(
     ("base", "local", "control"),
     [
-        ("active", "paused", "in_progress"),
-        ("in_progress", "blocked", "done"),
-        ("in_progress", "done", "canceled"),
+        (next(s for s in ("active", "in_progress", "draft") if s not in (local, control)),
+         local, control)
+        for local, control in permutations(
+            ("draft", "active", "in_progress", "paused", "blocked", "done", "canceled"), 2
+        )
+        if {local, control} & {"paused", "blocked"} or {local, control} == {"done", "canceled"}
     ],
 )
 def test_an_ambiguous_status_conflict_opens_a_human_review_pr(
@@ -215,19 +224,15 @@ def test_unavailable_github_keeps_the_local_refusal_and_says_no_pr_exists(
 
 def test_a_failed_push_reports_that_no_pr_was_created(git_repo, gh, monkeypatch, capsys):
     _status_conflict(git_repo, "active", "paused", "in_progress")
-    real = git.run_git
-
-    def refuse_push(root, *args, **kwargs):
-        if args and args[0] == "push":
-            raise git.GitError("remote: permission denied")
-        return real(root, *args, **kwargs)
-
-    monkeypatch.setattr(git, "run_git", refuse_push)
+    hook = git_repo.origin / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho 'permission denied' >&2\nexit 1\n", encoding="utf-8", newline="\n")
+    hook.chmod(0o755)
 
     assert _bump(monkeypatch) == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
 
     assert gh.created() == 0
-    assert "No human-review PR was created: remote: permission denied" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "No human-review PR was created:" in err and "git push" in err
 
 
 def _human_merges(git_repo, branch: str, rel: str, resolution: str | None) -> None:
@@ -322,3 +327,158 @@ def test_a_non_status_conflict_never_opens_a_review_pr(git_repo, gh, monkeypatch
 def test_review_titles_are_recognized():
     assert review_conflict.is_review_title(review_conflict.title("v1/demo"))
     assert not review_conflict.is_review_title("[deep · A:claude R:none] Fix demo")
+
+
+def test_unblock_all_opens_review_and_adopts_its_merged_resolution(git_repo, gh):
+    from coga.cli import app
+
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _status_conflict(git_repo, "active", "blocked", "in_progress")
+    original = path.read_bytes()
+    result = CliRunner().invoke(app, ["unblock", "--all"], input="answer\n")
+    assert result.exit_code == 75, result.output
+    assert gh.created() == 1 and gh.prs[0]["url"] in result.output
+    assert path.read_bytes() == original
+
+    resolution = _text("blocked", "## Blockers\n\n- [ ] [2026-11-05 10:00] "
+                       "[human:marc] id=20261105T100000 Need input\n")
+    _human_merges(git_repo, gh.prs[0]["head"], rel, resolution)
+    gh.prs[0]["state"] = "MERGED"
+    result = CliRunner().invoke(app, ["unblock", "--all"], input="answer\n")
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(path).status == "active"
+    assert "- [x]" in path.read_text(encoding="utf-8")
+    assert not review_conflict.recorded(cfg, rel)
+
+
+def test_unblock_after_prompt_escalates_a_new_status_conflict(git_repo, gh, monkeypatch):
+    from coga.cli import app
+    from tests.test_git import _lifecycle_text
+
+    path, rel = _seed_lifecycle(git_repo, status="active")
+    git_repo.checkout_branch("feature/unblock-prompt")
+    path.write_text(
+        _lifecycle_text(status="blocked", blackboard="## Blockers\n\n- [ ] "
+                        "[2026-11-05 10:00] [human:marc] id=20261105T100000 Need input\n"),
+        encoding="utf-8", newline="\n",
+    )
+    original = path.read_bytes()
+
+    def answer(*args, **kwargs):
+        _peer_writes(git_repo, rel, _text("in_progress"))
+        return "answer"
+
+    monkeypatch.setattr("typer.prompt", answer)
+    result = CliRunner().invoke(app, ["unblock", "demo"])
+    assert result.exit_code == 75, result.output
+    assert gh.created() == 1 and gh.prs[0]["url"] in result.output
+    assert path.read_bytes() == original
+
+
+def test_owner_retires_merged_review_only_after_confirmed_publication(git_repo, gh, monkeypatch):
+    from coga.cli import app
+
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _status_conflict(git_repo, "active", "paused", "in_progress")
+    assert _bump(monkeypatch) == 75
+    resolution = _text("paused", "notes\nhuman resolution\n")
+    _human_merges(git_repo, gh.prs[0]["head"], rel, resolution)
+    gh.prs[0]["state"] = "MERGED"
+    result = CliRunner().invoke(app, ["owner", "demo", "alice"])
+    assert result.exit_code == 0, result.output
+    assert not review_conflict.recorded(cfg, rel)
+    assert git_repo.git("rev-parse", f"{git.PUBLISHED_REF}:{rel}") == git_repo.git(
+        "rev-parse", f"origin/main:{rel}"
+    )
+
+    newer = Ticket.read(path)
+    newer.frontmatter["owner"] = "bob"
+    _peer_writes(git_repo, rel, newer.render())
+    prepared = prepare_lifecycle_ticket(cfg, resolve_task(cfg, "demo"))
+    assert prepared.outcome == "adopted" and prepared.ticket.owner == "bob"
+
+
+def test_failed_owner_publication_keeps_review_for_retry(git_repo, gh, monkeypatch):
+    from coga.cli import app
+
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _status_conflict(git_repo, "active", "paused", "in_progress")
+    original = path.read_bytes()
+    assert _bump(monkeypatch) == 75
+    _human_merges(git_repo, gh.prs[0]["head"], rel, _text("paused", "human resolution\n"))
+    gh.prs[0]["state"] = "MERGED"
+    # Git runs the hook through its bundled sh on Windows too.
+    hook = git_repo.origin / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8", newline="\n")
+    hook.chmod(0o755)
+    result = CliRunner().invoke(app, ["owner", "demo", "alice"])
+    assert result.exit_code == 75, result.output
+    assert path.read_bytes() == original
+    assert review_conflict.recorded(cfg, rel)
+    hook.unlink()
+    result = CliRunner().invoke(app, ["owner", "demo", "alice"])
+    assert result.exit_code == 0, result.output
+    assert not review_conflict.recorded(cfg, rel)
+
+
+def test_review_tool_permission_error_preserves_refusal(git_repo, gh, monkeypatch, capsys):
+    path, rel = _status_conflict(git_repo, "active", "paused", "in_progress")
+    original, control = path.read_bytes(), _control(git_repo, rel)
+
+    def denied(*args, **kwargs):
+        raise PermissionError("cannot execute gh")
+
+    monkeypatch.setattr(review_conflict, "_gh", denied)
+    assert _bump(monkeypatch) == 75
+    assert "No human-review PR was created: cannot execute gh" in capsys.readouterr().err
+    assert path.read_bytes() == original and _control(git_repo, rel) == control
+
+
+def test_review_record_is_never_published_without_an_ignore_rule(git_repo, gh, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _status_conflict(git_repo, "active", "paused", "in_progress")
+    assert _bump(monkeypatch) == 75
+    path.write_text(_control(git_repo, rel), encoding="utf-8", newline="\n")
+    git.sync_coga_state(cfg)
+    tracked = git_repo.git("ls-tree", "-r", "--name-only", "main", cwd=git_repo.origin)
+    assert "coga/.coga/human-review.json" not in tracked.splitlines()
+    assert review_conflict.recorded(cfg, rel)
+
+
+def test_review_uses_configured_remote_and_control_branch(git_repo, gh):
+    from dataclasses import replace
+
+    path, rel = _status_conflict(git_repo, "active", "paused", "in_progress")
+    git_repo.git("remote", "rename", "origin", "control")
+    git_repo.git("remote", "add", "origin", str(git_repo.origin.parent / "wrong.git"))
+    git_repo.git("fetch", "control", "main")
+    git_repo.git("push", "control", "refs/remotes/control/main:refs/heads/integration")
+    cfg = replace(load_config(git_repo.coga_os), git_remote="control", git_control_branch="integration")
+    with pytest.raises(SystemExit) as exc:
+        prepare_lifecycle_ticket(cfg, resolve_task(cfg, "demo"))
+    assert exc.value.code == 75
+    assert gh.created() == 1 and gh.prs[0]["base"] == "integration"
+    assert gh.repositories and set(gh.repositories) == {str(git_repo.origin)}
+
+
+def test_review_refuses_a_remote_with_a_different_push_destination(git_repo, gh, monkeypatch, capsys):
+    _status_conflict(git_repo, "active", "paused", "in_progress")
+    git_repo.git("config", "remote.origin.pushurl", "https://github.test/other/repo.git")
+    assert _bump(monkeypatch) == 75
+    assert not gh.calls
+    assert "must fetch and push one matching repository" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("source", [
+    "git@github.test:Team/Repo.git", "https://github.test/Team/Repo.git",
+])
+def test_gh_boundary_selects_the_explicit_repository(tmp_path, monkeypatch, source):
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "[]", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    assert review_conflict._gh(["pr", "list"], cwd=tmp_path, repository=source) == "[]"
+    assert calls == [["gh", "pr", "list", "--repo", "github.test/team/repo"]]

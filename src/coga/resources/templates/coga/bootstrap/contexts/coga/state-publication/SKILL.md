@@ -223,7 +223,9 @@ step, deriving messages, or writing anything:
   value) and the body, blackboard included, by a three-way text merge. When
   both moved the lifecycle, the demonstrably later position wins whole:
   `draft` < `active` < `in_progress` < terminal, then the higher step under
-  an unchanged workflow. A terminal winner carries no step.
+  an unchanged workflow. Progress on one side while the other replaces the
+  frozen workflow refuses; a step from the old workflow cannot be applied to
+  its replacement. A terminal winner carries no step.
 - **Cannot reconcile** — overlapping prose, different edits of one metadata
   value, a control copy deleted after it was shared, no provable shared copy,
   or a status pair the ordering cannot rank (`paused` or `blocked` against
@@ -269,7 +271,9 @@ ticket's implementation PR.
 - **Title and target.** `Human Review needed: <ticket slug> — lifecycle merge
   conflict`, based on configured control. The description lists the
   conflicting fields and the base, local, and control copies (each truncated
-  past 18,000 characters).
+  past 18,000 characters). GitHub queries and creation explicitly use the
+  configured remote's repository, independently of gh's default. A remote
+  with different fetch/push repositories or multiple push destinations refuses.
 - **Head.** A branch `coga/human-review/<slug>-<key>` holding this checkout's
   copy, committed on top of the control commit that introduced the shared
   copy and built without touching the checkout, its index, or its branches.
@@ -287,15 +291,19 @@ ticket's implementation PR.
   command still refuses as above and says no review PR was created; it never
   reports one that does not exist.
 
-The command exits 75 in every case. Resolution comes back through the next
+An unresolved conflict exits 75; batch callers such as `unblock --all`
+report it and continue to the remaining tickets before exiting 75. Resolution comes back through the next
 lifecycle command in the refusing checkout, which remembers the PRs it opened
-in machine-local `.coga/human-review.json`:
+in machine-local `.coga/human-review.json`. Publication excludes that file
+even when the checkout lacks its ignore rule:
 
 - **Merged** — control's copy is the human's resolution. An unchanged local
   copy adopts it; edits made locally after the PR was opened merge onto it
   three-way, with the PR's copy as the base. Once that ticket is written,
   control's copy is recorded as this worktree's provenance and the record is
-  dropped. A merge that kept control's copy unchanged is recognized from any
+  dropped. Owner reassignment waits for confirmed publication before dropping
+  the record, because a definite publication failure restores its original
+  local ticket. A merge that kept control's copy unchanged is recognized from any
   checkout, because the conflict key still matches.
 - **Closed unmerged** — the command refuses again and opens no new PR; take
   control's copy and redo the edit.

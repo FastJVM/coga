@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 from coga import git
 from coga.autoclose import GhError, parse_pr_url, pr_view
 from coga.config import Config
-from coga.github_source import redacted_git_source
+from coga.github_source import github_repository_identity, redacted_git_source
 from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
@@ -38,39 +38,6 @@ class AssistSession:
     agent: str
     branch: str
     pr_url: str
-
-
-def _git_remote_repository_identity(
-    remote_url: str,
-) -> tuple[str, str, str] | None:
-    """Normalize a GitHub-style remote URL to ``(host, owner, repository)``."""
-    value = remote_url.strip()
-    if not value:
-        return None
-
-    host = ""
-    path = ""
-    if "://" in value:
-        parsed = urlsplit(value)
-        host = parsed.hostname or ""
-        path = parsed.path
-    else:
-        left, separator, right = value.partition(":")
-        if separator and "/" in right and "/" not in left:
-            host = left.rsplit("@", 1)[-1]
-            path = right
-        else:
-            return None
-
-    parts = [part for part in path.strip("/").split("/") if part]
-    if not host or len(parts) != 2:
-        return None
-    owner, repository = parts
-    if repository.endswith(".git"):
-        repository = repository[:-4]
-    if not owner or not repository:
-        return None
-    return host.casefold(), owner.casefold(), repository.casefold()
 
 
 def verify_recorded_assist_pr_head(
@@ -140,7 +107,7 @@ def verify_recorded_assist_pr_head(
         owner_login.casefold(),
         repository_name.casefold(),
     )
-    remote_identity = _git_remote_repository_identity(push_url)
+    remote_identity = github_repository_identity(push_url)
     safe_push_url = redacted_git_source(push_url)
     if remote_identity is None:
         raise git.GitError(

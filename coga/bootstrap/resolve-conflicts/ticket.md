@@ -56,13 +56,14 @@ is the selected PR.
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
    `git` and `gh` can read the repository, then run `git fetch origin main`.
-   Query PR metadata including number, URL, state, base ref, head ref, head
+   Query PR metadata including number, title, URL, state, base ref, head ref, head
    OID, head repository, fork status, maintainer-writeability, and `mergeable`.
    In sweep mode, use the complete/paginated `gh pr list --state open --limit
    10000` result described above; in single mode, use `gh pr view`. Process PRs
    sequentially and keep the observed head OID for the push lease.
 2. **Select actual conflicts.** Immediately before touching a selected PR,
-   refresh its state, base, head OID, and `mergeable` value with `gh pr view`.
+   refresh its title, state, base, head OID, and `mergeable` value with `gh pr view`.
+   Report `Human Review needed` titles as `skipped-human-review` first.
    If it closed, changed base, or moved its head, make no change and report
    `conflict` with the reason. If GitHub reports `MERGEABLE`, report
    `up-to-date` (no conflict with `main`) and do not rebase. If it reports

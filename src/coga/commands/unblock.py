@@ -8,7 +8,7 @@ import typer
 
 from coga import git
 from coga.blackboard import open_blockers, parse_blockers_text, resolve_open_blockers_text
-from coga.commands.common import prepare_lifecycle_ticket
+from coga.commands.common import prepare_lifecycle_ticket, reconcile_lifecycle_ticket
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
 from coga.mark import RequiredExtensionMissing, WorkflowMissing, mark_active
@@ -204,7 +204,7 @@ def _apply_unblock(
     try:
         if prepared is None:
             try:
-                prepared = git.prepare_ticket(cfg, ref.ticket_path)
+                prepared = reconcile_lifecycle_ticket(cfg, ref)
             except git.TicketConflictError as exc:
                 raise _UnblockConflict(f"Refusing to unblock {ref.id_slug}: {exc}.") from exc
             except git.GitError as exc:

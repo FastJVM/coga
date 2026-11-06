@@ -99,6 +99,20 @@ def prepare_lifecycle_ticket(cfg: "Config", ref: "TaskRef") -> "git.PreparedTick
     resolution. Any other Git failure while preparing is reported and leaves
     today's local read, like an unavailable fetch.
     """
+    from coga import git
+
+    try:
+        return reconcile_lifecycle_ticket(cfg, ref)
+    except git.TicketConflictError as exc:
+        _refuse_conflict(ref, exc)
+
+
+def reconcile_lifecycle_ticket(cfg: "Config", ref: "TaskRef") -> "git.PreparedTicket":
+    """Prepare with human-review handling, raising conflicts instead of exiting.
+
+    Loop callers use this boundary so each refused ticket can be reported
+    without terminating the remaining work.
+    """
     from coga import git, review_conflict
 
     path = ref.ticket_path
@@ -118,20 +132,20 @@ def prepare_lifecycle_ticket(cfg: "Config", ref: "TaskRef") -> "git.PreparedTick
     except git.TicketConflictError as exc:
         review = exc.review
         if review is None:
-            _refuse_conflict(ref, exc)
+            raise
         outcome = review_conflict.escalate(cfg, ref.id_slug, review)
         if outcome.state == "merged":
             # A human already resolved exactly this conflict: adopt it.
-            try:
-                return git.prepare_ticket(
-                    cfg, path, review_base=review.local_oid,
-                    on_resolved=lambda: review_conflict.forget(
-                        cfg, review.rel, review_conflict.fingerprint(review),
-                    ),
-                )
-            except git.TicketConflictError as again:
-                _refuse_conflict(ref, again)
-        _refuse_conflict(ref, exc, review_conflict.report(outcome))
+            return git.prepare_ticket(
+                cfg, path, review_base=review.local_oid,
+                on_resolved=lambda: review_conflict.forget(
+                    cfg, review.rel, review_conflict.fingerprint(review),
+                ),
+            )
+        raise git.TicketConflictError(
+            f"{exc}.\n{review_conflict.report(outcome)}",
+            rel=exc.rel, status_conflict=exc.status_conflict, review=review,
+        ) from exc
     except git.GitError as exc:
         sys.stderr.write(
             f"[git] could not prepare {ref.id_slug} against control ({exc}); "

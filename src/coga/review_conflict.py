@@ -40,6 +40,7 @@ from typing import Any, Literal
 
 from coga import git
 from coga.config import Config
+from coga.github_source import github_repository_identity
 
 TITLE_PREFIX = "Human Review needed"
 BRANCH_PREFIX = "coga/human-review/"
@@ -89,15 +90,23 @@ def branch_name(slug: str, key: str) -> str:
     return f"{BRANCH_PREFIX}{safe}-{key[:12]}"
 
 
-def _gh(args: list[str], *, cwd: Path, stdin: str | None = None) -> str:
+def _gh(
+    args: list[str], *, cwd: Path, repository: str, stdin: str | None = None,
+) -> str:
     """Run one `gh` command; the only GitHub boundary in this module."""
+    identity = github_repository_identity(repository)
+    if identity is None:
+        raise ReviewUnavailable("the configured remote does not identify a GitHub repository")
     try:
         result = subprocess.run(
-            ["gh", *args], cwd=cwd, input=stdin, capture_output=True,
+            ["gh", *args, "--repo", "/".join(identity)],
+            cwd=cwd, input=stdin, capture_output=True,
             text=True, encoding="utf-8", check=False,
         )
     except FileNotFoundError as exc:
         raise ReviewUnavailable("`gh` not found on PATH") from exc
+    except OSError as exc:
+        raise ReviewUnavailable(f"could not execute `gh`: {exc}") from exc
     if result.returncode != 0:
         detail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "no output"
         raise ReviewUnavailable(
@@ -106,11 +115,26 @@ def _gh(args: list[str], *, cwd: Path, stdin: str | None = None) -> str:
     return result.stdout
 
 
-def _prs_for_branch(root: Path, branch: str) -> list[dict[str, Any]]:
+def _repository_url(cfg: Config, root: Path) -> str:
+    """Require one push destination matching the configured control source."""
+    source = git.run_git(root, "remote", "get-url", cfg.git_remote).strip()
+    targets = git.run_git(root, "remote", "get-url", "--push", "--all", cfg.git_remote).splitlines()
+    if len(targets) != 1 or (
+        targets[0] != source
+        and (
+            github_repository_identity(source) is None
+            or github_repository_identity(source) != github_repository_identity(targets[0])
+        )
+    ):
+        raise ReviewUnavailable("the configured remote must fetch and push one matching repository")
+    return source
+
+
+def _prs_for_branch(root: Path, branch: str, repository: str) -> list[dict[str, Any]]:
     out = _gh(
         ["pr", "list", "--head", branch, "--state", "all",
          "--json", "number,url,state,title"],
-        cwd=root,
+        cwd=root, repository=repository,
     )
     try:
         data = json.loads(out or "[]")
@@ -121,8 +145,8 @@ def _prs_for_branch(root: Path, branch: str) -> list[dict[str, Any]]:
     return [item for item in data if isinstance(item, dict)]
 
 
-def _pr_state(root: Path, url: str) -> str:
-    out = _gh(["pr", "view", url, "--json", "state"], cwd=root)
+def _pr_state(root: Path, url: str, repository: str) -> str:
+    out = _gh(["pr", "view", url, "--json", "state"], cwd=root, repository=repository)
     try:
         return str(json.loads(out).get("state", "")).upper()
     except (json.JSONDecodeError, AttributeError) as exc:
@@ -225,8 +249,8 @@ def merged_record(cfg: Config, rel: str) -> dict[str, Any] | None:
         if not url or not entry.get("local"):
             continue
         try:
-            state = _pr_state(root, url)
-        except ReviewUnavailable as exc:
+            state = _pr_state(root, url, _repository_url(cfg, root))
+        except (ReviewUnavailable, git.GitError, OSError) as exc:
             sys.stderr.write(f"[review] could not check human-review PR {url}: {exc}\n")
             return None
         if state == "MERGED":
@@ -242,7 +266,8 @@ def escalate(cfg: Config, slug: str, conflict: git.StatusConflict) -> ReviewOutc
     key = fingerprint(conflict)
     branch = branch_name(slug, key)
     try:
-        existing = _classify(_prs_for_branch(conflict.root, branch))
+        repository = _repository_url(cfg, conflict.root)
+        existing = _classify(_prs_for_branch(conflict.root, branch, repository))
         if existing is not None:
             if existing.state == "open" and existing.url:
                 _remember(cfg, conflict, key, existing.url)
@@ -256,11 +281,12 @@ def escalate(cfg: Config, slug: str, conflict: git.StatusConflict) -> ReviewOutc
         url = _gh(
             ["pr", "create", "--base", cfg.git_control_branch, "--head", branch,
              "--title", title(slug), "--body-file", "-"],
-            cwd=conflict.root, stdin=pr_body(cfg, slug, conflict, branch),
+            cwd=conflict.root, repository=repository,
+            stdin=pr_body(cfg, slug, conflict, branch),
         ).strip().splitlines()
         if not url:
             raise ReviewUnavailable("`gh pr create` printed no PR URL")
-    except (ReviewUnavailable, git.GitError) as exc:
+    except (ReviewUnavailable, git.GitError, OSError) as exc:
         return ReviewOutcome("unavailable", detail=str(exc))
     _remember(cfg, conflict, key, url[-1].strip())
     return ReviewOutcome("created", url=url[-1].strip())
