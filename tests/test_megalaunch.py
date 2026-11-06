@@ -9,16 +9,11 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import windows_interactive_skip
 
 
-@pytest.fixture(autouse=True)
-def _supported_mock_agent_platform(monkeypatch):
-    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 
-from conftest import append_test_usage, hold_by_agent, hold_by_owner
+from conftest import append_test_usage, hold_by_agent, hold_by_owner, windows_skip
 from coga.cli import app
 from coga.launch import AgentSessionResult
 from coga.compose import compose_prompt
@@ -5346,7 +5341,10 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
                 )
 
 
-@windows_interactive_skip
+@windows_skip(
+    "POSIX raw-mode PTY and SIGWINCH self-pipe; the Windows resize poll is "
+    "covered by test_windows_keys_resize_and_extended_keys"
+)
 def test_read_key_resize_beats_pending_keypress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5379,12 +5377,12 @@ def test_read_key_resize_beats_pending_keypress(
 def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
     """Drive the picker with decoded key actions instead of a raw terminal."""
     pending = iter(keys)
-    monkeypatch.setattr(
-        "coga.commands.megalaunch._read_key", lambda _resize_fd: next(pending)
-    )
+    for source in ("_PosixKeys", "_WindowsKeys"):
+        monkeypatch.setattr(
+            f"coga.commands.megalaunch.{source}.read", lambda self: next(pending)
+        )
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_picker_launches_checked_tasks(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5433,7 +5431,6 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     assert load_selection(cfg) == [first["slug"]]
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5478,7 +5475,6 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
         assert Ticket.read(draft["path"]).status == "done"
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_pick_ready_work_is_not_prompted(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5511,7 +5507,6 @@ def test_megalaunch_cli_pick_ready_work_is_not_prompted(
     assert Ticket.read(ready["path"]).status == "done"
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_picker_moves_and_toggles(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5556,7 +5551,6 @@ def test_megalaunch_cli_picker_moves_and_toggles(
     assert Ticket.read(first["path"]).status == "active"
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_picker_resize_keeps_state(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5593,7 +5587,6 @@ def test_megalaunch_cli_picker_resize_keeps_state(
     assert signal.getsignal(signal.SIGWINCH) is handler_before
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_quit_launches_nothing(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5623,7 +5616,6 @@ def test_megalaunch_cli_quit_launches_nothing(
     assert Ticket.read(ref["path"]).status == "active"
 
 
-@windows_interactive_skip
 def test_megalaunch_cli_pick_scopes_to_directory(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5913,3 +5905,172 @@ def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
     # The run still summarizes instead of dying on a traceback.
     assert run.counts["failed"] == 1
     assert run.counts["completed"] == 1
+
+
+# --- the Windows picker key source --------------------------------------------
+
+
+class _FakeMsvcrt:
+    """`kbhit`/`getwch` over a queue; ``on_read`` runs before each `getwch`."""
+
+    def __init__(self, chars: list[str], on_read=None) -> None:
+        self.chars = list(chars)
+        self.on_read = on_read
+
+    def kbhit(self) -> bool:
+        return bool(self.chars)
+
+    def getwch(self) -> str:
+        if self.on_read is not None:
+            self.on_read(self)
+        return self.chars.pop(0)
+
+
+def _windows_picker(monkeypatch: pytest.MonkeyPatch, msvcrt, sleep=None):
+    """Select the Windows key source with fake console input and modes."""
+    import sys
+    import types
+
+    from coga.commands import megalaunch as command
+
+    modes: list[str] = []
+
+    class Modes:
+        @classmethod
+        def save(cls):
+            modes.append("saved")
+            return cls()
+
+        def restore(self) -> None:
+            modes.append("restored")
+
+    monkeypatch.setitem(sys.modules, "msvcrt", msvcrt)
+    monkeypatch.setattr(command, "_windows_console", lambda: True)
+    monkeypatch.setattr("coga.repl_supervisor_nt.ConsoleModes", Modes)
+    monkeypatch.setattr(
+        command, "time", types.SimpleNamespace(sleep=sleep or (lambda _s: None))
+    )
+    return modes
+
+
+def test_windows_keys_resize_and_extended_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.commands import megalaunch as command
+
+    msvcrt = _FakeMsvcrt(["\xe0", "H", "\xe0", "P", "\x00", "P", " ", "j", "k",
+                          "a", "n", "\r", "\x1b", "q", "\x03", "\xe0", "M"])
+    _windows_picker(monkeypatch, msvcrt)
+    sizes = iter([(80, 24), (80, 24), (100, 30)])
+    monkeypatch.setattr(command.shutil, "get_terminal_size", lambda: next(sizes))
+    with command._WindowsKeys() as keys:
+        actions = [keys.read() for _ in range(13)]
+        assert actions == ["up", "down", "down", "space", "down", "up", "all",
+                           "none", "enter", "quit", "quit", "quit", ""]
+        # Idle polling notices a resize without SIGWINCH.
+        assert keys.read() == "resize"
+
+
+def _picker_candidates(repo: Path) -> list:
+    from coga.tasks import list_tasks
+
+    cfg = load_config(repo)
+    for title in ("First", "Second"):
+        create_task(cfg=cfg, title=title, workflow_name="code", contexts=[],
+                    owner="marc", agent="claude", status="active")
+    return [(ref, Ticket.read(ref.ticket_path)) for ref in list_tasks(cfg)]
+
+
+@pytest.mark.parametrize(
+    ("chars", "expected"),
+    [([" ", "\r"], 1), (["q"], 0), (["\x03"], 0), (["\x1b"], 0)],
+)
+def test_windows_picker_restores_handler_and_modes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, chars: list[str], expected: int
+) -> None:
+    import signal
+
+    from coga.commands.megalaunch import _pick_selection
+
+    modes = _windows_picker(monkeypatch, _FakeMsvcrt(chars))
+    previous = signal.getsignal(signal.SIGINT)
+    assert len(_pick_selection(_picker_candidates(repo))) == expected
+    assert signal.getsignal(signal.SIGINT) is previous
+    assert modes == ["saved", "restored"]
+
+
+def test_windows_picker_restores_after_a_render_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import signal
+
+    from coga.commands import megalaunch as command
+
+    modes = _windows_picker(monkeypatch, _FakeMsvcrt([]))
+    previous = signal.getsignal(signal.SIGINT)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(command, "_picker_view", broken)
+    with pytest.raises(RuntimeError, match="render failed"):
+        command._pick_selection(_picker_candidates(repo))
+    assert signal.getsignal(signal.SIGINT) is previous
+    assert modes == ["saved", "restored"]
+
+
+def _interrupt_once():
+    import signal
+
+    fired: list[bool] = []
+
+    def fire(*_args) -> None:
+        if not fired:
+            fired.append(True)
+            signal.raise_signal(signal.SIGINT)
+
+    return fire
+
+
+@pytest.mark.parametrize("moment", ["idle-poll", "redraw", "before-enter"])
+def test_windows_ctrl_c_signal_quits_the_picker_without_launching(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, moment: str
+) -> None:
+    """A processed Ctrl+C is a SIGINT, not a key: it cancels at any moment."""
+    from typer.testing import CliRunner
+
+    from coga.commands import megalaunch as command
+    from coga.megalaunch import MegalaunchError, load_selection
+
+    candidates = _picker_candidates(repo)
+    fire = _interrupt_once()
+    if moment == "idle-poll":
+        msvcrt = _FakeMsvcrt([])
+        _windows_picker(monkeypatch, msvcrt, sleep=fire)
+    elif moment == "redraw":
+        _windows_picker(monkeypatch, _FakeMsvcrt([" ", "j", "\r"]))
+        real_view = command._picker_view
+        calls: list[int] = []
+
+        def view(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 2:  # the redraw after the first key
+                fire()
+            return real_view(*args, **kwargs)
+
+        monkeypatch.setattr(command, "_picker_view", view)
+    else:
+        # Enter is already queued when the signal lands: cancellation wins.
+        _windows_picker(monkeypatch, _FakeMsvcrt([" ", "\r"], on_read=lambda m: (
+            fire() if m.chars == ["\r"] else None
+        )))
+    monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
+    launched = _done_on_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 0, result.output
+    assert "Traceback" not in result.output
+    assert "Nothing selected" in result.output
+    assert launched == []
+    with pytest.raises(MegalaunchError):
+        load_selection(load_config(repo))
+    assert all(Ticket.read(ref.ticket_path).status == "active" for ref, _ in candidates)

@@ -70,6 +70,7 @@ from coga.blackboard import (
 )
 from coga.launch import (
     _interactive_stdio_has_tty,
+    agent_command_refusal,
     missing_launch_file_message,
     spawn_agent_session,
 )
@@ -246,12 +247,6 @@ def run_megalaunch(
     The dependency drain belongs only to the default sweep. Explicit
     selections never expand into unpicked work.
     """
-    from coga.launch import LaunchBail, require_agent_sessions
-
-    try:
-        require_agent_sessions()
-    except LaunchBail as exc:
-        raise MegalaunchError(exc.reason) from None
     cfg = cfg or load_config()
     if agent_override is not None:
         cfg.agent_type(agent_override)
@@ -2108,6 +2103,11 @@ def _preflight_agent_launch(
         return missing_launch_file_message(exc)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
+    command_refusal = agent_command_refusal(
+        agent, env=env, ref=ref, name=launch_ticket.title or ""
+    )
+    if command_refusal is not None:
+        return command_refusal
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:

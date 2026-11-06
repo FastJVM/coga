@@ -11,16 +11,12 @@ from textwrap import dedent
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _supported_mock_agent_platform(monkeypatch):
-    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
-from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow, windows_interactive_skip
+from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow
 from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
@@ -7763,7 +7759,6 @@ def test_checkout_untracked_diagnostic_compares_working_blob_explicitly(git_repo
     assert path.read_text(encoding="utf-8") == "unique local work\n"
 
 
-@windows_interactive_skip
 def test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

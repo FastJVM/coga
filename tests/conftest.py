@@ -58,11 +58,6 @@ def windows_skip(reason: str):
     return pytest.mark.skipif(os.name == "nt", reason=reason)
 
 
-windows_interactive_skip = windows_skip(
-    "agent sessions/PTY: v1/14-interactive-coga-launch-on-native-windows"
-)
-
-
 def write_executable(path: Path, source: str) -> Path:
     """Install a Python CLI stub with the same argv on both native platforms."""
     source = dedent(source).lstrip()

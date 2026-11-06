@@ -33,10 +33,6 @@ from coga.ticket import Ticket
 _SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(autouse=True)
-def _supported_mock_agent_platform(monkeypatch):
-    """Agent orchestration uses stubs; platform-boundary cases override this."""
-    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: True)
 
 
 def _write(path: Path, text: str) -> None:
@@ -181,14 +177,11 @@ def test_classifier_reserves_only_ticket_py_in_a_task_directory(
     assert script_entry_point(directory_ref) is None
 
 
-@pytest.mark.parametrize("native_windows", [False, True])
 def test_script_only_launch_is_headless_and_receives_task_contract(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capfd: pytest.CaptureFixture[str],
-    native_windows: bool,
 ) -> None:
-    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: not native_windows)
     observed_path = script_repo.parent / "observed.json"
     sentinel = script_repo.parent / "outer-done"
     monkeypatch.setenv("COGA_DONE_SENTINEL", str(sentinel))
@@ -1462,7 +1455,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
         assert "- [ ]" in read_blackboard(ref.ticket_path)
 
 
-@pytest.mark.parametrize("unavailable", ["tty", "cli", "human", "windows"])
+@pytest.mark.parametrize("unavailable", ["tty", "cli", "human"])
 def test_open_script_step_fails_loud_when_no_agent_can_continue(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1478,7 +1471,6 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
             handle.write("\\ndeterministic work retained\\n")
         """,
     )
-    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: unavailable != "windows")
     if unavailable == "human":
         ticket = Ticket.read(ref.ticket_path)
         hold_by_owner(ticket)
@@ -1513,22 +1505,6 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
     assert ticket.step == "1 (execute)"
-    if unavailable == "windows":
-        assert launch_module.WINDOWS_AGENT_SESSION_MESSAGE in result.output
-
-
-def test_windows_prompt_report_allows_an_agent_ticket(script_repo, monkeypatch):
-    ref = _create_script_task(script_repo, "raise AssertionError('not a script launch')\n")
-    (ref.task_dir / "ticket.py").unlink()
-    before = ref.ticket_path.read_bytes()
-    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False)
-    monkeypatch.setattr(launch_module, "spawn_agent_session", _fail("agent spawned"))
-
-    result = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
-
-    assert result.exit_code == 0, result.output
-    assert launch_module.WINDOWS_AGENT_SESSION_MESSAGE not in result.output
-    assert ref.ticket_path.read_bytes() == before
 
 
 @pytest.mark.parametrize("value", ["machine-value", "Café → 東京"])

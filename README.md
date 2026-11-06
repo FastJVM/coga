@@ -89,11 +89,8 @@ installation instructions, then run `claude` or `codex login` to sign in.
 Coga does not include either agent. Coga requires Python 3.11+, but the
 recommended `uv` installer can obtain a compatible Python for you.
 
-**Native Windows is not ready for a first task.** PyPI release 0.4.1
-does not run there. The development version runs deterministic commands but
-still refuses agent sessions; see the [launch platform boundary](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
-WSL has not been verified as an alternative. The steps below are for macOS
-and Linux.
+**On native Windows**, follow the [Windows baseline](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#windows-baseline)
+first. PyPI release 0.4.1 predates the Windows port and does not run there.
 
 On macOS, check that `git --version` works. If it prompts for developer
 tools, run `xcode-select --install`; Git installed another way works too.

@@ -25,7 +25,6 @@ an artifact, not a finding.
 from __future__ import annotations
 
 import os
-import stat
 import sys
 from collections import deque
 from pathlib import Path
@@ -33,13 +32,9 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import windows_interactive_skip
+from conftest import write_executable
 
 
-@pytest.fixture(autouse=True)
-def _supported_mock_agent_platform(monkeypatch):
-    """These orchestration tests substitute the agent; native refusal lives in test_cli."""
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 from typer.testing import CliRunner
 
@@ -301,19 +296,19 @@ sys.exit(coga("bump", slug))
 
 
 def _install_fake_agent(coga_os: Path, tmp_path: Path) -> Path:
-    script = tmp_path / "fake_agent.py"
-    script.write_text(
+    # A native executable stub on both platforms (a `.cmd` shim on Windows,
+    # which also exercises the batch-file argv transport).
+    script = write_executable(
+        tmp_path / "fake_agent",
         _FAKE_AGENT.format(python=sys.executable, step_env=EXPECTED_STEP_ENV),
-        encoding="utf-8", newline="\n",
     )
-    script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    # Point the claude CLI at the fake agent.
+    # Point the claude CLI at the fake agent (a TOML literal string, so a
+    # Windows path needs no escaping).
     toml = coga_os / "coga.toml"
-    toml.write_text(toml.read_text(encoding="utf-8").replace('cli = "claude"', f'cli = "{script}"'), encoding="utf-8", newline="\n")
+    toml.write_text(toml.read_text(encoding="utf-8").replace('cli = "claude"', f"cli = '{script}'"), encoding="utf-8", newline="\n")
     return script
 
 
-@windows_interactive_skip
 def test_launch_functionally_auto_restarts_through_three_steps(
     plain_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

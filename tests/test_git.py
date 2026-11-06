@@ -1217,7 +1217,6 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
         return SimpleNamespace(exit_code=0)
 
     monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr(command, "spawn_agent_session", interview)
     monkeypatch.chdir(git_repo.coga_os)
     monkeypatch.setattr(sys, "argv", ["coga", "ticket", "demo"])
