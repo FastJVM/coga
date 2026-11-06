@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -125,3 +125,106 @@ branch: coga/v1-human-review-pr-for-ambiguous-lifecycle-statu-a4ef81
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Decisions — 2026-11-06 (owner, attended)
+
+- **Stacked on PR #1180** (owner choice): its commit `5de611c6b` is
+  cherry-picked onto this branch because preparation/`TicketConflictError`
+  are not on main yet. This PR must merge after #1180; rebase drops the copy.
+- **Design approved as proposed:** conflict key = sha256(rel, base, local,
+  control blob oids) → deterministic branch `coga/human-review/<slug>-<fp12>`
+  (any checkout finds the PR via `gh pr list --head`). Head commit = provenance
+  commit's tree with the local ticket, built in an isolated index and pushed
+  as `<oid>:refs/heads/<branch>` only when the remote branch is absent (never
+  force). Per-worktree `.coga/human-review.json` records created PRs for the
+  merged return path (base := PR's local blob; record control's blob as
+  provenance once the resolved ticket is written). Single `_gh()` boundary
+  stubbed in tests. Accepted tradeoffs: merged return path is per-checkout;
+  control churn while a PR is open opens another PR (4-part key per ticket);
+  PR body versions truncated to fit GitHub's body limit.
+
+## Implementation handoff — 2026-11-06 (claude, attended)
+
+Branch pushed at `9e542eadad4e63fe1acdc2321e250275e096884f`: two commits on
+origin/main `25091f7e7` — `d86a864c9` (PR #1180's commit, cherry-picked, see
+Decisions) and `9e542eada` (this ticket). No PR yet. **The open-pr step must
+make this PR depend on #1180** (merge after it, or rebase once #1180 lands so
+its copy drops out).
+
+- `src/coga/git.py`: `StatusConflict` attached as `TicketConflictError.review`
+  for unrankable status pairs (`status_conflict_fields`, `_introducing_commit`
+  for the provenance root). `prepare_ticket(..., review_base=, on_resolved=)`
+  → `_prepare_reviewed` (merged-PR return path). `PreparedTicket.resolved`
+  runs on the first prepared write and records control's blob in
+  `PUBLISHED_REF` (deferred on purpose; see git-regressions).
+- `src/coga/review_conflict.py` (new): key/branch naming, `_gh` boundary,
+  `escalate` (lookup → isolated-index commit → push only if remote branch
+  absent → `gh pr create`), `.coga/human-review.json` records,
+  `merged_record`, `report`.
+- `src/coga/commands/common.py`: `prepare_lifecycle_ticket` checks merged
+  records first (only when the record file exists, so no extra Git calls
+  otherwise), escalates on a status conflict, adopts a merged same-key PR,
+  and always exits 75 on refusal.
+- Bootstrap `resolve-conflicts` / `address-pr-comments` (live + packaged):
+  new `skipped-human-review` status for `Human Review needed` PRs.
+- Docs: `coga/state-publication` "Human review of status conflicts" (live +
+  packaged), `coga-dev/internals/git-regressions`, `coga-dev/codebase`.
+- Tests: `tests/test_review_conflict.py` (13): each ambiguous pair end to end
+  through `coga bump`, reuse of an open PR without pushing over a human edit,
+  existing branch with no PR reused not force-pushed, closed unmerged, gh
+  unavailable, push refused, merged adopt + provenance, local edits after the
+  PR merged onto its resolution, `-s ours` merge recognized without a record,
+  non-status conflict never calls gh. `tests/conftest.py` stub accepts kwargs.
+- Fixed during verification: the record lookup initially ran `git toplevel`
+  before every preparation and broke 5 `test_launch` tests that fake
+  `subprocess.run`; now gated on the record file existing.
+- Pre-existing failures (not caused here, same as #1180 recorded):
+  `test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  (launch-boundary drift) and `::test_context_navigation_has_no_broken_links`
+  (current-direction anchors).
+- Not done: no independent code review; peer-review step owns it.
+
+## PR
+
+```yaml
+title: Open a human-review PR for ambiguous lifecycle status conflicts
+author: claude
+author_evidence: Attended implement session run by Claude (claude-opus-5-5); this handoff.
+head: 9e542eadad4e63fe1acdc2321e250275e096884f
+base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
+depth: deep
+rationale: Adds GitHub writes and a pushed branch to every lifecycle command's refusal path, a new preparation mode that adopts a human resolution, and deferred provenance recording; stacked on unreviewed PR #1180.
+implementation: On an unrankable status conflict, lifecycle commands still exit 75 unapplied and additionally find or open a `Human Review needed` PR keyed by path plus base/local/control blob ids, whose head is the local ticket committed onto the commit that introduced the shared base (isolated index, push only when the remote branch is absent). Merged PRs are adopted on the next preparation (later local edits merge onto the resolution), closed ones refuse without a new PR, open ones are reused; unavailable GitHub/Git reports that no PR was created.
+deviations: Stacked on PR #1180 (owner choice) because the preparation API it extends is not on main; the branch carries #1180's commit d86a864c9.
+limitations: The merged return path relies on the refusing checkout's local .coga/human-review.json record (except when the merge kept control's blob). A changed control or local copy is a new conflict key and opens another PR. PR body ticket versions are truncated past 18,000 characters each.
+files:
+  src/coga/git.py: StatusConflict payload, review_base preparation mode, deferred provenance hook (plus #1180's commit).
+  src/coga/review_conflict.py: Escalation, review branch construction, gh boundary, return-path records.
+  src/coga/commands/common.py: Escalate on status conflicts and adopt merged review PRs before lifecycle preparation.
+  tests/test_review_conflict.py: Real-git coverage of every escalation and return-path outcome with only gh faked.
+  tests/conftest.py: Preparation stub accepts the new keyword arguments.
+  coga/bootstrap/resolve-conflicts/ticket.md: Skip Human Review needed PRs (live twin).
+  coga/bootstrap/address-pr-comments/ticket.md: Skip Human Review needed PRs (live twin).
+  src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md: Skip Human Review needed PRs.
+  src/coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md: Skip Human Review needed PRs.
+  docs/contexts/coga/state-publication/SKILL.md: Own the human-review contract (live twin).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Own the human-review contract.
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Internals of escalation and the deferred provenance record.
+  docs/contexts/coga-dev/codebase/SKILL.md: Source-map entry for review_conflict.py.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the workflow's peer-review step owns code review.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider -rf
+    status: failed
+    head: 9e542eadad4e63fe1acdc2321e250275e096884f
+    base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
+    detail: 4523 passed, 10 skipped, 2 failed; both are pre-existing test_packaging failures (launch-boundary twin drift, current-direction anchors) that #1180 also recorded on its base. Run on the committed tree with only the projected ticket dirty.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_review_conflict.py
+    status: passed
+    head: 9e542eadad4e63fe1acdc2321e250275e096884f
+    base: 25091f7e727c1f0c9939e1fe5d8d96208f3b5d87
+    detail: 13 passed (also included in the full run). Seeded-fixture validate omitted because validation behavior did not change.
+```
