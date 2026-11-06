@@ -293,6 +293,11 @@ Previous ref: `skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Design notes
