@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -764,6 +764,110 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
 
 
+## PR
+
+```yaml
+title: Ask which agents to enable during coga init
+author: claude
+author_evidence: >-
+  Implement step ran as claude (claude-opus-5) in an attended session; no
+  --agent override. Commits 2ea90376f..5de54e71c carry that authorship.
+head: 5de54e71c3974e13e51328038e974182a7bd917d
+base: 08dd27a78b216611117f5a6da5cfa8cd436a7759
+depth: deep
+rationale: >-
+  No code review has run yet, and the diff changes behavior outside init: the
+  packaged bootstrap targets lose `agent: claude`, so a bare `coga ticket` in
+  an existing repo that sets a non-claude `default_agent` switches interviewer
+  — reachable by `coga update` with no re-init. It also refactors a working
+  picker out of an unrelated command. Both warrant reading the diff rather
+  than trusting green tests.
+implementation: >-
+  init scans AGENT_CLIS for PATH presence and prints every supported agent in
+  every state, then offers the same list as a multi-select with found agents
+  pre-checked. The selection is written to coga.toml as one all-or-nothing
+  edit: unchosen `[agents.*]` tables are commented out in place, and
+  `default_agent` moves only when the packaged default was not chosen. The
+  picker moved to `src/coga/picker.py` so init and megalaunch share it, with
+  a non-POSIX numbered-entry path. The packaged `bootstrap/ticket` and
+  `bootstrap/orient` lose `agent: claude` so a repo without claude can still
+  run `coga ticket` and `coga chat`.
+deviations: >-
+  Built on pre-#1176 main rather than waiting for that PR to merge, which the
+  design assumed. Verified the scan depends only on AGENT_CLIS, _AGENT_LABELS
+  and a shutil.which loop, none of which #1176 changes, so
+  `_installed_agent_clis()` was written here in #1176's shape. Owner's call,
+  to unblock the fresh-VM test the scope decision makes the gate for the rest
+  of the ticket.
+limitations: >-
+  (1) A rebase onto #1176 is still owed and will re-touch commands/init.py and
+  tests/test_init.py. (2) Evaluator must-fix 3 is unresolved — softening
+  #1176's "never offers an install" statements needs that PR's merged text.
+  (3) Only the scan has run on real hardware (fresh macOS VM at ff502c154);
+  the picker and the coga.toml rewrite are covered by tests only. (4) The
+  3+-agent peer-inference gap in bump.resolve_other_agent is out of scope and
+  unfiled.
+files:
+  src/coga/commands/init.py: Scan, question, AgentChoice, the all-or-nothing coga.toml edit, and selection-aware next steps.
+  src/coga/picker.py: New shared picker engine; pick() plus the non-POSIX numbered path.
+  src/coga/commands/megalaunch.py: Picker moved out; _pick_selection stays as the adapter preserving existing behavior.
+  src/coga/resources/templates/coga/bootstrap/ticket/ticket.md: "Drop the `agent: claude` pin so a repo without claude can run `coga ticket`; body made consistent."
+  src/coga/resources/templates/coga/bootstrap/orient/ticket.md: Same for `coga chat`; body made consistent.
+  src/coga/resources/templates/coga/coga.toml: Its default_agent comment claimed chat/ticket do not follow the key; the unpinning makes them.
+  src/coga/config.py: Comment naming bootstrap/ticket's `agent:` as the committed install-level default.
+  src/coga/authoring.py: resolve_authoring_agent docstring, term 5, for the same reason.
+  docs/contexts/coga/init/SKILL.md: Describes the scan and question as what init does now.
+  docs/contexts/coga/install/SKILL.md: Prerequisites note that init scans and shows what it found.
+  docs/contexts/coga/tickets/authoring/SKILL.md: Says what supplies term 5 after the unpinning.
+  docs/contexts/coga/configuration/SKILL.md: Same stale install-level-default claim.
+  docs/contexts/coga-dev/internals/agent-config/SKILL.md: Said the packaged bootstrap tickets pin claude.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Bundled twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Bundled twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md: Bundled twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: Bundled twin.
+  tests/test_init.py: Scan, _disable_unchosen_agents incl. the blank-line regression, the transaction, every selection case, and the codex-only command resolution.
+  tests/test_picker.py: Moved picker tests plus pick(), Ctrl-C, and numbered-path coverage.
+  tests/test_megalaunch.py: Repointed moved imports; added the Ctrl-C adapter test.
+  tests/conftest.py: _stub_init_dep_check learns _print_agent_scan and _choose_agents.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: >-
+    No code review has run. peer-review is the next workflow step. The
+    evaluate-design step (codex, 2026-11-05) reviewed the spec, not this diff,
+    and design approval is not code review.
+checks:
+  - command: python -m pytest
+    status: failed
+    head: 589b799873ed96bccda84d6054edb9d704957c61
+    base: 6a9b95c331ca5e20f61b1f809d73c5819300b6f8
+    detail: >-
+      4482 passed, 11 skipped, 1 failed in 1:24:11. The single failure,
+      test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers,
+      is pre-existing: it reproduces in isolation and fails identically on a
+      clean origin/main worktree, and touches coga_edge distribution, which
+      this diff does not. Recorded at the pre-rebase OID it actually ran at;
+      not restamped onto the current head.
+  - command: python -m pytest tests/test_init.py tests/test_picker.py
+    status: passed
+    head: 5de54e71c3974e13e51328038e974182a7bd917d
+    base: 08dd27a78b216611117f5a6da5cfa8cd436a7759
+    detail: >-
+      184 passed. Fresh verification at the current head, covering both the
+      warning-string commit made after the full run and the rebase onto
+      08dd27a78. Incoming main commits touched only coga state files, no
+      source.
+  - command: python -m pytest tests/test_launch.py tests/test_megalaunch.py
+    status: passed
+    head: 589b799873ed96bccda84d6054edb9d704957c61
+    base: 6a9b95c331ca5e20f61b1f809d73c5819300b6f8
+    detail: >-
+      391 passed. Run separately because the bootstrap unpinning and the
+      picker move land hardest there. Superseded by the full run above.
+```
+
+
 ## Implement progress 2026-11-05
 
 **Built on pre-#1176 `main`, deliberately.** #1176 was still open
@@ -803,8 +907,38 @@ Accepted cost: a rebase conflict when #1176 lands, concentrated in
 - Item 7's unpinning plus every falsified surface, and the `coga/init` /
   `coga/install` context updates. Commit `dd239551e`.
 
-**Remaining:** must-fix 3 (deferred to the #1176 rebase, see below), and a
-clean full-suite run.
+**Implement is complete.** Six commits, rebased onto `08dd27a78` and pushed.
+Full suite: 4482 passed, 11 skipped, 1 failed — the failure
+(`test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`)
+is pre-existing, verified by reproducing it on a clean `origin/main` worktree.
+Receipts are in `## PR`.
+
+### Handoff to peer-review
+
+Three things to weigh that green tests do not cover:
+
+1. **The bootstrap unpinning is the risk.** It changes behaviour in repos that
+   never run the new picker: a bare `coga ticket` in an existing repo setting a
+   non-claude `default_agent` switches interviewer, reachable by `coga update`
+   with no re-init. Term 5 no longer outranks term 6. Owner-accepted
+   2026-11-05. Coga's own repo sets no `default_agent`, so it is unaffected.
+2. **The picker extraction touches a command this ticket does not own.**
+   Megalaunch behaviour is meant to be byte-for-byte unchanged; the one
+   semantic difference is Ctrl-C, now a `KeyboardInterrupt` that the adapter
+   catches and maps to `[]`. `test_megalaunch_cli_ctrl_c_launches_nothing`
+   pins it. Worth confirming the adapter really is behaviour-preserving.
+3. **Only the scan has run on real hardware.** Fresh macOS VM at `ff502c154`,
+   no-agent case rendered correctly. The picker and the `coga.toml` rewrite are
+   covered by tests only.
+
+Still owed, and deliberately not done here: the rebase onto #1176 (open at the
+time of writing), which re-touches `commands/init.py` and `tests/test_init.py`,
+and evaluator must-fix 3, which needs #1176's merged text to search for the
+"never offers an install" statements and soften them.
+
+Out of scope and unfiled: `bump.resolve_other_agent` infers the peer only at
+exactly two declared agents and raises at three or more. Nothing warns until
+the first handoff. Becomes live when the Gemini sibling lands.
 
 ### Verified against the packaged template, not assumed
 
