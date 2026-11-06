@@ -465,6 +465,7 @@ Previous ref: `lifecycle-writes-read-control-s-ticket-before-modi` (renamed 2026
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1180
 branch: coga/v1-07-lifecycle-writes-read-control-s-ticket-bef-5b096f
 
 
