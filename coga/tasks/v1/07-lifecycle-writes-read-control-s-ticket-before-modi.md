@@ -468,6 +468,32 @@ Previous ref: `lifecycle-writes-read-control-s-ticket-before-modi` (renamed 2026
 branch: coga/v1-07-lifecycle-writes-read-control-s-ticket-bef-5b096f
 
 
+## Implementation decisions — 2026-11-05 (owner, attended)
+
+The owner advanced past review-design with the evaluator's four findings
+open, then resolved them in this session by adopting these proposals:
+
+1. **Base before equality.** Select the newest proven shared snapshot as the
+   merge base first; the local copy counts as unedited only when it equals
+   that selected base, never merely some historical provenance member.
+2. **Retries keep the expectation.** A retryable publication failure
+   (object-write/transport) records a per-worktree pending expectation
+   (path, candidate blob, expected control blob). The supervisor retry and
+   the sweep reuse it; a guard-rejected candidate is marked rejected so
+   neither path republishes it.
+3. **Human-review PR return path.** Merged PR: adopt control's copy as the
+   resolution, record it as provenance, and three-way any local edits made
+   after PR creation. Closed unmerged: refuse without a new PR. Open: reuse.
+4. **Tri-state fetch.** Preparation distinguishes a confirmed remote tip,
+   a missing remote control branch, and a fetch failure. A missing branch
+   is treated like an offline fetch; never merge against a cached ref.
+
+**Delivery: split.** This ticket implements preparation/merge, command
+wiring, the supervisor retry, equal-tree provenance, and the doc updates.
+The human-review PR path (acceptance criteria 5–6, decision 3, and the
+PR-maintenance exclusions) moves to a follow-up ticket. Until it lands, an
+ambiguous status conflict refuses with exit 75 like other genuine conflicts.
+
 ## Consolidation — 2026-09-30
 
 - Owner authorized folding `ticket-sync-fails-with-read-only-git-inside-agent`
