@@ -787,9 +787,9 @@ def _choose_agents(packaged_default: str) -> AgentChoice | None:
         typer.secho(
             "Only one agent is declared, so `other-agent` workflow steps have "
             "no peer to resolve: `coga validate` reports "
-            "unresolvable-step-assignee on any ticket already frozen on "
-            "`code/with-review` or `code/design-then-implement`. "
-            "`code/with-self-review` is the single-agent review workflow.",
+            "unresolvable-step-assignee on any ticket already frozen on a "
+            "workflow that has one. `code/with-self-review` is the "
+            "single-agent review workflow.",
             fg=typer.colors.YELLOW,
         )
     # None when the packaged default stands, and also when nothing was chosen:
