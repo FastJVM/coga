@@ -1,6 +1,6 @@
 ---
 title: Init sends the user to edit a toml nothing can open
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
