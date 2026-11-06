@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
@@ -82,8 +82,124 @@ named with its binary so the user can install it or put it on `PATH`.
 - [ ] Init asks no question about agents and writes no `[agents.*]` or
       `default_agent` change.
 - [ ] Non-interactive init prints no scan, and the clone path prints no scan.
+- [ ] The scan is separated from whatever init printed above it by a blank
+      line, so it does not read as another line of the `op` note.
+- [ ] `_do_init`'s next-steps strings name agents through the registry, not
+      through literals, so the third agent needs no edit there either.
 - [ ] `coga/init` and `coga/install` describe the scan, each context's bundled
       twin matches, and `python -m pytest` passes.
+
+### Proposed shape
+
+**One record, in `src/coga/dependencies.py`.** Add a frozen dataclass beside
+`Dependency`:
+
+    @dataclass(frozen=True)
+    class AgentCLI:
+        name: str
+        label: str = ""
+
+        @property
+        def display(self) -> str:
+            return self.label or self.name
+
+`name` is both the binary coga scans `PATH` for and the `[agents.*]` type the
+shipped `coga.toml` declares — one string, because the packaged template's
+`[agents.claude]`/`cli = "claude"` and `[agents.codex]`/`cli = "codex"` make
+them equal for every agent coga ships. The `display` property is what makes
+the missing-label case total by construction: no caller repeats a `.get`.
+
+`AGENT_CLIS` changes from `tuple[str, ...]` to `tuple[AgentCLI, ...]` holding
+`AgentCLI("claude", "Claude Code")` and `AgentCLI("codex", "Codex")`, in the
+same order. Keep the name: it still means "the agent CLIs coga can drive",
+now as records. Do not add a derived `tuple[str, ...]` alias — two public
+names for one list is the split this ticket exists to close.
+
+Delete `init._AGENT_LABELS` and add `dependencies.agent_label(name: str) ->
+str`, returning the matching record's `display` and otherwise `name` itself.
+It takes a plain string rather than a record because its callers hold an agent
+type that may not be in the registry at all — `_do_init`'s `build_agent` comes
+from `default_agent`.
+
+The record carries no install URL and no `packages`. Sibling #1176 removed
+every agent-installer URL from `dependencies.py` and wrote "Coga provides no
+agent installer command or URL" into `coga/install`; a URL on the record would
+put one back.
+
+**One scan, in `src/coga/commands/init.py`.** Add a public, argument-free
+`print_agent_scan() -> None`. Public and argument-free is the whole point of
+the acceptance criterion: a later `coga check` imports and calls it with no
+init state to supply. It calls `_installed_agent_clis()` itself, returns early
+on an empty registry rather than printing a heading with nothing under it, and
+prints with `typer.echo` / `typer.secho` — no `rich`, matching the rest of
+init's output. Its first line is an empty `typer.echo("")` — the VM run showed
+the scan colliding with the `op` note above it. Rendering (Zach,
+2026-11-06 — copy Spec Kit's tree):
+
+        Checking for agent CLIs...
+
+        Agent CLIs coga can drive
+        ├── ● Claude Code (claude) — found
+        └── ○ Codex (codex) — not found
+
+Spec Kit's two lines are kept as they are: a progress line, a blank, then the
+titled tree. The binary rides in parens inside the label, so rows need no
+column alignment — only the last row takes `└──`. Green for found, uncolored
+for not found; not found is not a warning colour, because having one agent is
+the normal case.
+
+The box-drawing glyphs, `●`/`○`, and the em dash are all non-ASCII on a
+`requires-python = ">=3.11"` floor, so a Windows console in a legacy code page
+could fail to encode them. `_print_notification_state` already prints `✓` on
+the same path, so this is not a new exposure, and the Windows console question
+belongs to `v1/31-test-install-on-windows`. Do not solve it here; do not
+quietly downgrade the glyphs to ASCII either.
+
+It lives in `init.py` rather than `dependencies.py` so the manifest stays
+data-only — it imports nothing but `dataclasses` today. A standalone
+`src/coga/agent_scan.py` is the alternative, and is a module for twenty lines
+right after #1176 deleted `agent_cli_setup.py` to shrink the surface.
+
+**One call site.** In `_do_init`, `if _interactive(): print_agent_scan()`,
+placed between `_offer_optional_tools()` and `_offer_agent_cli(...)`. That
+position gets all four properties the acceptance criteria ask for: it is
+inside no early-returning branch, so every interactive fresh init prints it;
+it is before `target.mkdir()`, so it is outside the rollback `try`; it is
+after the `op` note, so the blank line is what separates them; and it is
+before the "make this the default agent" confirm, which the scan now gives
+context to. `print_agent_scan` itself holds no interactivity check, so a
+`coga check` that always prints can reuse it.
+
+`_setup_initialized_clone` gets no call — the clone path prints no scan.
+
+**The other label readers.** `_do_init`'s next-steps strings go through
+`agent_label()`: the `coga build` coax (`_AGENT_LABELS[build_agent]`,
+`_AGENT_LABELS[other]`) and, post-#1176, the no-agent-found prerequisite line
+that spells "Claude Code (`claude`) or Codex (`codex`)" as a literal — build
+its list from `AGENT_CLIS`. `build_agent = AGENT_CLIS[0]` becomes
+`AGENT_CLIS[0].name`, and `next(a for a in AGENT_CLIS if a.name != build_agent)`
+keeps its current "pick any other" behaviour; redesigning that coax for three
+agents is not this ticket.
+
+**Order of work.** Registry first (`dependencies.py` + `agent_label`), then
+the `init.py` readers it breaks, then `print_agent_scan` and its call site,
+then the two contexts and their bundled twins, then tests.
+
+**Tests**, in `tests/test_init.py` near the existing agent-offer tests, reusing
+the `_agent_picker`-style tty fake:
+
+- No agent on `PATH`: every registry entry renders with its binary and
+  "not found". This is the case that matters.
+- Both agents on `PATH`: the scan still prints. This is the case that returns
+  early inside `_offer_agent_cli` today.
+- An agent added to the registry renders with no edit to the scan.
+- `AgentCLI("gizmo")` with no label renders as `gizmo`, in the scan and
+  through `agent_label`.
+- Non-interactive init prints no scan.
+- The clone-setup path prints no scan.
+
+In `tests/test_dependencies.py`: `agent_label` returns the label for a known
+agent and the input string for an unknown one.
 
 ### Out of scope
 
@@ -108,6 +224,19 @@ named with its binary so the user can install it or put it on `PATH`.
   unpinning necessary.
 - **Extracting megalaunch's picker.** There is no picker, so there is nothing
   to extract and `coga.megalaunch` is untouched.
+- **Install URLs or packages on the registry record.** #1176 removed every
+  agent-installer URL from `dependencies.py`. The record carries a binary and
+  a display name, nothing that could install anything.
+- **Splitting the agent type from its binary.** `AgentCLI.name` is one field
+  serving both because the packaged `coga.toml` declares `cli = "claude"`
+  under `[agents.claude]`. Split it when a supported agent's binary first
+  differs from its table name.
+- **Redesigning the `coga build` coax for three agents.**
+  `next(... if a.name != build_agent)` advertises an arbitrary second agent;
+  that is pre-existing and stays. Related and still unfiled:
+  `bump.resolve_other_agent` infers the peer only at exactly two declared
+  agents and raises at three or more, which goes live when the Gemini sibling
+  lands.
 
 ## Context
 
@@ -177,9 +306,6 @@ absence is what this ticket fixes.
 - **The clone path must not scan.** A clone's `coga.toml` is committed team
   config, and the scan is about this machine. `coga/init` ("Clone of a repo
   that already uses Coga") is where that boundary is written down.
-- **#1176 deletes `_offer_agent_cli`.** It is open and unmerged. Do not hang
-  the scan inside that function; print it from `_do_init` so the merge order
-  does not matter.
 - **`_AGENT_LABELS` has a second reader.** `_do_init`'s next-steps strings
   spell `_AGENT_LABELS[name]` twice, which raises on an agent added without a
   label. The registry should make that lookup total rather than leaving a
@@ -190,6 +316,40 @@ absence is what this ticket fixes.
 - **Scan before anything is written.** Init is atomic: `_do_init` removes a
   half-built `coga/` on any exception. Printing before `target.mkdir()` keeps
   the scan out of that rollback.
+
+### Sequencing against #1176
+
+Read as of 2026-11-06 against the open PR, not from the earlier description of
+it. Three corrections:
+
+- **#1176 does not delete `_offer_agent_cli`.** It narrows it to the
+  exactly-one case: `installed = _installed_agent_clis()` then
+  `if len(installed) != 1: return None`. Both the no-agent prompt and the
+  `>1` early return are gone, so *every* count other than one returns before
+  anything prints. That is still the reason to print from `_do_init` rather
+  than from inside it.
+- **#1176 adds `init._installed_agent_clis()`**, "the `AGENT_CLIS` on PATH, in
+  stable supported order". Reuse it; do not add a second `PATH` walk. Starting
+  commit `4c7751674` added its own tuple-returning copy of the same helper —
+  resolve that conflict in favour of #1176's.
+- **#1176 deletes `dependencies.install_hint` and the `claude` / `codex`
+  `Dependency` entries**, along with `Dependency.login` and the `npm` entry in
+  `PACKAGE_MANAGERS`. After it, `AGENT_CLIS` is the only trace of an agent in
+  `dependencies.py` and nothing anywhere holds an agent install URL. The
+  registry is therefore built fresh, not grown from the deleted records.
+
+**Base this branch on main after #1176 merges.** Landing first would leave the
+new `AgentCLI` records sitting beside the `Dependency` records #1176 deletes,
+and #1176's merge would have to be hand-resolved to keep them. If #1176 is
+still open at implement time, say so and ask rather than guessing the order.
+
+### A gotcha that will cost time otherwise
+
+`commands/init.py` does `from coga.dependencies import AGENT_CLIS`, binding
+the name into the init module. A test that patches
+`coga.dependencies.AGENT_CLIS` will not change what the scan renders — patch
+`coga.commands.init.AGENT_CLIS`. This is the same import-binding trap the
+`fake_vendor` fixture already falls into with `packaged_template_root`.
 
 ### Testing conventions
 
@@ -207,6 +367,14 @@ spellings for when the ambient interpreter is not Coga-capable, and
 Each has a bundled twin under
 `src/coga/resources/templates/coga/bootstrap/contexts/`. #1176 edits both
 copies of both topics; read them as of the merge, not as described here.
+`test_packaging.py::test_live_and_packaged_copies_stay_identical` enforces
+byte-identical twins, so apply each edit to both copies verbatim.
+
+Post-#1176, `coga/init`'s "Fresh repo" already says "Init only scans `PATH`
+for them" — the edit is that the scan is *printed*: every supported agent CLI
+with its binary and whether that binary was found, in an interactive terminal,
+before anything is written. `coga/install`'s "Prerequisites" bullet for the
+agent CLI gains the same fact in one clause.
 
 Write both updates as what init does, not as a rule about what coga will never
 do — see *Out of scope* on keeping the install question open.
@@ -351,10 +519,38 @@ force-pushed, so it is still the pre-reset history.
   renders under its slug instead of raising. The registry should make this
   moot rather than repeating the `.get`.
 
-### Next step
 
-Owner bumps backward to `design`. The design step re-derives the shape against
-the code; nothing in the superseded design should be assumed to still hold.
+## Design 2026-11-06
+
+Spec written into `## Description` (`### Proposed shape`) and `## Context`.
+Derived against the code at `main` = `2a7f16f08` and against PR #1176's diff as
+of today, since #1176 rewrites both modules this ticket touches.
+
+What the read changed versus the ticket as written:
+
+- #1176 **narrows** `_offer_agent_cli` rather than deleting it, and adds
+  `_installed_agent_clis()`. The constraint bullet claiming deletion is
+  replaced by `### Sequencing against #1176`, which records what #1176
+  actually does to `dependencies.py` and `init.py`.
+- #1176 deletes `install_hint` and both agent `Dependency` records, so the
+  registry is built fresh and carries no install URL. #1176's `coga/install`
+  text commits coga to "no agent installer command or URL", which rules a URL
+  on the record out rather than leaving it a preference.
+- Two new acceptance criteria: the leading blank line (the VM defect), and the
+  next-steps strings going through the registry.
+
+Zach chose the rendering in-session: Spec Kit's box-drawing tree, with the
+binary in parens inside the label, over the flat three-column list the design
+had proposed as its default.
+
+The `_offer_agent_cli` default-agent confirm is untouched. It is #1176's
+behaviour, not this ticket's.
+
+## Open Questions
+
+None. The one the design raised — flat rows versus Spec Kit's box-drawing
+tree — was put to Zach in-session on 2026-11-06 and answered: copy the tree.
+The chosen rendering is in `### Proposed shape`.
 
 
 ## Superseded designs
