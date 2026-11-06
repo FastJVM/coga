@@ -730,10 +730,12 @@ def _choose_agents(packaged_default: str) -> AgentChoice | None:
         )
         for name in AGENT_CLIS
     ]
+    # No ratios: these three columns are short and fixed, so the table sizes to
+    # its content rather than stretching across the terminal.
     columns = (
-        PickerColumn("agent", ratio=2),
-        PickerColumn("binary", ratio=1),
-        PickerColumn("on PATH", ratio=1),
+        PickerColumn("agent"),
+        PickerColumn("binary"),
+        PickerColumn("on PATH"),
     )
     typer.echo()
     typer.echo("Which agents should coga drive in this repo?")
@@ -771,12 +773,20 @@ def _choose_agents(packaged_default: str) -> AgentChoice | None:
             break
 
     enabled = tuple(name for name in AGENT_CLIS if name in chosen)
+    # Hand-wrapped with a 2-space continuation indent, matching the `op` and
+    # optional-tools blocks above. A single long string is wrapped by the
+    # terminal instead, which breaks mid-word on a wide window.
     for name in enabled:
         if name not in installed:
             typer.secho(
-                f"{_AGENT_LABELS.get(name, name)} is declared, but `{name}` is "
-                f"not on PATH — coga needs that binary there before it can "
-                f"launch the agent.",
+                "\n".join(
+                    [
+                        f"{_AGENT_LABELS.get(name, name)} is declared, but "
+                        f"`{name}` is not on PATH:",
+                        "  coga needs that binary there before it can launch "
+                        "the agent.",
+                    ]
+                ),
                 fg=typer.colors.YELLOW,
             )
     if len(enabled) == 1:
@@ -785,11 +795,17 @@ def _choose_agents(packaged_default: str) -> AgentChoice | None:
         # errors on any ticket already frozen on a peer-review workflow, rather
         # than merely failing later at handoff.
         typer.secho(
-            "Only one agent is declared, so `other-agent` workflow steps have "
-            "no peer to resolve: `coga validate` reports "
-            "unresolvable-step-assignee on any ticket already frozen on a "
-            "workflow that has one. `code/with-self-review` is the "
-            "single-agent review workflow.",
+            "\n".join(
+                [
+                    "Only one agent is declared, so `other-agent` workflow "
+                    "steps have no peer:",
+                    "  `coga validate` reports unresolvable-step-assignee on "
+                    "any ticket already",
+                    "  frozen on a workflow that has one.",
+                    "  `code/with-self-review` is the single-agent review "
+                    "workflow.",
+                ]
+            ),
             fg=typer.colors.YELLOW,
         )
     # None when the packaged default stands, and also when nothing was chosen:
@@ -1813,9 +1829,11 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     if agent_edit is not None:
         if agent_edit.disabled:
             names = ", ".join(f"`{name}`" for name in agent_edit.disabled)
+            one = len(agent_edit.disabled) == 1
             typer.echo(
                 f"Commented out {names} in {coga_os / 'coga.toml'} — uncomment "
-                f"the table to let coga drive it."
+                f"{'the table' if one else 'a table'} to let coga drive "
+                f"{'it' if one else 'that agent'}."
             )
         if agent_edit.default_set is not None:
             typer.echo(

@@ -165,7 +165,15 @@ def _picker_view(
     # the elastic columns flexible (`ratio` + `expand`) hands Rich the
     # slack it needs from them alone, so the fixed narrow columns survive down
     # to ~50 cells.
-    table = Table(show_lines=False, show_edge=False, pad_edge=False, expand=True)
+    # Expand only when a caller declares a flexible column. Megalaunch's long
+    # slugs and titles need the terminal's full width handed to them, and the
+    # ratios are what stop Rich shrinking the fixed narrow columns to nothing.
+    # A caller with only fixed columns — init's three short ones — wants the
+    # table sized to its content instead, not stretched across the window.
+    expand = any(column.ratio is not None for column in columns)
+    table = Table(
+        show_lines=False, show_edge=False, pad_edge=False, expand=expand
+    )
     table.add_column("", width=1, no_wrap=True, overflow="ellipsis")
     table.add_column("sel", width=3, no_wrap=True, overflow="ellipsis")
     for column in columns:
