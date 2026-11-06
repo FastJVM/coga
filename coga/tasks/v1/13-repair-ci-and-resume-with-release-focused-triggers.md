@@ -956,3 +956,16 @@ this review does not approve either policy.
   created. Full-suite, Python 3.11/Windows, actionlint, and rollout evidence
   remain implementation/rollout work. Only this evaluator section was added;
   the authored spec, frontmatter, and prior blackboard were preserved.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+Recorded: 2026-11-06T06:40:32+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid YAML under ## PR: mapping values are not allowed here
+      in "<unicode string>", line 27, column 63:
+         ...  warnings (all unrelated tickets: unfrozen-workflow, stuck-in-pr ... 
+                                             ^
