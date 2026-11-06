@@ -121,6 +121,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1181
 branch: coga/v1-human-review-pr-for-ambiguous-lifecycle-statu-a4ef81
 
 ## Decisions — 2026-11-06 (owner, attended)
