@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -278,39 +278,106 @@ Adjacent findings: none.
 ```yaml
 title: Filter megalaunch by ticket owner
 author: claude
-author_evidence: Implement session ran Claude Code on claude-opus-5-5 (this session).
-head: 871f6e54a5a837e2ee166ad4b4090acdbd42d5c5
-base: 68dcf2215f21f996c24b0e1e62105782e3a6b6c4
+author_evidence: The 2026-11-05 implement handoff records Claude Code / claude-opus-5-5. This fresh Codex
+  peer-review session made no implementation edits.
+head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
 depth: skim
-rationale: Bounded CLI flag addition; one filter value threaded through existing gates, default sweep unchanged, tests per gate.
-implementation: Adds --owner/--all-owners to coga megalaunch; --pick defaults to the operator's tickets; one owner filter gates scan, reread, and drain.
-deviations: None from the ticket design.
-limitations: Owner-less tickets appear under --all-owners but cannot launch (owner is a required key), so they report failed if picked or swept.
+rationale: Bounded owner-filter addition with a passing full suite and completed independent source and
+  terminal review. Skim the documented cross-owner claim takeover and owner-less-ticket limitation.
+implementation: The picker now defaults to current_user's tickets. --owner NAME retargets picker and sweep;
+  --all-owners includes every owner. One filter reaches all four sweep gates, including the dependency
+  drain. Confirmed picks replay explicitly, conflicting flags fail clearly, and unknown owners produce
+  an empty result. The operator and lifecycle notification routing remain unchanged.
+deviations: None from the ticket design. The required pre-review rebase completed. Final fetch at control
+  7e4a3fc567ad7c5df6f3a062ed9cfda8e47f9c5e found only non-overlapping changes to another task and coga/log.md;
+  the shared publication freshness check accepted state-only-drift, preserving this tested head/base.
+limitations: Owner-less tickets appear under --all-owners but cannot pass launch validation. Verification
+  ran on Linux / Python 3.12.12; Python 3.11 and Windows were not exercised. The new test_megalaunch_cli_picker_offers_owner_filtered_list
+  matrix retains windows_interactive_skip for deferred native Windows agent-session/PTY support, although
+  that matrix mocks the picker and spawn; candidate and engine owner-filter tests have no Windows exclusion.
 files:
-  src/coga/megalaunch.py: Owner filter resolution and threading through sweep, drain, reread, picker candidates, and run summary.
-  src/coga/commands/megalaunch.py: New --owner/--all-owners flags, conflict errors, empty-result messages, docstring/help fixes.
-  tests/test_megalaunch.py: Cover picker filtering, --owner sweep, reread gate, drain, unknown owner, and flag conflicts; update the reread message and the all-owners candidate test.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Document the owner filter, cross-owner claim takeover, and drain scope.
-  docs/contexts/coga/megalaunch/SKILL.md: Byte-identical legacy live copy of the package topic.
+  src/coga/megalaunch.py: Resolve and thread one owner filter through scan, launch reread, dependency
+    drain and picker candidates; label non-default sweep scope in the summary.
+  src/coga/commands/megalaunch.py: Expose owner flags, reject ambiguous combinations, filter offered picker
+    rows, explain empty results and include owner scope in the drain notification.
+  tests/test_megalaunch.py: Cover owner filtering, default/all-owner sweeps, launch reread, cross-owner
+    dependency drain, unknown owner and flag conflicts; update existing picker expectations.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Own the updated picker/sweep
+    contract, explicit-selection behavior, dependency scope and cross-owner claim coordination.
+  docs/contexts/coga/megalaunch/SKILL.md: Preserve the required byte-identical legacy live counterpart
+    of the packaged topic.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No code review has run yet; review belongs to later workflow steps.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+  base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
+  detail: Direct Codex review completed on all five diff paths and affected call paths. No must-fix findings
+    or implementation edits. Independence is supported by the Claude implementation handoff and this separate
+    Codex session. Actual terminal checks completed at three sizes; the full suite and validation passed.
 checks:
-  - command: .venv/bin/python -m pytest tests/test_megalaunch.py tests/test_cli.py tests/test_packaging.py -q
-    status: passed
-    head: 871f6e54a5a837e2ee166ad4b4090acdbd42d5c5
-    base: 68dcf2215f21f996c24b0e1e62105782e3a6b6c4
-    detail: 219 passed on the rebased head.
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: b5bf9c23627fff4b2b358d23c655b4ff7ae7000b
-    base: 0dbe4a1e615aea6abd67f0f25a66cdcc5d81528e
-    detail: 4462 passed, 10 skipped on the pre-rebase commit; the rebase changed only coga/ state files (src/tests/docs trees identical).
-  - command: .venv/bin/coga validate --json
-    status: passed
-    head: b5bf9c23627fff4b2b358d23c655b4ff7ae7000b
-    base: 0dbe4a1e615aea6abd67f0f25a66cdcc5d81528e
-    detail: Exit 0.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/tmp/coga-owner-peer-review-gilfq_zv/pytest
+  detail: 4462 passed, 10 skipped in 588.57s on Linux / Python 3.12.12. Full suite completed after the
+    required rebase.
+  status: passed
+  head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+  base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/coga validate --json
+  detail: 'Exit 0: 96 OK, zero errors, nine unrelated ticket warnings (seven unfrozen workflows and two
+    idle in_progress tickets).'
+  status: passed
+  head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+  base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
+- command: .venv/bin/python /tmp/coga-owner-peer-review-gilfq_zv/terminal_review.py
+  detail: Passed actual CLI/raw-key picker in tmux PTYs at 100x24, 80x24 and 50x12 with 52 fixture tickets.
+    Verified default, --owner zach, --all-owners, pick alias, literal owner all, unknown owner (picker
+    and sweep), scrolling, toggling, all/none, cancel, empty confirmation and live resize. Cursor and
+    selection remained visible. No agent sessions launched.
+  status: passed
+  head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+  base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
+- command: git diff --check origin/main...HEAD && cmp src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md
+    docs/contexts/coga/megalaunch/SKILL.md
+  detail: 'Passed: no whitespace errors; packaged topic and legacy live twin are byte-identical.'
+  status: passed
+  head: 3e3bc7601430395117c5ad66b1bffd606b83f01d
+  base: 2cc77152d91f92d2324951d1fb0a8cc17c896961
 ```
+
+## Peer review
+
+Direct Codex review **completed** on head `3e3bc7601430395117c5ad66b1bffd606b83f01d`
+against base `2cc77152d91f92d2324951d1fb0a8cc17c896961`. No must-fix findings or code edits.
+The implementation handoff records Claude / claude-opus-5-5; this fresh Codex
+session reviewed independently. Reviewed all five diff paths, all four owner
+gates, explicit replay, dependency activation, claim handling, and attribution.
+
+The required rebase completed cleanly before review and tests. The projected
+ticket was preserved byte-for-byte and was never staged. Final fetch found
+control `7e4a3fc567ad7c5df6f3a062ed9cfda8e47f9c5e` had advanced only through another
+ticket and `coga/log.md`; `check_branch_contains_control` returned OK with
+`state-only-drift` (the documented publication allowance). No source, tests,
+docs, config, or this ticket changed upstream. Pushed the reviewed head with
+an explicit `--force-with-lease`; no PR has been opened in this step.
+
+Actual CLI/raw-key picker checks completed in tmux PTYs at **100x24, 80x24,
+and 50x12**, using 52 isolated fixture tickets. Default showed only marc;
+--owner zach and the pick alias showed only zach; --all-owners showed both,
+a literal owner named all, and an owner-less row. Scrolling, Space, all/none,
+cancel, empty confirmation, and live resize retained the cursor and checked
+row. Unknown-owner picker and sweep returned clear empty results. No fixture
+agent sessions were launched. Driver and screen captures are local under
+`/tmp/coga-owner-peer-review-gilfq_zv/`.
+
+Full suite: **4462 passed, 10 skipped** on Linux / Python 3.12.12. Validation:
+exit 0, 96 OK, zero errors and nine unrelated ticket warnings. Diff whitespace
+and the packaged/live topic comparison passed. Exact commands and revision
+receipts are in `## PR`. Python 3.11 and Windows were not run; the new mocked
+picker matrix's Windows exclusion is disclosed in the PR limitations.
+
+An earlier suite attempt was stopped because an in-checkout --basetemp made
+no-repo fixtures discover this repo's config. That invalid attempt is
+superseded by the completed external-fixture run above.
+
+Ready for the mechanical open-pr step; advisory recommendation: **skim**.
