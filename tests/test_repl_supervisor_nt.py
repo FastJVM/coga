@@ -864,13 +864,21 @@ def test_native_batch_transport_round_trips_shell_sensitive_argv(
 ) -> None:
     from coga.launch import _BATCH_POINTER_SEPARATOR, _prompt_pointer
 
-    shim_dir = tmp_path / "a b %PATH% !x! ^ & (y) 東"
+    # Coga's transport carries the shim path and argv losslessly; what a shim
+    # does with its own directory is the shim's business. The direct shim
+    # refers to itself through the quoted `%~dp0`, which cmd never re-parses,
+    # so its directory keeps every shell-sensitive character. Real npm
+    # cmd-shims use an unquoted `SET dp0=%~dp0`, which splits on `&` and
+    # drops `^` in their own install directory, so that form's directory
+    # omits only those two.
+    name = "a b %PATH% !x! ^ & (y) 東" if form == "direct" else "a b %PATH% !x! (y) 東"
+    shim_dir = tmp_path / name
     shim_dir.mkdir()
     (shim_dir / "recorder.py").write_text(_RECORDER, encoding="utf-8")
     shim = shim_dir / f"agent{suffix}"
     if form == "direct":
         shim.write_text(
-            f'@"{sys.executable}" "{shim_dir / "recorder.py"}" %*\r\n', encoding="utf-8"
+            f'@"{sys.executable}" "%~dp0recorder.py" %*\r\n', encoding="utf-8"
         )
     else:
         shim.write_text(_NPM_SHIM.format(python=sys.executable).replace("\n", "\r\n"), encoding="utf-8")
