@@ -10401,3 +10401,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-06 11:54 v1 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-11-06 11:54 v1 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-11-06 11:54 v1 [v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br] [human:nicktoper] auto-bumped on merge of PR #1167 → done
+2026-11-06 11:54 v1 [v1/08-fail-the-branch-sweep-when-local-branch-enumeratio] [human:nicktoper] auto-bumped on merge of PR #1164 → done
