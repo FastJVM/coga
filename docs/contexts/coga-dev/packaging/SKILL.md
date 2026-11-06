@@ -134,7 +134,7 @@ lease against a remote tip it read live (`git ls-remote` on the push URL)
 rather than a possibly stale tracking ref. `src/coga/skill_manager.py` reads it
 in its pre-update branch guard and leases against that observed tip, so a hand
 push after the check fails the lease; see
-[coga/skill-management](../../coga/skill-management/SKILL.md).
+[coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md).
 
 Hazards:
 
