@@ -1,6 +1,6 @@
 ---
 name: coga-dev/internals/git-regressions
-description: Why `git.publish` refuses to land a Coga state file — the provenance compare-and-swap, `expect` and `guard` hooks, symlink and missing-append-only refusals, pending and released launch-generation rules — and the procedure for shipping a stored-ticket schema conversion that the provenance check cannot protect.
+description: Why `git.publish` refuses to land a Coga state file — the provenance compare-and-swap, `expect` and `guard` hooks, prepared-ticket expectations and their remembered retries, symlink and missing-append-only refusals, pending and released launch-generation rules — the preparation refusal lifecycle commands raise before writing, and the procedure for shipping a stored-ticket schema conversion that the provenance check cannot protect.
 ---
 
 # Publication refusals and state regressions
@@ -23,6 +23,13 @@ derives from (`_provenance`):
   read back before spawn), so a resumed branch older than control's ticket
   can still publish its handoff from a later `coga bump` process;
 - or the working bytes themselves (an idempotent retry).
+
+`refs/worktree/coga/published` is written after a successful push *and* when
+`_publish_locked` finds control already holding the built tree (its
+equal-tree `False` return): bytes another process landed from this
+checkout's sandboxed write are confirmed publication, so the next bump from
+this feature checkout has them as provenance. A failed or unconfirmed
+publication never records anything.
 
 A stale checkout therefore cannot overlay a ticket another checkout advanced.
 The refusal names the fix: "control copy changed since this checkout last saw
@@ -47,6 +54,37 @@ permission to discard the local version wholesale.
   not land once control's content records the period as serviced, and after
   the first publish on a control checkout `coga/log.md` is clean, so a blob
   pin on it would never be evaluated (`coga-dev/internals/spool-merge`).
+
+- `remember=True` (only the prepared lifecycle path, through
+  `sync_task_state(prepared=)` and `mark._publish`) persists each explicit
+  expectation in `<coga root>/.coga/pending-publication.json` when the
+  attempt fails retryably (`state: pending`) or is refused
+  (`state: rejected`). `_pending_expectations` then applies a pending entry
+  as that path's exact `expect` for every later publish, including the
+  session-teardown retry (`git.retry_session_publication`) and the sweep, so
+  a retry cannot fall back to the broader provenance set and land over a
+  peer that restored an older published copy. A rejected entry refuses. An
+  entry clears when its path lands, when the working copy already equals
+  control, or when a new prepared transaction publishes it with its own
+  expectation. The file is excluded from publication even where `.coga/`
+  is not ignored. A ticket named in `expect` is also a candidate whenever it
+  differs from control, even if it equals HEAD.
+
+## Preparing a lifecycle transaction
+
+`git.prepare_ticket` is the read side: under `state_lock` it captures the
+local bytes, fetches through `fetch_control_state` (`fresh`, `local` for a
+remote-less repo, `missing`, or `failed` — only the first two are read as
+current), reads the control copy at the pinned commit, and reconciles
+(`_shared_base`, `merge_ticket_bytes`, `lifecycle_winner`). The user contract
+is [prepared ticket transactions](../../../coga/state-publication/SKILL.md#prepared-ticket-transactions).
+An unreconcilable ticket raises `TicketConflictError` (a
+`StateRegressionError`, `status_conflict=True` for an unrankable status pair)
+before any write; commands exit 75 through
+`commands/common.prepare_lifecycle_ticket`. `write_ticket(..., prepared=)`
+raises `TicketChangedError` if the file moved since preparation. Commands
+never prompt while holding the lock: `unblock`'s interactive answer
+prepares again before writing.
 
 ## Other refusals
 

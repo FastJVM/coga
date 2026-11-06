@@ -329,6 +329,15 @@ def _stub_git(monkeypatch, request):
     monkeypatch.setattr("coga.git.publish", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: False)
+    monkeypatch.setattr("coga.git.retry_session_publication", lambda *a, **k: False)
+    # Lifecycle commands prepare a ticket against freshly fetched control;
+    # off the harness that preparation reads only the local copy, exactly as
+    # an offline checkout does, without shelling out to git.
+    from coga.git import local_ticket_preparation
+
+    monkeypatch.setattr(
+        "coga.git.prepare_ticket", lambda cfg, path: local_ticket_preparation(path)
+    )
     monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
     # The exit diagnostic also reads Git; its real-git tests opt in above.
     monkeypatch.setattr("coga.cli._warn_unpublished_log_lines", lambda *a, **k: None)

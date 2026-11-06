@@ -322,6 +322,7 @@ def advance_step(
     notify_slack: bool = False,
     echo: str | None = None,
     rewind: bool = False,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Move a ticket to a workflow step.
 
@@ -340,6 +341,9 @@ def advance_step(
     check accepts the rewind from a checkout level with control and refuses it
     from a stale one, and the CLI then retains the local rewind while
     suppressing its end-of-command sweep.
+
+    `prepared` is the `git.prepare_ticket` view `ticket` came from (see
+    `coga.mark.mark_done`).
     """
     owner = ticket.owner or cfg.current_user
     # Validate the prospective move before committing it, the way
@@ -367,7 +371,7 @@ def advance_step(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     append_log(cfg, ref.id_slug, actor, log_message)
 
     def sync_state() -> None:
@@ -377,6 +381,7 @@ def advance_step(
             message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
             strict=rewind,
             command="bump",
+            prepared=prepared,
         )
 
     if rewind:

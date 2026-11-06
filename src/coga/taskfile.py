@@ -121,6 +121,15 @@ def split_body(body: str, *, blackboard_required: bool = True) -> tuple[str, str
     return body[: m.start()], body[m.end():]
 
 
+def with_blackboard(body: str, new_blackboard: str) -> str:
+    """`body` with its blackboard region replaced; the in-memory twin of
+    `replace_blackboard`. Fail-loud on a missing or duplicated fence."""
+    matches = _fence_matches(body)
+    if len(matches) != 1:
+        split_body(body)  # raises the ordinary fence error
+    return body[: matches[0].end()] + new_blackboard
+
+
 def read_task_file(path: Path, *, blackboard_required: bool = True) -> TaskFile:
     """Parse a `ticket.md` into frontmatter, body-above-fence, and blackboard."""
     ticket = Ticket.read(path)

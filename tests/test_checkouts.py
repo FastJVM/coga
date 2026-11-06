@@ -798,14 +798,14 @@ def test_grouped_teardown_without_new_usage_attempts_publication_without_a_commi
     ref = _startup_task(git_repo, "draft", "create")
     start = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
     calls: list[bool | None] = []
-    real_sync = coga_git.sync_log
+    real_retry = coga_git.retry_session_publication
 
-    def sync(cfg, **kwargs):  # type: ignore[no-untyped-def]
-        result = real_sync(cfg, **kwargs)
+    def retry(cfg, path, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_retry(cfg, path, **kwargs)
         calls.append(result)
         return result
 
-    monkeypatch.setattr(coga_git, "sync_log", sync)
+    monkeypatch.setattr(coga_git, "retry_session_publication", retry)
     launch_env(_Agent(git_repo, [lambda seen: _bump(git_repo, ref.id_slug, subprocess_run=True)]))
     assert _main(monkeypatch, "launch", ref.id_slug) == 0
     assert calls == [False]

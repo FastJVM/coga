@@ -13,6 +13,7 @@ from coga.repl_supervisor import EXPECTED_AGENT_ENV, EXPECTED_TASK_ENV
 from coga.task_env import is_script_task
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from coga import git
     from coga.config import Config
     from coga.tasks import TaskRef
     from coga.ticket import Ticket
@@ -83,3 +84,37 @@ def completion_identity(
             ran = os.environ.get(EXPECTED_AGENT_ENV, "").strip() or operator.name
             return f"agent:{ran}", ran
     return f"human:{cfg.current_user}", cfg.current_user
+
+
+def prepare_lifecycle_ticket(cfg: "Config", ref: "TaskRef") -> "git.PreparedTicket":
+    """Read `ref`'s ticket from fresh control before a lifecycle transition.
+
+    The one entry every lifecycle command (`bump`, `mark`, `block`,
+    `unblock`, `owner`) uses before checking eligibility or deriving
+    messages: `git.prepare_ticket` reconciles this checkout's copy with
+    control's. An unreconcilable ticket exits 75 so the generic end-of-command
+    sweep cannot publish the rejected local state; nothing has been written.
+    Any other Git failure while preparing is reported and leaves today's
+    local read, like an unavailable fetch.
+    """
+    from coga import git
+
+    try:
+        return git.prepare_ticket(cfg, ref.ticket_path)
+    except git.TicketConflictError as exc:
+        typer.secho(f"Refusing to change {ref.id_slug}: {exc}.", fg=typer.colors.RED, err=True)
+        sys.exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+    except git.GitError as exc:
+        sys.stderr.write(
+            f"[git] could not prepare {ref.id_slug} against control ({exc}); "
+            "using this checkout's copy\n"
+        )
+        return git.local_ticket_preparation(ref.ticket_path)
+
+
+def bail_ticket_changed(exc: Exception) -> None:
+    """Exit 75 after a prepared write found the ticket changed underneath it."""
+    from coga import git
+
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    sys.exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)

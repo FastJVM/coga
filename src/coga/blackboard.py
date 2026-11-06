@@ -407,10 +407,7 @@ def append_blocker(
 
     `ticket_path` is the task's `ticket.md` (file-form: the `.md` file itself;
     directory-form: `<dir>/ticket.md`)."""
-    now = datetime.now()
-    ts = now.strftime(BLOCKER_TS_FORMAT)
-    blocker_id = _blocker_id(now)
-    entry = f"- [ ] [{ts}] [{actor}] id={blocker_id} {reason}"
+    entry, blocker = _new_blocker_entry(actor, reason)
     append_to_section(
         ticket_path,
         "Blockers",
@@ -418,7 +415,21 @@ def append_blocker(
         expected_bytes=expected_bytes,
         after_write=after_write,
     )
-    return Blocker(
+    return blocker
+
+
+def append_blocker_text(region: str, actor: str, reason: str) -> tuple[str, Blocker]:
+    """`append_blocker` as a pure transform of a blackboard region."""
+    entry, blocker = _new_blocker_entry(actor, reason)
+    return append_to_section_text(region, "Blockers", entry), blocker
+
+
+def _new_blocker_entry(actor: str, reason: str) -> tuple[str, Blocker]:
+    now = datetime.now()
+    ts = now.strftime(BLOCKER_TS_FORMAT)
+    blocker_id = _blocker_id(now)
+    entry = f"- [ ] [{ts}] [{actor}] id={blocker_id} {reason}"
+    return entry, Blocker(
         id=blocker_id,
         created_at=now.replace(second=0, microsecond=0),
         actor=actor,
@@ -511,13 +522,24 @@ def resolve_open_blockers(
     A blocked ticket may carry multiple asks. `coga unblock` answers all open
     asks in one transition so status and blackboard cannot disagree.
     """
+    region = read_blackboard(ticket_path, expected_bytes=expected_bytes)
+    if not [b for b in parse_blockers_text(region) if not b.resolved]:
+        return []
+    written = replace_blackboard(
+        ticket_path,
+        resolve_open_blockers_text(region, actor, answer),
+        expected_bytes=expected_bytes,
+    )
+    if after_write is not None:
+        after_write(written)
+    return [b for b in read_blockers(ticket_path) if b.resolved and b.answer == answer]
+
+
+def resolve_open_blockers_text(region: str, actor: str, answer: str) -> str:
+    """`resolve_open_blockers` as a pure transform of a blackboard region."""
     now = datetime.now()
     ts = now.strftime(BLOCKER_TS_FORMAT)
-    region = read_blackboard(ticket_path, expected_bytes=expected_bytes)
     lines = region.splitlines()
-    blockers_before = parse_blockers_text(region)
-    if not [b for b in blockers_before if not b.resolved]:
-        return []
 
     resolved_lines: list[str] = []
     legacy_counter = 0
@@ -545,14 +567,7 @@ def resolve_open_blockers(
         resolved_lines.append(line)
 
     trailing = "\n" if region.endswith("\n") else ""
-    written = replace_blackboard(
-        ticket_path,
-        "\n".join(resolved_lines) + trailing,
-        expected_bytes=expected_bytes,
-    )
-    if after_write is not None:
-        after_write(written)
-    return [b for b in read_blockers(ticket_path) if b.resolved and b.answer == answer]
+    return "\n".join(resolved_lines) + trailing
 
 
 def format_bytes(size: int) -> str:

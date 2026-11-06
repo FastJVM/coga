@@ -1,6 +1,6 @@
 ---
 name: coga/state-publication
-description: Which Coga files publish to control and when, eligibility, avoiding publication before review, control versus feature checkouts, the strict `coga run publish-state` recipe, and recovering a failed publication.
+description: Which Coga files publish to control and when, eligibility, avoiding publication before review, control versus feature checkouts, how lifecycle commands reconcile a ticket with fresh control before changing it, the strict `coga run publish-state` recipe, and recovering a failed publication.
 ---
 
 # Publishing Coga state
@@ -51,8 +51,10 @@ reviewed PR.
 
 ## When Coga publishes
 
-- **Lifecycle commands** publish their own task write with an attributed
-  message as soon as the write, log line, and notification are final.
+- **Lifecycle commands** first reconcile the ticket with freshly fetched
+  control ([prepared ticket transactions](#prepared-ticket-transactions)),
+  then publish their own task write with an attributed message as soon as
+  the write, log line, and notification are final.
 - **The end-of-command sweep** runs after most commands that change state,
   succeed or fail, and publishes every dirty eligible file under the roots,
   plus eligible committed changes (see below). Read-only commands
@@ -80,6 +82,15 @@ reviewed PR.
   publication adds a session-end warning naming the retained log, alongside
   the Git diagnostic. The agent's exit result stands. Explicitly disabled
   Git keeps its usual informational note instead of that warning.
+  A stateful launch or megalaunch session publishes its ticket with that
+  log, from the invoking process and so outside the child's sandbox, after
+  the child exits for any reason and before the supervisor rereads the
+  ticket to chain. A lifecycle write the child could not publish (for
+  example because its Git object store was read-only) lands then. If control
+  already holds those exact bytes, that confirmation is recorded as this
+  checkout's provenance with no new commit. Nothing is replayed, and a
+  refused ticket still lets the log publish. Bootstrap and guided-authoring
+  sessions publish only the log.
 - **Guided authoring** (`coga ticket`) publishes its launch line before the
   session starts, as `coga chat` and launch do, so an attended session never
   holds the log dirty. At the end it validates every surviving authored
@@ -177,6 +188,60 @@ Committed state is adopted only when control still holds a version this
 checkout was based on. If control has moved on, reconcile with current
 control before retrying. A clean copy merely behind control is never
 republished.
+
+## Prepared ticket transactions
+
+Every lifecycle command — `bump` (including completion and human rewinds),
+each `mark` verb, `block`, `unblock` (each `--all` answer too), `owner`, and
+autoclose's merged-PR completion — reads control before deciding. It fetches
+the control branch, reads that ticket's control copy, and reconciles it with
+this checkout's copy *before* checking eligibility, gates, or the supervised
+step, deriving messages, or writing anything:
+
+- **No local edit** — the local copy equals the newest copy this checkout
+  provably shares with control: control's copy is used, from a feature
+  branch, a detached HEAD, or a control checkout that cannot fast-forward
+  alike. Nothing switches branches or touches other files or the index.
+- **Only one side changed** — that side's version is used. A local pause,
+  blocker, or deliberate rewind is kept even though it is not progress.
+- **Both changed** — frontmatter merges per key (the frozen workflow is one
+  value) and the body, blackboard included, by a three-way text merge. When
+  both moved the lifecycle, the demonstrably later position wins whole:
+  `draft` < `active` < `in_progress` < terminal, then the higher step under
+  an unchanged workflow. A terminal winner carries no step.
+- **Cannot reconcile** — overlapping prose, different edits of one metadata
+  value, a control copy deleted after it was shared, no provable shared copy,
+  or a status pair the ordering cannot rank (`paused` or `blocked` against
+  another status, `done` against `canceled`). The command exits 75 before
+  writing, logging, notifying, or ending a session; both copies stay intact,
+  no conflict markers are written, and the sweep is withheld. Save or
+  reconcile your local edits, take control's copy with
+  `git checkout <remote>/<control> -- <path>`, redo the edit, and retry.
+
+The shared copy is chosen from this checkout's HEAD copy, the HEAD/control
+merge-base copy, and the copy this worktree last published, counting only
+copies control's own history carried and taking the one it carried most
+recently. An unpublished feature-branch commit of the ticket is therefore a
+local edit, not a base.
+
+The command then validates and edits that reconciled view, writes it once
+(exit 75 if the local file changed since it was read), and publishes it
+against the exact control bytes it read. Another checkout changing the ticket
+in between is refused, never merged a second time; an unrelated control
+commit uses the ordinary push retry. A retryable failure (for example a
+read-only object store in an agent sandbox) remembers that expectation in
+the machine-local `.coga/pending-publication.json`: the session-teardown
+retry and the sweep publish that ticket only against it, and a refused one
+waits until its copy matches control or another lifecycle command reconciles
+it.
+
+If the fetch cannot run, or the remote has no control branch, the command
+says so and works from the local copy with today's guarded publication; a
+cached remote-tracking ref is never treated as fresh. Git-disabled, non-Git,
+and no-control checkouts are unchanged, and without a configured remote the
+local control branch is canonical. Launch, megalaunch, and recurring keep
+their stricter exact-byte, launch-generation, and lease checks instead of
+merging.
 
 ## Strict publication on demand
 

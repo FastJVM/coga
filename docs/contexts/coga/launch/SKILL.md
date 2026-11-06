@@ -64,6 +64,13 @@ puts the ticket back to `blocked` (restoring the step a script transition
 cleared) so blocker queues keep reporting it. TTY-less launches of a blocked
 ticket are refused until `coga unblock`.
 
+After each started agent session exits — cleanly, by timeout, with an
+error, or by a handled interrupt — launch and megalaunch publish the ticket
+with the log from the invoking checkout, outside the child's sandbox, before
+rereading it to decide whether to chain. A lifecycle write the child could not
+publish lands then, or is confirmed as already landed
+([state publication](../state-publication/SKILL.md#when-coga-publishes)).
+
 Divergent workers are visible and recoverable in git; a lock's stale state
 is not. Megalaunch's claim and the local state lock are not ownership locks
 ([launch claims](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/launch-claims/SKILL.md)).

@@ -8,11 +8,16 @@ import typer
 
 from coga import git
 from coga import pr_assist
-from coga.blackboard import append_blocker
-from coga.commands.common import current_operator
+from coga.blackboard import append_blocker_text
+from coga.commands.common import (
+    bail_ticket_changed,
+    current_operator,
+    prepare_lifecycle_ticket,
+)
 from coga.config import ConfigError, load_config
 from coga.mark import mark_blocked
 from coga.repl_supervisor import emit_done_marker
+from coga.taskfile import TaskFileError, split_body, with_blackboard
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.validate import TaskValidationError
 
@@ -40,7 +45,10 @@ def block(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    ticket = read_ticket(ref)
+    if not ref.ticket_path.is_file():
+        read_ticket(ref)  # the ordinary missing-ticket error
+    prepared = prepare_lifecycle_ticket(cfg, ref)
+    ticket = prepared.ticket
     if ticket.status not in {"active", "in_progress", "blocked"}:
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}; block requires "
@@ -65,9 +73,9 @@ def block(
     blocker = effective_agent or cfg.current_user
 
     try:
-        with git.state_lock(cfg):
-            append_blocker(ref.ticket_path, actor, reason)
-        ticket = read_ticket(ref)
+        # The ask and the status change are one prepared write.
+        region = split_body(ticket.body)[1] or ""
+        ticket.body = with_blackboard(ticket.body, append_blocker_text(region, actor, reason)[0])
         mark_blocked(
             cfg,
             ref,
@@ -80,8 +88,11 @@ def block(
             ),
             image_url=cfg.gif_for("block") or cfg.gif_for("panic"),
             echo=f"{ref.id_slug}: blocked (owner {owner} needs to answer)",
+            prepared=prepared,
         )
-    except TaskValidationError as exc:
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
+    except (TaskFileError, TaskValidationError) as exc:
         _bail(str(exc))
 
     # `id_slug` (not the resolved path) scopes the signal so it matches the

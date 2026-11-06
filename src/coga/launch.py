@@ -3906,12 +3906,21 @@ def spawn_agent_session(
                 launch_marker=launch_marker,
             )
             # The usage record lands in `log.md` *past* the agent's final
-            # `bump`/`mark` sync, so publish exactly the log now via its
-            # union-safe path; it also carries this launch's own log line. A
-            # supervised chain reaches this finally per step, so each step's
-            # record publishes promptly. Non-fatal.
+            # `bump`/`mark` sync, so publish it now; it also carries this
+            # launch's own log line. A stateful session also retries its
+            # ticket from here, outside the child's sandbox, before the
+            # caller rereads the ticket to decide whether to chain: a
+            # lifecycle write the child could not publish lands (or is
+            # confirmed as already landed) now. Stateless bootstrap and
+            # authoring sessions keep their log-only boundary. A supervised
+            # chain reaches this finally per step. Non-fatal.
             if isinstance(cfg, Config):
-                log_published = git.sync_log(cfg, message=f"Log: {session_slug}")
+                if stateless_session or not isinstance(ref, TaskRef):
+                    log_published = git.sync_log(cfg, message=f"Log: {session_slug}")
+                else:
+                    log_published = git.retry_session_publication(
+                        cfg, ref.path, slug=session_slug
+                    )
                 if log_published is None and cfg.git_enabled:
                     _report(
                         f"Session {session_slug} ended; log publication was not "
