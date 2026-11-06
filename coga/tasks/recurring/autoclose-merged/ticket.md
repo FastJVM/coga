@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -86,3 +85,14 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-11-06T19:54:42+00:00
+Task: `recurring/autoclose-merged`
+
+3 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br` "Chat ticket edits strand the checkout on a chat branch": branch `coga/chat-state-checkout-05`
+- `v1/08-fail-the-branch-sweep-when-local-branch-enumeratio` "Fail the branch sweep when local branch enumeration fails": branch `fail-sweep-on-local-enumeration`
+- `v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope` "Init sends the user to edit a toml nothing can open": branch `coga/v1-22-init-drop-coga-toml-next-step`
