@@ -77,7 +77,7 @@ local bytes, fetches through `fetch_control_state` (`fresh`, `local` for a
 remote-less repo, `missing`, or `failed` — only the first two are read as
 current), reads the control copy at the pinned commit, and reconciles
 (`_shared_base`, `merge_ticket_bytes`, `lifecycle_winner`). The user contract
-is [prepared ticket transactions](../../../coga/state-publication/SKILL.md#prepared-ticket-transactions).
+is [prepared ticket transactions](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#prepared-ticket-transactions).
 An unreconcilable ticket raises `TicketConflictError` (a
 `StateRegressionError`, `status_conflict=True` for an unrankable status pair)
 before any write; commands exit 75 through
@@ -108,7 +108,7 @@ linkage). `_gh` explicitly selects the configured remote's repository with
 `--repo`; its URL parser is shared with PR-assist verification. The remote
 must fetch and push one matching repository. OS errors at the GitHub/process
 and temporary-index boundaries retain the exit-75 refusal. User contract:
-[human review of status conflicts](../../../coga/state-publication/SKILL.md#human-review-of-status-conflicts).
+[human review of status conflicts](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#human-review-of-status-conflicts).
 
 The return path is `prepare_ticket(..., review_base=, on_resolved=)`
 (`_prepare_reviewed`): the merged PR's local blob replaces the shared base,
