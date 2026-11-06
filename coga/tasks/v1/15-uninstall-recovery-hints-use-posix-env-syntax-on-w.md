@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -266,6 +266,87 @@ Previous ref: `windows-native/uninstall-recovery-hints-use-posix-env-syntax-on-w
 
 branch: coga/v1-15-uninstall-recovery-hints-use-posix-env-syn-9a5041
 
+
+## Implement handoff
+
+- Implemented 2026-11-05 by Claude (Opus 5.5, claude-opus-5-5) in an attended
+  `coga launch` session. Commit `bd4b557b43040bc3e38f67482599a7a6e623b418` on top of `origin/main` `cc64b371cba8c88b03b96c45cdb0168fc8c4ac7a`
+  (rebased once; the only incoming commit was this ticket's branch linkage).
+- `src/coga/commands/uninstall.py`: `_uninstall_via_tool()` now builds `display`
+  via the new `_format_tool_command(tool, subcommand, env, *, windows)`, with
+  `windows` taken from the new `_native_windows()` (`os.name == "nt"`). Tests
+  monkeypatch that hook rather than `os.name`. On Windows each override becomes
+  `$env:K='<literal>'; ` (via `_powershell_literal()`), and the recovery prose reads
+  "by hand in PowerShell:" only when overrides exist. POSIX rendering keeps the
+  original `shlex.quote` join. The `subprocess.run()` call and `_handle_package()`
+  are unchanged.
+- Decision: besides the ASCII `'`, the escaper also doubles U+2018, U+2019, U+201A
+  and U+201B. PowerShell treats those as single-quote delimiters too, and
+  doubling each one matches PowerShell's own
+  `CodeGeneration.EscapeSingleQuotedStringContent`.
+- Tests (`tests/test_uninstall.py`): the two uv recovery tests now expect their
+  host's native syntax. A table test pins exact formatter output for both
+  platforms: plain, space, apostrophe, metacharacters and smart quotes, ordering,
+  no overrides, and no mutation. A parametrized test checks exact
+  progress and both recovery paths per platform, plus argv/env for the call. A
+  no-override pipx test confirms identical output on both platforms. The Windows-only
+  `test_windows_uv_hint_runs_in_powershell` runs the captured hint in
+  `powershell.exe -NoProfile -EncodedCommand` with a stub `uv` function. The stub
+  writes a UTF-8 JSON result file, which the test reads with `utf-8-sig`, as the
+  evaluator recommended. The existing uv routing test is kept unchanged.
+- Docs: the "The global package" section of `coga/uninstall` and its packaged
+  twin are updated byte-identically. They document both hint syntaxes and that
+  the PowerShell assignment persists for the shell session.
+- Not yet verified: the native PowerShell test skipped on Linux, and no PowerShell
+  was available locally. The Windows `pytest` CI job (Python 3.11) is the
+  required evidence. Check it on the PR. Local runs used Python 3.12.12, not 3.11.
+- The evaluator's baseline twin-test failure (blocker-reminders) no longer
+  reproduces on current main. That check now passes.
+- No adjacent bugs found.
+
+## PR
+
+```yaml
+title: Render uv uninstall recovery hints in PowerShell on Windows
+author: claude
+author_evidence: Attended implement session ran on Claude Opus 5.5 (claude-opus-5-5); see Implement handoff.
+head: bd4b557b43040bc3e38f67482599a7a6e623b418
+base: cc64b371cba8c88b03b96c45cdb0168fc8c4ac7a
+depth: skim
+rationale: Display-only change in one private helper plus tests and docs; subprocess execution is untouched. Check the PowerShell quoting rule and the Windows CI result.
+implementation: Adds _format_tool_command/_powershell_literal/_native_windows to uninstall.py so the progress line and both recovery hints render `$env:VAR='literal'; uv tool uninstall coga` on native Windows (naming PowerShell) and the unchanged POSIX `VAR=quoted` form elsewhere.
+deviations: None from the spec. Typographic single quotes are also doubled, per the PowerShell quoting rules the spec cites.
+limitations: The native PowerShell execution test has only been skipped locally (Linux); Windows evidence must come from the CI pytest job. Local runs used Python 3.12.12, not 3.11.
+files:
+  src/coga/commands/uninstall.py: Platform-specific rendering of the uv/pipx manual command and PowerShell-labelled recovery prose.
+  tests/test_uninstall.py: Native-syntax expectations for the uv recovery tests, exact cross-platform formatting/output cases, and a Windows-only PowerShell execution test with a stub uv.
+  docs/contexts/coga/uninstall/SKILL.md: Document the POSIX and PowerShell recovery hints and session-scoped PowerShell assignment.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md: Packaged twin of the uninstall topic, kept byte-identical.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review belongs to the later workflow steps; no review has run yet. Design approval does not count as code review.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_uninstall.py tests/test_packaging.py::test_live_and_packaged_copies_stay_identical
+    status: passed
+    head: bd4b557b43040bc3e38f67482599a7a6e623b418
+    base: cc64b371cba8c88b03b96c45cdb0168fc8c4ac7a
+    detail: 32 passed, 1 skipped (Windows-only PowerShell test) on Linux, Python 3.12.12.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: bd4b557b43040bc3e38f67482599a7a6e623b418
+    base: cc64b371cba8c88b03b96c45cdb0168fc8c4ac7a
+    detail: 4468 passed, 11 skipped in 563.62s on Linux, Python 3.12.12.
+  - command: git diff --check origin/main HEAD
+    status: passed
+    head: bd4b557b43040bc3e38f67482599a7a6e623b418
+    base: cc64b371cba8c88b03b96c45cdb0168fc8c4ac7a
+    detail: No whitespace errors.
+  - command: Windows pytest CI job (python -m pytest on windows-latest, Python 3.11)
+    status: pending
+    detail: The native PowerShell hint test runs only there; it runs once the PR is opened.
+```
 
 ## Design handoff
 
