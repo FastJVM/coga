@@ -5557,8 +5557,11 @@ def test_megalaunch_cli_picker_resize_keeps_state(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The synthetic "resize" action re-renders without disturbing the
-    selection, and the picker restores the SIGWINCH handler it installed."""
+    selection, and the picker restores the handler it installed: SIGWINCH
+    for the POSIX self-pipe, SIGINT for the Windows quit flag."""
     import signal
+
+    picker_signal = signal.SIGWINCH if os.name == "posix" else signal.SIGINT
 
     from typer.testing import CliRunner
 
@@ -5579,14 +5582,14 @@ def test_megalaunch_cli_picker_resize_keeps_state(
         "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
     )
     launched = _done_on_spawn(monkeypatch)
-    handler_before = signal.getsignal(signal.SIGWINCH)
+    handler_before = signal.getsignal(picker_signal)
 
     _feed_keys(monkeypatch, ["space", "resize", "enter"])
     result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
     assert result.exit_code == 0, result.output
     assert launched == [picked["slug"]]
-    assert signal.getsignal(signal.SIGWINCH) is handler_before
+    assert signal.getsignal(picker_signal) is handler_before
 
 
 def test_megalaunch_cli_quit_launches_nothing(
