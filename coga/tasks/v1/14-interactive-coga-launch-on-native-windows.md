@@ -635,6 +635,71 @@ None of these have run on Windows yet; that is phase 2.
 3. Teardown + `status`; record instance/AMI/zone/teardown time here.
 4. Then the PR-preparation record (`## PR`), and bump.
 
+## Implement — phase 2, session 1 (2026-11-05/06, attended, Claude Opus 5.5)
+
+**Paused by the owner ("tomorrow"). No bump.** Relaunch this `implement`
+step to continue.
+
+### Done this session
+
+- Linux full suite on phase-1 HEAD: **4512 passed, 31 skipped** (Python
+  3.12 `.venv`, `python -m pytest -q`).
+- Box `win-launch2`: i-0c10cad7c9881160f, us-east-1a, t3.large, AMI
+  ami-0b5f645abc199e666 (`Windows_Server-2025-English-Full-Base-2026.10.28`),
+  build 26100.33674, Git 2.56.0.windows.4, uv 0.13.7, Python 3.11.18,
+  Claude Code 2.1.318 (native installer). Launched 2026-11-06T05:02:44Z,
+  **terminated 05:38:10Z**, SG deleted 05:38:11Z, key pair 05:38:12Z;
+  `status` showed `terminated`, with no volumes.
+- Native results on the branch (via harness `ssh`):
+  - `tests/test_repl_supervisor_nt.py`: at first 72 passed and 4 failed. All 4
+    batch round-trip cases (`direct`/`npm` × `.cmd`/`.bat`) printed
+    `?\ was unexpected at this time`. The cause was the **fake shims**,
+    which re-parsed their own directory: the direct shim embedded the literal
+    UTF-8 path (`%PATH%`, `&`, `東`) in batch source, and the npm shape
+    uses cmd-shim's unquoted `SET dp0=%~dp0`, which splits on `&`. The
+    transport itself was fine. Fix (2814a2f13): the direct shim uses quoted
+    `%~dp0` and keeps the full adversarial directory; the npm-shaped dir
+    omits only `&`/`^`, which real npm shims can't survive (spec §5: the
+    transport cannot repair a shim that reparses). After the fix: **76 passed, 1
+    skipped** (the skip is "no console attached" under non-tty ssh, so it is
+    to be covered by the attended run).
+  - `tests/test_megalaunch.py`: there were 9 failures. Eight were "agent CLI 'claude'
+    not found": the tests fake `shutil.which` and the supervisor, but
+    the Windows planner resolves against the child PATH/PATHEXT first.
+    Fix (c67dfc978): a Windows-only autouse fixture in `tests/conftest.py`
+    (`_windows_agent_resolution_follows_which`) tries the real resolver
+    and then falls back to `shutil.which`. It excludes
+    `test_repl_supervisor_nt.py`, which owns the real resolver contract.
+    The ninth, `test_megalaunch_cli_picker_resize_keeps_state`, used
+    `signal.SIGWINCH`; it now checks SIGINT on Windows (the quit-flag
+    handler). After the fix: **141 passed, 1 skipped**.
+  - `test_usage.py` and `test_cli.py` had no failures in the first combined run.
+  - The full native suite started as an S4U scheduled task and was **stopped
+    at 7% with no failures** when the owner paused. It needs a complete
+    rerun. Recipe: the inner pytest command is base64-encoded into a
+    `powershell -EncodedCommand` task action, writing `stdout.txt`,
+    `stderr.txt`, `junit.xml` and `exit.txt` under
+    `C:\coga-clean-install\suite\`. Copy the registration `.ps1` over
+    with `scp` (the harness's key/known_hosts in
+    `.coga/clean-install/<name>/`). Passing it through `aws-windows.sh ssh`
+    as an encoded command hits "The command line is too long."
+- Claude Code + coga were installed on the box (`uv tool install --force
+  --python 3.11 C:\Users\Administrator\coga-work`), but no auth yet.
+
+### Next session
+
+1. **First, ask the owner for Claude auth.** Either an `op://` reference
+   for the API key (piped over SSH stdin into the session env only), or
+   the owner runs `claude` login over `ssh -tt` (SSO). The `coga-test` AWS
+   SSO session may also need `aws sso login --profile coga-test`.
+2. Provision, `checkout`, start the full native suite task, and install Claude
+   Code + coga.
+3. Throwaway repo on the box: `brief-for-human` gives agent→owner for the
+   bump case. For the chain, add a local two-agent-step workflow. Pin
+   `launch_args = "--model haiku"` in the box's `coga.local.toml`.
+   The host PTY driver needs `uv run --with pyte` (pyte isn't installed).
+4. Continue the phase 2 checklist above from item 2.
+
 ## Design session 2026-10-19 (design step)
 
 The core ticket was still at `review-design` (not merged). The owner chose
