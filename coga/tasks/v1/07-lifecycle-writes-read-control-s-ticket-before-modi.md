@@ -463,6 +463,11 @@ Previous ref: `lifecycle-writes-read-control-s-ticket-before-modi` (renamed 2026
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-07-lifecycle-writes-read-control-s-ticket-bef-5b096f
+
+
 ## Consolidation — 2026-09-30
 
 - Owner authorized folding `ticket-sync-fails-with-read-only-git-inside-agent`
