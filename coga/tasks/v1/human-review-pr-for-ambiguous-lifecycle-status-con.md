@@ -1,6 +1,6 @@
 ---
 title: Human-review PR for ambiguous lifecycle status conflicts
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -117,5 +118,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-human-review-pr-for-ambiguous-lifecycle-statu-a4ef81
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
