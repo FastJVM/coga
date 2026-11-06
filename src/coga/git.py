@@ -62,7 +62,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
@@ -200,11 +200,32 @@ def state_lock(cfg: Config, *, blocking: bool = True) -> Iterator[None]:
             os.close(fd)
 
 
-def write_ticket(cfg: Config, ticket: Ticket, path: Path) -> bytes:
-    """Render and write a ticket under `state_lock`; return the bytes written."""
+def write_ticket(
+    cfg: Config, ticket: Ticket, path: Path, *, prepared: "PreparedTicket | None" = None,
+) -> bytes:
+    """Render and write a ticket under `state_lock`; return the bytes written.
+
+    With `prepared`, the write is the commit of a prepared transaction: it
+    refuses with `TicketChangedError` unless the file still holds the bytes
+    preparation (or its previous prepared write) left, so an edit made after
+    the command read the ticket is never overwritten. The preparation then
+    tracks the new bytes.
+    """
     rendered = ticket.render().encode("utf-8")
     with state_lock(cfg):
+        if prepared is not None:
+            try:
+                current: bytes | None = path.read_bytes()
+            except FileNotFoundError:
+                current = None
+            if current != prepared.local:
+                raise TicketChangedError(
+                    f"{path}: changed after this command read it; nothing was "
+                    "written. Retry from the current ticket"
+                )
         ticket.write(path)
+        if prepared is not None:
+            prepared.local = path.read_bytes()
     return rendered
 
 
@@ -219,8 +240,14 @@ def sync_task_state(
     expect: Mapping[Path, bytes | None] | None = None,
     strict: bool = False,
     command: str | None = None,
+    prepared: "PreparedTicket | None" = None,
 ) -> bool | None:
     """Publish one task (file or directory) plus `coga/log.md`.
+
+    `prepared` publishes a prepared transaction: its exact control bytes
+    become the ticket's expectation (unless `expect` already pins it), and a
+    failed or refused attempt is remembered so later retries keep that
+    expectation (see `publish`'s `remember`).
 
     Non-fatal by default: a refusal or failure is written to stderr and the
     task's log, then swallowed, so the local transition stands. `strict=True`
@@ -229,8 +256,13 @@ def sync_task_state(
     `command` names the CLI spelling (`"bump"`) the best-effort recovery hint
     tells the operator not to rerun.
     """
+    if prepared is not None and prepared.fresh:
+        expect = {**prepared.expect(), **(expect or {})}
     try:
-        return publish(cfg, [task_path, log_path(cfg)], message, expect=expect)
+        return publish(
+            cfg, [task_path, log_path(cfg)], message, expect=expect,
+            remember=prepared is not None and prepared.fresh,
+        )
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
         if strict:
@@ -265,6 +297,61 @@ def sync_log(cfg: Config, *, message: str) -> bool | None:
             retained="The local log was retained", recovery_paths=[path],
         ))
         return None
+
+
+def retry_session_publication(cfg: Config, task_path: Path, *, slug: str) -> bool | None:
+    """Republish a supervised session's ticket plus the log after it exits.
+
+    Runs in the invoking process, outside the child's sandbox, so a lifecycle
+    write the child could not publish (for example a read-only object store)
+    lands now. It fetches first, so bytes another process already landed are
+    confirmed — `publish` returns False and records them as this worktree's
+    provenance. No lifecycle command is replayed: the working files are the
+    write, guarded as always, with any prepared expectation the child
+    remembered. A refused ticket still lets the log publish on its own.
+    Returns the log outcome in `sync_log`'s convention (`None`: not
+    confirmed); every miss is reported on stderr and the local files stay.
+    """
+    # Name the commit after what it carries: a ticket the session changed,
+    # or (the common case, its own bump already landed) only the log.
+    message = f"Log: {slug}"
+    if cfg.git_enabled:
+        try:
+            root = toplevel(cfg.repo_root)
+            if root is not None and remote_configured(root, cfg.git_remote):
+                _fetch_control(root, cfg.git_remote, cfg.git_control_branch)
+            if root is not None and _differs_from_control(cfg, root, task_path):
+                message = f"Ticket: {slug} — session state"
+        except GitError as exc:
+            sys.stderr.write(f"[git] note: could not fetch control before session publication: {exc}\n")
+    try:
+        return publish(cfg, [task_path, log_path(cfg)], message)
+    except StateRegressionError as exc:
+        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
+        return sync_log(cfg, message=f"Log: {slug}")
+    except GitError as exc:
+        record_sync_failure(cfg, ref_tag_for_path(cfg, task_path), exc)
+        sys.stderr.write(sync_failure_report(
+            cfg, exc, message=message, retained="Local task state was saved",
+            recovery_paths=(task_path, log_path(cfg)),
+        ))
+        return None
+
+
+def _differs_from_control(cfg: Config, root: Path, path: Path) -> bool:
+    """Whether any file of the task at `path` differs from known control."""
+    rev = known_control_revision(cfg, root)
+    if rev is None:
+        return True
+    rel = relative_to_root(root, path)
+    local = run_git(root, "ls-files", "-z", "-co", "--exclude-standard", "--", rel)
+    remote = run_git(root, "ls-tree", "-r", "-z", "--name-only", rev, "--", rel)
+    names = {name for name in (local + remote).split("\x00") if name}
+    for name in names:
+        data = _working_tree_bytes(root, name)
+        if (None if data is None else _blob_id(root, data, name)) != _blob_oid(root, rev, name):
+            return True
+    return False
 
 
 def sync_coga_state(
@@ -406,6 +493,7 @@ def publish(
     fast_forward: bool = True,
     require_paths: Iterable[Path] = (),
     log_mutation: "LogMutation | None" = None,
+    remember: bool = False,
 ) -> bool | None:
     """Land the dirty files under `paths` on the control branch.
 
@@ -423,6 +511,14 @@ def publish(
     `require_paths` names files which must either be selected for this publish
     or already match control. It refuses before any write when a required
     authored file is excluded as committed feature-branch review work.
+
+    A ticket path named in `expect` is published whenever its working copy
+    differs from control, even if it equals HEAD. `remember=True` (a prepared
+    lifecycle transaction) records each expectation in this checkout's
+    pending-expectation file when the attempt fails retryably, or marks it
+    rejected when it is refused, so the supervisor retry and the sweep reuse
+    the exact expectation rather than the broader provenance check (see
+    `_PENDING_FILE`).
     """
     root = _publishable_root(cfg, message)
     if root is None:
@@ -434,13 +530,30 @@ def publish(
     expected = {
         relative_to_root(root, path): (
             None if data is None
-            else _hash_blob(root, data, relative_to_root(root, path))
+            else _blob_id(root, data, relative_to_root(root, path))
         )
         for path, data in (expect or {}).items()
     }
     with state_lock(cfg):
         required = [relative_to_root(root, path) for path in require_paths]
-        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward, required, log_mutation)
+        pending = _load_pending(cfg)
+        before = dict(pending)
+        try:
+            return _publish_locked(
+                cfg, root, pathspecs, message, expected, guard, fast_forward,
+                required, log_mutation, pending=pending,
+            )
+        except StateRegressionError:
+            if remember:
+                pending.update({rel: {"expect": oid, "state": "rejected"} for rel, oid in expected.items()})
+            raise
+        except GitError:
+            if remember:
+                pending.update({rel: {"expect": oid, "state": "pending"} for rel, oid in expected.items()})
+            raise
+        finally:
+            if pending != before:
+                _save_pending(cfg, pending)
 
 
 def _publishable_root(cfg: Config, message: str) -> Path | None:
@@ -469,6 +582,8 @@ def _publish_locked(
     fast_forward: bool,
     required: list[str],
     log_mutation: "LogMutation | None" = None,
+    *,
+    pending: dict[str, dict[str, Any]] | None = None,
 ) -> bool:
     from coga import log_transaction
     from coga.log_publication import reconcile
@@ -494,6 +609,18 @@ def _publish_locked(
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
         rels = _candidates(root, pathspecs, base, ancestor, adopt_only, log_rel=log_rel)
+        # The pending-expectation record is machine-local even where `.coga/`
+        # is not ignored.
+        pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)
+        rels = [rel for rel in rels if rel != pending_rel]
+        # A prepared ticket participates whenever it differs from control,
+        # even when its final bytes happen to equal HEAD.
+        for rel in _ticket_rels(cfg, root, [rel for rel in expected if rel not in rels]):
+            if not any(rel == spec or rel.startswith(spec.rstrip("/") + "/") for spec in pathspecs):
+                continue
+            data = _working_tree_bytes(root, rel)
+            if (None if data is None else _blob_id(root, data, rel)) != _blob_oid(root, base, rel):
+                rels.append(rel)
         index_modes = _index_modes(root) if required and os.name != "posix" else None
         for rel in required:
             if rel in rels:
@@ -516,8 +643,9 @@ def _publish_locked(
                 f"local {control!r} only; add a remote to sync ({message})\n"
             )
         working = {rel: _working_tree_bytes(root, rel) for rel in rels}
+        attempt_expected = _pending_expectations(cfg, root, rels, base, working, expected, pending)
         union = union_merge_paths(root, rels) - {log_rel}
-        landed = _guard(cfg, root, rels, base, working, union, _provenance(root, rels, ancestor), expected)
+        landed = _guard(cfg, root, rels, base, working, union, _provenance(root, rels, ancestor), attempt_expected)
         if log_rel in rels:
             if working[log_rel] is None:
                 raise StateRegressionError("audit log is missing locally; restore it before publication")
@@ -534,6 +662,11 @@ def _publish_locked(
             # dirty-but-equal files come clean; nothing reaches other checkouts.
             if fast_forward and current_branch(root) == control:
                 fast_forward_control(cfg, root, base, staged=staged, **({"log_mutation": log_mutation} if log_mutation else {}))
+            # Control already holds these exact bytes — perhaps landed by
+            # another process from a sandboxed write here. That is confirmed
+            # publication, so this worktree records it as provenance.
+            _record_published(root, {rel: _blob_oid(root, base, rel) for rel in rels})
+            _clear_pending(pending, rels)
             return False
         new = run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
         if log_mutation is not None:
@@ -575,11 +708,101 @@ def _publish_locked(
                 f"be fast-forwarded to the new commit; the write stays dirty"
             )
         _record_published(root, {rel: _blob_oid(root, new, rel) for rel in rels})
+        _clear_pending(pending, rels)
         return True
     _record_published(root, {rel: _blob_oid(root, new, rel) for rel in rels})
+    _clear_pending(pending, rels)
     if fast_forward:
         fast_forward_control(cfg, root, new, staged=staged, **({"log_mutation": log_mutation} if log_mutation else {}))
     return True
+
+
+# Per-checkout record of prepared ticket expectations whose publication has
+# not landed (`.coga/` is machine-local and ignored). It lives in the working
+# tree rather than under `.git` because the failure it remembers is often a
+# read-only object store. Each entry maps a repo-relative ticket path to the
+# exact control blob its transition was prepared against (`expect`, `None`
+# for "absent") and `state`: `pending` (a retryable failure) or `rejected`
+# (control refused it). The supervisor retry and the sweep publish a pending
+# path only against that blob, and refuse a rejected one until its working
+# copy matches control again or a new prepared transaction replaces it.
+_PENDING_FILE = Path(".coga") / "pending-publication.json"
+
+
+def _load_pending(cfg: Config) -> dict[str, dict[str, Any]]:
+    import json
+
+    try:
+        data = json.loads((cfg.repo_root / _PENDING_FILE).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"[git] note: ignoring unreadable {_PENDING_FILE}: {exc}\n")
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        rel: entry for rel, entry in data.items()
+        if isinstance(entry, dict) and entry.get("state") in ("pending", "rejected")
+    }
+
+
+def _save_pending(cfg: Config, pending: Mapping[str, Mapping[str, Any]]) -> None:
+    import json
+
+    from coga.atomicio import atomic_write_text
+
+    path = cfg.repo_root / _PENDING_FILE
+    try:
+        if not pending:
+            path.unlink(missing_ok=True)
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, json.dumps(dict(pending), indent=2, sort_keys=True) + "\n")
+    except OSError as exc:
+        sys.stderr.write(f"[git] note: could not record pending publication expectations: {exc}\n")
+
+
+def _clear_pending(pending: dict[str, dict[str, Any]] | None, rels: Iterable[str]) -> None:
+    if pending:
+        for rel in rels:
+            pending.pop(rel, None)
+
+
+def _pending_expectations(
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    base: str,
+    working: Mapping[str, bytes | None],
+    expected: Mapping[str, str | None],
+    pending: dict[str, dict[str, Any]] | None,
+) -> dict[str, str | None]:
+    """`expected` plus each remembered prepared expectation for `rels`.
+
+    An explicit expectation wins. A remembered path whose working copy already
+    equals control is settled and forgotten; a rejected one refuses.
+    """
+    result = dict(expected)
+    if not pending:
+        return result
+    for rel in rels:
+        entry = pending.get(rel)
+        if entry is None or rel in expected:
+            continue
+        data = working[rel]
+        if (None if data is None else _blob_id(root, data, rel)) == _blob_oid(root, base, rel):
+            pending.pop(rel)
+            continue
+        if entry.get("state") == "rejected":
+            raise StateRegressionError(
+                f"{rel}: control refused this checkout's prepared transition; "
+                f"take control's copy with `git checkout {cfg.git_remote}/"
+                f"{cfg.git_control_branch} -- {rel}` and redo the edit, or rerun "
+                "the lifecycle command to reconcile it"
+            )
+        result[rel] = entry.get("expect")
+    return result
 
 
 def _control_base(
@@ -825,6 +1048,402 @@ def ticket_regression_reason(
         f"{rel}: pending launch admission {generation!r} cannot change "
         "before the held child is released"
     )
+
+
+# --- prepared ticket transactions ---------------------------------------------
+#
+# A lifecycle command derives its transition from the ticket it reads. Reading
+# only this checkout's copy lets a stale clone (a feature checkout, a dirty
+# control checkout that cannot fast-forward) decide from old state and then
+# have its write refused at publication. `prepare_ticket` reads control first:
+# it fetches, pins the control commit, reconciles the local copy with control's
+# copy over a proven shared base, and returns the reconciled ticket together
+# with the exact control bytes it read. The caller validates and edits that
+# view in memory, writes it once (`write_ticket(..., prepared=)` rechecks the
+# local bytes), and publishes with the control bytes as its exact expectation.
+# `coga/state-publication` ("Prepared ticket transactions") owns the contract.
+
+
+class TicketConflictError(StateRegressionError):
+    """Preparation could not reconcile the local ticket with control's copy.
+
+    Raised before any transition is written. `status_conflict` marks the case
+    where both sides changed `status:` and the lifecycle ordering cannot pick
+    a winner (paused/blocked against another status, or done versus
+    canceled) — reserved for a human decision.
+    """
+
+    def __init__(self, message: str, *, rel: str, status_conflict: bool = False) -> None:
+        self.rel = rel
+        self.status_conflict = status_conflict
+        super().__init__(message)
+
+
+class TicketChangedError(StateRegressionError):
+    """The local ticket changed between preparation and the prepared write."""
+
+
+@dataclass(frozen=True)
+class ControlFetch:
+    """The control revision a preparation may read, and how it was obtained.
+
+    `state` is `fresh` (fetched just now from the configured remote), `local`
+    (no remote is configured: local `<control>` is canonical), `missing` (the
+    remote answered but has no control branch), or `failed` (the fetch could
+    not run). Only `fresh` and `local` carry a revision a reader may call
+    current; a remote-tracking ref left over from an earlier fetch is never
+    reported as fresh.
+    """
+
+    state: Literal["fresh", "local", "missing", "failed"]
+    revision: str | None = None
+    detail: str = ""
+
+
+def fetch_control_state(cfg: Config, root: Path) -> ControlFetch:
+    """Fetch control and say whether the result is current."""
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    if not remote_configured(root, remote):
+        if _ref_present(root, f"refs/heads/{control}"):
+            return ControlFetch(
+                "local", run_git(root, "rev-parse", f"refs/heads/{control}").strip()
+            )
+        return ControlFetch("missing", detail=f"no local {control!r} branch")
+    try:
+        run_git(
+            root, "fetch", "--quiet", remote,
+            f"+refs/heads/{control}:refs/remotes/{remote}/{control}",
+            env=_MESSAGE_LOCALE,
+        )
+    except GitError as exc:
+        if "couldn't find remote ref" in str(exc).lower():
+            return ControlFetch("missing", detail=f"{remote!r} has no {control!r} branch")
+        return ControlFetch("failed", detail=str(exc))
+    tip = run_git(root, "rev-parse", f"refs/remotes/{remote}/{control}").strip()
+    return ControlFetch("fresh", tip)
+
+
+@dataclass
+class PreparedTicket:
+    """One ticket read from fresh control and reconciled with this checkout.
+
+    `ticket` is the reconciled view every eligibility check and edit must use.
+    `local` is the exact working bytes preparation started from (`None` when
+    absent); `write_ticket(..., prepared=)` refuses if the file no longer
+    holds them, and advances it after each prepared write. `control` is the
+    exact control copy read at `revision` — the publication expectation —
+    and is meaningful only when `fresh`. `outcome` names what preparation
+    did: `local` (no fresh control: today's local behavior), `same`,
+    `adopted` (no unpublished local edit: control's copy), `kept` (only this
+    checkout changed it), `merged`, or `new` (absent on control).
+    """
+
+    path: Path
+    ticket: Ticket
+    local: bytes | None
+    control: bytes | None = None
+    revision: str | None = None
+    fresh: bool = False
+    outcome: str = "local"
+
+    def expect(self) -> dict[Path, bytes | None] | None:
+        """The exact-control expectation for publication, or `None` offline."""
+        if not self.fresh:
+            return None
+        return {self.path: self.control}
+
+
+def local_ticket_preparation(path: Path) -> PreparedTicket:
+    """A preparation that reads only this checkout (no control available)."""
+    local = path.read_bytes()
+    return PreparedTicket(path=path, ticket=Ticket.parse(local.decode("utf-8")), local=local)
+
+
+def prepare_ticket(cfg: Config, path: Path) -> PreparedTicket:
+    """Read control's copy of the ticket at `path` and reconcile it with ours.
+
+    Offline, git-disabled, non-Git, and no-control checkouts get today's local
+    read (reported once on stderr when a configured fetch could not run). A
+    fresh read compares the local copy with control's over the newest shared
+    snapshot this checkout provably derived from (`_shared_base`): no local
+    edit adopts control, a one-sided edit keeps that side, and both-sided
+    edits merge structurally (`merge_ticket_bytes`). Raises
+    `TicketConflictError` when they cannot be reconciled; nothing is written.
+    """
+    if not cfg.git_enabled:
+        return local_ticket_preparation(path)
+    try:
+        root = toplevel(cfg.repo_root)
+    except GitError:
+        return local_ticket_preparation(path)
+    if root is None:
+        return local_ticket_preparation(path)
+    with state_lock(cfg):
+        local = path.read_bytes()
+        fetched = fetch_control_state(cfg, root)
+        rel = relative_to_root(root, path)
+        if fetched.state in ("missing", "failed"):
+            sys.stderr.write(
+                f"[git] could not read current control for {rel} "
+                f"({fetched.detail}); using this checkout's copy\n"
+            )
+            return PreparedTicket(path=path, ticket=Ticket.parse(local.decode("utf-8")), local=local)
+        rev = fetched.revision
+        assert rev is not None
+        control_oid = _blob_oid(root, rev, rel)
+        control = tree_bytes(root, rev, rel) if control_oid is not None else None
+        local_oid = _blob_id(root, local, rel)
+
+        def result(data: bytes, outcome: str) -> PreparedTicket:
+            try:
+                ticket = Ticket.parse(data.decode("utf-8"))
+            except (UnicodeDecodeError, TicketError) as exc:
+                if data is local:
+                    raise  # this checkout's own malformed ticket: the usual error
+                raise TicketConflictError(
+                    _conflict_message(cfg, rel, f"the reconciled ticket does not parse: {exc}"),
+                    rel=rel,
+                ) from exc
+            return PreparedTicket(
+                path=path, ticket=ticket, local=local, control=control,
+                revision=rev, fresh=True, outcome=outcome,
+            )
+
+        if control_oid == local_oid:
+            return result(local, "same")
+        base_oid = _shared_base(root, rev, rel)
+        if control is None:
+            if base_oid is None:
+                # Never published: the ordinary create path lands it.
+                return result(local, "new")
+            raise TicketConflictError(
+                _conflict_message(cfg, rel, "control deleted this ticket after this checkout last shared it"),
+                rel=rel,
+            )
+        if base_oid is None:
+            raise TicketConflictError(
+                _conflict_message(
+                    cfg, rel,
+                    "no shared copy proves where this checkout's ticket and control's diverged",
+                ),
+                rel=rel,
+            )
+        if local_oid == base_oid:
+            return result(control, "adopted")
+        if control_oid == base_oid:
+            return result(local, "kept")
+        merged = merge_ticket_bytes(
+            rel, base=_blob_bytes(root, base_oid), local=local, control=control,
+            conflict=lambda detail, status=False: TicketConflictError(
+                _conflict_message(cfg, rel, detail, status_conflict=status),
+                rel=rel, status_conflict=status,
+            ),
+        )
+        return result(merged, "merged")
+
+
+def _conflict_message(cfg: Config, rel: str, detail: str, *, status_conflict: bool = False) -> str:
+    remedy = (
+        "A human must decide which lifecycle status stands"
+        if status_conflict else "Save or reconcile this checkout's local edits first"
+    )
+    return (
+        f"{rel}: cannot reconcile this checkout's ticket with control: {detail}. "
+        f"{remedy}; then take control's copy with `git checkout "
+        f"{cfg.git_remote}/{cfg.git_control_branch} -- {rel}`, redo the edit, "
+        "and retry. Nothing was written"
+    )
+
+
+def _blob_id(root: Path, data: bytes, rel: str) -> str:
+    """The blob id `git add` would give `data` at `rel`, without writing it.
+
+    Unlike `_hash_blob` this stores nothing, so preparation works where the
+    object store is read-only.
+    """
+    result = _run(
+        ["git", "-C", str(root), "hash-object", f"--path={rel}", "--stdin"], input=data,
+    )
+    if result.returncode != 0:
+        raise GitError(
+            f"`git hash-object --path={rel}` failed: "
+            f"{result.stderr.decode(errors='replace').strip()}"
+        )
+    return result.stdout.decode().strip()
+
+
+def _shared_base(root: Path, rev: str, rel: str) -> str | None:
+    """The newest copy of `rel` this checkout and control provably share.
+
+    Candidates are this checkout's derivation sources (`_provenance`): its
+    HEAD copy, the HEAD/control merge-base copy, and the copy this worktree
+    last published (`PUBLISHED_REF`). A candidate counts only when control's
+    own history of `rel` carried it, so an unpublished feature-branch commit
+    stays a local edit. Among those, the one control carried most recently
+    wins, ordered by control's commit history rather than timestamps: a later
+    publication beats an older branch point, and a copy HEAD incorporated
+    afterwards beats an older publication record. `None` when none is proven.
+    """
+    ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", rev]).stdout.decode().strip() or None
+    candidates = {oid for oid in _provenance(root, [rel], ancestor)[rel] if oid is not None}
+    if not candidates:
+        return None
+    for oid in _path_history_blobs(root, rev, rel):
+        if oid in candidates:
+            return oid
+    return None
+
+
+def _path_history_blobs(root: Path, rev: str, rel: str) -> Iterator[str]:
+    """Each blob `rel` held in `rev`'s history, newest commit first."""
+    current = _blob_oid(root, rev, rel)
+    if current is not None:
+        yield current
+    out = run_git(
+        root, "log", "--format=%x01", "--raw", "--no-abbrev", "--no-renames",
+        rev, "--", rel, env={"GIT_LITERAL_PATHSPECS": "1"},
+    )
+    for line in out.splitlines():
+        if not line.startswith(":"):
+            continue
+        meta, _, name = line.partition("\t")
+        if name != rel:
+            continue
+        fields = meta.split()
+        if len(fields) >= 4 and set(fields[3]) != {"0"}:
+            yield fields[3]
+
+
+_MISSING = object()
+_LIFECYCLE_KEYS = ("status", "step")
+
+
+def lifecycle_winner(
+    mine: tuple[str | None, int | None], theirs: tuple[str | None, int | None],
+    *, same_workflow: bool,
+) -> Literal["mine", "theirs"] | None:
+    """Which of two divergent lifecycle positions is demonstrably later.
+
+    Ranked progress is draft, active, in_progress, then terminal; within one
+    status and an unchanged frozen workflow, the higher numeric step. `None`
+    when the ordering cannot decide: an unranked status (paused, blocked),
+    tied terminal outcomes (done versus canceled), a changed workflow, or an
+    unparseable step.
+    """
+    (my_status, my_step), (their_status, their_step) = mine, theirs
+    if my_status != their_status:
+        my_rank = _STATUS_RANK.get(my_status or "")
+        their_rank = _STATUS_RANK.get(their_status or "")
+        if my_rank is None or their_rank is None or my_rank == their_rank:
+            return None
+        return "mine" if my_rank > their_rank else "theirs"
+    if not same_workflow or my_step is None or their_step is None or my_step == their_step:
+        return None
+    return "mine" if my_step > their_step else "theirs"
+
+
+def merge_ticket_bytes(
+    rel: str, *, base: bytes, local: bytes, control: bytes,
+    conflict: Callable[..., Exception],
+) -> bytes:
+    """Three-way merge of a ticket's frontmatter and body.
+
+    Frontmatter merges per key (absence is a value): identical sides agree,
+    an unchanged side yields, and different edits of one key conflict. The
+    frozen workflow is one routing value. `status`/`step` merge as one
+    lifecycle position; when both sides moved it, `lifecycle_winner` picks
+    the demonstrably later one as a whole (a terminal winner carries no
+    step), and an undecidable status pair raises with `status=True`. The
+    body, blackboard included, is a standard `git merge-file` three-way merge
+    (never `--union`). `conflict(detail, status=False)` builds the exception.
+    """
+    tickets = []
+    for label, data in (("shared base", base), ("local", local), ("control", control)):
+        try:
+            tickets.append(Ticket.parse(data.decode("utf-8")))
+        except (UnicodeDecodeError, TicketError) as exc:
+            raise conflict(f"the {label} copy does not parse ({exc})") from exc
+    b, l, c = (ticket.frontmatter for ticket in tickets)
+    keys = list(dict.fromkeys([*c, *l, *b]))
+    merged: dict[str, Any] = {}
+    conflicts: list[str] = []
+    for key in keys:
+        if key in _LIFECYCLE_KEYS:
+            continue
+        value = _merge_value(b.get(key, _MISSING), l.get(key, _MISSING), c.get(key, _MISSING))
+        if value is _CONFLICT:
+            conflicts.append(key)
+        elif value is not _MISSING:
+            merged[key] = value
+    if conflicts:
+        raise conflict("both sides changed " + ", ".join(f"`{key}`" for key in conflicts))
+    position = tuple(
+        tuple(fm.get(key, _MISSING) for key in _LIFECYCLE_KEYS) for fm in (b, l, c)
+    )
+    lifecycle = _merge_value(*position)
+    if lifecycle is _CONFLICT:
+        same_workflow = (
+            b.get("workflow", _MISSING) == l.get("workflow", _MISSING)
+            == c.get("workflow", _MISSING)
+        )
+        winner = lifecycle_winner(
+            (l.get("status"), tickets[1].step_index()),
+            (c.get("status"), tickets[2].step_index()),
+            same_workflow=same_workflow,
+        )
+        if winner is None:
+            status = l.get("status") != c.get("status")
+            raise conflict(
+                f"both sides moved its lifecycle (control: status={c.get('status')!r} "
+                f"step={c.get('step')!r}; here: status={l.get('status')!r} "
+                f"step={l.get('step')!r}) and neither is demonstrably later",
+                status=status,
+            )
+        lifecycle = position[1] if winner == "mine" else position[2]
+    for key, value in zip(_LIFECYCLE_KEYS, lifecycle):
+        if value is not _MISSING:
+            merged[key] = value
+    # Keep control's key order; lifecycle keys return to their usual place.
+    order = [key for key in keys if key in merged]
+    frontmatter = {key: merged[key] for key in order}
+    body = _merge_text(tickets[0].body, tickets[1].body, tickets[2].body)
+    if body is None:
+        raise conflict("the body or blackboard has overlapping edits")
+    return Ticket(frontmatter=frontmatter, body=body).render().encode("utf-8")
+
+
+_CONFLICT = object()
+
+
+def _merge_value(base: Any, mine: Any, theirs: Any) -> Any:
+    if mine == theirs:
+        return mine
+    if mine == base:
+        return theirs
+    if theirs == base:
+        return mine
+    return _CONFLICT
+
+
+def _merge_text(base: str, mine: str, theirs: str) -> str | None:
+    """`git merge-file` of three texts; `None` on any overlapping edit."""
+    if mine == theirs or theirs == base:
+        return mine
+    if mine == base:
+        return theirs
+    with tempfile.TemporaryDirectory(prefix="coga-ticket-merge-") as tmp:
+        files = [Path(tmp) / name for name in ("local", "base", "control")]
+        for path, text in zip(files, (mine, base, theirs)):
+            path.write_bytes(text.encode("utf-8"))
+        result = _run(["git", "merge-file", "-p", *map(str, files)])
+    if result.returncode != 0:
+        if result.returncode < 0 or result.returncode > 127:
+            raise GitError(
+                f"`git merge-file` failed (exit {result.returncode}): "
+                f"{result.stderr.decode(errors='replace').strip()}"
+            )
+        return None
+    return result.stdout.decode("utf-8")
 
 
 def _build_tree(

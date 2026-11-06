@@ -8,7 +8,12 @@ import sys
 import typer
 
 from coga import git, pr_assist
-from coga.commands.common import completion_identity, current_operator
+from coga.commands.common import (
+    bail_ticket_changed,
+    completion_identity,
+    current_operator,
+    prepare_lifecycle_ticket,
+)
 from coga.bump import (
     OperatorResolutionError,
     advance_step,
@@ -20,7 +25,7 @@ from coga.mark import StrandedProductCode, mark_done
 from coga.notification import preflight_post
 from coga.paths import resolve_workflow_path
 from coga.step_gate import gate_unmet_reason
-from coga.taskfile import read_blackboard
+from coga.taskfile import read_blackboard, split_body
 from coga.task_env import is_script_task
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
@@ -32,7 +37,6 @@ from coga.tasks import (
     TaskNotFoundError,
     resolve_task,
 )
-from coga.ticket import Ticket
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import Workflow, WorkflowError
 
@@ -110,7 +114,10 @@ def bump(
         )
     if not ref.ticket_path.is_file():
         _bail(f"Task {ref.id_slug} has no ticket.md. Cannot advance.")
-    ticket = Ticket.parse(ref.ticket_path.read_text(encoding="utf-8"))
+    # Every check below reads the ticket reconciled with fresh control, not
+    # this checkout's possibly stale copy (`git.prepare_ticket`).
+    prepared = prepare_lifecycle_ticket(cfg, ref)
+    ticket = prepared.ticket
 
     # A forward bump finishes work, so it requires a ticket that is being
     # worked on. A rewind only repositions `step:` and never touches `status:`,
@@ -137,8 +144,10 @@ def bump(
         if not ticket.step:
             ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
         try:
-            git.write_ticket(cfg, ticket, ref.ticket_path)
+            git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
             assert_task_valid(cfg, ref, action="freeze workflow on bump")
+        except git.TicketChangedError as exc:
+            bail_ticket_changed(exc)
         except TaskValidationError as exc:
             _bail(str(exc))
 
@@ -186,7 +195,7 @@ def bump(
         if requires is not None:
             # A missing blackboard fence means no artifact is recorded, so the
             # gate should block (not raise) — validate flags the fence itself.
-            blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+            blackboard = split_body(ticket.body, blackboard_required=False)[1] or ""
             reason = gate_unmet_reason(requires, blackboard, slug=ref.id_slug)
             if reason:
                 _bail(reason)
@@ -222,7 +231,10 @@ def bump(
                 image_url=cfg.gif_for("done"),
                 echo=f"{ref.id_slug}: done",
                 force=force,
+                prepared=prepared,
             )
+        except git.TicketChangedError as exc:
+            bail_ticket_changed(exc)
         except StrandedProductCode as exc:
             listed = "\n".join(f"    {path}" for path in exc.paths)
             _bail(
@@ -317,7 +329,10 @@ def bump(
             notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
             rewind=rewind,
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
     except git.StateRegressionError as exc:
         _bail(
             f"Could not publish {ref.id_slug}'s rewind because control state "

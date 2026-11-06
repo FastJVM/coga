@@ -20,6 +20,7 @@ import typer
 
 from coga import git
 from coga.bump import effective_step_role
+from coga.commands.common import prepare_lifecycle_ticket
 from coga.config import ConfigError, load_config
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, retract_log_lines
@@ -55,8 +56,13 @@ def owner(
         _bail(str(exc))
 
     with git.state_lock(cfg):
-        source = ref.ticket_path.read_bytes()
-        ticket = Ticket.parse(source.decode("utf-8"))
+        # Decide from the ticket reconciled with fresh control. `source` is
+        # this checkout's original bytes (the rollback snapshot); the exact
+        # control bytes read are the publication expectation.
+        prepared = prepare_lifecycle_ticket(cfg, ref)
+        source = prepared.local
+        expected = prepared.control if prepared.fresh else source
+        ticket = prepared.ticket
         previous = ticket.owner
         if ticket.status in TERMINAL_STATUSES:
             _bail(
@@ -116,7 +122,7 @@ def owner(
             git.sync_task_state(
                 cfg, ref.path,
                 message=f"Ticket: {ref.id_slug} — owner {name}",
-                expect={ref.ticket_path: source},
+                expect={ref.ticket_path: expected},
                 strict=True,
             )
         except git.UncertainPublishError as exc:
