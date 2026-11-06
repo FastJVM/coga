@@ -37,7 +37,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -299,6 +299,96 @@ repo-wide sweep; other slugs are ticket-scoped syncs.
 ## Dev
 
 branch: coga/v1-06-fix-coga-git-sync-failures-that-leave-main-1212e6
+
+## Implement handoff (2026-11-06, claude)
+
+Commit `f9dfb5966` ("Keep publication scratch files in the Git dir"), pushed,
+rebased on `origin/main` `62ad05095`. All acceptance items except the
+owner-run Multiply check are done:
+
+- `git._scratch_dir(root)` = `rev-parse --absolute-git-dir`, resolved per
+  call. `_build_tree` resolves it once and passes it to `_merge_union_bytes`
+  (new required keyword `scratch`); `_write_published` and the union branch
+  of `_published_proof` resolve their own. `finally` cleanup is unchanged.
+  Realignment, provenance and log semantics were not touched.
+- Evaluator finding 1: `test_publication_scratch_files_never_touch_the_temp_dir`
+  holds `git.state_lock` (reentrant) *before* pointing `tempfile.tempdir` at
+  a missing path. Checked: on the old code it fails with `FileNotFoundError`
+  at `.../no-such-tmp/coga-git-index-*`.
+- Evaluator finding 2: that test uses a real `**/retires.md merge=union`
+  worklist (control appended `P`, local appended `M`) instead of the log,
+  publishes from a feature branch, and then runs `prepare_control_checkout`,
+  so both `_merge_union_bytes` callers (tree build and union proof) run. A
+  spy asserts that every call got the Git dir as `scratch`.
+- Optional recommendation taken: `test_publication_scratch_is_per_worktree_and_removed_on_failure`
+  (linked worktree resolves to `.git/worktrees/<name>`; an injected
+  `write-tree` failure leaves no `coga-git-index-*` entries, `.lock` files
+  included).
+- Incident chain: `_hand_commit_after_offline_sync` plus
+  `test_a_hand_commit_of_state_an_offline_sync_retained_is_realigned` and
+  `test_a_mixed_hand_commit_after_an_offline_sync_lands_state_and_keeps_main`,
+  in the realignment block.
+- Docs: `coga/sandboxes` "Codex sandbox grant" (package and live copies
+  byte-identical) adds the `requirements.toml` profile and the
+  log-symptom bullets. Recovery wording is qualified ("retries … when that
+  retry is refused too" links strict recovery). `coga-dev/internals/state-publication`
+  gets a new "Scratch files and sandboxed publication" section, with a
+  commit-pinned link to this ticket's findings. It states that `state_lock`
+  keeps its temp-dir dependency.
+- **Pre-existing failures, not caused here** (they fail identically with my
+  changes stashed, on base `a581c9dd5`):
+  `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  (the `coga/checkouts/launch-boundary` live and package copies have drifted)
+  and `test_context_navigation_has_no_broken_links` (two missing anchors in
+  `coga-dev/current-direction`, e.g. `coga/install#windows-baseline`). They
+  were left alone because they are out of scope. `open-pr`/review should note
+  them, or a follow-up ticket should fix them.
+- Body cleanup the evaluator suggested (stale "uncommitted `pyproject.toml`"
+  wording; Open Question 3 resolved by `088c01908`) was not applied:
+  implementation does not rewrite the approved spec.
+- Owner-run check at the `review` gate is still pending.
+
+## PR
+
+```yaml
+title: Keep publication scratch files in the Git dir and pin the sync-divergence chain
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5); see implement handoff.
+head: f9dfb5966409312b293c3e34666861a672bfa36c
+base: 62ad05095998418652d2b3ee70531fc5ef99fe8d
+depth: deep
+rationale: Recorded checks include two pre-existing packaging failures and no code review yet. Small change to shared Git publication infrastructure (scratch file location only) plus regression tests and doc notes; read the description for the state_lock temp-dir limitation.
+implementation: Publication's temporary GIT_INDEX_FILE files and union-merge copies now live in the checkout's own Git dir (git._scratch_dir, per-worktree) instead of $TMPDIR, so a full or missing temp filesystem cannot fail a publish. New tests pin this and the 2026-09-29 offline-sync, hand-commit, sweep chain (state-only realigns; mixed refuses with the rebase remedy).
+deviations: Per the evaluator, the scratch test holds the reentrant state lock before removing the temp dir and uses a retires.md union worklist instead of the log. Added an optional linked-worktree and failure-cleanup test.
+limitations: git.state_lock still keeps its lock file under the temp dir, so an unusable temp dir still fails at the lock. Owner-run Multiply sessions at the review gate are pending.
+files:
+  src/coga/git.py: Add _scratch_dir and route _build_tree, _write_published and _merge_union_bytes scratch files into the Git dir.
+  tests/test_git.py: Scratch-location, per-worktree/failure-cleanup, and incident-chain regression tests; pass scratch to the existing direct union-merge test.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the scratch-location and sandboxed-publication decisions.
+  docs/contexts/coga/sandboxes/SKILL.md: Live twin of the packaged sandboxes topic (byte-identical).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sandboxes/SKILL.md: Name the log symptoms of a missing Codex grant and the machine-level requirements.toml alternative.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Code review is the workflow's later step; not yet run.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_git.py tests/test_packaging.py
+    status: failed
+    head: f9dfb5966409312b293c3e34666861a672bfa36c
+    base: 62ad05095998418652d2b3ee70531fc5ef99fe8d
+    detail: 340 passed, 2 failed. Both failures (test_live_and_packaged_copies_stay_identical on launch-boundary; test_context_navigation_has_no_broken_links in current-direction) fail identically on base a581c9dd5 without this change.
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 90e98c880e7ff1622447167ee4debb54a610ea62
+    base: a581c9dd5905ea109e54b53c7259fae6add409df
+    detail: 4491 passed, 10 skipped, 2 failed (the same two pre-existing packaging failures). Ran on the pre-rebase commit; its non-coga tree is identical to f9dfb5966409, since the rebase only took a ticket-state commit.
+  - command: .venv/bin/python -m pytest -q tests/test_git.py -k scratch (with src/coga/git.py stashed)
+    status: passed
+    head: 90e98c880e7ff1622447167ee4debb54a610ea62
+    base: a581c9dd5905ea109e54b53c7259fae6add409df
+    detail: Red check. Both new scratch tests fail on the unchanged code (FileNotFoundError in the missing temp dir; no _scratch_dir).
+```
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
