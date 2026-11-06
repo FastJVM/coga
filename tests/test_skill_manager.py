@@ -2447,6 +2447,8 @@ def _guard_runner(
                 return _completed(command, 128, stderr="fatal: unreachable")
             return _completed(command)
         if command[:3] == ["git", "rev-parse", "--verify"]:
+            if fail == "rev-parse":
+                return _completed(command, 128, stderr="fatal: missing ref")
             return _completed(command, stdout=f"{fetched}\n")
         if command[:2] == ["git", "log"]:
             if fail == "log":
@@ -2474,20 +2476,27 @@ def test_guard_without_remote_branch_returns_none_and_asks_nothing_else(
     assert not any(c[:2] in (["git", "fetch"], ["git", "log"]) for c in commands)
 
 
+@pytest.mark.parametrize("gh_host", [None, "ghe.example.test"])
 def test_guard_without_open_pr_returns_oid_without_fetching(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_host: str | None
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
     commands: list[list[str]] = []
+    if gh_host is None:
+        monkeypatch.delenv("GH_HOST", raising=False)
+    else:
+        monkeypatch.setenv("GH_HOST", gh_host)
 
     oid = assert_skill_update_branch_unclaimed(
         cfg, runner=_guard_runner(commands, pr_url="")
     )
 
     assert oid == _REMOTE_OID
-    # The PR lookup is bound to the push destination, not gh's default repo.
+    # Pin the host too: an owner/repo argument alone still obeys GH_HOST.
     gh = [c for c in commands if c[0] == "gh"]
-    assert gh and gh[0][:5] == ["gh", "pr", "list", "--repo", "FastJVM/coga"]
+    assert gh and gh[0][:5] == [
+        "gh", "pr", "list", "--repo", "github.com/FastJVM/coga"
+    ]
     assert not any(c[:2] in (["git", "fetch"], ["git", "log"]) for c in commands)
 
 
@@ -2562,7 +2571,7 @@ def test_guard_refuses_when_branch_moved_while_checking(
     assert not any(c[:2] == ["git", "log"] for c in commands)
 
 
-@pytest.mark.parametrize("fail", ["gh", "fetch", "log"])
+@pytest.mark.parametrize("fail", ["gh", "fetch", "rev-parse", "log"])
 def test_guard_fails_closed_when_a_lookup_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail: str
 ) -> None:
@@ -2628,7 +2637,7 @@ def test_guard_binds_to_non_origin_push_destination_not_fetch_url(
         lease = _lease_stub(command, "upstream", "coga/skill-update", _REMOTE_OID)
         if lease is not None:
             return lease
-        if command[:5] == ["gh", "pr", "list", "--repo", "FastJVM/coga"]:
+        if command[:5] == ["gh", "pr", "list", "--repo", "github.com/FastJVM/coga"]:
             return _completed(command, stdout=f"{_GUARD_PR_URL}\n")
         if command[:2] == ["git", "fetch"]:
             assert command[3] == _PUSH_URL
@@ -2769,6 +2778,54 @@ def test_guard_real_git_passes_hand_commit_cherry_picked_onto_control(
     )
 
     assert oid == git_repo.git("rev-parse", "coga/skill-update").strip()
+
+
+@pytest.mark.parametrize("unlanded_fix", [False, True])
+def test_guard_real_git_recognizes_patches_across_successive_control_merges(
+    git_repo, monkeypatch, unlanded_fix: bool
+) -> None:
+    _guard_git_repo(git_repo, monkeypatch)
+    for name in ("first", "second"):
+        hand = _commit_file(git_repo, f"notes/{name}.md", f"{name}\n", f"Hand fix {name}")
+        git_repo.git("checkout", "main")
+        git_repo.git("cherry-pick", hand)
+        git_repo.git("checkout", "coga/skill-update")
+        git_repo.git("merge", "--no-ff", "-m", f"Merge main after {name} fix", "main")
+    if unlanded_fix:
+        foreign = _commit_file(git_repo, "notes/pending.md", "pending\n", "Pending hand fix")
+    _publish_and_return_to_main(git_repo)
+
+    if unlanded_fix:
+        with pytest.raises(SkillManagerError) as excinfo:
+            assert_skill_update_branch_unclaimed(
+                load_config(git_repo.coga_os), runner=_guard_real_runner()
+            )
+        message = str(excinfo.value)
+        assert f"{foreign[:7]} Pending hand fix" in message
+        assert "Hand fix first" not in message
+        assert "Hand fix second" not in message
+    else:
+        oid = assert_skill_update_branch_unclaimed(
+            load_config(git_repo.coga_os), runner=_guard_real_runner()
+        )
+        assert oid == git_repo.git("rev-parse", "coga/skill-update").strip()
+
+
+@pytest.mark.parametrize("failed_side", ["candidate", "control"])
+def test_guard_fails_closed_when_patch_comparison_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failed_side: str
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    def patch_ids(root, revisions, *, no_walk=False):
+        if no_walk == (failed_side == "candidate"):
+            return None
+        return {}
+
+    monkeypatch.setattr(skill_manager, "_verbatim_patch_ids", patch_ids)
+    log = _guard_log(("c" * 40, "Hand fix", ""))
+    with pytest.raises(SkillManagerError, match="Could not compare"):
+        assert_skill_update_branch_unclaimed(cfg, runner=_guard_runner([], log=log))
 
 
 def test_update_cli_refuses_before_update_skills_when_guard_refuses(

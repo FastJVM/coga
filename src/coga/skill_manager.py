@@ -925,7 +925,9 @@ def assert_skill_update_branch_unclaimed(
     if oid is None:
         return None
     repo, push_url = _push_destination_github_repo(run, remote, cwd)
-    pr_url = _open_pr_url(run, branch, cwd, repo=repo)
+    # An owner/repo argument alone still obeys GH_HOST. Bind the hostname as
+    # well, or an empty lookup on another host could permit discarding work.
+    pr_url = _open_pr_url(run, branch, cwd, repo=f"github.com/{repo}")
     if not pr_url:
         return oid
 
@@ -997,19 +999,26 @@ def _drop_patches_on_control(
     control becomes shared history and stops matching. Compare each leftover
     against control's commits since that candidate's parent instead, by
     whitespace-sensitive patch ID; an uncomparable patch stays foreign.
+    Keep those ranges separate: a later candidate's parent can already
+    contain an earlier candidate's landed copy after a merge of control.
     """
     commits = [full for full, _, _ in candidates]
-    landed = _verbatim_patch_ids(
-        cwd, [control_ref, *(f"^{commit}^" for commit in commits)]
+    comparison_error = (
+        f"Could not compare {SKILL_UPDATE_BRANCH} commits against "
+        "control by patch; refusing to overwrite them."
     )
     local = _verbatim_patch_ids(cwd, commits, no_walk=True)
-    if landed is None or local is None:
-        raise SkillManagerError(
-            f"Could not compare {SKILL_UPDATE_BRANCH} commits against "
-            "control by patch; refusing to overwrite them."
-        )
-    landed_ids = set(landed.values())
-    return [c for c in candidates if local.get(c[0]) not in landed_ids]
+    if local is None:
+        raise SkillManagerError(comparison_error)
+    foreign: list[tuple[str, str, str]] = []
+    for candidate in candidates:
+        commit = candidate[0]
+        landed = _verbatim_patch_ids(cwd, [control_ref, f"^{commit}^"])
+        if landed is None:
+            raise SkillManagerError(comparison_error)
+        if local.get(commit) not in set(landed.values()):
+            foreign.append(candidate)
+    return foreign
 
 
 def open_or_update_pr(

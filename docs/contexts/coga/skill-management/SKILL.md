@@ -81,6 +81,9 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
   Before writing any skill file it refuses when that branch's open PR carries
   hand-pushed commits (see Rules for managed packs).
+  When the branch exists, its push URLs must name one github.com repository;
+  other mappings are refused. The guard's PR lookup uses that explicit host
+  and repository even when `GH_HOST` or gh's default repository points elsewhere.
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
 
