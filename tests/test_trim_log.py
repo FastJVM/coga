@@ -668,7 +668,9 @@ def test_retraction_and_trim_share_transaction_lock(git_repo, monkeypatch, write
             retract_log_lines(cfg, "refused", before)
         else:
             assert retract_log_append(cfg, before, refused)
-    thread.join(10)
+    # A real trim takes about 12 s on a native Windows box; join returns as
+    # soon as it finishes, so this is only an upper bound.
+    thread.join(60)
     assert finished.is_set() and not failures
     assert path.read_bytes() == _line("recent", "2026-10-26 12:00") + peer
 

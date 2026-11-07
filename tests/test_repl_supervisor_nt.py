@@ -673,8 +673,6 @@ def console(monkeypatch):
 
 @windows_only
 def test_native_sentinel_tears_down_child_and_grandchildren(console, tmp_path) -> None:
-    from coga.oscompat import process_is_running
-
     pids = tmp_path / "pids.json"
     outcome = run_with_done_marker(
         _python_child(f"""
@@ -690,7 +688,13 @@ def test_native_sentinel_tears_down_child_and_grandchildren(console, tmp_path) -
     )
     assert (outcome.exit_code, outcome.kind, outcome.done_signalled) == (0, "done", True)
     for pid in json.loads(pids.read_text()):
-        assert not process_is_running(pid)
+        # `process_is_running` answers conservatively (an unopenable PID
+        # counts as alive); ask the process list itself.
+        listed = subprocess.run(
+            ["tasklist", "/fi", f"PID eq {pid}", "/fo", "csv", "/nh"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        assert f'"{pid}"' not in listed, listed
 
 
 @windows_only
