@@ -145,8 +145,11 @@ def test_policy_checks_peer_review_skill_for_current_and_legacy_steps(
     ticket = _frozen(workflow, "peer-review", skills=[] if legacy else None)
     local = git_repo.coga_os / "skills" / "code" / "peer-review" / "SKILL.md"
     local.parent.mkdir(parents=True)
-    shipped = bootstrap_skill_path(cfg, "code/peer-review").read_text(encoding="utf-8")
+    shipped = bootstrap_skill_path(cfg, "code/peer-review").read_bytes().decode("utf-8").replace("\r\n", "\n")
     local.write_text(shipped, encoding="utf-8", newline="\n")
+    assert select_checkout_policy(cfg, ticket).kind == "reuse-required"
+    # A CRLF checkout (Windows core.autocrlf) of the shipped text is unchanged.
+    local.write_bytes(shipped.replace("\n", "\r\n").encode("utf-8"))
     assert select_checkout_policy(cfg, ticket).kind == "reuse-required"
 
     # The legacy inline section delegates to this skill too: custom review

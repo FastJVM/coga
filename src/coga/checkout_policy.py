@@ -111,11 +111,17 @@ def _changed_skill(cfg: Config, refs: tuple[str, ...]) -> str | None:
             resolved = resolve_skill_path(cfg, ref)
             if resolved is None:
                 return f"step skill {ref!r} does not resolve"
-            if resolved.read_bytes() != bootstrap_skill_path(cfg, ref).read_bytes():
+            # A Windows clone with core.autocrlf checks a local copy out as
+            # CRLF while the wheel ships LF; line endings are not a change.
+            if _lf(resolved.read_bytes()) != _lf(bootstrap_skill_path(cfg, ref).read_bytes()):
                 return f"step skill {ref!r} differs from the shipped copy at {resolved}"
         except (OSError, ValueError) as exc:
             return f"step skill {ref!r} could not be compared: {exc}"
     return None
+
+
+def _lf(data: bytes) -> bytes:
+    return data.replace(b"\r\n", b"\n")
 
 
 def _changed_section(cfg: Config, wf_name: str, step_name: str) -> str | None:

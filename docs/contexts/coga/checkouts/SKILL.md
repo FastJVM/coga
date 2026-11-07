@@ -62,7 +62,8 @@ checkout. It is a closed table, not a step-name heuristic:
 
 A row applies only when the step's instructions are the shipped ones: its
 step skill, or its inline `## <step>` section, equals the packaged copy
-(older frozen snapshots of the same workflows match too). Anything else — a
+(older frozen snapshots of the same workflows match too; a step skill's CRLF
+checkout, as Git for Windows' `core.autocrlf` produces, still equals it). Anything else — a
 custom workflow, a local edit of the consumed skill or section, extra or
 replaced step skills — gets **manual**: launch still prepares and returns
 control, but sets up no branch and says so. Ticket-wide `skills:`,
