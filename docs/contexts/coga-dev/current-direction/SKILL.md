@@ -123,7 +123,7 @@ is `coga status` and the ticket bodies; stage posture is
   `v1/14-interactive-coga-launch-on-native-windows` adds attended agent
   sessions through an inherited console and a Job Object, with no
   idle-timeout. Windows Server 2025 is the tested version.
-  User-facing contracts: [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#windows-baseline),
+  User-facing contracts: [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md),
   [`coga/launch`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#options-and-exits).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no

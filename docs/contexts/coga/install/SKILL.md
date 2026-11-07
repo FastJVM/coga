@@ -11,10 +11,14 @@ adopt it into. Installing the package never modifies a repo;
 
 ## Prerequisites
 
-- **Linux, macOS, or native Windows.** Windows Server 2025 is the tested
-  Windows version; see the [Windows baseline](#windows-baseline) below.
-  Published PyPI 0.4.1 predates the native Windows port and fails to import
-  there, so use a release that includes it.
+- **Linux or macOS for agent sessions.** In the development version after
+  the native core port, Windows runs non-interactive commands, `ticket.py`
+  phases, recipes and recurring scripts. Published PyPI 0.4.1 predates that
+  port and fails to import on native Windows. Even the development version
+  refuses agent sessions there until
+  `v1/14-interactive-coga-launch-on-native-windows` lands
+  ([coga/launch](../launch/SKILL.md#phases-and-routing)). WSL is the
+  untested Windows route for agent sessions.
 - **Python 3.11+.** The preferred uv install below can download a compatible
   Python for you; pip and pipx need an installed Python 3.11+.
 - **Git.** The only external tool `coga init` enforces. Git is also Coga's
@@ -62,29 +66,6 @@ command runs only on a yes, then offers the login (`claude`, which signs in
 on first run, or `codex login`). Without a terminal, neither command
 prompts. How init may change the default agent is in
 [coga/init](../init/SKILL.md).
-
-### Windows baseline
-
-Native Windows runs every Coga command, including attended agent sessions,
-without bash or WSL:
-
-- **Python 3.11+ through uv.** In PowerShell, install uv with
-  `irm https://astral.sh/uv/install.ps1 | iex`, then `uv python install 3.11`.
-- **`PATH` after `uv tool install`.** The `coga` command lands in
-  `%USERPROFILE%\.local\bin`. Run `uv tool update-shell`, then open a new
-  terminal.
-- **Git for Windows.** Its installer's default `core.autocrlf=true` is fine:
-  Coga writes LF and Git normalizes.
-- **PowerShell**, for example in Windows Terminal. A local console and an
-  `ssh -t` session both work; Coga needs no bash.
-- **Agent CLIs.** Claude Code's native installer is the tested agent. Codex is
-  untested on native Windows. An npm-installed `.cmd` shim always reads its
-  prompt from a file, and raw line breaks in its other arguments are refused
-  ([coga/launch](../launch/SKILL.md#options-and-exits)).
-- **No `--idle-timeout`.** The agent owns the console, so Coga cannot see its
-  output to measure idleness. `coga launch --idle-timeout` refuses there; use
-  `--max-session`. Recurring and megalaunch sessions run with their
-  max-session limit only, after one warning.
 
 ### macOS: check Git before init
 
