@@ -139,6 +139,10 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   source checkout that breaks byte pins and guarded audit rewrites in tests
   and would ship CRLF templates in a wheel built there. Renormalize an older
   Windows checkout once with `git rm --cached -r -q . && git reset --hard`.
+  On Windows `git._git_env` also sets `gc.autoDetach` and
+  `maintenance.autoDetach` to false: a detached auto-maintenance there keeps
+  the captured pipes of the Git call that started it, so a Coga read would wait
+  for the whole background gc.
   A new agent-session entry point must run `launch.agent_command_refusal()`
   before any checkout, publication or draft write, so a Windows command line
   that cannot be represented refuses before effects, with the sweep withheld.

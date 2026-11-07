@@ -2566,6 +2566,28 @@ def test_summarize_git_failure_bounds_overwrite_paths(path_count, trailer):
     assert git.summarize_git_failure(raw) == expected
 
 
+def test_windows_git_env_keeps_auto_maintenance_attached():
+    env = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": "x"}
+    git._keep_maintenance_attached(env)
+    assert env == {
+        "GIT_CONFIG_COUNT": "3",
+        "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": "x",
+        "GIT_CONFIG_KEY_1": "gc.autoDetach", "GIT_CONFIG_VALUE_1": "false",
+        "GIT_CONFIG_KEY_2": "maintenance.autoDetach", "GIT_CONFIG_VALUE_2": "false",
+    }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the detach override is Windows-only")
+def test_git_env_on_windows_disables_detached_maintenance(git_repo):
+    env = git._git_env()
+    for key in ("gc.autoDetach", "maintenance.autoDetach"):
+        value = subprocess.run(
+            ["git", "-C", str(git_repo.root), "config", "--get", key],
+            env=env, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        assert value == "false"
+
+
 def test_git_env_keeps_the_ambient_locale_unless_pinned(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_DE.UTF-8")
 
