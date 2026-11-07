@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -172,7 +172,44 @@ session" text in the command relay.
 branch: coga/competition-testing-make-hands-on-trial-cite-the-f50487
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implementation
+
+- Confirmed docs-only scope and the prepared feature checkout; the only entry
+  dirt was this projected ticket. At entry, control had step 1 (`implement`)
+  in progress. GitHub confirmed #1145 and #1153 merged and no PR for this branch.
+- Read `coga/knowledge` (one owner per fact and attach-or-cite), both skills,
+  and `clean-install/human-walk`. Use the latter's full GitHub link form.
+- Replaced local VM setup and operator-habit guidance with the shared skill
+  citation. Kept prerequisite coverage, ordered demands, earlier write-ups,
+  and the same-VM/project lap rule as trial-specific guidance.
+- Command relay remains a trial artifact. Its clipboard assumption and
+  service-specific transfer route are replaced with a link to fresh-vm's
+  `Moving commands and evidence`, which owns transfer with available tools.
+- No packaged twin, runtime code, fixtures, or competitor findings changed.
+
+## Verification
+
+- `git diff --check` and `git diff --check origin/main...HEAD` passed.
+- `git cat-file -e origin/main:coga/skills/coga/testing/fresh-vm/SKILL.md`
+  passed; the cited file exists on fetched main.
+- `rg -n '^### Moving commands and evidence$' coga/skills/coga/testing/fresh-vm/SKILL.md`
+  found the section at line 81. A one-off Python link check also verified both
+  destinations against fetched main, the section anchor, the matching
+  `human-walk` link form, and the absence of packaged twins.
+- Reviewed `git diff origin/main...HEAD -- coga/skills/competition-testing/hands-on-trial/SKILL.md`:
+  only the setup and command-transfer passages changed; all other trial rules
+  remain. No runtime or packaging tests were needed for this local prose edit.
+
+## Handoff
+
+- Codex implemented commit `9dcdc6ef5db495cb75c899c7f5dbaf5087f19348`
+  (`Cite shared VM guidance in hands-on trials`) and pushed the recorded branch.
+- Fetched and rebased onto `origin/main` at
+  `1c87afbfdac4a7d8045487a539993bbe967af7c3`. Main's intervening change was the
+  launch's ticket/log update; governing instructions and both skills were
+  unchanged. Preserved and byte-verified this projected ticket across rebase.
+- The branch diff contains only the skill; this ticket was never staged or
+  committed. Ready for peer review. No PR opened in the implement step.
 
 ---
 
