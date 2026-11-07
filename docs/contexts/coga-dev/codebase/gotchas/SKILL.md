@@ -134,6 +134,11 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `expect=` byte comparisons in `git.publish` and `write_ticket`. Write any
   file Coga or Git reads back through `atomicio.atomic_write_text`, or with
   `encoding="utf-8", newline="\n"`, and read it with `encoding="utf-8"`.
+  Coga's own `.gitattributes` checks every text file out as LF, because Git
+  for Windows' default `core.autocrlf=true` would otherwise give a CRLF
+  source checkout that breaks byte pins and guarded audit rewrites in tests
+  and would ship CRLF templates in a wheel built there. Renormalize an older
+  Windows checkout once with `git rm --cached -r -q . && git reset --hard`.
   A new agent-session entry point must run `launch.agent_command_refusal()`
   before any checkout, publication or draft write, so a Windows command line
   that cannot be represented refuses before effects, with the sweep withheld.
