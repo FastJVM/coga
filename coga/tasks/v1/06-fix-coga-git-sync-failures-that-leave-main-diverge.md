@@ -298,6 +298,7 @@ repo-wide sweep; other slugs are ticket-scoped syncs.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1183
 branch: coga/v1-06-fix-coga-git-sync-failures-that-leave-main-1212e6
 
 ## Implement handoff (2026-11-06, claude)
