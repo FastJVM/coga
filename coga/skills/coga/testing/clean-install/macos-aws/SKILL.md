@@ -205,7 +205,7 @@ window, either user works: `ec2-user`, or a walk user with its
 
 ## Full suite at a commit
 
-**Unverified (follow-up: `v1/15-verify-macos-full-suite-procedure-on-the-ec2-mac`).**
+**Unverified (follow-up: `v1/44-verify-the-macos-full-suite-procedure-on-the-ec`).**
 This procedure is modeled on the Windows harness's
 [fix loop](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#fix-loop-checkout-and-remote-commands)
 and [long native runs](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs)
