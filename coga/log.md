@@ -10487,3 +10487,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-07 14:02 v1 [v1/24-mention-coga-build-in-the-install-flow] [human:nicktoper] auto-bumped on merge of PR #1171 → done
 2026-11-07 14:02 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [human:nicktoper] auto-bumped on merge of PR #1174 → done
 2026-11-07 14:02 v1 [v1/34-prevent-duplicate-session-usage-records-from-infla] [human:nicktoper] auto-bumped on merge of PR #1175 → done
+2026-11-07 14:02 v1 [v1/36-usage-report-name-the-human-split-per-agent-show-c] [human:nicktoper] auto-bumped on merge of PR #1172 → done
