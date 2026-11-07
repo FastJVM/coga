@@ -10485,3 +10485,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-07 14:02 v1 [v1/15-uninstall-recovery-hints-use-posix-env-syntax-on-w] [human:nicktoper] auto-bumped on merge of PR #1178 → done
 2026-11-07 14:02 v1 [v1/23-scan-for-an-existing-repo-during-install] [human:nicktoper] auto-bumped on merge of PR #1170 → done
 2026-11-07 14:02 v1 [v1/24-mention-coga-build-in-the-install-flow] [human:nicktoper] auto-bumped on merge of PR #1171 → done
+2026-11-07 14:02 v1 [v1/26-make-the-readme-install-section-the-only-install-p] [human:nicktoper] auto-bumped on merge of PR #1174 → done
