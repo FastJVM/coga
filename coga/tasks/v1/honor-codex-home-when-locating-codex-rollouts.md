@@ -191,6 +191,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1186
 branch: coga/v1-honor-codex-home-when-locating-codex-rollouts-5b4cd1
 
 
