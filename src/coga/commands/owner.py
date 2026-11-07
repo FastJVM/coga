@@ -20,6 +20,7 @@ import typer
 
 from coga import git
 from coga.bump import effective_step_role
+from coga.commands.common import prepare_lifecycle_ticket
 from coga.config import ConfigError, load_config
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, retract_log_lines
@@ -55,8 +56,13 @@ def owner(
         _bail(str(exc))
 
     with git.state_lock(cfg):
-        source = ref.ticket_path.read_bytes()
-        ticket = Ticket.parse(source.decode("utf-8"))
+        # Decide from the ticket reconciled with fresh control. `source` is
+        # this checkout's original bytes (the rollback snapshot); the exact
+        # control bytes read are the publication expectation.
+        prepared = prepare_lifecycle_ticket(cfg, ref)
+        source = prepared.local
+        expected = prepared.control if prepared.fresh else source
+        ticket = prepared.ticket
         previous = ticket.owner
         if ticket.status in TERMINAL_STATUSES:
             _bail(
@@ -113,10 +119,10 @@ def owner(
         append_log(cfg, ref.id_slug, f"human:{cfg.current_user}",
                    f"owner {previous!r} → {name!r}")
         try:
-            git.sync_task_state(
+            published = git.sync_task_state(
                 cfg, ref.path,
                 message=f"Ticket: {ref.id_slug} — owner {name}",
-                expect={ref.ticket_path: source},
+                expect={ref.ticket_path: expected},
                 strict=True,
             )
         except git.UncertainPublishError as exc:
@@ -129,6 +135,11 @@ def owner(
             retract_log_lines(cfg, ref.id_slug, audit_before)
             _bail(f"Owner publication failed; refresh from control before retrying: "
                   f"{exc}", exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+        # A definite failure restores the unresolved local bytes. Retire the
+        # review only after publication is confirmed, preserving the newer
+        # provenance that publication recorded for the reassigned ticket.
+        if published is not None:
+            prepared.finish_resolution(published=True)
         typer.echo(f"{ref.id_slug}: owner {previous} → {name}")
 
 

@@ -18,7 +18,7 @@ from pathlib import Path
 import typer
 
 from coga import git
-from coga.blackboard import prelaunch_blackboard_synthesis_reason
+from coga.blackboard import prelaunch_blackboard_synthesis_reason_text
 from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
@@ -31,6 +31,7 @@ from coga.period_state import (
     stale_keys,
 )
 from coga.notification import notify, post
+from coga.taskfile import split_body
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -150,6 +151,7 @@ def mark_done(
     echo: str | None = None,
     force: bool = False,
     strict: bool = False,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -168,6 +170,10 @@ def mark_done(
     the git publication transactional: refusals and transport failures
     propagate, and completion is published before it is announced, so a stale
     or unverified child result has no visible lifecycle side effect.
+
+    `prepared` (every writer here accepts it) is the `git.prepare_ticket`
+    view `ticket` came from: the write refuses if the local file changed
+    since, and publication expects the exact control bytes it read.
     """
     if not force:
         _assert_no_stranded_product_code(cfg, ref, ticket)
@@ -184,7 +190,7 @@ def mark_done(
     prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(cfg, ref, action="mark done", ticket_override=prospective)
     ticket.frontmatter = prospective.frontmatter
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     append_log(cfg, ref.id_slug, actor, log_message)
     snapshot = read_snapshot(ref.path)
 
@@ -210,7 +216,7 @@ def mark_done(
             parent_ticket = parent_ticket_path(cfg, snapshot)
             if parent_ticket.parent.is_dir():
                 paths.append(parent_ticket)
-        _publish(cfg, ref, paths, f"Ticket: {ref.id_slug} — done", strict=strict)
+        _publish(cfg, ref, paths, f"Ticket: {ref.id_slug} — done", strict=strict, prepared=prepared)
 
     # A strict caller waits until the transition is durable before announcing;
     # the ordinary path announces before syncing.
@@ -225,11 +231,16 @@ def mark_done(
 
 
 def _publish(
-    cfg: Config, ref: TaskRef, paths: list[Path], message: str, *, strict: bool
+    cfg: Config, ref: TaskRef, paths: list[Path], message: str, *, strict: bool,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """One task-state publication; non-fatal unless `strict`."""
+    fresh = prepared is not None and prepared.fresh
     try:
-        git.publish(cfg, paths, message)
+        git.publish(
+            cfg, paths, message,
+            expect=prepared.expect() if fresh else None, remember=fresh,
+        )
     except git.StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
         if strict:
@@ -259,6 +270,7 @@ def mark_canceled(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip any non-terminal ticket to ``canceled`` and record why.
 
@@ -289,7 +301,7 @@ def mark_canceled(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     append_log(
         cfg,
         ref.id_slug,
@@ -307,7 +319,9 @@ def mark_canceled(
         image_url=image_url,
         fatal=False,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled")
+    git.sync_task_state(
+        cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled", prepared=prepared
+    )
 
 
 def _warn_if_state_not_advanced(
@@ -509,16 +523,19 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
 
 
 def _refuse_unsynthesized_draft_blackboard(
-    cfg: Config, ref: TaskRef, prior_status: str | None
+    cfg: Config, ticket: Ticket, prior_status: str | None
 ) -> None:
-    """Refuse the first launch boundary when authoring notes remain."""
+    """Refuse the first launch boundary when authoring notes remain.
+
+    Reads the blackboard of the ticket being activated — the copy reconciled
+    with fresh control — never the possibly stale on-disk file.
+    """
     if prior_status != "draft":
         return
-    reason = prelaunch_blackboard_synthesis_reason(
-        ref.ticket_path,
-        blackboard_required=False,
-        cfg=cfg,
-    )
+    _above, region = split_body(ticket.body, blackboard_required=False)
+    if region is None:
+        return
+    reason = prelaunch_blackboard_synthesis_reason_text(region, cfg=cfg)
     if reason is not None:
         raise BlackboardNeedsSynthesis(reason)
 
@@ -543,7 +560,7 @@ def prepare_active(
     prior_status = ticket.status
     if prior_status == "canceled":
         raise CancellationError("a canceled ticket cannot be reactivated")
-    _refuse_unsynthesized_draft_blackboard(cfg, ref, prior_status)
+    _refuse_unsynthesized_draft_blackboard(cfg, ticket, prior_status)
 
     if not _has_workflow(ticket):
         raise WorkflowMissing()
@@ -571,6 +588,7 @@ def mark_active(
     echo: str | None = None,
     sync_state: bool = True,
     strict: bool = False,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `active`: write frontmatter and log.
 
@@ -582,7 +600,7 @@ def mark_active(
     publication (megalaunch's deferred activation).
     """
     prepare_active(cfg, ref, ticket)
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
@@ -590,7 +608,7 @@ def mark_active(
     if sync_state:
         _publish(
             cfg, ref, [ref.path, log_path(cfg)],
-            f"Ticket: {ref.id_slug} — active", strict=strict,
+            f"Ticket: {ref.id_slug} — active", strict=strict, prepared=prepared,
         )
 
 
@@ -643,12 +661,13 @@ def mark_blocked(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
     ticket.frontmatter.pop("launch_generation", None)
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     assert_task_valid(cfg, ref, action="mark blocked")
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
@@ -663,7 +682,9 @@ def mark_blocked(
         # blocked ticket's agent REPL alive to its idle timeout.
         fatal=False,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked")
+    git.sync_task_state(
+        cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked", prepared=prepared
+    )
 
 
 def mark_paused(
@@ -676,6 +697,7 @@ def mark_paused(
     slack_text: str | None = None,
     echo: str | None = None,
     strict: bool = False,
+    prepared: git.PreparedTicket | None = None,
 ) -> None:
     """Flip a ticket to `paused`: write frontmatter and log.
 
@@ -689,14 +711,14 @@ def mark_paused(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
     ticket.frontmatter.pop("launch_generation", None)
-    git.write_ticket(cfg, ticket, ref.ticket_path)
+    git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
     assert_task_valid(cfg, ref, action="mark paused")
     append_log(cfg, ref.id_slug, actor, log_message)
 
     def sync_state() -> None:
         _publish(
             cfg, ref, [ref.path, log_path(cfg)],
-            f"Ticket: {ref.id_slug} — paused", strict=strict,
+            f"Ticket: {ref.id_slug} — paused", strict=strict, prepared=prepared,
         )
 
     if strict:

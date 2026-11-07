@@ -71,8 +71,16 @@ publication order.
 5. `repl_supervisor.run_with_done_marker`, optionally with the held-child
    gate ([launch claims](../launch-claims/SKILL.md)).
 6. Teardown: when the child actually started, capture usage
-   (`coga/usage`; outcome `unknown` unless classified) and publish `log.md`;
-   always delete the prompt file.
+   (`coga/usage`; outcome `unknown` unless classified), then publish. A
+   stateful `TaskRef` session calls `git.retry_session_publication` for its
+   ticket plus `log.md` — fetch, guarded publish that requires an untracked
+   (possibly ignored) log as `sync_log` does, provenance on an
+   already-landed tree, and a separate `sync_log` if the ticket is refused —
+   so a child's sandboxed lifecycle write lands before `_launch` or
+   megalaunch rereads the ticket and before launch's checkout refresh. A
+   bootstrap or `stateless_identity` session publishes only `log.md`. A
+   refused or unreleased spawn (`spawn_started` false) publishes nothing.
+   Always delete the prompt file.
 
 The step chain (per-step operator and CLI re-resolution, claude↔codex
 rotation, `COGA_SUPERVISED`, respawn) wraps this call and stays launch-only.

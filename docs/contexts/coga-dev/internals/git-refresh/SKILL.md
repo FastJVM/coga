@@ -6,10 +6,13 @@ description: How a checkout is brought level with the control branch — `git.re
 # Refreshing from control, staleness, and stranded writes
 
 Publishing is [`coga-dev/internals/state-publication`](../state-publication/SKILL.md);
-this page is the inbound direction. State sync never copies control's Coga
-state into a feature checkout: only the local control branch moves, by
-fast-forward, or by *realignment* when its own local-only commits are proven
-to be Coga state control already carries. Realignment never stashes,
+this page is the inbound direction. Whole-checkout refresh never copies
+control's Coga state into a feature checkout: only the local control branch
+moves, by fast-forward, or by *realignment* when its own local-only commits
+are proven to be Coga state control already carries. The one per-ticket
+exception is a lifecycle command's own target: `git.prepare_ticket` reads that
+ticket from freshly fetched control and the command writes the reconciled
+result into this checkout ([prepared ticket transactions](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#prepared-ticket-transactions)). Realignment never stashes,
 rebases, resets hard, commits, or pushes.
 
 ## The realignment proof — `_local_control_subsumed(cfg, root, local, target)`

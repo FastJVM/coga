@@ -31,6 +31,39 @@ def github_owner_repo(source: str) -> str | None:
     return _owner_repo_from_path(parsed.path)
 
 
+def github_repository_identity(
+    remote_url: str,
+) -> tuple[str, str, str] | None:
+    """Normalize a GitHub-style remote URL to ``(host, owner, repository)``."""
+    value = remote_url.strip()
+    if not value:
+        return None
+
+    host = ""
+    path = ""
+    if "://" in value:
+        parsed = urlparse(value)
+        host = parsed.hostname or ""
+        path = parsed.path
+    else:
+        left, separator, right = value.partition(":")
+        if separator and "/" in right and "/" not in left:
+            host = left.rsplit("@", 1)[-1]
+            path = right
+        else:
+            return None
+
+    parts = [part for part in path.strip("/").split("/") if part]
+    if not host or len(parts) != 2:
+        return None
+    owner, repository = parts
+    if repository.endswith(".git"):
+        repository = repository[:-4]
+    if not owner or not repository:
+        return None
+    return host.casefold(), owner.casefold(), repository.casefold()
+
+
 def same_github_repo(left: str, right: str) -> bool:
     """True when two source strings point at the same GitHub owner/repo."""
     left_repo = github_owner_repo(left)

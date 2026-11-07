@@ -17,7 +17,11 @@ import sys
 import typer
 
 from coga import git, pr_assist
-from coga.commands.common import completion_identity
+from coga.commands.common import (
+    bail_ticket_changed,
+    completion_identity,
+    prepare_lifecycle_ticket,
+)
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.mark import (
@@ -64,7 +68,7 @@ def active(
     ),
 ) -> None:
     """Set status to `active`. Allowed from `draft` or `paused`."""
-    cfg, ref, ticket = _load(task)
+    cfg, ref, ticket, prepared = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _ACTIVE_FROM, "active")
 
@@ -78,7 +82,10 @@ def active(
             actor=actor,
             log_message=log_message,
             echo=f"{ref.id_slug}: active",
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
     except WorkflowMissing:
         _bail(
             f"Cannot activate {ref.id_slug}: ticket has no workflow. A "
@@ -122,7 +129,7 @@ def paused(
     ),
 ) -> None:
     """Set status to `paused`. Allowed from `active` or `in_progress`."""
-    cfg, ref, ticket = _load(task)
+    cfg, ref, ticket, prepared = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _PAUSED_FROM, "paused")
     assist = _assist_session(cfg, ref)
@@ -136,7 +143,10 @@ def paused(
             actor=_actor(cfg, assist),
             log_message=log_message,
             echo=f"{ref.id_slug}: paused",
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
     except TaskValidationError as exc:
         _bail(str(exc))
 
@@ -157,7 +167,7 @@ def done(
     ),
 ) -> None:
     """Set status to `done`. Allowed from `active` or `in_progress`."""
-    cfg, ref, ticket = _load(task)
+    cfg, ref, ticket, prepared = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
     # `done` posts its outcome live with `fatal=False`, so an unresolved
@@ -189,7 +199,10 @@ def done(
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
             force=force,
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
     except StrandedProductCode as exc:
         listed = "\n".join(f"    {p}" for p in exc.paths)
         _bail(
@@ -225,7 +238,7 @@ def canceled(
     ),
 ) -> None:
     """Set status to `canceled`. Allowed from every non-terminal status."""
-    cfg, ref, ticket = _load(task)
+    cfg, ref, ticket, prepared = _load(task)
     reason = message.strip()
     if not reason:
         _bail("--message cannot be empty")
@@ -248,7 +261,10 @@ def canceled(
             ),
             image_url=cfg.gif_for("canceled"),
             echo=f"{ref.id_slug}: canceled — {reason}",
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        bail_ticket_changed(exc)
     except (CancellationError, TaskValidationError) as exc:
         _bail(str(exc))
 
@@ -271,8 +287,12 @@ def _load(task: str):
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    ticket = read_ticket(ref)
-    return cfg, ref, ticket
+    # Eligibility, messages, and the write all use the ticket reconciled with
+    # fresh control (`git.prepare_ticket`), never a stale local read.
+    if not ref.ticket_path.is_file():
+        read_ticket(ref)  # the ordinary missing-ticket error
+    prepared = prepare_lifecycle_ticket(cfg, ref)
+    return cfg, ref, prepared.ticket, prepared
 
 
 def _assist_session(cfg: Config, ref: TaskRef) -> pr_assist.AssistSession | None:

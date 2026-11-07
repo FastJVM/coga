@@ -60,4 +60,18 @@ marker in the unresolved `sys.executable` venv root:
 - anything else → `<python> -m pip uninstall -y coga`.
 
 If the installer is missing from `PATH` or the uninstall fails, it prints the
-same installer's manual command (for uv, prefixed with that `UV_TOOL_DIR=`).
+same installer's manual command, rendered the same way as the progress line.
+For uv the command carries that tools directory in the platform's shell
+syntax:
+
+- on POSIX, a `UV_TOOL_DIR=<quoted path> uv tool uninstall coga` prefix that
+  applies only to that one command;
+- on native Windows, a PowerShell line, and the hint says to run it in
+  PowerShell: `$env:UV_TOOL_DIR='<path>'; uv tool uninstall coga`. The value
+  is a single-quoted literal (embedded single quotes, including typographic
+  ones, are doubled), so no part of the path is expanded. Pasting it sets
+  `UV_TOOL_DIR` for the rest of that PowerShell session, not just the one
+  command; close the session or `Remove-Item Env:UV_TOOL_DIR` afterwards if
+  that matters. cmd.exe syntax is not offered.
+
+The pipx command has no overrides and is the same on every platform.

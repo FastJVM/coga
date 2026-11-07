@@ -203,6 +203,48 @@ on Linux. Port 5900 is never opened in the security group. At the login
 window, either user works: `ec2-user`, or a walk user with its
 `password.txt`.
 
+## Full suite at a commit
+
+**Unverified (follow-up: `v1/44-verify-the-macos-full-suite-procedure-on-the-ec`).**
+This procedure is modeled on the Windows harness's
+[fix loop](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#fix-loop-checkout-and-remote-commands)
+and [long native runs](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs)
+but has not yet run on the EC2 Mac host. It produces the macOS receipt that
+the [verification tiers](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts)
+require once macOS is supported. `aws-mac.sh` has no `checkout` command, so
+run each step as `ec2-user` through `aws-mac.sh ssh`, which joins its
+arguments into one remote shell line; quote each line as a single argument.
+
+1. **Prepare the host once.** Provisioning removes the CLT, so first
+   install them headless (the `softwareupdate` steps in [Walk](#walk)).
+   Then install uv with its official installer, Python 3.11 with
+   `uv python install 3.11`, and ripgrep (`rg`, needed by the POSIX
+   migration-runbook test), for example with Homebrew.
+2. **Check out the exact commit** (a full SHA), cloning on first use. Push
+   fixes from your machine and check out again; do not edit on the Mac.
+
+   ```sh
+   ./scripts/clean-install/aws-mac.sh ssh mac1 \
+     'test -d coga-work || git clone https://github.com/FastJVM/coga.git coga-work'
+   ./scripts/clean-install/aws-mac.sh ssh mac1 \
+     'cd coga-work && test -z "$(git status --porcelain)" && git fetch origin <full-sha> && git checkout --detach <full-sha> && ~/.local/bin/uv sync --python 3.11 --extra test'
+   ```
+
+3. **Run detached and poll.** Do not hold one SSH session open for the whole
+   run. Start it under `nohup`, writing the output and exit code to files,
+   then reconnect briefly to poll:
+
+   ```sh
+   ./scripts/clean-install/aws-mac.sh ssh mac1 \
+     'cd coga-work && rm -f ~/pytest.exit && nohup sh -c "TERM=dumb ~/.local/bin/uv run python -m pytest -p no:cacheprovider > ~/pytest.log 2>&1; echo \$? > ~/pytest.exit" > /dev/null 2>&1 &'
+   ./scripts/clean-install/aws-mac.sh ssh mac1 'tail -n 3 ~/pytest.log; cat ~/pytest.exit 2>/dev/null'
+   ```
+
+4. **Record the receipt** with `git -C coga-work rev-parse HEAD`, `sw_vers`,
+   the interpreter version (`uv run python --version`), the command, the
+   final counts line, and the runtime. Confirm that no `pytest` process remains
+   before teardown.
+
 ## Teardown and host release
 
 ```sh

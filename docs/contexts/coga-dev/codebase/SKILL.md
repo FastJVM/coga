@@ -37,6 +37,10 @@ The repo separates implementation from the OS it operates:
   indirection, for the two Slack webhook keys.
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
   `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/state-publication](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md).
+- `review_conflict.py`: the human-review PR a lifecycle command opens for an
+  unrankable ticket status conflict, and its merged/closed/open return path;
+  shared by lifecycle commands through `commands/common.reconcile_lifecycle_ticket`
+  (`coga-dev/internals/git-regressions`).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `oscompat.py`: per-user lock paths and descriptor locks for publication

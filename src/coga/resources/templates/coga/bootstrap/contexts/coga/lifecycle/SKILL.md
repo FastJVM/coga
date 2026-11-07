@@ -25,6 +25,12 @@ terminal outcomes `done` and `canceled`.
 | `blocked` | `coga block --task <ref> --reason ...` (keeps `step:`) | `active`, `in_progress`, `blocked` |
 | `blocked → active` | `coga unblock` (keeps `step:`; on `in_progress` or a paused `recurring/` period it only resolves asks) | `blocked` |
 
+Every writer above except launch decides from the ticket reconciled with
+freshly fetched control, not this checkout's possibly stale copy: a terminal
+control copy cannot be reopened by a stale `mark active`, pause, or block, and
+owner and `requires:` gates are rechecked there
+([prepared ticket transactions](../state-publication/SKILL.md#prepared-ticket-transactions)).
+
 Launching is itself the
 readiness signal: `coga launch` performs `mark active` inline on a `draft` or
 `paused` ticket before flipping it to `in_progress`. Activation refuses a
@@ -109,8 +115,9 @@ refuse a blocked ticket until `coga unblock` records an answer.
 
 - Bare `coga bump <ref>` requires `in_progress`, checks the leaving step's
   `requires:` gate, and advances one step, or on the final step delegates to
-  `mark_done`. A workflow-less ticket is refused with a pointer to
-  `coga mark done`. `--message` rides the transition notification. A forward
+  `mark_done`. A supervised bump whose session was composed for a step
+  other than the one reconciled with control refuses as stale context. A
+  workflow-less ticket is refused with a pointer to `coga mark done`. `--message` rides the transition notification. A forward
   bump from a step with a usable `## Dev` `branch:` warns on stderr (never
   blocks) about stranded ticket writes; see
   [coga/checkouts](../checkouts/SKILL.md).
@@ -125,8 +132,8 @@ refuse a blocked ticket until `coga unblock` records an answer.
   status, and derives the target operator without persisting it. From
   `active`/`paused` it must target an agent step (an owner step could not be
   resumed or bumped); `in_progress` may target either. It refuses `blocked`
-  (unblock first) and terminal tickets. If its guarded publication is not
-  confirmed, the local mutation is left for inspection: reconcile the checkout
+  (unblock first) and terminal tickets. It moves backward from the step
+  reconciled with control. If its guarded publication is not confirmed, the local mutation is left for inspection: reconcile the checkout
   with control before another mutating command, push, or merge.
 
 Pausing preserves the step; cancellation clears it.

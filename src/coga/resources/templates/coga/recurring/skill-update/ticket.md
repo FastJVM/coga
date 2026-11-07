@@ -41,7 +41,10 @@ and its `ticket.py` runs
    `skipped-pinned` — rather than one hardcoded hand-off row,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
    and opens (or updates) one draft PR. This shared branch survives branch
-   sweep under [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep), and
+   sweep under [coga/checkout-cleanup/branch-sweep](context:coga/checkout-cleanup/branch-sweep).
+   The branch is rebuilt each run, so before any update is applied the run
+   refuses if its open PR carries hand-pushed commits, listing them (see
+   [coga/skill-management](context:coga/skill-management)), and
 4. appends a `## Skill Update` report to this period task's blackboard with
    one row per installed managed skill, bucketed by its emitted status.
    Bundled refs without managed provenance get no row, whether or not a repo
@@ -98,7 +101,9 @@ than discarding local changes. **Do not simply accept a standing follow-up line 
 the price of keeping the local edit** — see the cost below.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened. Two non-zero exit codes keep a run visible. Each writes the
+PR is opened. The exception is an open `coga/skill-update` PR that carries
+hand-pushed commits: the run refuses before checking upstream, so it exits 2
+every week until a human merges or closes that PR. Two non-zero exit codes keep a run visible. Each writes the
 `## Skill Update` report before exiting, but that write is best-effort — an
 unwritable blackboard leaves the exit code as the only signal:
 
@@ -109,7 +114,9 @@ unwritable blackboard leaves the exit code as the only signal:
 - **Exit 2 — the update failed.** `coga skill update` exited non-zero, or
   emitted output that was not valid JSON, so nothing was classified. The report
   carries the attempted command and the failing output under a `### Failed`
-  heading in place of the per-skill buckets.
+  heading in place of the per-skill buckets. A refusal over hand-pushed
+  commits on the open PR lands here, with the PR URL and each commit's short
+  SHA and subject in that output.
 
 Exit 2 has a second source: `ticket.py` passes through `coga bump`'s exit code
 once the update succeeds, and `coga bump` exits 2 on most of its own refusals.

@@ -223,7 +223,7 @@ notifications, and platform checks run natively on the AWS harnesses.
    (its "Long native runs" procedure; a full run takes about two hours) at
    the PR's head commit, and records the receipt in the PR and the ticket.
    Once macOS is supported, also run it on macOS through the
-   [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md).
+   [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit).
    A source-affecting change after the receipt needs a new run. The reviewer
    does not approve a platform-sensitive PR without it.
 3. **Every release, before tagging.** The full suite at the exact commit to

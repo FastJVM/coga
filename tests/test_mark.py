@@ -528,9 +528,9 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
     errors: list[BaseException] = []
     real_write = git_module.write_ticket
 
-    def observed_write(cfg_, ticket_, path_):  # type: ignore[no-untyped-def]
+    def observed_write(cfg_, ticket_, path_, **kwargs):  # type: ignore[no-untyped-def]
         attempted.set()
-        real_write(cfg_, ticket_, path_)
+        real_write(cfg_, ticket_, path_, **kwargs)
         assert gate_written.is_set()
         write_finished.set()
 
@@ -1197,19 +1197,20 @@ def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> d
 def test_transition_refuses_to_bury_terminal_control_copy(
     git_repo, seed_status, landed_status, argv, expected_local
 ):
-    """No `mark` verb can overlay a stale ticket onto a closed control copy.
+    """No `mark` verb can reopen or overwrite a terminal control copy.
 
-    Each transition publishes its ticket wholesale onto the control tip, so
-    every verb needs the provenance check — not just cancellation. The refusal
-    is non-fatal by design: the local transition stands, git declines to
-    publish it, and the divergence is recorded rather than resolved behind the
-    human's back.
+    Each verb prepares its ticket against freshly fetched control before
+    checking eligibility (`git.prepare_ticket`). A stale checkout with no
+    unpublished ticket edit adopts control's terminal copy, so the stale
+    transition is refused by the ordinary status check before anything is
+    written — not published-then-refused after a local write.
     """
     cfg = load_config(git_repo.coga_os)
     ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
     ticket_path = Path(ref["path"])
     rel = ticket_path.relative_to(git_repo.root).as_posix()
     git_repo.checkout_branch("feature/contended")
+    original = ticket_path.read_bytes()
 
     # Another checkout closes the ticket on the control branch under us.
     git_repo.push_competing_commit(
@@ -1222,19 +1223,45 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     verb, *rest = argv
     result = CliRunner().invoke(app, ["mark", verb, ref["slug"], *rest])
 
-    # Non-fatal: the command succeeds and the local transition is on disk.
-    assert result.exit_code == 0, result.output
-    assert read_ticket(resolve_task(cfg, ref["slug"])).status == expected_local
-
-    # The control branch keeps the terminal copy it already had.
+    assert result.exit_code == 2, result.output
+    assert repr(landed_status) in result.output
+    # Nothing was written locally, and control keeps its terminal copy.
+    assert ticket_path.read_bytes() == original
+    assert expected_local not in (landed_status,)
     control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
     assert control.status == landed_status
 
-    # And the refusal is legible, not silent: it names the ticket in the log.
-    log = (git_repo.coga_os / "log.md").read_text(encoding="utf-8")
-    assert "sync refused" in log
-    assert f"control copy changed since this checkout last saw it (control: status={landed_status!r}" in log
-    assert f"git checkout origin/main -- {rel}" in log
+
+@pytest.mark.parametrize("control_has_notes", [True, False])
+def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_has_notes):
+    """`mark active` checks draft-blackboard synthesis on the ticket reconciled
+    with fresh control, not the stale on-disk copy: control's authoring notes
+    refuse activation, and stale local notes control already synthesized do
+    not."""
+    cfg = load_config(git_repo.coga_os)
+    ref = _seed_pushed_task(git_repo, cfg, title="Draft gate", status="draft")
+    ticket_path = Path(ref["path"])
+    rel = ticket_path.relative_to(git_repo.root).as_posix()
+    clean = ticket_path.read_text(encoding="utf-8")
+    noted = clean.rstrip("\n") + "\n\n## Ticket authoring notes\n\n- open question\n"
+    if not control_has_notes:
+        # This checkout's notes reached control, which then synthesized them.
+        ticket_path.write_text(noted, encoding="utf-8", newline="\n")
+        git_repo.git("commit", "-am", "authoring notes")
+        git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/stale-draft")
+    git_repo.push_competing_commit(rel, noted if control_has_notes else clean)
+
+    result = CliRunner().invoke(app, ["mark", "active", ref["slug"]])
+
+    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    if control_has_notes:
+        assert result.exit_code != 0, result.output
+        assert "Ticket authoring notes" in result.output
+        assert control.status == "draft"
+    else:
+        assert result.exit_code == 0, result.output
+        assert control.status == "active"
 
 
 # --- main-agent selection timing (the approved activation-time contract) -------

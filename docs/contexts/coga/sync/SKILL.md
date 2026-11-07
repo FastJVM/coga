@@ -16,6 +16,11 @@ each layer only reports or publishes it.
   (`origin/main` by default), without committing on a local branch,
   stashing, or rebasing.
 
+Lifecycle commands read the ticket from freshly fetched control and
+reconcile it with this checkout's copy before changing it, so a stale clone
+decides from current state; a supervised session's unpublished ticket is
+retried after the session exits.
+
 Both layers treat a failed announcement or push of a durable write alike:
 surface the miss, keep the file as written, and never let it undo the
 transition. There is no digest: every notification posts live or not at all.
@@ -23,6 +28,7 @@ transition. There is no digest: every notification posts live or not at all.
 | Question | Topic |
 | --- | --- |
 | Which files publish, when, from which checkout; strict publication and recovery | [`coga/state-publication`](../state-publication/SKILL.md) |
+| How a lifecycle command reconciles a ticket with control before changing it | [`coga/state-publication`](../state-publication/SKILL.md#prepared-ticket-transactions) |
 | Which events post, where, how to configure the channel, and what happens when a post fails | [`coga/notifications`](../notifications/SKILL.md) |
 | Which producers post on which surface | [`coga/notifications/producers`](../notifications/producers/SKILL.md) |
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
