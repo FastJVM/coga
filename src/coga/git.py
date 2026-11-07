@@ -1636,9 +1636,8 @@ def _build_tree(
     landed: dict[str, bytes | None],
 ) -> str:
     """`base`'s tree with `rels` overlaid (union-merged for `merge=union` paths)."""
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-")
-    os.close(fd)
-    os.unlink(index)
+    scratch = _scratch_dir(root)
+    index = _scratch_index(scratch)
     env = {"GIT_INDEX_FILE": index}
     index_modes = _index_modes(root) if os.name != "posix" else {}
     try:
@@ -1650,6 +1649,7 @@ def _build_tree(
                     current=tree_bytes(root, base, rel) or b"",
                     base=(tree_bytes(root, ancestor, rel) or b"") if ancestor else b"",
                     other=_clean_bytes(root, data, rel),
+                    scratch=scratch,
                 )
                 landed[rel] = data
             run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env)
@@ -1669,18 +1669,56 @@ def _build_tree(
             pass
 
 
-def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
+def _scratch_dir(root: Path) -> Path:
+    """Where publication puts its temporary index and merge files.
+
+    The checkout's own Git dir (per-worktree for a linked worktree), where
+    Git keeps its `index.lock`: publication already needs it writable, so
+    scratch files add no second filesystem. A full or missing `$TMPDIR` must
+    not fail a publish (the 2026-10-27 ENOSPC). Resolved per call, never
+    cached.
+    """
+    return Path(run_git(root, "rev-parse", "--absolute-git-dir").strip())
+
+
+def _scratch_index(scratch: Path) -> str:
+    """A fresh, absent temporary index path under `scratch`.
+
+    An unwritable Git dir (a sandbox's read-only `.git`) fails here before any
+    Git write, so the `OSError` becomes a `GitError` that publication's
+    callers already catch and report.
+    """
+    try:
+        fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=scratch)
+        os.close(fd)
+        os.unlink(index)
+    except OSError as exc:
+        raise GitError(f"cannot allocate a scratch index in {scratch}: {exc}") from exc
+    return index
+
+
+def _merge_union_bytes(
+    *, current: bytes, base: bytes, other: bytes, scratch: Path
+) -> bytes:
     """`git merge-file --union` of the three copies, minus re-added lines.
 
     A union-merged publication never increases the occurrence count of a
     line already on control (`current`); see `coga-dev/internals/spool-merge`.
     Pass `other` through `_clean_bytes` first so all three copies compare in
-    the blob form control stores.
+    the blob form control stores. The copies are written under `scratch`
+    (see `_scratch_dir`).
     """
-    with tempfile.TemporaryDirectory(prefix="coga-union-merge-") as tmp:
+    try:
+        tmp_dir = tempfile.TemporaryDirectory(prefix="coga-union-merge-", dir=scratch)
+    except OSError as exc:
+        raise GitError(f"cannot allocate union-merge scratch files in {scratch}: {exc}") from exc
+    with tmp_dir as tmp:
         files = [Path(tmp) / name for name in ("current", "base", "other")]
-        for path, data in zip(files, (current, base, other)):
-            path.write_bytes(data)
+        try:
+            for path, data in zip(files, (current, base, other)):
+                path.write_bytes(data)
+        except OSError as exc:
+            raise GitError(f"cannot write union-merge scratch files in {scratch}: {exc}") from exc
         result = _run(["git", "merge-file", "--union", *map(str, files)])
         if result.returncode != 0:
             raise GitError(
@@ -1777,9 +1815,7 @@ def record_projected_baseline(cfg: Config, root: Path, rel: str, oid: str) -> No
 
 
 def _write_published(root: Path, blobs: Mapping[str, str | None]) -> None:
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-")
-    os.close(fd)
-    os.unlink(index)
+    index = _scratch_index(_scratch_dir(root))
     env = {"GIT_INDEX_FILE": index}
     try:
         if _ref_present(root, PUBLISHED_REF):
@@ -2606,7 +2642,8 @@ def _published_proof(
     control_bytes = _blob_bytes(root, published[1])
     base = _blob_bytes(root, head_entry[1]) if head_entry is not None else b""
     merged = _merge_union_bytes(
-        current=control_bytes, base=base, other=_clean_bytes(root, data, rel)
+        current=control_bytes, base=base, other=_clean_bytes(root, data, rel),
+        scratch=_scratch_dir(root),
     )
     return None if merged == control_bytes else "lines not yet on control"
 
