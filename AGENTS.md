@@ -41,6 +41,8 @@ Target Python 3.11+, use 4-space indentation, `from __future__ import annotation
 ## Testing Guidelines
 Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `tests/fixtures/seeded-repo/` repo or related fixtures so the smoke path remains representative.
 
+There is no hosted test CI. Platform-sensitive changes require a native Windows full-suite receipt before merge; [coga-dev/testing](docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts) owns the verification tiers, the platform-sensitive list, and the receipt fields.
+
 ## Commit & Pull Request Guidelines
 Before publishing or handing off edits, follow [coga/checkouts/reconciliation](src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md), including in sessions outside `coga launch`.
 

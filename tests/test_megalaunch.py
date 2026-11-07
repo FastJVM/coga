@@ -1421,7 +1421,7 @@ def test_megalaunch_ignores_blocker_examples(
 @pytest.mark.parametrize(
     ("late_change", "expected_outcome", "expected_detail"),
     [
-        ("owner", "skipped-human-gate", "is not current operator marc"),
+        ("owner", "skipped-human-gate", "is outside the owner filter (marc)"),
         ("blocker", "skipped-unresolved-blocker", "Late blocker"),
         ("step", "skipped-human-gate", "no current workflow step"),
         ("paused", "skipped-unlaunchable", "status is paused"),
@@ -4968,10 +4968,10 @@ def test_megalaunch_selection_unknown_slug_fails_loud(repo: Path) -> None:
         run_megalaunch(cfg, selection=["no-such-task"])
 
 
-def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
+def test_launchable_candidates_all_owners_offers_any_non_terminal_status(
     repo: Path,
 ) -> None:
-    """The picker offers every explicitly launchable task, not just mine."""
+    """With --all-owners the picker offers every explicitly launchable task."""
     from coga.megalaunch import launchable_candidates
 
     cfg = load_config(repo)
@@ -5082,7 +5082,9 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
     ticket.frontmatter["workflow"] = None
     ticket.write(workflowless["path"])
 
-    offered = {ref.id_slug for ref, _ in launchable_candidates(cfg)}
+    offered = {
+        ref.id_slug for ref, _ in launchable_candidates(cfg, all_owners=True)
+    }
 
     # Everything non-terminal is offered — done/canceled are the only exclusions.
     assert offered == {
@@ -5725,6 +5727,270 @@ def test_megalaunch_cli_flag_conflicts(repo: Path) -> None:
 
     scoped = CliRunner().invoke(app, ["megalaunch", "--relaunch", "marketing"])
     assert scoped.exit_code == 2
+
+    for argv, needle in (
+        (["--owner", "zach", "--all-owners"], "cannot be combined"),
+        (["--pick", "--owner", "zach", "--all-owners"], "cannot be combined"),
+        (["--relaunch", "--owner", "zach"], "--relaunch replays"),
+        (["--relaunch", "--all-owners"], "--relaunch replays"),
+    ):
+        refused = CliRunner().invoke(app, ["megalaunch", *argv])
+        assert refused.exit_code == 2, argv
+        assert needle in refused.output, argv
+
+
+# --- owner filter (--owner / --all-owners) ----------------------------------
+
+
+def _owner_tickets(cfg, *, ownerless: bool = False) -> dict[str, dict]:  # type: ignore[no-untyped-def]
+    """One active ticket for marc (the operator) and one for zach, plus an
+    owner-less one on request (listable, but it fails validation at launch)."""
+    created = {
+        owner: create_task(
+            cfg=cfg,
+            title=f"Work of {owner}",
+            workflow_name="code",
+            contexts=[],
+            owner=owner,
+            agent="claude",
+            status="active",
+        )
+        for owner in ("marc", "zach", *(("nobody-yet",) if ownerless else ()))
+    }
+    if ownerless:
+        ticket = Ticket.read(created["nobody-yet"]["path"])
+        ticket.frontmatter.pop("owner", None)
+        ticket.write(created["nobody-yet"]["path"])
+    return created
+
+
+def test_launchable_candidates_filters_by_ticket_owner(repo: Path) -> None:
+    """The picker defaults to the operator's tickets; --owner retargets it,
+    --all-owners lists everyone's (owner-less included)."""
+    from coga.megalaunch import MegalaunchError, launchable_candidates
+
+    cfg = load_config(repo)
+    created = _owner_tickets(cfg, ownerless=True)
+
+    def offered(**kwargs) -> set[str]:  # type: ignore[no-untyped-def]
+        return {ref.id_slug for ref, _ in launchable_candidates(cfg, **kwargs)}
+
+    assert offered() == {created["marc"]["slug"]}
+    assert offered(owner="zach") == {created["zach"]["slug"]}
+    assert offered(all_owners=True) == {
+        ticket["slug"] for ticket in created.values()
+    }
+    # Owners are free strings: an unknown one is an empty list, not an error.
+    assert offered(owner="unknown-person") == set()
+    with pytest.raises(MegalaunchError, match="cannot be combined"):
+        launchable_candidates(cfg, owner="zach", all_owners=True)
+
+
+def test_megalaunch_owner_sweeps_that_owners_tickets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--owner zach` sweeps zach's work through the same gates; the default
+    sweep is unchanged and `--all-owners` covers every owner."""
+    cfg = load_config(repo)
+    created = _owner_tickets(cfg)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, owner="zach")
+
+    assert launched == [created["zach"]["slug"]]
+    assert [result.slug for result in run.results] == [created["zach"]["slug"]]
+    assert run.owner_scope == "zach"
+    assert "Owner: zach" in render_run_summary(run)
+    assert Ticket.read(created["marc"]["path"]).status == "active"
+
+    launched.clear()
+    run = run_megalaunch(cfg)
+    assert launched == [created["marc"]["slug"]]
+    assert run.owner_scope is None
+    assert "Owner:" not in render_run_summary(run)
+
+    fresh = {
+        owner: create_task(
+            cfg=cfg,
+            title=f"More work of {owner}",
+            workflow_name="code",
+            contexts=[],
+            owner=owner,
+            agent="claude",
+            status="active",
+        )
+        for owner in ("marc", "zach")
+    }
+    launched.clear()
+    run = run_megalaunch(cfg, all_owners=True)
+    assert set(launched) == {fresh["marc"]["slug"], fresh["zach"]["slug"]}
+    assert run.owner_scope == "every owner"
+
+
+def test_megalaunch_owner_sweep_unknown_owner_is_empty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    created = _owner_tickets(cfg)
+    launched = _done_on_spawn(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+
+    result = CliRunner().invoke(app, ["megalaunch", "--owner", "unknown-person"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == []
+    assert "No launchable tasks owned by unknown-person." in result.output
+    assert Ticket.read(created["marc"]["path"]).status == "active"
+
+
+def test_megalaunch_owner_sweep_reread_skips_other_owners(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The launch reread compares against the same target owner as the scan."""
+    from coga import megalaunch as megalaunch_module
+
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Zach's handover",
+        workflow_name="code",
+        contexts=[],
+        owner="zach",
+        agent="claude",
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    real_candidate = megalaunch_module._candidate_result
+
+    def candidate_then_reassign(cfg_, ref_, ticket_, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_candidate(cfg_, ref_, ticket_, **kwargs)
+        peer = Ticket.read(ticket_path)
+        if peer.owner == "zach":
+            peer.frontmatter["owner"] = "marc"
+            peer.write(ticket_path)
+        return result
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a ticket outside the owner filter must not spawn")
+
+    monkeypatch.setattr("coga.megalaunch._candidate_result", candidate_then_reassign)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
+    )
+
+    run = run_megalaunch(cfg, owner="zach")
+
+    assert len(run.results) == 1
+    assert run.results[0].outcome == "skipped-human-gate"
+    assert "owner marc is outside the owner filter (zach)" in run.results[0].detail
+
+
+def test_megalaunch_owner_sweep_drains_that_owners_blockers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dependency drain follows the chosen owner, not the operator."""
+    from coga.blackboard import append_blocker, read_blockers
+
+    cfg = load_config(repo)
+    tickets = {}
+    for owner, title in (("zach", "Zach blocked"), ("marc", "Marc blocked")):
+        tickets[owner] = create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner=owner,
+            agent="claude",
+            status="active",
+        )
+    dependency = create_task(
+        cfg=cfg,
+        title="Zach dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="zach",
+        agent="claude",
+        status="active",
+    )
+    for blocked in tickets.values():
+        append_blocker(
+            Path(blocked["path"]),
+            actor="claude",
+            reason=f"Waiting for {dependency['slug']} to land",
+        )
+        ticket = Ticket.read(blocked["path"])
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(blocked["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, owner="zach")
+
+    assert launched == [dependency["slug"], tickets["zach"]["slug"]]
+    assert run.counts["drained"] == 1
+    assert read_blockers(Path(tickets["zach"]["path"]))[0].resolved is True
+    # Marc's blocker names the same finished dependency but is outside the
+    # filter, so it stays open and blocked.
+    assert read_blockers(Path(tickets["marc"]["path"]))[0].resolved is False
+    assert Ticket.read(tickets["marc"]["path"]).status == "blocked"
+
+
+def test_megalaunch_owner_flags_refused_with_explicit_selection(repo: Path) -> None:
+    from coga.megalaunch import MegalaunchError
+
+    cfg = load_config(repo)
+    with pytest.raises(MegalaunchError, match="explicit selection"):
+        run_megalaunch(cfg, selection=["anything"], owner="zach")
+    with pytest.raises(MegalaunchError, match="explicit selection"):
+        run_megalaunch(cfg, selection=["anything"], all_owners=True)
+
+
+@windows_interactive_skip
+@pytest.mark.parametrize(
+    ("flags", "expected_owners"),
+    [
+        ([], {"marc"}),
+        (["--owner", "zach"], {"zach"}),
+        (["--all-owners"], {"marc", "zach"}),
+    ],
+)
+def test_megalaunch_cli_picker_offers_owner_filtered_list(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flags: list[str],
+    expected_owners: set[str],
+) -> None:
+    """`--pick` lists my tickets; `--owner`/`--all-owners` reshape the list,
+    and the confirmed pick then runs as checked."""
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    created = _owner_tickets(cfg)
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+    offered: list[str] = []
+
+    def pick_everything(candidates):  # type: ignore[no-untyped-def]
+        offered.extend(ref.id_slug for ref, _ in candidates)
+        return list(offered)
+
+    monkeypatch.setattr("coga.commands.megalaunch._pick_selection", pick_everything)
+    launched = _done_on_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["megalaunch", "--pick", *flags])
+
+    assert result.exit_code == 0, result.output
+    expected = {created[owner]["slug"] for owner in expected_owners}
+    assert set(offered) == expected
+    assert set(launched) == expected
 
 
 def test_megalaunch_cli_picker_requires_tty(repo: Path) -> None:

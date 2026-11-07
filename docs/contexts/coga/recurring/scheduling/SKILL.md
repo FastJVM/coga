@@ -61,9 +61,15 @@ the clone-local ledger and log, the console, and the autofix run record. The
 shipped `branch-sweep` template uses clone scope for local refs and worktrees;
 its [ticket](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/branch-sweep/ticket.md)
 owns cleanup and worklist publication. `autoclose-merged` stays repo-scoped
-because ticket closure is shared state. A `scope: clone` template serviced as a
-shared period task means the CLI predates clone scope
-([coga/install](../../install/SKILL.md#cli-older-than-the-templates-it-sweeps)).
+because ticket closure is shared state.
+
+A `scope: clone` template serviced as an ordinary shared period task, with a
+log line and no clone ledger, means the CLI predates clone scope and ignores
+the `scope` key: it lags the templates it sweeps, for example an editable
+install whose source checkout sits behind `main`. The shipped clone scripts
+tolerate it: with `COGA_TASK_SLUG` set they bump that task, so the period
+closes instead of stalling. Check `coga --version` and the editable source
+checkout, then upgrade.
 
 ## What a sweep does per template
 

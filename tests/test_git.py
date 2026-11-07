@@ -4343,6 +4343,50 @@ def test_retry_publishes_a_remembered_ticket_restored_to_its_head_bytes(git_repo
     assert not (cfg.repo_root / git._PENDING_FILE).exists()
 
 
+def test_retry_publishes_a_remembered_transition_that_restored_head_bytes(git_repo, monkeypatch):
+    """A prepared rewind back to HEAD's exact bytes fails to publish; the
+    retry (no explicit expectation) must still select the clean ticket from
+    the remembered pending expectation and land it."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/rewind")
+    path.write_text(_lifecycle_text(step=2), encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, path, message="step 2") is True
+    prepared = git.prepare_ticket(cfg, path)
+    assert prepared.fresh
+    path.write_text(_lifecycle_text(), encoding="utf-8", newline="\n")
+    assert git_repo.git("status", "--porcelain", "--", rel) == ""
+
+    real_run = git._run
+
+    def read_only(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "hash-object" in argv and "-w" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", _EROFS)
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", read_only)
+    assert git.sync_task_state(cfg, path, message="rewind", prepared=prepared) is None
+    monkeypatch.setattr(git, "_run", real_run)
+    assert rel in (cfg.repo_root / git._PENDING_FILE).read_text(encoding="utf-8")
+
+    assert git.retry_session_publication(cfg, path, slug="demo") is True
+    assert _control(git_repo, rel) == _lifecycle_text()
+    assert not (cfg.repo_root / git._PENDING_FILE).exists()
+
+
+def test_retry_session_publication_refuses_an_ignored_untracked_log(git_repo, capsys):
+    """Like `sync_log`, the teardown retry must not report an excluded usage
+    record as published (or already held): it returns None so launch warns."""
+    cfg = load_config(git_repo.coga_os)
+    path, _rel = _seed_lifecycle(git_repo)
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
+    append_log(cfg, "demo", "system", "session usage")
+
+    assert git.retry_session_publication(cfg, path, slug="demo") is None
+    assert "excluded from publication" in capsys.readouterr().err
+    assert not git_repo.origin_tracks("coga/log.md")
+
+
 def _child_bump_without_object_writes(git_repo, monkeypatch, cfg, path) -> bytes:
     """A sandboxed child's bump: local ticket/log change, publication fails."""
     real_run = git._run

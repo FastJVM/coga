@@ -1,6 +1,6 @@
 ---
 title: Add Gemini as an agent coga can drive
-status: in_progress
+status: canceled
 owner: zach
 contexts:
 - coga-dev/principles
@@ -36,7 +36,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
 agent: claude
 ---
 

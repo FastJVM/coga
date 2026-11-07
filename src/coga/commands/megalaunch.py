@@ -2,16 +2,22 @@
 
 Three ways in, one engine:
 
-- bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
-  task (`active` starts, `in_progress` resumes), then fixed-point drain blocked
-  tasks whose named dependency finished during the run.
-- `coga megalaunch --pick` — arrow-key picker over every non-terminal task
-  (any owner, any status except done/canceled — no launchability pre-filter),
-  nothing pre-checked;
+- bare `coga megalaunch` — sweep the operator's launchable `active` or
+  `in_progress` tasks (`active` starts, `in_progress` resumes), then
+  fixed-point drain blocked tasks whose named dependency finished during the
+  run.
+- `coga megalaunch --pick` — arrow-key picker over the operator's
+  non-terminal tasks (any status except done/canceled — no launchability
+  pre-filter), nothing pre-checked;
   the confirmed set runs staged — prepare (a batch prompt offers to author
   picked drafts) → check → launch, each pick activated as its own launch
   starts — as an explicit selection (and is saved for `--relaunch`).
 - `coga megalaunch --relaunch` — replay the last confirmed selection.
+
+`--owner <name>` retargets the sweep or the picker list to that owner's
+tickets and `--all-owners` to every owner's; both filter on the ticket's
+`owner:`, never the current step's assignee, and neither combines with
+`--relaunch`, whose saved selection replays as-is.
 """
 
 from __future__ import annotations
@@ -63,8 +69,9 @@ def megalaunch(
         False,
         "--pick",
         help=(
-            "Choose interactively: an arrow-key list of every non-terminal "
-            "task (any owner, any status except done/canceled), "
+            "Choose interactively: an arrow-key list of your non-terminal "
+            "tasks (any status except done/canceled; see --owner and "
+            "--all-owners), "
             "nothing pre-checked; the confirmed set is prepared (a batch "
             "prompt offers to run the authoring interview on picked drafts), "
             "checked, then launched — each pick is activated as its own launch "
@@ -77,6 +84,24 @@ def megalaunch(
         False,
         "--relaunch",
         help="Re-run the last confirmed picker selection.",
+    ),
+    owner: str | None = typer.Option(
+        None,
+        "--owner",
+        metavar="NAME",
+        help=(
+            "Cover NAME's tickets (their `owner:` field) instead of yours, on "
+            "both --pick and the sweep. The sweep applies the same "
+            "launchability gates and dependency drain it applies to yours."
+        ),
+    ),
+    all_owners: bool = typer.Option(
+        False,
+        "--all-owners",
+        help=(
+            "Cover every owner's tickets, owner-less ones included, on both "
+            "--pick and the sweep. Cannot be combined with --owner."
+        ),
     ),
     max_tasks: int | None = typer.Option(
         None,
@@ -144,7 +169,14 @@ def megalaunch(
         sys.exit(2)
 
     try:
-        selection = _resolve_selection(cfg, directory, pick=pick, relaunch=relaunch)
+        selection = _resolve_selection(
+            cfg,
+            directory,
+            pick=pick,
+            relaunch=relaunch,
+            owner=owner,
+            all_owners=all_owners,
+        )
     except (MegalaunchError, UnknownDirectoryError, ConfigError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
@@ -166,12 +198,20 @@ def megalaunch(
             directory=directory,
             selection=selection,
             author_drafts=author_drafts,
+            # A pick already applied the owner filter to the list it offered;
+            # the confirmed selection runs as the human checked it.
+            owner=owner if selection is None else None,
+            all_owners=all_owners if selection is None else False,
         )
     except (MegalaunchError, UnknownDirectoryError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
     # Local outcome to stdout before the notification post, so a Slack crash
     # still leaves the run summary visible (coga/sync convention).
+    if owner is not None and selection is None and not run.results:
+        # Owners are free strings with no registry to validate against, so an
+        # unmatched name is an empty sweep, said plainly rather than an error.
+        typer.echo(f"No launchable tasks owned by {owner}.")
     typer.echo(render_run_summary(run))
     message = _drain_post_text(run)
     if message is not None:
@@ -218,16 +258,25 @@ def _resolve_selection(
     *,
     pick: bool,
     relaunch: bool,
+    owner: str | None = None,
+    all_owners: bool = False,
 ) -> list[str] | None:
     """Turn the flags into the engine's `selection`.
 
     `None` means the non-explicit sweep; an empty list means the human
     confirmed nothing (caller reports and exits cleanly).
     """
+    if owner is not None and all_owners:
+        raise MegalaunchError("--owner and --all-owners cannot be combined.")
     if relaunch and (pick or directory is not None):
         raise MegalaunchError(
             "--relaunch replays the last saved selection; combining it with "
             "--pick or a directory is ambiguous."
+        )
+    if relaunch and (owner is not None or all_owners):
+        raise MegalaunchError(
+            "--relaunch replays the last saved selection as-is; combining it "
+            "with --owner or --all-owners is ambiguous."
         )
 
     if relaunch:
@@ -242,9 +291,18 @@ def _resolve_selection(
             "The megalaunch picker is interactive and requires a TTY. "
             "Drop --pick for the non-interactive sweep."
         )
-    candidates = launchable_candidates(cfg, directory=directory)
+    candidates = launchable_candidates(
+        cfg, directory=directory, owner=owner, all_owners=all_owners
+    )
     if not candidates:
-        typer.echo("No tasks to pick (only done/canceled tasks exist).")
+        if all_owners:
+            typer.echo("No tasks to pick (only done/canceled tasks exist).")
+        else:
+            typer.echo(
+                f"No tasks to pick: no non-terminal tasks owned by "
+                f"{owner if owner is not None else cfg.current_user}"
+                " (--all-owners lists every owner's)."
+            )
         return []
     selection = _pick_selection(candidates)
     if selection:
@@ -329,8 +387,8 @@ def _read_key(resize_fd: int) -> str:
 def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
     """Arrow-key picker: ↑/↓ (or j/k) move, Space toggles, Enter launches.
 
-    Nothing starts checked — the list reaches wide (other owners' tickets,
-    drafts, paused, blocked), so every launch is an explicit opt-in. Returns
+    Nothing starts checked — the list reaches wide (drafts, paused, blocked,
+    and other owners' tickets under --owner/--all-owners), so every launch is an explicit opt-in. Returns
     the confirmed slugs, or an empty list when the human backed out (`q`/Esc,
     or confirming with nothing checked).
     """
@@ -494,6 +552,8 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
     if counts["failed"]:
         parts.append(f"{counts['failed']} failed")
     scope = [run.directory] if run.directory is not None else []
+    if run.owner_scope is not None:
+        scope.append(f"owner {run.owner_scope}")
     if run.agent_override is not None:
         scope.append(f"as {run.agent_override}")
     if run.selection is not None:

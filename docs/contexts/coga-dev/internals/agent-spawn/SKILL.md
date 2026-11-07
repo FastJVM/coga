@@ -73,7 +73,8 @@ publication order.
 6. Teardown: when the child actually started, capture usage
    (`coga/usage`; outcome `unknown` unless classified), then publish. A
    stateful `TaskRef` session calls `git.retry_session_publication` for its
-   ticket plus `log.md` — fetch, guarded publish, provenance on an
+   ticket plus `log.md` — fetch, guarded publish that requires an untracked
+   (possibly ignored) log as `sync_log` does, provenance on an
    already-landed tree, and a separate `sync_log` if the ticket is refused —
    so a child's sandboxed lifecycle write lands before `_launch` or
    megalaunch rereads the ticket and before launch's checkout refresh. A

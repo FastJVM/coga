@@ -417,14 +417,14 @@ because `_note_missing_op` landed on main after 0.4.1 shipped.
 ```yaml
 title: Remove all agent CLI installation offers
 author: claude_codex
-author_evidence: Claude implemented the original init-only removal; Codex peer review implemented Zach's attended expansion to every agent-backed path and the final cleanup.
-head: 3badabee50b3e046ddf9205db0c1ff13c6454855
-base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
+author_evidence: Claude wrote the init-only removal; Codex extended it to every agent-backed command and reviewed its own extension.
+head: b9057a89b51d5bbd436416dc5c2ae9d4bd68dd67
+base: 0ecfd8e8f0708a52dfe7be3d9d78b3c1fe11ec67
 depth: deep
-rationale: Owner-expanded cross-command policy change; inspect the final diff because Codex authored review fixes, the final review is therefore self-review, and the full suite is sandbox-blocked despite focused coverage passing.
-implementation: Removes every Coga agent CLI installer offer, package command, login offer, and install URL; preserves init's PATH scan/default-agent confirmation; and gives all missing-agent paths one configured-CLI-on-PATH requirement.
-deviations: Scope expanded during attended peer review from init-only to all Coga surfaces. Coga's own `uv tool install coga` guidance remains. The later agent-scan ticket starts from this clean slate.
-limitations: Coga intentionally provides no agent installer remediation. Clean-install operators must provision an authenticated agent CLI with their own setup. This sandbox blocks `/dev/fd`, so the exact full suite cannot pass here; the same first failure reproduces on clean main.
+rationale: The only review was Codex reviewing changes it wrote itself, so read the diff rather than the receipt.
+implementation: 'Deletes init''s "install which agent CLI?" picker, the `coga build` install exception, and the `agent_cli_setup` module. A missing agent CLI now gets one message everywhere: Coga requires it on PATH. Init still scans PATH and still offers a single installed CLI as the default agent.'
+deviations: Began as init-only and grew to every agent-backed command during review. Coga's own `uv tool install coga` instructions stay.
+limitations: Coga no longer says how to install an agent CLI. Users install one themselves.
 files:
   README.md: Removes agent installer links and states the PATH-only prerequisite while retaining Coga's uv install.
   coga/skills/coga/testing/clean-install/SKILL.md: Legacy live twin; replaces embedded agent setup commands/URL with an operator-provided PATH prerequisite.
@@ -456,29 +456,19 @@ review:
   base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
   detail: Direct Codex review completed with no unresolved findings. Codex independently reviewed Claude's original diff, then authored the owner-directed expansion and self-reviewed the final head.
 checks:
-  - command: PYTHONPATH=/private/tmp/coga-peer-review-a8259c54/src /opt/anaconda3/bin/python -m pytest tests/test_dependencies.py tests/test_init.py tests/test_launch.py tests/test_megalaunch.py::test_megalaunch_selection_does_not_activate_pick_without_agent_cli tests/test_packaging.py
-    status: passed
-    head: 3badabee50b3e046ddf9205db0c1ff13c6454855
-    base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: 449 passed in 5:39 on the isolated clone with its source pinned by absolute PYTHONPATH.
   - command: python -m pytest
     status: failed
-    head: 0e463b69b6dc460bba861fdcd4a65789969d4055
-    base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: Failed in tests/test_clean_install_harness.py because the Codex sandbox rejects /dev/fd process substitution. The first failure, test_windows_walk_builds_the_fetched_ref[main], reproduces identically on clean main at 0bf1d5dad. The run was stopped after the environmental failures surfaced.
+    head: b9057a89b51d5bbd436416dc5c2ae9d4bd68dd67
+    base: 0ecfd8e8f0708a52dfe7be3d9d78b3c1fe11ec67
+    detail: '3 failed, 4472 passed, 11 skipped in 1:28:00. All three reproduce on clean main at 0ecfd8e8f: test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers, and test_packaging.py twin-drift and broken-anchor checks caused by `### Windows baseline` existing only in the live copy of install/SKILL.md. This branch adds no new failures.'
   - command: coga init <scratch repo> --user reviewer; coga build with claude/codex hidden from PATH
     status: passed
     head: 3badabee50b3e046ddf9205db0c1ff13c6454855
     base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: Real TTY at the final head. Init retained `uv tool install coga`, printed only the agent PATH requirement, and did not prompt or link; coga build failed with the same PATH-only message.
-  - command: coga validate --task v1/remove-the-agent-cli-install-offer-from-coga-init --json
-    status: passed
-    head: 3badabee50b3e046ddf9205db0c1ff13c6454855
-    base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: One task OK; no issues.
+    detail: Real TTY. Init kept `uv tool install coga`, printed only the agent PATH requirement, and did not prompt or link; coga build failed with the same message.
   - command: uv tool install --force git+https://github.com/FastJVM/coga@3badabee5; coga init --user zach; coga build
     status: passed
     head: 3badabee50b3e046ddf9205db0c1ff13c6454855
     base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: Attended fresh macOS UTM guest with no agent CLI, Homebrew, or npm. Init printed no install prompt or agent URL and stated the PATH requirement once; coga build failed with only the PATH-only message.
+    detail: Fresh macOS guest with no agent CLI, Homebrew, or npm. Init printed no install prompt or agent URL and stated the PATH requirement once; coga build failed with only that message.
 ```

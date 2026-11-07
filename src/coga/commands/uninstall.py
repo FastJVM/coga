@@ -328,22 +328,19 @@ def _uninstall_via_tool(
     """Uninstall the global package through the installer that owns its venv
     (pipx or `uv tool`); such a venv normally has no pip to fall back on.
 
-    `env` overrides are passed to the subprocess and shown as `VAR=value`
-    prefixes in every printed command, so the manual fallback targets the
-    same install."""
+    `env` overrides are passed to the subprocess and shown in every printed
+    command, so the manual fallback targets the same install: as POSIX
+    `VAR=value` prefixes, or as PowerShell `$env:VAR='value';` assignments
+    on native Windows (see `_format_tool_command`)."""
     env = env or {}
-    display = " ".join(
-        [
-            *(f"{k}={shlex.quote(v)}" for k, v in env.items()),
-            tool,
-            *subcommand,
-            COGA_PIPX_PACKAGE,
-        ]
-    )
+    windows = _native_windows()
+    display = _format_tool_command(tool, subcommand, env, windows=windows)
+    # Name the shell only where the hint carries shell-specific syntax.
+    by_hand = "by hand in PowerShell" if windows and env else "by hand"
     exe = shutil.which(tool)
     if exe is None:
         typer.secho(
-            f"Couldn't find {tool} on PATH. Remove the global package by hand:\n"
+            f"Couldn't find {tool} on PATH. Remove the global package {by_hand}:\n"
             f"    {display}\n"
             f"(installed however you set Coga up — see {COGA_REPO_URL}).",
             fg=typer.colors.YELLOW,
@@ -360,11 +357,44 @@ def _uninstall_via_tool(
         typer.echo(f"Uninstalled `{COGA_PIPX_PACKAGE}` via {tool}.")
         return
     typer.secho(
-        f"{tool} uninstall failed — remove it by hand:\n"
+        f"{tool} uninstall failed — remove it {by_hand}:\n"
         f"    {display}\n"
         f"{(result.stderr or result.stdout).strip()}",
         fg=typer.colors.YELLOW,
     )
+
+
+def _native_windows() -> bool:
+    """Whether recovery hints should use native Windows (PowerShell) syntax."""
+    return os.name == "nt"
+
+
+# PowerShell treats these as single-quote delimiters inside a literal string
+# (ASCII apostrophe plus the typographic single quotes); each is escaped by
+# doubling it.
+_POWERSHELL_SINGLE_QUOTES = frozenset("'\u2018\u2019\u201a\u201b")
+
+
+def _powershell_literal(value: str) -> str:
+    """Render `value` as a PowerShell single-quoted (non-expanding) literal."""
+    escaped = "".join(
+        ch * 2 if ch in _POWERSHELL_SINGLE_QUOTES else ch for ch in value
+    )
+    return f"'{escaped}'"
+
+
+def _format_tool_command(
+    tool: str, subcommand: list[str], env: dict[str, str], *, windows: bool
+) -> str:
+    """The pasteable manual command for an installer uninstall, with `env`
+    overrides in order: POSIX `VAR=value cmd` prefixes, or on Windows
+    PowerShell `$env:VAR='value'; cmd` assignments."""
+    command = [tool, *subcommand, COGA_PIPX_PACKAGE]
+    if windows:
+        return "".join(
+            f"$env:{k}={_powershell_literal(v)}; " for k, v in env.items()
+        ) + " ".join(command)
+    return " ".join([*(f"{k}={shlex.quote(v)}" for k, v in env.items()), *command])
 
 
 def _has_managed_gitignore(target: Path) -> bool:

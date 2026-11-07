@@ -250,8 +250,8 @@ in between is refused, never merged a second time; an unrelated control
 commit uses the ordinary push retry. A retryable failure (for example a
 read-only object store in an agent sandbox) remembers that expectation in
 the machine-local `.coga/pending-publication.json`: the session-teardown
-retry and the sweep publish that ticket only against it (even when its
-final bytes equal HEAD), and a refused one
+retry and the sweep publish that ticket only against it (even when the
+transition restored its committed bytes), and a refused one
 waits until its copy matches control or another lifecycle command reconciles
 it.
 

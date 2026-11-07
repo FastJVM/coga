@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
@@ -667,6 +668,244 @@ def test_load_records_reads_encoded_and_legacy_backslash_records(
     assert load_records(cfg) == [legacy, record]
 
 
+def _usage_cfg(tmp_path: Path):
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    return load_config(coga_os)
+
+
+def _usage_record(**changes: object) -> UsageRecord:
+    record = UsageRecord(
+        ts="2026-06-23T12:00:00.123456Z",
+        title="Work",
+        slug="work",
+        step="implement",
+        agent="claude",
+        cli="claude",
+        provider="anthropic",
+        model="claude-sonnet-4",
+        session_id="abc",
+        input_tokens=1,
+        cache_creation_input_tokens=2,
+        cache_read_input_tokens=3,
+        output_tokens=4,
+        usage_status="ok",
+    )
+    return dataclasses.replace(record, **changes)
+
+
+def _record_line(record: UsageRecord, minute: str = "12:00") -> str:
+    return f"2026-06-23 {minute} [work] [system] {record.to_json()}\n"
+
+
+def _legacy_union_merge(*, current: str, base: str, other: str, tmp: Path) -> str:
+    """The pre-cap `publish` landing: plain `git merge-file --union`.
+
+    Retained logs were landed this way before `_merge_union_bytes` capped
+    re-added lines, so this reproduces the duplicates history still holds.
+    """
+    files = [tmp / name for name in ("current", "base", "other")]
+    for path, data in zip(files, (current, base, other)):
+        path.write_text(data, encoding="utf-8", newline="\n")
+    subprocess.run(
+        ["git", "merge-file", "--union", *map(str, files)], check=True
+    )
+    return files[0].read_text(encoding="utf-8")
+
+
+def test_load_records_collapses_union_duplicate_lines(tmp_path: Path) -> None:
+    cfg = _usage_cfg(tmp_path)
+    x = _usage_record(session_id="x", ts="2026-06-23T12:00:00.000001Z")
+    y = _usage_record(session_id="y", ts="2026-06-23T12:05:00.000001Z")
+    z = _usage_record(session_id="z", ts="2026-06-23T12:03:00.000001Z")
+    base = "2026-06-23 11:00 [work] [human:marc] created\n"
+    merged = _legacy_union_merge(
+        current=base + _record_line(x) + _record_line(y, "12:05"),
+        base=base,
+        other=base + _record_line(z, "12:03") + _record_line(x),
+        tmp=tmp_path,
+    )
+    assert merged.count(x.to_json()) == 2
+    (tmp_path / "coga" / "log.md").write_text(merged, encoding="utf-8", newline="\n")
+
+    records = load_records(cfg)
+
+    assert records == [x, y, z]
+    assert rollup(records).overall == rollup([x, y, z]).overall
+    assert rollup(records).overall.sessions == 3
+
+
+@pytest.mark.parametrize("copies", [2, 3, 4])
+def test_load_records_collapses_non_adjacent_copies(
+    tmp_path: Path, copies: int
+) -> None:
+    cfg = _usage_cfg(tmp_path)
+    x = _usage_record(session_id="x")
+    other = _usage_record(session_id="other", ts="2026-06-23T12:30:00.5Z")
+    lines = []
+    for i in range(copies):
+        lines.append(_record_line(x, f"12:0{i}"))
+        lines.append(f"2026-06-23 12:0{i} [work] [human:marc] note {i}\n")
+    lines.insert(1, _record_line(other, "12:30"))
+    (tmp_path / "coga" / "log.md").write_text(
+        "".join(lines), encoding="utf-8", newline="\n"
+    )
+
+    records = load_records(cfg)
+
+    # First-occurrence order; identical messages under differing prefixes collapse.
+    assert records == [x, other]
+    assert rollup(records).overall.total_tokens == 20
+
+
+def test_repeated_capture_of_one_resumed_session_counts_each_launch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cfg = _usage_cfg(tmp_path)
+    monkeypatch.setattr(
+        "coga.usage.parse_session",
+        lambda *args, **kwargs: ParsedUsage(
+            provider="anthropic",
+            model="claude-sonnet-4",
+            session_id="resumed",
+            input_tokens=1,
+            cache_creation_input_tokens=2,
+            cache_read_input_tokens=3,
+            output_tokens=4,
+            usage_status="ok",
+        ),
+    )
+    start, end = _window()
+    for window_start, window_end in ((start, end), (end, end.replace(hour=14))):
+        capture_session(
+            cfg=cfg,
+            title="Work",
+            slug="work",
+            step="implement",
+            agent="claude",
+            cli="claude",
+            cwd=tmp_path,
+            session_id="resumed",
+            pre_existing=None,
+            window_start=window_start,
+            window_end=window_end,
+        )
+
+    records = load_records(cfg)
+
+    assert len(records) == 2
+    assert {record.session_id for record in records} == {"resumed"}
+    assert rollup(records).overall.total_tokens == 20
+
+
+def test_appending_one_identical_record_twice_loads_once(tmp_path: Path) -> None:
+    cfg = _usage_cfg(tmp_path)
+    record = _usage_record()
+
+    append_record(cfg, record)
+    append_record(cfg, record)
+
+    assert len((tmp_path / "coga" / "log.md").read_text().splitlines()) == 2
+    assert load_records(cfg) == [record]
+
+
+def test_distinct_records_with_equal_tokens_or_no_session_id_all_count(
+    tmp_path: Path,
+) -> None:
+    cfg = _usage_cfg(tmp_path)
+    a = _usage_record(session_id="a", ts="2026-06-23T12:00:00.1Z")
+    b = _usage_record(session_id="b", ts="2026-06-23T12:00:00.2Z")
+    none_1 = _usage_record(session_id=None, ts="2026-06-23T12:00:00.3Z")
+    none_2 = _usage_record(session_id=None, ts="2026-06-23T12:00:00.4Z")
+    unknown = _usage_record(
+        session_id=None,
+        ts="2026-06-23T12:00:00.5Z",
+        input_tokens=None,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=None,
+        output_tokens=None,
+        usage_status="unknown",
+    )
+    for record in (a, b, none_1, none_2, none_1, unknown, unknown):
+        append_record(cfg, record)
+
+    records = load_records(cfg)
+
+    assert records == [a, b, none_1, none_2, unknown]
+    overall = rollup(records).overall
+    assert overall.sessions == 5
+    assert overall.unknown_sessions == 1
+    assert overall.total_tokens == 40
+
+
+def test_record_identity_is_message_text_not_parsed_value(tmp_path: Path) -> None:
+    """Text equality never merges lines that differ in any byte."""
+    cfg = _usage_cfg(tmp_path)
+    record = _usage_record()
+    payload = json.loads(record.to_json())
+    reordered = json.dumps(dict(reversed(list(payload.items()))))
+    spaced = json.dumps(payload, indent=None, separators=(", ", ": "))
+    assert len({record.to_json(), reordered, spaced}) == 3
+    log = tmp_path / "coga" / "log.md"
+    log.write_text(
+        "".join(
+            f"2026-06-23 12:00 [work] [system] {text}\n"
+            for text in (record.to_json(), reordered, spaced)
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    records = load_records(cfg)
+
+    assert records == [record, record, record]
+    assert rollup(records).overall.sessions == 3
+
+
+def test_duplicate_legacy_schema_lines_collapse_per_schema(tmp_path: Path) -> None:
+    cfg = _usage_cfg(tmp_path)
+    shared = {
+        "ts": "2026-06-23T12:00:00.123456Z",
+        "title": "Old work",
+        "slug": "old-work",
+        "step": "implement",
+        "agent": "claude",
+        "cli": "claude",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4",
+        "session_id": "old-session",
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 2,
+        "cache_read_input_tokens": 3,
+        "output_tokens": 4,
+        "usage_status": "ok",
+    }
+    schema_one = json.dumps({"schema": 1, **shared}, separators=(",", ":"))
+    schema_two = json.dumps({"schema": 2, **shared}, separators=(",", ":"))
+    (tmp_path / "coga" / "log.md").write_text(
+        "".join(
+            f"2026-06-23 12:0{i} [old-work] [system] {text}\n"
+            for i, text in enumerate((schema_one, schema_two, schema_one, schema_two))
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    records = load_records(cfg)
+
+    assert [record.schema for record in records] == [1, 2]
+    assert rollup(records).overall.total_tokens == 20
+
+
 def test_capture_appends_schema_two_activity_record(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -940,6 +1179,40 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
     assert payload["by"] == "task"
     assert payload["overall"]["total_tokens"] == 10
     assert payload["groups"][0]["key"] == "work"
+
+
+def test_usage_command_counts_duplicated_lines_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cfg = _usage_cfg(tmp_path)
+    known = _usage_record()
+    unknown = _usage_record(
+        session_id=None,
+        ts="2026-06-23T12:10:00.5Z",
+        input_tokens=None,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=None,
+        output_tokens=None,
+        usage_status="unknown",
+    )
+    (tmp_path / "coga" / "log.md").write_text(
+        _record_line(known)
+        + _record_line(unknown, "12:10")
+        + _record_line(known, "12:20")
+        + _record_line(unknown, "12:20")
+        + _record_line(known, "12:30"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    monkeypatch.chdir(tmp_path / "coga")
+
+    result = CliRunner().invoke(app, ["usage", "--json"])
+
+    assert result.exit_code == 0, result.output
+    overall = json.loads(result.output)["overall"]
+    assert overall["sessions"] == 2
+    assert overall["unknown_sessions"] == 1
+    assert overall["total_tokens"] == 10
 
 
 def _claude_transcript(cwd: Path, home: Path, session_id: str) -> Path:

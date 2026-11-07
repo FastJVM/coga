@@ -67,8 +67,9 @@ permission to discard the local version wholesale.
   entry clears when its path lands, when the working copy already equals
   control, or when a new prepared transaction publishes it with its own
   expectation. The file is excluded from publication even where `.coga/`
-  is not ignored. A ticket named in `expect` is also a candidate whenever it
-  differs from control, even if it equals HEAD.
+  is not ignored. A ticket named in `expect`, or remembered in that file
+  for this publish's paths, is also a candidate whenever it differs from
+  control, even if it equals HEAD.
 
 ## Preparing a lifecycle transaction
 

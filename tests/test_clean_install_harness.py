@@ -68,6 +68,32 @@ def _executable(path: Path, text: str) -> None:
     path.chmod(0o755)
 
 
+def _tool_python(path: Path, interpreter: str) -> None:
+    # A bare symlink loses a venv: Python finds pyvenv.cfg beside the path it
+    # was invoked by, so the tool path would fall back to the base interpreter.
+    path.parent.mkdir(parents=True)
+    _executable(path, f'#!/bin/sh\nexec {shlex.quote(interpreter)} "$@"\n')
+
+
+def test_tool_python_keeps_the_running_environment(tmp_path: Path) -> None:
+    # A package only this venv provides; global PyYAML cannot stand in for it.
+    venv = tmp_path / "space venv"
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True)
+    site = subprocess.run(
+        [str(venv / "bin/python"), "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+        check=True, capture_output=True, text=True, encoding="utf-8",
+    ).stdout.strip()
+    (Path(site) / "coga_venv_marker.py").write_text("ENV = 'venv'\n", encoding="utf-8", newline="\n")
+    python = tmp_path / "tools/coga/bin/python"
+    _tool_python(python, str(venv / "bin/python"))
+    result = subprocess.run(
+        [str(python), "-c", "import coga_venv_marker, sys; print(coga_venv_marker.ENV, sys.argv[1:])", "a b"],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "venv ['a b']\n"
+
+
 def _checksum_stub(bin_dir: Path) -> None:
     # The harness runs on Linux; its tests must not need host GNU coreutils.
     _executable(bin_dir / "sha256sum", f"""
@@ -595,9 +621,7 @@ def test_clean_install_can_pin_a_pypi_release(install_env: dict[str, str]) -> No
 def release_env(install_env: dict[str, str], tmp_path: Path) -> dict[str, str]:
     assert _run(install_env, "pypi", "installer").returncode == 0
     tool_dir = tmp_path / "tools"
-    python = tool_dir / "coga/bin/python"
-    python.parent.mkdir(parents=True)
-    python.symlink_to(sys.executable)
+    _tool_python(tool_dir / "coga/bin/python", sys.executable)
     install_env["COGA_TEST_TOOL_DIR"] = str(tool_dir)
     metadata_root = tmp_path / "metadata"
     metadata = metadata_root / "coga-0.4.0.dist-info/METADATA"
