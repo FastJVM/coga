@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga.cli import app
+from coga import usage
 from coga.config import load_config
 from coga.usage import (
     ParsedUsage,
@@ -29,6 +30,18 @@ def _clear_codex_home(monkeypatch) -> None:
     # Codex tests write rollouts under HOME; a developer's CODEX_HOME would
     # redirect the lookup away from them.
     monkeypatch.delenv("CODEX_HOME", raising=False)
+
+
+@pytest.mark.parametrize(
+    ("cwd", "name"),
+    [
+        ("/home/a/.x/repo", "-home-a--x-repo"),
+        ("C:\\Users\\Administrator\\tt", "C--Users-Administrator-tt"),
+        ("D:\\work\\my.repo", "D--work-my-repo"),
+    ],
+)
+def test_claude_project_name_matches_claude_codes_dir_naming(cwd: str, name: str) -> None:
+    assert usage._claude_project_name(cwd) == name
 
 
 def _write(path: Path, text: str) -> None:
@@ -51,7 +64,7 @@ def test_parse_claude_transcript_sums_assistant_usage(
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-123"
-    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
+    cwd_hash = usage._claude_project_name(str(cwd.resolve()))
     transcript = tmp_path / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
     _write(
         transcript,
@@ -266,7 +279,7 @@ def test_parse_claude_activity_excludes_injected_text_and_redacts(
     cwd = tmp_path / "repo"
     cwd.mkdir()
     session_id = "session-activity"
-    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
+    cwd_hash = usage._claude_project_name(str(cwd.resolve()))
     transcript = tmp_path / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
     long_outcome = "Finished " + "x" * 510 + " secret-value"
     _write(
@@ -1272,7 +1285,7 @@ def test_usage_command_counts_duplicated_lines_once(
 
 
 def _claude_transcript(cwd: Path, home: Path, session_id: str) -> Path:
-    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
+    cwd_hash = usage._claude_project_name(str(cwd.resolve()))
     return home / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
 
 
