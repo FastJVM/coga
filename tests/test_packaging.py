@@ -247,7 +247,9 @@ LEGACY_DEFINITION_DIFFERENCES: dict[str, tuple[str, str]] = {
     ),
     "coga/recurring/phone-home/operations.md": (
         "80fee3648b7ca9cc4051e142d73c33642cdad23e089a1879cd4ee9dff559820a",
-        _LINKS_TO_PACKAGE_OWNERS,
+        _LINKS_TO_PACKAGE_OWNERS + "; packaged instructions also state the "
+        "[test]-extra builder prerequisite for the --no-build-isolation wheel "
+        "build in the clean installed-wheel proof",
     ),
     "coga/recurring/phone-home/ticket.md": (
         "aa73bf4301af4d01352531f54af03d004b5b072195843fecdc7083a411f33d78",

@@ -1064,7 +1064,7 @@ def _fast_forward_control_locked(
             sys.stderr.write(f"[git] note: local {control!r} not fast-forwarded: {exc}\n")
             return False
         return True
-    if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged):
+    if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged, revision=new):
         return False
     try:
         holder_cfg = replace(cfg, repo_root=holder / cfg.repo_root.resolve().relative_to(root.resolve()))
@@ -1100,9 +1100,39 @@ def _stage_landed(
     cfg: Config,
     root: Path,
     staged: Mapping[str, tuple[bytes | None, bytes | None]] | None,
+    *, revision: str,
 ) -> bool:
-    """Bring files this process just published to their landed bytes and stage them."""
+    """Stage landed files only after proving no distinct index copy is lost.
+
+    Publication reads working files, not the user's index. Check the entire
+    set before writing even its first path; a later staged draft must not
+    leave earlier paths partially cleaned. Exact mode/blob equality with
+    HEAD or the landed revision is required, including for union files.
+    """
     try:
+        if staged:
+            literal = {"GIT_LITERAL_PATHSPECS": "1"}
+            head = run_git(root, "rev-parse", "HEAD").strip()
+            argv = ("ls-files", "--stage", "-z", "--", *staged)
+            snapshot = run_git(root, *argv, env=literal)
+            entries: dict[str, tuple[str, str]] = {}
+            for record in snapshot.split("\x00"):
+                if not record:
+                    continue
+                meta, rel = record.split("\t", 1)
+                mode, oid, stage = meta.split()
+                if stage != "0":
+                    raise GitError(f"{rel}: unmerged index; staged work preserved")
+                entries[rel] = (mode, oid)
+            for rel in staged:
+                entry = entries.get(rel)
+                if entry not in (_tree_entry(root, head, rel), _tree_entry(root, revision, rel)):
+                    raise GitError(
+                        f"{rel}: staged copy differs from HEAD and publication result; "
+                        "index and checkout preserved for reconciliation"
+                    )
+            if snapshot != run_git(root, *argv, env=literal) or head != run_git(root, "rev-parse", "HEAD").strip():
+                raise GitError("index or HEAD changed while examining landed files; retry")
         for rel, (read, landed) in (staged or {}).items():
             if _working_tree_bytes(root, rel) != read:
                 continue
@@ -1118,7 +1148,10 @@ def _stage_landed(
             if landed is not None and not equivalent_log:
                 from coga.atomicio import atomic_write_bytes
                 atomic_write_bytes(root / rel, landed)
-            run_git(root, "add", "--all", "--", rel)
+            if landed is None:
+                run_git(root, "update-index", "--remove", "--", rel)
+            else:
+                run_git(root, "add", "--all", "--", rel, env={"GIT_LITERAL_PATHSPECS": "1"})
     except (GitError, OSError) as exc:
         sys.stderr.write(f"[git] note: local {cfg.git_control_branch!r} not moved: {exc}\n")
         return False
@@ -1162,7 +1195,7 @@ def _realign_control(
             )
             return False
         if holder is not None:
-            if not _stage_landed(cfg, root, staged):
+            if not _stage_landed(cfg, root, staged, revision=new):
                 return False
             run_git(root, "read-tree", "-m", "-u", "HEAD", new)
         run_git(
@@ -1223,6 +1256,17 @@ _ABSENT_MODE = "000000"
 
 
 @dataclass(frozen=True)
+class CheckoutObservation:
+    """Diagnostic evidence only; never an additional permission to clean."""
+
+    path: str
+    state: bool
+    untracked: bool = False
+    index: Literal["head", "control", "differs", "unknown"] = "unknown"
+    working: Literal["matches", "published", "differs", "unknown"] = "unknown"
+
+
+@dataclass(frozen=True)
 class CheckoutPreparation:
     """`prepare_control_checkout`'s verdict on the invoking checkout.
 
@@ -1243,6 +1287,8 @@ class CheckoutPreparation:
     reason: str = ""
     commit: str | None = None
     blocking: tuple[str, ...] = ()
+    observations: tuple[CheckoutObservation, ...] = ()
+    branch: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1471,6 +1517,7 @@ def _plan_preparation(
     restore: list[str] = []
     remove: list[str] = []
     blocking: list[str] = []
+    observations: list[CheckoutObservation] = []
     candidate_bytes: dict[str, bytes | None] = {}
     entries = _status_v2_entries(status)
     index_modes = _index_modes(root) if entries and os.name != "posix" else None
@@ -1478,6 +1525,8 @@ def _plan_preparation(
     if paths:
         union = union_merge_paths(root, paths)
     for kind, fields, rel in entries:
+        observation = CheckoutObservation(rel, _in_areas(rel, areas), untracked=kind == "?")
+        observations.append(observation)
         if kind == "u" or kind == "2":
             blocking.append(f"{rel} (unmerged or renamed index entry)")
             continue
@@ -1493,6 +1542,7 @@ def _plan_preparation(
             proof = _published_proof(
                 root, rel, working, published, head_entry=None, union=rel in union, cfg=cfg, revision=pinned
             )
+            observations[-1] = replace(observation, working=_working_observation(root, rel, working, published, proof))
             if proof:
                 blocking.append(f"{rel} ({proof})")
                 continue
@@ -1510,12 +1560,17 @@ def _plan_preparation(
             continue
         head_entry = None if mode_head == _ABSENT_MODE else (mode_head, oid_head)
         index_entry = None if mode_index == _ABSENT_MODE else (mode_index, oid_index)
-        if index_entry != head_entry and index_entry != published:
-            blocking.append(f"{rel} (staged content is not the published version)")
-            continue
         proof = _published_proof(
             root, rel, working, published, head_entry=head_entry, union=rel in union, cfg=cfg, revision=pinned
         )
+        index = "head" if index_entry == head_entry else "control" if index_entry == published else "differs"
+        observations[-1] = replace(
+            observation, index=index,
+            working=_working_observation(root, rel, working, published, proof),
+        )
+        if index == "differs":
+            blocking.append(f"{rel} (staged content is not the published version)")
+            continue
         if proof:
             blocking.append(f"{rel} ({proof})")
             continue
@@ -1525,8 +1580,9 @@ def _plan_preparation(
         return CheckoutPreparation(
             "refused",
             "uncommitted changes would be lost by moving to "
-            f"{control!r}; commit, publish, or remove them and retry",
+            f"{control!r}; inspect and reconcile the retained versions before retrying",
             blocking=tuple(blocking),
+            commit=pinned, branch=branch, observations=tuple(observations),
         )
 
     collisions = _ignored_collisions(root, ["HEAD", local, pinned])
@@ -1536,6 +1592,11 @@ def _plan_preparation(
             f"ignored files would be overwritten by moving to {remote}/{control}; "
             "move them aside and retry",
             blocking=tuple(collisions),
+            commit=pinned, branch=branch,
+            observations=tuple(
+                CheckoutObservation(rel, _in_areas(rel, areas), untracked=True)
+                for rel in collisions
+            ),
         )
     head_oid = run_git(root, "rev-parse", "HEAD").strip()
     evidence = (
@@ -1547,6 +1608,16 @@ def _plan_preparation(
         realign.evidence if realign is not None else None,
     )
     return _PreparationPlan(branch, local, tuple(restore), tuple(remove), evidence, realign)
+
+
+def _working_observation(
+    root: Path, rel: str, working: tuple[str, bytes] | None,
+    published: tuple[str, str] | None, proof: str | None,
+) -> Literal["matches", "published", "differs"]:
+    if proof is not None:
+        return "differs"
+    entry = (working[0], _hash_blob(root, working[1], rel)) if working else None
+    return "matches" if entry == published else "published"
 
 
 def _apply_preparation(

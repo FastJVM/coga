@@ -1,6 +1,6 @@
 ---
 title: Chat ticket edits strand the checkout on a chat branch
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -32,7 +32,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 

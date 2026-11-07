@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 7 (review)
 agent: claude
 ---
 
@@ -293,6 +293,12 @@ Previous ref: `skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits
 
 <!-- coga:blackboard -->
 
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1182
+branch: coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Design notes
@@ -309,6 +315,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Open Questions
 
+All three resolved by the owner on 2026-11-06: accepted as proposed (see
+Implementation decisions). Kept below for the record.
+
 - Quiet weeks: an open PR with hand commits makes every weekly run exit 2,
   even with no upstream change, because the guard runs before updates are
   known. Accept (proposed), or prefer post-update guard + restore of the
@@ -318,6 +327,24 @@ The blackboard is a notepad to be written to often as the human and agent works 
   should a closed (not merged) PR also refuse?
 - Subject-only job-commit identification (no trailer): acceptable residual
   risk of a human using the exact bot message with an empty body?
+
+## Implementation decisions (owner, 2026-11-06, attended implement session)
+
+Owner approved resolutions to the evaluator's must-fix findings and accepted
+all three Open Questions as proposed (weekly refusal while hand commits sit on
+an open PR; closing the PR discards deliberately; exact-message job identity).
+
+- P1 repo binding: the guard parses owner/repo from every push URL of
+  `cfg.git_remote` (github.com only, via `github_source.github_owner_repo`;
+  shorthand rejected). All must agree, otherwise it refuses. Then
+  `gh pr list --repo <owner/repo>`, and fetch control + branch from the push
+  URL into private refs `refs/coga/skill-update-guard/{control,branch}`
+  (tracking refs untouched). `open_or_update_pr`'s own gh calls unchanged.
+- P1 sweep: a guard refusal sets `git.state_sweep_withheld` before `_bail`,
+  so cli.main does not publish unrelated dirty Coga state; exit stays 2.
+- P2 patch equivalence: after `--cherry-pick --right-only`, re-check the
+  leftover non-job commits with `branchsweep._verbatim_patch_ids` against the
+  control commits since the branch's base (stricter, fails closed).
 
 ## Evaluator review
 
@@ -416,3 +443,198 @@ placements).
 - `coga validate --task v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits --json`
   — **1 valid ticket, no issues**. `git diff --check` passed; byte comparison
   against HEAD confirmed the entire ticket body and frontmatter unchanged.
+
+## Implement handoff (2026-11-06)
+
+Branch `coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198` pushed
+at `1dac58ab8`, rebased on origin/main `d4dc3ac2d`. Rebasing brought in only
+Coga state, no src/tests/docs changes.
+
+- `skill_manager`: `SKILL_UPDATE_COMMIT_SUBJECT`; guard
+  `assert_skill_update_branch_unclaimed` plus helpers `_run_gh`,
+  `_open_pr_url(repo=)`, `_push_destination_github_repo`, `_git_checked`, and
+  `_drop_patches_on_control` (lazy wrapper over `branchsweep._verbatim_patch_ids`,
+  because branchsweep imports skill_manager). The `ls-remote` OID check runs
+  first, then repo binding, the PR lookup, a fetch from the push URL into
+  `refs/coga/skill-update-guard/*` (deleted in `finally`), a `rev-parse`
+  equality check, `log --no-merges --cherry-pick --right-only`, dropping job
+  commits, and the patch-ID recheck against `control ^<candidate>^`.
+  `run_skill_update_pr_flow` and `open_or_update_pr` take
+  `expected_remote_oid`.
+- `commands/skill.py update`: the `--pr` needs `--all` refusal now comes first
+  (before, `update_skills` ran and only then refused). The guard runs before
+  `update_skills`, and a refusal sets `git.state_sweep_withheld`.
+- v1/10 (PR #1168) is still open and its preflight is not on main. When it
+  lands, call the guard after `assert_skill_update_pr_preflight(cfg)` and keep
+  the `-m SKILL_UPDATE_COMMIT_SUBJECT` constant in its `commit --only` form.
+- Behavior note: `--pr` now needs a git repo whose remote push URLs name one
+  github.com repo, even when nothing would change. The old
+  `test_skill_update` no-op test ran in a non-git directory; it now gets a
+  bare origin. GitHub Enterprise or non-GitHub push hosts are refused (fail
+  closed).
+- Mutation-checked: removing the sweep withholding fails
+  `test_update_entrypoint_refusal_publishes_nothing`. Removing the patch-ID
+  recheck fails `test_guard_real_git_passes_hand_commit_cherry_picked_onto_control[True]`.
+- Pre-existing, unrelated failures, identical on unchanged origin/main:
+  `test_packaging.py::test_live_and_packaged_copies_stay_identical` (drift in
+  the `coga/checkouts/launch-boundary` twin) and
+  `test_context_navigation_has_no_broken_links` (anchors in
+  `coga-dev/current-direction`). Not fixed here.
+- `LEGACY_DEFINITION_DIFFERENCES` already lists the package
+  `recurring/skill-update/ticket.md`; the live copy was left untouched.
+
+## Peer review
+
+Direct Codex review **completed** on final head
+`2c05ec3e8289049b22040d9fd23420e311b5fb26`, against base
+`c1826714eaa14ad9de49673f6b1384b3a582c8aa`. The initial review was
+independent of Claude's implementation; Codex then authored and self-reviewed
+fixes `04a0ff184` and `2c05ec3e8`. No unresolved findings remain. Full Linux
+verification completed with only the two independently reproduced baseline
+failures.
+
+Owner approved the two code fixes in this attended session; the later
+documentation correction keeps the required package-owner link:
+
+- **P1 fixed — Pin the PR lookup's host.** `--repo owner/repo` still obeyed
+  `GH_HOST`, permitting an empty PR lookup on another host to bypass the
+  commit check. A credential-free probe of installed gh confirmed that
+  `GH_HOST=127.0.0.1:1` with `--repo FastJVM/coga` targets that host.
+  The guard now passes `--repo github.com/FastJVM/coga` (derived from the
+  push destination); regressions cover an Enterprise `GH_HOST` and the
+  configured non-origin push repository. The owning topic and twin explain
+  the host/repository binding and supported destination constraint.
+- **P2 fixed — Keep candidate history comparisons separate.** A real Git
+  probe with A cherry-picked to main, main merged into the PR branch, then B
+  cherry-picked and main merged again incorrectly listed A as foreign.
+  Combining parent exclusions removed A's landed copy. Each candidate now
+  has its own control-history comparison, at the cost of extra Git reads for
+  leftover hand commits. Regressions prove both landed commits pass and a
+  later unlanded commit alone is refused. Rev-parse and patch-comparison
+  failures also have explicit fail-closed tests.
+- **P2 fixed — Link the package owner.** The first completed full suite
+  reported the same two failing tests as main, but comparison of individual
+  navigation diagnostics revealed an additional introduced link from the
+  packaging topic to a removable legacy copy. Commit `2c05ec3e8` points to
+  the package owner. Navigation diagnostics now exactly match main; source
+  and tests are byte-identical to `04a0ff184`. The final link change was
+  directly re-reviewed.
+
+All four new reproduction cases failed before the fixes. The focused suite
+passed afterward (145 tests); both standalone history and refusal probes
+also pass. The real-subprocess refusal probe used a scratch bare remote with
+only GitHub transport stubbed: exit 2 named the branch, PR URL and commit,
+while preserving HEAD, remote control/PR tips, index bytes, status and skill
+bytes. Through `runner.run_recipe`, that same error returned 2 and reached
+both `## Skill Update` and `## Recipe Failure` on the scratch period
+blackboard. Plain stderr was inspected; no interactive/TTY surface changes.
+
+`coga validate --json` reports 98 valid tickets and eight pre-existing
+warnings, with no error-severity issues. The reported baseline packaging twin
+drift and broken navigation links were independently reproduced in an export
+of unchanged main; neither is caused by this diff. The initial Linux suite
+was interrupted after owner approval of the fixes, before changing source;
+its partial run is not a verification receipt. The first full suite completed
+at `04a0ff184`: 4514 passed, 10 skipped,
+2 failed in 771.88s. One failing navigation test included the introduced
+link issue above alongside baseline errors; that issue is now fixed. The final
+suite at `2c05ec3e8` completed: **2 failed, 4514 passed, 10 skipped in
+633.23s (0:10:33)**. Its two failures
+are now entirely baseline: launch-boundary twin drift, and the missing
+anchors in current-direction/testing. A real Git lease probe also passed:
+a hand push after the guard survived, and the job push failed with
+`stale info`, without another `ls-remote` or PR edit.
+
+**Native Windows waiver:** the owner explicitly answered "Waive Windows for
+this ticket" in this attended peer-review session (2026-11-06). No Windows
+suite was run and no AWS host was provisioned. This is a ticket-specific
+exception to `coga-dev/testing`, not native-platform evidence.
+
+Freshness: the required rebase preserved the projected ticket byte-for-byte;
+main's intervening changes were ticket/log state only. Final fixes are pushed.
+PR #1168 remains open, so its preflight integration still belongs to whichever
+branch lands second. Ticket body/frontmatter remain unchanged.
+
+## PR
+
+```yaml
+title: Refuse to rebuild skill-update branch over hand-pushed commits
+author: claude/codex
+author_evidence: Claude implemented the original change (implement launch 71ea29e2-5009-4e12-8cfa-16dd1dda98da, original commit 1dac58ab8, rebased to 6d6763ab6). Codex authored review fixes 04a0ff184 in peer-review launch 748c82e6-763d-4e51-b68d-593d77e04474. Codex also corrected the introduced package-owner link in 2c05ec3e8.
+head: 2c05ec3e8289049b22040d9fd23420e311b5fb26
+base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+depth: deep
+rationale: Changes the overwrite and force-push rules of an unattended job. Inspect host binding, commit identity and patch equivalence. Final fixes have Codex self-review; native Windows verification was explicitly waived by the owner. The full Linux suite has only two independently reproduced failures on unchanged main; both remain visible below.
+implementation: Before updating skills, the PR flow checks the push destination for an open skill-update PR and refuses if its branch carries unlanded hand commits. The guard pins the GitHub hostname and repository, fetches control and branch into private refs, recognizes landed patches even across repeated control merges, withholds CLI state publication on refusal, and leases the later push against the checked tip.
+deviations: Owner-approved evaluator fixes bind history and PR lookup to the push destination, use temporary private refs rather than tracking refs, and supplement Git cherry comparison with whitespace-sensitive patch IDs. Review fixes pin github.com despite GH_HOST and compare each candidate against its own control-history range. The --pr requires --all check runs before any update. Review also corrected the packaging topic link to its canonical package owner.
+limitations: 'An existing remote branch requires push URLs naming one github.com repository. Exact job-message impersonation and hand edits in merge conflict resolutions remain accepted limits. Branch-absence push behavior is unchanged. PR 1168 is still open; its local preflight must precede this guard when the branches reconcile. Linux/Python 3.12 only: the owner explicitly waived native Windows verification for this ticket on 2026-11-06. Final Codex fixes have self-review.'
+files:
+  src/coga/skill_manager.py: Job commit identity, fail-closed branch guard bound to the push host/repository, per-candidate patch comparisons, and guarded push-lease threading.
+  src/coga/commands/skill.py: Call the guard before update_skills, withhold the sweep on refusal, and pass the guarded OID to the PR flow.
+  tests/test_skill_manager.py: Guard and lease tests, real-Git landed/foreign histories including repeated control merges, GH_HOST and non-origin binding, lookup/patch failures, CLI ordering, and publication refusal regressions.
+  tests/test_skill_update.py: The no-op recipe test now gives the --pr subprocess a git repo with a bare origin, which the guard needs.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Owns the refusal/remedy, job commit identity, and explicit supported push-host/repository binding.
+  docs/contexts/coga/skill-management/SKILL.md: Byte-identical legacy twin of the package topic.
+  src/coga/resources/templates/coga/recurring/skill-update/ticket.md: Name the hand-commit exception to the quiet no-op and the exit-2 report.
+  docs/contexts/coga-dev/packaging/SKILL.md: Align the lease summary with the guarded tip and link the owning package topic rather than a removable legacy copy.
+review:
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 2c05ec3e8289049b22040d9fd23420e311b5fb26
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: Direct review completed on the final head/base with no unresolved code findings. Codex independently reviewed the Claude implementation, then fixed and self-reviewed GH_HOST misbinding and lost patch evidence after repeated merges. The final receipt is conservatively self-review. The final documentation-only commit was re-reviewed and its navigation diagnostics now exactly match unchanged main.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q --basetemp=/home/n/Code/coga-review-v1-11-complete-748c82e6
+  status: failed
+  head: 2c05ec3e8289049b22040d9fd23420e311b5fb26
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: '2 failed, 4514 passed, 10 skipped in 633.23s (0:10:33). Both failures also reproduce on unchanged main c1826714e: launch-boundary package/live twin drift, and missing navigation anchors in coga-dev/current-direction and coga-dev/testing. No new test failures.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_skill_manager.py tests/test_skill_update.py
+  status: passed
+  head: 04a0ff1842ad4e9bbf1be964bf031fd9307a9ed1
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: 145 passed in 3.33s. The four host-binding/repeated-merge reproduction cases failed before the fixes.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/coga validate --json
+  status: passed
+  head: 2c05ec3e8289049b22040d9fd23420e311b5fb26
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: 98 valid tickets, no error-severity issues; eight pre-existing warnings.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-v1-11-review-entrypoint-probe.py
+  status: passed
+  head: 04a0ff1842ad4e9bbf1be964bf031fd9307a9ed1
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: 'Real subprocess CLI and Git history with only GitHub transport stubbed: refusal exits 2, preserves HEAD, remote tips, index, status and skill bytes; recurring recipe records the PR URL and hand commit in both blackboard failure reports. Plain stderr inspected.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-v1-11-review-history-probe.py
+  status: passed
+  head: 04a0ff1842ad4e9bbf1be964bf031fd9307a9ed1
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: Two successive hand-fix cherry-picks and control merges now pass; the same history incorrectly refused before the fix.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-v1-11-review-lease-probe.py
+  status: passed
+  head: 04a0ff1842ad4e9bbf1be964bf031fd9307a9ed1
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: 'A real Git hand push after the guard is preserved: the later push fails with stale info, without a fresh ls-remote or a PR edit.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 2c05ec3e8289049b22040d9fd23420e311b5fb26
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: No whitespace errors. The skill-management package/live twins match.
+- command: python -m pytest
+  status: not-run
+  detail: Native Windows full suite explicitly waived by the owner in this attended peer-review session on 2026-11-06. No AWS host provisioned; no native Windows receipt claimed.
+- command: PYTHONPATH=/home/n/Code/coga-review-v1-11-baseline-748c82e6/src /home/n/Code/coga/.venv/bin/python -m pytest -q tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  base: c1826714eaa14ad9de49673f6b1384b3a582c8aa
+  detail: Both tests fail identically in a clean export of unchanged origin/main. This is baseline diagnosis, not verification of the feature head.
+```
+
+## Open-PR (2026-11-06)
+
+Opened https://github.com/FastJVM/coga/pull/1182 from head `2c05ec3e8` (the
+reviewed head). Obligations: none filed. PR #1168 (v1/10) is still open; the
+preflight ordering is reconciled by whichever branch merges second, as part of
+that merge, so nothing outlives this PR's merge. Baseline test failures
+(launch-boundary twin drift, current-direction/testing anchors) predate this
+diff and are not owed here.

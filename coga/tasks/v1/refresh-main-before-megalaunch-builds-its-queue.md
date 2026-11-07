@@ -1,6 +1,6 @@
 ---
 title: Refresh main before megalaunch builds its queue
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga/megalaunch
@@ -26,7 +26,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 

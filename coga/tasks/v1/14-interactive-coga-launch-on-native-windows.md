@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -535,7 +535,170 @@ Previous ref: `windows-native/03-interactive-coga-launch-on-native-windows` (ren
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-14-interactive-coga-launch-on-native-windows-e8b518
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement — phase 1 (2026-11-05, attended, Claude Opus 5.5)
+
+**Scope split (owner, in session):** this session landed all code, Linux tests
+and docs on the branch. **No bump.** The box acceptance loop (phase 2) runs in
+a relaunch of this same `implement` step. At that point, ask the owner for the
+API key per Open Question 1. The core ticket `windows-native/01` is merged, so
+the prerequisite is met.
+
+### Deltas from the spec (the landed core port's shape)
+
+- The core port added more refusal sites than the spec lists:
+  `require_agent_sessions()`, `_preflight_platform_target()` (launch entry and
+  `_launch`), `_require_agent_after_script`'s Windows branch, and both
+  `recurring_runner` sites (scan admission and paused-period resume). All are
+  deleted, along with their tests and docs (`coga/launch` *Phases and routing*,
+  `script-tickets`, `recurring/scheduling`, `tickets/authoring`,
+  `checkouts/launch-boundary`, `first-task`, `current-direction`). The refusal
+  used exit 75 (`RETRY_WITHOUT_SWEEP`). The idle-timeout refusal instead sets
+  `git.state_sweep_withheld` and exits 2, as §4 requires. The sweep-withheld
+  diagnostic in `cli._sweep_coga_state` now also covers "refused before
+  changing state".
+- `ProcessTree` had no gate, group or interrupt. It gained
+  `interactive`/`gate`/`shell` (Windows-only) and `new_process_group`, plus
+  `release()` and `interrupt()`. The interactive wrapper is the stdlib file
+  `src/coga/_nt_session_wrapper.py`, run by path as `python -I` under the base
+  interpreter. Base python has no `coga`, so `python -m` was not possible.
+  The existing `-c` wrapper and the recurring/clone behavior are unchanged.
+- Zach's guide: `v1/29` is done, and `guide-for-zach.md` now only points to the
+  generic human-walk operator guide (`coga/skills/.../human-walk/operator-guide.md`).
+  That guide has no PyPI-only instruction or `fcntl` stop to remove, so no
+  guide edit was needed. The exact PR-wheel command
+  (`uv tool install --force --python 3.11 <wheel>`) plus the source commit and
+  digest belong in the PR/handoff for the human check.
+- README (owner, in session): the "Native Windows is not ready" paragraph is
+  replaced with a pointer to `coga/install#windows-baseline`. The platform
+  sentence is unedited.
+
+### Decisions made while implementing
+
+- `classify_exit` treats an NTSTATUS error (≥0xC0000000, except 0xC000013A) as
+  `crash` even when Coga never stopped the child. This mirrors POSIX, where an
+  untouched signal death is a crash. Full DWORDs below that range are
+  `natural` with the raw code.
+- The DWORD→signed conversion is `oscompat.process_exit_status`, applied only in
+  the `commands/launch.py` adapter (both LaunchBail and result routes) and
+  `commands/ticket.py`'s agent exit. It only changes values ≥2^31 on Windows,
+  so no other CLI exit is affected.
+- Planner: `repl_supervisor_nt.plan_agent_command` (pure, importable on POSIX).
+  Launch calls it via `launch._plan_windows_agent_command`, using
+  `_agent_command_parts` for role tags. Preflight is `agent_command_refusal`
+  (pointer form, fixed-width placeholders). Call sites: launch
+  `_prepare_agent` (after secrets, before push-auth and lifecycle writes),
+  `coga ticket` (new `before_create` hook on `_resolve_or_create_target`,
+  which also moves `--pick-agent` before draft creation for new drafts), and
+  megalaunch `_preflight_agent_launch` (per-ticket failure, no global sweep
+  withhold). Spawn-time refusal raises `AgentCommandRefused` (a
+  `ComposeError`, which every caller already catches) and withholds the sweep.
+- Watcher notices on Windows go to stderr (spec §2) in ASCII.
+- Picker: `_PosixKeys`/`_WindowsKeys` key sources share `_decode_key`.
+  Windows installs a quit-flag SIGINT handler and saves/restores console modes
+  for the whole picker. Cancellation is checked after each read and redraw,
+  and wins over Enter.
+
+### POSIX-only tests kept under `windows_skip` (each names its Windows equivalent)
+
+`tests/test_repl_supervisor.py`: all 31 former `windows_interactive_skip`
+cases (`_classify_exit` ×4, no-TTY fork gate ×8, PTY loop ×19). Their Windows
+equivalents are in `tests/test_repl_supervisor_nt.py`.
+`tests/test_ticket.py::test_ticket_cancellation_pty_finalizes_sibling_or_reports_retained_state`
+(pty.fork + group SIGTERM fixture). `tests/test_megalaunch.py::test_read_key_resize_beats_pending_keypress`
+(raw PTY/SIGWINCH), whose equivalent is `test_windows_keys_resize_and_extended_keys`.
+These now run on Windows unskipped: the 7 megalaunch picker CLI tests (they
+patch the key-source `read`), `test_launch_functionally_auto_restarts_through_three_steps`
+(fake agent via `write_executable`, a `.cmd` on Windows, which also exercises
+the batch transport), and `test_second_chat_cannot_switch_an_active_chats_clean_feature_checkout`.
+None of these have run on Windows yet; that is phase 2.
+
+### Phase 2 checklist (box, next session)
+
+1. Provision; `checkout` the branch; run the full native suite (long-run
+   scheduled-task recipe in `windows-aws`). Fix failures, especially the 21
+   `windows_only` cases in `test_repl_supervisor_nt.py`, the picker signal
+   tests, the batch round-trip and the outer-CLI DWORD cases.
+2. Attended `ssh -tt` acceptance driven from a host PTY (pyte): bump to an
+   owner step, mark done, block, a two-agent-step chain, `--max-session`,
+   `--idle-timeout` exit 2 with no sweep, Ctrl+C as input, closing SSH
+   mid-session, and the megalaunch picker keys/resize/Ctrl+C. Each check needs
+   Job count 0, no `claude.exe`/node/bash left, and console modes equal.
+   Also check `coga.exe` and `python -m coga.cli` DWORD exits seen by a
+   native parent.
+3. Teardown + `status`; record instance/AMI/zone/teardown time here.
+4. Then the PR-preparation record (`## PR`), and bump.
+
+## Implement — phase 2, session 1 (2026-11-05/06, attended, Claude Opus 5.5)
+
+**Paused by the owner ("tomorrow"). No bump.** Relaunch this `implement`
+step to continue.
+
+### Done this session
+
+- Linux full suite on phase-1 HEAD: **4512 passed, 31 skipped** (Python
+  3.12 `.venv`, `python -m pytest -q`).
+- Box `win-launch2`: i-0c10cad7c9881160f, us-east-1a, t3.large, AMI
+  ami-0b5f645abc199e666 (`Windows_Server-2025-English-Full-Base-2026.10.28`),
+  build 26100.33674, Git 2.56.0.windows.4, uv 0.13.7, Python 3.11.18,
+  Claude Code 2.1.318 (native installer). Launched 2026-11-06T05:02:44Z,
+  **terminated 05:38:10Z**, SG deleted 05:38:11Z, key pair 05:38:12Z;
+  `status` showed `terminated`, with no volumes.
+- Native results on the branch (via harness `ssh`):
+  - `tests/test_repl_supervisor_nt.py`: at first 72 passed and 4 failed. All 4
+    batch round-trip cases (`direct`/`npm` × `.cmd`/`.bat`) printed
+    `?\ was unexpected at this time`. The cause was the **fake shims**,
+    which re-parsed their own directory: the direct shim embedded the literal
+    UTF-8 path (`%PATH%`, `&`, `東`) in batch source, and the npm shape
+    uses cmd-shim's unquoted `SET dp0=%~dp0`, which splits on `&`. The
+    transport itself was fine. Fix (2814a2f13): the direct shim uses quoted
+    `%~dp0` and keeps the full adversarial directory; the npm-shaped dir
+    omits only `&`/`^`, which real npm shims can't survive (spec §5: the
+    transport cannot repair a shim that reparses). After the fix: **76 passed, 1
+    skipped** (the skip is "no console attached" under non-tty ssh, so it is
+    to be covered by the attended run).
+  - `tests/test_megalaunch.py`: there were 9 failures. Eight were "agent CLI 'claude'
+    not found": the tests fake `shutil.which` and the supervisor, but
+    the Windows planner resolves against the child PATH/PATHEXT first.
+    Fix (c67dfc978): a Windows-only autouse fixture in `tests/conftest.py`
+    (`_windows_agent_resolution_follows_which`) tries the real resolver
+    and then falls back to `shutil.which`. It excludes
+    `test_repl_supervisor_nt.py`, which owns the real resolver contract.
+    The ninth, `test_megalaunch_cli_picker_resize_keeps_state`, used
+    `signal.SIGWINCH`; it now checks SIGINT on Windows (the quit-flag
+    handler). After the fix: **141 passed, 1 skipped**.
+  - `test_usage.py` and `test_cli.py` had no failures in the first combined run.
+  - The full native suite started as an S4U scheduled task and was **stopped
+    at 7% with no failures** when the owner paused. It needs a complete
+    rerun. Recipe: the inner pytest command is base64-encoded into a
+    `powershell -EncodedCommand` task action, writing `stdout.txt`,
+    `stderr.txt`, `junit.xml` and `exit.txt` under
+    `C:\coga-clean-install\suite\`. Copy the registration `.ps1` over
+    with `scp` (the harness's key/known_hosts in
+    `.coga/clean-install/<name>/`). Passing it through `aws-windows.sh ssh`
+    as an encoded command hits "The command line is too long."
+- Claude Code + coga were installed on the box (`uv tool install --force
+  --python 3.11 C:\Users\Administrator\coga-work`), but no auth yet.
+
+### Next session
+
+1. **First, ask the owner for Claude auth.** Either an `op://` reference
+   for the API key (piped over SSH stdin into the session env only), or
+   the owner runs `claude` login over `ssh -tt` (SSO). The `coga-test` AWS
+   SSO session may also need `aws sso login --profile coga-test`.
+2. Provision, `checkout`, start the full native suite task, and install Claude
+   Code + coga.
+3. Throwaway repo on the box: `brief-for-human` gives agent→owner for the
+   bump case. For the chain, add a local two-agent-step workflow. Pin
+   `launch_args = "--model haiku"` in the box's `coga.local.toml`.
+   The host PTY driver needs `uv run --with pyte` (pyte isn't installed).
+4. Continue the phase 2 checklist above from item 2.
 
 ## Design session 2026-10-19 (design step)
 

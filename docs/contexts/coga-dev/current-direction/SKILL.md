@@ -118,11 +118,12 @@ is `coga status` and the ticket bodies; stage posture is
   Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
   may set or replace the default agent behind an explicit confirm. Contract:
   [`coga/init`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
-- **Native Windows core port landed (2026-10-23).** Non-interactive commands
-  and deterministic work run natively. Interactive agent sessions still
-  refuse until `v1/14-interactive-coga-launch-on-native-windows`
-  lands; WSL remains the untested Windows route for those sessions.
-  User-facing contract:
+- **Native Windows is supported (2026-11).** The core port (2026-10-23)
+  runs non-interactive commands and deterministic work;
+  `v1/14-interactive-coga-launch-on-native-windows` adds attended agent
+  sessions through an inherited console and a Job Object, with no
+  idle-timeout. Windows Server 2025 is the tested version.
+  User-facing contracts: [README "Get started"](../../../../README.md#get-started),
   [`coga/launch`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no

@@ -24,8 +24,9 @@ Run the owner-only live clean-wheel proof for the weekly PostHog snapshot that
 merged in PR #880 without it. On 2026-09-22 the owner deferred this proof
 ("assume it works; owner will test later"), so no real `coga_weekly_snapshot`
 row has been queried yet. The owner's V1 launch decision makes this
-verification a launch gate that marketing simplification does not waive, and
-`v1/44-build-the-launch-plan` needs its evidence before Show HN.
+verification a launch gate that marketing simplification does not waive. The
+launch itself left v1 on 2026-11-04 (parked in
+`_v2/marketing/build-the-launch-plan`); the owner kept this proof in v1.
 
 Build the wheel from `main` at a recorded commit (PR #880 is merged, so there
 is no separate review checkout). Record the evidence on this ticket's blackboard,
@@ -45,7 +46,7 @@ as the procedure directs. Done means the blackboard records all of the following
   Unexpected fields block acceptance until they are explained.
 
 At `human-executes`, the owner runs the proof, pastes the results and updates
-the PostHog readiness line on `v1/44-build-the-launch-plan`'s blackboard.
+the PostHog readiness line on this ticket's blackboard.
 The owner may ask the attended agent to write it. At `verify-read-only`, the
 agent checks the pasted evidence against the procedure. It runs no
 `posthog-cli`, capture or deletion commands itself.
@@ -82,8 +83,8 @@ Previous ref: `marketing/verify-posthog-telemetry-with-the-live-clean-wheel` (re
 
 **Goal.** Prove that a real installed wheel delivers `coga_weekly_snapshot` to
 PostHog project 606347 with the right UUID, movement and properties, and that
-`[telemetry] enabled = false` stops delivery. This is a launch gate for
-`marketing/build-the-launch-plan`. The procedure is `coga/telemetry/operations`
+`[telemetry] enabled = false` stops delivery. This is a v1 gate (the launch
+itself is parked in `_v2/`, 2026-11-04). The procedure is `coga/telemetry/operations`
 § "Clean installed-wheel proof". Run it from an ordinary shell with no
 `PYTEST_CURRENT_TEST` or `CI` set. Stay outside every Coga source tree and do
 not use an editable install.
@@ -123,8 +124,8 @@ not use an editable install.
    acceptance.
 9. Paste all of this below, either yourself or by asking the attended agent:
    commit, version, hash, UTC windows, receipt payloads, period report, audit
-   lines, and the exact query text and results ×3. Update the PostHog readiness
-   line on `marketing/build-the-launch-plan`'s blackboard.
+   lines, and the exact query text and results ×3. Record the PostHog readiness
+   line on this ticket's blackboard.
 
 **Credential rules.** Do not read or copy `~/.posthog/credentials.json`. Do
 not echo the capture key or pass it as an argument. The scratch repo must not
@@ -190,8 +191,8 @@ Durable paths (not `/tmp`, which a reboot could wipe): `~/coga-telemetry-proof/`
 unless 606347) → Obs 1 query + property-key check → known forward advance on a
 scratch work ticket + audit lines → `venv/bin/python recurring/phone-home/ticket.py`
 → Obs 2 query → `enabled = false` in scratch `coga.local.toml` + UTC time →
-rerun → Obs 3 `count()` query + automated no-worker/no-HTTP test → update
-`marketing/build-the-launch-plan` readiness line.
+rerun → Obs 3 `count()` query + automated no-worker/no-HTTP test → record
+the readiness line on this blackboard.
 
 ---
 

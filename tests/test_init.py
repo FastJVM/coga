@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1250,6 +1251,28 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
     assert "https://github.com/openai/codex" in result.output
     assert "Run `coga build` with Claude Code" in result.output
     assert "`coga build --agent codex` with Codex" in result.output
+
+
+@pytest.mark.parametrize("filled", [False, True], ids=["empty", "filled"])
+def test_init_next_steps_do_not_send_the_user_to_edit_coga_toml(
+    tmp_path: Path, fake_vendor, filled: bool
+) -> None:
+    """Nothing in a first run needs a `coga.toml` edit, and a fresh Mac has no
+    app that opens `.toml`, so the next steps must not lead there. Only the
+    "Next steps:" block is checked: the notifications note printed after it
+    rightly names `coga.toml` as the later Slack opt-in."""
+    target = _make_git_repo(tmp_path / "company")
+    if filled:
+        (target / "main.py").write_text("print(1)\n", encoding="utf-8", newline="\n")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    block = result.output.split("Next steps:\n", 1)[1].split("\n\n", 1)[0]
+    assert "coga.toml" not in block
+    numbers = re.findall(r"^  (\d+)\. ", block, flags=re.MULTILINE)
+    assert numbers == [str(i) for i in range(1, len(numbers) + 1)]
+    assert numbers
 
 
 def test_init_filled_repo_ignores_coga_managed_files(

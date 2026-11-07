@@ -1136,6 +1136,55 @@ def test_worktree_prune_failure_stops_sweep(repo: Path, monkeypatch) -> None:
     assert result.remote_deleted == []
 
 
+def _fail_local_listing(
+    monkeypatch, repo: Path, *, stdout: str = "", returncode: int = 1
+) -> None:
+    real_git = bs._git
+
+    def fake_git(
+        root: Path, *args: str, input: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:1] == ("for-each-ref",) and args[-1] == "refs/heads/":
+            assert root == repo
+            return subprocess.CompletedProcess(
+                ["git", *args], returncode, stdout=stdout, stderr="simulated for-each-ref failure"
+            )
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", fake_git)
+
+
+def test_local_branch_listing_failure_stops_sweep(repo: Path, monkeypatch) -> None:
+    # Without the local inventory, "feat" would look remote-only and its
+    # merged remote ref would be deleted.
+    _push_branch(repo, "feat", land_in_main=True)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    _fail_local_listing(monkeypatch, repo)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_unavailable == "simulated for-each-ref failure"
+    assert result.failure == "simulated for-each-ref failure"
+    assert result.remote_unavailable is None
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+    assert _git(repo, "rev-parse", "--verify", "refs/heads/feat").returncode == 0
+
+
+def test_unresolvable_local_branch_entry_stops_sweep(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    _fail_local_listing(monkeypatch, repo, stdout="feat\n", returncode=0)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_unavailable == "could not resolve local branch entry 'feat'"
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+
+
 def test_recipe_reports_worktree_pinned_outcome(
     repo: Path, monkeypatch, capsys
 ) -> None:
@@ -1767,6 +1816,7 @@ def test_recipe_writes_report_to_stdout_without_a_task(
         ("gh_unavailable", "partial sweep"),
         ("worktree_unavailable", "the sweep stopped early"),
         ("state_root_unavailable", "the sweep stopped early"),
+        ("local_unavailable", "the sweep stopped early"),
     ],
 )
 def test_recipe_records_a_failed_sweep_on_the_blackboard(

@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 6 (review)
 agent: claude
 ---
 
@@ -462,6 +462,153 @@ This prerequisite does not by itself resolve that ticket's admission policy.
 Previous ref: `lifecycle-writes-read-control-s-ticket-before-modi` (renamed 2026-10-27); earlier audit lines retain that ref.
 
 <!-- coga:blackboard -->
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1180
+branch: coga/v1-07-lifecycle-writes-read-control-s-ticket-bef-5b096f
+
+
+## Implementation handoff — 2026-11-05 (claude, attended)
+
+Branch pushed at `5de611c6b9f11d412dcc55ed806cd8fe8973efa3` (rebased on
+origin/main `5fec156f6`). No PR yet.
+
+- **Preparation** (`src/coga/git.py`): `prepare_ticket` / `PreparedTicket`,
+  tri-state `fetch_control_state`, `_shared_base` (provenance candidates
+  ordered by control's path history), `merge_ticket_bytes` +
+  `lifecycle_winner`, `TicketConflictError` (`status_conflict` flag),
+  `TicketChangedError` from `write_ticket(..., prepared=)`.
+- **Publication**: exact prepared expectation via `sync_task_state(prepared=)`
+  / `mark._publish`; prepared tickets join candidates even when equal to
+  HEAD; `remember=` persists pending/rejected expectations in
+  `<coga root>/.coga/pending-publication.json` (excluded from publication);
+  equal-tree `False` return now records `PUBLISHED_REF`; `_blob_id`
+  (no `-w`) for expectations.
+- **Commands**: `bump`, `mark` (all verbs), `block`, `unblock` (incl.
+  `--all`, re-prepares after an interactive prompt), `owner` (rollback
+  snapshot = original local bytes, expect = fetched control), autoclose
+  recheck incl. `pr:` linkage. Shared `commands/common.prepare_lifecycle_ticket`
+  exits 75 on conflict. Blocker edits are now in-memory
+  (`append_blocker_text`, `resolve_open_blockers_text`, `taskfile.with_blackboard`).
+- **Teardown**: `spawn_agent_session` calls `git.retry_session_publication`
+  (fetch, ticket+log publish, separate `sync_log` on refusal) for stateful
+  `TaskRef` sessions; bootstrap/authoring keep `sync_log`.
+- **Unchanged by design**: launch's own transitions (it already projects a
+  verified control ticket), megalaunch and recurring exact-byte/lease paths,
+  `prepare_active`.
+- **Tests changed to the new contract**: `test_mark` bury-terminal test now
+  expects an eligibility refusal with nothing written; `test_owner` stale
+  test now expects owner applied to control's copy (or refused on an
+  in-progress agent step); three teardown tests now expect the ticket retry.
+- **Docs**: `coga/state-publication` gains "Prepared ticket transactions"
+  (owner of the user contract) and the teardown retry; `coga/sync`,
+  `coga/lifecycle`, `coga/launch` (live + packaged); `coga-dev` git-regressions,
+  git-refresh, agent-spawn, assist-publication.
+- **Follow-up filed**: `v1/human-review-pr-for-ambiguous-lifecycle-status-con`
+  (draft) owns acceptance criteria 5–6, decision 3, and the
+  resolve-conflicts / address-pr-comments exclusions.
+- **Pre-existing failures, not caused here** (same 2 fail on base with this
+  diff stashed): `test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  (`coga/checkouts/launch-boundary` live/package drift) and
+  `::test_context_navigation_has_no_broken_links` (`coga-dev/current-direction`
+  anchors into `coga/install`). Also noted: live and packaged `coga/launch`
+  already differed before this branch; edits were applied to both identically.
+- **Not done**: no independent code review yet; the review step owns it.
+
+## PR
+
+```yaml
+title: Reconcile lifecycle tickets with fresh control before writing
+author: claude
+author_evidence: Attended implement session run by Claude (claude-opus-5-5); this handoff.
+head: 5de611c6b9f11d412dcc55ed806cd8fe8973efa3
+base: 5fec156f67abaef537724d322773930190fe83cf
+depth: deep
+rationale: Changes lifecycle decision inputs, publication expectations, provenance recording, and session teardown publication across every lifecycle command; no independent review has run yet.
+implementation: Lifecycle commands prepare the ticket against freshly fetched control (adopt, keep, three-way merge, or refuse with exit 75), write once with a local-bytes recheck, and publish against the exact control bytes, remembering that expectation across retryable failures. Supervised sessions retry their ticket plus log at teardown, and an equal-tree publish records provenance.
+deviations: Owner split the human-review PR path (criteria 5-6) into v1/human-review-pr-for-ambiguous-lifecycle-status-con; ambiguous status conflicts refuse with exit 75 until it lands. Evaluator findings 1, 2, and 4 resolved per the owner decisions recorded on this ticket; finding 3 moved to the follow-up.
+limitations: Launch, megalaunch, and recurring transitions keep their existing exact-byte/lease paths instead of preparing. Pending expectations live in an ignored working-tree file, not Git. Body merges use git merge-file line granularity.
+files:
+  src/coga/git.py: Preparation, ticket merge, tri-state fetch, pending expectations, equal-tree provenance, session retry.
+  src/coga/bump.py: Thread the prepared snapshot through advance_step.
+  src/coga/mark.py: Thread the prepared snapshot through every status writer.
+  src/coga/commands/common.py: Shared prepare-or-exit-75 helper.
+  src/coga/commands/bump.py: Decide gates and supervised step from the prepared ticket.
+  src/coga/commands/mark.py: Prepare before each verb's eligibility check.
+  src/coga/commands/block.py: Prepare and write the ask with the status in one write.
+  src/coga/commands/unblock.py: Prepare, recheck after prompts, one write, exit 75 on conflict.
+  src/coga/commands/owner.py: Decide from control; rollback to original local bytes.
+  src/coga/autoclose.py: Recheck eligibility and PR linkage on the prepared ticket.
+  src/coga/launch.py: Retry ticket plus log publication at stateful session teardown.
+  src/coga/blackboard.py: Pure-text blocker append and resolve helpers.
+  src/coga/taskfile.py: In-memory blackboard replacement helper.
+  tests/conftest.py: Stub preparation and session retry off the real-git harness.
+  tests/test_git.py: Real-git coverage for preparation, merge, conflicts, races, retries, and the improve-banners sequence.
+  tests/test_mark.py: Update the stale-terminal test to the refuse-before-write contract.
+  tests/test_owner.py: Update the stale owner test to decide from control.
+  tests/test_launch.py: Teardown now retries the session ticket.
+  tests/test_checkouts.py: Teardown publication assertion follows the retry.
+  docs/contexts/coga/state-publication/SKILL.md: Own the prepared-transaction contract and teardown retry.
+  docs/contexts/coga/sync/SKILL.md: Summarize and link the new contract.
+  docs/contexts/coga/lifecycle/SKILL.md: Writers decide from reconciled control state.
+  docs/contexts/coga/launch/SKILL.md: Post-session ticket publication summary.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Packaged twin.
+  docs/contexts/coga-dev/internals/git-regressions/SKILL.md: Remembered expectations, preparation refusals, equal-tree provenance.
+  docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Distinguish whole-checkout refresh from per-ticket preparation.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Teardown retry order.
+  docs/contexts/coga-dev/internals/assist-publication/SKILL.md: Teardown and in-session publication rows.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the workflow's later review step owns code review.
+checks:
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: failed
+    head: 5de611c6b9f11d412dcc55ed806cd8fe8973efa3
+    base: 5fec156f67abaef537724d322773930190fe83cf
+    detail: 4474 passed, 10 skipped, 2 failed; both failures are pre-existing test_packaging drift/anchor failures that also fail on the base.
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+    status: failed
+    head: 5de611c6b9f11d412dcc55ed806cd8fe8973efa3
+    base: 5fec156f67abaef537724d322773930190fe83cf
+    detail: 35 passed, 2 failed (same pre-existing failures; none name a file this branch changed).
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task v1/07-lifecycle-writes-read-control-s-ticket-before-modi --json
+    status: passed
+    head: 5de611c6b9f11d412dcc55ed806cd8fe8973efa3
+    base: 5fec156f67abaef537724d322773930190fe83cf
+    detail: 1 valid task, 0 issues, 0 fixes. Seeded-fixture validate omitted because validation behavior did not change.
+```
+
+## Implementation decisions — 2026-11-05 (owner, attended)
+
+The owner advanced past review-design with the evaluator's four findings
+open, then resolved them in this session by adopting these proposals:
+
+1. **Base before equality.** Select the newest proven shared snapshot as the
+   merge base first; the local copy counts as unedited only when it equals
+   that selected base, never merely some historical provenance member.
+2. **Retries keep the expectation.** A retryable publication failure
+   (object-write/transport) records a per-worktree pending expectation
+   (path, candidate blob, expected control blob). The supervisor retry and
+   the sweep reuse it; a guard-rejected candidate is marked rejected so
+   neither path republishes it.
+3. **Human-review PR return path.** Merged PR: adopt control's copy as the
+   resolution, record it as provenance, and three-way any local edits made
+   after PR creation. Closed unmerged: refuse without a new PR. Open: reuse.
+4. **Tri-state fetch.** Preparation distinguishes a confirmed remote tip,
+   a missing remote control branch, and a fetch failure. A missing branch
+   is treated like an offline fetch; never merge against a cached ref.
+
+**Delivery: split.** This ticket implements preparation/merge, command
+wiring, the supervisor retry, equal-tree provenance, and the doc updates.
+The human-review PR path (acceptance criteria 5–6, decision 3, and the
+PR-maintenance exclusions) moves to a follow-up ticket. Until it lands, an
+ambiguous status conflict refuses with exit 75 like other genuine conflicts.
 
 ## Consolidation — 2026-09-30
 

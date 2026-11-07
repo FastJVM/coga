@@ -70,17 +70,6 @@ is not. Megalaunch's claim and the local state lock are not ownership locks
 
 ## Phases and routing
 
-Native Windows currently runs deterministic work only. Agent sessions refuse
-with a message naming
-`v1/14-interactive-coga-launch-on-native-windows`. A read-only
-target classification precedes checkout preparation, chat receipts, recurring
-catch-up and lifecycle writes. Only a locally visible `ticket.py` admits work;
-an absent target cannot authorize a checkout change to discover it. Agent-only
-refusal exits 75 to suppress the CLI's state sweep, leaving local and control
-state unchanged. `--prompt-report` remains available with its usual semantics.
-The platform gate is repeated at agent preparation and the shared spawn entry.
-For a script that leaves work open, see [script tickets](../script-tickets/SKILL.md#chaining).
-
 A directory ticket with the exact sibling `ticket.py` runs it headlessly
 first ([script tickets](../script-tickets/SKILL.md)). Only an agent phase
 composes a prompt and requires stdin and stdout to both be TTYs.
@@ -103,7 +92,8 @@ operator. An assist's attribution is owned by
 ## Agent preflight order
 
 Agent type and CLI lookup, a full prompt composition (a missing layer
-refuses), declared secrets, push auth (`git push --dry-run`; skipped for
+refuses), declared secrets, the native Windows command-line check (below),
+push auth (`git push --dry-run`; skipped for
 bootstrap targets, `[git].enabled = false`, or no resolvable remote).
 Ordinary managed agent-only launches then plan checkout policy, reserve/create
 or validate the branch, and compose from the prospective final ticket and
@@ -143,10 +133,23 @@ prepared launch returns its checkout instead.
   publishes the edits being measured.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.
+- On native Windows the agent owns the console, so idleness cannot be
+  measured: an explicit `--idle-timeout` exits 2 before any state change,
+  with the end-of-command sweep withheld, and names `--max-session`.
+  Recurring and megalaunch sessions that arm it from defaults or config warn
+  once and run with `max_session` only.
+- On native Windows, an agent command that no transport can represent exits
+  2 before activation, audit or spawn, with the sweep withheld. That means a
+  pointer-form command over CreateProcess's 32,767 UTF-16 units (or cmd.exe's
+  8,191 for a `.cmd`/`.bat` CLI), or a raw CR/LF in a `.cmd`/`.bat` CLI's
+  title, launch option, discussion token or kickoff. The message names the
+  limit or argument role, never its value. A prompt too large for the command
+  line always falls back to its file pointer instead.
 - Refusals exit 2; a checkout-boundary entry refusal, a stale recurring
   gate, and an unreconciled released megalaunch admission exit 75, which
   skips the end-of-command sweep; a non-zero agent or `ticket.py` exit
-  propagates.
+  propagates. A successful direct chat whose checkout return fails also
+  exits 75; [chat checkouts](../checkouts/chat/SKILL.md) owns that contract.
 
 The Python launch API, its internal phases, and the shared spawn path are in
 [coga-dev/internals/agent-spawn](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/agent-spawn/SKILL.md).
