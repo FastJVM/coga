@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -166,6 +166,11 @@ session" text in the command relay.
   hands-on-trial keeps findings out of the repo.
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/competition-testing-make-hands-on-trial-cite-the-f50487
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
