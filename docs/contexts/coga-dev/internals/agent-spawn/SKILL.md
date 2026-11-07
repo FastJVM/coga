@@ -129,42 +129,13 @@ the one-shot `codex exec` analyze argv already inherits the environment.
 
 ## Large prompts
 
-Oversized prompts use file-pointer delivery; the POSIX threshold and
-prompt-file lifetime are owned by [compose](../compose/SKILL.md#delivery).
-
-Native Windows budgets the complete serialized command, not one argument.
-`launch._plan_windows_agent_command` builds the final role-tagged argv
-(`launch._agent_command_parts`: launch options, discussion tokens, title,
-session ID, kickoff) and hands it to `repl_supervisor_nt.plan_agent_command`.
-That resolves the CLI against the child environment's PATH/PATHEXT and keeps
-the full prompt only if both the agent line (`subprocess.list2cmdline`) and
-the interactive wrapper line fit 32,767 UTF-16 units including NUL. Fixed-width
-placeholder Job/gate names make the preflight measurement equal the spawn's,
-and the supervisor checks the real lines again. Otherwise it rebuilds with the
-pointer and checks again.
-
-A `.cmd`/`.bat` CLI always gets the pointer, joined with U+2028 instead of
-CR/LF, and the lossless batch transport. `batch_quote` always quotes each
-token, doubling embedded quotes and only the backslash runs before a quote.
-The full line goes into a fresh `COGA_BATCH_<uuid>` child variable, and the
-wrapper runs the system `cmd.exe /d /e:on /v:off /s /c "%COGA_BATCH_<uuid>%"`
-as a raw command line. One expansion means percent sequences in values stay
-literal. The literal and expanded shell lines are bounded at 8,191, the value
-at 32,767. Raw CR/LF in any other batch argument refuses by role.
-
-`launch.agent_command_refusal` plans the pointer form at the callers'
-preflight: launch's `_prepare_agent` before lifecycle writes, `coga ticket`
-before a new draft, and megalaunch before claim admission. An unrepresentable
-command exits 2 with the sweep withheld (`require_representable_agent_command`)
-or, in megalaunch, fails only that ticket. The spawn-time plan refuses the same
-way before audit or admission (`AgentCommandRefused`, a `ComposeError`).
+Oversized prompts use file-pointer delivery; the threshold and prompt-file
+lifetime are owned by [compose](../compose/SKILL.md#delivery).
 
 ## The supervisor
 
-On POSIX the child runs in a PTY with proxied stdio (plain `subprocess.run`
-when stdout is not a TTY). On native Windows `run_with_done_marker` validates
-its arguments and then delegates to `repl_supervisor_nt.run`, described
-[below](#windows-supervisor). PTY output is never a completion channel. `coga bump`,
+The child runs in a PTY with proxied stdio (plain `subprocess.run` when
+stdout is not a TTY). PTY output is never a completion channel. `coga bump`,
 `coga mark done`, `coga mark canceled`, and `coga block` call
 `emit_done_marker`, which atomically writes the task's `id_slug` to
 `$COGA_DONE_SENTINEL`; the supervisor polls every 0.25 s and accepts a content
@@ -200,36 +171,6 @@ lifecycle: its final `coga slack --task bootstrap/<name>` FYI is the
 completion signal, attributed to its explicit agent or the configured
 default; an invalid explicit agent refuses that FYI before posting.
 
-### Windows supervisor
-
-The agent inherits the supervisor's console, with no PTY or proxy. It renders
-over a local console or SSH's ConPTY and reads keys itself, and Ctrl+C reaches
-it as input. `oscompat.ProcessTree(interactive=True, gate=..., new_process_group=True)`
-starts the stdlib-only `_nt_session_wrapper.py` under the base interpreter
-(`python -I`). The wrapper joins a kill-on-close Job Object and waits on a
-`Local\coga-gate-<uuid>` event. It ignores SIGINT/SIGBREAK, runs the resolved
-executable (or the batch transport), and exits with the child's DWORD as its
-signed equivalent, because Python 3.11's `SystemExit` overflows unsigned
-NTSTATUS codes. Admission is the shared `repl_supervisor._admit_held_child`,
-with `SetEvent` as the commit point. The parent ignores SIGINT/SIGBREAK while
-the agent runs, saves and restores the stdin/stdout console modes, and polls
-the sentinel every 0.25 s with no `select`.
-
-Teardown sends `CTRL_BREAK_EVENT` to the wrapper's process group, then
-`TerminateJobObject` after 2 s. `_TTY_SANITIZE` follows a Coga-initiated stop.
-Closing the Job on every exit leaves no descendant. `repl_supervisor_nt.classify_exit`
-works from the unsigned code. An untouched child is `natural` with its raw
-code. A stopped one reports 0 or 124. An NTSTATUS error (≥ 0xC0000000)
-other than STATUS_CONTROL_C_EXIT is a `crash` with its raw code either way.
-`ReplOutcome`, `AgentSessionResult` and launch errors keep unsigned codes, and
-the CLI adapters (`commands/launch.py`, `commands/ticket.py`) convert through
-`oscompat.process_exit_status` only at their final exit. Idle-timeout is not
-measurable without the agent's output: an armed value prints one
-`[coga watcher]` warning and is ignored, and `coga launch --idle-timeout`
-refuses ([coga/launch](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#options-and-exits)).
-Without a console stdout, the same Job/gate spawn returns `natural` with an
-empty sentinel channel.
-
 ## Unsignalled-advance advisory
 
 If the post-session `(status, step)` differs from the pre-spawn freeze and
@@ -259,8 +200,7 @@ Compose, prompt-file write, and audit happen before exec, so a
 or prompt destination. Callers catch `repl_supervisor.AgentCliNotFound` for
 the install-the-CLI remedy and report every other one through
 `missing_launch_file_message`, naming the path. On the PTY path a missing
-binary appears as the child's exit 127, not as that exception. On Windows the
-child-environment resolution raises it before any spawn.
+binary appears as the child's exit 127, not as that exception.
 
 ## No launch preflight for the Codex sandbox grant
 

@@ -1,6 +1,6 @@
 ---
 name: coga-dev/testing
-description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the agent-run verification tiers (no hosted CI), and the exact verification receipts reviewers expect.
+description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the PR CI posture, and the exact verification receipts reviewers expect.
 ---
 
 # Testing Coga
@@ -135,10 +135,8 @@ is their hand-run counterpart: a first-time user installs on a fresh
   Python shebang on POSIX and a `.cmd` launcher on Windows. Use
   `remove_test_checkout` when a fixture deliberately removes a Git clone;
   Git for Windows marks object files read-only.
-- **All Windows exclusions use `conftest.windows_skip(reason)`.** A POSIX
-  PTY-mechanics test (`pty.fork`, `TIOCSWINSZ`, SIGWINCH, fork gates) may skip
-  only when its reason names the Windows-run equivalent of the same contract,
-  usually in `tests/test_repl_supervisor_nt.py`. Keep
+- **All Windows exclusions use `conftest.windows_skip(reason)`.** The shared
+  `windows_interactive_skip` names the interactive Windows ticket. Keep
   mocked orchestration tests running; skip only actual PTY/agent behavior,
   POSIX modes or Unix host/runbook scripts, and list every non-interactive
   exclusion with its reason in the PR. Native locks and Job Object recovery
@@ -181,91 +179,56 @@ Rule these out before blaming the change under test.
   symlinks `sys.executable` to `tools/coga/bin/python`, and a venv interpreter
   symlinked outside its venv starts as the base interpreter, which does not
   have the venv's site-packages. The test passes only when the base
-  interpreter has PyYAML, as with a 3.12 base under the dev `.venv`.
-  Workaround: run the suite from a copied
+  interpreter has PyYAML, as with a 3.12 base under the dev `.venv` or the
+  setup-python interpreter in CI. Workaround: run the suite from a copied
   base interpreter that has the editable test install.
-- **A Windows checkout and temp directory on different drives** break
-  `os.path.relpath`, which raises `ValueError` across drives. A path computed
+- **Hosted `windows-latest` puts the checkout and the temp directory on
+  different drives** (package on `D:`, temporary repos on `C:`).
+  `os.path.relpath` raises `ValueError` across drives. A path computed
   between package resources and a fixture repo must fall back to an absolute
-  target, as `agent_skills` does for skill links. The retired hosted Windows
-  runner (package on `D:`, temporary repos on `C:`) failed 228 tests this
-  way; the Windows AWS harness's default layout keeps both on `C:`, so it
-  does not exercise this split.
+  target, as `agent_skills` does for skill links. The first hosted Windows
+  run failed 228 tests this way.
 
-## Verification tiers and receipts
+## CI posture and receipts
 
-**Coga has no hosted test CI** (owner decision, 2026-11-05). Agents and the
-release operator run every check on real machines. The only workflow is the
-publish-only `.github/workflows/release.yml`
-([coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md)).
-It builds, runs `twine check` (metadata only), and uploads. It runs no tests.
+**Test CI is paused** (owner decision, 2026-10-26). The `Test` workflow is
+disabled in GitHub (`disabled_manually`); its YAML remains in the repo.
+Repeated packaging-twin failures, multiplied by automatic ticket/log pushes,
+made the all-PR/all-main cadence too noisy. Repair the failures and settle the
+trigger policy before resuming it; do not restore the existing cadence just
+because the tests pass. The owner suggested the full matrix only for releases;
+a gate before publication plus manual platform checks is the proposed direction,
+with the final cadence still to be decided. Step-level verification remains
+required while CI is paused.
 
-History, so nobody re-adds CI without the reasons: a 2026-09-24 no-CI policy
-was reversed on 2026-10-23 by PR #1097, which added a `Test` workflow running
-the suite on Linux and Windows for every pull request and every push to
-`main`. Automatic ticket/log publication turned that into repeated full runs,
-and a packaging-twin inconsistency (live blocker-reminders template published
-before its package twin) made every run fail and notify. The owner disabled
-the workflow on 2026-10-26 and deleted it on 2026-11-05
-(`v1/13-repair-ci-and-resume-with-release-focused-triggers`). The tradeoff:
-nothing mechanical blocks a merge or an upload. Tiers 2 and 3 are
-procedures enforced by the implementer, the reviewer and the release
-operator. In exchange there are no hosted runs, queues or failure
-notifications, and platform checks run natively on the AWS harnesses.
+The retained `.github/workflows/test.yml` definition (introduced by the
+2026-10-23 decision reversing the 2026-09-24 no-CI policy) runs
+`python -m pip install -e
+".[test]"` then `python -m pytest` on Python 3.11 on `ubuntu-latest` and
+`windows-latest` for every pull request and push to `main`. Superseded PR
+runs are canceled; each main push has a separate concurrency group so queued
+main runs are preserved. The POSIX migration-runbook test requires ripgrep
+(`rg`) on PATH; CI installs it in the Linux job. The test step uses
+`TERM=dumb` so Typer's forced terminal formatting in Actions does not insert
+ANSI codes into plain-text assertions. It does not run
+`coga validate`, interactive launch (checked on EC2), or anything needing a
+real agent CLI, network, or AWS; such tests must skip cleanly rather than be
+excluded from CI. The publish-only `.github/workflows/release.yml`
+([coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md))
+still inspects only metadata with `twine check`.
 
-1. **Every change.** Implement, self-QA and review steps run the full suite
-   locally (Linux) and record receipts.
-2. **Platform-sensitive changes: required before merge.** A change is
-   platform-sensitive when it touches OS-dependent imports,
-   process/terminal handling, locks, filesystem/path/encoding/Git behavior,
-   dependency or Python requirements, packaging/install behavior, executable
-   templates, or native test fixtures and skip rules. The implementer runs the
-   full suite natively on Windows through the
-   [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#fix-loop-checkout-and-remote-commands)
-   (its "Long native runs" procedure; a full run takes about two hours) at
-   the PR's head commit, and records the receipt in the PR and the ticket.
-   Once macOS is supported, also run it on macOS through the
-   [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit).
-   A source-affecting change after the receipt needs a new run. The reviewer
-   does not approve a platform-sensitive PR without it.
-3. **Every release, before tagging.** The full suite at the exact commit to
-   be tagged on Linux, on Windows (AWS harness), and on macOS (EC2 Mac host)
-   once macOS is supported, plus the build, `twine check` and clean-install
-   checks. [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md)
-   owns the release procedure. A failure or missing receipt means no tag.
+CI does not replace step-level verification: implement / self-QA / review
+still run the suite themselves, and a green CI run is evidence for exactly
+its interpreter and platforms. Reusable workflows cannot assume Python 3.11
+is installed in a user's environment. Evidence for Coga's declared 3.11
+floor requires a run on a real Python 3.11 interpreter; a green 3.12 run is
+not evidence for it. When 3.11 is unavailable locally, report that
+verification gap with the actual interpreter and results, or cite the CI
+run. Raising `requires-python` requires an owner decision.
 
-macOS is supported once its full suite passes on the EC2 Mac host (owner's
-threshold). Until then, macOS receipts are not required, and a macOS run is
-informational.
-
-**Python 3.11 floor evidence.** At least one tier-3 suite run uses a real
-Python 3.11 interpreter, Coga's `requires-python` floor. Examples are the
-Linux clean-install harness's Python 3.11 container, or the Windows
-harness's `checkout`, which syncs the test environment with a uv-managed
-Python 3.11 (`uv sync --python 3.11 --extra test`). A green 3.12 run
-is not evidence for the floor. For tiers 1 and 2, when 3.11 is unavailable,
-report that gap with the actual interpreter and results. Reusable workflows
-cannot assume Python 3.11 is installed in a user's environment. Raising
-`requires-python` requires an owner decision.
-
-**Receipt fields.** Each run records the full commit SHA, the platform and OS
-version, the Python version, the exact command, pass/skip/fail counts, and
-runtime. For example: `3f1c…` (full SHA), Ubuntu 24.04, Python 3.12.12,
-`PYTHONPATH=$PWD/src .venv/bin/python -m pytest` -> `4058 passed, 10 skipped`
-in 410s. "Tests pass" with no command and counts is not evidence. A receipt
-is evidence for exactly its commit, interpreter and platform. Runs on
-uncommitted changes count for a commit only when the committed tree is
-identical.
-
-**Local-run environment.** The POSIX migration-runbook test requires ripgrep
-(`rg`) on PATH. Set `TERM=dumb` when output formatting matters (for example
-under a forced-terminal environment), so Typer does not insert ANSI codes
-into plain-text assertions. The suite does not run `coga validate`,
-interactive launch (checked on EC2), or anything needing a real agent CLI,
-network or AWS; such tests must skip cleanly rather than be excluded.
-Windows skips about 90 more tests than Linux. The native Windows run exists
-for behavior that differs there (paths, processes, locks, encoding), not for
-extra Windows-only tests.
+Therefore every verifier (self-QA, review, release) states the exact commands
+and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
+`N passed, M skipped`. "Tests pass" with no command and count is not evidence.
 
 - **Verify fix claims by exact token.** A done ticket's claim that it fixed a
   failing test is not proof of what reached `main` (a half-applied fixture fix

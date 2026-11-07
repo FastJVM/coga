@@ -29,10 +29,7 @@ committed) and is null otherwise. `exit_code` (int) and `exit_kind`
 outcome was returned (an exception, including `KeyboardInterrupt`). They are
 not raw child wait status: done teardown reports 0 and timeout reports 124
 even when the child then died by signal, and a crash code names the signal,
-not who sent it. On native Windows `exit_code` is the agent's unsigned
-32-bit DWORD (an NTSTATUS crash such as `3221225477` for 0xC0000005, a
-`natural` code up to 0xFFFFFFFF), never the signed value the CLI passes to
-Python 3.11's `SystemExit`. `usage_reason`, `exit_code`, and `exit_kind` were added
+not who sent it. `usage_reason`, `exit_code`, and `exit_kind` were added
 without a schema bump, so records written before them read back with them
 null. Schema-1 records stay readable with activity fields null and roll up
 unchanged.
@@ -86,11 +83,6 @@ filters, capture keeps the candidates whose own message text carries that
 exact line and accepts exactly one. Zero or several marked candidates stay
 unknown. Only message text counts, never tool calls or results, so a session
 that saw a sibling's argv (for example via `ps`) cannot claim it.
-The Windows `.cmd`/`.bat` file pointer separates its prose and marker with
-U+2028 rather than CR/LF. `usage._has_marker_line` splits with
-`str.splitlines()`, which treats U+2028 as a line boundary, so the marker
-still matches only as an exact standalone line. The pointer text is passed
-among the excluded launcher texts, so it never counts as human activity.
 
 `usage.parser_key_for_cli` maps the agent's `cli` basename to `claude` or
 `codex`; any other CLI records `provider: unknown` with usage unknown.
