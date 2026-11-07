@@ -784,9 +784,18 @@ def _parse_codex_rollout(
     )
 
 
+# Claude Code names a project's transcript dir after its cwd with path
+# separators, the Windows drive colon and dots turned into dashes
+# (`C:\Users\a\tt` -> `C--Users-a-tt`, `/home/a/.x` -> `-home-a--x`).
+_CLAUDE_PROJECT_NAME = str.maketrans({"/": "-", "\\": "-", ":": "-", ".": "-"})
+
+
+def _claude_project_name(cwd: str) -> str:
+    return cwd.translate(_CLAUDE_PROJECT_NAME)
+
+
 def _claude_project_dir(cwd: Path) -> Path:
-    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
-    return Path.home() / ".claude" / "projects" / cwd_hash
+    return Path.home() / ".claude" / "projects" / _claude_project_name(str(cwd.resolve()))
 
 
 def _claude_transcript_path(cwd: Path, session_id: str) -> Path:

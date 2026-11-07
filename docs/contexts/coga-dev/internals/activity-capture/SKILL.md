@@ -99,7 +99,9 @@ among the excluded launcher texts, so it never counts as human activity.
 `session_id_flag` (claude: `--session-id`; codex: unset, mirroring
 `name_flag`) keeps `build_agent_command` provider-agnostic. Each iteration
 mints a `uuid4`, passes it to the CLI and to capture, which reads
-`~/.claude/projects/<cwd-hash>/<session-id>.jsonl` and counts
+`~/.claude/projects/<cwd-name>/<session-id>.jsonl` (`<cwd-name>` is the
+resolved cwd with `/`, `\`, `:` and `.` turned into `-`, as Claude Code names
+it: `C:\Users\a\tt` becomes `C--Users-a-tt`) and counts
 `message.usage.*` once per `message.id` among `assistant` lines whose
 `timestamp` falls inside the session window. The last in-window line for each
 ID supplies its usage, including any updated streaming output count; lines
