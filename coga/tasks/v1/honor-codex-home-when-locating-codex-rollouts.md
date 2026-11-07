@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -195,3 +195,75 @@ branch: coga/v1-honor-codex-home-when-locating-codex-rollouts-5b4cd1
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Handoff (implement)
+
+- Codex behavior verified against `codex-rs/utils/home-dir/src/lib.rs`
+  (`find_codex_home`, openai/codex main, fetched 2026-11-06): empty
+  `CODEX_HOME` is filtered to unset; value is `PathBuf::from(val)` (no `~`
+  expansion); a missing path or a non-directory is a fatal error; a valid one
+  is canonicalized. Matches the ticket's recollection.
+- `usage._codex_sessions_root` decides the root once; `_codex_rollout_paths`
+  (used by both `snapshot_session_files` and `_parse_codex_session`) globs it.
+  The literal (non-canonicalized) path is globbed; that is equivalent for
+  discovery.
+- Tests: autouse `_clear_codex_home` fixture in `tests/test_usage.py`; new
+  `test_parse_codex_rollout_honors_codex_home_outside_home` (CODEX_HOME outside
+  HOME, decoy rollout under `~/.codex` ignored, snapshot + parse to `ok`).
+  It fails without the fix. The usage suite also passes with
+  `CODEX_HOME=/tmp/nonexistent-codex` exported.
+- Docs: `coga/usage` package + live copy (byte-identical), and
+  `coga-dev/internals/activity-capture` state the rule and the unsupported
+  cases (relative CODEX_HOME; child-only CODEX_HOME via secrets/agent env).
+- Pre-existing failures, not caused here (they fail identically with this
+  change stashed; root cause: `Sync coga state` commits 421ee15c0/a8fe8af9c
+  swept v1/14 and v1/13 live-copy edits onto main. Owner chose a separate
+  fix: branch `fix/revert-swept-legacy-doc-copies`, packaging 37 passed
+  there; PR https://github.com/FastJVM/coga/pull/1185. Once it merges, rebase this branch
+  and rerun `tests/test_packaging.py`): `test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  (`coga/checkouts/launch-boundary` live vs package drift) and
+  `test_context_navigation_has_no_broken_links` (missing anchors linked from
+  `coga-dev/current-direction`, e.g. `coga/install#windows-baseline`).
+- Possible follow-up (out of scope, not filed): Claude transcript root in
+  `usage` hard-codes `~/.claude/projects` and ignores `CLAUDE_CONFIG_DIR`.
+
+## PR
+
+```yaml
+title: Honor CODEX_HOME when locating Codex rollouts
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga launch.
+head: 834251b6b56686d6f4593e4d085a987a82de51b9
+base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
+depth: skim
+rationale: One small helper choosing the rollout root from an env var, with a regression test and doc sentences; behavior unchanged when CODEX_HOME is unset.
+implementation: Adds usage._codex_sessions_root, which returns $CODEX_HOME/sessions for a non-empty CODEX_HOME (used literally, matching codex-rs find_codex_home) and ~/.codex/sessions otherwise; the existing rollout glob uses it, so snapshot and post-run diff share one root.
+deviations: None.
+limitations: A relative CODEX_HOME and a CODEX_HOME set only in the agent child's environment are documented as unsupported. The globbed root is not canonicalized as Codex does, which does not affect discovery.
+files:
+  src/coga/usage.py: Decide the Codex rollout root from CODEX_HOME in one helper.
+  tests/test_usage.py: Clear CODEX_HOME for every test and add the CODEX_HOME-outside-HOME regression test.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: State where Codex rollouts are looked up and that a missing one is unknown.
+  docs/contexts/coga/usage/SKILL.md: Legacy live copy mirrored byte for byte from the package owner.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Replace the hard-coded ~/.codex path with the CODEX_HOME lookup rule and its unsupported cases.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review yet; the workflow's later steps own review.
+checks:
+  - command: python -m pytest tests/test_usage.py
+    status: passed
+    head: 834251b6b56686d6f4593e4d085a987a82de51b9
+    base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
+    detail: 40 passed after rebase onto 0891a7069 (run via .venv/bin/python).
+  - command: python -m pytest tests/test_usage.py tests/test_packaging.py
+    status: failed
+    head: 834251b6b56686d6f4593e4d085a987a82de51b9
+    base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
+    detail: 75 passed, 2 failed after rebase; both failures (live/package twin drift in coga/checkouts/launch-boundary, broken anchors from coga-dev/current-direction) reproduce with this change stashed and are pre-existing on main. Fix is PR https://github.com/FastJVM/coga/pull/1185; its simulated merge with this base passes tests/test_packaging.py (37 passed).
+  - command: python -m pytest
+    status: failed
+    head: 03a7fc0e80b22482ddc403f6c43624ef19b56e70
+    base: ddf7e225ff5f126ba55510fe4bf37f3015bdff89
+    detail: 4488 passed, 10 skipped, 2 failed; same two pre-existing test_packaging failures. Ran before the rebase onto 0891a7069 (upstream changes are skill-update and release-env only); not rerun at the new head.
+```

@@ -10453,3 +10453,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-06 16:58 v1 [v1/honor-codex-home-when-locating-codex-rollouts] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-06 16:58 v1 [v1/honor-codex-home-when-locating-codex-rollouts] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-06 16:58 v1 [v1/honor-codex-home-when-locating-codex-rollouts] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-06 18:22 v1 [v1/honor-codex-home-when-locating-codex-rollouts] [agent:claude] advanced to step 2 (peer-review) → codex — CODEX_HOME honored; 2 pre-existing test_packaging failures on main fixed separately in PR #1185
