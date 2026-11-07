@@ -713,6 +713,118 @@ open, it defines `_installed_agent_clis`, the proposed fresh-init call site is
 before `target.mkdir`, and `_setup_initialized_clone` is a separate path. The
 ticket's explicit wait-for-#1176 sequencing handles the open PR.
 
+## Re-check 2026-11-06 (still parked, still waiting on #1176)
+
+### #1176's conflicts are gone
+
+Its head moved to `b9057a89b` (two commits, 22 files, +252/−598) and
+`git merge-tree origin/main refs/remotes/pr/1176` now returns a tree with no
+conflicted paths, against main at `0309c437a`. The four files recorded as
+conflicting above — both copies of `coga/init`, `coga-dev/internals/agent-spawn`,
+and `tests/test_init.py` — all merge clean. GitHub still reports
+`mergeable: UNKNOWN`, so keep checking locally. The PR is **open**, in front of
+Nico; nothing to do here until he merges it.
+
+### The design spec was re-verified against `b9057a89b`
+
+The evaluator reviewed `3badabee5`, so every anchor was re-read at the new head.
+All of them hold, with exact lines:
+
+- `dependencies.py:118` is still `AGENT_CLIS: tuple[str, ...] = ("claude", "codex")`, and the module has no `agent_label` and no `install_hint`.
+- `init.py:579` defines `_installed_agent_clis() -> list[str]`; reuse it.
+- `init.py:598-600` is the `if len(installed) != 1: return None` narrowing.
+- `init.py:629` is `_AGENT_LABELS`, still the second registry to delete.
+- `init.py:1343/1345/1347` are `_offer_optional_tools()`, `_offer_agent_cli(...)`, `target.mkdir(...)` — the proposed call site sits between the first two and is before the mkdir, as designed.
+- `init.py:1578-1579` still spell `_AGENT_LABELS[build_agent]` and `_AGENT_LABELS[other]`, and `init.py:1569-1572` still spell "Claude Code (`claude`) or Codex (`codex`)" as a literal.
+- `init.py:1650` is `_AGENT_SKILL_DIRS`, out of scope and unchanged.
+- `coga/install`'s Prerequisites bullet still ends "Coga provides no agent installer command or URL"; `coga/init`'s "Fresh repo" still says "Init only scans `PATH` for them" at line 106.
+
+### Main's twin-parity test was red — fixed on main 2026-11-07, ignore this
+
+**Resolved, kept only so the finding is not rediscovered.** The ten drifted
+twins below were repaired on main by `ad2716f65`
+(`fix/revert-swept-legacy-doc-copies`) and its neighbours. The test passes on
+main at `3942e54b7`. There is nothing to work around and no ticket to file.
+
+`python -m pytest tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+fails on clean `main` at `0309c437a`, before this ticket touches anything. Ten
+twins have drifted:
+
+    docs/contexts/coga/checkouts/launch-boundary/SKILL.md
+    docs/contexts/coga/first-task/SKILL.md
+    docs/contexts/coga/install/SKILL.md
+    docs/contexts/coga/launch/SKILL.md
+    docs/contexts/coga/recurring/scheduling/SKILL.md
+    docs/contexts/coga/script-tickets/SKILL.md
+    docs/contexts/coga/tickets/authoring/SKILL.md
+    coga/skills/coga/releasing/SKILL.md
+    coga/skills/coga/testing/clean-install/macos-aws/SKILL.md
+    coga/skills/coga/testing/clean-install/windows-aws/SKILL.md
+
+`coga/install` is one of them: its bundled twin carries the pre-native-Windows
+Prerequisites text while the live copy has the Windows-baseline section. This
+is unowned pre-existing drift, not this ticket's. Two consequences for
+implement: still edit both copies of both topics verbatim, because the test
+pins the pair this ticket touches as soon as the rest is fixed; and expect this
+test to be red before and after, so read its failure for *this ticket's* two
+paths rather than treating a red run as a regression.
+
+
+## 2026-11-07 — #1176 was closed, and this ticket's sequencing is now void
+
+Still parked at `review-design`, not bumped. Main moved 79 commits overnight
+(`0309c437a` → `3942e54b7`). Three things changed that this ticket depends on.
+
+### #1176 is closed, not merged
+
+Nico closed it at 2026-11-07 05:01Z with one comment and no review. It is not
+merged: `agent_cli_setup.py`, `install_hint`, and the agent `Dependency`
+records are all still on main. So every instruction in `### Sequencing against
+#1176` and `### When restarting` that says "base implement on #1176's head, or
+on main once #1176 merges" has no target. Do not act on it. The sibling ticket
+`v1/remove-the-agent-cli-install-offer-from-coga-init` is at `step: 4 (review)`
+and owns the response to Nico; what this ticket builds on depends on how that
+lands, so the dependency stays but its shape is unknown.
+
+Nico's comment, in full:
+
+> coga build failed with "Agent CLI 'claude' not found in PATH. Coga requires
+> the configured agent CLI on PATH for agent-backed commands." and printed
+> nothing else.
+>  => it's not supposed to be in the PATH but in the toml
+
+The quoted string is #1176's own new text, from its
+`dependencies.agent_cli_missing_message` — so he ran the PR branch. On main the
+same failure appends "Install it from `<url>` and authenticate, then re-run."
+from `install_hint`; #1176 deletes `install_hint` and replaces the remedy with a
+restatement of the requirement. That is the "printed nothing else".
+
+His second clause was ambiguous between "`cli` should accept a path so PATH is
+not required" and "the message should point at the toml". **Resolved by Zach,
+2026-11-07: the message is wrong and should name the config that declared
+`cli = "claude"`, pointing at the toml as the place to change it.** The
+path-accepting reading is rejected. The fix belongs to the sibling ticket,
+which carries the full handoff under
+`## Nico closed PR #1176 — handoff (2026-11-07, claude, ...)`.
+
+### `coga/install` was retired — this ticket's context list is stale
+
+`8a88b5ada` ("Retire the coga/install topic", ticket
+`v1/26-make-the-readme-install-section-the-only-install-p`) deleted both copies
+of `docs/contexts/coga/install/SKILL.md`. The README "Get started" section is
+now the only install path, and init's external-CLI install-offer facts moved
+into `coga/init`.
+
+Two consequences, both left unfixed in the ticket body above because it is
+parked:
+
+- The acceptance criterion "`coga/init` and `coga/install` describe the scan" names a topic that no longer exists. The scan fact now has one home, `coga/init`, plus possibly the README.
+- `### Contexts to update in the same PR` lists `coga/install`'s "Prerequisites" bullet and quotes its "Coga provides no agent installer command or URL" sentence. Both are gone from the repo. `coga/init` is where to look for whatever survived.
+
+### The twin-parity test is green again
+
+See the corrected note above. Nothing to work around, no ticket to file.
+
 
 ## Superseded designs
 
