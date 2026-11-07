@@ -12,8 +12,10 @@ steps:
 
 Script-backed recurring task. `coga launch` runs the period task's reserved
 `ticket.py`, which renders last completed ISO week's agent token usage from
-`coga/log.md` with the template's `report.py` — total tokens and sessions,
-the four token categories, a per-model split, the unknown-session floor — and
+`coga/log.md` with the template's `report.py` — a header naming the
+configured user, total tokens split into non-cache-read and cache-read
+amounts, sessions, the four token categories, labeled per-agent and per-model
+splits, the unknown-session floor — and
 posts it once to the important Slack route with `fatal=False`, so a delivery
 miss is reported without leaving the period `in_progress`. The same text is
 printed ad hoc by `python coga/recurring/usage-report/report.py`.

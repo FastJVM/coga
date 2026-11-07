@@ -81,7 +81,8 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks).
 
 ## Get started
 
-Agent sessions run on Linux or macOS. You'll need working Git and either
+Agent sessions run on Linux or macOS. Coga runs inside an existing Git
+repository; outside one, `coga init` stops. You'll need working Git and either
 Claude Code (`claude`) or Codex (`codex`) on `PATH`; Coga does not install or
 link to an installer for either agent. Coga requires Python 3.11+, but the
 recommended `uv` installer can obtain a compatible Python for you.
@@ -111,18 +112,10 @@ uv tool install coga
 coga --version
 ```
 
-For an existing project, change into its Git repository. For a new project,
-create the repository first:
-
-```sh
-mkdir myproject
-cd myproject
-git init -b main
-```
-
-Check `git var GIT_AUTHOR_IDENT` before init. If Git asks for an identity,
-set `git config user.name "Your Name"` and
-`git config user.email "you@example.com"` with your own details in this repo.
+Change into your project's Git repository. Check `git var GIT_AUTHOR_IDENT`
+before init. If Git asks for an identity, set `git config user.name "Your Name"`
+and `git config user.email "you@example.com"` with your own details in this
+repo.
 Then run:
 
 ```sh
@@ -142,15 +135,15 @@ ticket only for an otherwise empty repo; a short starter README, LICENSE or
 # New, otherwise empty Git repo: discuss the idea and draft a first plan
 coga build
 
-# Existing project: discuss what's next
-coga chat
+# Repo with existing files: describe your first task
+coga ticket "<title>"
 
 # Check the current work
 coga status
 ```
 
-To use Codex explicitly, run `coga build --agent codex`,
-`coga chat --agent codex`, or `coga ticket "Your task title" --agent codex`.
+To use Codex explicitly, run `coga build --agent codex` or
+`coga ticket "Your task title" --agent codex`.
 In the shipped setup, chat and ticket interviews default to Claude even when
 new tasks use Codex.
 You can also edit any ticket directly in Markdown.
