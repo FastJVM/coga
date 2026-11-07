@@ -1068,8 +1068,9 @@ def test_spawn_teardown_commits_log_when_initial_commit_unset(git_repo, monkeypa
 
 def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     """The teardown commits the usage record `capture_session` appends to the
-    global log past the agent's final `bump`/`mark` sync — via the log's own
-    union-safe sync, so the ticket and product code are left alone."""
+    global log past the agent's final `bump`/`mark` sync, retrying the
+    session's own ticket with it; other Coga files and product code are left
+    alone."""
     cfg = load_config(git_repo.coga_os)
     task = git_repo.coga_os / "tasks" / "demo"
     task.mkdir(parents=True)
@@ -1112,12 +1113,16 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         "coga.launch.usage_tracking.capture_session", fake_capture
     )
 
-    # A hand-edit elsewhere under coga/ must NOT be swept in by the teardown —
-    # it commits at the next CLI dispatch boundary instead.
+    # The session's ticket is retried at teardown (a write the child could
+    # not publish lands now) ...
     (task / "ticket.md").write_text(
-        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n",
+        "---\ntitle: demo\nstatus: active\n---\n\nbody\nsession edit\n",
         encoding="utf-8", newline="\n",
     )
+    # ... but a hand-edit elsewhere under coga/ must NOT be swept in by the
+    # teardown — it commits at the next CLI dispatch boundary instead.
+    other = git_repo.coga_os / "tasks" / "other.md"
+    other.write_text("---\ntitle: other\nstatus: draft\n---\n\nhand edit\n", encoding="utf-8", newline="\n")
 
     spawn_agent_session(
         cfg, ref, _ticket(),
@@ -1135,9 +1140,11 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     assert '{"tokens": 1}' in git_repo.git("show", "origin/main:coga/log.md")
     assert captured[0]["slug"] == "demo"
     assert captured[0]["outcome_status"] == "completed"
-    # The teardown commits exactly the log: the ticket hand-edit and product
-    # code outside coga/ stay dirty and unpushed.
-    assert "ticket.md" in git_repo.git("status", "--porcelain")
+    # The teardown commits the log and the session's ticket: another task's
+    # hand-edit and product code outside coga/ stay dirty and unpushed.
+    assert "session edit" in git_repo.git("show", "origin/main:coga/tasks/demo/ticket.md")
+    assert "ticket.md" not in git_repo.git("status", "--porcelain")
+    assert "other.md" in git_repo.git("status", "--porcelain", "--untracked-files=all")
     assert "outside.txt" in git_repo.git("status", "--porcelain")
 
 
@@ -5566,6 +5573,10 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
         "coga.launch.git.sync_log",
         lambda cfg, **kwargs: sync_calls.append(kwargs),
     )
+    monkeypatch.setattr(
+        "coga.launch.git.retry_session_publication",
+        lambda cfg, path, **kwargs: sync_calls.append({"retry": path, **kwargs}),
+    )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
 
@@ -5583,11 +5594,11 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
 
     log = _read_log(active_task)
     assert "operator=marc, launch_agent=codex, agent=codex" in log
-    # The launch line publishes before the spawn, and the session's usage
-    # record publishes at teardown.
+    # The launch line publishes before the spawn; at teardown the session's
+    # ticket is retried with its usage record.
     assert sync_calls == [
         {"message": "Log: fix-retry-logic"},
-        {"message": "Log: fix-retry-logic"},
+        {"retry": ref.path, "slug": "fix-retry-logic"},
     ]
 
 

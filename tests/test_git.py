@@ -3949,3 +3949,527 @@ def test_stage_a_handoff_sweep_publishes_state_but_never_definitions(git_repo):
     assert _control(
         git_repo, "src/coga/resources/templates/coga/recurring/dream/ticket.md"
     ) == definition
+
+
+# --- prepared ticket transactions (read control before modifying) -------------
+#
+# `git.prepare_ticket` fetches control, reconciles this checkout's ticket with
+# control's copy over the newest proven shared snapshot, and lifecycle
+# commands decide, write, and publish from that view (`coga/state-publication`,
+# "Prepared ticket transactions").
+
+_FOUR_STEPS = ("implement", "review", "fix", "ship")
+
+
+def _lifecycle_text(
+    *, status: str = "in_progress", step: int | None = 1, blackboard: str = "notes\n",
+    body: str = "Demo.\n",
+) -> str:
+    steps = "".join(f"  - name: {name}\n    assignee: agent\n" for name in _FOUR_STEPS)
+    step_line = "" if step is None else f"step: {step} ({_FOUR_STEPS[step - 1]})\n"
+    return (
+        f"---\ntitle: demo\nstatus: {status}\nowner: marc\nagent: claude\n"
+        f"workflow:\n  name: four\n  steps:\n{steps}{step_line}---\n\n"
+        f"## Description\n\n{body}\n<!-- coga:blackboard -->\n\n{blackboard}"
+    )
+
+
+def _seed_lifecycle(git_repo, **kwargs) -> tuple[Path, str]:
+    workflow = git_repo.coga_os / "workflows" / "four.md"
+    workflow.write_text(
+        "---\nname: four\ndescription: four steps.\nsteps:\n"
+        + "".join(f"  - name: {name}\n    assignee: agent\n" for name in _FOUR_STEPS)
+        + "---\n\n" + "".join(f"## {name}\nDo {name}.\n\n" for name in _FOUR_STEPS),
+        encoding="utf-8", newline="\n",
+    )
+    path = git_repo.coga_os / "tasks" / "demo.md"
+    path.write_text(_lifecycle_text(**kwargs), encoding="utf-8", newline="\n")
+    git_repo.git("add", "--", "coga/tasks/demo.md", "coga/workflows/four.md")
+    git_repo.git("commit", "-m", "seed demo")
+    git_repo.git("push", "origin", "main")
+    return path, "coga/tasks/demo.md"
+
+
+def _peer_writes(git_repo, rel: str, text: str) -> None:
+    def mutate(clone: Path) -> None:
+        (clone / rel).write_text(text, encoding="utf-8", newline="\n")
+
+    _peer_commit(git_repo, mutate, message=f"peer: {rel}")
+
+
+def _index_and_head(git_repo) -> tuple[str, str, str]:
+    return (
+        git_repo.git("rev-parse", "HEAD").strip(),
+        git_repo.git("symbolic-ref", "-q", "HEAD").strip(),
+        git_repo.git("ls-files", "--stage"),
+    )
+
+
+def test_prepare_adopts_control_for_an_unedited_stale_feature_checkout(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/stale")
+    before = path.read_bytes()
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2, blackboard="notes\npeer note\n"))
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.fresh and prepared.outcome == "adopted"
+    assert prepared.ticket.step == "2 (review)"
+    assert "peer note" in prepared.ticket.body
+    assert prepared.control == _control(git_repo, rel).encode()
+    # Preparation writes nothing.
+    assert path.read_bytes() == before == prepared.local
+
+
+def test_stale_feature_checkout_bump_advances_controls_step(git_repo, monkeypatch):
+    """Local step 1, control step 2: one bump lands step 3 on control."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/stale")
+    # Unrelated dirt and a staged unrelated file must survive untouched.
+    (git_repo.root / "README.scratch").write_text("dirt\n", encoding="utf-8")
+    git_repo.git("add", "README.scratch")
+    snapshot = _index_and_head(git_repo)
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2, blackboard="notes\npeer note\n"))
+
+    result = runner.invoke(app, ["bump", "demo"])
+
+    assert result.exit_code == 0, result.output
+    control = Ticket.parse(_control(git_repo, rel))
+    assert control.step == "3 (fix)"
+    assert "peer note" in control.body
+    assert Ticket.read(path).step == "3 (fix)"
+    assert _index_and_head(git_repo) == snapshot
+
+
+def test_three_way_merge_keeps_both_notes_and_later_step(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo, blackboard="## Notes\n\nbase\n\n## Peer\n\nnone\n")
+    git_repo.checkout_branch("feature/merge")
+    # Unpublished local edit: step 2 plus a note in the first section.
+    path.write_text(
+        _lifecycle_text(step=2, blackboard="## Notes\n\nbase\nlocal note\n\n## Peer\n\nnone\n"),
+        encoding="utf-8", newline="\n",
+    )
+    _peer_writes(
+        git_repo, rel,
+        _lifecycle_text(step=3, blackboard="## Notes\n\nbase\n\n## Peer\n\nnone\npeer note\n"),
+    )
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.outcome == "merged"
+    assert prepared.ticket.step == "3 (fix)"
+    assert "local note" in prepared.ticket.body and "peer note" in prepared.ticket.body
+
+    result = runner.invoke(app, ["bump", "demo"])
+    assert result.exit_code == 0, result.output
+    control = Ticket.parse(_control(git_repo, rel))
+    assert control.step == "4 (ship)"
+    assert "local note" in control.body and "peer note" in control.body
+
+
+def test_terminal_winner_carries_no_step(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/terminal")
+    path.write_text(_lifecycle_text(step=2), encoding="utf-8", newline="\n")
+    _peer_writes(git_repo, rel, _lifecycle_text(status="done", step=None))
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.ticket.status == "done"
+    assert "step" not in prepared.ticket.frontmatter
+
+
+def test_a_later_publication_is_the_base_so_a_deliberate_rewind_is_kept(git_repo):
+    """HEAD holds step 1, this worktree published step 2, local rewinds to 1."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/rewind")
+    path.write_text(_lifecycle_text(step=2), encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, path, message="step 2") is True
+    path.write_text(_lifecycle_text(step=1), encoding="utf-8", newline="\n")
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2, blackboard="notes\npeer note\n"))
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.outcome == "merged"
+    assert prepared.ticket.step == "1 (implement)"
+    assert "peer note" in prepared.ticket.body
+
+
+def test_an_unpublished_feature_commit_is_a_local_edit_not_a_base(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/committed")
+    path.write_text(_lifecycle_text(step=1, body="Local prose.\n"), encoding="utf-8", newline="\n")
+    git_repo.git("commit", "-am", "local ticket edit")
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2))
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.outcome == "merged"
+    assert prepared.ticket.step == "2 (review)"
+    assert "Local prose." in prepared.ticket.body
+
+
+def test_overlapping_blackboard_edits_refuse_before_any_write(git_repo, monkeypatch):
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/conflict")
+    path.write_text(_lifecycle_text(blackboard="local rewrite\n"), encoding="utf-8", newline="\n")
+    original = path.read_bytes()
+    _peer_writes(git_repo, rel, _lifecycle_text(blackboard="peer rewrite\n"))
+    control_before = _control(git_repo, rel)
+    log_before = log_path(cfg).read_bytes() if log_path(cfg).exists() else b""
+
+    with pytest.raises(git.TicketConflictError) as conflict:
+        git.prepare_ticket(cfg, path)
+    assert not conflict.value.status_conflict
+
+    monkeypatch.setattr("sys.argv", ["coga", "bump", "demo"])
+    sweeps = []
+    monkeypatch.setattr(cli, "_sweep_coga_state", lambda cfg: sweeps.append(cfg))
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert not sweeps
+    assert path.read_bytes() == original
+    assert _control(git_repo, rel) == control_before
+    assert (log_path(cfg).read_bytes() if log_path(cfg).exists() else b"") == log_before
+
+
+@pytest.mark.parametrize(
+    ("base", "local", "control"),
+    [
+        ("active", "paused", "in_progress"),
+        ("in_progress", "blocked", "done"),
+        ("in_progress", "done", "canceled"),
+    ],
+)
+def test_undecidable_status_changes_are_a_status_conflict(git_repo, base, local, control):
+    cfg = load_config(git_repo.coga_os)
+
+    def text(status: str) -> str:
+        return _lifecycle_text(status=status, step=None if status in {"done", "canceled"} else 1)
+
+    path, rel = _seed_lifecycle(git_repo, status=base)
+    git_repo.checkout_branch("feature/status")
+    path.write_text(text(local), encoding="utf-8", newline="\n")
+    _peer_writes(git_repo, rel, text(control))
+
+    with pytest.raises(git.TicketConflictError) as conflict:
+        git.prepare_ticket(cfg, path)
+    assert conflict.value.status_conflict
+    assert "human must decide" in str(conflict.value)
+
+
+def test_deleted_on_control_after_a_shared_base_refuses(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/deleted")
+    _peer_commit(git_repo, lambda clone: (clone / rel).unlink(), message="peer delete")
+
+    with pytest.raises(git.TicketConflictError, match="deleted"):
+        git.prepare_ticket(cfg, path)
+
+
+def test_a_never_published_ticket_keeps_the_create_path(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path = git_repo.coga_os / "tasks" / "fresh.md"
+    path.write_text(_lifecycle_text(), encoding="utf-8", newline="\n")
+
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert prepared.outcome == "new" and prepared.control is None
+
+
+def test_failed_fetch_keeps_the_local_read(git_repo, monkeypatch, capsys):
+    cfg = load_config(git_repo.coga_os)
+    path, _rel = _seed_lifecycle(git_repo)
+    real = git.run_git
+
+    def offline(root, *args, env=None):  # type: ignore[no-untyped-def]
+        if args and args[0] == "fetch":
+            raise git.GitError("`git fetch` failed: could not resolve host")
+        return real(root, *args, env=env)
+
+    monkeypatch.setattr(git, "run_git", offline)
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert not prepared.fresh and prepared.outcome == "local"
+    assert prepared.expect() is None
+    assert "could not read current control" in capsys.readouterr().err
+
+
+def test_missing_remote_control_with_a_cached_ref_is_not_fresh(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    path, _rel = _seed_lifecycle(git_repo)
+    git_repo.git("branch", "-m", "main", "trunk", cwd=git_repo.origin)
+    assert git_repo.git("rev-parse", "-q", "--verify", "refs/remotes/origin/main").strip()
+
+    fetched = git.fetch_control_state(cfg, git_repo.root)
+    prepared = git.prepare_ticket(cfg, path)
+
+    assert fetched.state == "missing" and fetched.revision is None
+    assert not prepared.fresh
+    assert "could not read current control" in capsys.readouterr().err
+
+
+def test_same_ticket_race_after_preparation_refuses_and_is_remembered(git_repo):
+    """Prepared against C; a peer then restores B, which this worktree once
+    published. The exact expectation refuses, and the remembered refusal
+    keeps the sweep from landing those bytes through broader provenance."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/race")
+    b_text = _lifecycle_text(step=2)
+    path.write_text(b_text, encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, path, message="B") is True
+    c_text = _lifecycle_text(step=3)
+    _peer_writes(git_repo, rel, c_text)
+
+    prepared = git.prepare_ticket(cfg, path)
+    assert prepared.ticket.step == "3 (fix)"
+    prepared.ticket.frontmatter["step"] = "4 (ship)"
+    git.write_ticket(cfg, prepared.ticket, path, prepared=prepared)
+    _peer_writes(git_repo, rel, b_text)
+
+    assert git.sync_task_state(cfg, path, message="step 4", prepared=prepared) is None
+    assert _control(git_repo, rel) == b_text
+    git.sync_coga_state(cfg)
+    assert _control(git_repo, rel) == b_text
+    assert Ticket.read(path).step == "4 (ship)"
+
+
+def test_prepared_write_refuses_a_ticket_changed_after_preparation(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, _rel = _seed_lifecycle(git_repo)
+    prepared = git.prepare_ticket(cfg, path)
+    path.write_text(_lifecycle_text(blackboard="hand edit\n"), encoding="utf-8", newline="\n")
+    prepared.ticket.frontmatter["step"] = "2 (review)"
+
+    with pytest.raises(git.TicketChangedError):
+        git.write_ticket(cfg, prepared.ticket, path, prepared=prepared)
+    assert "hand edit" in path.read_text(encoding="utf-8")
+
+
+def test_retryable_prepared_failure_keeps_its_expectation_for_the_retry(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/sandbox")
+    b_text = _lifecycle_text(step=2)
+    path.write_text(b_text, encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, path, message="B") is True
+    _peer_writes(git_repo, rel, _lifecycle_text(step=3))
+    prepared = git.prepare_ticket(cfg, path)
+    prepared.ticket.frontmatter["step"] = "4 (ship)"
+    git.write_ticket(cfg, prepared.ticket, path, prepared=prepared)
+
+    real_run = git._run
+
+    def read_only(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "hash-object" in argv and "-w" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", _EROFS)
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", read_only)
+    assert git.sync_task_state(cfg, path, message="step 4", prepared=prepared) is None
+    monkeypatch.setattr(git, "_run", real_run)
+    assert "pending" in (cfg.repo_root / git._PENDING_FILE).read_text(encoding="utf-8")
+
+    # A peer restores B; the retry must not land step 4 over it.
+    _peer_writes(git_repo, rel, b_text)
+    git.retry_session_publication(cfg, path, slug="demo")
+    assert _control(git_repo, rel) == b_text
+
+
+def test_retry_publishes_a_remembered_transition_that_restored_head_bytes(git_repo, monkeypatch):
+    """A prepared rewind back to HEAD's exact bytes fails to publish; the
+    retry (no explicit expectation) must still select the clean ticket from
+    the remembered pending expectation and land it."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/rewind")
+    path.write_text(_lifecycle_text(step=2), encoding="utf-8", newline="\n")
+    assert git.sync_task_state(cfg, path, message="step 2") is True
+    prepared = git.prepare_ticket(cfg, path)
+    assert prepared.fresh
+    path.write_text(_lifecycle_text(), encoding="utf-8", newline="\n")
+    assert git_repo.git("status", "--porcelain", "--", rel) == ""
+
+    real_run = git._run
+
+    def read_only(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "hash-object" in argv and "-w" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", _EROFS)
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", read_only)
+    assert git.sync_task_state(cfg, path, message="rewind", prepared=prepared) is None
+    monkeypatch.setattr(git, "_run", real_run)
+    assert rel in (cfg.repo_root / git._PENDING_FILE).read_text(encoding="utf-8")
+
+    assert git.retry_session_publication(cfg, path, slug="demo") is True
+    assert _control(git_repo, rel) == _lifecycle_text()
+    assert not (cfg.repo_root / git._PENDING_FILE).exists()
+
+
+def test_retry_session_publication_refuses_an_ignored_untracked_log(git_repo, capsys):
+    """Like `sync_log`, the teardown retry must not report an excluded usage
+    record as published (or already held): it returns None so launch warns."""
+    cfg = load_config(git_repo.coga_os)
+    path, _rel = _seed_lifecycle(git_repo)
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/log.md\n", encoding="utf-8", newline="\n")
+    append_log(cfg, "demo", "system", "session usage")
+
+    assert git.retry_session_publication(cfg, path, slug="demo") is None
+    assert "excluded from publication" in capsys.readouterr().err
+    assert not git_repo.origin_tracks("coga/log.md")
+
+
+def _child_bump_without_object_writes(git_repo, monkeypatch, cfg, path) -> bytes:
+    """A sandboxed child's bump: local ticket/log change, publication fails."""
+    real_run = git._run
+
+    def read_only(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "fetch" in argv or ("hash-object" in argv and "-w" in argv):
+            return subprocess.CompletedProcess(argv, 128, b"", _EROFS)
+        return real_run(argv, env=env, input=input)
+
+    real_run_git = git.run_git
+
+    def no_fetch(root, *args, env=None):  # type: ignore[no-untyped-def]
+        if args and args[0] == "fetch":
+            raise git.GitError("`git fetch` failed: Read-only file system")
+        return real_run_git(root, *args, env=env)
+
+    monkeypatch.setattr(git, "_run", read_only)
+    monkeypatch.setattr(git, "run_git", no_fetch)
+    try:
+        result = runner.invoke(app, ["bump", "demo"])
+    finally:
+        monkeypatch.setattr(git, "_run", real_run)
+        monkeypatch.setattr(git, "run_git", real_run_git)
+    assert result.exit_code == 0, result.output
+    return path.read_bytes()
+
+
+def test_improve_banners_sequence_peer_published_then_parent_confirms(git_repo, monkeypatch):
+    """2026-09-27 multiply improve-banners: a child bump could not write Git
+    objects, a peer published the exact ticket, the parent confirmed it and
+    recorded provenance, and the next human bump in the feature checkout
+    succeeds."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/improve-banners")
+
+    child_bytes = _child_bump_without_object_writes(git_repo, monkeypatch, cfg, path)
+    assert Ticket.read(path).step == "2 (review)"
+    assert _control(git_repo, rel) == _lifecycle_text()
+    _peer_writes(git_repo, rel, child_bytes.decode())
+
+    git.retry_session_publication(cfg, path, slug="demo")
+    published = git_repo.git("rev-parse", f"{git.PUBLISHED_REF}:{rel}").strip()
+    assert published == git_repo.git("rev-parse", f"origin/main:{rel}").strip()
+
+    result = runner.invoke(app, ["bump", "demo"])
+    assert result.exit_code == 0, result.output
+    assert Ticket.parse(_control(git_repo, rel)).step == "3 (fix)"
+
+
+def test_improve_banners_sequence_recovers_without_a_peer(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/improve-banners")
+
+    _child_bump_without_object_writes(git_repo, monkeypatch, cfg, path)
+    assert git.retry_session_publication(cfg, path, slug="demo") is True
+
+    assert Ticket.parse(_control(git_repo, rel)).step == "2 (review)"
+    result = runner.invoke(app, ["bump", "demo"])
+    assert result.exit_code == 0, result.output
+    assert Ticket.parse(_control(git_repo, rel)).step == "3 (fix)"
+
+
+def test_equal_tree_confirmation_records_only_this_worktrees_provenance(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    linked = git_repo.origin.parent / "linked"
+    git_repo.git("worktree", "add", "-b", "side", str(linked))
+    git_repo.checkout_branch("feature/equal")
+    text = _lifecycle_text(step=2)
+    path.write_text(text, encoding="utf-8", newline="\n")
+    _peer_writes(git_repo, rel, text)
+    git_repo.git("fetch", "origin")
+    before = git_repo.origin_subjects()
+
+    assert git.publish(cfg, [path], "equal") is False
+
+    assert git_repo.origin_subjects() == before
+    assert git_repo.git("rev-parse", f"{git.PUBLISHED_REF}:{rel}").strip()
+    # `refs/worktree/*` is private to each checkout: the linked one has none.
+    linked_ref = subprocess.run(
+        ["git", "-C", str(linked), "rev-parse", "-q", "--verify", git.PUBLISHED_REF],
+        capture_output=True,
+    )
+    assert linked_ref.returncode != 0
+
+
+def test_supervised_bump_refuses_when_control_moved_past_its_step(git_repo, monkeypatch):
+    from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
+
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/supervised")
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2))
+    monkeypatch.setenv("COGA_SUPERVISED", "1")
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(path))
+    monkeypatch.setenv(EXPECTED_STEP_ENV, "1 (implement)")
+
+    result = runner.invoke(app, ["bump", "demo"])
+
+    assert result.exit_code == 2
+    assert "composed for step '1 (implement)'" in result.output
+    assert Ticket.parse(_control(git_repo, rel)).step == "2 (review)"
+    assert Ticket.read(path).step == "1 (implement)"
+
+
+def test_block_writes_its_ask_onto_controls_copy(git_repo):
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/block")
+    _peer_writes(git_repo, rel, _lifecycle_text(step=2, blackboard="notes\npeer note\n"))
+
+    result = runner.invoke(app, ["block", "--task", "demo", "--reason", "Need the retry cap"])
+
+    assert result.exit_code == 0, result.output
+    control = Ticket.parse(_control(git_repo, rel))
+    assert control.status == "blocked" and control.step == "2 (review)"
+    assert "peer note" in control.body and "Need the retry cap" in control.body
+
+
+def test_unblock_refusal_exits_without_the_sweep(git_repo, monkeypatch):
+    from coga import cli
+
+    path, rel = _seed_lifecycle(
+        git_repo, status="blocked",
+        blackboard="## Blockers\n\n- [ ] [2026-11-05 10:00] [agent:claude] id=20261105T100000 Need input\n",
+    )
+    git_repo.checkout_branch("feature/unblock")
+    path.write_text(
+        _lifecycle_text(status="blocked", blackboard="local rewrite\n"), encoding="utf-8", newline="\n",
+    )
+    original = path.read_bytes()
+    _peer_writes(git_repo, rel, _lifecycle_text(status="blocked", blackboard="peer rewrite\n"))
+    monkeypatch.setattr("sys.argv", ["coga", "unblock", "demo", "--answer", "go"])
+    sweeps = []
+    monkeypatch.setattr(cli, "_sweep_coga_state", lambda cfg: sweeps.append(cfg))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert not sweeps and path.read_bytes() == original
