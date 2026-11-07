@@ -24,7 +24,12 @@ attempt.
 environment (with supervised witnesses), and agent that spawn will use, and
 builds the `in_progress` ticket with a new `launch_generation`:
 `pending:<uuid>` with Git sync, a plain UUID without. It refuses an
-`in_progress` ticket already carrying any generation form, and checks push
+`in_progress` ticket carrying a `pending:` or `released:` generation. A plain
+(admitted) generation left by an earlier session is replaced by the new
+claim: megalaunch does not judge whether that session still runs, so
+coordinating concurrent sessions on one ticket is the human's job, and the
+start audit line names the replaced claim. Claimers racing for the same
+bytes still meet the strict publication below. It also checks push
 auth. Nothing fallible is re-derived after lifecycle state is written.
 
 ## Strict claim publication
@@ -50,8 +55,8 @@ Every task publisher refuses to replace a control ticket carrying
 `pending:<uuid>` (`git.ticket_regression_reason`); the sole accepted
 replacement is the identical ticket with the prefix stripped. A working copy
 carrying `released:` is never published. `coga launch` refuses a pending
-ticket, and no megalaunch reclaims any generation form (it points at
-`coga launch <slug>` for recovery). Step advances and lifecycle transitions
+ticket, and no megalaunch reclaims a pending or released form (it points
+at `coga launch <slug>` for recovery). Step advances and lifecycle transitions
 that end or park the session drop the field.
 
 ## Held child and admission
@@ -63,19 +68,23 @@ that end or park the session drop the field.
 1. Before the audit: `_revalidate_launch_claim_before_spawn` requires local
    bytes, then control's copy after a fresh `fetch_control`, then local
    bytes again, all equal to the claim.
-2. The PTY child is created but held on a private pipe before exec; the same
-   proof runs.
-3. Under `git.state_lock`: append the audit, prove again, write the gate
-   byte (SIGINT/SIGTERM masked across the write and the released-state
-   update), then `_admit_launch_claim_after_release` records a local
+2. The child is created but held before exec; the same proof runs. On
+   POSIX it waits on a private pipe. On native Windows the wrapper has joined
+   its Job Object and waits on a per-spawn named event
+   (`Local\coga-gate-<uuid>`).
+3. Under `git.state_lock`: append the audit, prove again, release the child
+   (the one-byte pipe write on POSIX, `SetEvent` on Windows; SIGINT/SIGTERM
+   are masked across it and the released-state update where the platform has
+   a signal mask), then `_admit_launch_claim_after_release` records a local
    `released:<uuid>` witness and publishes the plain UUID with `expect`
    pinned to the pending copy. The lock is reentrant, so publish re-enters
    it.
 
 Failures: a changed or unverifiable claim before release removes only the
 owned audit line, kills the held child, and retains the pending state. A
-failed gate write runs compensation first (audit removed, no usage
-teardown). An audit failure kills the held child. An admission failure after
+failed gate write or `SetEvent` runs compensation first (audit removed, no usage
+teardown). An audit failure kills the held child (on Windows by terminating its Job).
+Both platforms run the same `repl_supervisor._admit_held_child` sequence. An admission failure after
 release kills the child but keeps its audit and restores the local
 `released:` witness, whether publication was refused or uncertain. An
 interrupt observed after delivery keeps the audit and treats the child as

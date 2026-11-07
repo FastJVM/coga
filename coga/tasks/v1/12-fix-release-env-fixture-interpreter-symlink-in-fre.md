@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: e472f6ae-cb22-486a-9e01-dbe75b5a47c8
 ---
 
 ## Description
@@ -188,6 +187,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1165
 branch: coga/v1-12-release-env-interpreter
 
 ## Implement handoff (claude, 2026-11-04)
@@ -214,43 +214,146 @@ branch: coga/v1-12-release-env-interpreter
 - Bare base `python3.12` cannot run the suite (no `tomlkit`), so "pytest from a
   base interpreter" was not exercised directly; the regression builds its own
   venv, so it is independent of whether pytest runs from a venv.
-- Review not run yet; peer-review is the next step.
+- Implementation handed off to peer review; the completed outcome is below.
+
+## Peer review
+
+Codex direct review **completed** on 2026-11-04 against head `5e7de7278ad186e8324d09d4f123cf7caefccbe4` and
+base `6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8`, after rebasing onto current main.
+No unresolved implementation findings.
+
+- Fixed one review finding: the testing topic still described this resolved
+  fixture bug as open and recommended a workaround. Removed that entry in
+  `5e7de7278`; the new reusable lesson remains.
+- Claude authored the implementation (handoff and original commit coauthor
+  evidence). Codex independently reviewed that code and self-reviewed its own
+  documentation correction. The final PR receipt conservatively uses
+  `author: claude/codex`, `kind: self`, and advisory `skim`.
+- Fresh environment: `python3.11 -m venv /home/n/.codex/coga-release-peer-hwnr4lgi/v311`,
+  then `/home/n/.codex/coga-release-peer-hwnr4lgi/v311/bin/python -m pip install -e ".[test]"`.
+  Python 3.11.15; base `/home/n/.local/bin/python3.11` cannot import `yaml`;
+  the venv loads PyYAML 6.0.3 from its own site-packages.
+- Fresh 3.11 focused harness: **38 passed, 0 skipped**. Full 3.11 suite:
+  **4454 passed, 10 skipped**. Exact commands and revision receipts are in `## PR`.
+- Base Python 3.12.12 focused harness: **38 passed, 0 skipped** with existing
+  venv test dependencies on PYTHONPATH; no base installation changes.
+- Negative controls replaced only the helper in memory via a scratch pytest
+  plugin. Old symlink on fresh 3.11: expected **2 failed, 0 passed** (missing
+  marker and yaml). On base 3.12 with global PyYAML: expected **1 failed,
+  1 passed** (the marker regression fails while the old release check passes).
+  Both drivers asserted those results and returned success; source files
+  stayed unchanged.
+- Terminal contract exercised with real PTYs: focused release tests cover
+  successful receipts, all five failures, and repeat-run rejection. A separate
+  probe verified stdin/stdout/stderr are terminals, exact spaced/empty/literal
+  shell-metacharacter argv, and exit 37 for both base and venv interpreters;
+  the venv path included a space and an apostrophe.
+- Final fetch confirmed main had not moved. Branch committed and pushed with
+  an explicit force-with-lease, then checkout returned cleanly to main.
+  Next step is the mechanical PR-opening step.
 
 ## PR
 
 ```yaml
 title: Keep the venv for the release_env tool interpreter
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5); see implement handoff.
-head: 62e4eb7da1b4aad813ae7befb2b59d74bc764fb0
-base: 48c00f79cba7ae3df028ea4a5166bcb6f4b6ab11
+author: claude/codex
+author_evidence: Claude Code (claude-opus-5-5) implemented the fixture, regression and testing lesson;
+  the implement handoff and original commit 62e4eb7da1b4aad813ae7befb2b59d74bc764fb0 record that identity.
+  Codex performed this peer-review session and removed the stale known-failure/workaround entry in 5e7de7278ad186e8324d09d4f123cf7caefccbe4.
+head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
 depth: skim
-rationale: Test-only fixture fix plus a doc bullet; read the description for the wrapper choice and verification matrix.
-implementation: Replaces the release_env tool-interpreter symlink with a /bin/sh exec wrapper (shlex-quoted path) via a new _tool_python helper, adds a regression test importing a module present only in a throwaway venv, and documents the lesson in coga-dev/testing.
-deviations: None.
-limitations: Not exercised with pytest running from a bare base interpreter (base python3.12 lacks test deps); the regression creates its own venv so it does not depend on that. Native Windows still skips this module by design.
+rationale: Small fixture-only fix with full Python 3.11 verification and negative controls that prove
+  global PyYAML cannot hide the regression. Read the description for the interpreter wrapper choice and
+  base-interpreter test setup. Codex independently reviewed Claude's implementation and self-reviewed
+  its own documentation correction; the final receipt is conservatively marked self.
+implementation: Uses a portable /bin/sh exec wrapper with a shlex-quoted interpreter path at tools/coga/bin/python,
+  retaining the pytest interpreter's packages, argv, exit status, metadata/source PYTHONPATH and terminal
+  descriptors. Adds a regression importing a venv-only module under a path with a space. Documents the
+  testing lesson and removes the resolved known-failure entry.
+deviations: None. The peer-review correction removes obsolete guidance in the same testing topic; runtime
+  installer, release-policy, CI and shared workflow-skill behavior are unchanged.
+limitations: Native Windows intentionally skips this Unix bash harness. The Python 3.12 base-interpreter
+  run borrowed existing venv test dependencies through PYTHONPATH because the base lacks tomlkit; no packages
+  were installed into a base interpreter. Verification uses the fixture's synthetic agents/artifacts,
+  without a real-agent or cloud clean-install walkthrough.
 files:
-  tests/test_clean_install_harness.py: Exec wrapper helper, release_env uses it, regression test for venv package visibility.
-  docs/contexts/coga-dev/testing/SKILL.md: Test-writing rule on exec wrappers versus symlinks for tool interpreters.
+  tests/test_clean_install_harness.py: Replace the release_env symlink with the quoted exec-wrapper helper
+    and add an isolated venv-only import/argv regression.
+  docs/contexts/coga-dev/testing/SKILL.md: Own the reusable fixture-interpreter lesson and remove the
+    resolved failure/workaround. This local development topic has no packaged twin.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; peer-review step follows.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+  detail: Direct Codex review completed on the final head/base after rebasing and correcting the documentation.
+    Independent of Claude's fixture and regression authorship; Codex self-reviewed its own documentation-only
+    correction, so the aggregate receipt uses self. Found and fixed the stale known-failure/workaround
+    entry; no unresolved findings. Reviewed portable quoting, package isolation, unchanged metadata/source
+    imports, failure and repeat-run rejection, and actual PTY forwarding. No nested review CLI or delegated
+    review was used.
 checks:
-  - command: PYTHONPATH=/home/n/Code/coga/src <scratch>/v311/bin/python -m pytest -q -p no:cacheprovider tests/test_clean_install_harness.py
-    status: passed
-    head: 62e4eb7da1b4aad813ae7befb2b59d74bc764fb0
-    base: 48c00f79cba7ae3df028ea4a5166bcb6f4b6ab11
-    detail: 38 passed. Fresh python3.11 -m venv (3.11.15) with .[test]; base /home/n/.local/bin/python3.11 cannot import yaml.
-  - command: PYTHONPATH=/home/n/Code/coga/src <scratch>/v311/bin/python -m pytest -q -x -p no:cacheprovider --basetemp ~/.cache/coga-pytest/bt
-    status: passed
-    head: ca4a256953256095465e0affde38ef3f07d99838
-    base: da0ec17244cc6870c1ec5c9386449cb126376564
-    detail: 4454 passed, 10 skipped on the pre-rebase commit; rebase added only a coga/ ticket commit and non-coga trees are identical.
-  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_clean_install_harness.py
-    status: passed
-    head: ca4a256953256095465e0affde38ef3f07d99838
-    base: da0ec17244cc6870c1ec5c9386449cb126376564
-    detail: 38 passed on Python 3.12 venv (uncommitted tree identical to that commit).
+- command: '/home/n/.local/bin/python3.11 -c ''import importlib.util, sys; print(sys.executable); print(sys.version);
+    assert sys.prefix == sys.base_prefix; assert importlib.util.find_spec("yaml") is None; print("base
+    yaml: absent")'''
+  status: passed
+  detail: Python 3.11.15 base interpreter; sys.prefix equals sys.base_prefix and no yaml module is available.
+    The fresh venv supplies PyYAML 6.0.3 from its own site-packages.
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src /home/n/.codex/coga-release-peer-hwnr4lgi/v311/bin/python
+    -m pytest -q -p no:cacheprovider --basetemp /home/n/.codex/coga-release-peer-hwnr4lgi/focused311 tests/test_clean_install_harness.py
+  status: passed
+  detail: 38 passed, 0 skipped on Python 3.11.15 in a fresh python3.11 -m venv with .[test] installed.
+    Its base interpreter cannot import yaml. Includes successful release receipts, repeated-run rejection,
+    and all five failure cases with real PTYs.
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src /home/n/.codex/coga-release-peer-hwnr4lgi/v311/bin/python
+    -m pytest -q -x -p no:cacheprovider --basetemp /home/n/.codex/coga-release-peer-hwnr4lgi/full311
+  status: passed
+  detail: 4454 passed, 10 skipped in 555.52s on Python 3.11.15, after the rebase and documentation correction.
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/.venv/lib/python3.12/site-packages /home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/bin/python3.12
+    -m pytest -q -p no:cacheprovider --basetemp /home/n/.codex/coga-release-peer-hwnr4lgi/base312 tests/test_clean_install_harness.py
+  status: passed
+  detail: 38 passed, 0 skipped with pytest running under the Python 3.12.12 base interpreter; existing
+    venv test dependencies supplied on PYTHONPATH. The base interpreter was not modified.
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src /home/n/.codex/coga-release-peer-hwnr4lgi/v311/bin/python
+    /home/n/.codex/coga-release-peer-hwnr4lgi/check_old_symlink.py 2 -q -p no:cacheprovider --basetemp
+    /home/n/.codex/coga-release-peer-hwnr4lgi/old311 tests/test_clean_install_harness.py::test_tool_python_keeps_the_running_environment
+    tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
+  status: passed
+  detail: 'Negative control: an in-memory pytest plugin restores the old symlink, without changing source
+    files. Driver passed after asserting the expected 2 failed, 0 passed, 0 skipped: missing coga_venv_marker
+    and missing yaml.'
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/.venv/lib/python3.12/site-packages /home/n/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/bin/python3.12
+    /home/n/.codex/coga-release-peer-hwnr4lgi/check_old_symlink.py 1 -q -p no:cacheprovider --basetemp
+    /home/n/.codex/coga-release-peer-hwnr4lgi/old312 tests/test_clean_install_harness.py::test_tool_python_keeps_the_running_environment
+    tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task
+  status: passed
+  detail: 'Negative control: driver asserted 1 failed, 1 passed, 0 skipped. The regression fails for missing
+    coga_venv_marker even though global PyYAML lets the old release-success test pass.'
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: PYTHONPATH=/home/n/Code/coga/src /home/n/.codex/coga-release-peer-hwnr4lgi/v311/bin/python
+    /home/n/.codex/coga-release-peer-hwnr4lgi/check_terminal.py
+  status: passed
+  detail: 'Two direct real-PTY probes, using a base interpreter and a venv interpreter in a path containing
+    a space and apostrophe: all three descriptors remain terminals, spaced/empty/literal shell-metacharacter
+    arguments are unchanged, and exit status 37 is preserved.'
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
+- command: git diff --check origin/main...HEAD
+  status: passed
+  detail: No whitespace errors in the final branch diff.
+  head: 5e7de7278ad186e8324d09d4f123cf7caefccbe4
+  base: 6ecd398e804ccd4cb184f5296c0cbccbd47ebfe8
 ```

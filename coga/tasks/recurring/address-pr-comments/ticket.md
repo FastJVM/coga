@@ -6,7 +6,7 @@ agent: claude
 contexts:
 - coga/period-task
 delegate: bootstrap/address-pr-comments
-period_generation: dd3710c1-b485-404a-aa1b-2498a1ec4d71
+period_generation: 8290a23e-e3d7-460c-a926-235a90ff9439
 workflow:
   name: direct/body
   steps:

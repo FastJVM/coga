@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -361,6 +362,7 @@ def launch(
             require_agent_target=False,
             record_launch=True,
             recurring_authorized=False,
+            direct_chat=task == "bootstrap/orient" and not prompt_report,
         )
 
 
@@ -790,6 +792,7 @@ def _launch(
     record_launch: bool,
     recurring_authorized: bool,
     agent_spawn_refusal: str | None = None,
+    direct_chat: bool = False,
 ) -> LaunchResult:
     """Run the fixed launch phases; each may finish without starting an agent."""
     if agent_spawn_refusal is None:
@@ -819,8 +822,15 @@ def _launch(
     ):
         result = prepare()
         if result is not None:
-            return result
-    return invocation._supervise_steps()
+            break
+    else:
+        result = invocation._supervise_steps()
+    # All final settlement has run before this command-result decision. Keep
+    # child usage/results untouched, including a nonzero returned timeout.
+    # Only this invocation's armed boundary can turn direct chat success into 75.
+    if direct_chat and result.exit_code == 0 and invocation.boundary.armed and invocation.boundary.stopped:
+        raise LaunchBail(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+    return result
 
 
 class _LaunchInvocation:
@@ -950,7 +960,21 @@ class _LaunchInvocation:
         # An ordinary ticket launch runs from a clean, current control checkout
         # (`coga/checkouts`). Resolution and the recorded-checkout test below only
         # classify; every authoritative read happens after `enter`.
-        self.boundary = _CheckoutBoundary()
+        retry = ["coga", "launch", self.task]
+        for option, value in (
+            ("--agent", self.agent_override),
+            ("--idle-timeout", self.idle_timeout),
+            ("--max-session", self.max_session),
+        ):
+            if value is not None:
+                retry.extend([option, str(value)])
+        if self.return_timeout:
+            retry.append("--return-timeout")
+        if self.script_failure_important:
+            retry.append("--script-failure-important")
+        if self.args:
+            retry.extend(["--", *self.args])
+        self.boundary = _CheckoutBoundary(retry_command=_checkout_command(retry))
         may_normalize = not self.prompt_report and not self.recurring_authorized
 
         # Chat/orientation must compose from current control too, including its
@@ -2480,12 +2504,13 @@ class _LaunchInvocation:
         return read_ticket(target)
 
 
-    def return_checkout(self) -> None:
+    def return_checkout(self) -> bool:
         """Teardown: return a normalized checkout, else today's refresh."""
         if self.boundary.armed:
-            self.boundary.settle(self.cfg, subject=f"{self.ref.id_slug}'s launch")
+            return self.boundary.settle(self.cfg, subject=f"{self.ref.id_slug}'s launch")
         else:
             _refresh_launch_checkout(self.cfg)
+            return True
 
 
     def refresh_after_script(self) -> None:
@@ -3075,13 +3100,13 @@ class _CheckoutBoundary:
     ticket read. `admit` arms only the return half for a recurring period,
     whose own gates already required control. `settle` repeats the same
     publish-then-prepare after every started agent session or deterministic
-    phase and at teardown. Only state whose publication failed, or that is
-    not Coga state, blocks. The first refusal or failure stops every later
+    phase and at teardown. Unpublished working state, a distinct index copy,
+    or non-state changes block. The first refusal or failure stops every later
     mutation for this launch, withholds the end-of-command sweep, and ends
     chaining; it never rewrites the session's own result.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, retry_command: str | None = None) -> None:
         self.entered = False
         self.armed = False
         self.stopped = False
@@ -3089,9 +3114,12 @@ class _CheckoutBoundary:
         self._destination: tuple[object, ...] | None = None
         self._contexts_root: Path | None = None
         self.exempt_reason: str | None = None
+        self.retry_command = retry_command
 
     def enter(self, cfg: Config, target: str) -> Config:
         self.entered = True
+        if self.retry_command is None:
+            self.retry_command = _checkout_command(["coga", "launch", target])
         git.sync_coga_state(cfg, message="Sync coga state before launch")
         outcome = git.prepare_control_checkout(cfg)
         if outcome.kind == "exempt":
@@ -3099,7 +3127,7 @@ class _CheckoutBoundary:
             return cfg
         if outcome.kind != "prepared":
             _bail(
-                _checkout_refusal_message(cfg, outcome, f"Cannot launch {target}")
+                _checkout_refusal_message(cfg, outcome, f"Cannot launch {target}", retry_command=self.retry_command)
                 + "\nNo work was started.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
@@ -3146,10 +3174,10 @@ class _CheckoutBoundary:
         try:
             refreshed = load_config(cfg.repo_root)
         except ConfigError as exc:
-            self._stop(f"config reload before checkout return failed: {exc}")
+            self._return_failed(cfg, f"config reload before checkout return failed: {exc}", subject)
             return False
         if _git_destination(refreshed) != self._destination:
-            self._stop("coga.toml changed the Git destination during the launch")
+            self._return_failed(cfg, "coga.toml changed the Git destination during the launch", subject)
             return False
         # ticket.py reloads config before its return callback. Keep the root
         # captured at admission/the preceding return, not the callback's
@@ -3158,15 +3186,18 @@ class _CheckoutBoundary:
         cfg = refreshed
         # The end-of-command sweep, run before the switch rather than after
         # it: routine state a session or ticket.py wrote without publishing
-        # lands now, and only what publication could not land blocks.
-        git.sync_coga_state(
-            cfg, message="Sync coga state before checkout return",
-            previous_contexts_root=previous_contexts_root,
-        )
-        outcome = git.prepare_control_checkout(
-            cfg, require_remote_control=self._remote_expected,
-            previous_contexts_root=previous_contexts_root,
-        )
+        # lands now. A distinct staged copy can still block the return.
+        try:
+            git.sync_coga_state(
+                cfg, message="Sync coga state before checkout return",
+                previous_contexts_root=previous_contexts_root,
+            )
+            outcome = git.prepare_control_checkout(
+                cfg, require_remote_control=self._remote_expected,
+                previous_contexts_root=previous_contexts_root,
+            )
+        except (git.GitError, OSError) as exc:
+            outcome = git.CheckoutPreparation("failed", f"checkout return failed: {exc}")
         if outcome.kind in {"prepared", "exempt"}:
             self._contexts_root = cfg.contexts_root
             return True
@@ -3174,15 +3205,30 @@ class _CheckoutBoundary:
         git.state_sweep_withheld.set(True)
         _report(
             _checkout_refusal_message(
-                cfg, outcome, f"Checkout return after {subject} did not complete"
+                cfg, outcome, f"Checkout return after {subject} did not complete",
+                retry_command=self.retry_command,
             )
-            + "\nThe remaining changes were preserved and not published; the "
-            "session's own result stands. Not chaining further.",
+            + "\nState publication was attempted before checkout return; see its "
+            "separate diagnostics. Retained index and working versions are listed "
+            "above; publication does not prove every version safe to remove. "
+            "The session's own result stands. Not chaining further; exit sweep withheld.",
             fg='red',
             bold=True,
             err=True,
         )
         return False
+
+    def _return_failed(self, cfg: Config, reason: str, subject: str) -> None:
+        self.stopped = True
+        git.state_sweep_withheld.set(True)
+        _report(
+            _checkout_refusal_message(
+                cfg, git.CheckoutPreparation("refused", reason),
+                f"Checkout return after {subject} did not complete",
+                retry_command=self.retry_command,
+            ) + "\nNo return publication was attempted. Not chaining further; exit sweep withheld.",
+            fg='red', bold=True, err=True,
+        )
 
     def reload(self, cfg: Config, ref: TargetRef) -> tuple[Config, TargetRef | None]:
         """Fresh config and the exact same target after a settled boundary.
@@ -3223,7 +3269,8 @@ def _git_destination(cfg: Config) -> tuple[object, ...]:
 
 
 def _checkout_refusal_message(
-    cfg: Config, outcome: git.CheckoutPreparation, prefix: str
+    cfg: Config, outcome: git.CheckoutPreparation, prefix: str,
+    *, retry_command: str | None = None,
 ) -> str:
     what = (
         "stopped part-way"
@@ -3235,15 +3282,94 @@ def _checkout_refusal_message(
         f"at {cfg.git_remote}/{cfg.git_control_branch} {what}: {outcome.reason}"
     ]
     lines.extend(f"  - {item}" for item in outcome.blocking)
+    try:
+        root = git.toplevel(cfg.repo_root)
+        branch = outcome.branch or (git.symbolic_head(root) if root else None)
+    except (git.GitError, OSError):
+        root, branch = None, outcome.branch
+    lines.append(f"Checkout left on {branch!r}." if branch else "Checkout branch could not be determined (possibly detached HEAD).")
+    for observation in outcome.observations:
+        working = {
+            "matches": "working file matches control (including an equal absence)",
+            "published": "working state is already on control by the log/union proof",
+            "differs": "working file differs from control",
+            "unknown": "working publication has not been proved",
+        }[observation.working]
+        index = {
+            "head": "index matches HEAD",
+            "control": "index matches control",
+            "differs": "staged copy differs from HEAD and control",
+            "unknown": "index not proved",
+        }[observation.index]
+        lines.append(f"  {observation.path}: {working}; {index}.")
+    shell = "PowerShell" if os.name == "nt" else "POSIX shell"
+    lines.append(f"Inspect from the Git checkout root ({shell}); no branch upstream is needed:")
+    if root:
+        lines.append("  " + _checkout_command(
+            ["Set-Location", "-LiteralPath", str(root)] if os.name == "nt" else ["cd", str(root)]
+        ))
+    for argv in (
+        ["git", "status", "--short", "--branch"],
+        ["git", "diff", "--cached", "--binary"],
+        ["git", "diff", "--binary"],
+        ["git", "fetch", cfg.git_remote, cfg.git_control_branch],
+    ):
+        lines.append("  " + _checkout_command(argv))
+    if outcome.commit:
+        lines.append(f"Compare with the pinned control commit {outcome.commit} used for this refusal:")
+        for observation in outcome.observations:
+            path = observation.path
+            for cached in ([], ["--cached"]):
+                lines.append("  " + _checkout_command([
+                    "git", "--literal-pathspecs", "diff", *cached, "--binary", outcome.commit, "--", path,
+                ]))
+            if observation.untracked:
+                lines.append(f"  Untracked {path!r}: Git diff omits its working bytes; compare these blob IDs (a missing control path is reported):")
+                lines.append("  " + _checkout_command(["git", "hash-object", f"--path={path}", "--", path]))
+                lines.append("  " + _checkout_command(["git", "rev-parse", "--verify", f"{outcome.commit}:{path}"]))
     lines.append(
-        "Before changing this checkout, identify its branch's ticket and check "
-        f"the ticket on current {cfg.git_remote}/{cfg.git_control_branch} and "
-        "the PR's merge status. Inspect uncommitted changes separately; a "
-        "merged PR does not prove those edits are finished. Do not automatically "
-        "stash or discard them. Follow coga/checkouts/launch-boundary's "
-        "checkout recovery procedure."
+        "Before recovery, save HEAD's OID, separate staged and unstaged binary patches, "
+        "and copies of untracked files outside this checkout; verify the backups."
     )
+    state_observations = [o for o in outcome.observations if o.state]
+    if (
+        any(o.index == "differs" for o in state_observations)
+        and all(o.working in {"matches", "published"} for o in state_observations)
+    ):
+        state_paths = [o.path for o in state_observations if not o.untracked]
+        lines.append(
+            "Only after reviewing every listed state path and proving the staged "
+            "drafts are duplicates with no unique intent, restore just their index "
+            "from HEAD (both sides of renames are included; working files stay):"
+        )
+        lines.append("  " + _checkout_command([
+            "git", "--literal-pathspecs", "restore", "--staged", "--source=HEAD", "--", *state_paths,
+        ]))
+    lines.append(
+        "If this branch has a ticket, check "
+        f"the ticket on current {cfg.git_remote}/{cfg.git_control_branch} and "
+        "the PR's merge status if one exists. Chat branches need neither a ticket "
+        "nor a PR. Inspect uncommitted changes separately; a "
+        "merged PR does not prove those edits are finished. Do not automatically "
+        "stash or discard them. Reconcile differing working files and unique intent "
+        "onto current control under coga/checkouts/reconciliation; preserve source "
+        "work on its branch for review. Never blanket-restore from control or replay "
+        "a lifecycle transition. Follow coga/checkouts/launch-boundary's checkout recovery procedure."
+    )
+    if retry_command:
+        lines.append(f"After reconciliation, retry the original invocation (equivalent command): {retry_command}\n"
+                     "The boundary will fetch and prove the checkout again before cleanup.")
     return "\n".join(lines)
+
+
+def _checkout_command(argv: list[str]) -> str:
+    """Copyable diagnostics for POSIX shells or native Windows PowerShell."""
+    if os.name == "nt":
+        return " ".join(
+            arg if re.fullmatch(r"[\w./:@=+-]+", arg) else "'" + arg.replace("'", "''") + "'"
+            for arg in argv
+        )
+    return shlex.join(argv)
 
 
 def _checkout_exemption(cfg: Config, ref: TaskRef) -> str | None:

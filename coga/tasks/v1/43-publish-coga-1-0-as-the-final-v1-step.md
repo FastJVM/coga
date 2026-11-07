@@ -30,8 +30,8 @@ Use the `coga/releasing` skill (`coga/skills/coga/releasing/SKILL.md`).
 
 Owner request, 2026-10-02: this is the last V1 product-delivery ticket. Hold
 publication until the owner confirms the remaining V1 work is complete. Follow
-the release ordering above; coordinate readiness with
-`v1/44-build-the-launch-plan` without taking over its public launch work.
+the release ordering above. The public launch is not part of this ticket or
+of v1: it was parked in `_v2/marketing/build-the-launch-plan` on 2026-11-04.
 
 Owner scope revision, 2026-10-27: [the numbered queue](README.md) is the live
 v1 work list. Usage reports and commit/log work remain included. Microkernel
@@ -115,7 +115,7 @@ tagged or uploaded. This step produced a dry run of the pre-tag gate on current
   `affordable-macos-testing...` — draft (owner decides whether V1-gating).
 - Other open product PRs not on the marketing path: #962–#967, #969. Owner to
   decide which must land in 1.0.
-- `marketing/build-the-launch-plan` — step 2 (human). Coordinate only.
+- `marketing/build-the-launch-plan` — parked in `_v2/` on 2026-11-04; no longer a v1 dependency.
 - Added 2026-10-16 (owner): `microkernel/*` (microkernel cleanup,
   six tickets; v1 ships with extension-model's open-placements table empty)
   and `marketing/demo-hackability-ask-claude-to-add-a-command-live`.
@@ -204,4 +204,4 @@ assumes README's recommended method — match the final README.
 4. Verify: fresh 3.11 venv, `pip install --no-cache-dir --index-url https://pypi.org/simple coga==1.0.0`;
    init + validate; PyPI page description renders and links resolve;
    `scripts/verify-clean-install.sh 1.0.0` with a real agent (first-task path).
-5. Record Release URL, PyPI URL, run ID, sha256s → hand to `build-the-launch-plan`.
+5. Record Release URL, PyPI URL, run ID, sha256s on this blackboard (the launch ticket is parked in `_v2/`).

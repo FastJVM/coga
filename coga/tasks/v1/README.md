@@ -64,7 +64,6 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 | 41 | [Verify PostHog telemetry with the live clean-wheel proof](41-verify-posthog-telemetry-with-the-live-clean-wheel.md) |
 | 42 | [Publish the argument for Coga as a human instrument](42-idea-piece.md) |
 | 43 | [Publish coga 1.0 as the final V1 step](43-publish-coga-1-0-as-the-final-v1-step.md) |
-| 44 | [Execute the V1 launch](44-build-the-launch-plan.md) |
 
 ## Dependencies and release evidence
 
@@ -79,11 +78,11 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 - 38 and 39 must preserve the audit consumers documented in their designs;
   finish usage accounting before accepting log retention.
 - 40 fixes the proof prerequisites; 41 supplies the live PostHog evidence.
-- 42 can proceed alongside engineering and precedes the public launch.
 - 43 is the final product-delivery step: completed v1 fixes, macOS/native Windows
   first-task evidence, README/docs acceptance, release tests, and PostHog proof
-  precede publication. Verify the public 1.0 artifact afterwards. 44 follows
-  those verified release links and the idea piece.
+  precede publication. Verify the public 1.0 artifact afterwards. The public
+  launch is no longer a v1 step (parked in `_v2/marketing/build-the-launch-plan`,
+  2026-11-04).
 
 ## Renames and history
 

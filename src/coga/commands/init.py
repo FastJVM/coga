@@ -1575,10 +1575,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "software, so the CLI you run is your own:\n"
             "       uv tool install coga"
         )
-    steps.append(
-        f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
-        "and aliases."
-    )
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # does not require (see `coga.dependencies`) — name the prerequisite here
     # so a fresh user isn't sent into the flow only to hit "not found in PATH".

@@ -42,7 +42,10 @@ Silently ignores tickets whose `owner` is not `current_user` (owner-less
 included) and every status but `active`, `in_progress`, and `blocked`.
 Blocked tickets and ones with open asks report `skipped-unresolved-blocker`;
 a missing current step or an owner/unrouted step reports
-`skipped-human-gate`. `in_progress` work resumes like `coga launch`. The queue
+`skipped-human-gate`. `in_progress` work resumes like `coga launch`, even
+when an earlier session's claim remains: megalaunch replaces it without
+checking whether that session still runs, so do not leave a session working
+a ticket you queue. The queue
 scan is only a hint: each launch rereads exact bytes and reapplies the owner,
 status, blocker, and current-step gates to them. A task that vanished since
 the scan is skipped without a row.

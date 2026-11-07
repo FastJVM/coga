@@ -936,6 +936,7 @@ def chat_notice(cfg: Config, session: ChatSession | None, *, armed: bool, reason
         summary=summary,
         return_owner=returns,
         prepare_command=chat_prepare_command(session) if session else None,
+        state_roots=tuple(str(path) for path in git.coga_root_paths(cfg)),
     )
 
 

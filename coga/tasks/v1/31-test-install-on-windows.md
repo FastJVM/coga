@@ -148,7 +148,9 @@ Previous ref: `marketing/fix-installer/test-install-on-windows` (renamed 2026-10
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Documentation coordination — 2026-10-29
+## Production notes
+
+### Documentation coordination — 2026-10-29
 
 `v1/33-review-all-doc` reviewed candidate
 `bd72b19d2a13972005285252b53df7504350bbc7`. It still refuses native Windows

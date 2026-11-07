@@ -142,8 +142,10 @@ The recorded human assist runs on its recorded PR branch under
 
 ### Direct chat
 
-`coga chat` runs the `prepare-checkout` command its notice names before its
-first edit; [coga/checkouts/chat](chat/SKILL.md) owns that contract.
+`coga chat` keeps discussion and routine state edits on control, unstaged.
+Before implementation or deliberately reviewed knowledge work it publishes
+pending routine state, requires a clean checkout, then runs the notice's
+`prepare-checkout` command; [coga/checkouts/chat](chat/SKILL.md) owns that contract.
 
 Launch never changes directory: the session runs where `coga launch` was
 invoked, and launch never follows a recorded `worktree:`.

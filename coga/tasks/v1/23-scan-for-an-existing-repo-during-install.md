@@ -1,43 +1,120 @@
 ---
 title: Scan for an existing repo during install
-status: draft
+status: in_progress
 owner: zach
-workflow: null
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+contexts:
+- coga-dev/principles
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
 
-The install path assumes the user already has a git repository, and the first
-steps differ for someone who does not. Work out which case the user is in and
-give each case its own path. A user installing into a repo that already has
-files should not run `coga build`; their first step is `coga ticket` or
-`coga create`. A user starting a new repo runs `coga build`.
+The README's Get started section treats "no Git repo yet" as a path to walk
+the user through. It isn't one: Coga only runs inside a Git repo, and outside
+one it should stop. Make a Git repo a stated prerequisite, remove the
+create-a-repo steps, then stop in one case and route the other two by repo
+state:
 
-Done when: both cases have a path, and neither asks the user to work out which
-one applies to them.
+- **Not in a Git repo:** stop. The README states the prerequisite and does not
+  show how to create a repo. `coga init` already refuses here (see Context);
+  no code change.
+- **Git repo that is empty apart from starter files:** first step is
+  `coga build`.
+- **Git repo with existing files:** first step is `coga ticket "<title>"`,
+  not `coga build` and not `coga chat`.
+
+Done when the README's Get started section has no `mkdir`/`git init` block,
+states that Coga runs inside an existing Git repo as a prerequisite (the idea,
+not exact wording; it belongs with the opening "You'll need working Git…"
+sentence), and its
+"Choose how to begin" block sends the empty-repo case to `coga build` and the
+existing-project case to `coga ticket "<title>"`, so a reader never has to work
+out which case they are in beyond "is my repo empty?".
 
 ## Context
+
+### Current state (checked 2026-11-04)
+
+- `README.md`, Get started: after `uv tool install coga`, it says "For an
+  existing project, change into its Git repository. For a new project, create
+  the repository first:" and shows `mkdir myproject` / `cd myproject` /
+  `git init -b main`. Remove that block and the "new project" sentence.
+- The same section's "Choose how to begin" block shows `coga build` for "New,
+  otherwise empty Git repo", `coga chat` for "Existing project", and
+  `coga status`. Change the existing-project line to `coga ticket "<title>"`.
+  Keep `coga status`. The following paragraph lists `--agent codex` forms for
+  `build`, `chat`, and `ticket`; drop the `coga chat --agent codex` form so
+  it lists only the commands the block shows.
+- `coga init` already refuses outside a repo: `init._require_git_work_tree`
+  prints "<path> is not inside a git repository — coga is git-backed. Run
+  `git init` … first, then re-run `coga init`." and exits 2. That is the
+  required "stop", so this ticket changes no code. If the implementer finds a
+  path past install that does not refuse, record it on the blackboard rather
+  than widening this ticket.
+- `coga init`'s printed next steps already say `coga build` (empty repo) or
+  `coga ticket "<title>"` (filled repo), as `coga/init` documents ("printed
+  next steps"). The README should match that.
+- What counts as "empty": init seeds the onboarding ticket only for an
+  otherwise empty repo, and a short starter README, LICENSE or
+  `.gitattributes` still counts as empty. Reuse that wording; don't invent a
+  new definition. The README wording is looser than init's real rule; do not
+  expand it.
+- `coga/init`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`,
+  cited, not attached) says starting a brand-new project means `git init`
+  first, and owns the real "empty" rule. It needs no change.
+- Coga still tells a user how to create a repo in one place: init's refusal
+  message says "Run `git init`…". That stays; the README just stops
+  presenting it as a path.
+
+### Scope
+
+- README only. Read `coga/install`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md`,
+  cited, not attached) for any statement that contradicts "a Git repo is a
+  prerequisite". Its "macOS: check Git before init" section mentions
+  `git init` only as a Git sanity check, which is fine. If it does contradict
+  the prerequisite, fix the package copy and its legacy live twin
+  `docs/contexts/coga/install/SKILL.md` together (see AGENTS.md).
+- `coga/first-task` suggests `coga chat` for planning a *batch* of tickets.
+  That is a different use and stays.
+- Out of scope: any feature where Coga scans a repo to generate docs (Nico's
+  separate idea); changing `coga init`'s behavior or messages.
+- Sibling `v1/24-mention-coga-build-in-the-install-flow` was rescoped on
+  2026-11-04 to the `coga/install` page's Verify hand-off only. It does not
+  touch the README, so the two tickets don't overlap there.
 
 ### Why
 
 - Finding 4 on `test-and-fix-install-on-macos-and-windows`: the README install
-  block assumes a repo exists.
-- This was the first dead end on the walk on 2026-10-15, with nothing to `cd`
-  into and no instruction to create a folder and run `git init`.
-- `coga init` fails without a repo, but its terminal message tells the user to
-  run `git init` and rerun, which worked.
-- The current README block hardcodes `mkdir myproject && cd myproject &&
-  git init`, so a user who already has a project and follows it literally
-  creates a throwaway directory.
-- Nico's position on 2026-10-19 is that having a repo is a prerequisite rather
-  than a step, and that someone who does not know that will not get far with
-  coga.
-- He separately floated scanning an existing repo to build documentation from
-  what is in it; that is a different idea and not this ticket.
-- Zach set the branch on 2026-10-21: an existing repo with files goes to
-  `coga ticket` or `coga create`, and a new repo goes to `coga build`.
-- That is the same branch `mention-coga-build-in-the-install-flow` turns on, so
-  the two tickets decide one thing between them.
+  block assumed a repo exists. This was the first dead end on the 2026-10-15
+  walk-through.
+- Following the `mkdir myproject && git init` block literally sends a user who
+  already has a project into a throwaway directory.
+- Nico (2026-10-19): having a repo is a prerequisite, not a step. Owner
+  decision (2026-11-04): with no repo, Coga stops and goes no further.
+- Zach (2026-10-21): an existing repo with files goes to `coga ticket`, and a
+  new (empty) repo goes to `coga build`. Owner decision (2026-11-04):
+  `coga ticket`, not `coga chat`, for the existing-project case.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -128,3 +205,118 @@ Previous ref: `marketing/fix-installer/scan-for-an-existing-repo-during-install`
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/1170
+branch: coga/v1-23-repo-prerequisite
+
+## Plan
+
+- README-only: state the Git-repo prerequisite in the opening "You'll need
+  working Git…" sentence, drop the "new project" sentence and the
+  mkdir/git init block, send the existing-project case to
+  `coga ticket "<title>"`, drop `coga chat --agent codex`.
+- `coga/install` checked: its `git init` mention is only a Git sanity check
+  in the macOS section; no contradiction, no change.
+
+## Handoff (implement)
+
+- Commit on `coga/v1-23-repo-prerequisite` (pushed, rebased on origin/main):
+  README Get started now opens with "Coga runs inside an existing Git
+  repository; outside one, `coga init` stops."; the "new project" sentence
+  and `mkdir`/`git init` block are gone ("Change into your project's Git
+  repository." remains); the begin block shows `coga build` (empty repo),
+  `coga ticket "<title>"` (repo with existing files), `coga status`; the
+  Codex paragraph lists only `build` and `ticket`.
+- Verification: `.venv/bin/python -m pytest -q
+  tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+  passed (system `python` lacks `tomlkit`; use the venv). No code touched.
+- Kept: "chat and ticket interviews default to Claude" sentence (still
+  accurate). No path past install found that skips the refusal.
+- Follow-up candidates (out of scope): `coga/configuration` and
+  `coga/first-task` still cite `coga chat --agent codex`, which is correct
+  for their own uses.
+
+## Peer review
+
+- Passed with no must-fix findings. Codex reviewed the complete README diff
+  against current main; no content edits or extra review commit were needed.
+  Authorship is independently evidenced by the implement audit record
+  (Claude, session `fe2bc416-57c3-4854-8a7f-779ed35041e6`) and the
+  implementation commit's Claude co-author trailer, not the ticket assignment.
+- The opening states the Git-repo prerequisite and init's refusal; the
+  create-a-repo block is gone. The begin block keeps `coga status`, sends
+  an otherwise empty repo to `coga build`, and sends an existing project
+  to `coga ticket "<title>"`. The Codex examples match those entry points.
+- Accuracy checked against `src/coga/commands/init.py`: both fresh and clone
+  setup call `_require_git_work_tree`, which exits 2 outside Git; the
+  starter-file rule and printed next steps agree with the README. The
+  `build` alias and `ticket` title/`--agent` arguments exist. No path past
+  the Git prerequisite was found in these init paths.
+- `coga/init` and `coga/install` support the wording; the install topic
+  needs no change. No links were added or retargeted, and the cited local
+  init/install topics resolve. README has no packaged twin; the unchanged
+  install topic and its legacy live twin compare byte-for-byte equal.
+- Verification: `git diff --check origin/main...HEAD` passed; the install
+  twin `cmp` passed. Pytest was not run because the diff touches only README
+  prose, with no code or fixture changes. The implementer's earlier test
+  result is historical, not a new check on this rebased revision.
+- Reconciled with `origin/main` at
+  `e5efd0a87168372f2ebed85060d62056f1117d5a`, reviewed and pushed rebased head
+  `27bc895f17e41b800bd34f8175e45677b3371043` with an explicit force-with-lease,
+  and returned to clean, current `main` before writing this handoff.
+  The next step can publish the README-only PR from the recorded branch.
+
+## PR
+
+```yaml
+title: Require an existing Git repo in README onboarding
+author: claude
+author_evidence: >-
+  The implement audit records Claude session fe2bc416-57c3-4854-8a7f-779ed35041e6;
+  the implementation commit also carries a Claude co-author trailer.
+head: 27bc895f17e41b800bd34f8175e45677b3371043
+base: e5efd0a87168372f2ebed85060d62056f1117d5a
+depth: merge
+rationale: >-
+  Small README-only correction with independent content review and passing
+  whitespace and context-copy checks. Source inspection confirms the Git
+  prerequisite and both onboarding routes; runtime tests are inapplicable
+  because no code or fixtures changed.
+implementation: >-
+  States that Coga requires an existing Git repository and init stops outside
+  one, removes the repository-creation walkthrough, routes empty repositories
+  to coga build and existing projects to coga ticket, and aligns the Codex
+  examples with those commands.
+deviations: None; the install topic required no correction.
+limitations: >-
+  No runtime suite or end-to-end installation walkthrough was run in peer review;
+  verification covered the prose diff and its existing source contracts.
+files:
+  README.md: Clarifies the Git prerequisite and selects the first command by repository state.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 27bc895f17e41b800bd34f8175e45677b3371043
+  base: e5efd0a87168372f2ebed85060d62056f1117d5a
+  detail: >-
+    No must-fix findings. Reviewed the full README diff against ticket acceptance
+    criteria, design principles, init/install topics, Git refusal and onboarding
+    source paths, command arguments, unchanged links, and copy-sync requirements.
+checks:
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 27bc895f17e41b800bd34f8175e45677b3371043
+    base: e5efd0a87168372f2ebed85060d62056f1117d5a
+    detail: No whitespace errors in the final README-only diff.
+  - command: cmp docs/contexts/coga/install/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md
+    status: passed
+    head: 27bc895f17e41b800bd34f8175e45677b3371043
+    base: e5efd0a87168372f2ebed85060d62056f1117d5a
+    detail: The unchanged install topic and its legacy live twin are byte-identical.
+  - command: python -m pytest
+    status: not-run
+    detail: Docs peer-review instructions omit pytest for pure prose changes; no code or fixtures changed.
+```

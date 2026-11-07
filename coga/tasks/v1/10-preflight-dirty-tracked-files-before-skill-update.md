@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
-launch_generation: 4561e8b6-2689-4e2f-993f-31a050949c2e
 ---
 
 ## Description
@@ -218,108 +217,170 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1168
 branch: coga/v1-10-preflight-dirty-skill-update
 
-## Implement handoff (2026-11-04, claude)
+## Implementation and decisions
 
-Commit `c12ce8fbb` on the branch, pushed. No PR yet.
+Claude implemented the preflight in original commit `c12ce8fbb` (now
+`f13175a99` after reconciliation). Codex's peer-review fixes are
+`6b07ece3b` and `30a730532`. The final head is committed and pushed; no PR has
+been opened in this step.
 
-What changed:
-- `skill_manager.assert_skill_update_pr_preflight(cfg, runner=, branch=)`: new
-  public preflight. `commands/skill.py` `update` now calls it when `--pr`
-  is set, before `update_skills` runs. The "`--pr` needs `--all`" refusal
-  was moved above it. `_assert_no_unmerged_paths` was folded in (called
-  first, message unchanged) and removed from `run_skill_update_pr_flow`.
-  That flow now assumes its caller ran the preflight; its only caller is
-  the handler.
-- Refusal rules, applied in order. Each refusal lists every path with its
-  reason:
-  1. Unmerged paths (existing message).
-  2. Local work, with the remedy "commit or stash these paths, then retry":
-     - tracked dirty (`git diff --name-only --no-renames -z HEAD`) ∩
-       `git diff --name-only --no-renames -z HEAD <control>`;
-     - untracked (`git ls-files --others --exclude-standard -z`) ∩ that
-       same HEAD..control set. This is broader than "added on control",
-       but it is conservative and still targeted;
-     - **any** tracked-dirty or untracked path under `skills_root`. This
-       is the refusal default the ticket suggested: otherwise `git add --
-       skills_root` would sweep those edits into the PR, and the return
-       checkout would remove them from the user's branch. One consequence:
-       the weekly job on `main` is refused if someone left skill-tree dirt.
-  3. Skills tree differs between HEAD and control. The remedy here is to
-     run from control or merge first, because commit/stash would not help.
-- Return trip: confirmed safe. Leftover dirt never intersects
-  HEAD..control, and the whole skills tree is committed. Checked with a
-  real-git repro: feature branch, harmless dirty `notes.md`, skill change.
-  `checkout -B` + commit + `checkout feature` succeeded, and the edit was
-  preserved.
-- Docs: one paragraph under `--pr` in `coga/skill-management`. The
-  canonical copy and the packaged bootstrap twin are byte-identical.
-- Tests (`tests/test_skill_manager.py`): the unmerged test was retargeted
-  at the preflight. New real-git tests cover the overwrite refusal (it
-  asserts that Git really refuses, and that a harmless edit is not
-  listed), the non-blocking cases (harmless edit, untracked file absent
-  from control, dirty log on `main`), untracked-tracked-on-control,
-  skills-tree dirt, and skills-tree drift. A CLI test checks that
-  `update_skills` never runs on refusal and that the branch is unchanged.
-  The PR-flow fake runners no longer stub the unmerged diff.
-- `tests/test_skill_update.py`
-  `test_skill_update_runs_through_generic_recipe_and_reports_no_op`: the
-  fixture is now `git init`'d and committed on `main`. `--pr` now runs git
-  (a read-only preflight) even for a no-op run, which the ticket accepts.
-  The test comment was updated to match.
+- The handler rejects `--pr` without `--all`, then preflights before
+  `update_skills`. The existing unmerged-path check runs first, with its
+  message unchanged; the PR flow's only production caller is this handler.
+- The dirty tracked set is the union of the unstaged diff and the cached
+  diff against HEAD, both with `--no-renames -z`. A single `git diff HEAD`
+  misses a staged edit when the working file was subsequently restored to
+  HEAD. Intersect that union with HEAD/control differences.
+- Refuse every tracked edit or nonignored untracked file under `skills_root`,
+  even on control, to avoid sweeping the user's skill edits into the update.
+  Also refuse committed skills-tree drift before updates can dirty that tree.
+  Skills-tree drift needs a control checkout or merge, rather than a stash.
+- Untracked paths use the conservative exact-path intersection with all
+  HEAD/control differences. This includes the requested added-on-control
+  case. Directory/file ancestor collisions and ignored files remain outside
+  this targeted tracked-file fix; this is not a complete checkout simulator.
+- Harmless work outside the skills tree is allowed, including staged and
+  partially staged edits. `git commit --only -- <skills_root>` leaves that
+  index state out of the PR. Real-Git round-trip tests prove that HEAD,
+  index, unstaged changes, untracked bytes and the caller's skills survive.
+- Refusal before a no-op update is intentional. Detached-HEAD return and the
+  shared-branch overwrite policy in sibling
+  `v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits`
+  remain out of scope. That sibling is still draft, with no branch changes
+  to reconcile; this review does change `_commit_skill_updates`' commit argv.
 
-Out of scope / notes for later:
-- Launch log: the ordinary launch startup publishes the launch log line
-  through `_publish_startup` / `git.sync_log` in `launch.py` before checkout
-  entry. I did not trace the recurring `ticket.py` child path end-to-end.
-  If its `coga/log.md` append can still be uncommitted while the job runs
-  off control, this change turns the crash into a clean refusal but does
-  not make the job succeed.
-- Detached HEAD: `_current_git_branch` is empty, so the `finally` never
-  returns. Unchanged, as the ticket scoped it.
-- Sibling `v1/11-skill-update-rebuilds-its-branch...` touches
-  `_commit_skill_updates`. This change does not touch that function, only
-  `run_skill_update_pr_flow`'s precheck line, so conflicts should be small.
-- Environment: `/tmp` on this host is at 100% inode use
-  (`/tmp/pytest-of-n`), so pytest's default basetemp fails with 1000+
-  errors. I ran with `--basetemp=$HOME/.cache/coga-pytest-v1-10` (since
-  removed). The system `python` lacks `tomlkit`; use `.venv/bin/python`.
+## Peer review
+
+**Direct Codex review completed** on head
+`30a730532ef4214d0955f505935513daa46ff209`, base
+`45a92ac8660f15e8112e29871787f76d6150c9b6`. No unresolved must-fix findings.
+The initial review of Claude's implementation was independent. Codex authored
+and then re-reviewed the corrections, so the final PR receipt records
+self-review rather than claiming the final patch is fully independently reviewed.
+
+Findings fixed:
+
+1. A staged edit hidden by a later working-tree restoration bypassed the
+   preflight and still caused Git's raw overwrite refusal after updates.
+   Separate index/worktree diffs now catch it, including under the skills tree.
+2. The unrestricted commit absorbed harmless staged edits. Returning removed
+   fully staged work from the caller's branch; partially staged work could
+   make the return checkout fail. Restricting the commit to the skills path
+   preserves both forms, with real-Git regressions.
+3. The new byte-preservation regression inherited Git's CRLF conversion.
+   A system-config probe reproduced three false failures; both new Git
+   fixtures now set `core.autocrlf=false`, following the testing topic.
+
+Verification: the final full suite passed **4466 tests, 10 skipped** on
+Linux/Python 3.12.12. The three CRLF-environment round-trip cases passed too.
+An actual CLI subprocess printed the path and remedy, exited 2, and left the
+branch, index/worktree and skill bytes unchanged. This change exposes plain
+stderr, with no interactive terminal or rendered Slack surface to exercise.
+Exact final-revision commands and receipts are under `## PR`.
+
+Historical verification: new regressions first reproduced five failures
+before the two functional fixes; the CRLF probe then reproduced three fixture
+failures before its correction. A focused run placed inside this checkout's
+ignored `.coga/` directory caused one packaging fixture failure; rerunning
+outside the checkout passed all 168 focused tests. An earlier full run was
+interrupted to correct the fixture; only the completed final run above counts.
+
+Launch-log investigation: `launch._run_initial_script` calls
+`launch_script.run_script_chain`; `run_script_phase` appends the script launch
+line and calls `git.sync_log` before spawning `ticket.py`. The skill-update
+script then invokes the recipe, which invokes `skill update --all --pr`.
+Publication commits the append to control. However,
+`git._fast_forward_control_locked` advances the control ref/holder and leaves
+an invoking feature checkout's log dirty. Thus an off-control script can still
+receive this clean refusal (also if publication fails). Repairing that launch
+behavior is outside this ticket.
+
+Freshness and handoff: rebased onto current main before the final review and
+full run, fetched again after testing (main remained `45a92ac86`), pushed with
+`--force-with-lease`, and returned this clean checkout to current main. The
+handoff and preparation record are written on control, never committed to the
+feature branch. Next step is mechanical PR publication.
+
+Control handoff validation: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/10-preflight-dirty-tracked-files-before-skill-update --json` returned `ok_count: 1`, no fixes and no issues.
 
 ## PR
 
 ```yaml
-title: Preflight skill-update PR branch switch before applying updates
-author: claude
-author_evidence: Implement session ran as Claude Opus 5.5 (claude-opus-5-5) in a megalaunch queue.
-head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
-base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
-depth: careful
-rationale: Changes when a recurring job refuses; check the refusal rules (especially skills-tree dirt and drift) against the weekly job's expectations.
-implementation: Adds assert_skill_update_pr_preflight, called from `coga skill update` before update_skills when --pr is set; folds in the unmerged-paths check and blocks only on dirty/untracked paths that differ on the control branch, any skills-tree dirt, or skills-tree drift.
-deviations: Untracked check intersects with all HEAD..control differences rather than only paths added on control (conservative). The unmerged check moved out of run_skill_update_pr_flow into the preflight.
-limitations: Recurring ticket.py log-commit path not traced end to end; detached HEAD return not addressed (out of scope).
+title: Preflight skill-update PR checkout and preserve staged work
+author: claude/codex
+author_evidence: Claude authored the implementation (original c12ce8fbb, rebased to f13175a99), as recorded
+  by the implement session. Codex authored review fixes 6b07ece3b and the fixture correction 30a730532
+  in this peer-review session.
+head: 30a730532ef4214d0955f505935513daa46ff209
+base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+depth: deep
+rationale: Inspect the Git refusal and index-preservation rules, including the deliberately conservative
+  skills-tree guard. The full Linux suite and real-Git regressions pass; Codex independently reviewed
+  the Claude implementation but self-reviewed its own final fixes.
+implementation: Runs the PR preflight before update_skills, retaining the unchanged unmerged-path refusal.
+  It checks staged and unstaged tracked changes separately against HEAD/control differences, checks untracked
+  paths, and refuses existing skills-tree work or branch drift. The PR commit uses --only with the skills
+  path so unrelated staged work survives the round trip.
+deviations: Uses the union of index and working-tree diffs instead of git diff HEAD because staged edits
+  can cancel out in the latter. Restricts the commit path to fix the discovered staged-work loss and return-checkout
+  failure. Untracked matching remains the conservative exact-path intersection with all HEAD/control differences.
+  Preflight also refuses no-op runs, as the ticket accepts.
+limitations: Detached-HEAD return is unchanged. Untracked checks cover exact-path collisions and nonignored
+  skills-tree files, not ignored files or directory/file ancestor collisions. Script launch publishes
+  its audit append to control but can leave it dirty in a feature checkout, so an off-control job can
+  still receive a clean refusal. Linux/Python 3.12.12 only; no native Windows or Python 3.11 run. Final
+  Codex fixes have self-review rather than a second independent review.
 files:
-  src/coga/skill_manager.py: New preflight and NUL-delimited git path helper; PR flow no longer runs the unmerged check itself.
-  src/coga/commands/skill.py: Run the --all check and preflight before update_skills.
-  tests/test_skill_manager.py: Retarget unmerged test at the preflight; real-git blocking/non-blocking/untracked/skills-tree tests; CLI no-update-on-refusal test; drop unused stubs.
-  tests/test_skill_update.py: Make the --pr recipe fixture a committed git repo because --pr now preflights with git.
-  docs/contexts/coga/skill-management/SKILL.md: Document the --pr refusal and remedy.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Packaged twin of the doc change.
+  src/coga/skill_manager.py: Add the read-only preflight and NUL-delimited path helper; move the existing
+    conflict check; restrict the update commit to the skills tree to preserve unrelated staged work.
+  src/coga/commands/skill.py: Validate --pr/--all and invoke preflight before update_skills writes anything.
+  tests/test_skill_manager.py: Cover real-Git overwrite refusal, harmless edits, hidden staged changes,
+    untracked collisions, skills-tree dirt/drift, CLI ordering, and index/worktree preservation through
+    commit and return; update exact-argv fakes and isolate line endings.
+  tests/test_skill_update.py: Give the no-op --pr recipe a committed Git fixture with deterministic line
+    endings, since even no-op updates now preflight.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md: Document the new
+    refusal/remedy and preservation of harmless staged and unstaged work in the package owner.
+  docs/contexts/coga/skill-management/SKILL.md: Keep the inventoried live topic byte-identical to its
+    package owner.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; peer-review is the next workflow step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 30a730532ef4214d0955f505935513daa46ff209
+  base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+  detail: Direct review completed on the final head/base with no unresolved must-fix findings. The initial
+    review was independent of Claude. Codex then fixed the missed staged edits and unrestricted commit,
+    corrected the CRLF-sensitive fixture, and re-reviewed the resulting six-file diff; the final receipt
+    is conservatively self-review.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=$HOME/.cache/coga-pytest-v1-10 tests/test_skill_update.py tests/test_skill_manager.py tests/test_packaging.py
-    status: passed
-    head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
-    base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
-    detail: 155 passed on the committed tree.
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=$HOME/.cache/coga-pytest-v1-10
-    status: failed
-    head: c12ce8fbba3bf2dfdf61e51608f3970fbb1b9a1f
-    base: acc80ed9cd91872238dd7abe3f1ad4a3353c16cb
-    detail: Ran on the pre-commit tree before the test_skill_update.py fixture fix; 4310 passed, 10 skipped, 2 failed (both test_skill_update_runs_through_generic_recipe_and_reports_no_op params, non-git fixture). The fix was then verified by the focused run above; full suite not re-run after it.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-review-v1-10-full
+  status: passed
+  head: 30a730532ef4214d0955f505935513daa46ff209
+  base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+  detail: 4466 passed, 10 skipped in 632.53s on Linux with Python 3.12.12. Includes the real-Git round-trip,
+    CLI refusal, recipe and packaging tests.
+- command: GIT_CONFIG_SYSTEM=/tmp/coga-v1-10-crlf.gitconfig PYTHONPATH=/home/n/Code/coga/src .venv/bin/python
+    -m pytest -q -p no:cacheprovider --basetemp=/home/n/Code/coga-review-v1-10-crlf tests/test_skill_manager.py
+    -k 'preserves_harmless_edits'
+  status: passed
+  head: 30a730532ef4214d0955f505935513daa46ff209
+  base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+  detail: 3 passed, 105 deselected. The supplied system Git config enables core.autocrlf=true; the fixture
+    correctly overrides it. This is a configuration probe on Linux, not native Windows coverage.
+- command: .venv/bin/python /tmp/coga-v1-10-manual-check.py
+  status: passed
+  head: 30a730532ef4214d0955f505935513daa46ff209
+  base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+  detail: 'Real subprocess CLI in a temporary Git repo: a hidden staged edit produced exit 2, named notes.md,
+    and printed the commit/stash remedy. Branch, index/worktree status and skill bytes were unchanged.
+    Git state publication was disabled in this isolated fixture; plain stderr was inspected.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 30a730532ef4214d0955f505935513daa46ff209
+  base: 45a92ac8660f15e8112e29871787f76d6150c9b6
+  detail: No whitespace errors on the final feature checkout before returning to main.
 ```

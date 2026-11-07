@@ -1,6 +1,6 @@
 ---
 title: Separate installing coga from installing its dependencies
-status: draft
+status: canceled
 owner: zach
 workflow: null
 ---

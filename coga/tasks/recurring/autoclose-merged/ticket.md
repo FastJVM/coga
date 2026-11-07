@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 6bbb4a23-1791-4dcc-afe3-877cb6b9e92a
+period_generation: 429611a7-5528-4c9d-92b1-b7e77e2bfea8
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -88,10 +88,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Autoclose Sweep: retire follow-ups
 
-Generated: 2026-11-03T18:44:14+00:00
+Generated: 2026-11-06T19:54:42+00:00
 Task: `recurring/autoclose-merged`
 
-2 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+3 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
 
-- `blocks/06-collapse-state-publication-into-one-user-topic` (worklist backlog): branch `blocks-06-collapse-state-publication`
-- `blocks/08-trim-launch-prompt-and-workflow-topics` (worklist backlog): branch `coga/blocks-08-trim-launch-prompt-workflow`
+- `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br` "Chat ticket edits strand the checkout on a chat branch": branch `coga/chat-state-checkout-05`
+- `v1/08-fail-the-branch-sweep-when-local-branch-enumeratio` "Fail the branch sweep when local branch enumeration fails": branch `fail-sweep-on-local-enumeration`
+- `v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope` "Init sends the user to edit a toml nothing can open": branch `coga/v1-22-init-drop-coga-toml-next-step`

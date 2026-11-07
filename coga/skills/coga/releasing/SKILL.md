@@ -17,8 +17,11 @@ API token is created, stored, or pasted anywhere.
   `uv build`, `uvx twine check dist/*`, then
   `pypa/gh-action-pypi-publish` in environment `testpypi` or `pypi`, with
   only `contents: read` and `id-token: write`.
-- It is the only workflow and runs no tests. The local suite is the release
-  gate; see [test receipts](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md). Because it builds from a
+- It is the only workflow and runs no tests; Coga has no hosted test CI.
+  The pre-tag gate under "Real release" is the release's only behavioral
+  check, a procedure run by whoever releases, not a mechanical block.
+  [Verification tiers](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts)
+  owns the tiers and receipt fields. Because it builds from a
   pristine checkout it can catch the wheel collision described in
   [wheel packaging](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/packaging/SKILL.md), but only at release time.
 
@@ -47,8 +50,9 @@ add a required reviewer so a human approves every real publish.
 
 ## Dry run on TestPyPI
 
-Recommended for a first release; uploads are immutable, so this is the only
-no-cost way to catch a packaging problem.
+Recommended for a first release. This is a real, immutable upload to
+TestPyPI, a separate test index: the version number is spent there but not on
+PyPI, so it catches packaging problems before the PyPI upload.
 
 1. Confirm `version` in `pyproject.toml`.
 2. Actions -> Release -> Run workflow -> target `testpypi`.
@@ -65,11 +69,16 @@ no-cost way to catch a packaging problem.
 ## Real release
 
 1. Bump `version` in `pyproject.toml` if needed and land it on `main`.
-2. Run the pre-tag gate on the exact commit you will tag. The workflow runs
-   no tests, so this is the only behavioral check before an immutable upload:
-   - the full suite against that checkout,
-     `PYTHONPATH=<checkout>/src python -m pytest`, with its count recorded
-     ([test receipts](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md));
+2. Capture the full SHA of the commit to release
+   (`git rev-parse origin/main` after fetching) and run the pre-tag gate on
+   exactly that commit. The workflow runs no tests, so this is the only
+   behavioral check before an immutable upload. The tier-3 requirements, the
+   supported-platform list, the Python 3.11 floor evidence and the receipt
+   fields are owned by [verification tiers](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/testing/SKILL.md#verification-tiers-and-receipts):
+   - the full suite at that SHA on every supported platform: Linux, Windows
+     through the [Windows AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md#long-native-runs),
+     and macOS through the [macOS AWS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md#full-suite-at-a-commit)
+     once macOS is supported, with at least one run on a real Python 3.11;
    - build both distributions and `twine check dist/*`;
    - install the built wheel into a fresh Python 3.11 venv (the
      `requires-python` floor), then run `coga --version`,
@@ -80,8 +89,16 @@ no-cost way to catch a packaging problem.
      the bare variable and every config-loading command after init exits 2.
      Unset it only for the scratch repo; this repo's own `coga.toml` reads
      it.
-3. Releases -> Draft a new release -> tag `v<version>`, target `main`,
-   Publish release.
+
+   Record every receipt where the release is tracked (its ticket). Any
+   failure or missing receipt means no tag; a fix is a new commit and a new
+   gate.
+3. Tag the tested SHA, not `main`, which may have moved:
+   `git tag -a v<version> <full-sha> -m "v<version>"` and
+   `git push origin v<version>`. Verify the tag before publishing:
+   `git ls-remote origin refs/tags/v<version>^{}` must print that full SHA.
+   Then Releases -> Draft a new release -> choose the existing tag
+   `v<version>` -> Publish release.
 4. The workflow publishes to PyPI.
 5. Verify from a fresh environment that bypasses caches:
    `python3.11 -m venv <dir>` then

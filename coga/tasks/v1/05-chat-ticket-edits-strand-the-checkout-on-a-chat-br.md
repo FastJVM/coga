@@ -1,6 +1,6 @@
 ---
 title: Chat ticket edits strand the checkout on a chat branch
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - coga-dev/principles
@@ -32,9 +32,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
 agent: claude
-launch_generation: 950b8483-13d8-47d9-b7bf-9daf75536c16
 ---
 
 ## Description
@@ -621,6 +619,7 @@ ticket-body edit, implementation, task branch, manual commit, or PR was made.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1167
 branch: coga/chat-state-checkout-05
 
 ## Implementation — 2026-10-29
@@ -712,8 +711,8 @@ author: codex
 author_evidence: Actual implementer was Codex in this API session (GPT-6 family per session instructions).
   Exact model variant and override metadata were not exposed; the ticket-configured claude identity is
   not used as authorship evidence.
-head: 85774628bc7127b025c3cf485806fb4977a45653
-base: ef94eacb040f216b7b576d4b9fefe91f571b1091
+head: 6ed3ac01cf739ee637e46b6b83073ac71d1a428a
+base: 4ba150442be82701b7154751f4dd1f2d6ba4447a
 depth: deep
 rationale: Changes shared Git index preservation and direct-chat command results. No independent code
   review has run. Full-suite evidence is retained at its actual parent commit; the final fixture-only
@@ -728,9 +727,11 @@ deviations: Includes the evaluator-required shared publication guard and exact s
   with target, options and arguments.
 limitations: Original historical supervisor stderr/version remain unavailable. No independent code review,
   Python 3.11 run, or native Windows execution. PowerShell literal rendering is unit-tested; the root
-  fixture is ordered for Windows. The full suite was not repeated after the fixture-only chdir fix; all
-  149 checkout tests and 31 packaging tests passed on the final head, and src/docs are identical to the
-  full-suite head.
+  fixture is ordered for Windows. At open-pr the branch was rebased cleanly onto 4ba150442; the full
+  suite on the rebased runtime head b7feb05a3 had one failure, a new upstream link rule, fixed by the
+  docs-only commit 6ed3ac01c (two coga-dev links repointed to package owners), after which packaging passed.
+  Upstream changes to the overlapping src files (recurring adoption scope, local-override errors) were read
+  and are independent of this change.
 files:
   docs/contexts/coga-dev/internals/git-refresh/SKILL.md: Describe the all-path index check and evidence
     recheck before staging landed state.
@@ -778,6 +779,23 @@ review:
   detail: This implement step does not perform code review. The legacy frozen workflow goes directly to
     open-pr; owner design approval is not implementation review.
 checks:
+- command: PYTHONPATH=$PWD/src /home/n/Code/coga/.venv/bin/python -m pytest -q -p no:cacheprovider
+  status: failed
+  head: b7feb05a3
+  base: 4ba150442be82701b7154751f4dd1f2d6ba4447a
+  detail: 4483 passed, 10 skipped, 1 failed in 610.21s after the clean rebase. The failure was
+    tests/test_packaging.py::test_context_navigation_has_no_broken_links (two coga-dev links to removable
+    legacy copies), fixed in the next, docs-only commit.
+- command: PYTHONPATH=$PWD/src /home/n/Code/coga/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+  status: passed
+  head: 6ed3ac01cf739ee637e46b6b83073ac71d1a428a
+  base: 4ba150442be82701b7154751f4dd1f2d6ba4447a
+  detail: 37 passed in 3.67s on the final head; src/ and tests/ are identical to b7feb05a3.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 6ed3ac01cf739ee637e46b6b83073ac71d1a428a
+  base: 4ba150442be82701b7154751f4dd1f2d6ba4447a
+  detail: Passed for the complete rebased implementation diff.
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest > /tmp/coga-chat-state-full-pytest.log
     2>&1
   status: passed
@@ -826,3 +844,12 @@ checks:
   detail: Passed for the unstaged live-ticket handoff.
 
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br`
+Recorded: 2026-11-04T22:08:48+00:00
+
+    Branch 'coga/chat-state-checkout-05' is not safe to publish. refs/heads/coga/chat-state-checkout-05 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: docs/contexts/coga-dev/internals/git-refresh/SKILL.md, docs/contexts/coga-dev/internals/state-publication/SKILL.md, docs/contexts/coga/checkouts/SKILL.md, docs/contexts/coga/state-publication/SKILL.md, src/coga/compose.py, src/coga/git.py, src/coga/launch.py, src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md, src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md, tests/test_git.py. Reconcile it and relaunch, or `coga block --task v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br`.

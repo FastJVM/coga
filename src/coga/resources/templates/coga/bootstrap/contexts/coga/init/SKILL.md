@@ -113,7 +113,7 @@ tickets that name the old default, such as the onboarding ticket's `agent:`.
 Both happen before the commit. If the edit would not parse back to the same
 config plus that one key, init skips it and prints a warning. A
 non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
-edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
+install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).
 
 ## Clone of a repo that already uses Coga
