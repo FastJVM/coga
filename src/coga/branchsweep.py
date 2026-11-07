@@ -146,6 +146,8 @@ class BranchSweepResult:
     remote_unavailable: str | None = None
     worktree_unavailable: str | None = None
     state_root_unavailable: str | None = None
+    local_unavailable: str | None = None
+    """Why local branches could not be enumerated; the sweep stopped early."""
     retirement_failures: list[str] = field(default_factory=list)
     followups_disposed: list[str] = field(default_factory=list)
     """`retires.md` entries owned by this clone whose checkout the proofs disposed of."""
@@ -162,6 +164,7 @@ class BranchSweepResult:
             self.remote_unavailable
             or self.worktree_unavailable
             or self.state_root_unavailable
+            or self.local_unavailable
             or self.gh_unavailable
             or next(iter(self.retirement_failures), None)
             or self.followups_failure
@@ -237,7 +240,11 @@ def sweep_branches(
         return result
 
     current = _current_branch(root)
-    local = _local_branches(root)
+    local = _local_branches(root, result, echo)
+    if result.local_unavailable is not None:
+        # Without local state every remote branch would look remote-only, so
+        # no per-branch decision is safe; stop before listing the remote.
+        return result
     remote = _remote_branches(cfg, root, result, echo)
     names = local.keys() | remote.keys()
     if only is not None:
@@ -1152,7 +1159,11 @@ def render_sweep_report(
     if result.failure:
         status = (
             "the sweep stopped early"
-            if result.worktree_unavailable or result.state_root_unavailable
+            if (
+                result.worktree_unavailable
+                or result.state_root_unavailable
+                or result.local_unavailable
+            )
             else "partial sweep"
         )
         lines.append(f"Result: {status} — {result.failure}")
@@ -1381,16 +1392,44 @@ def _worktree_branches(
     return worktrees
 
 
-def _local_branches(root: Path) -> dict[str, str]:
+def _local_branches(
+    root: Path,
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> dict[str, str]:
+    """Return local branch-to-tip mappings, or record why they are unknown.
+
+    A failed listing or an unparseable entry sets `result.local_unavailable`:
+    a branch missing from this map would look remote-only to the sweep. An
+    empty successful listing (no branches, unborn HEAD) is not a failure.
+    """
     # `:short` adds a `heads/` prefix when an archive tag shares the name.
-    proc = _git(root, "for-each-ref", "--format=%(refname:strip=2)", "refs/heads/")
+    # The tip comes from the same listing, so a branch deleted mid-sweep
+    # cannot leave a listed name without one.
+    proc = _git(
+        root, "for-each-ref", "--format=%(objectname) %(refname:strip=2)", "refs/heads/"
+    )
+    detail: str | None = None
     branches: dict[str, str] = {}
-    for line in proc.stdout.splitlines():
-        if not line:
-            continue
-        tip = _rev_parse(root, f"refs/heads/{line}")
-        if tip:
-            branches[line] = tip
+    if proc.returncode != 0:
+        detail = (proc.stderr + proc.stdout).strip() or "git for-each-ref refs/heads/ failed"
+    else:
+        for line in proc.stdout.splitlines():
+            if not line:
+                continue
+            tip, _, name = line.partition(" ")
+            if not tip or not name:
+                detail = f"could not resolve local branch entry {line!r}"
+                break
+            branches[name] = tip
+    if detail is not None:
+        result.local_unavailable = detail
+        _note(
+            result,
+            echo,
+            f"Branch sweep: could not list local branches — sweep skipped: {detail}",
+        )
+        return {}
     return branches
 
 

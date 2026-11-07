@@ -37,6 +37,14 @@ recipe exit 2 after checking other branches. Restore archived work with
 `git fetch <remote> tag <tag>` and `git switch -c <new-branch> <tag>`, where
 `<tag>` is `retired/<branch>` or the `@<sha12>` name the run record reports.
 
+When the sweep cannot establish local state, it stops before any local or
+remote delete, records the reason in `## Branch Sweep` as "the sweep stopped
+early", and makes the recipe exit 2. That covers a failed local branch
+enumeration (including a listed branch whose tip cannot be resolved), a failed
+worktree probe, and an unlocatable Coga root prefix. A missing local branch
+would otherwise make its remote ref look remote-only. A successful listing
+with no branches is not a failure.
+
 Every branch-sweep pass shares this gate. It does not change ticket-scoped
 retire/autoclose disposal into an archival operation, except for the owned
 branches the disposal passes to the restricted sweep, which archive like any

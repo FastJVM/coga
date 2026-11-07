@@ -8,7 +8,7 @@ description: Provision, use, and tear down an AWS Mac for Coga clean-install ver
 The macOS counterpart of the [Linux clean-install harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md). It
 runs the same walk script, `scripts/clean-install/container.sh`, as a fresh
 macOS user on an EC2 Mac (`mac2.metal`, Apple silicon), and checks the
-documented [install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md), [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)
+documented [install](https://github.com/FastJVM/coga/blob/main/README.md#get-started), [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)
 and [first-task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md) path against an installed
 artifact. Like the Linux harness, it is repository tooling and is not
 installed with Coga:
@@ -136,10 +136,20 @@ No developer tools were found and no install could be requested (possibly
 because there is no active GUI session)`; a user at the Mac's screen gets the
 install dialog instead. That stop is the new-user finding. To continue, install
 the CLT: as a new user would, over VNC (below) by clicking **Install** in the
-dialog or accepting `xcode-select --install`; or headless over SSH with the
-`softwareupdate` steps that
-[coga/install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#macos-check-git-before-init)
-owns.
+dialog or accepting `xcode-select --install`; or headless over SSH with an
+administrator account:
+
+```sh
+touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+softwareupdate -l          # note the "Command Line Tools for Xcode" label
+sudo softwareupdate -i "<that label>"
+rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+```
+
+Re-run `git --version` afterwards; it must print a version. Full Xcode is not
+required, and Git from Homebrew or another working source passes the same
+check. The CLT's system `python3` stays below Coga's 3.11 floor; the walk's
+uv install manages its own Python.
 
 Then run a walk with a **new** macOS user. The CLT install is machine-wide;
 homes are not shared.
@@ -206,9 +216,8 @@ run each step as `ec2-user` through `aws-mac.sh ssh`, which joins its
 arguments into one remote shell line; quote each line as a single argument.
 
 1. **Prepare the host once.** Provisioning removes the CLT, so first
-   install them headless (the `softwareupdate` steps that
-   [coga/install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#macos-check-git-before-init)
-   owns). Then install uv with its official installer, Python 3.11 with
+   install them headless (the `softwareupdate` steps in [Walk](#walk)).
+   Then install uv with its official installer, Python 3.11 with
    `uv python install 3.11`, and ripgrep (`rg`, needed by the POSIX
    migration-runbook test), for example with Homebrew.
 2. **Check out the exact commit** (a full SHA), cloning on first use. Push

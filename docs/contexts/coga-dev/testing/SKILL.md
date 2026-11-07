@@ -125,6 +125,14 @@ is their hand-run counterpart: a first-time user installs on a fresh
   `tests/test_autoclose_sweep.py`) or freeze the period; assert structure.
 - **Fixture shell scripts must be portable.** Avoid GNU-only `sed -i`,
   `readlink -f`, `date -d`; prefer Python or `sed ... > tmp && mv tmp file`.
+- **Stand in for a tool interpreter with an `exec` wrapper, not a symlink.**
+  Python finds `pyvenv.cfg` beside the path it was invoked by, so a symlink
+  to `sys.executable` placed elsewhere runs the base interpreter without the
+  venv's packages; globally installed packages then hide the loss.
+  `tests/test_clean_install_harness.py` `_tool_python` writes a `/bin/sh`
+  wrapper that `exec`s the quoted interpreter, and its regression test
+  imports a module present only in a throwaway venv so no global package can
+  stand in.
 - **Native Windows fixtures use UTF-8 and LF explicitly.** `conftest` isolates
   HOME, USERPROFILE, APPDATA, LOCALAPPDATA and the temp variables. Fixture
   paths are resolved to their canonical spelling, including HOME and TEMP,
@@ -174,16 +182,6 @@ Rule these out before blaming the change under test.
   (`assert 0 == 1`). Reproduced on control on 2026-11-02. The default
   full-suite order passes, so the failure only shows up in reordered or
   focused selections. Confirm by running the failing test alone.
-- **The `release_env` fixture fails in a fresh `python -m venv` (open:
-  `v1/12-fix-release-env-fixture-interpreter-symlink-in-fre`).**
-  `tests/test_clean_install_harness.py::test_release_check_requires_completed_logged_clean_task`
-  fails with `ModuleNotFoundError: No module named 'yaml'`. The fixture
-  symlinks `sys.executable` to `tools/coga/bin/python`, and a venv interpreter
-  symlinked outside its venv starts as the base interpreter, which does not
-  have the venv's site-packages. The test passes only when the base
-  interpreter has PyYAML, as with a 3.12 base under the dev `.venv`.
-  Workaround: run the suite from a copied
-  base interpreter that has the editable test install.
 - **A Windows checkout and temp directory on different drives** break
   `os.path.relpath`, which raises `ValueError` across drives. A path computed
   between package resources and a fixture repo must fall back to an absolute

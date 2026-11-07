@@ -30,6 +30,14 @@ duplicate slugs and re-applies the discharge rule (`retire_worklist`). Other
 union paths still come from `git check-attr merge`; they must tolerate
 resurrection or must not carry that attribute.
 
+**Retained logs hold union duplicates.** While `log.md` was a union path,
+`git merge-file --union` against a merge base that predated a line already on
+control could emit that line a second time (base `A`, control `A X Y`,
+working `A Z X` gives `A X Y Z X`). Those byte-identical copies remain in
+retained history and are never rewritten. Any reader that counts log lines
+must collapse them, as `usage.load_records` does by exact message text
+(`coga/usage`, "The read API").
+
 ## One event per log line
 
 New `coga/log.md` events are exactly one

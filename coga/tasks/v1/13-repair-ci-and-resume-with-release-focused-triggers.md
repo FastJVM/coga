@@ -32,7 +32,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 6 (review)
 agent: claude
 ---
 
@@ -335,8 +335,121 @@ Previous ref: `windows-native/repair-ci-and-resume-with-release-focused-triggers
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1179
 branch: coga/v1-13-repair-ci-and-resume-with-release-focused--a448a8
 
+## Implement handoff — 2026-11-05
+
+Attended session (agent: claude, model claude-opus-5-5). Branch pushed at
+`cc2f64255177c9c92caf4b9b0444631e7f549b6c`, rebased on origin/main
+`a8fe8af9cd79f7873325f6ca45211451d8d770a0`. No PR yet.
+
+What changed:
+- `0e5d03567` **Sync packaged twins with live copies (owner decision this
+  session).** Main's packaging suite was red at start (2 failed / 35 passed):
+  state sync `421ee15c0` published v1/14 (interactive launch on native
+  Windows) live-copy edits without package twins: windows-aws harness,
+  launch-boundary, first-task, install, launch, recurring/scheduling,
+  script-tickets, tickets/authoring, plus a `coga/install#windows-baseline`
+  link in coga-dev/current-direction. Owner chose "sync package to live":
+  the eight package owners now carry the published live text verbatim. **v1/14's
+  PR must reconcile with this** (its package twins already match its live
+  text on main once this merges).
+- `cc2f64255` the ticket's change: `test.yml` deleted; `release.yml` comment
+  path fixed only (actionlint clean); `coga-dev/testing` "CI posture and
+  receipts" replaced by "Verification tiers and receipts" (decision + history,
+  three tiers, platform-sensitive list, 3.11 floor evidence, receipt fields,
+  local-run facts); stale setup-python / hosted-Windows text in "Known suite
+  failures" rewritten; `coga-dev/codebase` map line; AGENTS.md Testing
+  Guidelines pointer; releasing skill (both copies, byte-identical) pre-tag
+  gate requires tier-3 receipts, tags the captured full SHA and checks it via
+  `git ls-remote ... ^{}` before publishing, TestPyPI described as a real
+  upload; macOS harness (both copies) gains "Full suite at a commit", marked
+  **unverified**, follow-up filed: `v1/44-verify-the-macos-full-suite-procedure-on-the-ec`.
+- Windows harness needed no tier text: the policy links its fix loop / long
+  native runs; its `checkout` already syncs with uv-managed Python 3.11, which
+  the policy cites as floor evidence.
+
+Decisions / notes:
+- Remaining grep hits for `CI` are generic adopting-repo text (open-pr
+  "resolve CI failures", bootstrap/import, coga.toml template comments,
+  phone-home `CI` env suppression, notifications, edge-code) — not claims
+  of Coga hosted CI; left unchanged.
+- This change is not platform-sensitive (docs/workflow deletion only), so no
+  tier-2 Windows receipt.
+- Observed during the step (adjacent, owned by
+  `v1/03-state-sync-published-unmerged-recurring-templates`): `coga create`
+  triggered "Sync coga state" `a8fe8af9c`, which published this branch's
+  committed **live** copies (releasing, macos-aws, coga-dev/testing,
+  coga-dev/codebase) to main without their package twins. Main's packaging
+  twin check is therefore red until this PR merges. Same incident class as
+  the one this ticket started from.
+- GitHub rechecked 2026-11-05: workflow 394591152 `disabled_manually`, main
+  unprotected (404), rulesets `[]`. No post-merge obligation found.
+- Follow-up proposed, not filed: one-command pre-release run across all
+  platforms, if tier 3 proves tedious.
+
+## PR
+
+```yaml
+title: Delete hosted test CI; move verification to agent-run tiers
+author: claude
+author_evidence: Implement step ran as an attended Claude session (claude-opus-5-5); see Implement handoff — 2026-11-05.
+head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+depth: deep
+rationale: Docs/policy changes plus one workflow deletion; no Python changes. The twin-sync commit 0e5d03567 carries v1/14's published live text into package owners (owner decision) and needs reviewer attention.
+implementation: Deletes .github/workflows/test.yml (owner decision 2026-11-05, no hosted CI); fixes only release.yml's stale setup comment; adds an AGENTS.md pointer to the tiered verification policy; makes the releasing skill's pre-tag gate require tier-3 receipts and tag the tested full SHA; adds an unverified macOS full-suite procedure; syncs eight package twins to live text published by 421ee15c0. The coga-dev/testing and coga-dev/codebase rewrites and the live releasing/macos-aws copies reached main early through state sync a8fe8af9c, so they are already in the base and absent from this diff.
+deviations: Twin sync of v1/14's live text (commit 0e5d03567) is outside this ticket's scope; the owner chose it in the implement session because main's packaging suite was red.
+limitations: No Python 3.11 suite run and no Windows/macOS run (change is not platform-sensitive). macOS procedure is unverified; tracked by v1/44-verify-the-macos-full-suite-procedure-on-the-ec.
+files:
+  .github/workflows/release.yml: Correct the stale setup-comment path only; behavior unchanged.
+  .github/workflows/test.yml: Deleted; owner decision 2026-11-05, no hosted test CI.
+  AGENTS.md: One-line Testing Guidelines pointer to the tier policy in coga-dev/testing.
+  coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Live mirror of the package macOS harness (byte-identical).
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Add unverified "Full suite at a commit" procedure.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md: Tier-3 pre-tag gate, tag captured full SHA, verify tag, TestPyPI described as a real upload.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md: Package twin synced to live text published by 421ee15c0 (owner decision).
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: The frozen code/design-then-implement workflow has no code-review step before open-pr; design approval is not code review. The owner reviews at the next step.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+    detail: "Linux (Pop!_OS 24.04 LTS), Python 3.12.12: 4453 passed, 10 skipped, 0 failed in 557.09s."
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_packaging.py
+    status: passed
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+    detail: 37 passed (was 2 failed / 35 passed on main 604add79c before the twin sync).
+  - command: actionlint .github/workflows/release.yml
+    status: passed
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+    detail: actionlint 1.7.7 release binary; exit 0, no findings.
+  - command: env -u SLACK_WEBHOOK_URL coga validate --json
+    status: passed
+    head: cc2f64255177c9c92caf4b9b0444631e7f549b6c
+    base: a8fe8af9cd79f7873325f6ca45211451d8d770a0
+    detail: "97 ok, 0 errors, 9 warnings (all unrelated tickets: unfrozen-workflow, stuck-in-progress)."
+  - command: Python 3.11 full suite
+    status: not-run
+    detail: Docs-only change; tier 1 permits reporting the interpreter used.
+  - command: Windows/macOS native full suite
+    status: not-run
+    detail: Not platform-sensitive; macOS procedure unverified, see v1/44.
+```
 
 ## Design investigation — 2026-10-27
 
@@ -870,3 +983,36 @@ this review does not approve either policy.
   created. Full-suite, Python 3.11/Windows, actionlint, and rollout evidence
   remain implementation/rollout work. Only this evaluator section was added;
   the authored spec, frontmatter, and prior blackboard were preserved.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+Recorded: 2026-11-06T06:40:32+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: invalid YAML under ## PR: mapping values are not allowed here
+      in "<unicode string>", line 27, column 63:
+         ...  warnings (all unrelated tickets: unfrozen-workflow, stuck-in-pr ... 
+                                             ^
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+Recorded: 2026-11-06T06:40:42+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: review must be a mapping.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/13-repair-ci-and-resume-with-release-focused-triggers`
+Recorded: 2026-11-06T06:41:19+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: depth must be merge, skim, or deep.

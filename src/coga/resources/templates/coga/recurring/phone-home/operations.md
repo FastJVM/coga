@@ -64,10 +64,22 @@ Record the evidence in the task or PR that carries the proof; this runbook
 owns the reusable procedure.
 
 Build the wheel from `main` at a recorded commit, then install it in a fresh
-external venv:
+external venv. `--no-build-isolation` keeps the build offline and on a known
+`hatchling` version, but it makes pip import the build backend from the
+interpreter running the build, so a plain system Python fails with
+`BackendUnavailable: Cannot import 'hatchling.build'`. Build with a Python that
+has Coga's `[test]` extra installed, which provides the build backend and
+`pip`: for example the checkout's `.venv/bin/python` after
+`python -m pip install -e ".[test]"`. That builder venv only produces the
+wheel; it is not the install target. The rules above govern the proof run, not
+the builder: "no editable installation" applies to the fresh external venv the
+wheel goes into, and "no test/CI environment" means no test/CI gates are set
+when the installed `coga` runs, so a `[test]`-equipped builder does not break
+either.
 
 ```sh
-python -m pip wheel --no-deps --no-build-isolation . -w /tmp/coga-telemetry-wheel
+# Run from the checkout root with the [test]-equipped builder interpreter.
+.venv/bin/python -m pip wheel --no-deps --no-build-isolation . -w /tmp/coga-telemetry-wheel
 python -m venv /tmp/coga-telemetry-release
 /tmp/coga-telemetry-release/bin/python -m pip install /tmp/coga-telemetry-wheel/coga-*.whl
 mkdir -p /tmp/coga-telemetry-proof

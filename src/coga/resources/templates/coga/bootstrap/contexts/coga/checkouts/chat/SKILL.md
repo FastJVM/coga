@@ -1,6 +1,6 @@
 ---
 name: coga/checkouts/chat
-description: Direct chat's checkout — the per-checkout occupancy guard, and the session-owned branch an agent prepares with `coga run prepare-checkout` before its first edit.
+description: Direct chat's checkout — routine state edits on control, the per-checkout occupancy guard, and the session-owned branch prepared before implementation or reviewed knowledge edits.
 ---
 
 # Direct chat checkouts
@@ -34,9 +34,31 @@ cross-checkout exclusion is introduced.
 ## Preparing the chat's branch
 
 `coga chat` (`bootstrap/orient`) starts on a clean, current `main` and may
-stay discussion-only: nothing is allocated. Its notice carries an exact
-`coga run prepare-checkout --session <id>` invocation; run it before the
-first edit. It proves the session is the live chat holding this checkout's
+stay on control for discussion and routine Coga-state-only edits: no branch
+is allocated. Leave routine state **unstaged**, including renames: use a
+filesystem move, not `git mv` or `git add`. Lifecycle commands, the existing
+sweep, or `coga run publish-state` publish it; never hand-edit the log.
+
+The boundary is the configured Coga and contexts roots, not a hard-coded
+`coga/` prefix or filename extension. Source and docs outside those roots
+need a branch and PR. Implementation or deliberately reviewed knowledge
+inside the roots also prepares the branch **before editing**, then commits
+the intended PR files and packaged twins before a sweeping command. Choose
+explicit knowledge review before writing that knowledge on control. This
+does not change publication scope or the adoption of committed routine
+task/log/recurring paths; see [state publication](../../state-publication/SKILL.md).
+
+When routine work turns into implementation or a reviewed knowledge edit:
+
+1. Run `coga run publish-state` with no paths, require exit 0, then require
+   `git status --porcelain --untracked-files=all` to be empty. The no-path
+   recipe includes deletions; named paths must survive and do not limit its
+   sweep. A failed publication or dirty checkout stops the transition.
+2. Run the notice's exact `coga run prepare-checkout --session <id>` command.
+3. Stay on that branch while working; routine state still publishes from
+   there. Do not hop between branches for different kinds of edits.
+
+Preparation itself never sweeps. It proves the session is the live chat holding this checkout's
 occupancy guard (above), then
 creates and switches to that chat's one reserved branch (`coga/chat-<id>`)
 through the same mechanics. Repeating it on that branch is a no-op, even with
@@ -61,3 +83,12 @@ or deletion of an already-confirmed branch still refuses. The preparation
 recipe is a fixed `coga run` entry
 ([coga/extension-model](../../extension-model/SKILL.md)); it is not a task:
 no ticket, workflow, transition, or blackboard.
+
+An otherwise successful direct chat whose armed checkout return refuses or
+fails exits **75**, naming the checkout left behind and how to inspect and
+recover it. An existing nonzero agent, timeout, or signal result retains its
+code; usage records always retain the actual agent outcome. This also applies
+to direct `coga launch bootstrap/orient`, including the Python launch API,
+but not delegated or recurring routes. The [launch boundary](../launch-boundary/SKILL.md)
+owns return proofs and recovery; an ambient withheld-sweep flag from an earlier
+Python call is not evidence that this chat's return failed.

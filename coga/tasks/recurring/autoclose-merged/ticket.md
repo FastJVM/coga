@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: de72a2e4-c2c6-45c2-8630-4ef71cfc40f3
+period_generation: 429611a7-5528-4c9d-92b1-b7e77e2bfea8
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -88,16 +88,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Autoclose Sweep: retire follow-ups
 
-Generated: 2026-11-05T17:10:29+00:00
+Generated: 2026-11-06T19:54:42+00:00
 Task: `recurring/autoclose-merged`
 
-8 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+3 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
 
-- `add-a-skill-for-the-attended-human-fresh-machine-i` "Add a skill for the attended human fresh-machine install walk": branch `coga/add-a-skill-for-the-attended-human-fresh-machine-i-84cdf7`
-- `document-the-non-executable-script-validate-check` "Document the non-executable-script validate check in the user-facing coga validate topic": branch `document-non-executable-script-check`
-- `publish-sibling-ticket-handoffs-during-targeted-au` "Publish sibling ticket handoffs during targeted authoring": branch `coga/publish-sibling-ticket-handoffs`
-- `v1/03-state-sync-published-unmerged-recurring-templates` "State sync published unmerged recurring templates from a feature branch": branch `coga/v1-03-recurring-publication-boundary`
-- `v1/09-guard-foreign-linked-worktree-branch-cleanup` "Guard foreign linked worktree branch cleanup": branch `fix/guard-foreign-worktree-branch-cleanup`
-- `v1/33-review-all-doc` "review all doc": branch `codex/v1-33-doc-acceptance`
-- `v1/package-definitions/01-runtime-compatibility-for-package-owned-definit` "01 Runtime compatibility for package-owned definitions": branch `coga/package-definitions-01-runtime-compat`
-- `v1/refresh-main-before-megalaunch-builds-its-queue` "Refresh main before megalaunch builds its queue": branch `coga/v1-refresh-main-before-megalaunch`
+- `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br` "Chat ticket edits strand the checkout on a chat branch": branch `coga/chat-state-checkout-05`
+- `v1/08-fail-the-branch-sweep-when-local-branch-enumeratio` "Fail the branch sweep when local branch enumeration fails": branch `fail-sweep-on-local-enumeration`
+- `v1/22-init-sends-the-user-to-edit-a-toml-nothing-can-ope` "Init sends the user to edit a toml nothing can open": branch `coga/v1-22-init-drop-coga-toml-next-step`

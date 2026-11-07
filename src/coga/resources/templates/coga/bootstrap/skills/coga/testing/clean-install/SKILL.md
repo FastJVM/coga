@@ -6,7 +6,7 @@ description: Run Coga's Linux clean-install harness against PyPI or a main-branc
 # Linux clean-install harness
 
 Repository tooling lives in `scripts/clean-install/`; it is not installed with
-Coga. It exercises the documented [install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md),
+Coga. It exercises the documented [install](https://github.com/FastJVM/coga/blob/main/README.md#get-started),
 [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md), and [first-task](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md) path
 against an installed artifact. The release continuation below also checks a
 pinned release and a completed agent launch. The

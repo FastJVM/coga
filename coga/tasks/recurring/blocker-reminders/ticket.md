@@ -5,7 +5,7 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: fb08442a-fd4b-471e-a3d5-a96ca80501fd
+period_generation: efbc5cdb-7905-44d3-ac62-4c88327c2860
 workflow:
   name: blocker-reminders/run
   steps:

@@ -24,7 +24,9 @@ import report  # noqa: E402
 cfg = load_config()
 ticket = read_ticket(resolve_task(cfg, os.environ["COGA_TASK_SLUG"]))
 since, until = report.default_window(datetime.now(timezone.utc).date())
-text = report.render(report.build_report(report.load_records(cfg), since, until))
+text = report.render(
+    report.build_report(report.load_records(cfg), since, until, user=cfg.current_user)
+)
 # One post attempt per run, on the important route the owner chose for it.
 # `fatal=False`: a delivery miss is reported on stderr only (no `task_path`,
 # so no `log.md` audit line) and must not leave the period task `in_progress`;
