@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -226,44 +226,102 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Possible follow-up (out of scope, not filed): Claude transcript root in
   `usage` hard-codes `~/.claude/projects` and ignores `CLAUDE_CONFIG_DIR`.
 
+## Peer review
+
+- Independent Codex direct review **completed**, including a final rereview
+  after reconciliation, on head `d94674f7f0b7dbbcaff09600b69dde6e351a179a`,
+  base `0a150faf1a0925530533812de8927b6dabb8d042`. Claude implemented the
+  change (implement handoff and commit's Claude Opus 5.5 coauthor). This fresh
+  Codex session reviewed all five diff paths, snapshot/parser callers, the
+  launch environment boundary, test isolation, and documentation. **No
+  must-fix code findings**; no implementation edits were needed.
+- Rebased twice onto fetched main, without conflicts. Both times the projected
+  ticket was backed up, verified, and restored byte for byte. The last main
+  movement changed only phone-home build instructions and their explanatory
+  packaging-exception string; runtime code, test assertions, and all five
+  implementation paths were unchanged. The usage package/live pair is
+  byte-identical. The final diff has one implementation commit ahead of main.
+  Pushed final head `d94674f7f0b7dbbcaff09600b69dde6e351a179a` with an
+  explicit `--force-with-lease` against the implement head; push succeeded.
+- Rechecked `openai/codex`'s `codex-rs/utils/home-dir/src/lib.rs` via the
+  GitHub connector (blob `caa43569c78bae9f5cc875092f378f4d935b8063`): empty is
+  unset, `PathBuf::from` is literal, and valid custom directories are
+  canonicalized. Official state-location docs:
+  https://learn.chatgpt.com/docs/config-file/config-advanced#config-and-state-locations.
+  Read-only scratch probes on the earlier, byte-identical implementation
+  passed for unset/empty/custom roots, a literal tilde path component, a
+  symlink root, and a missing root. No interactive terminal surface changed;
+  terminal rendering checks are inapplicable.
+- Final-head focused receipt: Pop!_OS 24.04 LTS, Python 3.12.12,
+  `PYTHONPATH=/home/n/Code/claude/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_usage.py tests/test_packaging.py`
+  -> **75 passed, 2 failed in 4.39s**. All 40 usage tests pass. The two
+  failures are `test_live_and_packaged_copies_stay_identical` (launch-boundary
+  live/package drift) and `test_context_navigation_has_no_broken_links`
+  (missing anchors). Both also reproduced on an isolated export of base
+  `39610a034be9205b60476ef2684ac146efc10d0e`, excluding `docs/archive/`
+  (2 failed in 0.69s). PR #1185 is still open and unmerged.
+- Full Linux suite **returned**: same OS/interpreter,
+  `PYTHONPATH=/home/n/Code/claude/coga/src TERM=dumb .venv/bin/python -m pytest`
+  -> **4504 passed, 10 skipped, 2 failed in 638.56s**, with only those same
+  two packaging failures. This receipt covers head
+  `6b715e056770ab68f03076fa3400874d71b638c2`, base
+  `39610a034be9205b60476ef2684ac146efc10d0e`, before the final documentation
+  rebase. It remains historical: the affected focused suites were rerun on
+  final head, and the full suite was not repeated for the prose-only drift.
+  Python 3.11 was not exercised.
+- Native Windows receipt is not recorded. `coga-dev/testing` requires it
+  before approving path-sensitive changes. All four locally recorded Windows
+  harness runs have teardown markers, and no `AWS_PROFILE` is selected.
+  A new non-`windows-native/` run requires owner approval under the
+  `coga/testing/clean-install/windows-aws` skill. No AWS resources were created.
+- PR preparation recommends **deep**, explicitly carrying the failed checks,
+  historical full-suite receipt, and missing Windows evidence. This completed
+  code review is not merge approval; the existing owner review gate retains
+  those verification decisions. No unrelated repairs were added to this branch.
+
 ## PR
 
 ```yaml
 title: Honor CODEX_HOME when locating Codex rollouts
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga launch.
-head: 834251b6b56686d6f4593e4d085a987a82de51b9
-base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
-depth: skim
-rationale: One small helper choosing the rollout root from an env var, with a regression test and doc sentences; behavior unchanged when CODEX_HOME is unset.
-implementation: Adds usage._codex_sessions_root, which returns $CODEX_HOME/sessions for a non-empty CODEX_HOME (used literally, matching codex-rs find_codex_home) and ~/.codex/sessions otherwise; the existing rollout glob uses it, so snapshot and post-run diff share one root.
-deviations: None.
-limitations: A relative CODEX_HOME and a CODEX_HOME set only in the agent child's environment are documented as unsupported. The globbed root is not canonicalized as Codex does, which does not affect discovery.
+author_evidence: Implement handoff records Claude Code (claude-opus-5-5); the implementation commit also credits Claude Opus 5.5. The fresh Codex peer session made no implementation edits.
+head: d94674f7f0b7dbbcaff09600b69dde6e351a179a
+base: 0a150faf1a0925530533812de8927b6dabb8d042
+depth: deep
+rationale: Independent direct review of the final diff found no must-fix code issues. The focused run still has two independently reproduced main failures, the full-suite receipt precedes the final prose-only rebase, and native Windows evidence is missing. These verification gaps warrant owner review before merge.
+implementation: Adds usage._codex_sessions_root to select $CODEX_HOME/sessions when CODEX_HOME is non-empty, preserving the literal value, or ~/.codex/sessions otherwise. Both the pre-spawn snapshot and post-run parser use the same existing rollout glob. Tests isolate CODEX_HOME and cover snapshotting and parsing a custom root outside HOME while ignoring the default-root decoy. The two required topics document the lookup and unsupported cases.
+deviations: No implementation deviations. Peer review rebased onto current main without code changes; unrelated packaging repairs remain in PR 1185.
+limitations: Relative CODEX_HOME and values set only in the agent child environment are unsupported. The root is not canonicalized, but a symlink probe confirms equivalent discovery for an existing absolute root. No native Windows or Python 3.11 verification receipt; local checks use Linux and Python 3.12.12. Full-suite results are historical after the final documentation-only rebase; focused checks were rerun on final head. No interactive surface changed, so terminal rendering checks are inapplicable.
 files:
-  src/coga/usage.py: Decide the Codex rollout root from CODEX_HOME in one helper.
-  tests/test_usage.py: Clear CODEX_HOME for every test and add the CODEX_HOME-outside-HOME regression test.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: State where Codex rollouts are looked up and that a missing one is unknown.
-  docs/contexts/coga/usage/SKILL.md: Legacy live copy mirrored byte for byte from the package owner.
-  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Replace the hard-coded ~/.codex path with the CODEX_HOME lookup rule and its unsupported cases.
+  src/coga/usage.py: Select the Codex rollout root from the process environment for both snapshot and parse discovery.
+  tests/test_usage.py: Clear ambient CODEX_HOME and cover a custom root outside HOME, including an ignored default-root decoy.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md: Document the lookup rule, unknown result for a missing rollout, and unsupported configurations in the package owner.
+  docs/contexts/coga/usage/SKILL.md: Keep the transitional live copy byte-identical to its package owner.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Document the shared root and the parent-versus-child environment boundary in the local capture contract.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No code review yet; the workflow's later steps own review.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: d94674f7f0b7dbbcaff09600b69dde6e351a179a
+  base: 0a150faf1a0925530533812de8927b6dabb8d042
+  detail: Direct review completed, including rereview of all five diff paths after the final rebase. Covered caller flow, environment inheritance, regression-test isolation, package/live equality, and Codex source semantics. No must-fix code findings. Failing checks and missing Windows evidence remain explicit verification gaps; this receipt does not approve merging.
 checks:
-  - command: python -m pytest tests/test_usage.py
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_usage.py tests/test_packaging.py
+    status: failed
+    head: d94674f7f0b7dbbcaff09600b69dde6e351a179a
+    base: 0a150faf1a0925530533812de8927b6dabb8d042
+    detail: Pop!_OS 24.04 LTS, Python 3.12.12; 75 passed, 2 failed in 4.39s. All 40 usage tests pass. The existing test_live_and_packaged_copies_stay_identical and test_context_navigation_has_no_broken_links failures reproduced independently on main before the last documentation-only advance. PR 1185 remains open and unmerged.
+  - command: PYTHONPATH=/home/n/Code/claude/coga/src TERM=dumb .venv/bin/python -m pytest
+    status: failed
+    head: 6b715e056770ab68f03076fa3400874d71b638c2
+    base: 39610a034be9205b60476ef2684ac146efc10d0e
+    detail: Pop!_OS 24.04 LTS, Python 3.12.12; 4504 passed, 10 skipped, 2 failed in 638.56s. Only the two independently reproduced main packaging failures. Historical receipt before the final rebase, whose upstream delta changed phone-home build prose and a packaging-exception explanation only; runtime code and test assertions were unchanged. Focused usage/packaging checks were rerun on final head; the full suite was not repeated for that prose-only drift.
+  - command: git diff --check
     status: passed
-    head: 834251b6b56686d6f4593e4d085a987a82de51b9
-    base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
-    detail: 40 passed after rebase onto 0891a7069 (run via .venv/bin/python).
-  - command: python -m pytest tests/test_usage.py tests/test_packaging.py
-    status: failed
-    head: 834251b6b56686d6f4593e4d085a987a82de51b9
-    base: 0891a7069f7e9222f4295d51fe8c3be3c1191235
-    detail: 75 passed, 2 failed after rebase; both failures (live/package twin drift in coga/checkouts/launch-boundary, broken anchors from coga-dev/current-direction) reproduce with this change stashed and are pre-existing on main. Fix is PR https://github.com/FastJVM/coga/pull/1185; its simulated merge with this base passes tests/test_packaging.py (37 passed).
-  - command: python -m pytest
-    status: failed
-    head: 03a7fc0e80b22482ddc403f6c43624ef19b56e70
-    base: ddf7e225ff5f126ba55510fe4bf37f3015bdff89
-    detail: 4488 passed, 10 skipped, 2 failed; same two pre-existing test_packaging failures. Ran before the rebase onto 0891a7069 (upstream changes are skill-update and release-env only); not rerun at the new head.
+    head: d94674f7f0b7dbbcaff09600b69dde6e351a179a
+    base: 0a150faf1a0925530533812de8927b6dabb8d042
+    detail: No whitespace errors; the changed usage package/live topic pair also compares byte-identical.
+  - command: Native Windows full suite (python -m pytest)
+    status: not-run
+    detail: Required before approving this path-sensitive change by coga-dev/testing. No implement receipt is recorded; all local Windows harness runs have teardown markers and AWS_PROFILE is unset. The Windows harness skill requires owner approval for a new run outside windows-native tickets. Remains a pre-merge verification gap.
 ```
