@@ -130,8 +130,11 @@ defaults apply: an explicit `agent: claude` blocked period creation in a
 Codex-only repo even with a launch override (PR #857 review);
 `tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing`
 pins the inherited routing. A job that force-pushes a reused branch must
-resolve the remote tip at push time (`git ls-remote`) rather than lease against
-a possibly stale tracking ref, as `src/coga/skill_manager.py` does.
+lease against a remote tip it read live (`git ls-remote` on the push URL)
+rather than a possibly stale tracking ref. `src/coga/skill_manager.py` reads it
+in its pre-update branch guard and leases against that observed tip, so a hand
+push after the check fails the lease; see
+[coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md).
 
 Hazards:
 
