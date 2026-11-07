@@ -132,9 +132,9 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
 def test_missing_analysis_cli_uses_the_shared_coga_toml_remedy(
     cfg_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """This check once carried its own "is not on PATH" wording, which drifted
-    from every other point of need. It must route through the shared message so
-    agent CLIs are only ever a `coga.toml` matter."""
+    """This check once carried its own wording, which drifted from every other
+    point of need. It must route through the shared message so agent CLIs are
+    only ever a `coga.toml` matter."""
     monkeypatch.setattr(autofix.shutil, "which", lambda _cli: None)
 
     with pytest.raises(autofix.AutofixUnavailable) as exc:

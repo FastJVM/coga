@@ -1241,9 +1241,9 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
     """With neither CLI installed, init's next steps name the prerequisite —
     the `coga build` coax otherwise sends a fresh user into a flow whose
     "not found" failure arrives only after they've committed to it.
-    It names no install location: init does not install an agent CLI. It also
-    states no `PATH` requirement (that is a `coga.toml` matter) and sends
-    nobody to edit a `.toml` they have nothing to put in yet."""
+    It names no install location: init does not install an agent CLI. It
+    states no lookup requirement either, and sends nobody to edit a `.toml`
+    they have nothing to put in yet. The assertions below pin all three."""
     target = _make_git_repo(tmp_path / "company")
     real_which = shutil.which
     monkeypatch.setattr(

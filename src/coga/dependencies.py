@@ -126,8 +126,8 @@ def agent_cli_missing_message(name: str, cli: str) -> str:
     `name` is the `[agents.<name>]` table that declared the agent and `cli` is
     its `cli` value, so the message can point at the one line to change. Coga
     never installs an agent CLI: the remedy is always a `coga.toml` edit. `cli`
-    may be a bare binary name or a full path — `shutil.which` resolves either —
-    so the message names the config, not `PATH`.
+    may be a bare binary name or a full path, which `shutil.which` resolves
+    either way, so the message names the config rather than the lookup.
     """
     return (
         f"Agent CLI {cli!r} not found. Set `cli` in [agents.{name}] in "

@@ -21,8 +21,7 @@ def test_agent_clis_have_no_install_metadata() -> None:
 
 def test_agent_cli_missing_message_points_at_the_toml_not_path() -> None:
     """The one remedy is a `coga.toml` edit. `shutil.which` resolves a bare
-    name or a full path, so `PATH` is not the requirement and must not be
-    named as one."""
+    name or a full path, so the config is the requirement, not the lookup."""
     message = agent_cli_missing_message("claude", "claude")
     assert "Agent CLI 'claude' not found." in message
     assert "[agents.claude]" in message
@@ -50,10 +49,10 @@ def test_custom_agent_cli_missing_message_still_fails_loud() -> None:
 
 
 def test_every_agent_cli_check_routes_through_the_shared_message() -> None:
-    """`recurring_autofix` once rolled its own "is not on PATH" text for this
-    exact failure, so the wording drifted from every other point of need and a
-    PATH claim survived a sweep that fixed the others. Any module that checks a
-    configured agent CLI must report it through the shared message."""
+    """`recurring_autofix` once rolled its own wording for this exact failure,
+    so it drifted from every other point of need and survived a sweep that
+    fixed the others. Any module that checks a configured agent CLI must
+    report it through the shared message."""
     checked, offenders = [], []
     for path in sorted(SRC.rglob("*.py")):
         text = path.read_text(encoding="utf-8")

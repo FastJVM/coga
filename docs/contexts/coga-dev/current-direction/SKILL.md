@@ -116,10 +116,9 @@ is `coga status` and the ticket bodies; stage posture is
   install and churn. Interactive `coga init` offers `git` and `gh`; it notes
   `op` without installing it, installs no Python package or skill, and runs
   nothing without a yes. Agent CLI installation offers and links were removed
-  2026-11-05, and 2026-11-07 made the remedy a `coga.toml` fix rather than a
-  `PATH` requirement: a missing agent CLI points at `cli` in the agent's
-  `[agents.*]` table, while init may offer an already-installed CLI as the
-  default. Contract:
+  2026-11-05, and 2026-11-07 made the remedy a `coga.toml` fix: a missing
+  agent CLI points at `cli` in the agent's `[agents.*]` table, while init may
+  offer an already-installed CLI as the default. Contract:
   [`coga/init`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 - **Native Windows is supported (2026-11).** The core port (2026-10-23)
   runs non-interactive commands and deterministic work;
