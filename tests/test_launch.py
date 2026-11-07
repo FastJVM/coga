@@ -6982,7 +6982,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    # claude resolves, codex does not (simulate codex not on PATH).
+    # claude resolves, codex does not (simulate codex not installed).
     monkeypatch.setattr("coga.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
         "coga.launch.shutil.which",
@@ -7146,7 +7146,7 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`AgentCliNotFound` keeps the shared PATH-only requirement."""
+    """`AgentCliNotFound` keeps the shared `coga.toml` remedy."""
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
 

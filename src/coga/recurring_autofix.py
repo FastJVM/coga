@@ -56,6 +56,7 @@ from coga import git
 from coga.bump import OperatorResolutionError, resolve_other_agent
 from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
 from coga.create import create_task
+from coga.dependencies import agent_cli_missing_message
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post
 from coga.taskfile import TaskFileError, markdown_lines, read_blackboard
@@ -647,8 +648,8 @@ def analyze_record(
     agent = _analyze_agent(cfg, agent_override)
     if shutil.which(agent.cli) is None:
         raise AutofixUnavailable(
-            f"agent CLI {agent.cli!r} is not on PATH, so the run cannot be "
-            "analyzed"
+            f"{agent_cli_missing_message(agent.name, agent.cli)} The run "
+            "cannot be analyzed."
         )
     prompt = build_prompt(record_text, open_autofix_tickets(cfg))
     cmd = build_analyze_command(agent, prompt)

@@ -1286,7 +1286,7 @@ def test_init_next_steps_skip_the_prerequisite_when_a_cli_is_installed(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "No agent CLI was found on PATH" not in result.output
+    assert "No agent CLI was found" not in result.output
 
 
 @pytest.mark.parametrize("filled", [False, True], ids=["empty", "filled"])

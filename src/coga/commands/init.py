@@ -443,7 +443,7 @@ def _offer_optional_tools() -> None:
     `offer_install=None`, so it is never offered and never listed as a tool
     init handles; `_note_missing_op` notes it on its own instead. Agent CLIs
     are not warned about here either: init installs none, and the next steps
-    name the prerequisite when neither is on PATH.
+    name the prerequisite when neither one resolves.
     """
     interactive = _interactive()
     manager = _package_manager() if interactive else None
@@ -577,7 +577,13 @@ def _gh_logged_in(gh: str) -> bool:
 
 
 def _installed_agent_clis() -> list[str]:
-    """The `AGENT_CLIS` on PATH, in stable supported order."""
+    """The `AGENT_CLIS` that resolve to a runnable binary, in supported order.
+
+    Init runs before any `coga.toml` exists, so this is a machine scan rather
+    than a config read; `v1/20-ask-which-agents-to-enable-during-coga-init`
+    owns redesigning it. Nothing here states a requirement: which binary a
+    launch needs comes from that agent's `cli` in `coga.toml`.
+    """
     return [name for name in AGENT_CLIS if shutil.which(name) is not None]
 
 
@@ -585,9 +591,9 @@ def _offer_agent_cli(default_agent: str | None) -> str | None:
     """Offer an installed agent CLI as the default; that agent, or None.
 
     Interactive init only, after `_offer_optional_tools`. Init never installs
-    an agent CLI or names an installer. A user with none on PATH is asked
+    an agent CLI or names an installer. A user with none installed is asked
     nothing here and reads the prerequisite once, in `_do_init`'s next steps.
-    When exactly one agent CLI is on PATH and it is not `default_agent` — the
+    When exactly one agent CLI resolves and it is not `default_agent` — the
     default agent of the coga.toml init is about to write — init asks to make
     it the default (written as `default_agent`) and returns it on a yes.
     Nothing is returned when the packaged template declares no default to

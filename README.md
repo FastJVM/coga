@@ -83,7 +83,7 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks).
 
 Agent sessions run on Linux or macOS. Coga runs inside an existing Git
 repository; outside one, `coga init` stops. You'll need working Git and either
-Claude Code (`claude`) or Codex (`codex`) on `PATH`; Coga does not install or
+Claude Code (`claude`) or Codex (`codex`) installed; Coga does not install or
 link to an installer for either agent. Coga requires Python 3.11+, but the
 recommended `uv` installer can obtain a compatible Python for you.
 
@@ -129,7 +129,7 @@ In a repo new to Coga, init commits the Coga files. In a clone that already
 uses Coga, it sets up your local identity and agent links without a commit
 ([init details](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md)).
 Coga installs no agent CLI and provides no agent-installer link. In an
-interactive terminal, when exactly one supported CLI is on `PATH`, init offers
+interactive terminal, when exactly one supported CLI is present, init offers
 to make that one your default agent. It seeds the onboarding
 ticket only for an otherwise empty repo; a short starter README, LICENSE or
 `.gitattributes` still counts as empty. Choose how to begin:

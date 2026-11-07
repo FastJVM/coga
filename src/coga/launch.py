@@ -2005,7 +2005,7 @@ class _LaunchInvocation:
                     _report(f"{self.ref.id_slug}: {exc}; stopping")
                     break
                 # Re-check the CLI every step — catches the case where the chain
-                # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
+                # rotates to an agent (e.g. codex) whose CLI won't resolve. Stop
                 # cleanly and hand back to the human rather than blocking.
                 if shutil.which(self.agent.cli) is None:
                     message = (
@@ -3641,8 +3641,8 @@ def missing_launch_file_message(exc: FileNotFoundError) -> str:
     executable boundary (ordinary launches also append their audit there), so
     a `FileNotFoundError` escaping it is far more often a missing prompt layer
     than a missing agent CLI — and blaming the CLI sends the operator to debug
-    a PATH that is fine. Name the path instead; `AgentCliNotFound` carries the
-    genuine CLI case.
+    a `cli` setting that is fine. Name the path instead; `AgentCliNotFound`
+    carries the genuine CLI case.
     """
     missing = exc.filename or "a file it needed"
     detail = exc.strerror or str(exc)

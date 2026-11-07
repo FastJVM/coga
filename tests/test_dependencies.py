@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from coga.dependencies import (
     AGENT_CLIS,
     DEPENDENCIES,
     agent_cli_missing_message,
 )
+
+SRC = Path(__file__).resolve().parent.parent / "src" / "coga"
+_AGENT_WHICH = re.compile(r"shutil\.which\(\s*[\w.]*agent[\w.]*\.cli\s*\)")
 
 
 def test_agent_clis_have_no_install_metadata() -> None:
@@ -41,3 +47,24 @@ def test_custom_agent_cli_missing_message_still_fails_loud() -> None:
     assert "Agent CLI 'some-custom-agent' not found." in message
     assert "[agents.house-agent]" in message
     assert "http" not in message
+
+
+def test_every_agent_cli_check_routes_through_the_shared_message() -> None:
+    """`recurring_autofix` once rolled its own "is not on PATH" text for this
+    exact failure, so the wording drifted from every other point of need and a
+    PATH claim survived a sweep that fixed the others. Any module that checks a
+    configured agent CLI must report it through the shared message."""
+    checked, offenders = [], []
+    for path in sorted(SRC.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if not _AGENT_WHICH.search(text):
+            continue
+        checked.append(str(path.relative_to(SRC)))
+        if "agent_cli_missing_message" not in text:
+            offenders.append(str(path.relative_to(SRC)))
+    assert checked, "the agent-CLI presence check moved; update this guard"
+    assert offenders == [], (
+        "these modules check for a configured agent CLI but do not use "
+        "`agent_cli_missing_message`, so their wording can drift: "
+        + ", ".join(offenders)
+    )

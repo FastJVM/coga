@@ -171,7 +171,7 @@ user:
 ./scripts/clean-install/aws-mac.sh ssh mac1 sudo -iu walk2
 ```
 
-As that user, provide an authenticated agent CLI on `PATH` using the operator's
+As that user, provide an authenticated agent CLI using the operator's
 existing setup; this runbook gives no agent installer command or URL. Then run
 the attended ticket continuation:
 

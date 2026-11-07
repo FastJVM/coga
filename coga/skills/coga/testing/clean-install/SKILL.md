@@ -75,7 +75,8 @@ docker start clean-pypi
 
 Provide and authenticate an agent CLI **inside that container** before either
 attended continuation, using the operator's existing setup. This runbook gives
-no agent installer command or URL. Verify the chosen CLI is on `PATH`:
+no agent installer command or URL. Verify the chosen CLI is runnable (or
+point `cli` in `coga.toml` at its full path):
 
 ```sh
 docker exec -it clean-pypi bash
