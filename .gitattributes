@@ -1,3 +1,8 @@
+# Coga's tests, packaging pins and guarded audit rewrites compare exact LF
+# bytes, and a wheel built from a CRLF checkout would ship CRLF templates.
+# Check every text file out as LF on every platform, including Git for
+# Windows with its default core.autocrlf=true.
+* text=auto eol=lf
 # Shell and PowerShell scripts run on Linux, macOS and Windows hosts; a CRLF
 # checkout breaks the shebang (env: 'bash\r').
 *.sh text eol=lf
