@@ -5944,7 +5944,6 @@ def test_megalaunch_owner_flags_refused_with_explicit_selection(repo: Path) -> N
         run_megalaunch(cfg, selection=["anything"], all_owners=True)
 
 
-@windows_interactive_skip
 @pytest.mark.parametrize(
     ("flags", "expected_owners"),
     [

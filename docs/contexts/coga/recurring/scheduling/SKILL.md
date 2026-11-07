@@ -178,11 +178,9 @@ launchable (`canceled`, `blocked`, ...) is never refused: a durable checkout
 would not launch it either. A `ticket.py` period runs headless and is the shape
 for unattended schedulers.
 
-On native Windows the same admission policy uses the agent-session platform
-refusal regardless of TTY availability, with a Windows label in the scan row.
-Scripts still run. A hybrid's unfinished agent phase is reported and its period
-paused, keeping the deterministic output; see
-[script tickets](../../script-tickets/SKILL.md#chaining).
+On native Windows an agent run cannot measure idleness: an armed idle
+timeout warns once and the session runs with its max-session limit only
+([coga/launch](../../launch/SKILL.md#options-and-exits)).
 
 A scheduled agent run must reach `done` in one launch. When an agent launch
 returns unfinished — including a human/unassigned handoff or a `coga block` —
