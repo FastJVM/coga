@@ -10481,3 +10481,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-07 14:01 v1 [v1/10-preflight-dirty-tracked-files-before-skill-update] [human:nicktoper] auto-bumped on merge of PR #1168 → done
 2026-11-07 14:02 v1 [v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits] [human:nicktoper] auto-bumped on merge of PR #1182 → done
 2026-11-07 14:02 v1 [v1/12-fix-release-env-fixture-interpreter-symlink-in-fre] [human:nicktoper] auto-bumped on merge of PR #1165 → done
+2026-11-07 14:02 v1 [v1/13-repair-ci-and-resume-with-release-focused-triggers] [human:nicktoper] auto-bumped on merge of PR #1179 → done
