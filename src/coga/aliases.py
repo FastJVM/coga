@@ -52,8 +52,9 @@ ONBOARDING_TASK = "coga-build"
 # ordinary recurring task, and ``coga dream`` takes the same path as ``coga
 # recurring launch dream``. ``build`` is similarly the first-run alias for
 # ``launch coga-build``. ``skill-update`` and ``autoclose`` launch ordinary
-# recurring tasks on demand, while ``pick`` is the short spelling for the
-# interactive megalaunch picker. ``open-pr`` is the short spelling for the
+# recurring tasks on demand; ``autoclose`` also reruns a completed period.
+# ``pick`` is the short spelling for the interactive megalaunch picker.
+# ``open-pr`` is the short spelling for the
 # registered ``open-pr`` recipe — the argv rewrite hands the task ref to the
 # generic runner as ordinary argv (``coga open-pr <slug>`` → ``run open-pr
 # <slug>``). ``resolve-conflicts`` and ``address-pr-comments`` each front an
@@ -67,7 +68,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "dream": "recurring launch dream",
     "build": f"launch {ONBOARDING_TASK}",
     "skill-update": "recurring launch skill-update",
-    "autoclose": "recurring launch autoclose-merged",
+    "autoclose": "recurring launch autoclose-merged --rerun",
     "pick": "megalaunch --pick",
     "open-pr": "run open-pr",
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",

@@ -1517,14 +1517,15 @@ def scan_clone_due(
 
 
 def create_named(
-    cfg: Config, name: str, now: datetime | None = None
+    cfg: Config, name: str, now: datetime | None = None, *, rerun: bool = False
 ) -> CreateOutcome:
     """Create the named recurring task now, ignoring its schedule.
 
     `name` is the directory name under `coga/recurring/`. The task slug is
     the stable qualified `recurring/<name>`, so a manual `coga
     recurring launch <name>` and a bare `coga recurring` converge on one
-    instantiated task directory.
+    instantiated task directory. `rerun` replaces a completed current-period
+    task as well; live and human-parked tasks are still reused unchanged.
     """
     now = now or datetime.now()
     src = resolve_template_source(cfg, name)
@@ -1540,7 +1541,7 @@ def create_named(
             f"recurring/{name} is `scope: clone`; it runs per clone with no "
             "period task"
         )
-    return create_template(cfg, template, now)
+    return create_template(cfg, template, now, rerun_done=rerun)
 
 
 def create_template(
@@ -1550,6 +1551,7 @@ def create_template(
     *,
     allow_agent: bool = True,
     replace_done: bool = True,
+    rerun_done: bool = False,
     serviced: dict[str, str] | None = None,
     agent_unavailable_reason: str | None = None,
     retain_canceled: bool = False,
@@ -1559,6 +1561,9 @@ def create_template(
 
     `serviced` is the caller's prefetched valid-period map when it is walking
     every template; None reads and validates this template's ledger state.
+
+    `rerun_done` lets an explicit rerun replace a completed task even when
+    the period was already serviced. Scheduled scans keep deduplicating.
 
     `agent_unavailable_reason` overrides the refusal text raised when
     `allow_agent` is false; None keeps the default no-TTY explanation.
@@ -1611,11 +1616,14 @@ def create_template(
         if (
             replace_done
             and ticket.status == "done"
-            and not _period_already_serviced(cfg, template, period_key, serviced)
+            and (
+                rerun_done
+                or not _period_already_serviced(cfg, template, period_key, serviced)
+            )
         ):
-            # A completed task is terminal. If Dream did not reap it, delete
-            # that prior-period artifact through the canonical deletion path,
-            # then create a genuinely fresh task from the current template.
+            # Replace a completed run through the canonical deletion path,
+            # then start at step one with the current template. This covers
+            # both an older period and an explicitly requested same-period rerun.
             if template.delegate is not None:
                 assert_template_delegation(cfg, template)
             if not allow_agent and template.script_entry_point is None:
@@ -1645,7 +1653,11 @@ def create_template(
                 cfg,
                 target_slug,
                 "system",
-                f"deleted completed prior-period task before {period_key}",
+                (
+                    f"deleted completed task before requested rerun for {period_key}"
+                    if rerun_done
+                    else f"deleted completed prior-period task before {period_key}"
+                ),
             )
             _advance_serviced_period(
                 cfg, template, period_key, outcome, now, serviced

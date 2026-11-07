@@ -116,8 +116,16 @@ are `coga recurring --help`'s. The bare, forced and `--all` sweeps run the fixed
   override when the period's task was reaped); a live run is resumed, a
   prior-period `done` replaced, a non-human `paused` run resumed exactly as a
   sweep would (an agent-backed one refuses without a TTY), and a
-  current-period `done` or a human-`paused` run left alone. It passes the sweep's concrete idle/max-session limits unless
-  `--interactive`.
+  current-period `done` or a human-`paused` run left alone. It passes the sweep's
+  concrete idle/max-session limits unless `--interactive`.
+- `coga recurring launch <name> --rerun` also replaces a current-period `done`
+  task with a fresh run at step 1 from the current template. Each invocation is
+  a real run, with the ordinary notifications and state publication. The
+  default `coga autoclose` alias includes `--rerun`, so manual cleanup can run
+  repeatedly within a day or week. Other aliases and scheduled sweeps keep
+  their existing deduplication. Live runs resume; human-paused, blocked and
+  canceled runs stay parked. Branch, owner, TTY and concurrent-generation
+  checks still apply, as do the cleanup proofs.
 - `--interactive` needs an attended TTY, uses attended conduct and leaves the
   liveness limits unarmed. Every other automatic launch composes the recurring
   queue conduct (`prompt-queue.md`; see
