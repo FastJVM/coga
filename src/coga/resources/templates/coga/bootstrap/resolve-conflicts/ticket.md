@@ -45,17 +45,25 @@ an absent section means the launch had no positional arguments:
 Only update PRs targeting `main`. Report a PR with another base as
 `conflict` with the base named; do not retarget or rebase it.
 
+Leave human-review PRs to the human. A PR whose title starts with
+`Human Review needed` was opened by a lifecycle command for an ambiguous
+ticket status conflict (`coga/state-publication`, "Human review of status
+conflicts"); its conflict with `main` is the question it asks. Report it as
+`skipped-human-review` before any refresh, worktree, or rebase, even when it
+is the selected PR.
+
 ### Run order
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
    `git` and `gh` can read the repository, then run `git fetch origin main`.
-   Query PR metadata including number, URL, state, base ref, head ref, head
+   Query PR metadata including number, title, URL, state, base ref, head ref, head
    OID, head repository, fork status, maintainer-writeability, and `mergeable`.
    In sweep mode, use the complete/paginated `gh pr list --state open --limit
    10000` result described above; in single mode, use `gh pr view`. Process PRs
    sequentially and keep the observed head OID for the push lease.
 2. **Select actual conflicts.** Immediately before touching a selected PR,
-   refresh its state, base, head OID, and `mergeable` value with `gh pr view`.
+   refresh its title, state, base, head OID, and `mergeable` value with `gh pr view`.
+   Report `Human Review needed` titles as `skipped-human-review` first.
    If it closed, changed base, or moved its head, make no change and report
    `conflict` with the reason. If GitHub reports `MERGEABLE`, report
    `up-to-date` (no conflict with `main`) and do not rebase. If it reports
@@ -126,6 +134,7 @@ Use these status tokens exactly:
 - `conflict`
 - `skipped-dirty`
 - `verify-failed`
+- `skipped-human-review`
 
 After all PRs, post one compact count roll-up (and the PR numbers needing human
 attention) with the command below. This must be the final action: a successful

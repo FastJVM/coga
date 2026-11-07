@@ -50,6 +50,20 @@ error. `append_log` doubles the JSON's backslashes like any message
 ([encoding details](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md)), so v1-marked messages are decoded before JSON
 parsing. Unmarked legacy messages are parsed raw.
 
+**Each logical record counts once.** A record's identity is its exact JSON
+message text (decoded for v1-marked lines): `load_records` keeps the first
+occurrence of each message and skips later byte-identical copies, whatever
+their timestamp prefix. Retained history holds such copies because the
+audit log's former `merge=union` landing could re-add a line already on
+control. The log stays append-only; copies are collapsed only at read time,
+and `coga show` still prints every line. Messages that differ in any byte stay
+separate records, including a schema 1 and a schema 2 line for the same
+fields. Each record carries its own launch window to the microsecond, so
+distinct launches do not produce identical text in practice. That is
+conservative, not a uniqueness guarantee: nothing enforces globally unique
+timestamps. `session_id` is not the identity: it can be null, and distinct
+launches or resumed segments can share one provider session.
+
 - `--by task|model|agent|step` groups rows (default `task`); a record with no
   value for the key groups under `(unknown)`. Any other value exits 2.
 - `--since` / `--until` take an ISO timestamp or a bare `YYYY-MM-DD` (which
@@ -67,6 +81,12 @@ attributed; they count as sessions but contribute zero tokens, so a high
 unknown count means the totals are a floor, not a measurement. Each unknown
 record carries a path-redacted `usage_reason` saying why; a session that provably never
 reached the API is recorded `ok` with zero tokens rather than unknown.
+Codex rollouts are looked up under `$CODEX_HOME/sessions` when `CODEX_HOME`
+is set and non-empty in the environment Coga runs in (used exactly as written,
+no `~` expansion), else under `~/.codex/sessions`; a rollout missing from that
+root is recorded unknown, not zero. A relative `CODEX_HOME`, or one set only in
+the agent's own environment (ticket `secrets:`, agent env config), is not
+supported.
 
 `coga usage` is read-only: no mutation, no network, and no end-of-command
 state sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,

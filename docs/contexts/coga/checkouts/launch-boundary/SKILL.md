@@ -9,6 +9,10 @@ Part of [coga/checkouts](../SKILL.md).
 
 ## Preparation and return
 
+The native Windows agent-session preflight runs before this boundary and
+does not publish or prepare a checkout. Its script admission and refusal
+contract is owned by [coga/launch](../../launch/SKILL.md#phases-and-routing).
+
 An ordinary ticket launch and a direct `bootstrap/orient` launch (`coga chat`)
 prepare the invoking checkout before reading the ticket to compose, run
 `ticket.py`, or activate, and return it after every

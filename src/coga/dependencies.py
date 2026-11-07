@@ -5,12 +5,14 @@ supporting tools, why Coga needs them, where to install them, and whether they
 are required at `coga init` (a hard crash up front) or only when a specific
 feature is used (a softer, deferred failure at the point of need).
 
-`coga init` reads `DEPENDENCIES` to decide which supporting tools to enforce,
-offer, or note. Agent CLIs are separate: `AGENT_CLIS` is the supported scan
-order, and Coga only requires the configured CLI on `PATH` at the point of
-need. Coga never installs an agent CLI or names an agent installer. The
-`coga/install` topic (`docs/contexts/coga/install/SKILL.md`) owns the human
-contract.
+`coga init` reads `required_at_init` to decide what to enforce before doing
+anything, and `offer_install` / `packages` to offer installing a missing tool
+through the machine's package manager. Agent CLIs are separate: `AGENT_CLIS`
+is the supported scan order, and Coga resolves the configured `cli` only at
+the point of need. Coga never installs an agent CLI or names an agent
+installer; a missing one is a `coga.toml` fix. The `coga/init` topic
+summarizes the same set for humans and points here. Keeping the list here
+means the init check and the docs can't drift.
 """
 
 from __future__ import annotations

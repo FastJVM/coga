@@ -412,6 +412,90 @@ An earlier run on the same guest installed from PyPI by mistake and showed the
 old picker. It is the before-image, not a finding. Its `op` wording also differs,
 because `_note_missing_op` landed on main after 0.4.1 shipped.
 
+## Nico closed PR #1176 — handoff (2026-11-07, claude, from the v1/20 session)
+
+Written from a session launched on `v1/20-ask-which-agents-to-enable-during-coga-init`,
+which is blocked on this ticket. No code was changed here. The `review` step is
+still this ticket's current step; verify this note before acting on it.
+
+Nico closed #1176 at 05:01Z with one comment, no review object, and no inline
+comments. Verbatim:
+
+> coga build failed with "Agent CLI 'claude' not found in PATH. Coga requires
+> the configured agent CLI on PATH for agent-backed commands." and printed
+> nothing else.
+>  => it's not supposed to be in the PATH but in the toml
+
+### The change to make (Zach, 2026-11-07)
+
+**The message is wrong. It should name the config that declared `cli = "claude"`
+and point at the toml as the place to change it.**
+
+Zach read the comment that way and confirmed it in session. The competing
+reading — that `cli` should accept a path so the binary need not be on `PATH`
+at all — is **rejected**: that is a design change to the agent-spawn contract,
+the packaged `coga.toml` documents the opposite ("executable to spawn; launch
+fails before writing any state when it is not on PATH"), and it is not this
+ticket's. Zach's words: discuss it if the fix turns out to need it.
+
+This does **not** reintroduce what the ticket removed. A remedy that points at
+the toml is a config remedy, not an install remedy. Do not bring back an
+install URL, an installer command, or `install_hint`; `### No agent-install
+remediation` and Zach's 2026-11-05 direction both still hold.
+
+### This is a direction change, not a bug that slipped through
+
+The exact output Nico objects to is recorded as **passing** in
+`## Fresh-VM verification walk (2026-11-05, zach)` above, and the ticket's
+`### No agent-install remediation` specified it deliberately: one PATH-only
+requirement, stated once, everywhere. Zach signed that off on 2026-11-05 and
+Nico reversed it on 2026-11-07. Treat the walk's receipt as superseded on this
+one point rather than as a contradiction to explain away.
+
+### What the error site knows today
+
+`dependencies.agent_cli_missing_message(cli: str)` takes only the binary name,
+which is why it cannot name the table. Every caller already holds an
+`AgentType` (`config.py:36`, with `.name` and `.cli`), so naming
+`[agents.<name>]` needs a signature change and no new plumbing:
+
+    src/coga/launch.py:1809, 2021, 2614   — self.agent / agent
+    src/coga/megalaunch.py:2152           — agent
+    src/coga/commands/ticket.py:301       — agent
+
+Whether to also name the `coga.toml` path is open; `Config` does not obviously
+expose it at these sites, so check before promising it in the text. Two tests
+pin the current message: `tests/test_dependencies.py:27` and `:33`.
+
+### The branch no longer merges, and `coga/install` was deleted under it
+
+Branch tip `25e310236` is 49 behind main and 3 ahead. `git merge-tree
+origin/main <branch>` conflicts in five paths:
+
+    docs/contexts/coga-dev/current-direction/SKILL.md      (content)
+    docs/contexts/coga/init/SKILL.md                       (content)
+    src/coga/.../bootstrap/contexts/coga/init/SKILL.md     (content)
+    src/coga/dependencies.py                               (content)
+    docs/contexts/coga/install/SKILL.md                    (modify/delete)
+    src/coga/.../bootstrap/contexts/coga/install/SKILL.md  (modify/delete)
+
+The two modify/delete conflicts are the substantive ones. `8a88b5ada` on main
+("Retire the coga/install topic", ticket
+`v1/26-make-the-readme-install-section-the-only-install-p`) deleted both copies
+of `coga/install` and re-homed its facts into `coga/init` and the README's
+"Get started". This branch still edits both deleted files, and the PR receipt
+below lists them as the owners of the no-agent-installer policy. So that policy
+text needs re-homing into `coga/init` (itself conflicted) or the README as part
+of resolving, not a copy of the old file restored.
+
+### PR state
+
+#1176 is closed, not merged, and the branch still exists, so `gh pr reopen 1176`
+is available once the branch is reconciled and the message fixed. Opening a
+fresh PR is equally fine; Zach wants it back in front of Nico either way. The
+`## PR` receipt below is stale from `b9057a89b` — its `head`, `checks`, and the
+two `install/SKILL.md` file entries all need rewriting before it goes back out.
+
 ## PR
 
 ```yaml

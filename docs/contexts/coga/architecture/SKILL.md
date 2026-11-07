@@ -50,7 +50,7 @@ owns it. A ticket's `secrets:` declares intent, not confinement
 
 ## Topic map
 
-- **Start**: [install](../install/SKILL.md), [init](../init/SKILL.md),
+- **Start**: [install](https://github.com/FastJVM/coga/blob/main/README.md#get-started), [init](../init/SKILL.md),
   [first-task](../first-task/SKILL.md), [uninstall](../uninstall/SKILL.md),
   [cli](../cli/SKILL.md).
 - **Model**: [knowledge](../knowledge/SKILL.md),

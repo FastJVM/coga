@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -370,6 +371,14 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     JSON object; every other line (state transitions, FYIs) fails the record
     parse and is skipped. Only v1-marked messages are decoded before JSON
     parsing; unmarked legacy messages are parsed raw.
+
+    Each logical record is returned once, in first-occurrence order. A
+    record's identity is its exact (decoded) JSON message text: retained
+    history holds byte-identical copies that the old `merge=union` landing
+    re-added, so a later copy of an already-seen message is skipped. Messages
+    differing in any byte stay separate records; `session_id` is not the
+    identity (it can be null, and distinct launches can share one). See
+    `coga/usage`, "The read API".
     """
     path = log_path(cfg)
     if not path.is_file():
@@ -379,6 +388,7 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     except OSError:
         return []
     records: list[UsageRecord] = []
+    seen: set[str] = set()
     for line in log_lines(text):
         match = _LOG_LINE_RE.match(line)
         if not match:
@@ -386,10 +396,13 @@ def load_records(cfg: Config) -> list[UsageRecord]:
         message = match.group("message")
         if match.group("version"):
             message = decode_log_message(message)
+        if message in seen:
+            continue
         try:
             records.append(UsageRecord.from_json(message))
         except ValueError:
             continue
+        seen.add(message)
     return records
 
 
@@ -937,8 +950,21 @@ def _codex_rollout_has_marker(path: Path, marker: str) -> bool:
     return False
 
 
+def _codex_sessions_root() -> Path:
+    """Codex's rollout root, decided the way codex-rs `find_codex_home` does.
+
+    A non-empty `CODEX_HOME` is used exactly as written (no `~` expansion);
+    an empty or unset one means `~/.codex`. The agent child inherits this
+    process's environment, so both sides see the same value.
+    """
+    codex_home = os.environ.get("CODEX_HOME")
+    if codex_home:
+        return Path(codex_home) / "sessions"
+    return Path.home() / ".codex" / "sessions"
+
+
 def _codex_rollout_paths() -> list[Path]:
-    return list((Path.home() / ".codex" / "sessions").glob("**/rollout-*.jsonl"))
+    return list(_codex_sessions_root().glob("**/rollout-*.jsonl"))
 
 
 def _read_codex_session_meta(path: Path) -> dict[str, str] | None:

@@ -525,7 +525,9 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so after its read-only preflight it commits
     # nothing and opens no PR, and the registered recipe reports a clean no-op
-    # on the task blackboard.
+    # on the task blackboard. The pre-update branch guard asks the remote
+    # first; a bare origin without `coga/skill-update` lets it pass without
+    # calling `gh`.
     src_path = str(Path(__file__).resolve().parents[1] / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
     pythonpath = (
@@ -579,6 +581,13 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
         ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-q", "-m", "init"],
     ):
         subprocess.run(["git", *args], cwd=repo.parent, check=True, capture_output=True)
+    origin = repo.parent / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo.parent), "remote", "add", "origin", str(origin)],
+        check=True,
+        capture_output=True,
+    )
 
     result = CliRunner().invoke(app, ["run", "skill-update"])
 

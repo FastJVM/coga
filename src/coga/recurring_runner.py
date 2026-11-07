@@ -3588,6 +3588,7 @@ def run_recurring_named(
     cfg: Config,
     name: str,
     *,
+    rerun: bool = False,
     interactive: bool = False,
     agent_override: str | None = None,
 ) -> int:
@@ -3596,7 +3597,8 @@ def run_recurring_named(
     Ignores the template's schedule — the on-demand entry point behind
     aliases like `coga dream`. The task slug is the stable qualified
     `recurring/<name>`, so this and a bare `coga recurring` converge on one
-    instantiated task directory.
+    instantiated task directory. `rerun` replaces a completed task even in
+    the current period, using the same guarded replacement as an older run.
 
     `agent_override` has the same ephemeral, agent-only semantics as the full
     recurring sweep. A git-backed run happens on the configured control branch;
@@ -3611,6 +3613,7 @@ def run_recurring_named(
             "recurring",
             "launch",
             name,
+            *(["--rerun"] if rerun else []),
             *(["--interactive"] if interactive else []),
             *(["--agent", agent_override] if agent_override else []),
         ],
@@ -3642,7 +3645,7 @@ def run_recurring_named(
             run_autofix(cfg, record, agent_override=agent_override)
         return 2 if problem else 0
     try:
-        outcome = create_named(cfg, name)
+        outcome = create_named(cfg, name, rerun=rerun)
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2

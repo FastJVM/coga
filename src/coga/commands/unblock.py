@@ -7,18 +7,24 @@ import sys
 import typer
 
 from coga import git
-from coga.blackboard import open_blockers, resolve_open_blockers
+from coga.blackboard import open_blockers, parse_blockers_text, resolve_open_blockers_text
+from coga.commands.common import prepare_lifecycle_ticket, reconcile_lifecycle_ticket
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
 from coga.mark import RequiredExtensionMissing, WorkflowMissing, mark_active
+from coga.taskfile import TaskFileError, split_body, with_blackboard
 from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
-from coga.ticket import TicketError
+from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.workflow import WorkflowError
 
 
 class _UnblockError(Exception):
     """A single ticket could not be unblocked (reported, loop continues)."""
+
+
+class _UnblockConflict(_UnblockError):
+    """Preparation could not reconcile the ticket with control (exit 75)."""
 
 
 def unblock(
@@ -73,32 +79,30 @@ def unblock(
     # untouched. A `paused` recurring period with open asks was parked by the
     # sweep after its run blocked; resolving the asks is what lets the next
     # sweep resume it, so it too stays put.
-    ticket = read_ticket(ref)
-    if ticket.status not in {"blocked", "in_progress"} and not _paused_period(
-        ref, ticket.status
-    ):
-        _bail(
-            f"Task {ref.id_slug} is {ticket.status!r}; unblock requires "
-            "'blocked' (or 'in_progress' or a paused recurring period with "
-            "open asks)."
-        )
-
-    blockers = open_blockers(ref.ticket_path)
-    if not blockers:
-        _bail(f"Task {ref.id_slug} is {ticket.status} but has no open blockers.")
+    if not ref.ticket_path.is_file():
+        read_ticket(ref)  # the ordinary missing-ticket error
+    prepared = prepare_lifecycle_ticket(cfg, ref)
+    try:
+        _check_unblockable(ref, prepared.ticket)
+    except _UnblockError as exc:
+        _bail(str(exc))
 
     if answer is None:
         typer.echo(f"Open blocker(s) for {ref.id_slug}:")
-        for blocker in blockers:
+        for blocker in _open_asks(prepared.ticket):
             typer.echo(f"- {blocker.reason}")
         answer = typer.prompt("Answer/resolution").strip()
+        # The prompt held no lock; the write prepares and rechecks afresh.
+        prepared = None
     else:
         answer = answer.strip()
     if not answer:
         _bail("--answer cannot be empty")
 
     try:
-        _apply_unblock(cfg, ref, answer)
+        _apply_unblock(cfg, ref, answer, prepared=prepared)
+    except _UnblockConflict as exc:
+        _bail(str(exc), exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
     except _UnblockError as exc:
         _bail(str(exc))
 
@@ -121,6 +125,7 @@ def _unblock_all(cfg: Config) -> None:
     typer.echo(f"{len(blocked)} blocked task(s). Blank answer skips a task.")
     unblocked = 0
     skipped = 0
+    conflicted = False
     for ref in blocked:
         typer.echo("")
         typer.echo(f"=== {ref.id_slug} ===")
@@ -145,9 +150,14 @@ def _unblock_all(cfg: Config) -> None:
         except _UnblockError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             skipped += 1
+            conflicted = conflicted or isinstance(exc, _UnblockConflict)
 
     typer.echo("")
     typer.echo(f"Unblocked {unblocked}, skipped {skipped}.")
+    if conflicted:
+        # A refused ticket keeps its local bytes; the generic sweep must not
+        # publish them behind the refusal.
+        sys.exit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
 
 
 def _paused_period(ref: TaskRef, status: str) -> bool:
@@ -155,7 +165,29 @@ def _paused_period(ref: TaskRef, status: str) -> bool:
     return status == "paused" and ref.id_slug.startswith("recurring/")
 
 
-def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
+def _open_asks(ticket: Ticket) -> list:
+    region = split_body(ticket.body)[1] or ""
+    return [b for b in parse_blockers_text(region) if not b.resolved]
+
+
+def _check_unblockable(ref: TaskRef, ticket: Ticket) -> None:
+    if ticket.status not in {"blocked", "in_progress"} and not _paused_period(
+        ref, ticket.status
+    ):
+        raise _UnblockError(
+            f"Task {ref.id_slug} is {ticket.status!r}; unblock requires "
+            "'blocked' (or 'in_progress' or a paused recurring period with "
+            "open asks)."
+        )
+    if not _open_asks(ticket):
+        raise _UnblockError(
+            f"Task {ref.id_slug} is {ticket.status} but has no open blockers."
+        )
+
+
+def _apply_unblock(
+    cfg: Config, ref: TaskRef, answer: str, *, prepared: git.PreparedTicket | None = None
+) -> None:
     """Resolve open blockers on one ticket; reactivate it unless mid-step.
 
     A `blocked` ticket is marked active. An `in_progress` ticket (interactive
@@ -163,12 +195,31 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     sweep resumes it) gets its asks resolved with status and `step:`
     untouched. Raises `_UnblockError` (never exits) so `--all` can report and
     continue.
+
+    Eligibility is (re)checked on a ticket prepared against fresh control
+    (`git.prepare_ticket`), and the resolved asks plus any status change
+    are one prepared write.
     """
     actor = f"human:{cfg.current_user}"
     try:
-        with git.state_lock(cfg):
-            resolve_open_blockers(ref.ticket_path, actor, answer)
-        ticket = read_ticket(ref)
+        if prepared is None:
+            try:
+                prepared = reconcile_lifecycle_ticket(cfg, ref)
+            except git.TicketConflictError as exc:
+                raise _UnblockConflict(f"Refusing to unblock {ref.id_slug}: {exc}.") from exc
+            except git.GitError as exc:
+                sys.stderr.write(
+                    f"[git] could not prepare {ref.id_slug} against control ({exc}); "
+                    "using this checkout's copy\n"
+                )
+                prepared = git.local_ticket_preparation(ref.ticket_path)
+        ticket = prepared.ticket
+        _check_unblockable(ref, ticket)
+        region = split_body(ticket.body)[1] or ""
+        ticket.body = with_blackboard(ticket.body, resolve_open_blockers_text(region, actor, answer))
+
+        if ticket.status == "in_progress" or _paused_period(ref, ticket.status):
+            git.write_ticket(cfg, ticket, ref.ticket_path, prepared=prepared)
 
         if ticket.status == "in_progress":
             # Launch already reactivated the ticket (blocked → active →
@@ -181,7 +232,8 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 f"unblocked (asks resolved, still in_progress): {answer}",
             )
             git.sync_task_state(
-                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
+                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved",
+                prepared=prepared,
             )
             typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
             return
@@ -196,7 +248,8 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 f"unblocked (asks resolved, still paused): {answer}",
             )
             git.sync_task_state(
-                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
+                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved",
+                prepared=prepared,
             )
             typer.echo(
                 f"{ref.id_slug}: open asks resolved (still paused; the next "
@@ -211,7 +264,10 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
             actor=actor,
             log_message=f"unblocked ({ticket.status} → active): {answer}",
             echo=f"{ref.id_slug}: active (unblocked)",
+            prepared=prepared,
         )
+    except git.TicketChangedError as exc:
+        raise _UnblockConflict(str(exc)) from exc
     except WorkflowMissing:
         raise _UnblockError(
             f"Cannot unblock {ref.id_slug}: ticket has no workflow. Set "
@@ -228,7 +284,7 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
             f"Cannot unblock {ref.id_slug}: required extension field(s) "
             f"empty: {names}. Fill them in `ticket.md` then retry."
         ) from exc
-    except TaskValidationError as exc:
+    except (TaskFileError, TaskValidationError) as exc:
         raise _UnblockError(str(exc)) from exc
 
 

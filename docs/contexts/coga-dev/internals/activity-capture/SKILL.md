@@ -127,9 +127,16 @@ to `<synthetic>` when that is the only model present. Synthetic assistant
 lines still contribute all token counts; sessions that switch real models
 remain attributed to the last real model.
 
-**Codex** (cumulative counts, **last event**). With no session-id flag,
-capture snapshots `~/.codex/sessions/**/rollout-*.jsonl` before spawn and
-claims the one new file whose `session_meta.payload.cwd` equals the session
+**Codex** (cumulative counts, **last event**). The rollout root is
+`$CODEX_HOME/sessions` when `CODEX_HOME` is set and non-empty in Coga's own
+environment, else `~/.codex/sessions`, matching codex-rs `find_codex_home`:
+empty counts as unset and the value is used as written, with no `~` expansion.
+`usage._codex_sessions_root` decides it once, so the pre-spawn snapshot and the
+post-run diff read the same root; the agent child inherits that environment.
+Unsupported: a relative `CODEX_HOME` (Codex resolves it against the checkout,
+Coga against its own cwd) and a `CODEX_HOME` set only in the child's
+environment through ticket `secrets:` or agent env config. With no session-id flag,
+capture snapshots `<root>/**/rollout-*.jsonl` before spawn and claims the one new file whose `session_meta.payload.cwd` equals the session
 cwd (and whose start time is in the window). Subagent rollouts are skipped
 first: every codex child writes its own rollout with the parent's cwd, so a
 rollout whose `session_meta.payload` has `thread_source == "subagent"` or a

@@ -183,7 +183,7 @@ def test_recurring_launch_aliases_are_defaults() -> None:
     """`skill-update` and `autoclose` are default recurring-launch aliases, not
     built-in commands."""
     assert _DEFAULT_ALIASES["skill-update"] == "recurring launch skill-update"
-    assert _DEFAULT_ALIASES["autoclose"] == "recurring launch autoclose-merged"
+    assert _DEFAULT_ALIASES["autoclose"] == "recurring launch autoclose-merged --rerun"
     assert "skill-update" not in _BUILTIN_COMMANDS
     assert "autoclose" not in _BUILTIN_COMMANDS
 
@@ -312,7 +312,7 @@ def test_default_address_pr_comments_alias_carries_optional_pr(
     ("alias", "expanded"),
     [
         ("skill-update", ["recurring", "launch", "skill-update"]),
-        ("autoclose", ["recurring", "launch", "autoclose-merged"]),
+        ("autoclose", ["recurring", "launch", "autoclose-merged", "--rerun"]),
     ],
 )
 def test_default_recurring_alias_dispatches_without_user_aliases_section(

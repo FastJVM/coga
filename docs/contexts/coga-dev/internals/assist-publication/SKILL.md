@@ -49,9 +49,9 @@ configured agent. Nested non-assist spawns clear all three.
 | Inline activation (draft, paused, blocked) | control |
 | `active → in_progress` start | control |
 | `launched as a script` line, `script exited with code N`, and the script's ticket result (published immediately after the child exits) | control |
-| In-session `coga bump`, `mark`, `block`, `unblock` | control |
+| In-session `coga bump`, `mark`, `block`, `unblock`, each prepared against fresh control first | control |
 | A successful `requires: pr` bump | control |
-| Teardown usage record and launch log line | control (`sync_log`) |
+| Teardown usage record and launch log line, with the ticket retried after the session | control (`retry_session_publication`) |
 
 The feature branch receives only commits the agent or human make on purpose,
 plus whatever `coga open-pr` pushes

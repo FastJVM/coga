@@ -16,12 +16,12 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 
 | Command | Owner |
 | --- | --- |
-| `init` | [coga/init](../init/SKILL.md) (install first: [coga/install](../install/SKILL.md)) |
+| `init` | [coga/init](../init/SKILL.md) (install first: [Get started](https://github.com/FastJVM/coga/blob/main/README.md#get-started)) |
 | `uninstall` | [coga/uninstall](../uninstall/SKILL.md) |
 | `build` → `launch coga-build` | [coga/init](../init/SKILL.md) |
 | `secret get` | [coga/secrets](../secrets/SKILL.md) |
 | `validate` | [coga/first-task](../first-task/SKILL.md) |
-| `--version` | [coga/install](../install/SKILL.md) |
+| `--version` | The installed package version (`unknown` without package metadata); one CLI serves every repo, so there is no per-repo version |
 
 ## Tickets and state
 
@@ -44,7 +44,7 @@ output. State files follow the [UTF-8 and LF contract](../state-publication/SKIL
 | `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
 | `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
 | `dream` → `recurring launch dream` | [Dream template](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/dream/ticket.md) |
-| `autoclose` → `recurring launch autoclose-merged` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
+| `autoclose` → `recurring launch autoclose-merged --rerun` | [coga/recurring/scheduling](../recurring/scheduling/SKILL.md) |
 | `skill-update` → `recurring launch skill-update` | [coga/skill-management](../skill-management/SKILL.md) |
 
 ## Extension, integrations, and records

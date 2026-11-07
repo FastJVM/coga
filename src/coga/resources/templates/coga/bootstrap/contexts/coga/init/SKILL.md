@@ -98,24 +98,31 @@ Init installs no Coga software. It builds no virtualenv, installs no Python
 package or skill and writes no `PATH` shim, so an editable checkout can
 scaffold a scratch repo without publishing a release. The one exception is
 external CLIs: in an interactive terminal it offers to install a missing
-`git` when the `git` precondition is reached, and a missing `gh` or `op` and
-`gh auth login` only once every precondition has passed, before scaffolding.
-Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
-details), so an invocation that must exit changes nothing on the machine.
-Agent CLIs are not in that set: Coga never installs one or says where to get
-one. Init only scans `PATH` for them. When exactly one agent CLI is on
-`PATH` and it is not the packaged default (`claude`), init asks whether to
-make it the default agent. On a yes it writes `default_agent = "<type>"` into
-the new `coga.toml` and leaves the `[agents.*]` table order alone (the
-`default_agent` comment in `coga.toml` explains the key). It also repoints
-delivered tickets that name the old default, such as the onboarding ticket's
-`agent:`. Both happen before the commit. If the edit would not parse back to
-the same config plus that one key, init skips it and prints a warning. With
-neither agent CLI on `PATH`, or with both, init asks nothing. A
-non-interactive init never prompts, installs nothing and stays offline. The
-printed next steps are: put `coga` on `PATH` if it is missing; note that an
-agent CLI is required on `PATH` when the scan found none; then `coga build`
-(empty repo) or `coga ticket "<title>"` (filled repo).
+`git` when the `git` precondition is reached, and a missing `gh` (then
+`gh auth login` if the active github.com account is not logged in) only once
+every precondition has passed, before scaffolding. Only `git` is enforced;
+other tools are checked where used, and `coga.dependencies` is the source of
+truth for the set. Offers default to yes, use the machine's package manager
+(brew, winget, apt-get, dnf or pacman; `sudo` on Linux) and print the command
+first. Without a terminal, a known manager or a package, init prints the
+install link instead: missing `git` still stops init, missing `gh` warns.
+Init never offers `op` (your secrets manager is your choice); a missing `op`
+gets one note naming what needs it. Each install runs only on a yes, so an
+invocation that must exit changes nothing on the machine. Agent CLIs are not
+in that set: Coga never installs one or says where to get one. Init only
+scans `PATH` for them. When exactly one agent CLI is on `PATH` and it is not
+the packaged default (`claude`), init asks whether to make it the default
+agent. On a yes it writes `default_agent = "<type>"` into the new `coga.toml`
+and leaves the `[agents.*]` table order alone (the `default_agent` comment in
+`coga.toml` explains the key). It also repoints delivered tickets that name
+the old default, such as the onboarding ticket's `agent:`. Both happen before
+the commit. If the edit would not parse back to the same config plus that one
+key, init skips it and prints a warning. With neither agent CLI on `PATH`, or
+with both, init asks nothing. A non-interactive init never prompts, installs
+nothing and stays offline. The printed next steps are: put `coga` on `PATH`
+if it is missing; state that agent-backed commands need an agent CLI when the
+scan found none; then `coga build` (empty repo) or `coga ticket "<title>"`
+(filled repo).
 
 ## Clone of a repo that already uses Coga
 
@@ -186,3 +193,7 @@ than copying definitions; follow the
 [adoption and recovery guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/trim-log/operations.md)
 for the exact command, allowlist, customization/parking checks and compatible
 two-phase rollout. The command writes only this feature's selection and attribute.
+
+Size exception: this topic keeps the fresh-repo and clone init contracts together
+because their shared preconditions, optional tool offers and local setup must be
+read together to distinguish what each invocation writes.

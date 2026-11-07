@@ -78,6 +78,16 @@ writable_roots = ["<git common dir>"]
   (`[projects."<absolute repo path>"] trust_level = "trusted"` in
   `~/.codex/config.toml`, which codex's first-run trust prompt writes).
 - It covers every codex session launched in that checkout, not only Dream.
+- A machine-level permission profile in `/etc/codex/requirements.toml` can
+  supply the same grant (network on, the Git common dir or a directory above
+  it writable) for every session it covers. Coga neither reads nor checks
+  that file, so narrowing or reverting it brings the failures back.
+- A missing grant shows up in `coga/log.md` as `[git] sync failed` lines
+  naming `Could not resolve host` (no network) or `git hash-object …
+  Read-only file system` (read-only `.git`). The outer `coga launch` runs
+  outside the sandbox and retries publication at checkout return and in its
+  exit sweep; see [recovering a failed publication](../state-publication/SKILL.md#recovering-a-failed-publication)
+  when that retry is refused too.
 - Linked worktrees share the granted common dir. Create them under an already
   writable root, such as a `mktemp -d` directory, rather than as a sibling of
   the checkout: Dream's Retro pass puts its linked checkout inside its

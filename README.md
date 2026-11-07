@@ -112,6 +112,9 @@ uv tool install coga
 coga --version
 ```
 
+If `coga` isn't found, uv's tool directory isn't on your `PATH`: run
+`uv tool update-shell`, then open a new terminal.
+
 Change into your project's Git repository. Check `git var GIT_AUTHOR_IDENT`
 before init. If Git asks for an identity, set `git config user.name "Your Name"`
 and `git config user.email "you@example.com"` with your own details in this

@@ -76,7 +76,6 @@ docs/contexts/coga/first-task/SKILL.md	src/coga/resources/templates/coga/bootstr
 docs/contexts/coga/human-assist/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/human-assist/SKILL.md
 docs/contexts/coga/important/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md
 docs/contexts/coga/init/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md
-docs/contexts/coga/install/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md
 docs/contexts/coga/knowledge/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md
 docs/contexts/coga/launch/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md
 docs/contexts/coga/lifecycle/SKILL.md	src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md

@@ -90,6 +90,7 @@ from coga.task_env import blackboard_from_env
 from coga.taskfile import (
     TaskFileError,
     read_blackboard,
+    split_body,
 )
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
@@ -865,12 +866,37 @@ def _try_bump_one(
     threads = tuple(unanswered_review_threads(url))
 
     # Re-read after the network calls: another caller may have paused,
-    # canceled, or completed the ticket while GitHub was responding.
+    # canceled, or completed the ticket while GitHub was responding. The
+    # re-read is prepared against fresh control (`git.prepare_ticket`), so a
+    # stale checkout cannot close a ticket control has moved on, and the PR
+    # linkage is rechecked on that same view: a replacement `pr:` is not
+    # closed on the earlier lookup.
     try:
-        ticket = read_ticket(ref)
-    except TicketError:
+        from coga.commands.common import reconcile_lifecycle_ticket
+
+        prepared = reconcile_lifecycle_ticket(cfg, ref)
+    except git.TicketConflictError as exc:
+        sys.stderr.write(f"[autoclose] skipping {ref.id_slug}: {exc}\n")
         return None
+    except git.GitError as exc:
+        sys.stderr.write(
+            f"[git] could not prepare {ref.id_slug} against control ({exc}); "
+            "using this checkout's copy\n"
+        )
+        try:
+            prepared = git.local_ticket_preparation(ref.ticket_path)
+        except (OSError, TicketError):
+            return None
+    except (OSError, TicketError):
+        return None
+    ticket = prepared.ticket
     if not _candidate(ticket):
+        return None
+    try:
+        current_board = split_body(ticket.body, blackboard_required=False)[1] or ""
+    except TaskFileError:
+        return None
+    if parse_pr_url(current_board) != url:
         return None
 
     recorded_worktree = parse_worktree_path(blackboard)
@@ -915,6 +941,7 @@ def _try_bump_one(
             slack_text=slack_text,
             image_url=cfg.gif_for("done"),
             echo=echo,
+            prepared=prepared,
         )
     except BaseException:
         # `mark_done` writes the terminal state before validation, notification,

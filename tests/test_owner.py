@@ -285,7 +285,14 @@ def test_owner_preserves_edit_during_validation(repo: Path, monkeypatch) -> None
 
 
 @pytest.mark.parametrize("status", ["in_progress", "blocked"])
-def test_owner_stale_control_refuses_without_cli_sweep(git_repo, monkeypatch, status) -> None:
+def test_owner_decides_from_fresh_control_copy(git_repo, monkeypatch, status) -> None:
+    """A stale feature checkout reassigns control's copy, never its own.
+
+    `owner` prepares the ticket against freshly fetched control: with no
+    unpublished local edit it adopts control's copy, rechecks eligibility
+    there (an in-progress agent step refuses), and publishes against the
+    exact control bytes it read, keeping control's notes.
+    """
     from coga import cli
 
     cfg = load_config(git_repo.coga_os)
@@ -299,18 +306,24 @@ def test_owner_stale_control_refuses_without_cli_sweep(git_repo, monkeypatch, st
     newer.frontmatter["status"] = status
     newer.body += "\nNew control notes.\n"
     rel = path.relative_to(git_repo.root).as_posix()
-    # Leave origin/main stale: the first push must fail, fetch, and recheck.
+    # Leave origin/main stale locally: preparation must fetch to see it.
     git_repo.push_competing_commit(rel, newer.render())
     monkeypatch.setattr("sys.argv", ["coga", "owner", ref["slug"], "marc"])
-    sweeps = []
-    monkeypatch.setattr(cli, "_sweep_coga_state", lambda cfg: sweeps.append(cfg))
+    monkeypatch.setattr(cli, "_sweep_coga_state", lambda cfg: None)
     with pytest.raises(SystemExit) as exc:
         cli.main()
-    assert exc.value.code == 75
-    assert not sweeps
-    assert path.read_bytes() == before
-    assert git_repo.git("show", f"main:{rel}", cwd=git_repo.origin) == newer.render()
-    assert "owner 'zach'" not in _read_log(git_repo.coga_os)
+    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    if status == "in_progress":
+        assert exc.value.code == 2
+        assert path.read_bytes() == before
+        assert control.owner == "zach"
+        assert "owner 'zach'" not in _read_log(git_repo.coga_os)
+    else:
+        assert exc.value.code == 0
+        assert control.owner == "marc"
+        assert control.status == "blocked"
+        assert "New control notes." in control.body
+        assert Ticket.read(path).owner == "marc"
 
 
 @pytest.mark.parametrize("uncertain", [False, True])
