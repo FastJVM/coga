@@ -171,10 +171,10 @@ class AgentCliNotFound(FileNotFoundError):
 
     A launch raises `FileNotFoundError` for several unrelated reasons — a
     context or skill file that vanished mid-compose, an unwritable prompt
-    destination — and only *this* one means "install the CLI / fix your PATH".
-    Callers that print a CLI-not-found remedy must catch this subclass, not
-    bare `FileNotFoundError`, or they send the operator off to debug their
-    PATH over a missing prompt layer.
+    destination — and only *this* one means the configured `cli` could not be
+    resolved. Callers that print a CLI-not-found remedy must catch this
+    subclass, not bare `FileNotFoundError`, or they send the operator off to
+    fix their `coga.toml` over a missing prompt layer.
     """
 
     def __init__(self, cli: str) -> None:

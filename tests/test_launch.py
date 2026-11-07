@@ -4554,7 +4554,7 @@ def test_launch_auto_activate_bails_without_workflow(
 def test_launch_agent_not_in_path(
     active_task: Path, monkeypatch: pytest.MonkeyPatch, slug: str
 ) -> None:
-    """Every launch, including onboarding, gives only the PATH requirement."""
+    """Every launch, including onboarding, gives only the `coga.toml` remedy."""
     if slug == "coga-build":
         create_task(
             cfg=load_config(active_task),
@@ -7072,8 +7072,8 @@ def test_queue_conduct_resources_require_durable_terminal_transitions() -> None:
 # log before it spawns anything. A blanket `except FileNotFoundError` around
 # that call therefore reported a vanished skill/context — or any other missing
 # path — as `Failed to spawn agent: 'claude' not found.`, sending the operator
-# to debug a PATH that was already verified two lines earlier by
-# `shutil.which`. Only `AgentCliNotFound` carries the genuine CLI case.
+# to debug a `cli` setting that `shutil.which` had already verified two lines
+# earlier. Only `AgentCliNotFound` carries the genuine CLI case.
 
 
 def test_launch_names_the_missing_file_instead_of_blaming_the_cli(

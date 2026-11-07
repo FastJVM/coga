@@ -1238,7 +1238,7 @@ def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
 def test_init_next_steps_name_the_agent_cli_prerequisite(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With neither CLI on PATH, init's next steps name the prerequisite —
+    """With neither CLI installed, init's next steps name the prerequisite —
     the `coga build` coax otherwise sends a fresh user into a flow whose
     "not found" failure arrives only after they've committed to it.
     It names no install location: init does not install an agent CLI. It also
@@ -2671,8 +2671,8 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 # not on PATH; a missing `gh` only warns — each is enforced at its point
 # of need. `op` is never offered and never warned about as a tool init
 # handles: it gets its own note naming what needs it. An agent CLI is never
-# installed: init scans PATH for them and only offers an installed one as the
-# default agent.
+# installed: init scans the machine for them and only offers an installed one
+# as the default agent.
 # Captured before the autouse `_stub_init_dep_check` fixture replaces
 # the module attributes, so these tests exercise the real implementation.
 _real_require_tools = init_cmd._require_init_tools

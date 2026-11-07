@@ -48,7 +48,7 @@ and that note is the only evidence that crosses the session boundary. If you
 cannot wait, escalate per your launch mode rather than bumping. If findings imply a design rethink, write to the
 blackboard and escalate per your launch mode — ask the attending human,
 or `coga block` in a queue run. Escalate the same way if your review tool
-isn't on PATH.
+isn't available.
 
 **A green suite is not the whole review when the diff touches a surface tests
 cannot reach.** A raw-terminal loop, a pager, a TTY prompt, a rendered Slack
