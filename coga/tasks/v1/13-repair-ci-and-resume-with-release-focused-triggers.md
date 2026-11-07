@@ -1016,3 +1016,14 @@ Recorded: 2026-11-06T06:41:19+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: depth must be merge, skim, or deep.
+
+## Swept live copies restored on main (2026-11-06)
+
+A `Sync coga state` commit (a8fe8af9c) published this ticket's uncommitted
+live-copy edits to main without their package owners. Branch
+`fix/revert-swept-legacy-doc-copies` restores those live copies from the
+package owners and drops anchors that only this branch defines (`macos-aws#full-suite-at-a-commit`, linked from `coga-dev/testing`).
+Before or after merging, whichever lands second: copy each changed package
+owner over its legacy live copy (`coga/skills/coga/releasing` and `coga/skills/coga/testing/clean-install/macos-aws`) so
+`tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+passes, and restore the dropped anchor(s).

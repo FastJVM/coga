@@ -1061,3 +1061,14 @@ windows-native/03-interactive-coga-launch-on-native-windows --json` exited 0
 unchanged frontmatter, one blackboard fence, the required composable
 Description subsections, and positive/negative exact-marker matching for
 the U+2028 batch pointer.
+
+## Swept live copies restored on main (2026-11-06)
+
+A `Sync coga state` commit (421ee15c0) published this ticket's uncommitted
+live-copy edits to main without their package owners. Branch
+`fix/revert-swept-legacy-doc-copies` restores those live copies from the
+package owners and drops anchors that only this branch defines (`coga/install#windows-baseline`, linked from `coga-dev/current-direction`).
+Before or after merging, whichever lands second: copy each changed package
+owner over its legacy live copy (`docs/contexts/coga/{checkouts/launch-boundary,first-task,install,launch,recurring/scheduling,script-tickets,tickets/authoring}` and `coga/skills/coga/testing/clean-install/windows-aws`) so
+`tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+passes, and restore the dropped anchor(s).
