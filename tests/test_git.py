@@ -4258,6 +4258,23 @@ def test_prepared_write_refuses_a_ticket_changed_after_preparation(git_repo):
     assert "hand edit" in path.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("control_status", ["active", "in_progress"])
+def test_prepare_refuses_progress_across_a_replaced_workflow(git_repo, control_status):
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo, status="active")
+    git_repo.checkout_branch("feature/replaced-workflow")
+    path.write_text(_lifecycle_text(step=4), encoding="utf-8", newline="\n")
+    original = path.read_bytes()
+    control = Ticket.parse(_lifecycle_text(status=control_status))
+    control.frontmatter["workflow"]["steps"] = control.frontmatter["workflow"]["steps"][:2]
+    _peer_writes(git_repo, rel, control.render())
+
+    with pytest.raises(git.TicketConflictError, match="replaced its frozen workflow") as exc:
+        git.prepare_ticket(cfg, path)
+    assert not exc.value.status_conflict  # ordinary workflow conflict, not human-review status escalation
+    assert path.read_bytes() == original
+
+
 def test_retryable_prepared_failure_keeps_its_expectation_for_the_retry(git_repo, monkeypatch):
     cfg = load_config(git_repo.coga_os)
     path, rel = _seed_lifecycle(git_repo)
@@ -4286,6 +4303,44 @@ def test_retryable_prepared_failure_keeps_its_expectation_for_the_retry(git_repo
     _peer_writes(git_repo, rel, b_text)
     git.retry_session_publication(cfg, path, slug="demo")
     assert _control(git_repo, rel) == b_text
+
+
+def test_retry_publishes_a_remembered_ticket_restored_to_its_head_bytes(git_repo, monkeypatch):
+    """A prepared transition can land on the exact bytes HEAD holds (rewinding
+    to the step a feature branch committed). When that publication fails
+    retryably, the retry must still select the clean ticket from its remembered
+    expectation instead of publishing only the log."""
+    cfg = load_config(git_repo.coga_os)
+    path, rel = _seed_lifecycle(git_repo)
+    git_repo.checkout_branch("feature/rewind")
+    b_text = _lifecycle_text(step=2)
+    path.write_text(b_text, encoding="utf-8", newline="\n")
+    git_repo.git("add", "--", rel)
+    git_repo.git("commit", "-m", "feature records step 2")
+    assert git.sync_task_state(cfg, path, message="B") is True
+    _peer_writes(git_repo, rel, _lifecycle_text(step=3))
+
+    prepared = git.prepare_ticket(cfg, path)
+    assert prepared.ticket.step == "3 (fix)"
+    prepared.ticket.frontmatter["step"] = "2 (review)"
+    git.write_ticket(cfg, prepared.ticket, path, prepared=prepared)
+    assert path.read_text(encoding="utf-8") == b_text  # equal to HEAD
+
+    real_run = git._run
+
+    def read_only(argv, *, env=None, input=None):  # type: ignore[no-untyped-def]
+        if "hash-object" in argv and "-w" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", _EROFS)
+        return real_run(argv, env=env, input=input)
+
+    monkeypatch.setattr(git, "_run", read_only)
+    assert git.sync_task_state(cfg, path, message="rewind", prepared=prepared) is None
+    monkeypatch.setattr(git, "_run", real_run)
+    assert "pending" in (cfg.repo_root / git._PENDING_FILE).read_text(encoding="utf-8")
+
+    git.retry_session_publication(cfg, path, slug="demo")
+    assert _control(git_repo, rel) == b_text
+    assert not (cfg.repo_root / git._PENDING_FILE).exists()
 
 
 def test_retry_publishes_a_remembered_transition_that_restored_head_bytes(git_repo, monkeypatch):

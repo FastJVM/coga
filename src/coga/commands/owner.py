@@ -119,7 +119,7 @@ def owner(
         append_log(cfg, ref.id_slug, f"human:{cfg.current_user}",
                    f"owner {previous!r} → {name!r}")
         try:
-            git.sync_task_state(
+            published = git.sync_task_state(
                 cfg, ref.path,
                 message=f"Ticket: {ref.id_slug} — owner {name}",
                 expect={ref.ticket_path: expected},
@@ -135,6 +135,11 @@ def owner(
             retract_log_lines(cfg, ref.id_slug, audit_before)
             _bail(f"Owner publication failed; refresh from control before retrying: "
                   f"{exc}", exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+        # A definite failure restores the unresolved local bytes. Retire the
+        # review only after publication is confirmed, preserving the newer
+        # provenance that publication recorded for the reassigned ticket.
+        if published is not None:
+            prepared.finish_resolution(published=True)
         typer.echo(f"{ref.id_slug}: owner {previous} → {name}")
 
 

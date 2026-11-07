@@ -872,7 +872,9 @@ def _try_bump_one(
     # linkage is rechecked on that same view: a replacement `pr:` is not
     # closed on the earlier lookup.
     try:
-        prepared = git.prepare_ticket(cfg, ref.ticket_path)
+        from coga.commands.common import reconcile_lifecycle_ticket
+
+        prepared = reconcile_lifecycle_ticket(cfg, ref)
     except git.TicketConflictError as exc:
         sys.stderr.write(f"[autoclose] skipping {ref.id_slug}: {exc}\n")
         return None

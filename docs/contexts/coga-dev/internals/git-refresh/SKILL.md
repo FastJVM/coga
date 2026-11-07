@@ -12,7 +12,7 @@ moves, by fast-forward, or by *realignment* when its own local-only commits
 are proven to be Coga state control already carries. The one per-ticket
 exception is a lifecycle command's own target: `git.prepare_ticket` reads that
 ticket from freshly fetched control and the command writes the reconciled
-result into this checkout ([prepared ticket transactions](../../../coga/state-publication/SKILL.md#prepared-ticket-transactions)). Realignment never stashes,
+result into this checkout ([prepared ticket transactions](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#prepared-ticket-transactions)). Realignment never stashes,
 rebases, resets hard, commits, or pushes.
 
 ## The realignment proof — `_local_control_subsumed(cfg, root, local, target)`

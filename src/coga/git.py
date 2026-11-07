@@ -226,6 +226,7 @@ def write_ticket(
         ticket.write(path)
         if prepared is not None:
             prepared.local = path.read_bytes()
+            prepared.finish_resolution()
     return rendered
 
 
@@ -623,7 +624,8 @@ def _publish_locked(
         # The pending-expectation record is machine-local even where `.coga/`
         # is not ignored.
         pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)
-        rels = [rel for rel in rels if rel != pending_rel]
+        review_rel = relative_to_root(root, cfg.repo_root / ".coga" / "human-review.json")
+        rels = [rel for rel in rels if rel not in (pending_rel, review_rel)]
         # A prepared ticket participates whenever it differs from control,
         # even when its final bytes happen to equal HEAD — including one only
         # remembered in the pending-expectation file, which a retry or sweep
@@ -1087,10 +1089,40 @@ class TicketConflictError(StateRegressionError):
     canceled) — reserved for a human decision.
     """
 
-    def __init__(self, message: str, *, rel: str, status_conflict: bool = False) -> None:
+    def __init__(
+        self, message: str, *, rel: str, status_conflict: bool = False,
+        review: "StatusConflict | None" = None,
+    ) -> None:
         self.rel = rel
         self.status_conflict = status_conflict
+        self.review = review
         super().__init__(message)
+
+
+@dataclass(frozen=True)
+class StatusConflict:
+    """Everything a human-review PR needs about one ambiguous status conflict.
+
+    Attached to a `TicketConflictError` with `status_conflict` by a fresh
+    preparation. `base`, `local`, and `control` are the exact copies (and
+    blob ids) the three-way merge compared; `provenance` is the control
+    commit that introduced the shared base, the root of the review branch;
+    `fields` describes each conflicting field. `coga.review_conflict` turns
+    it into a PR; `coga/state-publication` ("Human review of status
+    conflicts") owns the contract.
+    """
+
+    root: Path
+    rel: str
+    revision: str
+    provenance: str | None
+    base_oid: str
+    local_oid: str
+    control_oid: str
+    base: bytes
+    local: bytes
+    control: bytes
+    fields: tuple[str, ...]
 
 
 class TicketChangedError(StateRegressionError):
@@ -1159,6 +1191,19 @@ class PreparedTicket:
     revision: str | None = None
     fresh: bool = False
     outcome: str = "local"
+    # Set when this preparation applied a merged human-review resolution:
+    # run once by the first prepared write (`write_ticket(..., prepared=)`).
+    resolved: Callable[[bool], None] | None = None
+
+    def finish_resolution(self, *, published: bool = False) -> None:
+        """Retire an adopted review after writing, or after a strict publish.
+
+        A confirmed publication already recorded the resulting ticket, so
+        do not replace that provenance with the older resolution snapshot.
+        """
+        resolved, self.resolved = self.resolved, None
+        if resolved is not None:
+            resolved(published)
 
     def expect(self) -> dict[Path, bytes | None] | None:
         """The exact-control expectation for publication, or `None` offline."""
@@ -1173,7 +1218,10 @@ def local_ticket_preparation(path: Path) -> PreparedTicket:
     return PreparedTicket(path=path, ticket=Ticket.parse(local.decode("utf-8")), local=local)
 
 
-def prepare_ticket(cfg: Config, path: Path) -> PreparedTicket:
+def prepare_ticket(
+    cfg: Config, path: Path, *, review_base: str | None = None,
+    on_resolved: Callable[[], None] | None = None,
+) -> PreparedTicket:
     """Read control's copy of the ticket at `path` and reconcile it with ours.
 
     Offline, git-disabled, non-Git, and no-control checkouts get today's local
@@ -1183,6 +1231,13 @@ def prepare_ticket(cfg: Config, path: Path) -> PreparedTicket:
     edit adopts control, a one-sided edit keeps that side, and both-sided
     edits merge structurally (`merge_ticket_bytes`). Raises
     `TicketConflictError` when they cannot be reconciled; nothing is written.
+    An ambiguous status conflict carries a `StatusConflict` for review.
+
+    `review_base` is the local blob a merged human-review PR carried: control
+    now holds the human's resolution, so that blob replaces the shared base
+    (an unchanged local copy adopts control; later local edits merge onto
+    it). Once the reconciled ticket is written (or already equals control),
+    control's blob is recorded as provenance and `on_resolved` runs.
     """
     if not cfg.git_enabled:
         return local_ticket_preparation(path)
@@ -1223,6 +1278,14 @@ def prepare_ticket(cfg: Config, path: Path) -> PreparedTicket:
                 revision=rev, fresh=True, outcome=outcome,
             )
 
+        if review_base is not None:
+            return _prepare_reviewed(
+                root, rel, local, local_oid, control, control_oid, review_base,
+                result=result, on_resolved=on_resolved,
+                conflict=lambda detail: TicketConflictError(
+                    _conflict_message(cfg, rel, detail), rel=rel,
+                ),
+            )
         if control_oid == local_oid:
             return result(local, "same")
         base_oid = _shared_base(root, rev, rel)
@@ -1246,14 +1309,112 @@ def prepare_ticket(cfg: Config, path: Path) -> PreparedTicket:
             return result(control, "adopted")
         if control_oid == base_oid:
             return result(local, "kept")
+        base = _blob_bytes(root, base_oid)
+        try:
+            merged = merge_ticket_bytes(
+                rel, base=base, local=local, control=control,
+                conflict=lambda detail, status=False: TicketConflictError(
+                    _conflict_message(cfg, rel, detail, status_conflict=status),
+                    rel=rel, status_conflict=status,
+                ),
+            )
+        except TicketConflictError as exc:
+            if exc.status_conflict:
+                try:
+                    exc.review = StatusConflict(
+                        root=root, rel=rel, revision=rev,
+                        provenance=_introducing_commit(root, rev, rel, base_oid),
+                        base_oid=base_oid, local_oid=local_oid, control_oid=control_oid,
+                        base=base, local=local, control=control,
+                        fields=status_conflict_fields(base, local, control),
+                    )
+                except (GitError, OSError) as unavailable:
+                    # Once a conflict is known, an unavailable diagnostic or
+                    # temporary file must not turn it into an offline write.
+                    raise TicketConflictError(
+                        f"{exc}. No human-review PR was created: {unavailable}",
+                        rel=rel, status_conflict=True,
+                    ) from unavailable
+            raise
+        return result(merged, "merged")
+
+
+def _prepare_reviewed(
+    root: Path, rel: str, local: bytes, local_oid: str,
+    control: bytes | None, control_oid: str | None, review_base: str,
+    *, result: Callable[[bytes, str], PreparedTicket],
+    on_resolved: Callable[[], None] | None,
+    conflict: Callable[[str], TicketConflictError],
+) -> PreparedTicket:
+    """Reconcile against control after a human merged this ticket's review PR."""
+    if control is None or control_oid is None:
+        raise conflict("control deleted this ticket after its human-review PR merged")
+
+    def resolve(published: bool) -> None:
+        if not published:
+            _record_published(root, {rel: control_oid})
+        if on_resolved is not None:
+            on_resolved()
+
+    if local_oid == control_oid:
+        resolve(False)
+        return result(local, "same")
+    if local_oid == review_base:
+        prepared = result(control, "adopted")
+    else:
+        try:
+            base = _blob_bytes(root, review_base)
+        except GitError as exc:
+            raise conflict(
+                "this checkout changed the ticket after its human-review PR was "
+                f"created, and that PR's copy ({review_base}) is not available here"
+            ) from exc
         merged = merge_ticket_bytes(
-            rel, base=_blob_bytes(root, base_oid), local=local, control=control,
-            conflict=lambda detail, status=False: TicketConflictError(
-                _conflict_message(cfg, rel, detail, status_conflict=status),
-                rel=rel, status_conflict=status,
+            rel, base=base, local=local, control=control,
+            conflict=lambda detail, status=False: conflict(
+                f"{detail} (merging edits made after the human-review PR onto its resolution)"
             ),
         )
-        return result(merged, "merged")
+        prepared = result(merged, "merged")
+    prepared.resolved = resolve
+    return prepared
+
+
+def status_conflict_fields(base: bytes, local: bytes, control: bytes) -> tuple[str, ...]:
+    """One line per conflicting field of an ambiguous status conflict."""
+    tickets = [Ticket.parse(data.decode("utf-8")) for data in (base, local, control)]
+    b, l, c = (ticket.frontmatter for ticket in tickets)
+    lines = []
+    for key in _LIFECYCLE_KEYS:
+        values = [fm.get(key) for fm in (b, l, c)]
+        if values[1] != values[2]:
+            lines.append(
+                f"`{key}`: base {values[0]!r}, this checkout {values[1]!r}, "
+                f"control {values[2]!r}"
+            )
+    if _merge_text(tickets[0].body, tickets[1].body, tickets[2].body) is None:
+        lines.append("body/blackboard: overlapping edits on both sides")
+    return tuple(lines)
+
+
+def _introducing_commit(root: Path, rev: str, rel: str, oid: str) -> str | None:
+    """The newest commit in `rev`'s history that set `rel` to blob `oid`."""
+    out = run_git(
+        root, "log", "--format=%x01%H", "--raw", "--no-abbrev", "--no-renames",
+        rev, "--", rel, env={"GIT_LITERAL_PATHSPECS": "1"},
+    )
+    commit = None
+    for line in out.splitlines():
+        if line.startswith("\x01"):
+            commit = line[1:].strip()
+            continue
+        if not line.startswith(":") or commit is None:
+            continue
+        meta, _, name = line.partition("\t")
+        fields = meta.split()
+        if name == rel and len(fields) >= 4 and fields[3] == oid:
+            return commit
+    return None
 
 
 def _conflict_message(cfg: Config, rel: str, detail: str, *, status_conflict: bool = False) -> str:
@@ -1345,13 +1506,15 @@ def lifecycle_winner(
     unparseable step.
     """
     (my_status, my_step), (their_status, their_step) = mine, theirs
+    if not same_workflow:
+        return None
     if my_status != their_status:
         my_rank = _STATUS_RANK.get(my_status or "")
         their_rank = _STATUS_RANK.get(their_status or "")
         if my_rank is None or their_rank is None or my_rank == their_rank:
             return None
         return "mine" if my_rank > their_rank else "theirs"
-    if not same_workflow or my_step is None or their_step is None or my_step == their_step:
+    if my_step is None or their_step is None or my_step == their_step:
         return None
     return "mine" if my_step > their_step else "theirs"
 
@@ -1394,19 +1557,22 @@ def merge_ticket_bytes(
     position = tuple(
         tuple(fm.get(key, _MISSING) for key in _LIFECYCLE_KEYS) for fm in (b, l, c)
     )
+    workflows = tuple(fm.get("workflow", _MISSING) for fm in (b, l, c))
+    if workflows[1] != workflows[2] and (
+        (position[1] != position[0] and workflows[2] != workflows[0])
+        or (position[2] != position[0] and workflows[1] != workflows[0])
+    ):
+        raise conflict("one side moved its lifecycle while the other replaced its frozen workflow")
     lifecycle = _merge_value(*position)
     if lifecycle is _CONFLICT:
-        same_workflow = (
-            b.get("workflow", _MISSING) == l.get("workflow", _MISSING)
-            == c.get("workflow", _MISSING)
-        )
+        same_workflow = workflows[0] == workflows[1] == workflows[2]
         winner = lifecycle_winner(
             (l.get("status"), tickets[1].step_index()),
             (c.get("status"), tickets[2].step_index()),
             same_workflow=same_workflow,
         )
         if winner is None:
-            status = l.get("status") != c.get("status")
+            status = same_workflow and l.get("status") != c.get("status")
             raise conflict(
                 f"both sides moved its lifecycle (control: status={c.get('status')!r} "
                 f"step={c.get('step')!r}; here: status={l.get('status')!r} "

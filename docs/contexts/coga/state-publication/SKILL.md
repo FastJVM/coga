@@ -223,7 +223,9 @@ step, deriving messages, or writing anything:
   value) and the body, blackboard included, by a three-way text merge. When
   both moved the lifecycle, the demonstrably later position wins whole:
   `draft` < `active` < `in_progress` < terminal, then the higher step under
-  an unchanged workflow. A terminal winner carries no step.
+  an unchanged workflow. Progress on one side while the other replaces the
+  frozen workflow refuses; a step from the old workflow cannot be applied to
+  its replacement. A terminal winner carries no step.
 - **Cannot reconcile** — overlapping prose, different edits of one metadata
   value, a control copy deleted after it was shared, no provable shared copy,
   or a status pair the ordering cannot rank (`paused` or `blocked` against
@@ -231,7 +233,8 @@ step, deriving messages, or writing anything:
   writing, logging, notifying, or ending a session; both copies stay intact,
   no conflict markers are written, and the sweep is withheld. Save or
   reconcile your local edits, take control's copy with
-  `git checkout <remote>/<control> -- <path>`, redo the edit, and retry.
+  `git checkout <remote>/<control> -- <path>`, redo the edit, and retry. An
+  unrankable status pair also asks a human through a review PR (below).
 
 The shared copy is chosen from this checkout's HEAD copy, the HEAD/control
 merge-base copy, and the copy this worktree last published, counting only
@@ -239,7 +242,8 @@ copies control's own history carried and taking the one it carried most
 recently. An unpublished feature-branch commit of the ticket is therefore a
 local edit, not a base.
 
-The command then validates and edits that reconciled view, writes it once
+The command then validates and edits that reconciled view (the draft
+blackboard synthesis gate included), writes it once
 (exit 75 if the local file changed since it was read), and publishes it
 against the exact control bytes it read. Another checkout changing the ticket
 in between is refused, never merged a second time; an unrelated control
@@ -258,6 +262,57 @@ and no-control checkouts are unchanged, and without a configured remote the
 local control branch is canonical. Launch, megalaunch, and recurring keep
 their stricter exact-byte, launch-generation, and lease checks instead of
 merging.
+
+## Human review of status conflicts
+
+An unrankable status pair is a decision only a human can make, so the
+refusing lifecycle command also opens a pull request asking for it. This is
+the one place Coga opens a PR outside a ticket's workflow; it is not that
+ticket's implementation PR.
+
+- **Title and target.** `Human Review needed: <ticket slug> — lifecycle merge
+  conflict`, based on configured control. The description lists the
+  conflicting fields and the base, local, and control copies (each truncated
+  past 18,000 characters). GitHub queries and creation explicitly use the
+  configured remote's repository, independently of gh's default. A remote
+  with different fetch/push repositories or multiple push destinations refuses.
+- **Head.** A branch `coga/human-review/<slug>-<key>` holding this checkout's
+  copy, committed on top of the control commit that introduced the shared
+  copy and built without touching the checkout, its index, or its branches.
+  Merging it into control shows the real Git conflict.
+- **Identity.** The key hashes the ticket path with the base, local, and
+  control blob ids, so every checkout meeting the same conflict finds the
+  same PR. An open PR is reused and its URL reported; an existing branch is
+  never pushed again, so human edits on it survive. A changed control or
+  local copy is a different conflict and gets its own PR.
+- **No workflow linkage.** No `Closes ticket:` footer, no `## Dev`
+  `branch:`/`pr:` line, and the ticket's own workflow is untouched.
+  `bootstrap/resolve-conflicts` and `bootstrap/address-pr-comments` report
+  these PRs as `skipped-human-review` and leave them for the human.
+- **Unavailable.** When GitHub, its auth, the network, or the push fails, the
+  command still refuses as above and says no review PR was created; it never
+  reports one that does not exist.
+
+An unresolved conflict exits 75; batch callers such as `unblock --all`
+report it and continue to the remaining tickets before exiting 75. Resolution comes back through the next
+lifecycle command in the refusing checkout, which remembers the PRs it opened
+in machine-local `.coga/human-review.json`. Publication excludes that file
+even when the checkout lacks its ignore rule:
+
+- **Merged** — control's copy is the human's resolution. An unchanged local
+  copy adopts it; edits made locally after the PR was opened merge onto it
+  three-way, with the PR's copy as the base. Once that ticket is written,
+  control's copy is recorded as this worktree's provenance and the record is
+  dropped. Owner reassignment waits for confirmed publication before dropping
+  the record, because a definite publication failure restores its original
+  local ticket. A merge that kept control's copy unchanged is recognized from any
+  checkout, because the conflict key still matches.
+- **Closed unmerged** — the command refuses again and opens no new PR; take
+  control's copy and redo the edit.
+- **Open** — the command refuses again and reports the same PR.
+
+Taking control's copy by hand ends the conflict, and the record with it; a
+review PR still open is then the human's to close.
 
 ## Strict publication on demand
 
