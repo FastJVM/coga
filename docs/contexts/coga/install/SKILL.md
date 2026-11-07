@@ -194,7 +194,13 @@ coga --version     # prints "coga <version>"
 `coga --version` reports the installed package version (`unknown` if package
 metadata is missing). One CLI runs every repo, so there is no per-repo
 version. These commands check the CLI installation, not agent authentication
-or a completed first task; continue with [coga/first-task](../first-task/SKILL.md).
+or a completed first task.
+
+Next, adopt Coga into a repository with [`coga init`](../init/SKILL.md).
+After `coga init`, run `coga build` in an otherwise
+[empty repo](../init/SKILL.md#fresh-repo) (`coga build --agent <other>` for
+the other agent CLI), or `coga ticket "<title>"` in a repo that already has
+files; [coga/first-task](../first-task/SKILL.md) walks through both.
 
 ## Upgrading and removing
 
@@ -209,9 +215,6 @@ refresh. Upgrade with the installer that owns the CLI:
 
 Removing Coga from a repo, and optionally the global package, is
 [coga/uninstall](../uninstall/SKILL.md).
-
-Next: adopt Coga into a repository with [coga/init](../init/SKILL.md), then
-walk a first ticket with [coga/first-task](../first-task/SKILL.md).
 
 ## Audit retention adoption
 

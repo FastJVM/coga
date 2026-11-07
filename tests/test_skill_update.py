@@ -523,17 +523,11 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch, installed_bundled_twin: bool
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
-    # nothing clean to update, so it commits nothing and opens no PR, and the
-    # registered recipe reports a clean no-op on the task blackboard. The
-    # pre-update branch guard asks the remote first; a bare origin without
-    # `coga/skill-update` lets it pass without calling `gh`.
-    origin = repo.parent / "origin.git"
-    for args in (
-        ["git", "init", "-q", "--bare", str(origin)],
-        ["git", "init", "-q", "-b", "main", str(repo.parent)],
-        ["git", "-C", str(repo.parent), "remote", "add", "origin", str(origin)],
-    ):
-        subprocess.run(args, check=True, capture_output=True)
+    # nothing clean to update, so after its read-only preflight it commits
+    # nothing and opens no PR, and the registered recipe reports a clean no-op
+    # on the task blackboard. The pre-update branch guard asks the remote
+    # first; a bare origin without `coga/skill-update` lets it pass without
+    # calling `gh`.
     src_path = str(Path(__file__).resolve().parents[1] / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
     pythonpath = (
@@ -578,6 +572,22 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     ref = list_tasks(cfg)[0]
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
     monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+    # `--pr` preflights the branch switch with git before applying updates, so
+    # the checkout must be a repository, clean and on its control branch.
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "core.autocrlf", "false"],
+        ["add", "-A"],
+        ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-q", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=repo.parent, check=True, capture_output=True)
+    origin = repo.parent / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo.parent), "remote", "add", "origin", str(origin)],
+        check=True,
+        capture_output=True,
+    )
 
     result = CliRunner().invoke(app, ["run", "skill-update"])
 

@@ -79,8 +79,18 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   `--verify` commands (default `coga validate --json`).
   The updater reuses a shared branch protected by the
   [branch-sweep cleanup contract](../checkout-cleanup/branch-sweep/SKILL.md#branch-sweep-protection-and-archive).
-  Before writing any skill file it refuses when that branch's open PR carries
-  hand-pushed commits (see Rules for managed packs).
+  Before applying any update it refuses, listing each path, when the switch
+  to that branch would fail or sweep up local work: unmerged paths, local
+  edits or untracked files at paths that differ on the control branch, any
+  local edit under the skills tree, or a skills tree that differs from the
+  control branch. Staged and unstaged edits are checked separately. Commit
+  or stash the listed local work (for a skills-tree difference, run from the
+  control branch), then retry. Harmless edits outside the skills tree,
+  including staged edits, stay in place through the PR checkout and return;
+  only the skills tree is committed.
+  After those local checks, and still before writing any skill file, it
+  refuses when that branch's open PR carries hand-pushed commits (see Rules
+  for managed packs).
   When the branch exists, its push URLs must name one github.com repository;
   other mappings are refused. The guard's PR lookup uses that explicit host
   and repository even when `GH_HOST` or gh's default repository points elsewhere.

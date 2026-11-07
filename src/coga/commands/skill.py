@@ -13,6 +13,7 @@ from coga.config import Config, ConfigError, load_config
 from coga.skill_manager import (
     SkillManagerError,
     assert_skill_update_branch_unclaimed,
+    assert_skill_update_pr_preflight,
     install_github_skill,
     install_local_skill,
     install_url_skill,
@@ -113,14 +114,17 @@ def update(
     """Update one skill or every managed skill."""
     cfg = _load_config_or_exit()
     try:
-        if pr and not all_skills:
-            raise SkillManagerError("--pr is only supported with `coga skill update --all`.")
         expected_remote_oid: str | None = None
         if pr:
-            # Before any skill file is written: refuse to rebuild the shared
-            # branch over hand-pushed commits on its open PR. A refusal also
-            # withholds the end-of-command state sweep, so nothing is
-            # committed or pushed by a run that changed nothing.
+            if not all_skills:
+                raise SkillManagerError("--pr is only supported with `coga skill update --all`.")
+            # Before any update is applied: a refusal must leave no update behind.
+            # Local checks run first because they are cheap and need no network.
+            assert_skill_update_pr_preflight(cfg)
+            # Then refuse to rebuild the shared branch over hand-pushed commits
+            # on its open PR. A refusal also withholds the end-of-command state
+            # sweep, so nothing is committed or pushed by a run that changed
+            # nothing.
             try:
                 expected_remote_oid = assert_skill_update_branch_unclaimed(cfg)
             except SkillManagerError:
