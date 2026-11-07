@@ -29,6 +29,7 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
     ReplOutcome,
+    run_with_done_marker,
 )
 from coga.task_env import TASK_ENV_KEYS
 
@@ -131,6 +132,7 @@ def tmp_path(tmp_path: Path) -> Path:
 
 _REAL_WHICH = shutil.which
 _REAL_SUBPROCESS_RUN = subprocess.run
+_REAL_RUN_WITH_DONE_MARKER = run_with_done_marker
 
 
 @pytest.fixture(autouse=True)
@@ -139,18 +141,20 @@ def _windows_agent_spawn_follows_test_fakes(monkeypatch, request):
 
     Orchestration tests model an installed agent by faking `shutil.which`, and
     model the agent run by faking `subprocess.run`, which POSIX's no-TTY
-    supervisor branch calls. The Windows planner resolves against the child's
+    supervisor branch calls, or by faking `launch.run_with_done_marker`
+    outright. The Windows planner resolves against the child's
     PATH/PATHEXT and the Windows backend spawns through `ProcessTree`, so
     neither fake would apply: a real installed `claude.exe` would run instead.
     While `shutil.which` (or, with no `which` fake, `subprocess.run`) is
-    faked, resolution keeps the bare name exactly as POSIX passes it; while `subprocess.run` is faked, the no-console,
+    faked, resolution keeps the bare name exactly as POSIX passes it, as it
+    does while `launch.run_with_done_marker` is faked; while `subprocess.run` is faked, the no-console,
     ungated Windows spawn goes through it, as POSIX's does. Both are looked up
     per call, so a test's own fake (or its absence) still decides.
     `test_repl_supervisor_nt.py` owns the real Windows spawn contract.
     """
     if os.name != "nt" or request.module.__name__.endswith("test_repl_supervisor_nt"):
         return
-    from coga import repl_supervisor_nt
+    from coga import launch, repl_supervisor_nt
 
     real_resolve = repl_supervisor_nt.resolve_executable
     real_run = repl_supervisor_nt.run
@@ -160,6 +164,9 @@ def _windows_agent_spawn_follows_test_fakes(monkeypatch, request):
             return name if shutil.which(name) else None
         if subprocess.run is not _REAL_SUBPROCESS_RUN:
             # POSIX resolves nothing before the faked run receives the argv.
+            return name
+        if launch.run_with_done_marker is not _REAL_RUN_WITH_DONE_MARKER:
+            # The faked run never spawns, so nothing resolves on POSIX either.
             return name
         return real_resolve(name, env)
 
