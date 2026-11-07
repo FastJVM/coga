@@ -2780,6 +2780,26 @@ def test_guard_real_git_passes_hand_commit_cherry_picked_onto_control(
     assert oid == git_repo.git("rev-parse", "coga/skill-update").strip()
 
 
+def test_guard_real_git_refuses_hand_commit_differing_from_control_only_in_whitespace(
+    git_repo, monkeypatch
+) -> None:
+    # Ordinary patch IDs (and so `git log --cherry-pick`) ignore whitespace;
+    # only the verbatim comparison may decide that a hand fix already landed.
+    _commit_file(git_repo, "notes/msg.py", 'MSG = "old"\n', "Seed message")
+    _guard_git_repo(git_repo, monkeypatch)
+    hand = _commit_file(git_repo, "notes/msg.py", 'MSG = "helloworld"\n', "Hand fix on the PR")
+    git_repo.git("checkout", "main")
+    _commit_file(git_repo, "notes/msg.py", 'MSG = "hello world"\n', "Control fix")
+    _publish_and_return_to_main(git_repo)
+
+    with pytest.raises(SkillManagerError) as excinfo:
+        assert_skill_update_branch_unclaimed(
+            load_config(git_repo.coga_os), runner=_guard_real_runner()
+        )
+
+    assert f"{hand[:7]} Hand fix on the PR" in str(excinfo.value)
+
+
 @pytest.mark.parametrize("unlanded_fix", [False, True])
 def test_guard_real_git_recognizes_patches_across_successive_control_merges(
     git_repo, monkeypatch, unlanded_fix: bool

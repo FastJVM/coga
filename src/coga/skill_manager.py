@@ -957,7 +957,6 @@ def assert_skill_update_branch_unclaimed(
             [
                 "log",
                 "--no-merges",
-                "--cherry-pick",
                 "--right-only",
                 "--format=%H%x00%h%x00%s%x00%B%x1e",
                 f"{control_ref}...{oid}",
@@ -994,11 +993,13 @@ def _drop_patches_on_control(
 ) -> list[tuple[str, str, str]]:
     """Drop candidates whose patch already landed on control.
 
-    `--cherry-pick` only compares the two sides of the symmetric difference,
-    so once control is merged into the PR branch a cherry-picked copy on
-    control becomes shared history and stops matching. Compare each leftover
-    against control's commits since that candidate's parent instead, by
-    whitespace-sensitive patch ID; an uncomparable patch stays foreign.
+    Every non-job commit reaches this check: `--cherry-pick` is deliberately
+    not used upstream, because ordinary patch IDs ignore whitespace and would
+    drop a hand fix differing from a control commit only in whitespace. It
+    would also miss a copy that became shared history once control is merged
+    into the PR branch. Compare each candidate against control's commits
+    since that candidate's parent instead, by whitespace-sensitive patch ID;
+    an uncomparable patch stays foreign.
     Keep those ranges separate: a later candidate's parent can already
     contain an earlier candidate's landed copy after a merge of control.
     """
