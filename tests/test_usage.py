@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
@@ -44,6 +46,17 @@ def test_claude_project_name_matches_claude_codes_dir_naming(cwd: str, name: str
     assert usage._claude_project_name(cwd) == name
 
 
+def _repo_dir(tmp_path: Path) -> Path:
+    """The session cwd. On Windows it sits directly under the system temp
+    root: Claude's project-dir name embeds the whole cwd, so nesting pytest's
+    deep `tmp_path` under HOME and inside that name too can pass MAX_PATH."""
+    if os.name != "nt":
+        cwd = tmp_path / "repo"
+        cwd.mkdir()
+        return cwd
+    return Path(tempfile.mkdtemp(prefix="cu"))
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip(), encoding="utf-8", newline="\n")
@@ -61,8 +74,7 @@ def test_parse_claude_transcript_sums_assistant_usage(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-123"
     cwd_hash = usage._claude_project_name(str(cwd.resolve()))
     transcript = tmp_path / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
@@ -102,8 +114,7 @@ def test_parse_claude_transcript_counts_last_usage_per_message(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-duplicates"
     transcript = _claude_transcript(cwd, tmp_path, session_id)
     _write(
@@ -147,8 +158,7 @@ def test_parse_claude_transcript_deduplicates_after_window_filter(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-window-duplicates"
     transcript = _claude_transcript(cwd, tmp_path, session_id)
     _write(
@@ -182,8 +192,7 @@ def test_parse_claude_transcript_keeps_usage_when_later_line_lacks_it(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-missing-usage"
     transcript = _claude_transcript(cwd, tmp_path, session_id)
     _write(
@@ -227,8 +236,7 @@ def test_parse_claude_transcript_prefers_real_model(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-synthetic"
     transcript = _claude_transcript(cwd, tmp_path, session_id)
     _write(
@@ -276,8 +284,7 @@ def test_parse_claude_activity_excludes_injected_text_and_redacts(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     session_id = "session-activity"
     cwd_hash = usage._claude_project_name(str(cwd.resolve()))
     transcript = tmp_path / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
@@ -338,8 +345,7 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     old = tmp_path / ".codex" / "sessions" / "2026" / "06" / "22" / "rollout-old.jsonl"
     _write(old, '{"type":"session_meta","payload":{"cwd":"/elsewhere"}}\n')
     new = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23" / "rollout-new.jsonl"
@@ -432,8 +438,7 @@ def test_parse_codex_activity_uses_messages_after_turn_context_only(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     rollout = (
         tmp_path
         / ".codex"
@@ -484,8 +489,7 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     old = sessions / "rollout-old.jsonl"
     first = sessions / "rollout-first.jsonl"
@@ -543,8 +547,7 @@ def test_parse_codex_rollout_ignores_subagent_rollouts_on_same_cwd(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     _write_codex_rollout(
         sessions / "rollout-parent.jsonl",
@@ -582,8 +585,7 @@ def test_parse_codex_rollout_with_only_subagent_rollouts_is_unknown(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     for index, marker in enumerate(_SUBAGENT_MARKERS):
         _write_codex_rollout(
@@ -613,8 +615,7 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     rollout = (
         tmp_path
         / ".codex"
@@ -1305,8 +1306,7 @@ def test_parse_claude_falls_back_to_resumed_transcript(
     pinned `--session-id` file is never created. Usage must still be attributed."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     resumed = _claude_transcript(cwd, tmp_path, "resumed-session")
     _write(resumed, _lines("2026-06-23T12:30:00Z"))
@@ -1332,8 +1332,7 @@ def test_parse_claude_fallback_ignores_transcript_outside_window(
     """A stale transcript in the same cwd must not be attributed to this run."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     stale = _claude_transcript(cwd, tmp_path, "stale-session")
     _write(stale, _lines("2026-06-23T09:00:00Z"))
@@ -1356,8 +1355,7 @@ def test_parse_claude_fallback_reports_ambiguity(tmp_path: Path, monkeypatch) ->
     """Concurrent sessions in one cwd must report ambiguity, never guess."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     for name in ("session-a", "session-b"):
         path = _claude_transcript(cwd, tmp_path, name)
@@ -1442,8 +1440,7 @@ def test_parse_codex_concurrent_rollouts_resolve_by_launch_marker(
     message; a discussion prompt is a developer message."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     agents_md = _codex_message("user", "# AGENTS.md instructions for repo")
     _write_marked_codex_rollout(
@@ -1484,8 +1481,7 @@ def test_parse_codex_marker_in_tool_output_does_not_match(
     only in tool output, which never counts — so no rollout claims it."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     leaked = json.dumps(
         {
@@ -1527,8 +1523,7 @@ def test_parse_codex_marker_absent_from_all_candidates_stays_unknown(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
     for name in ("first", "second"):
         _write_marked_codex_rollout(
@@ -1572,8 +1567,7 @@ def test_parse_claude_resumed_fallback_resolves_by_launch_marker(
     whose in-window user turn carries this launch's marker is ours."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     ours = _claude_transcript(cwd, tmp_path, "resumed-ours")
     _write(
@@ -1610,8 +1604,7 @@ def test_parse_claude_empty_pinned_transcript_is_zero(
     """The pinned transcript exists but never reached the API: provably zero."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     pinned = _claude_transcript(cwd, tmp_path, "pinned")
     _write(pinned, _claude_user_line("2026-06-23T12:01:00Z", _prompt(_MARKER)))
@@ -1644,8 +1637,7 @@ def test_parse_claude_malformed_pinned_transcript_stays_unknown(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     pinned = _claude_transcript(cwd, tmp_path, "pinned")
     _write(
@@ -1676,8 +1668,7 @@ def test_parse_claude_empty_fallback_transcript_stays_unknown(
     there is not zero."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
     resumed = _claude_transcript(cwd, tmp_path, "resumed")
     _write(resumed, _claude_user_line("2026-06-23T12:01:00Z", "hello"))
@@ -1712,8 +1703,7 @@ def test_capture_records_usage_reason_for_unknown(
     _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    cwd = tmp_path / "repo"
-    cwd.mkdir()
+    cwd = _repo_dir(tmp_path)
     start, end = _window()
 
     capture_session(

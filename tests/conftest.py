@@ -28,6 +28,7 @@ from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
+    ReplOutcome,
 )
 from coga.task_env import TASK_ENV_KEYS
 
@@ -128,27 +129,55 @@ def tmp_path(tmp_path: Path) -> Path:
     return tmp_path.resolve()
 
 
-@pytest.fixture(autouse=True)
-def _windows_agent_resolution_follows_which(monkeypatch, request):
-    """On Windows, resolve the agent CLI the way the test models it.
+_REAL_WHICH = shutil.which
+_REAL_SUBPROCESS_RUN = subprocess.run
 
-    Tests model an installed agent by faking `shutil.which` and usually the
-    supervisor too. The Windows command planner deliberately resolves
-    against the child's PATH and PATHEXT instead, so without this the fake
-    agent is "not found" before the faked supervisor runs. `shutil.which` is
-    looked up per call, so a test's own fake (or its absence) still decides.
-    `test_repl_supervisor_nt.py` owns the real resolver contract and keeps it.
+
+@pytest.fixture(autouse=True)
+def _windows_agent_spawn_follows_test_fakes(monkeypatch, request):
+    """On Windows, let a test's agent fakes reach the Windows spawn path.
+
+    Orchestration tests model an installed agent by faking `shutil.which`, and
+    model the agent run by faking `subprocess.run`, which POSIX's no-TTY
+    supervisor branch calls. The Windows planner resolves against the child's
+    PATH/PATHEXT and the Windows backend spawns through `ProcessTree`, so
+    neither fake would apply: a real installed `claude.exe` would run instead.
+    While `shutil.which` is faked, resolution keeps the bare name exactly as
+    POSIX passes it; while `subprocess.run` is faked, the no-console,
+    ungated Windows spawn goes through it, as POSIX's does. Both are looked up
+    per call, so a test's own fake (or its absence) still decides.
+    `test_repl_supervisor_nt.py` owns the real Windows spawn contract.
     """
     if os.name != "nt" or request.module.__name__.endswith("test_repl_supervisor_nt"):
         return
     from coga import repl_supervisor_nt
 
-    real = repl_supervisor_nt.resolve_executable
+    real_resolve = repl_supervisor_nt.resolve_executable
+    real_run = repl_supervisor_nt.run
 
     def resolve(name, env):  # type: ignore[no-untyped-def]
-        return real(name, env) or shutil.which(name)
+        if shutil.which is not _REAL_WHICH:
+            return name if shutil.which(name) else None
+        return real_resolve(name, env)
+
+    def run(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        if (
+            subprocess.run is not _REAL_SUBPROCESS_RUN
+            and kwargs.get("after_spawn") is None
+            and not repl_supervisor_nt._console_attached()
+        ):
+            if kwargs.get("idle_timeout") is not None:
+                sys.stderr.write(
+                    f"\n[coga watcher] {repl_supervisor_nt.IDLE_TIMEOUT_WARNING}\n"
+                )
+            code = subprocess.run(
+                list(cmd), env={**env, SENTINEL_ENV: ""}, check=False
+            ).returncode
+            return ReplOutcome(code & 0xFFFFFFFF, "natural")
+        return real_run(cmd, env, **kwargs)
 
     monkeypatch.setattr(repl_supervisor_nt, "resolve_executable", resolve)
+    monkeypatch.setattr(repl_supervisor_nt, "run", run)
 
 
 @pytest.fixture(autouse=True)
