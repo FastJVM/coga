@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -308,6 +308,9 @@ checks:
   the projected ticket remains unstaged and is never committed to the branch.
 - Ready for open-pr with current preparation and self-review/check receipts.
   No PR exists for this branch as of review; publication belongs to the next step.
+- open-pr (2026-11-07): `coga open-pr` published PR #1188 at head
+  `20feaba3b`; GitHub reports MERGEABLE / CLEAN, so no conflict resolution
+  was needed. Ready for owner review.
 
 ---
 
