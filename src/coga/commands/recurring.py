@@ -119,6 +119,12 @@ def launch(
         ...,
         help="Recurring task name — the directory under coga/recurring/.",
     ),
+    rerun: bool = typer.Option(
+        False,
+        "--rerun",
+        help="Start a fresh run even if this period already finished. "
+        "Human-paused and canceled runs stay parked.",
+    ),
     interactive: bool = typer.Option(
         False,
         "--interactive",
@@ -156,7 +162,7 @@ def launch(
         sys.exit(2)
 
     code = run_recurring_named(
-        cfg, name, interactive=interactive, agent_override=agent_override
+        cfg, name, rerun=rerun, interactive=interactive, agent_override=agent_override
     )
     if code:
         sys.exit(code)

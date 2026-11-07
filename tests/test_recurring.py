@@ -849,8 +849,9 @@ def test_recurring_scan_relays_into_existing_control_worktree(
     )
 
 
+@pytest.mark.parametrize("rerun", [False, True])
 def test_recurring_named_relays_into_existing_control_worktree(
-    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls
+    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls, rerun: bool
 ) -> None:
     """`coga dream` off control relays instead of dead-ending."""
     git_repo.checkout_branch("feature/recurring-launch")
@@ -862,7 +863,8 @@ def test_recurring_named_relays_into_existing_control_worktree(
     )
 
     assert recurring_cmd.run_recurring_named(
-        load_config(git_repo.coga_os), "weekly-check", agent_override="claude"
+        load_config(git_repo.coga_os), "weekly-check", rerun=rerun,
+        agent_override="claude"
     ) == 0
 
     (call,) = relay_calls
@@ -872,6 +874,7 @@ def test_recurring_named_relays_into_existing_control_worktree(
         "recurring",
         "launch",
         "weekly-check",
+        *(["--rerun"] if rerun else []),
         "--agent",
         "claude",
     ]
@@ -7130,8 +7133,9 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     assert git_repo.git("status", "--porcelain") == ""
 
 
+@pytest.mark.parametrize("rerun", [False, True])
 def test_named_launch_replaces_a_done_task_control_still_tracks(
-    git_repo, monkeypatch: pytest.MonkeyPatch
+    git_repo, monkeypatch: pytest.MonkeyPatch, rerun: bool
 ) -> None:
     """An on-demand launch must land the task that replaces a stale `done` run.
 
@@ -7189,25 +7193,28 @@ def test_named_launch_replaces_a_done_task_control_still_tracks(
 
     launched: list[str] = []
     _allow_interactive_recurring(monkeypatch)
-    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 15, 10, 5))
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8 if rerun else 15, 10, 5))
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period",
         lambda slug, **kwargs: launched.append(slug),
     )
 
-    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check", rerun=rerun) == 0
 
     assert launched == [first.ref.id_slug]
     assert Ticket.read(first.ref.ticket_path).status == "active"
-    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W25"
+    assert _control_serviced_period(git_repo, "weekly-check") == (
+        "2026-W24" if rerun else "2026-W25"
+    )
     control_ticket = git_repo.git(
         "show", f"main:{task_rel}", cwd=git_repo.origin
     )
     assert "status: active" in control_ticket
 
 
+@pytest.mark.parametrize("rerun", [False, True])
 def test_named_replacement_does_not_launch_a_concurrent_generation(
-    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys, rerun: bool
 ) -> None:
     """Only the exact stale ``done`` generation may be replaced on control."""
     coga_os = git_repo.coga_os
@@ -7260,19 +7267,21 @@ def test_named_replacement_does_not_launch_a_concurrent_generation(
         if not raced:
             raced = True
             git_repo.push_competing_commit(task_rel, winner.render())
-            _push_competing_serviced_period(git_repo, "weekly-check", "2026-W25")
+            _push_competing_serviced_period(
+                git_repo, "weekly-check", "2026-W24" if rerun else "2026-W25"
+            )
         return real_push(root, remote, refspec)
 
     monkeypatch.setattr(coga_git, "_push", racing_push)
     launched: list[str] = []
     _allow_interactive_recurring(monkeypatch)
-    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 15, 10, 5))
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8 if rerun else 15, 10, 5))
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period",
         lambda slug, **kwargs: launched.append(slug),
     )
 
-    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check", rerun=rerun) == 0
 
     assert launched == []
     assert "changed on the control branch during recurring admission" in (
@@ -7379,15 +7388,17 @@ def test_recurring_launch_defaults_the_main_agent_to_the_configured_default(
     assert derived_operator(dream_repo, refs[0].id_slug) == "claude"
 
 
+@pytest.mark.parametrize("rerun", [False, True])
 def test_recurring_launch_is_idempotent(
-    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch, rerun: bool
 ) -> None:
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", lambda *a, **k: None
     )
     runner = CliRunner()
-    first = runner.invoke(app, ["recurring", "launch", "dream"])
-    second = runner.invoke(app, ["recurring", "launch", "dream"])
+    args = ["recurring", "launch", "dream", *(["--rerun"] if rerun else [])]
+    first = runner.invoke(app, args)
+    second = runner.invoke(app, args)
 
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
@@ -8994,7 +9005,7 @@ def test_recurring_launch_resumes_in_progress_orphan(
 def test_recurring_launch_refuses_done_task(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A `done` period task is left alone — re-running finished work is wrong."""
+    """A named launch without `--rerun` still leaves a completed period alone."""
     calls: list[str] = []
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period",
@@ -9014,6 +9025,74 @@ def test_recurring_launch_refuses_done_task(
     assert result.exit_code == 0, result.output
     assert "is done; not launching" in result.output
     assert calls == []
+
+
+@pytest.mark.parametrize("schedule", ["0 8 * * *", "0 8 * * 1"])
+def test_autoclose_alias_reruns_completed_period(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch, schedule: str
+) -> None:
+    """Repeated autoclose starts fresh; the scheduled sweep still deduplicates."""
+    from coga.cli import main
+
+    template_dir = dream_repo / "recurring" / "autoclose-merged"
+    shutil.copytree(_TEMPLATES_COGA_OS / "recurring" / "autoclose-merged", template_dir)
+    template = Ticket.read(template_dir / "ticket.md")
+    template.frontmatter["schedule"] = schedule
+    template.write(template_dir / "ticket.md")
+    now = datetime(2026, 6, 8, 10, 5)
+    _freeze_recurring_now(monkeypatch, now)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    generations: list[str] = []
+
+    def finish_cleanup(slug: str, **kwargs: object) -> None:
+        assert slug == "recurring/autoclose-merged"
+        path = dream_repo / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(path)
+        assert ticket.status == "active"
+        assert ticket.step == "1 (sweep)"
+        assert (path.parent / "ticket.py").is_file()
+        assert "previous cleanup report" not in read_blackboard(path)
+        generations.append(ticket.frontmatter["period_generation"])
+        ticket.frontmatter["status"] = "done"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(path)
+        replace_blackboard(path, "\nprevious cleanup report\n")
+
+    monkeypatch.setattr("coga.launch.launch_recurring_period", finish_cleanup)
+    for _ in range(3):
+        monkeypatch.setattr("sys.argv", ["coga", "autoclose"])
+        with pytest.raises(SystemExit) as stopped:
+            main()
+        assert stopped.value.code == 0
+
+    assert len(set(generations)) == 3
+    cfg = load_config(dream_repo)
+    assert len(list_tasks(cfg)) == 1
+    scan = scan_due(cfg, now=now)
+    assert scan.errors == []
+    assert all(task.template != "autoclose-merged" for task in scan.due)
+
+
+@pytest.mark.parametrize("status", ["paused", "canceled"])
+def test_named_rerun_preserves_human_parked_period(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    cfg = load_config(dream_repo)
+    first = create_named(cfg, "dream")
+    ticket = Ticket.read(first.ref.ticket_path)
+    ticket.frontmatter["status"] = status
+    ticket.write(first.ref.ticket_path)
+    before = first.ref.ticket_path.read_bytes()
+    monkeypatch.setattr(
+        "coga.launch.launch_recurring_period",
+        lambda *a, **k: pytest.fail("rerun launched human-parked work"),
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "launch", "dream", "--rerun"])
+
+    assert result.exit_code == 0, result.output
+    assert f"is {status}; not launching" in result.output
+    assert first.ref.ticket_path.read_bytes() == before
 
 
 def test_recurring_launch_interactive_leaves_limits_unarmed(
