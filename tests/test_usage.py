@@ -19,7 +19,15 @@ from coga.usage import (
     load_records,
     parse_session,
     rollup,
+    snapshot_session_files,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_codex_home(monkeypatch) -> None:
+    # Codex tests write rollouts under HOME; a developer's CODEX_HOME would
+    # redirect the lookup away from them.
+    monkeypatch.delenv("CODEX_HOME", raising=False)
 
 
 def _write(path: Path, text: str) -> None:
@@ -355,6 +363,54 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
         + parsed.output_tokens
         == 63
     )
+
+
+def test_parse_codex_rollout_honors_codex_home_outside_home(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = codex_home / "sessions" / "2026" / "06" / "23"
+    old = sessions / "rollout-old.jsonl"
+    _write(old, '{"type":"session_meta","payload":{"cwd":"/elsewhere"}}\n')
+    # A rollout under the default root must be ignored once CODEX_HOME is set.
+    _write_codex_rollout(
+        home / ".codex" / "sessions" / "2026" / "06" / "23" / "rollout-default.jsonl",
+        cwd=cwd,
+        session_id="default-root",
+        extra_meta="",
+        total=99,
+    )
+
+    pre_existing = snapshot_session_files("codex")
+    assert pre_existing == {old}
+
+    _write_codex_rollout(
+        sessions / "rollout-new.jsonl",
+        cwd=cwd,
+        session_id="codex-home-session",
+        extra_meta="",
+        total=21,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=pre_existing,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "codex-home-session"
 
 
 def test_parse_codex_activity_uses_messages_after_turn_context_only(

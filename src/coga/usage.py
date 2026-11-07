@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -937,8 +938,21 @@ def _codex_rollout_has_marker(path: Path, marker: str) -> bool:
     return False
 
 
+def _codex_sessions_root() -> Path:
+    """Codex's rollout root, decided the way codex-rs `find_codex_home` does.
+
+    A non-empty `CODEX_HOME` is used exactly as written (no `~` expansion);
+    an empty or unset one means `~/.codex`. The agent child inherits this
+    process's environment, so both sides see the same value.
+    """
+    codex_home = os.environ.get("CODEX_HOME")
+    if codex_home:
+        return Path(codex_home) / "sessions"
+    return Path.home() / ".codex" / "sessions"
+
+
 def _codex_rollout_paths() -> list[Path]:
-    return list((Path.home() / ".codex" / "sessions").glob("**/rollout-*.jsonl"))
+    return list(_codex_sessions_root().glob("**/rollout-*.jsonl"))
 
 
 def _read_codex_session_meta(path: Path) -> dict[str, str] | None:

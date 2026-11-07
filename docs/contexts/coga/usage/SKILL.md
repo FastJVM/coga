@@ -67,6 +67,12 @@ attributed; they count as sessions but contribute zero tokens, so a high
 unknown count means the totals are a floor, not a measurement. Each unknown
 record carries a path-redacted `usage_reason` saying why; a session that provably never
 reached the API is recorded `ok` with zero tokens rather than unknown.
+Codex rollouts are looked up under `$CODEX_HOME/sessions` when `CODEX_HOME`
+is set and non-empty in the environment Coga runs in (used exactly as written,
+no `~` expansion), else under `~/.codex/sessions`; a rollout missing from that
+root is recorded unknown, not zero. A relative `CODEX_HOME`, or one set only in
+the agent's own environment (ticket `secrets:`, agent env config), is not
+supported.
 
 `coga usage` is read-only: no mutation, no network, and no end-of-command
 state sweep. It is the after-the-fact counterpart to `coga launch --prompt-report`,
