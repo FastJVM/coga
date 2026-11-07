@@ -37,7 +37,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 ---
 
@@ -525,6 +525,16 @@ checks:
   detail: Red check. Both new scratch tests fail on the unchanged code (FileNotFoundError in the missing
     temp dir; no _scratch_dir).
 ```
+
+## Open-pr handoff (2026-11-06, claude)
+
+- PR #1183 opened from `3ee1653b`; peer review note records a completed
+  direct review with no must-fix findings.
+- Obligations the merge does not discharge: the two pre-existing packaging
+  failures (launch-boundary twin drift, missing navigation anchors) are
+  tracked by in-progress `v1/13-repair-ci-and-resume-with-release-focused-triggers`.
+  Owner-run Multiply Codex/Claude checks stay at the final `review` gate.
+  Open Questions 1, 2 and 4 are owner config choices outside this repo.
 
 ## Design handoff (2026-11-04, claude)
 
