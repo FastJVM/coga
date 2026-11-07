@@ -3085,13 +3085,15 @@ def test_direct_launch_timeout_exits_non_zero(
     the supervisor's non-zero timeout code to scripts and shells.
     """
     _allow_interactive_tty(monkeypatch)
+    # Native Windows refuses the explicit `--idle-timeout` flag (covered in
+    # test_cli); the same propagation contract holds for `--max-session`.
+    if os.name == "nt":
+        option, reason = "--max-session", "max-session (wall-clock exceeded 1s)"
+    else:
+        option, reason = "--idle-timeout", "idle-timeout (no REPL activity for 1s)"
 
     def fake_supervisor(*args, **kwargs):  # type: ignore[no-untyped-def]
-        return ReplOutcome(
-            _TIMEOUT_EXIT_CODE,
-            "timeout",
-            "idle-timeout (no REPL activity for 1s)",
-        )
+        return ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout", reason)
 
     monkeypatch.setattr(
         "coga.launch.run_with_done_marker", fake_supervisor
@@ -3100,13 +3102,11 @@ def test_direct_launch_timeout_exits_non_zero(
         "coga.launch.shutil.which", lambda name, **kwargs: f"/usr/bin/{name}"
     )
 
-    result = CliRunner().invoke(
-        app, ["launch", "fix-retry-logic", "--idle-timeout", "1"]
-    )
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", option, "1"])
 
     assert result.exit_code == _TIMEOUT_EXIT_CODE, result.output
     assert "Agent timed out" in result.output
-    assert "idle-timeout (no REPL activity for 1s)" in result.output
+    assert reason in result.output
 
 
 def test_launch_uses_local_agent_override(

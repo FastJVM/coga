@@ -3246,11 +3246,23 @@ def test_control_publication_rechecks_index_before_staging_any_path(git_repo, mo
     ticket.write_text(_ticket_text(blackboard="working prose\n"), encoding="utf-8", newline="\n")
     working = ticket.read_bytes()
     real = git.run_git
+    real_modes = git._index_modes
     probes = 0
+    reading_modes = False
+
+    def modes(root):  # type: ignore[no-untyped-def]
+        # Windows also reads index modes (Git owns executable bits there);
+        # that lookup is not one of the staging rechecks this test races.
+        nonlocal reading_modes
+        reading_modes = True
+        try:
+            return real_modes(root)
+        finally:
+            reading_modes = False
 
     def race(root, *args, **kwargs):
         nonlocal probes
-        if args[:3] == ("ls-files", "--stage", "-z"):
+        if args[:3] == ("ls-files", "--stage", "-z") and not reading_modes:
             probes += 1
             if probes == 2:
                 ticket.write_text(_ticket_text(blackboard="concurrent staged draft\n"), encoding="utf-8", newline="\n")
@@ -3259,6 +3271,7 @@ def test_control_publication_rechecks_index_before_staging_any_path(git_repo, mo
         return real(root, *args, **kwargs)
 
     monkeypatch.setattr(git, "run_git", race)
+    monkeypatch.setattr(git, "_index_modes", modes)
     head = _head(git_repo)
     assert git.publish(cfg, [ticket], "Working prose")
     assert probes == 2

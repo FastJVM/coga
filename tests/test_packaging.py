@@ -485,7 +485,7 @@ def test_transitional_checks_accept_carriers_but_reject_incomplete_forks(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(seed)
     parent = tmp_path / live
-    parent.write_text(render_carrier(read_blackboard(parent)), encoding="utf-8")
+    parent.write_text(render_carrier(read_blackboard(parent)), encoding="utf-8", newline="\n")
     (tmp_path / INVENTORY_FILE).parent.mkdir(parents=True)
     (tmp_path / INVENTORY_FILE).write_bytes((REPO_ROOT / INVENTORY_FILE).read_bytes())
     module = sys.modules[__name__]

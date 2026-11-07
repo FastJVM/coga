@@ -142,8 +142,8 @@ def _windows_agent_spawn_follows_test_fakes(monkeypatch, request):
     supervisor branch calls. The Windows planner resolves against the child's
     PATH/PATHEXT and the Windows backend spawns through `ProcessTree`, so
     neither fake would apply: a real installed `claude.exe` would run instead.
-    While `shutil.which` is faked, resolution keeps the bare name exactly as
-    POSIX passes it; while `subprocess.run` is faked, the no-console,
+    While `shutil.which` (or, with no `which` fake, `subprocess.run`) is
+    faked, resolution keeps the bare name exactly as POSIX passes it; while `subprocess.run` is faked, the no-console,
     ungated Windows spawn goes through it, as POSIX's does. Both are looked up
     per call, so a test's own fake (or its absence) still decides.
     `test_repl_supervisor_nt.py` owns the real Windows spawn contract.
@@ -158,6 +158,9 @@ def _windows_agent_spawn_follows_test_fakes(monkeypatch, request):
     def resolve(name, env):  # type: ignore[no-untyped-def]
         if shutil.which is not _REAL_WHICH:
             return name if shutil.which(name) else None
+        if subprocess.run is not _REAL_SUBPROCESS_RUN:
+            # POSIX resolves nothing before the faked run receives the argv.
+            return name
         return real_resolve(name, env)
 
     def run(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
