@@ -10491,3 +10491,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-07 14:02 v1 [v1/40-state-the-hatchling-prerequisite-in-the-clean-whee] [human:nicktoper] auto-bumped on merge of PR #1173 → done
 2026-11-07 14:02 v1 [v1/filter-by-user-for-megalaunch] [human:nicktoper] auto-bumped on merge of PR #1177 → done
 2026-11-07 14:02 v1 [v1/honor-codex-home-when-locating-codex-rollouts] [human:nicktoper] auto-bumped on merge of PR #1186 → done
+2026-11-07 14:02 v1 [v1/human-review-pr-for-ambiguous-lifecycle-status-con] [human:nicktoper] auto-bumped on merge of PR #1181 → done
