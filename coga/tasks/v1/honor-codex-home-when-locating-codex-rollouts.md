@@ -2,12 +2,31 @@
 title: Honor CODEX_HOME when locating Codex rollouts
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
 
-usage._codex_rollout_paths (src/coga/usage.py, used by snapshot_session_files and _parse_codex_session) globs ~/.codex/sessions unconditionally. Codex stores sessions under $CODEX_HOME/sessions when CODEX_HOME is set, so for such a user every Codex launch would record usage_status unknown with reason 'codex rollout not found for cwd'. Not observed in this repo (CODEX_HOME unset); found while closing v1/35-recheck-codex-usage-completeness-after-the-session. Done means: the rollout root honors CODEX_HOME (falling back to ~/.codex), a regression test covers it, and coga/usage plus coga-dev/internals/activity-capture state the lookup rule.
+`usage._codex_rollout_paths` globs `~/.codex/sessions/**/rollout-*.jsonl`
+unconditionally. Codex keeps its sessions under `$CODEX_HOME/sessions` when
+`CODEX_HOME` is set. For a user who sets it, every Codex launch would therefore
+record `usage_status` unknown with reason `codex rollout not found for cwd`.
+This has not been seen in this repo, where `CODEX_HOME` is unset. It was found
+while closing `v1/35-recheck-codex-usage-completeness-after-the-session`.
+
+Done means:
+
+- The rollout root is `$CODEX_HOME/sessions` when `CODEX_HOME` is set and
+  non-empty, and `~/.codex/sessions` otherwise. The value is used exactly as
+  written, with no `~` expansion, to match Codex.
+- A regression test in `tests/test_usage.py` sets `CODEX_HOME` to a directory
+  outside `HOME`, writes a rollout there, and asserts that the session is
+  snapshotted and parsed to `ok`.
+- The existing Codex tests in `tests/test_usage.py` clear `CODEX_HOME`, for
+  example with an autouse fixture, so they pass when a developer has it set.
+- `coga/usage` and `coga-dev/internals/activity-capture` both state the
+  lookup rule.
+- `python -m pytest tests/test_usage.py tests/test_packaging.py` passes.
 
 ## Context
 
@@ -94,6 +113,57 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Code pointers
+
+- `usage._codex_rollout_paths` is the only place the root is built:
+  `Path.home() / ".codex" / "sessions"`. Two functions call it.
+  `usage.snapshot_session_files` takes the pre-spawn snapshot, and
+  `usage._parse_codex_session` takes the post-run diff. Because both go through
+  the same helper, they read the same root. Keep it that way by deciding the
+  root in that one helper.
+- `CODEX_HOME` is read from the environment of the coga process. The agent
+  child inherits that environment, so coga and Codex see the same value.
+  An empty string counts as unset. Do not expand `~`. The cold review
+  recalled, without checking, that codex-rs `find_codex_home` treats empty as
+  unset, uses the literal value, and errors if the path is missing. Confirm
+  that against Codex's docs or source before you implement, and if Codex
+  behaves differently, write down what you found on the blackboard.
+- Out of scope, and to be documented as unsupported:
+  - a relative `CODEX_HOME`, which Codex resolves against its own working
+    directory (the checkout), while coga's cwd may differ;
+  - a `CODEX_HOME` set only in the agent child's environment, through ticket
+    `secrets:` or agent env config.
+- The other `.codex` references in `init.py`, `uninstall.py`, `update.py`, and
+  `skill_manager.py` are about the repo-local `.codex/skills` directory, not
+  rollouts. Leave them alone.
+- Existing Codex tests in `tests/test_usage.py` set `HOME` with
+  `monkeypatch.setenv("HOME", tmp_path)` and write rollouts under
+  `tmp_path/.codex/sessions`. Give the new test the same shape, and make the
+  existing tests clear `CODEX_HOME` with `monkeypatch.delenv(...,
+  raising=False)`, so that a developer with `CODEX_HOME` set does not see them
+  fail.
+- Out of scope: the Claude transcript root (`~/.claude/projects/...` in
+  `usage`) has the same kind of hard-coded path but a different override
+  (`CLAUDE_CONFIG_DIR`). Leave it alone and only mention it on the blackboard
+  as a possible follow-up.
+
+### Docs to edit (cited, not attached — this ticket edits them)
+
+- `coga/usage`: the package owner is
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/SKILL.md`.
+  It has a legacy live copy at `docs/contexts/coga/usage/SKILL.md`, listed in
+  `tests/legacy_removal_inventory.txt`. Edit the package copy, mirror the
+  change into the live copy byte for byte, and commit both together, or
+  `tests/test_packaging.py` fails. The topic does not mention Codex rollouts
+  yet. Add one sentence near the explanation of `unknown`: where Codex
+  rollouts are looked up, and that a rollout missing from that root is
+  recorded as unknown, not as zero.
+- `coga-dev/internals/activity-capture`
+  (`docs/contexts/coga-dev/internals/activity-capture/SKILL.md`, local only):
+  the Codex paragraph currently says capture snapshots
+  `~/.codex/sessions/**/rollout-*.jsonl`. Change it to give the
+  `CODEX_HOME` rule.
 
 <!-- coga:blackboard -->
 
