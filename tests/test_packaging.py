@@ -257,6 +257,12 @@ LEGACY_DEFINITION_DIFFERENCES: dict[str, tuple[str, str]] = {
         "carrier initialization/CAS and replace the obsolete twin exemption; "
         "its complete blackboard (period_state) is state, compared separately",
     ),
+    "coga/recurring/skill-update/ticket.md": (
+        "f8b645faf28fe0c194f08c9282eed5a6e8288b7b9540b40f7e16cbd93cd7b1ce",
+        "packaged instructions also state that the run refuses to rebuild "
+        "coga/skill-update over hand-pushed commits on its open PR; the live "
+        "definition stays unchanged until stage B removes or converts it",
+    ),
     "rollout/trim-log/coga/recurring/trim-log/operations.md": (
         "965a07e9c99ff4516353bf785887943a48ff8040344be702b0b5226f6c66e5b6",
         _LINKS_TO_PACKAGE_OWNERS + "; adoption now selects instead of copying, "
