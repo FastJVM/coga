@@ -1,6 +1,6 @@
 ---
 title: Mention coga build in the install flow
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: docs/with-review
@@ -20,7 +20,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
