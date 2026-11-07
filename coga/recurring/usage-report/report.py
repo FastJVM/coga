@@ -25,7 +25,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from coga.config import load_config
-from coga.usage import UsageRecord, load_records, rollup
+from coga.usage import RollupRow, UsageRecord, load_records, rollup
 
 TOKEN_FIELDS = (
     ("input", "input_tokens"),
@@ -48,6 +48,12 @@ class Report:
     # `(key, total_tokens)` per model, largest first. Every rollup bucket is
     # kept, including `(unknown)` for a null model and `<synthetic>`.
     models: tuple[tuple[str, int], ...]
+    # `(key, total_tokens)` per agent, largest first; an empty agent is the
+    # `(unknown)` row, never a drop.
+    agents: tuple[tuple[str, int], ...] = ()
+    # The configured `user` the header names; `""` (a fresh clone's ad hoc
+    # run) leaves the name out. Records carry no per-person field.
+    user: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -58,12 +64,19 @@ class Report:
             + self.output_tokens
         )
 
+    @property
+    def non_cache_read_tokens(self) -> int:
+        """Input + cache write + output: everything but the cheap cache reads."""
+        return self.total_tokens - self.cache_read_input_tokens
+
     def to_dict(self) -> dict:
         data = asdict(self)
         data["since"] = self.since.isoformat()
         data["until"] = self.until.isoformat()
         data["total_tokens"] = self.total_tokens
+        data["non_cache_read_tokens"] = self.non_cache_read_tokens
         data["models"] = [{"model": key, "total_tokens": n} for key, n in self.models]
+        data["agents"] = [{"agent": key, "total_tokens": n} for key, n in self.agents]
         return data
 
 
@@ -73,8 +86,14 @@ def default_window(today: date) -> tuple[date, date]:
     return this_monday - timedelta(days=7), this_monday
 
 
-def build_report(records: list[UsageRecord], since: date, until: date) -> Report:
-    """Roll `records` up over the half-open UTC window `[since, until)`."""
+def build_report(
+    records: list[UsageRecord], since: date, until: date, *, user: str = ""
+) -> Report:
+    """Roll `records` up over the half-open UTC window `[since, until)`.
+
+    `user` is the configured user the header names; the caller passes it so
+    rendering stays config-free.
+    """
     if until <= since:
         raise ValueError(f"empty window: until {until} is not after since {since}")
     # `rollup`'s `until` is inclusive (`_record_matches` keeps `ts == until`,
@@ -86,10 +105,8 @@ def build_report(records: list[UsageRecord], since: date, until: date) -> Report
     )
     result = rollup(records, by="model", since=start, until=end)
     overall = result.overall
-    models = sorted(
-        ((row.key, row.total_tokens) for row in result.groups),
-        key=lambda item: (-item[1], item[0]),
-    )
+    models = _largest_first(result.groups)
+    agents = _largest_first(rollup(records, by="agent", since=start, until=end).groups)
     return Report(
         since=since,
         until=until,
@@ -99,18 +116,32 @@ def build_report(records: list[UsageRecord], since: date, until: date) -> Report
         cache_creation_input_tokens=overall.cache_creation_input_tokens,
         cache_read_input_tokens=overall.cache_read_input_tokens,
         output_tokens=overall.output_tokens,
-        models=tuple(models),
+        models=models,
+        agents=agents,
+        user=user,
+    )
+
+
+def _largest_first(groups: list[RollupRow]) -> tuple[tuple[str, int], ...]:
+    return tuple(
+        sorted(
+            ((row.key, row.total_tokens) for row in groups),
+            key=lambda item: (-item[1], item[0]),
+        )
     )
 
 
 def render(report: Report) -> str:
     """The Slack/stdout text. One header line, then the breakdown."""
-    lines = [f"Agent usage — {_window_label(report)}"]
+    who = f"{report.user} — " if report.user else ""
+    lines = [f"Agent usage — {who}{_window_label(report)}"]
     if report.sessions == 0:
         lines.append("No Coga-launched sessions recorded in this window.")
         return "\n".join(lines)
     summary = (
-        f"{format_tokens(report.total_tokens)} tokens across "
+        f"{format_tokens(report.total_tokens)} tokens "
+        f"({format_tokens(report.non_cache_read_tokens)} excluding cache reads + "
+        f"{format_tokens(report.cache_read_input_tokens)} cache reads) across "
         f"{_plural(report.sessions, 'session')}"
     )
     if report.unknown_sessions:
@@ -127,12 +158,19 @@ def render(report: Report) -> str:
             for label, field in TOKEN_FIELDS
         )
     )
-    key_width = max(len(key) for key, _ in report.models)
-    cells = [(key, format_tokens(n)) for key, n in report.models]
-    count_width = max(len(cell) for _, cell in cells)
-    for key, cell in cells:
-        lines.append(f"  {key:<{key_width}}  {cell:>{count_width}}")
+    lines.append("By agent:")
+    lines.extend(_rows(report.agents))
+    lines.append("By model:")
+    lines.extend(_rows(report.models))
     return "\n".join(lines)
+
+
+def _rows(buckets: tuple[tuple[str, int], ...]) -> list[str]:
+    """Aligned `key  count` rows, one per bucket, in the given order."""
+    key_width = max(len(key) for key, _ in buckets)
+    cells = [(key, format_tokens(n)) for key, n in buckets]
+    count_width = max(len(cell) for _, cell in cells)
+    return [f"  {key:<{key_width}}  {cell:>{count_width}}" for key, cell in cells]
 
 
 def format_tokens(n: int) -> str:
@@ -170,7 +208,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"--until {until} must be after --since {since}")
     # Read-only, like `coga usage`: a fresh clone without the gitignored
     # `coga.local.toml` user setting can still render the report.
-    report = build_report(load_records(load_config(require_user=False)), since, until)
+    cfg = load_config(require_user=False)
+    report = build_report(load_records(cfg), since, until, user=cfg.current_user)
     print(json.dumps(report.to_dict(), indent=2) if args.json else render(report))
     return 0
 

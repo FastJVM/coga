@@ -18,13 +18,20 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
    `rollup`'s `until` is inclusive — a date-only `until` expands to the end of
    that day and `_record_matches` keeps `ts == until`. A record whose `ts` is
    exactly `until` 00:00 belongs to the next week.
-2. **Content.** `report.render` prints one header naming the week, then total
-   tokens and session count with the `usage_status: unknown` count stated as
-   a floor, the four token categories (input, cache write, cache read, output —
-   kept distinct because cache tokens dominate and a future dollar line prices
-   them differently), and a per-model split largest first. Every rollup bucket
-   is a row: `(unknown)` for a null model and `<synthetic>` are never dropped.
-   An empty window still renders and says so.
+2. **Content.** `report.render` prints one header naming the configured user
+   and the week (`Agent usage — <user> — week of …`; the name is left out when
+   `user` is empty, as on a fresh clone's ad hoc run). The caller passes the
+   user into `build_report`, so `render` stays config-free. Then come total
+   tokens, followed by the non-cache-read (input + cache write + output) and
+   cache-read amounts, so a cache-read-dominated total does not read as
+   alarming, and the session count with the `usage_status: unknown` count
+   stated as a floor. The four token categories (input, cache write, cache
+   read, output) stay distinct because a future dollar line prices them
+   differently. A labeled `By agent:` split and a `By model:` split follow,
+   each largest first. Every rollup bucket is a row: `(unknown)` for an empty
+   agent or a null model and `<synthetic>` are never dropped. An empty window
+   still renders its header and says so. `--json` carries the same data as
+   `user`, `non_cache_read_tokens`, `agents`, and `models`.
 3. **Post.** `ticket.py` finds `report.py` through `$COGA_COGA_OS_ROOT`
    (`coga launch` copies only `ticket.py` into the period task), renders the
    default window, and supplies the period ticket's owner (or
@@ -62,7 +69,8 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
 Out of scope, by the owner's decision: dollar figures and plan comparison
 (an API-equivalent-value line would need the set-aside cost proxy revived;
 see [coga-dev/internals/usage-pricing](../../../../../docs/contexts/coga-dev/internals/usage-pricing/SKILL.md)),
-per-person attribution, and closing the coverage gaps the floor caveats —
+per-person attribution of records (the header names only the configured
+user who runs the job), and closing the coverage gaps the floor caveats —
 unrecorded non-Coga sessions, recipe runs that record nothing, and
 `usage_status: unknown` sessions.
 

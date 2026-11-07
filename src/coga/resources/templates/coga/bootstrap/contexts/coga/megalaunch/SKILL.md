@@ -1,6 +1,6 @@
 ---
 name: coga/megalaunch
-description: How `coga megalaunch` selects, orders, gates, and runs queued work — the owner-scoped sweep, the `--pick`/`--relaunch` staged selection, drain order, the post-sweep dependency drain, `--max-tasks` accounting, `--agent`, and the run summary.
+description: How `coga megalaunch` selects, orders, gates, and runs queued work — the owner-scoped sweep and picker (`--owner`, `--all-owners`), the `--pick`/`--relaunch` staged selection, drain order, the post-sweep dependency drain, `--max-tasks` accounting, `--agent`, and the run summary.
 ---
 
 # Coga megalaunch
@@ -36,24 +36,39 @@ fails, the run stops with exit 1 and nothing is picked or launched. A
 feature or detached checkout is only fetched, so it still queues from its
 own copy. Git-disabled, non-Git, and no-remote repos skip the refresh.
 
+## Owner filter
+
+The sweep and the `--pick` list cover one owner's tickets: `current_user`'s
+by default, `--owner <name>`'s instead, or every owner's (owner-less tickets
+included) with `--all-owners`. The filter reads the ticket's `owner:`, never
+who holds the current step. Owners are free strings, so an `--owner` that
+matches nothing gives an empty picker or sweep with a message, not an error.
+`--owner` with `--all-owners` is refused, and so is either flag with
+`--relaunch`, whose saved selection replays as-is. The operator stays
+`current_user` even when the tickets belong to someone else; lifecycle
+notifications still go to each ticket's owner, and the summary names a
+non-default filter (`Owner: <name>`).
+
 ## Bare sweep
 
-Silently ignores tickets whose `owner` is not `current_user` (owner-less
-included) and every status but `active`, `in_progress`, and `blocked`.
+Silently ignores tickets outside the owner filter and every status but
+`active`, `in_progress`, and `blocked`.
 Blocked tickets and ones with open asks report `skipped-unresolved-blocker`;
 a missing current step or an owner/unrouted step reports
 `skipped-human-gate`. `in_progress` work resumes like `coga launch`, even
 when an earlier session's claim remains: megalaunch replaces it without
 checking whether that session still runs, so do not leave a session working
-a ticket you queue. The queue
-scan is only a hint: each launch rereads exact bytes and reapplies the owner,
-status, blocker, and current-step gates to them. A task that vanished since
+a ticket you queue. `--owner <name>` treats that owner's claims exactly the
+same way, with no extra check: coordinating with the other owner is the
+operator's job. The queue
+scan is only a hint: each launch rereads exact bytes and reapplies the same
+owner filter plus the status, blocker, and current-step gates to them. A task that vanished since
 the scan is skipped without a row.
 
 ## Explicit selection
 
-`--pick` offers every non-terminal task of any owner with no launchability
-filter, displayed like default `coga status` (last updated first), with
+`--pick` offers every non-terminal task inside the owner filter (yours by
+default) with no launchability filter, displayed like default `coga status` (last updated first), with
 nothing checked. The confirmed set is saved machine-locally under `.coga/`;
 `--relaunch` replays it, skipping vanished tasks with a warning. A selection
 runs in three stages:
@@ -70,7 +85,8 @@ runs in three stages:
 
 A picked blocked ticket with open asks resumes with the resolve-or-re-block
 preamble and returns to `blocked` if the ask stays open; an ask-less one is
-`skipped-unlaunchable`, as are terminal and unactivatable picks. A human
+`skipped-unlaunchable`, as are terminal and unactivatable picks. The owner
+flags only shape the offered list; confirmed picks run whatever their owner. A human
 step is `skipped-human-gate` even under `--agent`. Explicit selections never
 run the dependency drain, so they cannot expand into unpicked work.
 
@@ -85,8 +101,10 @@ same order; a selection filters it, so pick order never sets run order. `coga va
 
 ## Dependency drain
 
-After a bare sweep, megalaunch re-lists the operator's
-blocked tickets in the same scope. An open blocker whose text contains a
+After a bare sweep, megalaunch re-lists the blocked tickets inside the same
+owner filter and directory scope. Draining another owner's tickets answers
+nothing on their behalf: only blockers whose named dependency has finished
+resolve. An open blocker whose text contains a
 complete path-qualified task ref is satisfied when that task is `done` or was
 seen earlier in the run and has since disappeared. The ticket is recaptured
 as exact bytes, its activation prepared, and activation plus an automatic

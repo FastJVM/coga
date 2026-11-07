@@ -370,6 +370,14 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     JSON object; every other line (state transitions, FYIs) fails the record
     parse and is skipped. Only v1-marked messages are decoded before JSON
     parsing; unmarked legacy messages are parsed raw.
+
+    Each logical record is returned once, in first-occurrence order. A
+    record's identity is its exact (decoded) JSON message text: retained
+    history holds byte-identical copies that the old `merge=union` landing
+    re-added, so a later copy of an already-seen message is skipped. Messages
+    differing in any byte stay separate records; `session_id` is not the
+    identity (it can be null, and distinct launches can share one). See
+    `coga/usage`, "The read API".
     """
     path = log_path(cfg)
     if not path.is_file():
@@ -379,6 +387,7 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     except OSError:
         return []
     records: list[UsageRecord] = []
+    seen: set[str] = set()
     for line in log_lines(text):
         match = _LOG_LINE_RE.match(line)
         if not match:
@@ -386,10 +395,13 @@ def load_records(cfg: Config) -> list[UsageRecord]:
         message = match.group("message")
         if match.group("version"):
             message = decode_log_message(message)
+        if message in seen:
+            continue
         try:
             records.append(UsageRecord.from_json(message))
         except ValueError:
             continue
+        seen.add(message)
     return records
 
 

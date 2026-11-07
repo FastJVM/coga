@@ -1,16 +1,19 @@
 """Sequential console launcher for launchable, agent-owned Coga work.
 
-The default sweep covers the operator's `active` and `in_progress` tickets:
+The default sweep covers the operator's `active` and `in_progress` tickets
+(`--owner <name>` retargets it to that owner's tickets, `--all-owners` to
+every owner's; the operator running megalaunch stays `current_user`):
 `active` work starts, `in_progress` work — a session another process started
 that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. After that pass, a fixed-point dependency drain
-re-lists the operator's blocked tickets: when an open blocker names a known
+re-lists the same owner's blocked tickets: when an open blocker names a known
 task that is now done (or was deleted after finishing), megalaunch resolves
 the ask with an explicit automatic answer and relaunches the dependent. Each
 drain launch restarts the walk; a full pass with no launch ends the run.
 
 An **explicit selection** (the `--pick` picker or `--relaunch`) runs only the
-named tasks, any owner's, and reaches wider —
+named tasks — whatever their owner; the owner flags only shape the list the
+picker offers, which defaults to the operator's own tickets — and reaches wider —
 any non-terminal status — by staging the run in three phases so every
 human-in-the-loop step lands before the first launch: **prepare** (when the
 operator accepts the CLI's batch prompt, each picked `draft` runs the guided
@@ -182,6 +185,10 @@ class MegalaunchRun:
     directory: str | None = None
     selection: tuple[str, ...] | None = None
     results: list[MegalaunchResult] = field(default_factory=list)
+    # Whose tickets a non-default sweep covered: an `--owner` name, or
+    # "every owner" for `--all-owners`. `None` for the default (operator's
+    # own) sweep and for explicit selections.
+    owner_scope: str | None = None
 
     @property
     def counts(self) -> dict[str, int]:
@@ -209,6 +216,8 @@ def run_megalaunch(
     directory: str | None = None,
     selection: list[str] | None = None,
     author_drafts: bool = False,
+    owner: str | None = None,
+    all_owners: bool = False,
     max_steps_per_task: int = 8,
 ) -> MegalaunchRun:
     """Attempt launchable `active` and `in_progress` tasks sequentially.
@@ -225,8 +234,15 @@ def run_megalaunch(
     `coga launch --agent`, megalaunch keeps its independent human gate: steps the
     workflow hands to the owner still skip, override or not.
 
+    `owner` / `all_owners` choose whose tickets the sweep covers (see
+    `resolve_owner_filter`): the operator's own by default, `owner`'s
+    instead, or every owner's. One target owner gates the queue scan, the
+    exact launch reread, and both dependency-drain checks, so the reread can
+    never reject what the scan queued. They are refused with `selection`,
+    whose picks already are explicit.
+
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
-    tasks run, any owner's, and the run is staged so every human-in-the-loop
+    tasks run, whatever their owner, and the run is staged so every human-in-the-loop
     step happens before the first launch — **prepare** (when `author_drafts`,
     each picked `draft` runs the guided `coga ticket` authoring interview so a
     not-ready ticket becomes launchable; the human can end the interview at
@@ -255,6 +271,12 @@ def run_megalaunch(
     cfg = cfg or load_config()
     if agent_override is not None:
         cfg.agent_type(agent_override)
+    if selection is not None and (owner is not None or all_owners):
+        raise MegalaunchError(
+            "--owner and --all-owners shape the picker list or the sweep; an "
+            "explicit selection already names its tasks."
+        )
+    owner_filter = resolve_owner_filter(cfg, owner=owner, all_owners=all_owners)
     if not _interactive_stdio_has_tty():
         raise MegalaunchError(
             "megalaunch spawns interactive agent REPLs and requires a TTY "
@@ -297,6 +319,7 @@ def run_megalaunch(
             queue,
             known_refs=all_tasks,
             directory=directory,
+            owner_filter=owner_filter,
             agent_override=agent_override,
             max_tasks=max_tasks,
             max_steps_per_task=max_steps_per_task,
@@ -310,7 +333,33 @@ def run_megalaunch(
         directory=directory,
         selection=tuple(selection) if selection is not None else None,
         results=results,
+        owner_scope=(
+            "every owner" if all_owners else owner
+        ),
     )
+
+
+def resolve_owner_filter(
+    cfg: Config, *, owner: str | None = None, all_owners: bool = False
+) -> str | None:
+    """The one owner every sweep gate compares against; `None` = every owner.
+
+    The default is the operator (`cfg.current_user`). `owner` retargets the
+    filter to another accountable human's tickets — a free string, since there
+    is no user registry, so an unknown name simply matches nothing.
+    `all_owners` drops the filter (owner-less tickets included). The two are
+    mutually exclusive. The filter reads the ticket's `owner:` only, never the
+    current step's assignee.
+    """
+    if owner is not None and all_owners:
+        raise MegalaunchError("--owner and --all-owners cannot be combined.")
+    if all_owners:
+        return None
+    return owner if owner is not None else cfg.current_user
+
+
+def _owner_in_scope(ticket: Ticket, owner_filter: str | None) -> bool:
+    return owner_filter is None or ticket.owner == owner_filter
 
 
 def _run_sweep(
@@ -319,14 +368,15 @@ def _run_sweep(
     *,
     known_refs: list[TaskRef],
     directory: str | None,
+    owner_filter: str | None,
     agent_override: str | None,
     max_tasks: int | None,
     max_steps_per_task: int,
     idle_timeout: float | None,
     max_session: float | None,
 ) -> list[MegalaunchResult]:
-    """The unattended sweep: the operator's own ready `active` / `in_progress`
-    work, one launchable step at a time. Draft/paused/terminal tasks are
+    """The unattended sweep: the target owner's ready `active` / `in_progress`
+    work (the operator's own by default), one launchable step at a time. Draft/paused/terminal tasks are
     ignored and blocked work waits until the post-sweep dependency drain. A
     blocker that names a known task finished by this run is resolved and
     relaunched without a human; every other blocker remains reported and
@@ -349,15 +399,16 @@ def _run_sweep(
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
 
-        # Scope the sweep to the running operator's own work. On a shared repo
+        # Scope the sweep to the target owner's work — the running operator's
+        # own unless `--owner`/`--all-owners` said otherwise. On a shared repo
         # a daily sweep must not launch other people's tickets, so a ticket
-        # owned by anyone but `cfg.current_user` is skipped silently — it never
-        # enters `results`, so other owners' work doesn't inflate the summary
-        # counts. `ticket.owner` is `None` when the field is absent, so
-        # owner-less tickets are excluded too. Part 1 guarantees `current_user`
-        # is a real configured name, never a guess, so this filter is
-        # trustworthy for unattended runs.
-        if ticket.owner != cfg.current_user:
+        # outside the filter is skipped silently — it never enters `results`,
+        # so other owners' work doesn't inflate the summary counts.
+        # `ticket.owner` is `None` when the field is absent, so owner-less
+        # tickets are excluded by any named filter. Part 1 guarantees
+        # `current_user` is a real configured name, never a guess, so the
+        # default filter is trustworthy for unattended runs.
+        if not _owner_in_scope(ticket, owner_filter):
             continue
         if ticket.status not in {"active", "in_progress", "blocked"}:
             continue
@@ -370,6 +421,7 @@ def _run_sweep(
             cfg,
             ref,
             ticket,
+            owner_filter=owner_filter,
             agent_override=agent_override,
             max_steps_per_task=max_steps_per_task,
             idle_timeout=idle_timeout,
@@ -387,6 +439,7 @@ def _run_sweep(
         results,
         known_refs=known_refs,
         directory=directory,
+        owner_filter=owner_filter,
         attempted=attempted,
         max_tasks=max_tasks,
         agent_override=agent_override,
@@ -402,6 +455,7 @@ def _drain_satisfied_blockers(
     *,
     known_refs: list[TaskRef],
     directory: str | None,
+    owner_filter: str | None,
     attempted: int,
     max_tasks: int | None,
     agent_override: str | None,
@@ -410,6 +464,10 @@ def _drain_satisfied_blockers(
     max_session: float | None,
 ) -> list[MegalaunchResult]:
     """Relaunch blocked work whose named task dependency has finished.
+
+    Only tickets inside `owner_filter` (the sweep's target owner) drain. The
+    drain answers nothing on anyone's behalf — it resolves only blockers whose
+    named dependency is already done — so it follows the sweep's owner.
 
     The current task tree is re-listed on every pass so work created during
     the main sweep is visible. Refs seen earlier remain known after deletion:
@@ -454,7 +512,7 @@ def _drain_satisfied_blockers(
                         _result(ref, "failed", f"unreadable ticket: {exc}"),
                     )
                 continue
-            if ticket.owner != cfg.current_user or ticket.status != "blocked":
+            if not _owner_in_scope(ticket, owner_filter) or ticket.status != "blocked":
                 continue
 
             blockers = open_blockers(ref.ticket_path)
@@ -522,7 +580,7 @@ def _drain_satisfied_blockers(
                     ),
                 )
                 continue
-            if ticket.owner != cfg.current_user or ticket.status != "blocked":
+            if not _owner_in_scope(ticket, owner_filter) or ticket.status != "blocked":
                 _replace_result(
                     results,
                     _result(
@@ -622,6 +680,7 @@ def _drain_satisfied_blockers(
                 cfg,
                 ref,
                 ticket,
+                owner_filter=owner_filter,
                 agent_override=agent_override,
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
@@ -715,7 +774,8 @@ def _run_selection(
     before the first launch: **prepare** (author picked drafts, when the
     operator opted in), then **check** (validate every draft/paused/blocked
     against the `active` view it would get), then **launch** (activate and run
-    each).
+    each). Picks run whatever their owner: the owner flags only shaped the
+    list the picker offered, never the confirmed set.
 
     Batching the phases means the operator answers every authoring interview
     and sees every unlaunchable pick up front, then the working launches
@@ -915,6 +975,7 @@ def _run_selection(
             activate=needs_activation,
             activation_bytes=activation_bytes,
             explicit=True,
+            owner_filter=None,
         )
         # A selected candidate can cross a current-step, routing, or terminal
         # gate at the exact reread just like a sweep candidate.  Only a real
@@ -990,6 +1051,8 @@ def launchable_candidates(
     cfg: Config,
     *,
     directory: str | None = None,
+    owner: str | None = None,
+    all_owners: bool = False,
 ) -> list[tuple[TaskRef, Ticket]]:
     """The tasks the interactive picker offers, ordered like `coga status`.
 
@@ -1000,8 +1063,11 @@ def launchable_candidates(
     a filter, so a numbered pipeline (`1-`, `2-`, `3-`) still runs in number
     order however its rows were displayed.
 
-    Every non-terminal task of any owner — `done` and `canceled` are the only
-    exclusions. The picker deliberately does *not* pre-filter for
+    Every non-terminal task whose `owner:` is in the owner filter — the
+    operator's (`cfg.current_user`) by default, `owner`'s instead, or every
+    owner's (owner-less tickets included) with `all_owners`; see
+    `resolve_owner_filter`. Within that owner, `done` and `canceled` are the
+    only exclusions. The picker deliberately does *not* pre-filter for
     launchability: a human-assigned ticket, a stepless one, or an ask-less
     `blocked` ticket all show up, because hiding them silently would let the
     operator pick "everything" and quietly miss real work. Checking a row that
@@ -1011,6 +1077,7 @@ def launchable_candidates(
     Unreadable tickets are the only silent skip (the picker offers choices; the
     run reports failures).
     """
+    owner_filter = resolve_owner_filter(cfg, owner=owner, all_owners=all_owners)
     candidates: list[tuple[TaskRef, Ticket]] = []
     for ref in filter_tasks_under(_tasks_in_service_order(cfg), directory, cfg):
         try:
@@ -1018,6 +1085,8 @@ def launchable_candidates(
         except TicketError:
             continue
         if ticket.status in TERMINAL_STATUSES:
+            continue
+        if not _owner_in_scope(ticket, owner_filter):
             continue
         candidates.append((ref, ticket))
     # The same two-pass sort as `render_status`'s default: newest first, then
@@ -1187,6 +1256,7 @@ def _launch_until_stop(
     activate: bool = False,
     activation_bytes: bytes | None = None,
     explicit: bool = False,
+    owner_filter: str | None,
 ) -> MegalaunchResult:
     # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
     # only reaches here for ready work, while the selection path hands over a
@@ -1247,12 +1317,12 @@ def _launch_until_stop(
             # owner, status, blockers, or the current workflow step before this
             # exact reread, so reapply every sweep gate to these same bytes
             # before deriving a prompt or lifecycle mutation from them.
-            if not explicit and ticket.owner != cfg.current_user:
+            if not explicit and not _owner_in_scope(ticket, owner_filter):
                 return _result(
                     ref,
                     "skipped-human-gate",
-                    f"owner {ticket.owner or 'unassigned'} is not current "
-                    f"operator {cfg.current_user}",
+                    f"owner {ticket.owner or 'unassigned'} is outside the "
+                    f"owner filter ({owner_filter})",
                     _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
@@ -2170,6 +2240,8 @@ def render_run_summary(run: MegalaunchRun) -> str:
         lines.extend(["", f"Directory: {run.directory}"])
     if run.selection is not None:
         lines.extend(["", f"Selection: {', '.join(run.selection)}"])
+    if run.owner_scope is not None:
+        lines.extend(["", f"Owner: {run.owner_scope}"])
     lines.extend(["", "Counts:"])
     for key in (
         "launched",
