@@ -298,7 +298,7 @@ def _run_authoring_session(
 
     agent_path = shutil.which(agent.cli)
     if agent_path is None:
-        _bail(agent_cli_missing_message(agent.cli))
+        _bail(agent_cli_missing_message(agent.name, agent.cli))
 
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_agent} -> {agent.name}"

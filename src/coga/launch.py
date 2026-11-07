@@ -1798,7 +1798,7 @@ class _LaunchInvocation:
             # CLIs; every agent-backed command uses the same point-of-need error.
             agent_path = shutil.which(self.agent.cli)
             if agent_path is None:
-                _bail(agent_cli_missing_message(self.agent.cli))
+                _bail(agent_cli_missing_message(self.agent.name, self.agent.cli))
             _report(f"Launch: found agent CLI at {agent_path}")
 
             # Fail loud BEFORE any status is written: if a referenced context or
@@ -2010,7 +2010,7 @@ class _LaunchInvocation:
                 if shutil.which(self.agent.cli) is None:
                     message = (
                         f"{self.ref.id_slug}: next step needs agent {step_agent!r} "
-                        f"but {agent_cli_missing_message(self.agent.cli)}"
+                        f"but {agent_cli_missing_message(self.agent.name, self.agent.cli)}"
                     )
                     if self.is_bootstrap and self.return_timeout:
                         _bail(f"{message} No agent was started.")
@@ -2130,7 +2130,7 @@ class _LaunchInvocation:
                 except AgentCliNotFound:
                     _bail(
                         "Failed to spawn agent: "
-                        f"{agent_cli_missing_message(self.agent.cli)}"
+                        f"{agent_cli_missing_message(self.agent.name, self.agent.cli)}"
                     )
                 except FileNotFoundError as exc:
                     _bail(missing_launch_file_message(exc))
@@ -2606,7 +2606,7 @@ def _require_agent_after_script(
     if shutil.which(agent.cli) is None:
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open "
-            f"for agent {worker!r}, but {agent_cli_missing_message(agent.cli)} "
+            f"for agent {worker!r}, but {agent_cli_missing_message(agent.name, agent.cli)} "
             "The deterministic work was kept."
         )
 

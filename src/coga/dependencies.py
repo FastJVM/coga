@@ -120,9 +120,16 @@ NEEDS_ROOT = frozenset({"apt-get", "dnf", "pacman"})
 AGENT_CLIS: tuple[str, ...] = ("claude", "codex")
 
 
-def agent_cli_missing_message(cli: str) -> str:
-    """Error text for a configured agent CLI missing from PATH."""
+def agent_cli_missing_message(name: str, cli: str) -> str:
+    """Error text for a configured agent CLI Coga could not resolve.
+
+    `name` is the `[agents.<name>]` table that declared the agent and `cli` is
+    its `cli` value, so the message can point at the one line to change. Coga
+    never installs an agent CLI: the remedy is always a `coga.toml` edit. `cli`
+    may be a bare binary name or a full path — `shutil.which` resolves either —
+    so the message names the config, not `PATH`.
+    """
     return (
-        f"Agent CLI {cli!r} not found in PATH. Coga requires the configured "
-        "agent CLI on PATH for agent-backed commands."
+        f"Agent CLI {cli!r} not found. Set `cli` in [agents.{name}] in "
+        "coga.toml to your agent CLI."
     )

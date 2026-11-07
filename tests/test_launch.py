@@ -4141,7 +4141,7 @@ def test_launch_preflights_resolved_step_one_agent_before_activation(
 
     assert result.exit_code == 2, result.output
     assert "Agent CLI 'claude' not found" in result.output
-    assert "requires the configured agent CLI on PATH" in result.output
+    assert "Set `cli` in [agents.claude] in coga.toml" in result.output
     assert calls == []
     assert ticket_path.read_bytes() == before
     assert "activated (draft" not in _read_log(active_task)
@@ -4571,8 +4571,8 @@ def test_launch_agent_not_in_path(
     result = runner.invoke(app, ["launch", slug])
     assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
-    assert "not found in PATH" in combined
-    assert "requires the configured agent CLI on PATH" in combined
+    assert "Agent CLI 'claude' not found" in combined
+    assert "Set `cli` in [agents.claude] in coga.toml" in combined
     assert "http" not in combined
     assert "install" not in combined.lower()
 
@@ -6994,8 +6994,8 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     # Only claude ran; codex CLI missing → stop cleanly, hand back to caller.
     assert len(calls) == 1, calls
     assert calls[0][0] == "claude"
-    assert "not found in PATH" in result.output
-    assert "requires the configured agent CLI on PATH" in result.output
+    assert "Agent CLI 'codex' not found" in result.output
+    assert "Set `cli` in [agents.codex] in coga.toml" in result.output
     assert "http" not in result.output
 
     from coga.ticket import Ticket
@@ -7163,10 +7163,10 @@ def test_launch_still_reports_a_genuinely_missing_agent_cli(
 
     assert result.exit_code != 0
     assert (
-        "Failed to spawn agent: Agent CLI 'claude' not found in PATH."
+        "Failed to spawn agent: Agent CLI 'claude' not found."
         in result.output
     )
-    assert "requires the configured agent CLI on PATH" in result.output
+    assert "Set `cli` in [agents.claude] in coga.toml" in result.output
     assert "http" not in result.output
 
 

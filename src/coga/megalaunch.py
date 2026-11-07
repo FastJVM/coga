@@ -1572,7 +1572,7 @@ def _launch_until_stop(
             return _result(
                 ref,
                 "failed",
-                agent_cli_missing_message(agent.cli),
+                agent_cli_missing_message(agent.name, agent.cli),
                 launch_agent,
             )
 
@@ -2149,7 +2149,7 @@ def _preflight_agent_launch(
                 f"reconciliation — run `coga launch {ref.id_slug}` to recover"
             )
     if shutil.which(agent.cli) is None:
-        return agent_cli_missing_message(agent.cli)
+        return agent_cli_missing_message(agent.name, agent.cli)
     expected_source_bytes = (
         ticket.render().encode("utf-8")
         if source_ticket_bytes is None

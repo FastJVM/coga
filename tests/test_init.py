@@ -1240,8 +1240,10 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
 ) -> None:
     """With neither CLI on PATH, init's next steps name the prerequisite —
     the `coga build` coax otherwise sends a fresh user into a flow whose
-    "not found in PATH" failure arrives only after they've committed to it.
-    It names no install location: init does not install an agent CLI."""
+    "not found" failure arrives only after they've committed to it.
+    It names no install location: init does not install an agent CLI. It also
+    states no `PATH` requirement (that is a `coga.toml` matter) and sends
+    nobody to edit a `.toml` they have nothing to put in yet."""
     target = _make_git_repo(tmp_path / "company")
     real_which = shutil.which
     monkeypatch.setattr(
@@ -1252,12 +1254,14 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "No agent CLI was found on PATH" in result.output
-    assert "Coga requires one on PATH" in result.output
+    assert "No agent CLI was found" in result.output
+    assert "need one" in result.output
     agent_step = next(
         line for line in result.output.splitlines() if "No agent CLI was found" in line
     )
     assert "http" not in agent_step
+    assert "PATH" not in agent_step
+    assert "coga.toml" not in agent_step
     assert "Run `coga build` with Claude Code" in result.output
     assert "`coga build --agent codex` with Codex" in result.output
 

@@ -1564,12 +1564,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # neither requires nor installs (see `coga.dependencies`) — name the
     # prerequisite here, and only for the user the scan shows has none, so a
-    # fresh user isn't sent into the flow only to hit "not found in PATH".
+    # fresh user isn't sent into the flow only to hit "not found". State the
+    # fact and stop: this reader has no agent CLI, so pointing them at
+    # `coga.toml` would name a key they have nothing to put in it, and the
+    # next steps deliberately never send anyone to edit a `.toml`.
     if not _installed_agent_clis():
         steps.append(
-            "No agent CLI was found on PATH — coga drives Claude Code "
-            "(`claude`) or Codex (`codex`). Coga requires one on PATH for "
-            "agent-backed commands (`coga build`, `coga launch`, `coga ticket`)."
+            "No agent CLI was found — coga drives Claude Code (`claude`) or "
+            "Codex (`codex`). Agent-backed commands (`coga build`, "
+            "`coga launch`, `coga ticket`) need one."
         )
     if is_empty:
         build_agent = default_agent or AGENT_CLIS[0]
