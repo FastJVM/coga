@@ -8,7 +8,7 @@ description: Provision, use, and tear down an AWS Windows host for Coga clean-in
 The Windows counterpart of the [macOS harness](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md). It rents
 a fresh native Windows machine (EC2 Windows Server 2025), drives it over SSH,
 and throws it away. It serves two purposes. **Walks** run the documented
-[install](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md) and [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md) path as
+[install](https://github.com/FastJVM/coga/blob/main/README.md#get-started) and [init](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md) path as
 a new local user. The **fix loop** checks out a branch and runs commands and
 the test suite on native Windows for the `windows-native/` port. Like the other
 harnesses, it is repository tooling and is not installed with Coga:

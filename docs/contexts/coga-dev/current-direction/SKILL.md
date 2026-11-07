@@ -117,14 +117,14 @@ is `coga status` and the ticket bodies; stage posture is
   still installs no Python package or skill, and nothing without a yes.
   Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
   may set or replace the default agent behind an explicit confirm. Contract:
-  [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md).
+  [`coga/init`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 - **Native Windows is supported (2026-11).** The core port (2026-10-23)
   runs non-interactive commands and deterministic work;
   `v1/14-interactive-coga-launch-on-native-windows` adds attended agent
   sessions through an inherited console and a Job Object, with no
   idle-timeout. Windows Server 2025 is the tested version.
-  User-facing contracts: [`coga/install`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md#windows-baseline),
-  [`coga/launch`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#options-and-exits).
+  User-facing contracts: [README "Get started"](../../../../README.md#get-started),
+  [`coga/launch`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
 - **The `google-agents-cli-*` skill packs stay on purpose.** This repo keeps
   the seven packs as the live target of the GitHub-backed update path; no
   ticket does ADK work. `anthropic/skill-creator/` is the verbatim

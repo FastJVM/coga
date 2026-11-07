@@ -11,9 +11,9 @@ understanding its files and commands, or contributing to Coga itself.
 3. [Take a first task](../src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md) from draft to PR.
 4. [Remove Coga](../src/coga/resources/templates/coga/bootstrap/contexts/coga/uninstall/SKILL.md) if you need to.
 
-For installation alternatives, troubleshooting, and platform boundaries, see
-the [installation reference](../src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md). The project README
-is the primary first-install path.
+The project README's Get started section is the only install path. The
+native Windows boundary is in
+[coga/launch](../src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
 
 ## Understand
 
