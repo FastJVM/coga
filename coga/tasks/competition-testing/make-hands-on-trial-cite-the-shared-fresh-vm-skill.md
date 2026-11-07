@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -124,19 +124,17 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
-### Route: fold into #1145, then retire this ticket
+### Route: follow-up PR from main
 
-Owner decision (2026-11-02): do this edit inside PR #1145
-(`codex/retro-competition-testing-knowledge`, "New skill: hands-on competitor
-trial method"), not as a separate follow-up PR. Order: merge PR #1153 ("Add
-attended install-walk guidance with shared VM preparation", which adds
-`coga/skills/coga/testing/fresh-vm/SKILL.md`) first. Then rebase #1145 onto
-main and apply the change below on #1145's branch, before #1145 merges. Once
-#1145 merges with the citation, cancel this ticket.
-
-This draft tracks that work. Use it as a launched ticket only if #1145 merges
-without the citation. In that case, branch from main after both PRs are in.
-If #1153 is abandoned, this ticket is moot: cancel it.
+Both PRs merged on 2026-11-04, in the opposite order to the plan: #1145
+("New skill: hands-on competitor trial method") at 19:15 UTC, then #1153
+("Add attended install-walk guidance with shared VM preparation", which adds
+`coga/skills/coga/testing/fresh-vm/SKILL.md`) at 19:23 UTC. #1145 therefore
+went in without the fresh-vm citation, so this ticket is the follow-up: branch
+from current main and open its own PR. On main as of 2026-11-07,
+hands-on-trial still has the **Fresh VM.** bullet in `## Setup`, the
+"demand or a habit carried over" question, and the "cannot copy from the agent
+session" text in the command relay.
 
 ### What to change
 
@@ -175,9 +173,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+- [x] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+  resolved: [2026-11-07 14:15] [human:nicktoper] PR #1153 and #1145 both merged 2026-11-04; #1145 merged first without the fresh-vm citation, so this ticket proceeds as a follow-up PR from main.
 
-- [ ] [2026-11-03 14:38] [agent:claude] id=20261103T143857 Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
+- [x] [2026-11-03 14:38] [agent:claude] id=20261103T143857 Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
+  resolved: [2026-11-07 14:15] [human:nicktoper] PR #1153 and #1145 both merged 2026-11-04; #1145 merged first without the fresh-vm citation, so this ticket proceeds as a follow-up PR from main.
 
 
 ---
