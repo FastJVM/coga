@@ -1,6 +1,6 @@
 ---
 title: Scan for an existing repo during install
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: docs/with-review
@@ -22,7 +22,6 @@ workflow:
     assignee: owner
 contexts:
 - coga-dev/principles
-step: 4 (review)
 agent: claude
 ---
 
