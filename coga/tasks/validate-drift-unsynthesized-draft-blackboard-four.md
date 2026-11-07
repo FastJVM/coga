@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: unsynthesized-draft-blackboard — four install drafts carry
   pre-launch authoring notes on their blackboards'
-status: draft
+status: canceled
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -15,7 +15,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
 ---
 
 ## Description
