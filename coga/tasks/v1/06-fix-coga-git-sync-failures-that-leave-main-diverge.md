@@ -37,7 +37,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -386,12 +386,16 @@ Local verification completed (Pop!_OS 24.04 LTS, Python 3.12.12):
   non-overlapping task/log drift under `coga/pr-publication`. Kept the
   reviewed and tested head/base unchanged. Branch `3ee1653b` is pushed with
   an explicit lease on the prior remote head `f9dfb5966`.
-- Native Windows evidence is missing. `coga-dev/testing` requires it before
-  approval for filesystem/Git changes. Existing harness resources are
-  recorded terminated; provisioning for this non-`windows-native/` ticket
-  needs owner approval per the Windows harness skill. Asked the attending
-  owner whether to run it now, defer it to the final owner review gate, or
-  explicitly waive it. No provisioning or workflow advance yet.
+- **Owner decision (2026-11-06): native Windows suite waived for this PR.**
+  The attending owner answered "waive" to the run/defer/waive question.
+  This is a ticket-specific exception to `coga-dev/testing`; no native
+  Windows result is claimed and no AWS resources were provisioned. The
+  final owner-run Multiply checks remain required.
+- After the waiver, fetched control
+  `0309c437a34fc70bf9d0dc8572af6b57928ff787` and repeated the freshness
+  gate: passed, with only non-overlapping ticket/log state since the reviewed
+  base. The pushed head, implementation diff and review/test receipts remain
+  unchanged. Peer review is ready to hand off to `open-pr`.
 - Owner-run Multiply Codex and Claude sessions remain the final `review`
   gate's acceptance check.
 
@@ -406,8 +410,9 @@ head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
 base: 7c63c8228637292b1f9b023c0b204793d3bf8707
 depth: deep
 rationale: Direct independent code review completed with no must-fix findings. Linux verification has
-  only two confirmed pre-existing packaging failures (4491 passed, 10 skipped); required native Windows
-  evidence and the final owner-run Multiply checks are outstanding. This is not merge approval.
+  only two confirmed pre-existing packaging failures (4491 passed, 10 skipped). The owner explicitly waived
+  native Windows testing for this PR; the final owner-run Multiply checks remain outstanding. These limitations
+  warrant deep owner review.
 implementation: 'Temporary publication indexes and union-merge copies now use the checkout''s own Git
   directory, including its private directory for linked worktrees. These scratch allocations no longer
   depend on $TMPDIR. Regression tests pin missing-temp behavior, cleanup, and the offline-sync -> hand-commit
@@ -416,9 +421,10 @@ deviations: The evaluator-corrected scratch regression holds the reentrant state
   the temp directory and uses an actual retires.md union worklist, since the audit log uses its own reconciler.
   Added per-worktree/failure-cleanup coverage. No realignment, provenance or log-semantics changes.
 limitations: state_lock still uses the temp directory; this change removes only the scratch-file dependency.
-  Known packaging failures are unchanged from main. Native Windows evidence and the owner-run Multiply
-  sessions remain outstanding. No interactive UI changed, so no TTY exercise applies. Python 3.11 floor
-  and native Windows behavior are not established by the Linux Python 3.12 run.
+  Known packaging failures are unchanged from main. Native Windows behavior is unverified under the owner's
+  explicit waiver for this PR. Owner-run Multiply sessions remain pending at final review. No interactive
+  UI changed, so no TTY exercise applies. The Linux Python 3.12 run does not establish the Python 3.11
+  floor.
 files:
   src/coga/git.py: Add _scratch_dir and route _build_tree, _write_published and _merge_union_bytes scratch
     files into the Git dir.
@@ -485,13 +491,14 @@ checks:
   status: passed
   head: 3ee1653b283e866ae7ecb6241ffc6325be8e9b19
   base: 7c63c8228637292b1f9b023c0b204793d3bf8707
-  detail: Fresh control 873feb449ab2a39ea2dca085277e9c65f993258b adds only a different ticket's blackboard.
-    Freshness gate passed with state-only-drift and no overlaps; reviewed source and receipts remain unchanged.
+  detail: Re-executed after the owner waiver against fresh control 0309c437a34fc70bf9d0dc8572af6b57928ff787.
+    Only non-overlapping task/log drift since the reviewed base; gate passed with state-only-drift and
+    no overlaps. Head/base and source remain unchanged.
 - command: Native Windows full suite through scripts/clean-install/aws-windows.sh
   status: not-run
-  detail: Required before merge by coga-dev/testing for this filesystem/Git change. Owner decision pending
-    on provisioning, deferral to owner review, or an explicit waiver. All recorded harness runs are torn
-    down.
+  detail: 'Owner explicitly waived the native Windows suite for this PR on 2026-11-06 (attended reply:
+    "waive"). Ticket-specific exception to coga-dev/testing; no native result is claimed and no AWS resources
+    were provisioned.'
 - command: Owner-run Multiply Codex and Claude launched-session checks
   status: not-run
   detail: Reserved by the ticket for the final owner review gate. Requires log excerpts and effective
