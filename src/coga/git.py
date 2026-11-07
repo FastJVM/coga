@@ -315,6 +315,7 @@ def retry_session_publication(cfg: Config, task_path: Path, *, slug: str) -> boo
     # Name the commit after what it carries: a ticket the session changed,
     # or (the common case, its own bump already landed) only the log.
     message = f"Log: {slug}"
+    root: Path | None = None
     if cfg.git_enabled:
         try:
             root = toplevel(cfg.repo_root)
@@ -324,8 +325,18 @@ def retry_session_publication(cfg: Config, task_path: Path, *, slug: str) -> boo
                 message = f"Ticket: {slug} — session state"
         except GitError as exc:
             sys.stderr.write(f"[git] note: could not fetch control before session publication: {exc}\n")
+    # Require an untracked log, as `sync_log` does: an ignored usage record
+    # must not look like a published no-op. A tracked log cannot be ignored
+    # (a dirty one is always carried), and on a feature checkout it may
+    # merely be behind control, which is not a publication failure.
+    log = log_path(cfg)
+    required = (
+        [log] if root is not None
+        and _blob_oid(root, "HEAD", relative_to_root(root, log)) is None
+        else []
+    )
     try:
-        return publish(cfg, [task_path, log_path(cfg)], message)
+        return publish(cfg, [task_path, log], message, require_paths=required)
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
         return sync_log(cfg, message=f"Log: {slug}")
@@ -614,8 +625,11 @@ def _publish_locked(
         pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)
         rels = [rel for rel in rels if rel != pending_rel]
         # A prepared ticket participates whenever it differs from control,
-        # even when its final bytes happen to equal HEAD.
-        for rel in _ticket_rels(cfg, root, [rel for rel in expected if rel not in rels]):
+        # even when its final bytes happen to equal HEAD — including one only
+        # remembered in the pending-expectation file, which a retry or sweep
+        # publishes without an explicit expectation.
+        prepared_rels = {**(pending or {}), **expected}
+        for rel in _ticket_rels(cfg, root, [rel for rel in prepared_rels if rel not in rels]):
             if not any(rel == spec or rel.startswith(spec.rstrip("/") + "/") for spec in pathspecs):
                 continue
             data = _working_tree_bytes(root, rel)
