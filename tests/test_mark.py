@@ -1232,6 +1232,38 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     assert control.status == landed_status
 
 
+@pytest.mark.parametrize("control_has_notes", [True, False])
+def test_activation_synthesis_gate_reads_the_prepared_ticket(git_repo, control_has_notes):
+    """`mark active` checks draft-blackboard synthesis on the ticket reconciled
+    with fresh control, not the stale on-disk copy: control's authoring notes
+    refuse activation, and stale local notes control already synthesized do
+    not."""
+    cfg = load_config(git_repo.coga_os)
+    ref = _seed_pushed_task(git_repo, cfg, title="Draft gate", status="draft")
+    ticket_path = Path(ref["path"])
+    rel = ticket_path.relative_to(git_repo.root).as_posix()
+    clean = ticket_path.read_text(encoding="utf-8")
+    noted = clean.rstrip("\n") + "\n\n## Ticket authoring notes\n\n- open question\n"
+    if not control_has_notes:
+        # This checkout's notes reached control, which then synthesized them.
+        ticket_path.write_text(noted, encoding="utf-8", newline="\n")
+        git_repo.git("commit", "-am", "authoring notes")
+        git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/stale-draft")
+    git_repo.push_competing_commit(rel, noted if control_has_notes else clean)
+
+    result = CliRunner().invoke(app, ["mark", "active", ref["slug"]])
+
+    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    if control_has_notes:
+        assert result.exit_code != 0, result.output
+        assert "Ticket authoring notes" in result.output
+        assert control.status == "draft"
+    else:
+        assert result.exit_code == 0, result.output
+        assert control.status == "active"
+
+
 # --- main-agent selection timing (the approved activation-time contract) -------
 
 

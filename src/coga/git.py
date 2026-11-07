@@ -616,8 +616,11 @@ def _publish_locked(
         review_rel = relative_to_root(root, cfg.repo_root / ".coga" / "human-review.json")
         rels = [rel for rel in rels if rel not in (pending_rel, review_rel)]
         # A prepared ticket participates whenever it differs from control,
-        # even when its final bytes happen to equal HEAD.
-        for rel in _ticket_rels(cfg, root, [rel for rel in expected if rel not in rels]):
+        # even when its final bytes happen to equal HEAD — including one only
+        # remembered from a failed prepared publication (the retry and the
+        # sweep pass no explicit expectation).
+        prepared_rels = dict.fromkeys([*expected, *(pending or {})])
+        for rel in _ticket_rels(cfg, root, [rel for rel in prepared_rels if rel not in rels]):
             if not any(rel == spec or rel.startswith(spec.rstrip("/") + "/") for spec in pathspecs):
                 continue
             data = _working_tree_bytes(root, rel)

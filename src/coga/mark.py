@@ -18,7 +18,7 @@ from pathlib import Path
 import typer
 
 from coga import git
-from coga.blackboard import prelaunch_blackboard_synthesis_reason
+from coga.blackboard import prelaunch_blackboard_synthesis_reason_text
 from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
@@ -31,6 +31,7 @@ from coga.period_state import (
     stale_keys,
 )
 from coga.notification import notify, post
+from coga.taskfile import split_body
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -522,16 +523,19 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
 
 
 def _refuse_unsynthesized_draft_blackboard(
-    cfg: Config, ref: TaskRef, prior_status: str | None
+    cfg: Config, ticket: Ticket, prior_status: str | None
 ) -> None:
-    """Refuse the first launch boundary when authoring notes remain."""
+    """Refuse the first launch boundary when authoring notes remain.
+
+    Reads the blackboard of the ticket being activated — the copy reconciled
+    with fresh control — never the possibly stale on-disk file.
+    """
     if prior_status != "draft":
         return
-    reason = prelaunch_blackboard_synthesis_reason(
-        ref.ticket_path,
-        blackboard_required=False,
-        cfg=cfg,
-    )
+    _above, region = split_body(ticket.body, blackboard_required=False)
+    if region is None:
+        return
+    reason = prelaunch_blackboard_synthesis_reason_text(region, cfg=cfg)
     if reason is not None:
         raise BlackboardNeedsSynthesis(reason)
 
@@ -556,7 +560,7 @@ def prepare_active(
     prior_status = ticket.status
     if prior_status == "canceled":
         raise CancellationError("a canceled ticket cannot be reactivated")
-    _refuse_unsynthesized_draft_blackboard(cfg, ref, prior_status)
+    _refuse_unsynthesized_draft_blackboard(cfg, ticket, prior_status)
 
     if not _has_workflow(ticket):
         raise WorkflowMissing()

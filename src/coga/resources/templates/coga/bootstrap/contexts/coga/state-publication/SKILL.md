@@ -242,14 +242,16 @@ copies control's own history carried and taking the one it carried most
 recently. An unpublished feature-branch commit of the ticket is therefore a
 local edit, not a base.
 
-The command then validates and edits that reconciled view, writes it once
+The command then validates and edits that reconciled view (the draft
+blackboard synthesis gate included), writes it once
 (exit 75 if the local file changed since it was read), and publishes it
 against the exact control bytes it read. Another checkout changing the ticket
 in between is refused, never merged a second time; an unrelated control
 commit uses the ordinary push retry. A retryable failure (for example a
 read-only object store in an agent sandbox) remembers that expectation in
 the machine-local `.coga/pending-publication.json`: the session-teardown
-retry and the sweep publish that ticket only against it, and a refused one
+retry and the sweep publish that ticket only against it (even when its
+final bytes equal HEAD), and a refused one
 waits until its copy matches control or another lifecycle command reconciles
 it.
 
