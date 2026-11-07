@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: blocked
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -124,19 +124,17 @@ template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
 
-### Route: fold into #1145, then retire this ticket
+### Route: follow-up PR from main
 
-Owner decision (2026-11-02): do this edit inside PR #1145
-(`codex/retro-competition-testing-knowledge`, "New skill: hands-on competitor
-trial method"), not as a separate follow-up PR. Order: merge PR #1153 ("Add
-attended install-walk guidance with shared VM preparation", which adds
-`coga/skills/coga/testing/fresh-vm/SKILL.md`) first. Then rebase #1145 onto
-main and apply the change below on #1145's branch, before #1145 merges. Once
-#1145 merges with the citation, cancel this ticket.
-
-This draft tracks that work. Use it as a launched ticket only if #1145 merges
-without the citation. In that case, branch from main after both PRs are in.
-If #1153 is abandoned, this ticket is moot: cancel it.
+Both PRs merged on 2026-11-04, in the opposite order to the plan: #1145
+("New skill: hands-on competitor trial method") at 19:15 UTC, then #1153
+("Add attended install-walk guidance with shared VM preparation", which adds
+`coga/skills/coga/testing/fresh-vm/SKILL.md`) at 19:23 UTC. #1145 therefore
+went in without the fresh-vm citation, so this ticket is the follow-up: branch
+from current main and open its own PR. On main as of 2026-11-07,
+hands-on-trial still has the **Fresh VM.** bullet in `## Setup`, the
+"demand or a habit carried over" question, and the "cannot copy from the agent
+session" text in the command relay.
 
 ### What to change
 
@@ -169,15 +167,59 @@ If #1153 is abandoned, this ticket is moot: cancel it.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: coga/competition-testing-make-hands-on-trial-cite-the-f50487
+
+
+## Implementation
+
+- Confirmed docs-only scope and the prepared feature checkout; the only entry
+  dirt was this projected ticket. At entry, control had step 1 (`implement`)
+  in progress. GitHub confirmed #1145 and #1153 merged and no PR for this branch.
+- Read `coga/knowledge` (one owner per fact and attach-or-cite), both skills,
+  and `clean-install/human-walk`. Use the latter's full GitHub link form.
+- Replaced local VM setup and operator-habit guidance with the shared skill
+  citation. Kept prerequisite coverage, ordered demands, earlier write-ups,
+  and the same-VM/project lap rule as trial-specific guidance.
+- Command relay remains a trial artifact. Its clipboard assumption and
+  service-specific transfer route are replaced with a link to fresh-vm's
+  `Moving commands and evidence`, which owns transfer with available tools.
+- No packaged twin, runtime code, fixtures, or competitor findings changed.
+
+## Verification
+
+- `git diff --check` and `git diff --check origin/main...HEAD` passed.
+- `git cat-file -e origin/main:coga/skills/coga/testing/fresh-vm/SKILL.md`
+  passed; the cited file exists on fetched main.
+- `rg -n '^### Moving commands and evidence$' coga/skills/coga/testing/fresh-vm/SKILL.md`
+  found the section at line 81. A one-off Python link check also verified both
+  destinations against fetched main, the section anchor, the matching
+  `human-walk` link form, and the absence of packaged twins.
+- Reviewed `git diff origin/main...HEAD -- coga/skills/competition-testing/hands-on-trial/SKILL.md`:
+  only the setup and command-transfer passages changed; all other trial rules
+  remain. No runtime or packaging tests were needed for this local prose edit.
+
+## Handoff
+
+- Codex implemented commit `9dcdc6ef5db495cb75c899c7f5dbaf5087f19348`
+  (`Cite shared VM guidance in hands-on trials`) and pushed the recorded branch.
+- Fetched and rebased onto `origin/main` at
+  `1c87afbfdac4a7d8045487a539993bbe967af7c3`. Main's intervening change was the
+  launch's ticket/log update; governing instructions and both skills were
+  unchanged. Preserved and byte-verified this projected ticket across rebase.
+- The branch diff contains only the skill; this ticket was never staged or
+  committed. Ready for peer review. No PR opened in the implement step.
 
 ---
 
 ## Blockers
 
-- [ ] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+- [x] [2026-11-02 21:51] [agent:claude] id=20261102T215124 Waiting on PR #1153 (fresh-vm) to merge, then the fresh-vm citation folded into PR #1145; cancel this ticket once #1145 merges with it
+  resolved: [2026-11-07 14:15] [human:nicktoper] PR #1153 and #1145 both merged 2026-11-04; #1145 merged first without the fresh-vm citation, so this ticket proceeds as a follow-up PR from main.
 
-- [ ] [2026-11-03 14:38] [agent:claude] id=20261103T143857 Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
+- [x] [2026-11-03 14:38] [agent:claude] id=20261103T143857 Still waiting (checked 2026-11-03): PR #1153 (fresh-vm) and PR #1145 (hands-on-trial) are both OPEN and unmerged; neither skill is on main. Once #1153 merges, rebase #1145 and fold in the fresh-vm citation there, then cancel this ticket. Relaunch only if #1145 merges without the citation.
+  resolved: [2026-11-07 14:15] [human:nicktoper] PR #1153 and #1145 both merged 2026-11-04; #1145 merged first without the fresh-vm citation, so this ticket proceeds as a follow-up PR from main.
 
 
 ---

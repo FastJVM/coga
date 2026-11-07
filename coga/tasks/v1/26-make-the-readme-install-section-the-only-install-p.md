@@ -1,6 +1,6 @@
 ---
 title: Retire the coga/install topic
-status: in_progress
+status: done
 owner: zach
 contexts:
 - coga-dev/principles
@@ -26,7 +26,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
