@@ -1,7 +1,7 @@
 ---
 title: Skill update rebuilds its PR branch every period and silently discards hand-pushed
   commits
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -35,7 +35,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 7 (review)
 agent: claude
 ---
 
