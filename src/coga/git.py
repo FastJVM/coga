@@ -838,9 +838,7 @@ def _build_tree(
 ) -> str:
     """`base`'s tree with `rels` overlaid (union-merged for `merge=union` paths)."""
     scratch = _scratch_dir(root)
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=scratch)
-    os.close(fd)
-    os.unlink(index)
+    index = _scratch_index(scratch)
     env = {"GIT_INDEX_FILE": index}
     index_modes = _index_modes(root) if os.name != "posix" else {}
     try:
@@ -884,6 +882,22 @@ def _scratch_dir(root: Path) -> Path:
     return Path(run_git(root, "rev-parse", "--absolute-git-dir").strip())
 
 
+def _scratch_index(scratch: Path) -> str:
+    """A fresh, absent temporary index path under `scratch`.
+
+    An unwritable Git dir (a sandbox's read-only `.git`) fails here before any
+    Git write, so the `OSError` becomes a `GitError` that publication's
+    callers already catch and report.
+    """
+    try:
+        fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=scratch)
+        os.close(fd)
+        os.unlink(index)
+    except OSError as exc:
+        raise GitError(f"cannot allocate a scratch index in {scratch}: {exc}") from exc
+    return index
+
+
 def _merge_union_bytes(
     *, current: bytes, base: bytes, other: bytes, scratch: Path
 ) -> bytes:
@@ -895,10 +909,17 @@ def _merge_union_bytes(
     the blob form control stores. The copies are written under `scratch`
     (see `_scratch_dir`).
     """
-    with tempfile.TemporaryDirectory(prefix="coga-union-merge-", dir=scratch) as tmp:
+    try:
+        tmp_dir = tempfile.TemporaryDirectory(prefix="coga-union-merge-", dir=scratch)
+    except OSError as exc:
+        raise GitError(f"cannot allocate union-merge scratch files in {scratch}: {exc}") from exc
+    with tmp_dir as tmp:
         files = [Path(tmp) / name for name in ("current", "base", "other")]
-        for path, data in zip(files, (current, base, other)):
-            path.write_bytes(data)
+        try:
+            for path, data in zip(files, (current, base, other)):
+                path.write_bytes(data)
+        except OSError as exc:
+            raise GitError(f"cannot write union-merge scratch files in {scratch}: {exc}") from exc
         result = _run(["git", "merge-file", "--union", *map(str, files)])
         if result.returncode != 0:
             raise GitError(
@@ -995,9 +1016,7 @@ def record_projected_baseline(cfg: Config, root: Path, rel: str, oid: str) -> No
 
 
 def _write_published(root: Path, blobs: Mapping[str, str | None]) -> None:
-    fd, index = tempfile.mkstemp(prefix="coga-git-index-", dir=_scratch_dir(root))
-    os.close(fd)
-    os.unlink(index)
+    index = _scratch_index(_scratch_dir(root))
     env = {"GIT_INDEX_FILE": index}
     try:
         if _ref_present(root, PUBLISHED_REF):

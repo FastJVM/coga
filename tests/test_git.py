@@ -726,6 +726,45 @@ def test_publication_scratch_is_per_worktree_and_removed_on_failure(git_repo, mo
     assert _scratch_leftovers(own) == []
 
 
+def test_unwritable_scratch_dir_fails_publication_as_git_error(git_repo, monkeypatch, capsys):
+    """A sandbox's read-only `.git` with a pending deletion: the provenance
+    guard writes no blob, so scratch allocation is the first write. Its
+    `OSError` must surface as `GitError`, which the sync wrappers report."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.unlink()
+    git_dir = Path(git_repo.git("rev-parse", "--absolute-git-dir").strip())
+    real_mkstemp = tempfile.mkstemp
+    real_tempdir = tempfile.TemporaryDirectory
+
+    def read_only(dir):  # type: ignore[no-untyped-def]
+        if dir is not None and Path(dir) == git_dir:
+            raise PermissionError(13, "Permission denied", str(dir))
+
+    def mkstemp(*args, dir=None, **kwargs):  # type: ignore[no-untyped-def]
+        read_only(dir)
+        return real_mkstemp(*args, dir=dir, **kwargs)
+
+    def temporary_directory(*args, dir=None, **kwargs):  # type: ignore[no-untyped-def]
+        read_only(dir)
+        return real_tempdir(*args, dir=dir, **kwargs)
+
+    monkeypatch.setattr(tempfile, "mkstemp", mkstemp)
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", temporary_directory)
+
+    with pytest.raises(git.GitError, match="scratch index"):
+        git.publish(cfg, [ticket], "Ticket: demo — deleted")
+    with pytest.raises(git.GitError, match="union-merge scratch"):
+        git._merge_union_bytes(current=b"A\n", base=b"", other=b"B\n", scratch=git_dir)
+
+    capsys.readouterr()
+    assert git.sync_task_state(cfg, ticket, message="Ticket: demo — deleted") is None
+    git.sync_coga_state(cfg)
+    assert "sync failed" in capsys.readouterr().err
+    assert _control(git_repo, "coga/tasks/demo.md") is not None
+    assert not ticket.exists()
+
+
 def test_expect_pins_the_exact_control_copy(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)

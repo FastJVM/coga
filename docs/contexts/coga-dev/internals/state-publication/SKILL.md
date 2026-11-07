@@ -190,8 +190,10 @@ the checkout's own Git dir, `git._scratch_dir` (`rev-parse
 --absolute-git-dir`, per-worktree in a linked worktree), and are removed in
 `finally`. Publication already needs that dir writable for objects and refs,
 so it adds no second filesystem: a full or missing `$TMPDIR` (a tmpfs out of
-inodes failed a 2026-10-27 publish) cannot fail it. `state_lock` still keeps
-its lock file under the temp dir; that dependency is separate.
+inodes failed a 2026-10-27 publish) cannot fail it. An unwritable Git dir
+fails scratch allocation as a `GitError`, which the sync wrappers report like
+any other failed Git write. `state_lock` still keeps its lock file under the
+temp dir; that dependency is separate.
 
 A publication failure inside an agent's sandbox (no network, read-only
 `.git`) keeps the write dirty as invariant 2 requires. The outer `coga
