@@ -1,6 +1,6 @@
 ---
 title: 02 Repo cutover to package-owned definitions
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
