@@ -286,6 +286,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1191
 branch: coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f
 
 ## Implementation — 2026-11-08
