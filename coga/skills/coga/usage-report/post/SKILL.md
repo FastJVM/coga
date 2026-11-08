@@ -44,7 +44,7 @@ infra (`coga.config`, `coga.tasks`, `coga.usage`, `coga.notification`).
    was tried in PR #944 and closed unmerged: do not refile that move. The
    notification backend adds the repo name and mapped owner mention,
    retaining plain text for an unmapped owner
-   ([owner mapping](../../../../../docs/contexts/coga/notifications/SKILL.md#pinging-the-owner)).
+   ([owner mapping](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md#pinging-the-owner)).
    `fatal=False` means a delivery miss is reported on stderr but the shim
    still closes its step with `coga bump`, so the period never sticks
    `in_progress` over a webhook problem. Known gap: the miss is **not**

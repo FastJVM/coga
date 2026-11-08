@@ -43,7 +43,7 @@ The boundary is the configured Coga and contexts roots, not a hard-coded
 `coga/` prefix or filename extension. Source and docs outside those roots
 need a branch and PR. Implementation or deliberately reviewed knowledge
 inside the roots also prepares the branch **before editing**, then commits
-the intended PR files and packaged twins before a sweeping command. Choose
+the intended PR files before a sweeping command. Choose
 explicit knowledge review before writing that knowledge on control. This
 does not change publication scope or the adoption of committed routine
 task/log/recurring paths; see [state publication](../../state-publication/SKILL.md).

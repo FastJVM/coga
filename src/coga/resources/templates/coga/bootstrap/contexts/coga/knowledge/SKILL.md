@@ -10,7 +10,7 @@ is right. Choose the owner by what the knowledge is:
 
 | Knowledge | Owner |
 | --- | --- |
-| Shared facts and contracts: behavior, invariants, edge cases, product intent used across capabilities | a topic under the configured contexts root (`<ref>/SKILL.md`) |
+| Shared facts and contracts: behavior, invariants, edge cases, product intent used across capabilities | a local topic under the configured contexts root (`<ref>/SKILL.md`), or the package owner of a shipped topic |
 | Reusable process: how to do a thing | a skill (`coga/skills/<ref>/SKILL.md` or bundled) |
 | One ticket-defined capability's behavior and procedure | its command ticket (`bootstrap/<name>/ticket.md`) or recurring template (`recurring/<name>/ticket.md`) |
 | Maintenance procedures specific to that capability | supporting files beside its persistent ticket, linked for reading when needed |
@@ -116,7 +116,7 @@ cited rather than attached, and naming the sections to read, followed by the
 facts the step needs, cited as module plus symbol. Do not justify it by size.
 The copied facts are a snapshot for that ticket, never a second owner. Citing
 does not relax the sync rule: a ticket that changes behavior a cited topic
-owns updates that topic, and its packaged twin, in the same PR.
+owns updates that topic and its dependent references in the same PR.
 
 ## Topic size review policy
 

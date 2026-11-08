@@ -6,9 +6,9 @@ description: Run an attended first-time install of Coga by a non-engineer on a f
 # Attended human install walk
 
 The human counterpart of the automated harnesses
-([Linux](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/SKILL.md),
-[macOS on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/macos-aws/SKILL.md),
-[Windows on AWS](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/clean-install/windows-aws/SKILL.md)).
+([Linux](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md),
+[macOS on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md),
+[Windows on AWS](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md)).
 Those prove the commands run. This walk shows what a first-time user hits:
 waits with no feedback, confusing text, surprise popups or warnings, steps
 they had to guess, and whether each step works. It rents no machines.

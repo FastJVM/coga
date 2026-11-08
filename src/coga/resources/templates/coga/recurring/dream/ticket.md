@@ -553,8 +553,8 @@ above before handling the remaining proposals. Apply the proposal-ownership rule
 each issue before opening anything: report the covering ticket or PR, or
 preserve uncovered overlap in a scoped draft. For an unowned issue with an
 evidenced correction, open a proposal PR applying that correction to the named
-reference, template, or other contract. Group only coherent fixes, keep shipped
-live/packaged twins in sync, and include the Dream period,
+reference, template, or other contract. Group only coherent fixes, edit each
+shipped definition at its package owner, and include the Dream period,
 `validate-drift: <kind>`, affected paths, original messages, and validation results.
 Validate each affected task with `coga validate --task <slug> --json`; for
 template or shared-contract fixes, compare repo validation before and after

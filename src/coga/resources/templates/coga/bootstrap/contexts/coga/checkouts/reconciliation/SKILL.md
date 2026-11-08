@@ -47,7 +47,7 @@ Reconciliation preserves main's newer work and the still-needed local intent:
   [handoff procedure](../SKILL.md#in-a-launched-session).
 
 If any work already landed, prove that from history and content before dropping
-the duplicate. Keep canonical and packaged copies consistent.
+the duplicate. Preserve the owning definition and reconcile dependent references.
 
 ## Verify and escalate
 

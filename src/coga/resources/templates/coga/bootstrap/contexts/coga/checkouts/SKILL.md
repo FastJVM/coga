@@ -100,8 +100,8 @@ and did.
    only this ticket from control, unstaged: the session's only entry dirt.
 2. **Work.** Commit only code: stage paths by name, never `git add -A` or
    `commit -a`. Never stage, commit, or restore the projected ticket. A
-   context, skill, or workflow edit that belongs to the code PR (a canonical
-   topic with a packaged twin, say) is committed with it before any sweeping
+   context, skill, or workflow edit that belongs to the code PR is committed
+   with it before any sweeping
    Coga command runs in this checkout; left dirty, the sweep publishes it.
    To rebase, first copy the ticket outside the repo and verify the copy,
    restore it from HEAD (delete it if HEAD lacks it), rebase, then write the

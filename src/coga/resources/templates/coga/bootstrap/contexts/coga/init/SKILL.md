@@ -183,6 +183,13 @@ Discovery: commands find the repo by walking up for `coga.toml`, also
 checking a sibling `coga/` at each level. A nested Coga repo is only found
 from inside its own subtree.
 
+## Migrating existing definitions
+
+Clone setup and package upgrades leave existing local definitions in place.
+To adopt package fallbacks while preserving customization, activation and
+saved state, follow the
+[migration and rollback procedure](../recurring/templates/package-definitions-migration.md).
+
 ## Audit retention adoption
 
 Fresh init selects the weekly trim-log job (`trim-log = true` in

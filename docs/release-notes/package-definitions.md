@@ -25,3 +25,10 @@ manual: follow the
 [migration and rollback procedure](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md).
 Require this release or newer in every participating checkout before
 migrating; older clients cannot read state carriers.
+
+Coga's source repository now uses package owners directly. Its legacy
+definition copies have been removed and its saved recurring blackboards
+retained as state carriers. The cutover does not enable previously absent
+jobs or adopt audit retention; local overrides remain deliberate repository
+artifacts. The source repository's ownership checks reject accidental copies
+even when their bytes match the package.

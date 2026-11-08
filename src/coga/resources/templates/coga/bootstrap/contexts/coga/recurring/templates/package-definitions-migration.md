@@ -1,107 +1,164 @@
-# Migrating an existing repo to package-owned recurring definitions
+# Migrating an existing repo to package-owned definitions
 
-Operator procedure owned by
-[coga/recurring/templates](SKILL.md#selection-and-state). It is optional:
-an existing repo keeps working unchanged after upgrading Coga, because local
-definitions keep their activation and nothing bundled is enabled without a
-`recurring/jobs.toml` entry. Migrate when you want bundled jobs to follow
-package upgrades instead of stale local copies. There is no automatic tool;
-every step is a reviewed, reversible edit. Run it on a reviewed migration
-branch or from a control checkout, one job at a time if you prefer.
+Operator procedure owned by [coga/recurring/templates](SKILL.md#selection-and-state)
+and linked from [init](../../init/SKILL.md). Existing repos keep working after an
+upgrade: local definitions retain their activation and package-only jobs remain
+disabled without selection. Migration is optional and manual. Every edit is
+reviewed and reversible; use a migration branch or current control.
 
 ## 1. Prepare
 
 1. Upgrade **every** participating checkout and machine to a Coga that
-   understands carriers and `jobs.toml` (this release or newer). Older
-   clients cannot read a carrier; do not migrate while any remain.
-2. Quiesce recurring sweeps, launches and state writers in all checkouts
-   (inspect processes; a ticket status is not process evidence). Wait for
-   running scripts to exit.
-3. Start from a freshly reconciled control branch. Read state from that
-   control copy, never from the package's seed.
-4. Back up `coga/recurring/` completely (definitions, blackboards, every
-   attachment, parked `_name/` directories, `retires.md`) and record the
-   current revision:
+   understands carriers and `jobs.toml` (this release or newer). Older clients
+   cannot read a carrier. Keep compatible clients after migration or rollback.
+2. Quiesce recurring sweeps, launches and state writers in all checkouts.
+   Inspect processes; ticket status is not process evidence. Wait for running
+   scripts to exit, and check for pending log-retention receipts before editing.
+3. Reconcile with fresh control. Read state from that copy, never the package
+   seed. Record the control revision and the clients in use.
+4. Back up every local definition being considered, with supporting files.
+   Save `coga/recurring/` completely: full blackboards, attachments, parked
+   `_name/` directories, `retires.md`, and the prior `jobs.toml` or its absence.
+   Also save frozen `coga/tasks/recurring/` periods, `coga/log.md`, and each
+   clone's `coga/.coga/recurring-clone/` ledgers/logs. Keep verified backups
+   outside published roots. For example, with `backup_dir` set to durable
+   backup storage:
 
    ```sh
-   git rev-parse HEAD > /tmp/coga-recurring-backup.rev
-   tar -C coga -cf /tmp/coga-recurring-backup.tar recurring
+   git rev-parse HEAD > "$backup_dir/control.rev"
+   tar -C coga -cf "$backup_dir/recurring.tar" recurring tasks/recurring log.md
    ```
+
+   Include ignored state and attachments, not just tracked files. Compare
+   copied bytes and record hashes before deleting anything.
 
 ## 2. Inventory and classify
 
-For every directory under `coga/recurring/`, active and parked:
+Inventory active, parked, disabled and deleted jobs. For every local directory:
 
-- **Repo-only job** (no bundled job of that name, e.g. `usage-report`): keep
-  it exactly as is. It needs no selection entry.
-- **Stock copy of a bundled job**: each definition file (`ticket.md` above
-  its fence, `ticket.py`, runbooks) is byte-identical to a *known prior
-  seed* of the same job, taken from the wheel the repo was initialized or
-  last upgraded with. Compare against that old artifact, not just the
-  current package: a file that matches neither is not stock.
-- **Customized override**: anything else. Keep it as a local definition. It
-  stays in force and owns its state; record why in the review.
+- **Repo-only job**, such as `usage-report` or `upstream-coga`: keep it and all
+  attachments unchanged. It needs no selection entry.
+- **Stock copy of a bundled job**: compare each definition file separately
+  against a *known prior seed* from the wheel/version that supplied it.
+  Compare `ticket.md` only above its fence, and siblings in full. Matching a
+  filename or differing from the current package proves nothing about origin.
+- **Customized or ambiguous override**: retain the full local definition and
+  attachments, record the reason, and let its owner decide. Never silently
+  delete unknown work or mix a local body with a packaged script.
 
-The blackboard (below the fence) is state for every job, including ones with
-no `state_keys`; it is never part of this comparison. Note jobs whose
-unfinished or paused period's frozen instructions name a supporting file you
-would delete; drain those periods first or defer that job.
+The entire blackboard is state, including notes/worklists without `state_keys`
+and phone-home's complete `period_state`. It is excluded from definition
+comparison. Check unfinished and paused periods for frozen instructions that
+require attachments you would remove. Drain those periods or defer the job;
+never rewrite a frozen workflow or discard a period to finish migration.
+Retained custom attachments need a documented full local override.
 
 ## 3. Publish selection first
 
-Write `coga/recurring/jobs.toml` so activation is unchanged: `true` for each
-stock job that is currently active, `false` for any you want off. Leave
-parked jobs parked (`_name/` keeps parking regardless of selection), and add
-no entry for jobs you deleted. Publish it on its own; with equivalent local
-definitions still present it changes nothing:
+Write `coga/recurring/jobs.toml` with `true` for stock jobs currently active,
+`false` for explicitly disabled jobs. Keep parked jobs parked, and add no entry
+for deleted jobs. An absent `trim-log` stays unselected. With equivalent local
+definitions still present, this does not change activation:
 
 ```sh
-coga recurring list   # every job still shows its local definition
+coga recurring list
+coga run publish-state coga/recurring/jobs.toml
 ```
 
-## 4. Convert one stock job at a time
+Require a successful receipt and verify selection on control before removing
+any dependent definition.
 
-For each stock job, in one guarded state change, replace its definition with
-a state-only carrier preserving the whole saved blackboard byte-for-byte, and
-remove only the reviewed definition siblings. Keep `retires.md` and other
-runtime state:
+## 4. Convert reviewed parents
 
+For each approved stock parent, preserve its whole current blackboard
+byte-for-byte in a carrier and remove its reviewed definition siblings in one
+guarded change. Keep runtime state such as `retires.md`. Reconcile freshly and
+compare the planned preimages with the verified backup before this example.
+Run the entire block as a standalone command; its subshell stops on failure
+without exiting your interactive shell:
+
+<!-- migration:package-definitions -->
 ```sh
-name=dream   # the job being converted
-python - "$name" <<'PY'
+(
+set -e
+name=phone-home   # example: both named siblings have been reviewed as stock
+python - "$name" ticket.py operations.md <<'PY'
 import sys
-from pathlib import Path
-from coga.recurring_state import render_carrier
-from coga.taskfile import read_blackboard
-ticket = Path("coga/recurring") / sys.argv[1] / "ticket.md"
-ticket.write_text(render_carrier(read_blackboard(ticket)), encoding="utf-8", newline="\n")
+from coga.config import load_config
+from coga.git import state_lock
+from coga.log_transaction import ensure_clear
+from coga.paths import recurring_dir
+from coga.recurring_state import CARRIER, CARRIER_PREFIX, inspect_parent_dir
+cfg = load_config()
+parent = recurring_dir(cfg) / sys.argv[1]
+ticket = parent / "ticket.md"
+with state_lock(cfg):
+    ensure_clear(cfg)
+    original = ticket.read_bytes()
+    fence = b"<!-- coga:blackboard -->"
+    assert original.count(fence) == 1
+    saved = original.split(fence, 1)[1]
+    siblings = [parent / name for name in sys.argv[2:]]
+    assert all(path.parent == parent and path.is_file() for path in siblings)
+    ticket.write_bytes(CARRIER_PREFIX.encode("utf-8") + saved)
+    for path in siblings:
+        path.unlink()
+    assert inspect_parent_dir(parent).kind == CARRIER
+    assert ticket.read_bytes().split(fence, 1)[1] == saved
 PY
-git rm coga/recurring/$name/ticket.py coga/recurring/$name/operations.md  # only reviewed stock siblings
-coga recurring list   # the job now shows (bundled)
+coga run publish-state   # no path operands: include reviewed deletions
+coga recurring list
 coga validate --json
+)
 ```
 
-Run this with the upgraded CLI's interpreter. Never leave a carrier beside
-orphaned definition siblings at a publication: that is an incomplete fork
-and the job errors until repaired. A job with no useful state may instead
-have no local ticket at all; its first run creates the carrier from the
-package seed. Publish through the ordinary state path and inspect its
-receipt; do not exclude paths or bypass guards. Frozen periods, their copied
-scripts, worklists, clone ledgers and the shared log are untouched.
+Use the upgraded CLI's interpreter. Never publish a carrier beside orphaned
+definition siblings. If conversion fails, keep writers quiesced and repair the
+partial local parent **before any mutating Coga command**: restore its definition
+above the fence and reviewed siblings from verified backups while preserving
+the **current** blackboard. Re-inventory that parent before retrying. If
+publication fails, inspect its receipt and reconcile before continuing.
+A parent with no useful state may have no local ticket
+until first use. Named publication operands must exist: verify removed paths
+separately in the resulting control tree. Do not exclude paths or bypass
+publication guards. On conflict preserve both sides and reconcile newer state
+before retrying. Frozen periods, copied scripts, worklists, shared log and
+clone ledgers stay intact.
 
-## 5. Verify
+## 5. Other reusable definitions
 
-`coga recurring list` shows each converted job as bundled and each override
-as local; `coga validate --json` reports no recurring errors; the next sweep
-creates periods from the package and keeps every saved cursor (for
-phone-home, the complete `period_state`).
+Apply the same provenance review to local contexts, skills, workflows,
+bootstrap tickets and prompt overrides. Remove only verified stock copies and
+their reviewed siblings. Resolve logical refs from the package; keep ambiguous
+or customized directories as complete local overrides until their owner decides.
+Retain repo-only topics and skills, real configuration/context, physical ignore
+and attribute scaffolds, and ignored authoring starters. Starter materializations
+must remain untracked. Repair live navigation to the owning package file;
+never add forwarding files or symlinks. Frozen period history stays intact.
+
+## 6. Verify
+
+The effective catalog shows converted jobs as bundled and overrides as local,
+with unchanged selection/parking. Validate recurring definitions and compare
+saved blackboards, worklists, frozen periods and clone ledgers. Freshen all
+participating checkouts before resuming writers so stale local definitions
+cannot be republished.
+
+In Coga's source repo, run control's own packaging, navigation and representative
+runtime checks after selection, after the first conversion/deletion, and after
+full removal. Use that tree's imports, not the feature checkout's editable
+installation. Only then enable strict ownership tests in the code PR. No
+intermediate control commit may require unmerged runtime support.
 
 ## Rollback
 
-Keep writers quiesced. For each converted job, restore its definition files
-from the backup and put the carrier's *current* blackboard back below the
-restored ticket's fence (state may have advanced since the backup; do not
-restore the old blackboard over it). Restore the previous `jobs.toml` (or
-remove it to return to local-only activation). Never replay or recreate a
-period to complete a rollback; the serviced-period ledger in `coga/log.md`
-already records what ran.
+Keep writers quiesced. Restore each converted definition and reviewed sibling
+from verified backups, placing the carrier's **current** blackboard below the
+restored ticket's fence. State may have advanced: never overwrite it with backup
+state. Restore previous selection (or its absence) through the ordinary guarded
+publication path. Retain current worklists, frozen periods, audit history and
+all clone ledgers. Never replay or recreate periods; the ledger already records
+what ran. Compare restored definitions against the backup, blackboards against
+their pre-rollback bytes, and the effective catalog before resuming writers.
+Rehearse this while writers remain paused; rollback still requires compatible
+clients and never restores trimmed history or old cursors.

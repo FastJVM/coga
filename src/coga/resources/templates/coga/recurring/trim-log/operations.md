@@ -49,11 +49,9 @@ repair before trimming. The parent, selection, local override files and exact
 packaged shim identity are pinned decision inputs, rechecked before every
 publication attempt.
 
-Coga's source repo retains its pre-compatibility files under
-`rollout/trim-log/coga/` until the package-definitions cutover. Those legacy
-definitions are not an installation source: after upgrading every writer,
-run the command above on current control and publish its selection and
-attribute edits. The live `.gitattributes` retains the old rule until adoption;
+After upgrading every writer, run the command above on current control and
+publish its selection and attribute edits. The live `.gitattributes` retains
+the old rule until adoption;
 remove its transitional exception once the physical rule matches the package.
 Do not enable a job before its compatible implementation is installed.
 Rollback likewise requires a compatible wheel/repo pair; do not restore old
