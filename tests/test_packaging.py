@@ -382,7 +382,7 @@ def test_inventory_rejects_a_deleted_package_owner(tmp_path: Path, monkeypatch: 
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     path = tmp_path / REQUIRED_RESOURCES_FILE
     path.parent.mkdir(parents=True)
-    path.write_text(f"{PACKAGED_ROOT}/bootstrap/skills/gone/SKILL.md\n", encoding="utf-8")
+    path.write_text(f"{PACKAGED_ROOT.as_posix()}/bootstrap/skills/gone/SKILL.md\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="required package resource missing"):
         test_required_package_resources_exist()
 

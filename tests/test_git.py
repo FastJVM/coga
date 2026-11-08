@@ -4246,7 +4246,12 @@ def test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control(git_
 
     for topic in topics:
         assert _control(git_repo, topic) is None
-    assert _control(git_repo, "coga/recurring/phone-home/ticket.md").encode() == parent.read_bytes()
+    # Text-mode subprocess output normalizes CRLF; compare the actual Git bytes.
+    published = subprocess.run(
+        ["git", "show", "main:coga/recurring/phone-home/ticket.md"],
+        cwd=git_repo.origin, capture_output=True, check=True,
+    ).stdout
+    assert published == parent.read_bytes()
     for name in siblings:
         assert _control(git_repo, "coga/recurring/phone-home/" + name) is None
     assert "Cutover publication proof." in _control(git_repo, "coga/context.md")
@@ -4301,7 +4306,12 @@ def test_final_package_edits_never_escape_a_mutating_cli_sweep(git_repo, tmp_pat
     _package_publication_owner(git_repo, "zach")
 
     assert "owner: zach" in _control(git_repo, "coga/tasks/publication-proof.md")
-    assert _control(git_repo, "coga/recurring/phone-home/ticket.md").encode() == parent.read_bytes()
+    # Text-mode subprocess output normalizes CRLF; compare the actual Git bytes.
+    published = subprocess.run(
+        ["git", "show", "main:coga/recurring/phone-home/ticket.md"],
+        cwd=git_repo.origin, capture_output=True, check=True,
+    ).stdout
+    assert published == parent.read_bytes()
     assert _control(git_repo, "docs/contexts/coga-dev/publication-proof/SKILL.md") == context.read_text()
     assert "Local repo context proof." in _control(git_repo, "coga/context.md")
     assert git_repo.git("rev-parse", "origin/main:src/coga/resources").strip() == package_tree
