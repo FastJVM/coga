@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -345,8 +345,8 @@ Retained artifacts and logs: `/home/n/Code/codex/coga/.coga/rollouts/trim-log/3a
 
 ### Remaining gates
 
-Independent review is next. The native Windows full-suite receipt is still
-required before merge; saved harness records contain no provisioned host, and
+Current review receipts are recorded below under Peer review. The native
+Windows full-suite receipt is still required before merge; saved harness records contain no provisioned host, and
 this session allocated none. No Linux receipt is presented as Windows evidence.
 The owner replaces the deployment install after this launch exits and before
 merge or scheduler resumption. Rebuild the candidate wheel if review changes
@@ -362,18 +362,81 @@ union attribute, log history or cursor state.
 
 No other implementation finding remains open.
 
+## Peer review
+
+Direct Codex review **completed** on 2026-11-08, with **no must-fix findings**.
+Reviewed head `68bba9ef085a62965b2fd0f4c8648a812699ec6f` against base
+`8e536f3d389b9626c2638a57f15f8d7034f00fc8`. Implementation was also Codex, so this fresh
+session is recorded as **self-review** under the PR identity rubric; the
+configured peer role is not independent-review evidence. No implementation
+changes were needed. No nested review CLI or subagent was used.
+
+Preserved the projected ticket outside the repository and verified its bytes
+before clearing it for the required fetch/rebase. Rebased the implementation
+commit onto current main without conflicts, then restored and byte-compared
+the ticket. `git range-diff` confirms the implementation patch is unchanged.
+Main's intervening changes were this ticket's handoff and audit entries; the
+final fetch still found the same base. Pushed the rebased branch with
+`git push --force-with-lease origin coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f`;
+the remote moved from `3ac517d7abf78ca9ecb263090e1df096495d62ba` to the reviewed
+head. The six implementation paths remain committed; this ticket stays
+unstaged for launch's return/publication protocol.
+
+Reviewed the two-file installer output and preservation/refusal coverage,
+package-only definition/workflow discovery, exact log and retire attributes,
+first-use carrier validation and local-definition rejection, the committed
+state publication boundary, and adoption/recovery documentation. Package and
+seeded runbooks are identical. Remaining staging references are historical
+cutover task records or this ticket's Superseded designs, not operative
+instructions. The diff changes no terminal/pager/notification rendering, so
+no interactive-surface check applies.
+
+Verification on the reviewed head: focused suite **119 passed in 64.59s**;
+full local suite **4655 passed, 11 skipped in 734.34s**. Both used Python
+3.12.12 on Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic x86_64, with
+absolute checkout `PYTHONPATH`. Scoped ticket and seeded-fixture validation
+passed (1 and 5 tasks); `git diff --check origin/main...HEAD` passed. Exact
+commands and head/base receipts are in `## PR` below.
+
+The pristine wheel built from `68bba9ef085a62965b2fd0f4c8648a812699ec6f` has SHA-256
+`86e4c95bbef0225374621565d79efcfca8a239b795abb097195d9dd223c44105`, identical
+to the implementation candidate. A new isolated non-editable environment
+verified its import, implementation and five resource hashes, executable
+script and package workflow, Monday 04:00 repo scope with inactive runs,
+retention 30, log merge unset and retire merge union. Its installer invocation
+reported already installed/no changes. All 368 files under the Coga root
+were byte-preserved during installed verification. No parent/period was
+created and no maintenance, forced period or delivery was run. The separate
+deployment source remains clean at
+`76fb34a33858e9ce31334ef185e4efbc3624eb57`.
+
+Retained review logs, hashes, preimages, scripts, wheel and preparation:
+`/home/n/Code/codex/coga/.coga/rollouts/trim-log/68bba9ef085a62965b2fd0f4c8648a812699ec6f/peer-review`.
+Original execution scratch: `/tmp/coga-trim-log-peer-20261108-0lxewa0h`.
+
+Recommendation: **deep**. Completed code review is not merge approval. Native
+Windows full-suite evidence at this head is still required before merge;
+saved completed harness instances are terminated and no new instance was
+allocated. This Linux/Python 3.12 run is not Windows or Python 3.11 evidence.
+The owner must replace the deployment installation with the compatible
+non-editable wheel after this launch exits, recording source/hash and restart
+disposition before merge or scheduler resumption. Post-merge verification,
+resumption and owner completion remain on this ticket, with autoclose held;
+the mechanical `open-pr` step must not create follow-up drafts for them.
+
 ## PR
 
 ```yaml
 title: Activate packaged trim-log in this repository
 author: codex
-author_evidence: This implement session was executed by Codex; the recorded authorship is the actual session
-  identity.
-head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+author_evidence: The recorded implementation session was executed by Codex. This fresh Codex review session
+  made no implementation changes; its rebase preserved the patch exactly.
+head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
 depth: deep
-rationale: Audit-retention activation needs independent review; native Windows evidence and the deployment
-  upgrade remain pre-merge obligations.
+rationale: Audit-retention activation needs owner inspection. Direct Codex self-review completed with
+  no must-fix findings; native Windows full-suite evidence and the deployment wheel replacement remain
+  required before merge. This is not merge approval.
 implementation: Select the packaged weekly job and log merge attribute in one commit, remove the transitional
   packaging exception, accept validated first-use state, and update adoption documentation and the seeded
   runbook.
@@ -381,10 +444,13 @@ deviations: Owner approved the current two-file package-based, launch-managed pr
   The package cutover had already removed staging and its special test/link fallbacks. The deployment
   wheel replacement is deferred until this launch exits, before merge or scheduler resumption. Owner controls
   both users and handles their coordination.
-limitations: Deployment CLI remains editable; replace it with the compatible reviewed wheel before merge.
-  Native Windows full-suite evidence is pending. No production trim, forced period or telemetry delivery
-  was performed. Post-merge verification and resumption stay on this ticket under the explicit owner exception;
-  open-pr files no follow-up drafts for them.
+limitations: Native Windows full-suite evidence at the reviewed head is unavailable; saved harness instances
+  are terminated and no new instance was allocated. Deployment CLI remains editable and must be replaced
+  after this launch exits, before merge or scheduler resumption. Review is self-review under the identity
+  rubric, not independent. No production trim, forced period or telemetry delivery was performed. No terminal/Slack
+  rendering change requires interactive verification. Post-merge verification and resumption remain on
+  this ticket under the owner exception; open-pr files no follow-up drafts and autoclose stays stopped
+  until the disposition and owner completion.
 files:
   coga/.gitattributes: Adopt the package log -merge rule while preserving the retire-worklist union rule.
   coga/recurring/jobs.toml: Select the packaged trim-log job without changing other job selections.
@@ -397,80 +463,82 @@ files:
   tests/test_packaging.py: Remove the adopted attribute exception; verify selection/package fields and
     allow validated first-use trim-log state while rejecting definition copies.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Independent code review belongs to the next peer-review step; design approval is not code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: 'Direct Codex review completed on the rebased six-path diff with no must-fix findings. Reviewed
+    two-file adoption, package ownership and first-use state validation, installer refusal/idempotence
+    and installed-wheel regression coverage, clean committed state publication, and adoption/recovery
+    instructions. The implementer was also Codex; no independent review is claimed. This records completed
+    code review, not merge approval: native Windows evidence and deployment upgrade remain outstanding.'
 checks:
 - command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
-    -m pytest tests/test_packaging.py tests/test_trim_log.py tests/test_edge_distribution.py --basetemp=/tmp/coga-trim-log-rollout-20261108-0274abfd/focused-tmp
+    -m pytest tests/test_packaging.py tests/test_trim_log.py tests/test_edge_distribution.py --basetemp=/tmp/coga-trim-log-peer-20261108-0lxewa0h/focused-tmp
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: 119 passed in 79.47s; Pop!_OS 24.04 LTS, Linux x86_64, Python 3.12.12. Ran before commit; all
-    six implementation paths were byte-verified against the commit using tested-files.json.
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: 119 passed in 64.59s. Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic x86_64, Python 3.12.12.
+    Ran on the rebased committed head.
 - command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
-    -m pytest --basetemp=/tmp/coga-trim-log-rollout-20261108-0274abfd/full-tmp
+    -m pytest --basetemp=/tmp/coga-trim-log-peer-20261108-0lxewa0h/full-tmp
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: 4655 passed, 11 skipped in 888.95s (14m48s); Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic
-    x86_64, Python 3.12.12. Ran on this committed head.
-- command: env PIP_CACHE_DIR=/tmp/coga-trim-log-rollout-20261108-0274abfd/pip-cache /home/n/Code/codex/coga/.venv/bin/python
-    -m pip wheel --no-build-isolation --no-deps --wheel-dir /tmp/coga-trim-log-rollout-20261108-0274abfd/final-wheel
-    /tmp/coga-trim-log-rollout-20261108-0274abfd/source
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: 4655 passed, 11 skipped in 734.34s (12m14s). Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic
+    x86_64, Python 3.12.12. Ran on the rebased committed head; no implementation files changed during
+    or after the run. Native Windows and the Python 3.11 floor were not exercised by this Linux run.
+- command: env PIP_CACHE_DIR=/tmp/coga-trim-log-peer-20261108-0lxewa0h/pip-cache /home/n/Code/codex/coga/.venv/bin/python
+    -m pip wheel --no-build-isolation --no-deps --wheel-dir /tmp/coga-trim-log-peer-20261108-0lxewa0h/wheel
+    /tmp/coga-trim-log-peer-20261108-0lxewa0h/source
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: Built from a pristine scratch clone at 3ac517d7abf78ca9ecb263090e1df096495d62ba; coga-0.4.1-py3-none-any.whl
-    SHA-256 86e4c95bbef0225374621565d79efcfca8a239b795abb097195d9dd223c44105. Installed non-editably into
-    the isolated wheel-env; no deployment installation replaced.
-- command: env -u PYTHONPATH /tmp/coga-trim-log-rollout-20261108-0274abfd/wheel-env/bin/python -B /tmp/coga-trim-log-rollout-20261108-0274abfd/verify-adoption.py
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: Pristine scratch clone at the reviewed head; clean checkout verified before building. coga-0.4.1-py3-none-any.whl
+    SHA-256 86e4c95bbef0225374621565d79efcfca8a239b795abb097195d9dd223c44105, byte-identical to the implementation
+    candidate. Installed non-editably into isolated wheel-env; deployment unchanged.
+- command: env -u PYTHONPATH /tmp/coga-trim-log-peer-20261108-0lxewa0h/wheel-env/bin/python -B /tmp/coga-trim-log-peer-20261108-0lxewa0h/verify-installed.py
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: Installed module and all five package resources match source; executable script, packaged workflow/discovery,
-    Monday 04:00 repo schedule, run_when_inactive=true, retention 30, log merge unset, retire merge union.
-    Preserved 341 other Coga files including shared/local config, audit log, phone-home state and periods.
-    PST/PDT, no TZ override; no local trim-log definitions or period created.
-- command: env -u PYTHONPATH /tmp/coga-trim-log-rollout-20261108-0274abfd/wheel-env/bin/python -B -m coga_edge.trim_log
-    --install
-  status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: Final-wheel invocation reported already installed; no changes. Initial wheel adoption changed
-    only recurring/jobs.toml and .gitattributes, and its second invocation was also a no-op; see adoption.json
-    for source and wheel receipts.
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: Python 3.12.12. Verified launcher shebang interpreter and non-editable site-packages import,
+    implementation bytes and five package resources, executable script and packaged workflow, Monday 04:00
+    repo schedule with run_when_inactive=true, retention 30, log merge unset, retire-worklist merge union,
+    PST/PDT and no TZ override. Script also invoked the installed module with exact --install; reported
+    already installed/no changes. All 368 files under the Coga root preserved, including shared/local
+    config, audit log, phone-home state and periods; no trim-log parent or period created. Hashes and
+    command output retained in installed-verification.json.
 - command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
     -m coga.cli validate --task commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: 1 valid task; no issues or fixes.
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: 1 valid task; no issues or fixes. Python 3.12.12 on Pop!_OS 24.04 LTS.
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
     -m coga.cli validate --json
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: '5 valid tasks; no issues or fixes. Working directory: /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga.'
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: '5 valid tasks; no issues or fixes. Python 3.12.12 on Pop!_OS 24.04 LTS. Working directory:
+    /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga.'
 - command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
     -m coga.cli recurring list
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: Read-only discovery reports bundled trim-log, 0 4 * * 1, due and not created; no recurring sweep
-    run.
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: Read-only discovery resolves bundled trim-log, 0 4 * * 1, due and not created. No recurring
+    sweep executed.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
-  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
-  detail: Passed; the committed six-path change has no whitespace errors.
-- command: Native Windows full suite at the final reviewed head via scripts/clean-install/aws-windows.sh
+  head: 68bba9ef085a62965b2fd0f4c8648a812699ec6f
+  base: 8e536f3d389b9626c2638a57f15f8d7034f00fc8
+  detail: Six-path committed diff has no whitespace errors.
+- command: Native Windows full suite at the reviewed head via scripts/clean-install/aws-windows.sh
   status: not-run
-  detail: 'No provisioned Windows host in this checkout''s saved harness records: completed instances
-    are recorded terminated; other entries have no instance. No new EC2 allocation was made. Native Windows
-    evidence remains required before merge under coga-dev/testing; the Linux receipt does not replace
-    it.'
+  detail: Not run. Saved harness lifecycle records show completed instances terminated; the other records
+    have no instance. No live cloud query or new allocation performed. Required before merge under coga-dev/testing;
+    Linux evidence and older unrelated Windows receipts do not replace it.
 ```
 
 ## Superseded designs
