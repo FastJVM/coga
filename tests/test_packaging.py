@@ -157,18 +157,16 @@ STATE_CARRIER_COUNTERPARTS = {
     "coga/recurring/phone-home/ticket.md": "complete movement cursor, counters, identity and unrelated blackboard state",
     "coga/recurring/resolve-conflicts/ticket.md": "saved parent blackboard, independent of its delegated definition",
     "coga/recurring/skill-update/ticket.md": "saved cross-run state and notes",
+    "coga/recurring/trim-log/ticket.md": "state carrier created on the adopted job's first admitted run",
 }
+# Newly adopted jobs need no eager parent file; first use creates their state.
+LAZY_STATE_CARRIER_COUNTERPARTS = frozenset({"coga/recurring/trim-log/ticket.md"})
 # A future reviewed local fork must explain every counterpart it retains.
 LOCAL_DEFINITION_OVERRIDES: dict[str, str] = {}
 
 # Only physical scaffolds may differ from their seed without being a fork.
 # Stale explanations fail, including an exception whose file was deleted.
 INTENTIONALLY_DIVERGENT_TWINS = {
-    "coga/.gitattributes": (
-        "Audit retention has not been adopted here: preserve the existing log "
-        "union rule until the explicit trim-log installer updates the physical "
-        "attribute and selects that job. Definition cutover does not enable it."
-    ),
     "coga/.gitignore": "init wraps the seed in the repo's coga-managed markers",
     "coga/coga.toml": "this repo's real owner, agents and notification configuration",
     "coga/context.md": "this repository's context rather than the fresh-repo stub",
@@ -282,6 +280,24 @@ def test_package_definitions_have_no_unapproved_live_counterparts() -> None:
     assert _ownership_problems() == []
 
 
+def test_repo_selects_packaged_trim_log() -> None:
+    from datetime import datetime
+
+    from coga.recurring import Template
+
+    jobs = tomllib.loads((REPO_ROOT / "coga/recurring/jobs.toml").read_text(encoding="utf-8"))
+    assert jobs["jobs"]["trim-log"] is True
+    definition = REPO_ROOT / PACKAGED_ROOT / "recurring/trim-log"
+    for name in ("ticket.md", "ticket.py", "operations.md"):
+        assert (definition / name).is_file(), name
+    template = Template.load(definition, now=datetime(2026, 11, 8))
+    assert template.frontmatter["schedule"] == "0 4 * * 1"
+    assert template.frontmatter["scope"] == "repo"
+    assert template.frontmatter["run_when_inactive"] is True
+    assert template.frontmatter["workflow"] == "trim-log/run"
+    assert (REPO_ROOT / PACKAGED_ROOT / "bootstrap/workflows/trim-log/run.md").is_file()
+
+
 def test_required_package_resources_exist() -> None:
     required = _read_required_resources()
     assert required
@@ -296,6 +312,7 @@ def test_required_package_resources_exist() -> None:
 def test_live_counterpart_exceptions_stay_real_and_explained() -> None:
     twins = dict(_discover_live_packaged_twins())
     seen = set()
+    assert LAZY_STATE_CARRIER_COUNTERPARTS <= STATE_CARRIER_COUNTERPARTS.keys()
     for exceptions in (SCAFFOLD_COUNTERPARTS, STATE_CARRIER_COUNTERPARTS, LOCAL_DEFINITION_OVERRIDES):
         for live, reason in exceptions.items():
             assert live not in seen, f"duplicate ownership exception: {live}"
@@ -303,6 +320,8 @@ def test_live_counterpart_exceptions_stay_real_and_explained() -> None:
             assert reason.strip(), f"{live} needs a reason"
             candidates = _carrier_counterparts(live) if exceptions is STATE_CARRIER_COUNTERPARTS else (live,)
             present = [name for name in candidates if name in twins]
+            if not present and exceptions is STATE_CARRIER_COUNTERPARTS and live in LAZY_STATE_CARRIER_COUNTERPARTS:
+                continue
             assert present, f"stale ownership exception: {live}"
             assert len(present) == 1, f"ambiguous active/parked state: {live}"
             path = REPO_ROOT / present[0]
@@ -374,6 +393,22 @@ def test_ownership_rejects_a_parked_definition(tmp_path: Path, monkeypatch: pyte
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("same definition\n", encoding="utf-8")
     assert "unapproved live counterpart coga/recurring/_new-job/ticket.md" in _ownership_problems()[0]
+
+
+def test_ownership_accepts_trim_log_first_use_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from coga.recurring_state import render_carrier
+
+    packaged = tmp_path / PACKAGED_ROOT / "recurring/trim-log/ticket.md"
+    packaged.parent.mkdir(parents=True)
+    packaged.write_bytes((REPO_ROOT / PACKAGED_ROOT / "recurring/trim-log/ticket.md").read_bytes())
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    assert _ownership_problems() == []
+    parent = tmp_path / "coga/recurring/trim-log/ticket.md"
+    parent.parent.mkdir(parents=True)
+    parent.write_text(render_carrier("\n\nfirst-use state\n"), encoding="utf-8")
+    assert _ownership_problems() == []
+    parent.write_bytes(packaged.read_bytes())
+    assert "expected state-only carrier" in _ownership_problems()[0]
 
 
 def test_inventory_rejects_a_deleted_package_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

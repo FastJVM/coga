@@ -7,3 +7,4 @@ dream = true
 phone-home = true
 resolve-conflicts = true
 skill-update = true
+trim-log = true
