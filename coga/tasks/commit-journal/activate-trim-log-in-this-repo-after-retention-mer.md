@@ -420,6 +420,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f
+
 
 ## Implementation entry check — 2026-11-03
 
