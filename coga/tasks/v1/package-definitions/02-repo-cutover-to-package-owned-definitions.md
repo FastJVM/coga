@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 contexts:
 - coga-dev/principles
@@ -505,6 +505,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
   termination and no remaining tagged volumes or other run resources. The
   first sandboxed teardown needed an AWS SSO cache refresh; the approved
   escalated retry completed normally. Receipts stay in ignored harness evidence.
+
+## Open-PR step (2026-11-08)
+
+- `coga open-pr` opened PR #1190 at head `d6550dae` (3 commits ahead of
+  main; non-overlapping task/log drift only). The owner chose to keep the
+  native Windows full-suite gate on this ticket, with no separate draft. The
+  PR body's limitations name it. **Do not merge #1190 until that receipt
+  exists.**
 
 ## Current handoff
 
