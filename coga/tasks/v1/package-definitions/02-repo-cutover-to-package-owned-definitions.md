@@ -1,6 +1,6 @@
 ---
 title: 02 Repo cutover to package-owned definitions
-status: blocked
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -223,8 +223,40 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/v1-package-definitions-02-repo-cutover-to-packag-b5fd8f
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Migration attempt (2026-11-07)
+
+- Human confirmed all participating clients include Stage A, approved the
+  backed-up staged migration, and confirmed other recurring sessions/state
+  writers are paused. Process inspection here exposes only the sandbox's
+  namespace; the host-wide pause is the human's confirmation.
+- Stage A PR #1159 merged as `bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019`.
+  Both this checkout and the installed editable CLI at `/home/n/Code/coga`
+  contain that merge. Both dependency asks were resolved with `coga unblock`.
+- Recomputed inventory: 102 entries (including staged rollout files), all
+  present and matching current package definitions or the reviewed Stage A
+  hashes. No ambiguous/custom bundled definitions found. Eight active bundled
+  parents will retain their entire blackboards as carriers. `trim-log` remains
+  unselected; `usage-report` and `upstream-coga` remain repo-only. All four
+  saved recurring periods are done; no unfinished frozen attachment dependency.
+- Verified local backup: `.coga/migrations/package-definitions-20261107/`
+  contains the inventory/hash manifest, every legacy file, complete recurring
+  directories and frozen periods, audit log, attribute scaffold, and both
+  participating local checkouts' clone ledgers. Preserve it through rollout.
+- Baseline control `cbe04a90713023aa81ea3d58b1b9cf0f0c3ba5cc`, tested from
+  `/tmp/coga-stage-b-w2qqi_h7/control-check` with its own imports:
+  `PYTHONPATH=/tmp/coga-stage-b-w2qqi_h7/control-check/src /home/n/Code/codex/coga/.venv/bin/python -m pytest -q tests/test_packaging.py tests/test_paths.py tests/test_recurring_state.py tests/test_recurring_shims.py tests/test_init.py -p no:cacheprovider --basetemp=/tmp/coga-stage-b-w2qqi_h7/baseline-tests`
+  passed 252 tests in 13.00s (Python 3.12.12).
+- Current publication contract has advanced since the group design snapshot:
+  committed recurring files wait for merge; dirty recurring changes still
+  publish. Migration uses ordinary dirty-state publication; regression coverage
+  will preserve the newer committed-file boundary, not weaken it.
 
 ## Dependency check (2026-11-03)
 
@@ -240,9 +272,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
+- [x] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
+  resolved: [2026-11-07 17:10] [human:nicktoper] Human confirmed all participating checkouts use Stage A or newer, recurring sessions and state writers can be paused, and both dependency asks may be cleared. PR #1159 merged as bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019 and its ticket is done on control. Both this feature checkout and the installed editable CLI from /home/n/Code/coga include Stage A. Proceed with the backed-up staged migration and rollback rehearsal, preserving complete state and ambiguous customizations.
 
-- [ ] [2026-11-03 15:14] [agent:claude] id=20261103T151432 Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.
+- [x] [2026-11-03 15:14] [agent:claude] id=20261103T151432 Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.
+  resolved: [2026-11-07 17:10] [human:nicktoper] Human confirmed all participating checkouts use Stage A or newer, recurring sessions and state writers can be paused, and both dependency asks may be cleared. PR #1159 merged as bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019 and its ticket is done on control. Both this feature checkout and the installed editable CLI from /home/n/Code/coga include Stage A. Proceed with the backed-up staged migration and rollback rehearsal, preserving complete state and ambiguous customizations.
 
 ---
 
