@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 ---
 
@@ -288,6 +288,32 @@ ordinary ticket.
 
 pr: https://github.com/FastJVM/coga/pull/1191
 branch: coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f
+
+## Open PR — 2026-11-08
+
+`coga open-pr commit-journal/activate-trim-log-in-this-repo-after-retention-mer`
+completed successfully from clean, current `main` and recorded
+[PR #1191](https://github.com/FastJVM/coga/pull/1191) under Dev. Verified that
+the PR record published to control, the PR is open and targets `main`, and
+its head is the reviewed `68bba9ef085a62965b2fd0f4c8648a812699ec6f`.
+GitHub reports it mergeable. The generated presentation retains the deep
+recommendation, explicit self-review identity, actual receipts and outstanding
+merge gates.
+
+Fresh control before publication was `b576d62138d1f0e8c2a9f8ff21c32dd93e95c72d`.
+Only this ticket and the audit log had advanced since the reviewed base
+`8e536f3d389b9626c2638a57f15f8d7034f00fc8`; the command accepted that
+non-overlapping generated state. The six-file implementation diff and reviewed
+head are unchanged. `git diff --check origin/main...coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f`
+passed; no implementation tests were rerun in this mechanical publication step.
+
+Direct review is recorded as completed with no must-fix findings. Native
+Windows full-suite evidence and the deployment replacement with the compatible
+non-editable wheel, including revision/hash and restart disposition, remain
+required before merge. Fresh merged-control verification, writer/scheduler
+resumption and owner completion remain here under the explicit exception;
+no follow-up drafts were created. Keep autoclose stopped through that record
+and owner completion. Deployment and schedulers were not changed by this step.
 
 ## Implementation — 2026-11-08
 
