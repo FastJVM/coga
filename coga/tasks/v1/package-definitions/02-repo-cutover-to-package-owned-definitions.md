@@ -227,6 +227,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1190
 branch: coga/v1-package-definitions-02-repo-cutover-to-packag-b5fd8f
 
 
