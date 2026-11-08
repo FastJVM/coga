@@ -1333,3 +1333,12 @@ checks:
       Ctrl+C passthrough, SSH hang-up without orphans, DWORD 0xC0000005/0xC000013A/7 via coga.exe and
       python -m coga.cli. Later commits changed tests and Git maintenance env only.
 ```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/14-interactive-coga-launch-on-native-windows`
+Recorded: 2026-11-08T03:30:32+00:00
+
+    Branch 'coga/v1-14-interactive-coga-launch-on-native-windows-e8b518' is not safe to publish. refs/heads/coga/v1-14-interactive-coga-launch-on-native-windows-e8b518 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/skills/coga/testing/clean-install/windows-aws/SKILL.md, docs/contexts/coga/checkouts/SKILL.md, docs/contexts/coga/checkouts/launch-boundary/SKILL.md, docs/contexts/coga/first-task/SKILL.md, docs/contexts/coga/launch/SKILL.md, docs/contexts/coga/recurring/scheduling/SKILL.md, docs/contexts/coga/script-tickets/SKILL.md, docs/contexts/coga/tickets/authoring/SKILL.md. Reconcile it and relaunch, or `coga block --task v1/14-interactive-coga-launch-on-native-windows`.
