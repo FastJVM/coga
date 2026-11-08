@@ -244,9 +244,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
+- [x] [2026-11-03 13:33] [agent:claude] id=20261103T133331 Waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: stage A is blocked at peer-review and not merged to control. Per this ticket's Dependency section, stage B cannot start until A is merged and every participating checkout's CLI is A or newer.
+  resolved: [2026-11-07 17:10] [human:nicktoper] Human confirmed all participating checkouts use Stage A or newer, recurring sessions and state writers can be paused, and both dependency asks may be cleared. PR #1159 merged as bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019 and its ticket is done on control. Both this feature checkout and the installed editable CLI from /home/n/Code/coga include Stage A. Proceed with the backed-up staged migration and rollback rehearsal, preserving complete state and ambiguous customizations.
 
-- [ ] [2026-11-03 15:14] [agent:claude] id=20261103T151432 Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.
+- [x] [2026-11-03 15:14] [agent:claude] id=20261103T151432 Still waiting on v1/package-definitions/01-runtime-compatibility-for-package-owned-definit: it is at the owner review step and its PR https://github.com/FastJVM/coga/pull/1159 is open and unmerged. Stage B cannot start until A is merged to control and every participating checkout's CLI is A or newer. Merge #1159 to unblock.
+  resolved: [2026-11-07 17:10] [human:nicktoper] Human confirmed all participating checkouts use Stage A or newer, recurring sessions and state writers can be paused, and both dependency asks may be cleared. PR #1159 merged as bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019 and its ticket is done on control. Both this feature checkout and the installed editable CLI from /home/n/Code/coga include Stage A. Proceed with the backed-up staged migration and rollback rehearsal, preserving complete state and ambiguous customizations.
 
 ---
 
