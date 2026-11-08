@@ -1,0 +1,9 @@
+[jobs]
+address-pr-comments = true
+autoclose-merged = true
+blocker-reminders = true
+branch-sweep = true
+dream = true
+phone-home = true
+resolve-conflicts = true
+skill-update = true
