@@ -223,6 +223,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: coga/v1-package-definitions-02-repo-cutover-to-packag-b5fd8f
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
