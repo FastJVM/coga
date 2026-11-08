@@ -34,11 +34,456 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
 ## Description
+
+Enable audit retention in this repository using the current package-owned
+trim-log definition. The owner approved the revised procedure on 2026-11-08
+and controls both users; the owner coordinates their upgrade and resumption.
+The current installer changes only `coga/recurring/jobs.toml` and
+`coga/.gitattributes`. Definitions and the workflow resolve from the package.
+The earlier five-live-file and manual-only plan is retained under
+`## Superseded designs` on the blackboard.
+
+### Acceptance criteria
+
+- [x] Fresh control contains PR #1129's merged retention implementation
+  (`42d1b30a47e30bb642f9e610d950681acdacd595`) and the package-definition
+  cutover, verified by ancestry and source/resource inspection.
+- [x] A non-editable wheel from a recorded source revision and SHA-256 is used
+  to capture the installer output on the implementation branch. Only the job
+  selection and log attribute change; a second invocation is a no-op.
+  Configuration bytes and effective retention (currently the implicit 30-day
+  default), unrelated selections/attributes, phone-home state and periods are
+  preserved. Explicit retention `0` and disabled or parked jobs remain
+  protected by the existing installer refusal tests.
+- [ ] One reviewed PR merges selection and attribute adoption with removal of
+  the attribute exception and obsolete rollout instructions. The package
+  remains the sole definition owner. Packaging checks explicitly cover the
+  selected job and permit its validated state carrier after first use.
+- [ ] Control reports `coga/log.md: merge: unset`; the retire-worklist attribute
+  remains `union`. Read-only discovery resolves packaged trim-log with
+  `0 4 * * 1`, repo scope, `run_when_inactive: true`, and `trim-log/run`.
+  Its package script and workflow exist, and its script is executable on
+  POSIX. No operative staging instructions remain outside archived history.
+- [ ] Focused packaging/retention/installed-wheel tests, the full local suite,
+  pristine wheel packaging, scoped ticket validation, seeded-fixture validation
+  and `git diff --check` pass on the final tested tree. Record exact commands,
+  interpreter/platform, counts, head/base revisions, and unavailable evidence.
+  Native Windows evidence required by `coga-dev/testing` remains a pre-merge
+  obligation; there is no hosted test CI.
+- [ ] After this launch exits and before merge or scheduler resumption, the
+  owner replaces the deployment installation behind `~/.local/bin/coga` with
+  the compatible non-editable wheel and records revision/hash and restart
+  disposition. Fresh merged control is verified before releasing schedulers.
+  Autoclose stays off through the resumption record and owner completion.
+  No production trim, forced period, telemetry delivery, or manual log/cursor
+  rewrite is used as proof.
+
+### Approved implementation and publication
+
+1. Use launch's prepared branch and return protocol. Keep the separate editable
+   deployment source `/home/n/Code/coga` unchanged during implementation.
+   Build an isolated wheel from fresh control, verify imports/resources and
+   hash, then use its launcher's resolved interpreter to run
+   `python -m coga_edge.trim_log --install` on this branch. Snapshot target
+   preimages and config/state hashes outside the Coga roots and verify the
+   exact two-file change and second-run idempotence.
+2. Remove the `coga/.gitattributes` packaging divergence exception; add explicit
+   selection/definition coverage and allow the first-use trim-log state carrier
+   without allowing local definitions. Update the packaging topic and packaged
+   runbook, and align the seeded runbook with that owner. Staging files and
+   their special tests/fallbacks were already removed by the package cutover.
+3. Test, commit the complete bundle, reconcile with main and push. Keep every
+   adoption, test and documentation edit committed before a Coga publication
+   or session handoff; dirty files inside the state roots can still publish
+   ahead of review. Write this ticket's handoff without committing it, then
+   bump once. Launch returns the checkout. Review and owner-assist sessions
+   may use the same managed procedure. Open the PR only at `open-pr`.
+4. The owner coordinates the two users, replaces the deployment wheel after
+   the current launch exits, and keeps excluded writers and schedulers from
+   running until compatible. Before merging, record that installation receipt
+   and obtain the required review/platform evidence. Merge the entire bundle,
+   verify fresh control and installed resources, then record which writers
+   resume or remain stopped. PST/PDT is the approved scheduler timezone; the
+   first ordinary sweep may service the latest past Monday immediately.
+
+The owner-approved post-merge exception remains: verification and resumption
+stay on this ticket; `open-pr` files no separate drafts for them. Autoclose
+remains stopped until the disposition is recorded and the owner completes the
+final gate. Existing exclusions remain in force; the abandoned Retro checkout
+is untouched. The implementation session does not replace its running CLI.
+
+### Verification and recovery
+
+Run focused `python -m pytest tests/test_packaging.py tests/test_trim_log.py
+ tests/test_edge_distribution.py`, followed by `python -m pytest`, with the
+checkout's test interpreter and absolute checkout `PYTHONPATH`. Build the wheel
+from a pristine scratch clone, which is not a production writer. Run
+`git diff --check`, `coga validate --task
+commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json`, and
+fixture validation from `tests/fixtures/seeded-repo/coga` with
+`SLACK_WEBHOOK_URL` unset. Use read-only recurring discovery, configuration
+loading and Git attribute inspection; no period needs to be materialized.
+
+Retain source revision, wheel hash, installer preimages and idempotence proof,
+configuration/state preservation, and final review/check receipts. After any
+runbook edit, use the wheel built from the matching reviewed tree when
+repeating installer checks. Recheck selection, packaged definitions,
+attributes and effective retention on merged control before resumption.
+
+Before merge, preserve the branch and operation-owned edits if interrupted;
+resolve refusals without overwriting customizations. After merge, stop affected
+writers and use a reviewed forward repair with a compatible wheel/repo pair.
+Never restore the old union attribute, downgrade to a pre-retention writer,
+roll back log/cursor state, delete mutation receipts, or replay transitions.
+The persistent trim-log runbook owns detailed recovery.
+
+### Out of scope
+
+Retention algorithm/policy changes, configuration edits, other repositories,
+unreviewed forks, unrelated checkout/task cleanup, hosted CI changes, manual
+log/cursor edits and production maintenance or delivery tests.
+
+## Context
+
+### Current installer and package ownership
+
+Read the packaged trim-log runbook at
+`src/coga/resources/templates/coga/recurring/trim-log/operations.md`,
+"Adoption after the compatible wheel upgrade" and recovery sections.
+`src/coga_edge/trim_log.py`, `install`, validates legacy overrides and the
+complete plan before writing only the selection and attribute;
+`_attribute_plan` verifies effective attributes using a temporary index.
+`main` routes exact `--install` without maintenance, reporting, or bumping.
+`_phone_compatible` checks phone-home cursor/shim compatibility during
+maintenance; installer success alone does not certify a custom fork.
+
+`coga/edge-code/edge-code-upgrades.md` under packaged
+`bootstrap/contexts/` owns the `migration:interpreter` command. Preserve the
+launcher shebang's interpreter environment, not the resolved base Python.
+`docs/contexts/coga-dev/packaging/SKILL.md`, "Package ownership and repo state"
+and "Wheel packaging", owns the one-definition inventory and pristine build.
+`tests/test_packaging.py`, `_ownership_problems` and
+`test_live_counterpart_exceptions_stay_real_and_explained`, reject local
+copies and stale exceptions. First-use state is separately validated by
+`src/coga/recurring_state.py`, `inspect_parent_dir`.
+
+### Publication and read-only verification
+
+Read `coga/state-publication`, "Control versus feature checkouts", from
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md`.
+`src/coga/git.py`, `_publish_locked` and `_routine_state_areas`, retain clean
+committed recurring/configuration/knowledge edits on feature branches until
+merge; dirty state-root files still publish. This current guard replaces the
+old manual-only publication workaround. `coga/checkouts` and its reconciliation
+leaf own branch handoffs and preserving the projected ticket during rebases.
+
+`src/coga/recurring.py`, `list_templates` and `Template.load`, provide read-only
+discovery and template fields. `ensure_template_state` creates the package-backed
+parent carrier only on an admitted execution, so adoption does not need a live
+parent. `src/coga/config.py`, `load_config` and `_parse_log`, preserve explicit
+retention `0` and supply 30 when the setting is absent. The packaged
+`coga/recurring/scheduling` topic, "Periods and the serviced-period ledger",
+owns first-sweep catch-up.
+
+`docs/contexts/coga-dev/testing/SKILL.md`, "Which code you are actually testing"
+and "Verification tiers and receipts", owns interpreter and platform evidence.
+`tests/test_trim_log.py`, `test_install_idempotence_and_exact_allowlist`, and
+`tests/test_edge_distribution.py`,
+`test_installed_trim_log_adoption_and_headless_period` and
+`test_documented_trim_adoption_uses_resolved_interpreter`, cover the installed
+adoption path and opt-out without production execution.
+
+<!-- Ticket guide — keep this comment when filling in or updating the ticket.
+It documents field shapes; these are examples, not values to copy into every
+ticket. Omit optional fields and sections until needed. Editing rules come
+from the base prompt; body regions from coga/tickets; blackboard conventions
+(superseded designs, draft cleanup, oversized notes) from coga/blackboard.
+Write requirements under ### subheadings of Description or Context; any other
+level-two heading above the fence does not reach the launch prompt.
+
+FRONTMATTER
+The real values are in this ticket's YAML header. Required ordinary-ticket
+keys are title, status, owner, and workflow. A minimal draft has workflow: null.
+
+    title: Fix retry diagnostics           # What the work is called; identity comes from the file path.
+    status: draft                          # CLI state: draft, active, in_progress, paused, blocked, done, canceled.
+    owner: human-name                      # Accountable human; receives notifications and owner gates.
+    agent: codex                           # Optional configured main agent; activation supplies the default if absent.
+    contexts:                              # Optional facts to include in every launch; attach only what is needed.
+      - service/retries
+    skills:                                # Optional ticket-wide procedures, in addition to workflow step skills.
+      - infra/testing-conventions
+    workflow: code/with-review             # Draft reference or null; live tickets have the frozen mapping below.
+    secrets:                               # Optional environment names mapped to references, never credentials.
+      - API_TOKEN: env:LOCAL_API_TOKEN
+      - SERVICE_KEY: op://automation-vault/service/api-key
+
+The agent choice is not the current operator or the ticket interviewer.
+Omit empty contexts, skills, and secrets lists. Each secrets entry has exactly
+one unique name (no COGA_ prefix); env: reads the operator's environment and
+op:// reads a 1Password item at launch, exposing the value under the left-hand
+name. An unavailable reference prevents launch. Never put a literal secret here.
+
+A workflow must be selected before activation. Creation with --workflow, or
+activation of a draft reference, freezes its steps. CLI transitions manage step;
+do not rewrite a live snapshot or advance it by editing YAML. Frozen example:
+
+    workflow:
+      name: code/with-review                # Selected workflow name.
+      steps:
+        - name: implement                  # Ordered step name.
+          skills:                          # Optional procedures for this step; plural, never skill.
+            - code/implement
+          assignee: agent                  # Role: owner, agent, or other-agent (the configured peer).
+          requires: branch                 # Optional completion gate: branch or pr.
+    step: 1 (implement)                    # One-based position plus name; CLI removes this on completion.
+
+An omitted step assignee inherits the previous role; the first defaults to
+owner. The current step determines who holds the ticket. There is no top-level
+assignment field. Removed keys slug, human, assignee, and watchers are invalid.
+There is no execution-mode field: a sibling ticket.py supplies a script phase.
+
+Repo extensions are string fields declared under [ticket.fields.<name>] in
+coga.toml: description explains the field, values restricts its choices,
+default seeds it, and required prevents activation while it is empty. Actual
+values live below the extensions marker comment in the YAML header. Preserve
+them; do not invent extension fields or change their definitions in config.
+
+Machine-owned fields: delegate freezes a recurring parent's bootstrap/<name>
+target; period_generation identifies its materialized run. Both belong only on
+period tasks directly under tasks/recurring/. launch_generation is megalaunch's
+session claim. Preserve these fields; do not add or clear them yourself.
+
+BLACKBOARD (BELOW THE FENCE)
+Keep current decisions and their reasons, verification, next actions, and
+blockers here. Update current values in place instead of appending stale copies.
+
+Optional ## Dev: branch: <name> when created; pr: <full /pull/ URL> when opened;
+worktree: <path> only for a sandbox clone. One field per line, notes on separate
+lines, omit unknown values. For multiple owned branches, the first branch is
+the workflow branch.
+
+Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
+author, head/base OIDs, review depth, files, review, checks). Record only actual
+implementation and evidence, never placeholders; coga/pr-publication/
+preparation owns the fields and the publishing workflow the review rules.
+
+Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve
+blocker IDs, timestamps, actor names, resolved answers, and reminder fingerprints
+with last_reminded timestamps; use lifecycle commands to block or resolve them.
+
+Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
+template settings owned by coga/recurring/templates; do not add them to an
+ordinary ticket.
+-->
+
+<!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f
+
+## Implementation — 2026-11-08
+
+Implemented and pushed `3ac517d7abf78ca9ecb263090e1df096495d62ba` on the recorded branch. The final fetch found
+`origin/main` at `dbcd84b8572a6213f3cbc3fc9d626d680aa1512f` with both adoption targets still at their
+pre-adoption bytes. The bundle remains on the feature branch pending review;
+no PR was opened. Launch owns checkout return after the handoff.
+
+The owner approved the current two-file, managed-launch procedure and controls
+both current users and their coordination. `coga unblock` resolved the old ask
+before implementation. Existing exclusions, PST/PDT timezone, the autoclose
+hold, and the post-merge ownership exception remain in force. The rewritten
+body is the current contract; prior planning is retained under Superseded designs.
+
+### Change and verification
+
+- The isolated wheel installer selected trim-log and changed only the log
+  attribute. Its repeat was a no-op. Retention stays 30; the log uses `-merge`
+  and the retire worklist still uses `union`.
+- Removed the attribute packaging exception and updated the owning packaging
+  topic plus package/fixture runbooks. No live definition copies or period
+  were created. The staging tree and staging-only checks were already gone.
+- A regression check found that the first ordinary run's state carrier would
+  fail the package inventory. The narrowly named lazy carrier is now allowed
+  when absent and validated when present; local definition copies remain
+  forbidden. Both new tests failed before the fix and passed afterwards.
+- Focused suite: 119 passed in 79.47s. Full suite: 4655 passed, 11 skipped in
+  888.95s. Linux x86_64, Pop!_OS 24.04 LTS, Python 3.12.12. The committed bytes
+  were verified against the focused run; the full run tested this exact head.
+- Installed-wheel checks verified five package resources against source,
+  executable script, package workflow and read-only discovery, config/retention
+  and 341 preserved Coga files. No production maintenance or delivery ran.
+  Scoped validation passed (1 task); seeded validation passed (5 tasks).
+
+### Wheel and installation receipts
+
+Retained artifacts and logs: `/home/n/Code/codex/coga/.coga/rollouts/trim-log/3ac517d7abf78ca9ecb263090e1df096495d62ba`.
+
+- Initial capture wheel: source `dbcd84b8572a6213f3cbc3fc9d626d680aa1512f`,
+  SHA-256 `70e4f0e5cdcb153d76ced3478ed8af10fc39c7f391341fb0833d5ff7b4a69861` (`base-wheel/`).
+- Candidate final wheel: source `3ac517d7abf78ca9ecb263090e1df096495d62ba`,
+  SHA-256 `86e4c95bbef0225374621565d79efcfca8a239b795abb097195d9dd223c44105` (`final-wheel/coga-0.4.1-py3-none-any.whl`).
+- Isolated non-editable interpreter: `/tmp/coga-trim-log-rollout-20261108-0274abfd/wheel-env/bin/python` (Python 3.12.12).
+  `coga_edge.trim_log` imports from its site-packages, with source SHA-256
+  `aa5961dfc5319be344aac727b0862e8e4ad8cbbc768ce961123191a70ba78b14`. The final-wheel installer is a no-op too.
+- Existing deployment launcher `/home/n/.local/bin/coga` still resolves to
+  `/home/n/.local/share/uv/tools/coga/bin/python` (Python 3.14.4), editable from
+  `/home/n/Code/coga`. That checkout remained clean at
+  `76fb34a33858e9ce31334ef185e4efbc3624eb57`; its source fingerprints were rechecked unchanged.
+  No deployment replacement or scheduler restart is claimed.
+- Shared config SHA-256: `1d64d233bb7ba4fb8a810cf20bd1c1e3f448884b282fd0805311539cff8234e2`.
+  Local config SHA-256: `67b7f3c98f071a956ad4a2ff5d4b96debdf34f5d001213dce981430a9ad1de23`.
+  Per-file pre/post hashes, resource hashes, preimages and command output are
+  in `adoption.json`, `verification.json` and the retained logs. Original
+  capture preimages remain at `/tmp/coga-trim-log-rollout-20261108-0274abfd/preimages`.
+
+### Remaining gates
+
+Independent review is next. The native Windows full-suite receipt is still
+required before merge; saved harness records contain no provisioned host, and
+this session allocated none. No Linux receipt is presented as Windows evidence.
+The owner replaces the deployment install after this launch exits and before
+merge or scheduler resumption. Rebuild the candidate wheel if review changes
+its source/resources, and record the installed revision/hash and restart.
+
+After merge, verify fresh control's selection, package resources, attributes
+and preserved retention before the owner releases the two users/schedulers.
+Record who resumed or remains stopped, then complete the owner gate before
+releasing autoclose. The explicit exception keeps these obligations on this
+ticket; `open-pr` must not create follow-up drafts for them. Recovery uses a
+compatible reviewed wheel/repo pair and forward repair; do not restore the old
+union attribute, log history or cursor state.
+
+No other implementation finding remains open.
+
+## PR
+
+```yaml
+title: Activate packaged trim-log in this repository
+author: codex
+author_evidence: This implement session was executed by Codex; the recorded authorship is the actual session
+  identity.
+head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+depth: deep
+rationale: Audit-retention activation needs independent review; native Windows evidence and the deployment
+  upgrade remain pre-merge obligations.
+implementation: Select the packaged weekly job and log merge attribute in one commit, remove the transitional
+  packaging exception, accept validated first-use state, and update adoption documentation and the seeded
+  runbook.
+deviations: Owner approved the current two-file package-based, launch-managed procedure on 2026-11-08.
+  The package cutover had already removed staging and its special test/link fallbacks. The deployment
+  wheel replacement is deferred until this launch exits, before merge or scheduler resumption. Owner controls
+  both users and handles their coordination.
+limitations: Deployment CLI remains editable; replace it with the compatible reviewed wheel before merge.
+  Native Windows full-suite evidence is pending. No production trim, forced period or telemetry delivery
+  was performed. Post-merge verification and resumption stay on this ticket under the explicit owner exception;
+  open-pr files no follow-up drafts for them.
+files:
+  coga/.gitattributes: Adopt the package log -merge rule while preserving the retire-worklist union rule.
+  coga/recurring/jobs.toml: Select the packaged trim-log job without changing other job selections.
+  docs/contexts/coga-dev/packaging/SKILL.md: Describe this repository's adoption and its optional first-use
+    state carrier.
+  src/coga/resources/templates/coga/recurring/trim-log/operations.md: Document reviewed publication of
+    the two-file adoption without the obsolete source-repo attribute exception.
+  tests/fixtures/seeded-repo/coga/recurring/trim-log/operations.md: Align the seeded runbook with the
+    package owner and remove five-file staging instructions.
+  tests/test_packaging.py: Remove the adopted attribute exception; verify selection/package fields and
+    allow validated first-use trim-log state while rejecting definition copies.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Independent code review belongs to the next peer-review step; design approval is not code review.
+checks:
+- command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
+    -m pytest tests/test_packaging.py tests/test_trim_log.py tests/test_edge_distribution.py --basetemp=/tmp/coga-trim-log-rollout-20261108-0274abfd/focused-tmp
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: 119 passed in 79.47s; Pop!_OS 24.04 LTS, Linux x86_64, Python 3.12.12. Ran before commit; all
+    six implementation paths were byte-verified against the commit using tested-files.json.
+- command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
+    -m pytest --basetemp=/tmp/coga-trim-log-rollout-20261108-0274abfd/full-tmp
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: 4655 passed, 11 skipped in 888.95s (14m48s); Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic
+    x86_64, Python 3.12.12. Ran on this committed head.
+- command: env PIP_CACHE_DIR=/tmp/coga-trim-log-rollout-20261108-0274abfd/pip-cache /home/n/Code/codex/coga/.venv/bin/python
+    -m pip wheel --no-build-isolation --no-deps --wheel-dir /tmp/coga-trim-log-rollout-20261108-0274abfd/final-wheel
+    /tmp/coga-trim-log-rollout-20261108-0274abfd/source
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: Built from a pristine scratch clone at 3ac517d7abf78ca9ecb263090e1df096495d62ba; coga-0.4.1-py3-none-any.whl
+    SHA-256 86e4c95bbef0225374621565d79efcfca8a239b795abb097195d9dd223c44105. Installed non-editably into
+    the isolated wheel-env; no deployment installation replaced.
+- command: env -u PYTHONPATH /tmp/coga-trim-log-rollout-20261108-0274abfd/wheel-env/bin/python -B /tmp/coga-trim-log-rollout-20261108-0274abfd/verify-adoption.py
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: Installed module and all five package resources match source; executable script, packaged workflow/discovery,
+    Monday 04:00 repo schedule, run_when_inactive=true, retention 30, log merge unset, retire merge union.
+    Preserved 341 other Coga files including shared/local config, audit log, phone-home state and periods.
+    PST/PDT, no TZ override; no local trim-log definitions or period created.
+- command: env -u PYTHONPATH /tmp/coga-trim-log-rollout-20261108-0274abfd/wheel-env/bin/python -B -m coga_edge.trim_log
+    --install
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: Final-wheel invocation reported already installed; no changes. Initial wheel adoption changed
+    only recurring/jobs.toml and .gitattributes, and its second invocation was also a no-op; see adoption.json
+    for source and wheel receipts.
+- command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.cli validate --task commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: 1 valid task; no issues or fixes.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: '5 valid tasks; no issues or fixes. Working directory: /home/n/Code/codex/coga/tests/fixtures/seeded-repo/coga.'
+- command: env PYTHONPATH=/home/n/Code/codex/coga/src TERM=dumb /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.cli recurring list
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: Read-only discovery reports bundled trim-log, 0 4 * * 1, due and not created; no recurring sweep
+    run.
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 3ac517d7abf78ca9ecb263090e1df096495d62ba
+  base: dbcd84b8572a6213f3cbc3fc9d626d680aa1512f
+  detail: Passed; the committed six-path change has no whitespace errors.
+- command: Native Windows full suite at the final reviewed head via scripts/clean-install/aws-windows.sh
+  status: not-run
+  detail: 'No provisioned Windows host in this checkout''s saved harness records: completed instances
+    are recorded terminated; other entries have no instance. No new EC2 allocation was made. Native Windows
+    evidence remains required before merge under coga-dev/testing; the Linux receipt does not replace
+    it.'
+```
+
+## Superseded designs
+
+### 2026-11-08 — Five live artifacts and manual-only adoption
+
+Superseded by: the owner-approved package selection and managed-branch procedure.
+Reason: the package cutover removed live definitions and staging, and current
+publication guards keep committed feature-branch recurring files from control.
+The owner permits deployment-wheel replacement after this launch but before
+merge or scheduler resumption and controls both current users.
+
+#### Description
 
 Activate audit retention in this repository after the compatible implementation
 from PR #1129 reaches current main; that PR closes
@@ -54,7 +499,7 @@ artifacts match their packaged copies, and the cleanup has merged with the
 required checks passing. Do not trim the live log manually or force a
 production maintenance run to demonstrate activation.
 
-### Acceptance criteria
+##### Acceptance criteria
 
 - [ ] Fresh `origin/main` contains PR #1129's merged implementation, verified
   by ancestry and the installed sources/resources, not the old branch name or
@@ -95,7 +540,7 @@ production maintenance run to demonstrate activation.
   resumed or remain stopped. No live log/cursor rewrite, forced period,
   production trim or phone-home delivery is used as activation proof.
 
-### Proposed shape
+##### Proposed shape
 
 **Publication decision: one adoption-and-cleanup PR, using manual code steps.**
 Do not publish installer output separately. A normal launched handoff on the
@@ -188,7 +633,7 @@ The cleanup edits are bounded:
   and packaged twins together. Historical notes in other task blackboards
   are evidence, not instructions to rewrite for this rollout.
 
-### Verification and recovery
+##### Verification and recovery
 
 During implementation, run focused
 `python -m pytest tests/test_packaging.py tests/test_trim_log.py tests/test_edge_distribution.py`,
@@ -225,7 +670,7 @@ as a shortcut, and never roll back audit history, cursor identity/counters or
 lifecycle state. Retained trim receipts and native Git conflicts use the
 runbook's recovery sections; do not delete receipts or replay transitions.
 
-### Out of scope
+##### Out of scope
 
 Retention-policy/algorithm changes, core installer/publication redesign,
 configuration edits, other repositories, migration of unreviewed forks,
@@ -234,9 +679,9 @@ rewrites and production maintenance/delivery tests. This design step writes
 only the ticket; it does not install a wheel, stop a writer, enable files,
 create a branch, or open a PR.
 
-## Context
+#### Context
 
-### Rollout plan and prerequisite
+##### Rollout plan and prerequisite
 
 [PR #1129](https://github.com/FastJVM/coga/pull/1129) merged at
 2026-10-28T22:57:03Z as `42d1b30a47e30bb642f9e610d950681acdacd595`.
@@ -254,7 +699,7 @@ Read `coga/checkouts/manual` (`docs/contexts/coga/checkouts/manual/SKILL.md`),
 "Procedure" and "Publish pre-branch ticket edits", for the manual code-step
 handoffs selected above. This topic is cited rather than attached.
 
-### Runbook and installer
+##### Runbook and installer
 
 Required read: `coga/recurring/trim-log/operations.md`, "Adoption after the
 compatible wheel upgrade" and recovery sections; before adoption it lives at
@@ -280,7 +725,7 @@ wheel's resources, not an arbitrary source checkout, define idempotence.
 phone-home shims during maintenance, not installation: a successful installer
 does not prove that a custom phone-home fork is ready.
 
-### Publication, cleanup and proof
+##### Publication, cleanup and proof
 
 Coordinate adoption with removal of `rollout/trim-log/` and the
 `coga/.gitattributes` exception in `tests/test_packaging.py`,
@@ -335,97 +780,7 @@ resources and opt-out preservation in isolated fixtures, and
 `test_documented_trim_adoption_uses_resolved_interpreter` exercises the
 documented command. Keep these relationships intact during cleanup.
 
-<!-- Ticket guide — keep this comment when filling in or updating the ticket.
-It documents field shapes; these are examples, not values to copy into every
-ticket. Omit optional fields and sections until needed. Editing rules come
-from the base prompt; body regions from coga/tickets; blackboard conventions
-(superseded designs, draft cleanup, oversized notes) from coga/blackboard.
-Write requirements under ### subheadings of Description or Context; any other
-level-two heading above the fence does not reach the launch prompt.
-
-FRONTMATTER
-The real values are in this ticket's YAML header. Required ordinary-ticket
-keys are title, status, owner, and workflow. A minimal draft has workflow: null.
-
-    title: Fix retry diagnostics           # What the work is called; identity comes from the file path.
-    status: draft                          # CLI state: draft, active, in_progress, paused, blocked, done, canceled.
-    owner: human-name                      # Accountable human; receives notifications and owner gates.
-    agent: codex                           # Optional configured main agent; activation supplies the default if absent.
-    contexts:                              # Optional facts to include in every launch; attach only what is needed.
-      - service/retries
-    skills:                                # Optional ticket-wide procedures, in addition to workflow step skills.
-      - infra/testing-conventions
-    workflow: code/with-review             # Draft reference or null; live tickets have the frozen mapping below.
-    secrets:                               # Optional environment names mapped to references, never credentials.
-      - API_TOKEN: env:LOCAL_API_TOKEN
-      - SERVICE_KEY: op://automation-vault/service/api-key
-
-The agent choice is not the current operator or the ticket interviewer.
-Omit empty contexts, skills, and secrets lists. Each secrets entry has exactly
-one unique name (no COGA_ prefix); env: reads the operator's environment and
-op:// reads a 1Password item at launch, exposing the value under the left-hand
-name. An unavailable reference prevents launch. Never put a literal secret here.
-
-A workflow must be selected before activation. Creation with --workflow, or
-activation of a draft reference, freezes its steps. CLI transitions manage step;
-do not rewrite a live snapshot or advance it by editing YAML. Frozen example:
-
-    workflow:
-      name: code/with-review                # Selected workflow name.
-      steps:
-        - name: implement                  # Ordered step name.
-          skills:                          # Optional procedures for this step; plural, never skill.
-            - code/implement
-          assignee: agent                  # Role: owner, agent, or other-agent (the configured peer).
-          requires: branch                 # Optional completion gate: branch or pr.
-    step: 1 (implement)                    # One-based position plus name; CLI removes this on completion.
-
-An omitted step assignee inherits the previous role; the first defaults to
-owner. The current step determines who holds the ticket. There is no top-level
-assignment field. Removed keys slug, human, assignee, and watchers are invalid.
-There is no execution-mode field: a sibling ticket.py supplies a script phase.
-
-Repo extensions are string fields declared under [ticket.fields.<name>] in
-coga.toml: description explains the field, values restricts its choices,
-default seeds it, and required prevents activation while it is empty. Actual
-values live below the extensions marker comment in the YAML header. Preserve
-them; do not invent extension fields or change their definitions in config.
-
-Machine-owned fields: delegate freezes a recurring parent's bootstrap/<name>
-target; period_generation identifies its materialized run. Both belong only on
-period tasks directly under tasks/recurring/. launch_generation is megalaunch's
-session claim. Preserve these fields; do not add or clear them yourself.
-
-BLACKBOARD (BELOW THE FENCE)
-Keep current decisions and their reasons, verification, next actions, and
-blockers here. Update current values in place instead of appending stale copies.
-
-Optional ## Dev: branch: <name> when created; pr: <full /pull/ URL> when opened;
-worktree: <path> only for a sandbox clone. One field per line, notes on separate
-lines, omit unknown values. For multiple owned branches, the first branch is
-the workflow branch.
-
-Optional ## PR: one fenced YAML mapping of PR-preparation receipts (title,
-author, head/base OIDs, review depth, files, review, checks). Record only actual
-implementation and evidence, never placeholders; coga/pr-publication/
-preparation owns the fields and the publishing workflow the review rules.
-
-Optional ## Blockers and ## Blocker reminders are CLI-maintained. Preserve
-blocker IDs, timestamps, actor names, resolved answers, and reminder fingerprints
-with last_reminded timestamps; use lifecycle commands to block or resolve them.
-
-Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
-template settings owned by coga/recurring/templates; do not add them to an
-ordinary ticket.
--->
-
-<!-- coga:blackboard -->
-## Dev
-
-branch: coga/commit-journal-activate-trim-log-in-this-repo-af-fb9f3f
-
-
-## Implementation entry check — 2026-11-03
+#### Implementation entry check — 2026-11-03
 
 Owner resolved both open asks this session (see `## Blockers`): sole
 participating writer is `~/.local/bin/coga`; every other clone/scheduler is
@@ -452,7 +807,7 @@ implement manually per the ticket's Proposed shape, steps 2–5. Nothing was
 installed, branched or changed in this session.
 
 
-## Implementation prerequisite check
+#### Implementation prerequisite check
 
 2026-10-29 PDT / 2026-10-30 UTC — Codex stopped at rollout prerequisites.
 The owner advanced `review-design` to `implement` in
@@ -516,7 +871,7 @@ staging files remain unchanged. Implementation tests and PR preparation are
 not claimed: rollout has not started. The queue handoff is `coga block`,
 keeping step 4 until the concrete missing inputs are recorded.
 
-## Design handoff
+#### Design handoff
 
 2026-10-28 local / 2026-10-29 UTC — Codex design investigation. No branch,
 code, installation, live activation or PR created. The spec selects one merged
@@ -538,7 +893,7 @@ Evidence at `1f67e8ad65e300b95313f5be1561b1b3641dd950`:
   parent or frozen phone-home period script was found in this checkout.
   State was not changed. Re-inventory at the maintenance window.
 
-## Writer inventory — partial, requires owner confirmation
+#### Writer inventory — partial, requires owner confirmation
 
 | Checkout / installation | Observed revision and state | Rollout disposition |
 | --- | --- | --- |
@@ -560,7 +915,7 @@ This environment reports PST/PDT with no `TZ` override; confirm the actual
 sweeper's timezone independently. No reviewed wheel artifact/hash has been
 selected or installed by this step.
 
-## Open Questions
+#### Open Questions
 
 For the owner at `review-design`, before any rollout work:
 
@@ -581,7 +936,7 @@ For the owner at `review-design`, before any rollout work:
    releasing schedulers and final task completion. Existing retention,
    including any opt-out found during recheck, remains unchanged.
 
-## Verification
+#### Verification
 
 - `coga validate --task commit-journal/activate-trim-log-in-this-repo-after-retention-mer --json`
   passed: one valid task, no fixes or issues.
@@ -597,7 +952,7 @@ For the owner at `review-design`, before any rollout work:
   claimed results. Next workflow step: independent `evaluate-design`, then
   the owner resolves Open Questions at `review-design`.
 
-## Evaluator review
+#### Evaluator review
 
 2026-10-28 local / 2026-10-29 UTC — Codex cold review completed against
 `f586061627a159b037c3aa5b3cfb6ecb7e39cb0b` (clean `main` and freshly fetched
@@ -606,7 +961,7 @@ contract, then checked the blackboard evidence. **One workflow clarification
 must be resolved before implementation.** The bounded installer and combined
 adoption/cleanup PR are otherwise implementable. This is not owner approval.
 
-### Must fix before implementation
+##### Must fix before implementation
 
 1. **P2 — Resolve ownership of the work that remains after merge.**
    Acceptance criteria and Proposed shape, step 5, leave merged-tree checks,
@@ -635,7 +990,7 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
    adoption/cleanup PR or changing workflow code or configuration. Do not
    leave the mechanical PR-opening agent to infer the exception.
 
-### Optional recommendation
+##### Optional recommendation
 
 - Explicitly extend the manual-only rule to any pre-merge owner-review fixes
   or `code/address-pr-comments` assistance. The general prohibition on
@@ -647,7 +1002,7 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
   Naming this case prevents the ordinary assist workflow from defeating the
   single-publication boundary during later requested fixes.
 
-### Verified basis
+##### Verified basis
 
 - GitHub reports PR #1129 merged as
   `42d1b30a47e30bb642f9e610d950681acdacd595`; `git merge-base --is-ancestor`
@@ -683,7 +1038,7 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
   interpreter tests exist in `tests/test_edge_distribution.py`; they were
   inspected, not executed in this design review.
 
-### Review checks and handoff
+##### Review checks and handoff
 
 - `env PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m pytest tests/test_trim_log.py::test_install_idempotence_and_exact_allowlist tests/test_trim_log.py::test_install_validates_all_files_before_writing tests/test_autoclose.py::test_sweep_merged_bumps_final_step_with_merged_pr`
   — **7 passed**; Python 3.12.12, Linux x86_64. These use isolated fixtures;
