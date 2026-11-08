@@ -73,9 +73,14 @@ any dependent definition.
 For each approved stock parent, preserve its whole current blackboard
 byte-for-byte in a carrier and remove its reviewed definition siblings in one
 guarded change. Keep runtime state such as `retires.md`. Reconcile freshly and
-compare the planned preimages with the verified backup before this example:
+compare the planned preimages with the verified backup before this example.
+Run the entire block as a standalone command; its subshell stops on failure
+without exiting your interactive shell:
 
+<!-- migration:package-definitions -->
 ```sh
+(
+set -e
 name=phone-home   # example: both named siblings have been reviewed as stock
 python - "$name" ticket.py operations.md <<'PY'
 import sys
@@ -104,10 +109,16 @@ PY
 coga run publish-state   # no path operands: include reviewed deletions
 coga recurring list
 coga validate --json
+)
 ```
 
 Use the upgraded CLI's interpreter. Never publish a carrier beside orphaned
-definition siblings. A parent with no useful state may have no local ticket
+definition siblings. If conversion fails, keep writers quiesced and repair the
+partial local parent **before any mutating Coga command**: restore its definition
+above the fence and reviewed siblings from verified backups while preserving
+the **current** blackboard. Re-inventory that parent before retrying. If
+publication fails, inspect its receipt and reconcile before continuing.
+A parent with no useful state may have no local ticket
 until first use. Named publication operands must exist: verify removed paths
 separately in the resulting control tree. Do not exclude paths or bypass
 publication guards. On conflict preserve both sides and reconcile newer state
