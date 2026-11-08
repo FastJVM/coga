@@ -54,10 +54,15 @@ is their hand-run counterpart: a first-time user installs on a fresh
 
 - **Package-owned definitions.** Tests and harnesses read shipped skills,
   workflows and recurring definitions from the package tree
-  (`src/coga/resources/templates/coga/...`), never from this repo's legacy
-  live copies, which stage B of `v1/package-definitions` removes. A test that
-  must compare a legacy copy skips it when absent or when
-  `test_packaging.LEGACY_DEFINITION_DIFFERENCES` lists it. Pass
+  (`src/coga/resources/templates/coga/...`). The inverse inventory in
+  `test_packaging` rejects unapproved live copies, including identical ones;
+  required package resources are pinned independently of local state. The
+  publication regressions in `test_git` run the control tree's own imports
+  and packaging/navigation/runtime checks: the first conversion uses the
+  pinned Stage A merge, and final-state dirty/committed package edits must
+  stay on the feature branch during a mutating CLI exit sweep. The historical
+  transition test needs Git history containing that merge; a shallow checkout
+  reports an explicit skip and cannot supply that transition receipt. Pass
   `--basetemp` on a roomy volume for full runs: the suite creates many
   temporary repos and can fill a small `/tmp` tmpfs.
 

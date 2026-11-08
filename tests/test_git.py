@@ -4133,6 +4133,181 @@ def test_stage_a_handoff_sweep_publishes_state_but_never_definitions(git_repo):
     ) == definition
 
 
+# Stage A is deliberately pinned: B must never prove its transition with B's
+# imports or strict packaging policy standing in for the compatibility release.
+_PACKAGE_DEFINITIONS_STAGE_A = "bbca5cb0ed7c2bfb3187465c0a1d3fe49f85a019"
+
+
+def _package_publication_environment(root: Path) -> dict[str, str]:
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("COGA_")
+        and key not in {"PYTHONPATH", "SLACK_WEBHOOK_URL"}
+    }
+    env.update(PYTHONPATH=str(root / "src"), PYTHONDONTWRITEBYTECODE="1", TERM="dumb")
+    return env
+
+
+def _package_publication_owner(git_repo, owner: str) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "owner", "publication-proof", owner],
+        cwd=git_repo.root, env=_package_publication_environment(git_repo.root),
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "sync failed" not in result.stderr and "sync refused" not in result.stderr
+
+
+def _check_package_control(git_repo, tmp_path: Path, label: str) -> None:
+    """Run the published control tree's own imports and tests, in a fresh clone."""
+    control = tmp_path / label
+    git_repo.git("clone", "--branch", "main", str(git_repo.origin), str(control))
+    env = _package_publication_environment(control)
+    imported = subprocess.run(
+        [sys.executable, "-c", "import coga; print(coga.__file__)"],
+        cwd=control, env=env, capture_output=True, text=True, encoding="utf-8", check=True,
+    )
+    assert Path(imported.stdout.strip()).is_relative_to(control / "src")
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+         "tests/test_packaging.py", "tests/test_paths.py", "tests/test_recurring_state.py",
+         "tests/test_recurring_shims.py", "tests/test_init.py",
+         f"--basetemp={tmp_path / (label + '-fixtures')}"],
+        cwd=control, env=env, capture_output=True, text=True, encoding="utf-8", check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _configure_package_publication_checkout(git_repo) -> None:
+    (git_repo.coga_os / "coga.local.toml").write_text(
+        'user = "marc"\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
+    path = git_repo.coga_os / "tasks/publication-proof.md"
+    path.write_text(
+        "---\ntitle: Publication proof\nstatus: draft\nowner: marc\nworkflow: null\n---\n\n"
+        "## Description\n\nExercise ordinary publication.\n\n<!-- coga:blackboard -->\n",
+        encoding="utf-8", newline="\n",
+    )
+    git_repo.git("add", "--", "coga/tasks/publication-proof.md")
+    git_repo.git("commit", "-m", "seed publication proof")
+    git_repo.git("push", "origin", "main")
+
+
+def test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control(git_repo, tmp_path):
+    from coga.recurring_state import CARRIER_PREFIX
+
+    source = Path(__file__).resolve().parents[1]
+    available = subprocess.run(
+        ["git", "cat-file", "-e", _PACKAGE_DEFINITIONS_STAGE_A + "^{commit}"],
+        cwd=source, capture_output=True, check=False,
+    )
+    if available.returncode:
+        pytest.skip("transition receipt requires Git history containing the pinned Stage A merge")
+    git_repo.git("fetch", str(source), _PACKAGE_DEFINITIONS_STAGE_A)
+    git_repo.git("checkout", "-B", "main", "FETCH_HEAD")
+    # This force push seeds only the fixture's private bare remote.
+    git_repo.git("push", "--force", "origin", "main")
+    _configure_package_publication_checkout(git_repo)
+    git_repo.checkout_branch("feature/first-package-cutover")
+    package_tree = git_repo.git("rev-parse", "origin/main:src/coga/resources").strip()
+    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
+    original = parent.read_bytes()
+    siblings = {name: parent.with_name(name).read_bytes() for name in ("ticket.py", "operations.md")}
+    worklist = _control(git_repo, "coga/recurring/autoclose-merged/retires.md")
+    frozen = git_repo.git("rev-parse", "origin/main:coga/tasks/recurring").strip()
+    custom = {
+        name: git_repo.git("rev-parse", f"origin/main:coga/recurring/{name}").strip()
+        for name in ("usage-report", "upstream-coga")
+    }
+    selection = git_repo.coga_os / "recurring/jobs.toml"
+    assert not selection.exists()
+    selection.write_text("[jobs]\nphone-home = true\n", encoding="utf-8", newline="\n")
+    _package_publication_owner(git_repo, "zach")
+    assert _control(git_repo, "coga/recurring/jobs.toml") == selection.read_text()
+    _check_package_control(git_repo, tmp_path, "stage-a-selection")
+
+    parent.write_bytes(CARRIER_PREFIX.encode() + original.split(b"<!-- coga:blackboard -->", 1)[1])
+    for name in siblings:
+        parent.with_name(name).unlink()
+    # Legacy user topics link to one another. Remove the reviewed set as one
+    # change, so an intermediate control tree never has dangling live links.
+    topics = [
+        row.split("\t")[0]
+        for row in (git_repo.root / "tests/legacy_removal_inventory.txt").read_text().splitlines()
+        if row.startswith("docs/contexts/coga/")
+    ]
+    assert topics
+    for topic in topics:
+        (git_repo.root / topic).unlink()
+    repo_context = git_repo.coga_os / "context.md"
+    repo_context.write_text(repo_context.read_text() + "\nCutover publication proof.\n", encoding="utf-8")
+    _package_publication_owner(git_repo, "marc")
+
+    for topic in topics:
+        assert _control(git_repo, topic) is None
+    assert _control(git_repo, "coga/recurring/phone-home/ticket.md").encode() == parent.read_bytes()
+    for name in siblings:
+        assert _control(git_repo, "coga/recurring/phone-home/" + name) is None
+    assert "Cutover publication proof." in _control(git_repo, "coga/context.md")
+    assert _control(git_repo, "coga/recurring/autoclose-merged/retires.md") == worklist
+    assert git_repo.git("rev-parse", "origin/main:coga/tasks/recurring").strip() == frozen
+    for name, tree in custom.items():
+        assert git_repo.git("rev-parse", f"origin/main:coga/recurring/{name}").strip() == tree
+    assert git_repo.git("rev-parse", "origin/main:src/coga/resources").strip() == package_tree
+    _check_package_control(git_repo, tmp_path, "stage-a-first-conversion")
+
+
+@pytest.mark.parametrize("committed", [False, True], ids=["dirty-package", "committed-package"])
+def test_final_package_edits_never_escape_a_mutating_cli_sweep(git_repo, tmp_path, committed):
+    from test_packaging import _pristine_source
+
+    # Reuse the ordinary GitRepo remote and pristine-artifact snapshot helper;
+    # the snapshot includes current uncommitted implementation bytes as well.
+    source = _pristine_source(tmp_path)
+    git_repo.git("rm", "-r", "--ignore-unmatch", ".")
+    shutil.copytree(source, git_repo.root, dirs_exist_ok=True)
+    # The source tracks package starters that its own .gitignore ignores.
+    # Preserve the exact snapshot, including those required wheel files.
+    names = sorted(path.relative_to(source).as_posix() for path in source.rglob("*") if path.is_file())
+    for offset in range(0, len(names), 100):
+        git_repo.git("add", "-f", "--", *names[offset:offset + 100])
+    git_repo.git("commit", "-m", "seed package-only control")
+    git_repo.git("push", "origin", "main")
+    _configure_package_publication_checkout(git_repo)
+    git_repo.checkout_branch("feature/package-content")
+    package_tree = git_repo.git("rev-parse", "origin/main:src/coga/resources").strip()
+    resources = [
+        "src/coga/resources/prompt.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/skills/direct/body/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/workflows/direct/body.md",
+        "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+        "src/coga/resources/templates/coga/recurring/phone-home/operations.md",
+    ]
+    for name in resources:
+        path = git_repo.root / name
+        path.write_text(path.read_text() + "\n<!-- reviewed package edit -->\n", encoding="utf-8")
+    if committed:
+        git_repo.git("add", "--", *resources)
+        git_repo.git("commit", "-m", "edit package definitions")
+    parent = git_repo.coga_os / "recurring/phone-home/ticket.md"
+    parent.write_bytes(parent.read_bytes() + b"\nPublication proof: preserve unrelated state.\n")
+    context = git_repo.root / "docs/contexts/coga-dev/publication-proof/SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("# Local publication proof\n", encoding="utf-8")
+    repo_context = git_repo.coga_os / "context.md"
+    repo_context.write_bytes(repo_context.read_bytes() + b"\nLocal repo context proof.\n")
+    _package_publication_owner(git_repo, "zach")
+
+    assert "owner: zach" in _control(git_repo, "coga/tasks/publication-proof.md")
+    assert _control(git_repo, "coga/recurring/phone-home/ticket.md").encode() == parent.read_bytes()
+    assert _control(git_repo, "docs/contexts/coga-dev/publication-proof/SKILL.md") == context.read_text()
+    assert "Local repo context proof." in _control(git_repo, "coga/context.md")
+    assert git_repo.git("rev-parse", "origin/main:src/coga/resources").strip() == package_tree
+    _check_package_control(git_repo, tmp_path, "package-only-control")
+
+
 # --- prepared ticket transactions (read control before modifying) -------------
 #
 # `git.prepare_ticket` fetches control, reconciles this checkout's ticket with

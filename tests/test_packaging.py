@@ -128,96 +128,18 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 )
 
 
-# The live/packaged sync rule, enforced instead of remembered.
-#
-# `AGENTS.md` says a shipped Coga OS context or template has two copies — the
-# live one under `coga/` and the packaged one under
-# `src/coga/resources/templates/coga/` — and that both get edited together.
-# This module derives the pairs instead of keeping a hand-maintained list,
-# because a hand-maintained list only covers the twins someone remembered to
-# register, and an unregistered twin is exactly how a pair silently diverges:
-#
-#   Every packaged file whose live counterpart exists at the mapped path must
-#   be byte-identical to it, unless the pair is named in
-#   `INTENTIONALLY_DIVERGENT_TWINS` with a written reason.
-#
-# Two mappings produce a counterpart path, tried in this order:
-#
-#   templates/coga/<path>                     -> coga/<path>
-#   templates/coga/bootstrap/<area>/<path>    -> coga/<area>/<path>
-#
-# Contexts are the exception: this repo authors them under its configured
-# contexts root (`[layout] contexts` in the committed `coga/coga.toml`, else
-# `coga/contexts/`), so both packaged context trees map there instead:
-#
-#   templates/coga/contexts/<path>            -> <contexts-root>/<path>
-#   templates/coga/bootstrap/contexts/<path>  -> <contexts-root>/<path>
-#
-# The starter template is package-only scaffolding, not a canonical topic.
-# Every other packaged context file must have its canonical counterpart, and
-# every canonical topic must be classified as bootstrap, init-seeded, or local-only — see "Context distribution" below.
-# A packaged file with no live counterpart under either mapping is a curated
-# battery the source repo does not install into itself — `bootstrap/orient/`,
-# `bootstrap/skills/bootstrap/**`, the `bootstrap/workflows/` fallbacks,
-# `tasks/coga-build.md`. There is nothing to compare, so it is not a pair; the
-# `EXPECTED_BOOTSTRAP_RESOURCES` checks above are what keep those shipping.
-# Live files with no packaged copy are repo-specific and are likewise not this
-# test's business. Neither direction is a tree diff: only actual twins count.
-
+# Shipped definitions have one committed owner. Derive every possible live
+# counterpart from the actual package tree; only explained scaffolds, validated
+# state carriers and reviewed overrides may be present in this source repo.
 REPO_ROOT = Path(__file__).resolve().parents[1]
-
 PACKAGED_ROOT = Path("src/coga/resources/templates/coga")
 LIVE_ROOT = Path("coga")
-
-# Packaged areas that ship as *bundled batteries*: the source repo installs
-# them at the top of its own live tree rather than under `coga/bootstrap/`.
 BUNDLED_AREAS = frozenset({"contexts", "skills", "workflows"})
-
-# These are generated local state, not shipped template content. Match the
-# build exclusions in pyproject.toml and the installation/agent state that
-# coga init ignores. Prune the directories before descending into a venv.
 GENERATED_TEMPLATE_DIRS = frozenset(
     {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
 )
+REQUIRED_RESOURCES_FILE = Path("tests/required_package_resources.txt")
 
-
-# Twins that are deliberately not identical, each with the reason it is
-# exempt. An entry that stops describing a real divergence fails the suite,
-# so this map prunes itself rather than accumulating stale allowances.
-INTENTIONALLY_DIVERGENT_TWINS = {
-    "coga/.gitattributes": (
-        "trim-log two-phase rollout: enable /log.md -merge through the feature installer "
-        "after compatible core lands; rollout/trim-log/coga holds the exact staged twin."
-    ),
-    "coga/.gitignore": (
-        "The live copy carries `coga init`'s `>>> coga-managed >>>` markers; "
-        "the packaged copy is the marker-free body that init writes between "
-        "them."
-    ),
-    "coga/coga.toml": (
-        "The live copy is this repo's real config (a set `owner`, live agent "
-        "and notification wiring); the packaged copy is the commented seed a "
-        "fresh repo starts from."
-    ),
-    "coga/context.md": (
-        "The live copy describes this repository; the packaged copy is the "
-        "stub a fresh repo starts from."
-    ),
-    "coga/log.md": (
-        "The live copy is this repo's append-only audit trail; the packaged "
-        "copy is the empty log a fresh repo starts with."
-    ),
-}
-
-
-# Stage A transitional ownership policy (v1/package-definitions). The package
-# is the single committed owner of every shipped definition; the live copies
-# this repo still carries are optional legacy counterparts, removed or
-# converted by stage B. While present they must match the package (or carry a
-# reviewed difference below). The exact set is pinned, so it cannot grow.
-INVENTORY_FILE = Path("tests/legacy_removal_inventory.txt")
-
-# Live counterparts that stay physical after the cutover, with the reason.
 SCAFFOLD_COUNTERPARTS = {
     "coga/coga.toml": "the repo's real configuration, seeded once by init",
     "coga/context.md": "the repo's context, seeded once by init",
@@ -226,104 +148,43 @@ SCAFFOLD_COUNTERPARTS = {
     "coga/.gitignore": "physical ignore rules and init's managed block",
     "docs/contexts/.gitignore": "keeps the configured contexts root's ignore rules physical",
 }
+STATE_CARRIER_COUNTERPARTS = {
+    "coga/recurring/address-pr-comments/ticket.md": "saved parent blackboard, independent of its delegated definition",
+    "coga/recurring/autoclose-merged/ticket.md": "saved cross-run notes; retires.md remains a separate worklist",
+    "coga/recurring/blocker-reminders/ticket.md": "saved parent blackboard, including state without declared state_keys",
+    "coga/recurring/branch-sweep/ticket.md": "saved parent notes; clone success ledgers remain machine-local",
+    "coga/recurring/dream/ticket.md": "saved cross-run sweep state and notes",
+    "coga/recurring/phone-home/ticket.md": "complete movement cursor, counters, identity and unrelated blackboard state",
+    "coga/recurring/resolve-conflicts/ticket.md": "saved parent blackboard, independent of its delegated definition",
+    "coga/recurring/skill-update/ticket.md": "saved cross-run state and notes",
+}
+# A future reviewed local fork must explain every counterpart it retains.
+LOCAL_DEFINITION_OVERRIDES: dict[str, str] = {}
 
-# Reviewed differences between a still-present legacy live definition and its
-# package owner: stage A authors instruction/link changes only in the package
-# and leaves the live definition byte-for-byte unchanged until stage B. Each
-# entry pins the live file's unchanged sha256 and states why it differs.
-_LINKS_TO_PACKAGE_OWNERS = (
-    "stage A points the packaged definition's links at package owners "
-    "(removable legacy copies may be absent); the live definition stays "
-    "unchanged until stage B removes or converts it"
-)
-LEGACY_DEFINITION_DIFFERENCES: dict[str, tuple[str, str]] = {
-    "coga/recurring/autoclose-merged/ticket.md": (
-        "4a6560da0ccd7a44cda17a0c6b63126352d24ca7a19e7f019e98db7c1a9d3f1d",
-        _LINKS_TO_PACKAGE_OWNERS,
+# Only physical scaffolds may differ from their seed without being a fork.
+# Stale explanations fail, including an exception whose file was deleted.
+INTENTIONALLY_DIVERGENT_TWINS = {
+    "coga/.gitattributes": (
+        "Audit retention has not been adopted here: preserve the existing log "
+        "union rule until the explicit trim-log installer updates the physical "
+        "attribute and selects that job. Definition cutover does not enable it."
     ),
-    "coga/recurring/blocker-reminders/ticket.md": (
-        "1833e9035016eb41c5d72202c513eb20b0d4ef7f02373d2fdc0efff4d26c24a1",
-        _LINKS_TO_PACKAGE_OWNERS,
-    ),
-    "coga/recurring/phone-home/operations.md": (
-        "80fee3648b7ca9cc4051e142d73c33642cdad23e089a1879cd4ee9dff559820a",
-        _LINKS_TO_PACKAGE_OWNERS + "; packaged instructions also state the "
-        "[test]-extra builder prerequisite for the --no-build-isolation wheel "
-        "build in the clean installed-wheel proof",
-    ),
-    "coga/recurring/phone-home/ticket.md": (
-        "aa73bf4301af4d01352531f54af03d004b5b072195843fecdc7083a411f33d78",
-        _LINKS_TO_PACKAGE_OWNERS + "; packaged instructions also explain "
-        "carrier initialization/CAS and replace the obsolete twin exemption; "
-        "its complete blackboard (period_state) is state, compared separately",
-    ),
-    "coga/recurring/skill-update/ticket.md": (
-        "f8b645faf28fe0c194f08c9282eed5a6e8288b7b9540b40f7e16cbd93cd7b1ce",
-        "packaged instructions also state that the run refuses to rebuild "
-        "coga/skill-update over hand-pushed commits on its open PR; the live "
-        "definition stays unchanged until stage B removes or converts it",
-    ),
-    "rollout/trim-log/coga/recurring/trim-log/operations.md": (
-        "965a07e9c99ff4516353bf785887943a48ff8040344be702b0b5226f6c66e5b6",
-        _LINKS_TO_PACKAGE_OWNERS + "; adoption now selects instead of copying, "
-        "accepts valid carriers and pins packaged script identity on retries",
-    ),
-    "rollout/trim-log/coga/recurring/trim-log/ticket.md": (
-        "f486d382aca3cc15ad836615e30293ba90f5897cce7eec68b757349dc950d095",
-        _LINKS_TO_PACKAGE_OWNERS,
-    ),
+    "coga/.gitignore": "init wraps the seed in the repo's coga-managed markers",
+    "coga/coga.toml": "this repo's real owner, agents and notification configuration",
+    "coga/context.md": "this repository's context rather than the fresh-repo stub",
+    "coga/log.md": "the retained audit trail rather than the unused empty seed",
 }
 
 
-def _definition_bytes(path: Path) -> bytes:
-    """The definition part of a file: a recurring parent's text above its fence.
-
-    A recurring parent ticket's blackboard is repo-owned cross-run state (run
-    cursors, saved notes), never part of the definition twin comparison. Every
-    other file compares whole.
-    """
-    raw = path.read_bytes()
-    if path.name == "ticket.md" and "recurring" in path.parts[-3:-1]:
-        return raw.split(b"<!-- coga:blackboard -->", 1)[0]
-    return raw
-
-
-def _legacy_carrier(path: Path) -> bool:
-    """Recognized parent state is validated, never compared as a definition."""
-    from coga.recurring_state import CARRIER, has_state_marker, inspect_parent_dir
-
-    if path.name != "ticket.md" or "recurring" not in path.parts[-3:-1]:
-        return False
-    if not has_state_marker(path.read_text(encoding="utf-8")):
-        return False
-    parent = inspect_parent_dir(path.parent)
-    assert parent.kind == CARRIER, parent.problem
-    return True
-
-
-def _read_inventory() -> dict[str, str]:
-    path = REPO_ROOT / INVENTORY_FILE
-    rows: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip() or line.startswith("#"):
-            continue
-        live, packaged = line.split("\t")
-        rows[live] = packaged
-    return rows
-
-
-def _sha256(path: Path) -> str:
-    import hashlib
-
-    return hashlib.sha256(_definition_bytes(path)).hexdigest()
+def _read_required_resources() -> frozenset[str]:
+    return frozenset(
+        line for line in (REPO_ROOT / REQUIRED_RESOURCES_FILE).read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    )
 
 
 def _canonical_contexts_root() -> Path:
-    """This repo's contexts directory, relative to the checkout root.
-
-    Read from the committed shared TOML only: machine-local configuration must
-    not change which pairs the suite enforces.
-    """
+    """Read the committed layout, never a machine-local override."""
     toml_path = REPO_ROOT / LIVE_ROOT / "coga.toml"
     configured = None
     if toml_path.is_file():
@@ -333,27 +194,34 @@ def _canonical_contexts_root() -> Path:
 
 
 def _live_counterparts(relative: Path) -> tuple[Path, ...]:
-    """Live paths a packaged template file could mirror, best guess first."""
-    if relative == Path("contexts/_template/SKILL.md"):
-        return ()  # Author the starter only in the package, outside the topic library.
+    """Every live location for a template, including obsolete bootstrap mirrors."""
     parts = relative.parts
     if len(parts) > 1 and parts[0] == "contexts":
-        return (_canonical_contexts_root().joinpath(*parts[1:]),)
+        return tuple(dict.fromkeys((_canonical_contexts_root().joinpath(*parts[1:]), LIVE_ROOT / relative)))
     if len(parts) > 2 and parts[:2] == ("bootstrap", "contexts"):
-        return (_canonical_contexts_root().joinpath(*parts[2:]),)
+        return tuple(dict.fromkeys((
+            _canonical_contexts_root().joinpath(*parts[2:]),
+            LIVE_ROOT / relative, LIVE_ROOT.joinpath(*parts[1:]),
+        )))
     candidates = [LIVE_ROOT / relative]
+    if len(parts) > 2 and parts[0] == "recurring":
+        candidates.append(LIVE_ROOT / "recurring" / ("_" + parts[1]) / Path(*parts[2:]))
     if len(parts) > 2 and parts[0] == "bootstrap" and parts[1] in BUNDLED_AREAS:
         candidates.append(LIVE_ROOT.joinpath(*parts[1:]))
     return tuple(candidates)
 
 
+def _carrier_counterparts(live: str) -> tuple[str, str]:
+    path = Path(live)
+    return live, (path.parent.with_name("_" + path.parent.name) / path.name).as_posix()
+
+
 def _packaged_template_files(subdir: Path = Path()) -> tuple[Path, ...]:
-    """Shipped template files under `subdir`, relative to the packaged root."""
     packaged_root = REPO_ROOT / PACKAGED_ROOT
     found = []
-    for directory, dirs, files in os.walk(packaged_root / subdir):
+    for directory, dirs, names in os.walk(packaged_root / subdir):
         dirs[:] = sorted(name for name in dirs if name not in GENERATED_TEMPLATE_DIRS)
-        for name in sorted(files):
+        for name in sorted(names):
             if name == "coga.local.toml":
                 continue
             packaged = Path(directory) / name
@@ -362,159 +230,182 @@ def _packaged_template_files(subdir: Path = Path()) -> tuple[Path, ...]:
     return tuple(found)
 
 
+def _ignored_starter(live: Path) -> bool:
+    if "_template" not in live.parts and live.name != "_template.md":
+        return False
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", live.as_posix()],
+        cwd=REPO_ROOT, capture_output=True, check=False,
+    )
+    ignored = subprocess.run(
+        ["git", "check-ignore", "-q", "--", live.as_posix()],
+        cwd=REPO_ROOT, capture_output=True, check=False,
+    )
+    return tracked.returncode == 1 and ignored.returncode == 0
+
+
 def _discover_live_packaged_twins() -> tuple[tuple[str, str], ...]:
-    twins = []
-    for relative in _packaged_template_files():
-        for live in _live_counterparts(relative):
-            if (REPO_ROOT / live).is_file():
-                twins.append((live.as_posix(), (PACKAGED_ROOT / relative).as_posix()))
-                break
-    return tuple(twins)
-
-
-# Every live/packaged twin in the repo, divergent ones included.
-LIVE_PACKAGED_TWINS = _discover_live_packaged_twins()
-
-# The enforced subset: every twin that is not a documented exception. Dream's
-# copy-divergence shard reads this name.
-IDENTICAL_LIVE_PACKAGED_PAIRS = tuple(
-    (live, packaged)
-    for live, packaged in LIVE_PACKAGED_TWINS
-    if live not in INTENTIONALLY_DIVERGENT_TWINS
-)
-
-
-def test_live_and_packaged_copies_stay_identical() -> None:
-    # Deliberately no non-empty floor: stage B removes the legacy copies, and
-    # required package resources (EXPECTED_BOOTSTRAP_RESOURCES and the
-    # inventory owners below) keep deletion from becoming a vacuous pass.
-    for live, packaged in IDENTICAL_LIVE_PACKAGED_PAIRS:
-        if _legacy_carrier(REPO_ROOT / live):
-            continue
-        if live in LEGACY_DEFINITION_DIFFERENCES:
-            continue
-        assert _definition_bytes(REPO_ROOT / live) == _definition_bytes(
-            REPO_ROOT / packaged
-        ), (
-            f"{live} and {packaged} have drifted; edit both copies together. "
-            "If the difference is deliberate, add the live path to "
-            "INTENTIONALLY_DIVERGENT_TWINS with the reason."
-        )
-
-
-def test_live_counterparts_are_inventoried_or_scaffolds() -> None:
-    """No new live copy of a package definition may appear during stage A."""
-    inventory = _read_inventory()
-    unexpected = sorted(
-        live for live, _ in LIVE_PACKAGED_TWINS
-        if live not in inventory and live not in SCAFFOLD_COUNTERPARTS
+    candidates = [
+        (live, PACKAGED_ROOT / relative)
+        for relative in _packaged_template_files()
+        for live in _live_counterparts(relative)
+    ]
+    candidates.extend(
+        (LIVE_ROOT / "resources" / path.name, path.relative_to(REPO_ROOT))
+        for path in sorted((REPO_ROOT / "src/coga/resources").glob("*.md"))
     )
-    assert unexpected == [], (
-        "new live counterparts of package-owned definitions; resolve them from "
-        "the package instead of copying: " + ", ".join(unexpected)
+    return tuple(
+        (live.as_posix(), packaged.as_posix())
+        for live, packaged in candidates
+        if ((REPO_ROOT / live).exists() or (REPO_ROOT / live).is_symlink())
+        and not _ignored_starter(live)
     )
-    for live, packaged in LIVE_PACKAGED_TWINS:
-        if live in inventory:
-            assert inventory[live] == packaged, (live, packaged, inventory[live])
 
 
-def test_legacy_inventory_names_existing_package_owners() -> None:
-    """Every inventoried definition keeps its package owner (required resource)."""
-    inventory = _read_inventory()
-    assert inventory
-    for live, packaged in inventory.items():
-        assert (REPO_ROOT / packaged).is_file(), (
-            f"{packaged}, the package owner of legacy {live}, is missing; a "
-            "shipped definition must keep exactly one package copy"
-        )
-        assert not live.startswith("src/"), live
-    for live in SCAFFOLD_COUNTERPARTS:
-        assert live not in inventory
-        assert (REPO_ROOT / live).is_file(), f"scaffold {live} must stay physical"
+def _ownership_problems() -> list[str]:
+    """Inverse check: even a byte-identical, unapproved live copy is a failure."""
+    from coga.recurring_state import CARRIER, inspect_parent_dir
 
-
-def test_legacy_definition_differences_pin_unchanged_live_bytes() -> None:
-    inventory = _read_inventory()
-    for live, (digest, reason) in LEGACY_DEFINITION_DIFFERENCES.items():
-        assert reason.strip() and live in inventory, live
+    problems = []
+    for live, packaged in _discover_live_packaged_twins():
         path = REPO_ROOT / live
-        if not path.exists():
-            continue  # stage B removed it; drop the entry then.
-        if _legacy_carrier(path):
-            continue  # stage B preserved the complete blackboard as state.
-        assert _sha256(path) == digest, (
-            f"{live} changed; stage A leaves live definitions untouched"
-        )
-        assert _definition_bytes(path) != _definition_bytes(REPO_ROOT / inventory[live]), (
-            f"{live} matches its package owner again; drop its entry"
-        )
+        if any(live in _carrier_counterparts(name) for name in STATE_CARRIER_COUNTERPARTS):
+            parent = inspect_parent_dir(path.parent)
+            if parent.kind != CARRIER:
+                problems.append(f"{live}: expected state-only carrier; {parent.problem or parent.kind}")
+        elif live not in SCAFFOLD_COUNTERPARTS and live not in LOCAL_DEFINITION_OVERRIDES:
+            problems.append(f"unapproved live counterpart {live}; owner: {packaged}")
+    return problems
 
 
-def test_inventory_rejects_an_accidental_twin(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_package_definitions_have_no_unapproved_live_counterparts() -> None:
+    assert _ownership_problems() == []
+
+
+def test_required_package_resources_exist() -> None:
+    required = _read_required_resources()
+    assert required
+    for name in required:
+        assert name.startswith("src/coga/resources/"), name
+        assert (REPO_ROOT / name).is_file(), f"required package resource missing: {name}"
+    actual = {(PACKAGED_ROOT / relative).as_posix() for relative in _packaged_template_files()}
+    actual.update(path.relative_to(REPO_ROOT).as_posix() for path in (REPO_ROOT / "src/coga/resources").glob("*.md"))
+    assert actual == required, "record added or deliberately retired resources in the required manifest"
+
+
+def test_live_counterpart_exceptions_stay_real_and_explained() -> None:
+    twins = dict(_discover_live_packaged_twins())
+    seen = set()
+    for exceptions in (SCAFFOLD_COUNTERPARTS, STATE_CARRIER_COUNTERPARTS, LOCAL_DEFINITION_OVERRIDES):
+        for live, reason in exceptions.items():
+            assert live not in seen, f"duplicate ownership exception: {live}"
+            seen.add(live)
+            assert reason.strip(), f"{live} needs a reason"
+            candidates = _carrier_counterparts(live) if exceptions is STATE_CARRIER_COUNTERPARTS else (live,)
+            present = [name for name in candidates if name in twins]
+            assert present, f"stale ownership exception: {live}"
+            assert len(present) == 1, f"ambiguous active/parked state: {live}"
+            path = REPO_ROOT / present[0]
+            assert path.is_file() and not path.is_symlink(), live
+    for live, packaged in twins.items():
+        if live in SCAFFOLD_COUNTERPARTS and live not in INTENTIONALLY_DIVERGENT_TWINS:
+            assert (REPO_ROOT / live).read_bytes() == (REPO_ROOT / packaged).read_bytes(), live
+    for live, reason in INTENTIONALLY_DIVERGENT_TWINS.items():
+        assert reason.strip() and live in SCAFFOLD_COUNTERPARTS, live
+        assert live in twins, f"stale scaffold divergence: {live}"
+        assert (REPO_ROOT / live).read_bytes() != (REPO_ROOT / twins[live]).read_bytes(), live
+
+
+def test_inventory_rejects_an_accidental_twin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     packaged = tmp_path / PACKAGED_ROOT / "bootstrap/skills/new/thing/SKILL.md"
-    live = tmp_path / LIVE_ROOT / "skills/new/thing/SKILL.md"
-    for path in (packaged, live):
+    # Both possible live roots must be checked, not just the first match.
+    lives = ["coga/skills/new/thing/SKILL.md", "coga/bootstrap/skills/new/thing/SKILL.md"]
+    for path in [packaged, *(tmp_path / name for name in lives)]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("same\n", encoding="utf-8")
-    (tmp_path / INVENTORY_FILE).parent.mkdir(parents=True)
-    (tmp_path / INVENTORY_FILE).write_text("# empty\n", encoding="utf-8")
-    twins = _discover_live_packaged_twins()
-    assert ("coga/skills/new/thing/SKILL.md", (PACKAGED_ROOT / "bootstrap/skills/new/thing/SKILL.md").as_posix()) in twins
-    monkeypatch.setattr(sys.modules[__name__], "LIVE_PACKAGED_TWINS", twins)
-    import pytest
-
-    with pytest.raises(AssertionError, match="new live counterparts"):
-        test_live_counterparts_are_inventoried_or_scaffolds()
+    problems = _ownership_problems()
+    assert len(problems) == 2
+    for name in lives:
+        assert any(f"unapproved live counterpart {name};" in problem for problem in problems)
 
 
-def test_transitional_checks_accept_carriers_but_reject_incomplete_forks(
+def test_ownership_rejects_a_prompt_resource_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    for name in ("src/coga/resources/prompt.md", "coga/resources/prompt.md"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("same prompt\n", encoding="utf-8")
+    assert "unapproved live counterpart coga/resources/prompt.md" in _ownership_problems()[0]
+
+
+def test_ownership_accepts_carriers_but_rejects_definitions_and_incomplete_forks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pytest
     from coga.recurring_state import render_carrier
-    from coga.taskfile import read_blackboard
 
     live = "coga/recurring/phone-home/ticket.md"
     packaged = f"{PACKAGED_ROOT}/recurring/phone-home/ticket.md"
     seed = (REPO_ROOT / packaged).read_bytes()
-    for rel in (live, packaged):
-        path = tmp_path / rel
+    for name in (live, packaged):
+        path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(seed)
-    parent = tmp_path / live
-    parent.write_text(render_carrier(read_blackboard(parent)), encoding="utf-8")
-    (tmp_path / INVENTORY_FILE).parent.mkdir(parents=True)
-    (tmp_path / INVENTORY_FILE).write_bytes((REPO_ROOT / INVENTORY_FILE).read_bytes())
-    module = sys.modules[__name__]
-    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(module, "IDENTICAL_LIVE_PACKAGED_PAIRS", ((live, packaged),))
-    test_live_and_packaged_copies_stay_identical()
-    test_legacy_definition_differences_pin_unchanged_live_bytes()
-    test_phone_home_preserves_state_and_seed_is_unused()
-    parent.with_name("operations.md").write_text("orphaned definition\n", encoding="utf-8")
-    with pytest.raises(AssertionError, match="incomplete fork"):
-        test_live_and_packaged_copies_stay_identical()
-
-
-def test_inventory_rejects_a_deleted_package_owner(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
-    (tmp_path / INVENTORY_FILE).parent.mkdir(parents=True)
-    (tmp_path / INVENTORY_FILE).write_text(
-        f"coga/skills/gone/SKILL.md\t{PACKAGED_ROOT.as_posix()}/bootstrap/skills/gone/SKILL.md\n",
-        encoding="utf-8",
-    )
-    for live in SCAFFOLD_COUNTERPARTS:
-        (tmp_path / live).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / live).write_text("x\n", encoding="utf-8")
+    parent = tmp_path / live
+    assert "expected state-only carrier" in _ownership_problems()[0]
+    parent.write_text(render_carrier("\n\ncustom state without declared keys\n"), encoding="utf-8")
+    assert _ownership_problems() == []
+    parked = parent.parent.with_name("_phone-home")
+    parent.parent.rename(parked)
+    assert _ownership_problems() == []
+    parked.rename(parent.parent)
+    parent.with_name("operations.md").write_text("orphaned definition\n", encoding="utf-8")
+    assert "incomplete fork" in _ownership_problems()[0]
+    parent.with_name("operations.md").unlink()
+    parent.write_text(parent.read_text().replace("{}", "schedule: daily"), encoding="utf-8")
+    assert "must be exactly a state-only carrier" in _ownership_problems()[0]
+
+
+def test_ownership_rejects_a_parked_definition(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    for name in ("coga/recurring/_new-job/ticket.md", f"{PACKAGED_ROOT}/recurring/new-job/ticket.md"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("same definition\n", encoding="utf-8")
+    assert "unapproved live counterpart coga/recurring/_new-job/ticket.md" in _ownership_problems()[0]
+
+
+def test_inventory_rejects_a_deleted_package_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import pytest
 
-    with pytest.raises(AssertionError, match="package owner"):
-        test_legacy_inventory_names_existing_package_owners()
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    path = tmp_path / REQUIRED_RESOURCES_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text(f"{PACKAGED_ROOT}/bootstrap/skills/gone/SKILL.md\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="required package resource missing"):
+        test_required_package_resources_exist()
+
+
+def test_ownership_rejects_a_stale_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import pytest
+
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    with pytest.raises(AssertionError, match="stale ownership exception"):
+        test_live_counterpart_exceptions_stay_real_and_explained()
+
+
+def test_authoring_starters_must_be_ignored_and_untracked(git_repo, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", git_repo.root)
+    live = "coga/skills/_template/SKILL.md"
+    for name in (live, f"{PACKAGED_ROOT}/skills/_template/SKILL.md"):
+        path = git_repo.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("starter\n", encoding="utf-8")
+    (git_repo.root / ".gitignore").write_text("coga/skills/_template/\n", encoding="utf-8")
+    assert _discover_live_packaged_twins() == ()
+    git_repo.git("add", "-f", "--", live)
+    assert "unapproved live counterpart" in _ownership_problems()[0]
 
 
 def test_twin_discovery_ignores_generated_installation_artifacts(
@@ -555,26 +446,6 @@ def test_twin_discovery_ignores_generated_installation_artifacts(
             path.write_text(f"local to {base}\n", encoding="utf-8", newline="\n")
 
     assert set(_discover_live_packaged_twins()) == set(expected)
-
-
-def test_intentional_divergences_stay_real_and_explained() -> None:
-    twins = dict(LIVE_PACKAGED_TWINS)
-    inventory = _read_inventory()
-    for live, reason in INTENTIONALLY_DIVERGENT_TWINS.items():
-        assert reason.strip(), f"{live} needs a stated reason to be exempt"
-        if live in inventory and not (REPO_ROOT / live).exists():
-            continue  # a removed legacy counterpart; stage B drops the entry
-        packaged = twins.get(live)
-        assert packaged is not None, (
-            f"{live} is no longer a live/packaged twin; "
-            "drop its INTENTIONALLY_DIVERGENT_TWINS entry"
-        )
-        assert (REPO_ROOT / live).read_bytes() != (
-            REPO_ROOT / packaged
-        ).read_bytes(), (
-            f"{live} now matches {packaged}; drop its "
-            "INTENTIONALLY_DIVERGENT_TWINS entry so the pair is enforced"
-        )
 
 
 # Context distribution.
@@ -687,9 +558,6 @@ def _context_distribution_problems() -> list[str]:
         for relative in _packaged_template_files(subdir):
             if _local_only_context(relative.relative_to(subdir).as_posix()):
                 problems.append(f"local-only context file {relative.as_posix()!r} is packaged")
-            # Stage A: the package owns user topics. A canonical copy under
-            # the contexts root is an optional legacy counterpart (removed by
-            # stage B), compared by the twin tests while it exists.
 
     canonical_refs = _canonical_context_refs()
     bootstrap_refs = _packaged_context_refs(BOOTSTRAP_CONTEXTS)
@@ -884,6 +752,9 @@ REPO_BLOB_URL = "https://github.com/FastJVM/coga/blob/main/"
 
 def _context_navigation_sources() -> tuple[Path, ...]:
     """Live guidance and shipped prose, without archives or generated views."""
+    from coga.recurring_state import is_carrier_file
+    from coga.skill_manager import gh_skill_repo
+
     contexts = REPO_ROOT / _canonical_contexts_root()
     sources = set(contexts.rglob("*.md"))
     sources.update(
@@ -892,6 +763,17 @@ def _context_navigation_sources() -> tuple[Path, ...]:
         if relative.suffix == ".md"
     )
     sources.update((REPO_ROOT / "src/coga/resources").glob("*.md"))
+    for area in ("skills", "workflows", "bootstrap", "recurring"):
+        for directory, dirs, names in os.walk(REPO_ROOT / LIVE_ROOT / area):
+            if area == "skills" and "SKILL.md" in names and gh_skill_repo(Path(directory)):
+                dirs[:] = []
+                continue  # Upstream-managed documentation is not this repo's prose.
+            dirs[:] = [name for name in dirs if name not in GENERATED_TEMPLATE_DIRS]
+            sources.update(
+                Path(directory) / name for name in names
+                if name.endswith(".md") and not is_carrier_file(Path(directory) / name)
+            )
+    sources.update((REPO_ROOT / "docs/release-notes").glob("*.md"))
     sources.update(
         REPO_ROOT / name
         for name in ("AGENTS.md", "README.md", "CONTRIBUTING.md", "docs/README.md")
@@ -914,21 +796,10 @@ def _markdown_anchors(raw: str) -> set[str]:
     return anchors
 
 
-def _context_link_problems(
-    source: Path, removable: frozenset[str] | None = None
-) -> list[str]:
-    """Broken links in `source`, resolved where the file actually lives.
-
-    Package files resolve relative links inside the real package tree; no
-    remapping onto live counterparts. A source that survives stage B (anything
-    not in the legacy removal inventory) must not depend on a removable
-    legacy copy: it links the package owner instead.
-    """
-    if removable is None:
-        removable = frozenset(_read_inventory())
+def _context_link_problems(source: Path) -> list[str]:
+    """Resolve links at their actual package or repo location; never remap them."""
     problems = []
     rel_source = source.relative_to(REPO_ROOT).as_posix()
-    survives = rel_source not in removable
     for href in MARKDOWN_LINK.findall(source.read_text(encoding="utf-8")):
         target, _, anchor = href.partition("#")
         if target.startswith(REPO_BLOB_URL):
@@ -942,35 +813,6 @@ def _context_link_problems(
         if not destination.exists():
             problems.append(f"{rel_source}: missing link {href}")
             continue
-        if survives and destination.is_relative_to(REPO_ROOT):
-            rel_destination = destination.relative_to(REPO_ROOT).as_posix()
-            if rel_destination in removable:
-                problems.append(
-                    f"{rel_source}: links removable legacy copy {href}; link its "
-                    f"package owner {_read_inventory()[rel_destination]}"
-                )
-            elif destination.is_dir() and any(
-                path.startswith(rel_destination + "/") for path in removable
-            ):
-                # A directory link also disappears when all of its files are
-                # removed. Do not traverse archives to make this decision.
-                pending = [destination]
-                survives_removal = False
-                while pending and not survives_removal:
-                    for child in pending.pop().iterdir():
-                        if child == REPO_ROOT / "docs/archive":
-                            survives_removal = True
-                            break
-                        if child.is_dir():
-                            pending.append(child)
-                        elif child.relative_to(REPO_ROOT).as_posix() not in removable:
-                            survives_removal = True
-                            break
-                if not survives_removal:
-                    problems.append(
-                        f"{rel_source}: links removable legacy directory {href}; "
-                        "link its package owner"
-                    )
         if anchor and destination.suffix == ".md":
             if anchor not in _markdown_anchors(destination.read_text(encoding="utf-8")):
                 problems.append(f"{rel_source}: missing anchor {href}")
@@ -986,19 +828,16 @@ def test_context_navigation_has_no_broken_links() -> None:
     assert problems == []
 
 
-def test_navigation_rejects_a_directory_that_disappears_at_cutover(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_navigation_checks_package_relative_links(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
-    topic = tmp_path / "docs/contexts/coga/cli/SKILL.md"
+    topic = tmp_path / PACKAGED_ROOT / "bootstrap/contexts/coga/cli/SKILL.md"
     topic.parent.mkdir(parents=True)
-    topic.write_text("# CLI\n", encoding="utf-8")
-    index = tmp_path / "README.md"
-    index.write_text("[User topics](docs/contexts/coga/)\n", encoding="utf-8")
-    removable = frozenset({"docs/contexts/coga/cli/SKILL.md"})
-    assert "removable legacy directory" in _context_link_problems(index, removable)[0]
-    (topic.parent / "local.md").write_text("Local topic\n", encoding="utf-8")
-    assert _context_link_problems(index, removable) == []
+    topic.write_text("[Missing](../gone/SKILL.md)\n", encoding="utf-8")
+    assert "missing link ../gone/SKILL.md" in _context_link_problems(topic)[0]
+    legacy = tmp_path / "docs/contexts/coga/gone/SKILL.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# A live copy cannot repair package navigation\n", encoding="utf-8")
+    assert "missing link" in _context_link_problems(topic)[0]
 
 
 def _unbundled_development_refs(raw: str) -> list[str]:
@@ -1344,7 +1183,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     assert {"coga_edge/__init__.py", "coga_edge/phone_home.py"} <= names
     for name in EXPECTED_BOOTSTRAP_RESOURCES:
         assert name in names
-    for packaged in _read_inventory().values():
+    for packaged in _read_required_resources():
         assert packaged.removeprefix("src/") in names, packaged
     assert not any("__pycache__" in name for name in names)
     for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
@@ -1378,24 +1217,16 @@ NINE_BUNDLED_PARENTS = (
 
 
 def test_phone_home_preserves_state_and_seed_is_unused():
-    """The package seed is unused; a legacy live parent keeps complete state.
-
-    The live definition is optional in stage A (stage B converts it to a
-    state-only carrier). While present, its definition text is pinned by
-    `LEGACY_DEFINITION_DIFFERENCES`; here only its mutable blackboard is
-    compared: everything but the `period_state:` value matches the seed.
-    """
+    """The package seed stays unused; repo-owned state remains independently valid."""
     from coga.taskfile import read_blackboard
     from conftest import load_phone_home
     _state = load_phone_home()._state
     live = REPO_ROOT / "coga/recurring/phone-home/ticket.md"
     seed = REPO_ROOT / PACKAGED_ROOT / "recurring/phone-home/ticket.md"
-    period_state = re.compile(r"(?m)^period_state: .*$")
     if live.exists():
-        assert period_state.sub("period_state:", read_blackboard(live)) == (
-            period_state.sub("period_state:", read_blackboard(seed))
-        )
-        _state(read_blackboard(live))  # the live counter stays readable
+        from coga.recurring_state import CARRIER, inspect_parent_dir
+        assert inspect_parent_dir(live.parent).kind == CARRIER
+        _state(read_blackboard(live))
     state, _ = _state(read_blackboard(seed))
     assert state["schema"] == 2
     assert state["run"] == 0
@@ -1553,16 +1384,3 @@ print("installed init and suppressed first snapshot passed")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "suppressed first snapshot passed" in result.stdout
     assert snapshot_tree() == before
-
-
-def test_staged_trim_log_rollout_matches_packaged_files():
-    """The temporary staged copies stay checked until stage B removes them."""
-    inventory = _read_inventory()
-    staged = REPO_ROOT / "rollout/trim-log/coga"
-    for path in staged.rglob("*"):
-        if path.is_file():
-            live = path.relative_to(REPO_ROOT).as_posix()
-            assert live in inventory, live
-            if live in LEGACY_DEFINITION_DIFFERENCES or live in {"rollout/trim-log/coga/.gitattributes"}:
-                continue
-            assert _definition_bytes(path) == _definition_bytes(REPO_ROOT / inventory[live])

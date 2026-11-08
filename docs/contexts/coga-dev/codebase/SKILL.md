@@ -114,7 +114,7 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 
 - [coga-dev/testing](../testing/SKILL.md): running the suite, environment
   pitfalls, verification tiers (no hosted CI), receipts.
-- [coga-dev/packaging](../packaging/SKILL.md): bundled batteries, twins, wheel.
+- [coga-dev/packaging](../packaging/SKILL.md): package owners, state exceptions, wheel.
 - [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.

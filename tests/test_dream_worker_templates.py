@@ -230,7 +230,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     # The three sources of truth the audit checks claims against.
     assert "code reality" in skill_text
     assert "referenced artifacts" in skill_text
-    assert "copy divergence" in skill_text
+    assert "ownership drift" in skill_text
     # Frozen task artifacts are not contracts.
     assert "Frozen task artifacts under `coga/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
@@ -240,7 +240,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "bounded shards, not one sweep" in skill_text or "bounded shards, not one sweep" in skill_norm
     assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
     assert "**single-source ownership**" in skill_text
-    assert "tests/legacy_removal_inventory.txt" in skill_text
+    assert "tests/required_package_resources.txt" in skill_text
     assert "never edit installed package resources" in skill_norm
     assert "recursive diff" in skill_norm
     assert "diff -r coga/ src/coga/resources/templates/coga/" not in skill_text

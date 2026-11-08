@@ -28,7 +28,7 @@ committing to a ticket up front. For ticket-bound work, exit and `coga launch
   use a filesystem move rather than `git mv`. Before implementation or a
   deliberately reviewed knowledge edit, strictly publish pending routine
   state, require success and a clean checkout, then run the exact preparation
-  command in **Checkout (runtime)**. Commit PR files and packaged twins before
+  command in **Checkout (runtime)**. Commit PR files before
   a sweeping command. The configured Coga and contexts roots govern publication;
   `coga/checkouts/chat` owns this ordering and the one-chat-per-checkout guard.
 

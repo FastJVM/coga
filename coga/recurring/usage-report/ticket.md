@@ -33,7 +33,7 @@ which:
 3. reads the generated period ticket's owner (falling back to
    `cfg.current_user` when absent) and passes it to `coga.notification.post`
    with `important=True, fatal=False`. The shared
-   [notification prefix](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/notifications/SKILL.md#pinging-the-owner)
+   [notification prefix](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/notifications/SKILL.md#pinging-the-owner)
    identifies the reporting repo and pings a mapped owner; an unmapped owner
    keeps the plain-name fallback. It posts once — a delivery miss is reported
    and the period still closes — and completes its own step with `coga bump`.

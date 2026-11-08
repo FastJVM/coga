@@ -69,11 +69,11 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
   calling `gh`, which would move it to `coga/skills/<name>`.
 - URL-backed skills go through Coga's digest checks. Bundled refs without
   GitHub or URL provenance emit no row in `update --all`, whether or not a repo
-  twin exists; those repo copies are maintained in the repo. Other unmanaged
+  override exists; those repo definitions are maintained in the repo. Other unmanaged
   directories also get no row. Managed provenance still selects its updater
   when a skill shares a bundled ref.
 - An explicit `update <bundled-ref>` without managed provenance still reports
-  `skipped-bundled`: an installed twin is maintained in the repo, while an
+  `skipped-bundled`: a local override is maintained in the repo, while an
   uninstalled ref is refreshed by upgrading the Coga package.
 - `--pr` requires `--all` and opens or updates one draft PR after running the
   `--verify` commands (default `coga validate --json`).
@@ -108,7 +108,7 @@ The subcommands are `install`, `install-url`, `install-local`, `update`,
 - **Tree digests skip machine-local state.** Both digests exclude
   `.coga-source.json` and any path under a `.coga`, `.venv`, `.agent-skills`,
   `.claude`, `.codex`, or `__pycache__` directory — the same generated-state
-  set the packaging twin comparison excludes. An agent tool's or
+  set the package ownership inventory excludes. An agent tool's or
   interpreter's droppings inside an installed skill are therefore never local
   adaptation, and an upstream change confined to those paths is not detected.
   The set is fixed rather than read from `.gitignore`, so a digest depends
