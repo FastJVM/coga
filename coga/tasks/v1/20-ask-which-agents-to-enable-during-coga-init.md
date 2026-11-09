@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (open-pr)
+step: 7 (review)
 agent: claude
 ---
 
@@ -565,6 +565,7 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1192
 branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
 
 
