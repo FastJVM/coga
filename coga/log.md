@@ -10588,3 +10588,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-09 11:04 v1 [v1/remove-the-agent-cli-install-offer-from-coga-init] [human:nicktoper] auto-bumped on merge of PR #1176 → done
 2026-11-09 11:04 v1 [recurring/autoclose-merged] [system] task done
 2026-11-09 11:04 v1 [recurring/autoclose-merged] [system] script exited with code 0
+2026-11-09 11:04 v1 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
