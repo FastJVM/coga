@@ -1,8 +1,15 @@
 ---
 title: test-install-on-windows
-status: draft
+status: active
 owner: zach
-workflow: human/run
+workflow:
+  name: human/run
+  steps:
+  - name: execute
+    skills: []
+    assignee: owner
+step: 1 (execute)
+agent: claude
 ---
 
 ## Description
