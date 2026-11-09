@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: cfeb5bd5-f0c2-4762-9e43-135f8a999d3a
+period_generation: 90a37924-ef7d-4e5d-8ce9-6f5b81762c37
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -77,7 +78,7 @@ proofs and the rules for primary checkouts and other clones are in
 ### Upgrading an older template
 
 When adopting this template in an older repo, read the persistent
-template's [worklist setup guide](https://github.com/FastJVM/coga/blob/main/coga/recurring/autoclose-merged/operations.md). This is an upgrade
+template's [worklist setup guide](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/autoclose-merged/operations.md). This is an upgrade
 procedure, not an action to repeat each period.
 
 ## Context
@@ -85,27 +86,3 @@ procedure, not an action to repeat each period.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-11-07T22:03:27+00:00
-Task: `recurring/autoclose-merged`
-
-16 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `v1/06-fix-coga-git-sync-failures-that-leave-main-diverge` "Fix coga git sync failures that leave main diverged from origin": branch `coga/v1-06-fix-coga-git-sync-failures-that-leave-main-1212e6`
-- `v1/07-lifecycle-writes-read-control-s-ticket-before-modi` "Lifecycle writes read control's ticket before modifying it": branch `coga/v1-07-lifecycle-writes-read-control-s-ticket-bef-5b096f`
-- `v1/10-preflight-dirty-tracked-files-before-skill-update` "Preflight dirty tracked files before skill-update PR checkout": branch `coga/v1-10-preflight-dirty-skill-update`
-- `v1/11-skill-update-rebuilds-its-branch-and-discards-hand-pushed-commits` "Skill update rebuilds its PR branch every period and silently discards hand-pushed commits": branch `coga/v1-11-skill-update-rebuilds-its-branch-and-disca-0af198`
-- `v1/12-fix-release-env-fixture-interpreter-symlink-in-fre` "Fix release_env fixture interpreter symlink in fresh venvs": branch `coga/v1-12-release-env-interpreter`
-- `v1/13-repair-ci-and-resume-with-release-focused-triggers` "Repair CI and resume with release-focused triggers": branch `coga/v1-13-repair-ci-and-resume-with-release-focused--a448a8`
-- `v1/15-uninstall-recovery-hints-use-posix-env-syntax-on-w` "Uninstall recovery hints use POSIX env syntax on Windows": branch `coga/v1-15-uninstall-recovery-hints-use-posix-env-syn-9a5041`
-- `v1/23-scan-for-an-existing-repo-during-install` "Scan for an existing repo during install": branch `coga/v1-23-repo-prerequisite`
-- `v1/24-mention-coga-build-in-the-install-flow` "Mention coga build in the install flow": branch `coga/v1-24-mention-coga-build-install`
-- `v1/26-make-the-readme-install-section-the-only-install-p` "Retire the coga/install topic": branch `coga/v1-26-retire-install-topic`
-- `v1/34-prevent-duplicate-session-usage-records-from-infla` "Prevent duplicate session usage records from inflating totals": branch `coga/v1-34-prevent-duplicate-session-usage-records-fr-666e38`
-- `v1/36-usage-report-name-the-human-split-per-agent-show-c` "Usage report: name the human, split per agent, show cache reads separately": branch `usage-report-name-human-agent-split`
-- `v1/40-state-the-hatchling-prerequisite-in-the-clean-whee` "State the hatchling prerequisite in the clean-wheel proof": branch `coga/v1-40-hatchling-prerequisite`
-- `v1/filter-by-user-for-megalaunch` "filter by user for megalaunch": branch `coga/v1-filter-by-user-for-megalaunch-85c239`
-- `v1/honor-codex-home-when-locating-codex-rollouts` "Honor CODEX_HOME when locating Codex rollouts": branch `coga/v1-honor-codex-home-when-locating-codex-rollouts-5b4cd1`
-- `v1/human-review-pr-for-ambiguous-lifecycle-status-con` "Human-review PR for ambiguous lifecycle status conflicts": branch `coga/v1-human-review-pr-for-ambiguous-lifecycle-statu-a4ef81`
