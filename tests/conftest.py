@@ -287,7 +287,7 @@ def _disable_autofix(monkeypatch, request):
     """Default-off the recurring autofix loop so no test spawns an agent.
 
     `coga recurring` ends every sweep with a one-shot analysis call to the
-    configured agent CLI. That CLI is really on PATH on a developer machine,
+    configured agent CLI. That CLI is really installed on a developer machine,
     so without this the recurring tests shell out to `claude` for real —
     slow, non-hermetic, and billed. Tests that exercise the loop request the
     `autofix_enabled` fixture (autouse runs first, so its `setenv` wins)."""

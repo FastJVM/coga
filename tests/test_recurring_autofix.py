@@ -129,6 +129,25 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
     assert "coga.toml or coga.local.toml" in message
 
 
+def test_missing_analysis_cli_uses_the_shared_coga_toml_remedy(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """This check once carried its own wording, which drifted from every other
+    point of need. It must route through the shared message so agent CLIs are
+    only ever a `coga.toml` matter."""
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: None)
+
+    with pytest.raises(autofix.AutofixUnavailable) as exc:
+        autofix.analyze_record(cfg_repo, "healthy run")
+
+    message = str(exc.value)
+    assert "not found." in message
+    assert "in coga.toml" in message
+    assert "[agents." in message
+    assert "cannot be analyzed" in message
+    assert "PATH" not in message
+
+
 def test_analysis_agent_does_not_inherit_1password_auth(
     cfg_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

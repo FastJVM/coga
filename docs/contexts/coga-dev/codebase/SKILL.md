@@ -67,8 +67,8 @@ The repo separates implementation from the OS it operates:
   is in `paths.py`.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
-- `dependencies.py` (external CLI manifest) and `agent_cli_setup.py` (agent
-  CLI install and login offer, for `coga init` and `coga build`).
+- `dependencies.py` (supporting-tool install manifest, supported agent CLI
+  scan order, and the shared missing-agent requirement).
 - `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed
   membership, `classify_gh_update_output` maps `gh` output to outcomes; a
   legacy digest that includes machine-local directories may still prove a

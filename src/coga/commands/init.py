@@ -1,10 +1,10 @@
 """`coga init` — create a new coga repo, or finish setting up a clone of one.
 
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
-from the installed coga package. Init installs no Python packages or skills;
-in an interactive terminal it offers (never forces) to install missing
-external CLIs such as `gh` and an agent CLI, only after every precondition
-has passed. On a repo whose `coga/` already exists it
+from the installed coga package. Init installs no Python packages, skills, or
+agent CLIs; in an interactive terminal it offers (never forces) to install
+missing supporting CLIs such as `gh`, only after every precondition has
+passed. On a repo whose `coga/` already exists it
 refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
@@ -29,7 +29,6 @@ from pathlib import Path
 import tomlkit
 import typer
 
-from coga.agent_cli_setup import offer_agent_cli
 from coga.agent_skills import refresh_agent_skill_view
 from coga.paths import LocalOverrideError
 from coga.aliases import ONBOARDING_TASK
@@ -54,7 +53,6 @@ from coga.dependencies import (
     NEEDS_ROOT,
     PACKAGE_MANAGERS,
     Dependency,
-    install_hint,
 )
 from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
@@ -444,8 +442,8 @@ def _offer_optional_tools() -> None:
     at its point of need. `op` is deliberately not in that set — it carries
     `offer_install=None`, so it is never offered and never listed as a tool
     init handles; `_note_missing_op` notes it on its own instead. Agent CLIs
-    are not warned about here: `_offer_agent_cli` offers them, and the next
-    steps name them.
+    are not warned about here either: init installs none, and the next steps
+    name the prerequisite when neither one resolves.
     """
     interactive = _interactive()
     manager = _package_manager() if interactive else None
@@ -578,39 +576,35 @@ def _gh_logged_in(gh: str) -> bool:
     return status.returncode == 0
 
 
-def _offer_agent_cli(default_agent: str | None) -> str | None:
-    """Offer to install an agent CLI; the agent to make default, or None.
+def _installed_agent_clis() -> list[str]:
+    """The `AGENT_CLIS` that resolve to a runnable binary, in supported order.
 
-    Interactive init only, after `_offer_optional_tools`. With no agent CLI on
-    PATH the user picks one of `AGENT_CLIS` (or skips) and
-    `coga.agent_cli_setup.offer_agent_cli` offers its install and login. When
-    exactly one agent CLI is then on PATH and it is not `default_agent` — the
+    Init runs before any `coga.toml` exists, so this is a machine scan rather
+    than a config read; `v1/20-ask-which-agents-to-enable-during-coga-init`
+    owns redesigning it. Nothing here states a requirement: which binary a
+    launch needs comes from that agent's `cli` in `coga.toml`.
+    """
+    return [name for name in AGENT_CLIS if shutil.which(name) is not None]
+
+
+def _offer_agent_cli(default_agent: str | None) -> str | None:
+    """Offer an installed agent CLI as the default; that agent, or None.
+
+    Interactive init only, after `_offer_optional_tools`. Init never installs
+    an agent CLI or names an installer. A user with none installed is asked
+    nothing here and reads the prerequisite once, in `_do_init`'s next steps.
+    When exactly one agent CLI resolves and it is not `default_agent` — the
     default agent of the coga.toml init is about to write — init asks to make
-    it the default (written as `default_agent`) and returns it on a yes. `default_agent` is None
-    where init must not edit coga.toml (a clone's machine-local setup), so
-    nothing is returned there.
+    it the default (written as `default_agent`) and returns it on a yes.
+    Nothing is returned when the packaged template declares no default to
+    replace.
     """
     if not _interactive():
         return None
-    installed = [name for name in AGENT_CLIS if shutil.which(name) is not None]
-    if len(installed) > 1:
+    installed = _installed_agent_clis()
+    if len(installed) != 1:
         return None
-    if installed:
-        chosen = installed[0]
-    else:
-        typer.echo(
-            "No agent CLI is installed — coga launches agents through Claude "
-            "Code (`claude`) or Codex (`codex`)."
-        )
-        choices = [*AGENT_CLIS, "skip"]
-        chosen = ""
-        while chosen not in choices:
-            chosen = typer.prompt(
-                f"Install which agent CLI? ({'/'.join(choices)})",
-                default=AGENT_CLIS[0],
-            ).strip()
-        if chosen == "skip" or not offer_agent_cli(chosen):
-            return None
+    chosen = installed[0]
     if default_agent is None or chosen == default_agent:
         return None
     if not typer.confirm(
@@ -1169,9 +1163,6 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     _require_init_tools()
     _require_git_work_tree(target)
     _offer_optional_tools()
-    # A clone's coga.toml is committed team config; this path writes only
-    # gitignored state, so it offers the install but never a new default.
-    _offer_agent_cli(None)
 
     # A saved user is the completed-setup guard on the next invocation. Keep
     # the local config unchanged until every agent link is ready, so failures
@@ -1351,9 +1342,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
-    # Every precondition has passed: only now offer optional installs,
-    # `gh auth login`, and an agent CLI, so a doomed invocation never changes
-    # the machine. The chosen default agent is written once coga.toml exists.
+    # Every precondition has passed: only now offer optional supporting-tool
+    # installs and `gh auth login`, then choose an installed default agent, so
+    # a doomed invocation never changes the machine. The chosen default agent
+    # is written once coga.toml exists.
     _offer_optional_tools()
     template_default_agent = _template_default_agent(template_root)
     default_agent = _offer_agent_cli(template_default_agent)
@@ -1576,14 +1568,18 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "       uv tool install coga"
         )
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
-    # does not require (see `coga.dependencies`) — name the prerequisite here
-    # so a fresh user isn't sent into the flow only to hit "not found in PATH".
-    steps.append(
-        "Install an agent CLI, if you haven't — coga drives Claude Code "
-        f"({install_hint('claude')}) or Codex ({install_hint('codex')}). "
-        "Launching agents (`coga build`, `coga launch`, `coga ticket`) needs "
-        "one installed and authenticated."
-    )
+    # neither requires nor installs (see `coga.dependencies`) — name the
+    # prerequisite here, and only for the user the scan shows has none, so a
+    # fresh user isn't sent into the flow only to hit "not found". State the
+    # fact and stop: this reader has no agent CLI, so pointing them at
+    # `coga.toml` would name a key they have nothing to put in it, and the
+    # next steps deliberately never send anyone to edit a `.toml`.
+    if not _installed_agent_clis():
+        steps.append(
+            "No agent CLI was found — coga drives Claude Code (`claude`) or "
+            "Codex (`codex`). Agent-backed commands (`coga build`, "
+            "`coga launch`, `coga ticket`) need one."
+        )
     if is_empty:
         build_agent = default_agent or AGENT_CLIS[0]
         other = next(name for name in AGENT_CLIS if name != build_agent)

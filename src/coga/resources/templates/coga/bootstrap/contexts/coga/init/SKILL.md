@@ -108,23 +108,22 @@ first. Without a terminal, a known manager or a package, init prints the
 install link instead: missing `git` still stops init, missing `gh` warns.
 Init never offers `op` (your secrets manager is your choice); a missing `op`
 gets one note naming what needs it. Each install runs only on a yes, so an
-invocation that must exit changes nothing on the machine. At the same point,
-with no agent CLI on `PATH`, it asks which agent CLI to install (`claude`,
-`codex`, or skip) and offers its install and login, using the vendor's
-package (brew cask on macOS, else global `npm`, else only the URL), never a
-`curl | sh` script; `coga build` offers a missing onboarding agent the same
-way. When
-exactly one agent CLI is then on `PATH` and it is not the packaged default
-(`claude`), init asks whether to make it the default agent. On a yes it writes
-`default_agent = "<type>"` into the new `coga.toml` and leaves the
-`[agents.*]` table order alone (the `default_agent` comment in `coga.toml`
-explains the key). It also repoints delivered
-tickets that name the old default, such as the onboarding ticket's `agent:`.
-Both happen before the commit. If the edit would not parse back to the same
-config plus that one key, init skips it and prints a warning. A
-non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
-install an agent CLI; then `coga build` (empty repo) or
-`coga ticket "<title>"` (filled repo).
+invocation that must exit changes nothing on the machine. Agent CLIs are not
+in that set: Coga never installs one or says where to get one. Init runs
+before any `coga.toml` exists, so it scans the machine for them rather than
+reading config. When exactly one agent CLI resolves and it is not
+the packaged default (`claude`), init asks whether to make it the default
+agent. On a yes it writes `default_agent = "<type>"` into the new `coga.toml`
+and leaves the `[agents.*]` table order alone (the `default_agent` comment in
+`coga.toml` explains the key). It also repoints delivered tickets that name
+the old default, such as the onboarding ticket's `agent:`. Both happen before
+the commit. If the edit would not parse back to the same config plus that one
+key, init skips it and prints a warning. With neither agent CLI resolving, or
+with both, init asks nothing. A non-interactive init never prompts, installs
+nothing and stays offline. The printed next steps are: put `coga` on `PATH`
+if it is missing; state that agent-backed commands need an agent CLI when the
+scan found none; then `coga build` (empty repo) or `coga ticket "<title>"`
+(filled repo).
 
 ## Clone of a repo that already uses Coga
 
