@@ -1,11 +1,11 @@
 ---
 title: Blocker reminders
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: efbc5cdb-7905-44d3-ac62-4c88327c2860
+period_generation: 3cbb60f6-a502-495f-ac02-822c1d0f33f3
 workflow:
   name: blocker-reminders/run
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/blockers/remind
     assignee: agent
+step: 1 (remind)
 ---
 
 ## Description
@@ -45,11 +46,11 @@ reminder leaves status and scheduling untouched.
 
 Blocked-task reminders point to `coga unblock <slug> --answer "..."`. Paused
 period reminders name the paused status and read the period's pause provenance
-([scheduling](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
+([scheduling](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md#admission-and-unfinished-runs)).
 A period the sweep or the watchdog paused points to the same unblock and says
 the next recurring sweep resumes it: unblock resolves a paused period's asks
 without changing its status
-([lifecycle](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/lifecycle/SKILL.md)).
+([lifecycle](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md)).
 A human-paused period stays paused after its asks are answered, so its
 reminder points to `coga launch <slug>` to resume and review the ask, then
 `coga unblock <slug> --answer "..."` inside the resumed session.

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import shutil
 from datetime import datetime
 from types import SimpleNamespace
@@ -15,7 +14,6 @@ from coga.ticket import Ticket
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LIVE_COGA_OS = ROOT / "coga"
 PACKAGED_COGA_OS = ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 PACKAGED_SKILL = (
     PACKAGED_COGA_OS / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep"
@@ -60,73 +58,6 @@ def test_autoclose_recipe_surfaces_gh_error(monkeypatch, capsys, tmp_path: Path)
 
     assert autoclose.run_autoclose_recipe(SimpleNamespace(repo_root=tmp_path), []) == 2
     assert "gh: not authenticated" in capsys.readouterr().err
-
-
-def _strip_runtime_state(text: str) -> str:
-    """Drop the lines a real recurring run mutates into the live copy.
-
-    This repo dogfoods coga, so the live `autoclose-merged` template — which
-    doubles as the canonical source mirrored into the packaged templates — gets
-    serviced by real `coga recurring` runs. `sync_task_state` then commits that
-    runtime state: recipe cursors in the blackboard and timestamped
-    `[system] ...` entries in the log. Those are legitimate run artifacts, not
-    template drift, so strip them before comparing — what must stay in sync is
-    the static template content. (The serviced-period line is stripped too: it
-    is a vestige on templates that predate the log-backed ledger.)
-    """
-    out = []
-    for line in text.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("last_serviced_period:"):
-            continue
-        if re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[", stripped):
-            continue
-        out.append(line)
-    return "".join(out).rstrip("\n")
-
-
-def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
-    # (live, packaged, tolerant): tolerant pairs are the files a real recurring
-    # run mutates (blackboard's serviced-period line, the log's entries); only
-    # their static template content is compared. Everything else is byte-exact.
-    pairs = [
-        (
-            # Single-file format: the recurring template is one `ticket.md` whose
-            # blackboard region holds the `last_serviced_period:` high-water mark
-            # a real run mutates — so this pair is tolerant (the serviced-period
-            # line is stripped). The append-only log lives in the repo-global
-            # `coga/log.md`, not in this template, so there is no separate
-            # blackboard.md / log.md to keep in sync anymore.
-            LIVE_COGA_OS / "recurring" / "autoclose-merged" / "ticket.md",
-            PACKAGED_COGA_OS / "recurring" / "autoclose-merged" / "ticket.md",
-            True,
-        ),
-        (
-            LIVE_COGA_OS / "workflows" / "autoclose-merged" / "sweep.md",
-            PACKAGED_COGA_OS / "bootstrap" / "workflows" / "autoclose-merged" / "sweep.md",
-            False,
-        ),
-        (
-            LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep" / "SKILL.md",
-            PACKAGED_SKILL / "SKILL.md",
-            False,
-        ),
-    ]
-
-    from test_packaging import LEGACY_DEFINITION_DIFFERENCES, REPO_ROOT
-
-    for live, packaged, tolerant in pairs:
-        if not live.exists():
-            continue  # a removed legacy copy: the package is the only owner
-        if live.relative_to(REPO_ROOT).as_posix() in LEGACY_DEFINITION_DIFFERENCES:
-            # Stage A's reviewed difference (pinned in test_packaging); only
-            # the packaged definition is current.
-            continue
-        live_text, packaged_text = live.read_text(encoding="utf-8"), packaged.read_text(encoding="utf-8")
-        if tolerant:
-            live_text = _strip_runtime_state(live_text)
-            packaged_text = _strip_runtime_state(packaged_text)
-        assert live_text == packaged_text, live
 
 
 def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> None:

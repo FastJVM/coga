@@ -171,12 +171,12 @@ user:
 ./scripts/clean-install/aws-mac.sh ssh mac1 sudo -iu walk2
 ```
 
-Then, as that user, follow the vendor's
-[Claude Code setup](https://code.claude.com/docs/en/setup):
+As that user, provide an authenticated agent CLI using the operator's
+existing setup; this runbook gives no agent installer command or URL. Then run
+the attended ticket continuation:
 
 ```sh
-curl -fsSL https://claude.ai/install.sh | bash
-claude        # finish browser login with the URL it prints, then exit
+command -v claude  # or: command -v codex
 bash /tmp/coga-clean-install/macos-walk.sh ticket "Write a hello-world script" --agent claude
 ```
 

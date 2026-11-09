@@ -26,8 +26,9 @@ default_status = "draft"
 # Agent types. Each defines the CLI binary and how to invoke it; a ticket's
 # `agent:` names one of these tables, and an undefined name fails loud.
 #
-#   cli          (required) executable to spawn; launch fails before writing
-#                any state when it is not on PATH.
+#   cli          (required) executable to spawn: either a command name or a
+#                full path to the binary. Launch fails before writing any
+#                state when it cannot be found.
 #   file         (required) the instruction file this CLI reads at the repo
 #                root (CLAUDE.md, AGENTS.md).
 #   mode         "local", the default and only mode.

@@ -57,8 +57,9 @@ default alias for `launch coga-build`: one question, an agent-led chat, a
 short vision, then a batch of starter tickets, offered for launch only once
 the vision and the batch are confirmed on the control branch. Use `coga build --agent
 codex` for Codex. It dispatches through `coga launch`, so it needs an
-initialized repo. When the onboarding agent's CLI is not on `PATH`, it offers
-to install it and log in first ([coga/init](../init/SKILL.md)). There is no separate `coga setup`.
+initialized repo. Coga never installs an agent CLI: when the configured one
+cannot be found, the launch fails and names the `[agents.*]` table to fix in
+`coga.toml` ([coga/init](../init/SKILL.md)). There is no separate `coga setup`.
 
 ## 1. Create a draft
 

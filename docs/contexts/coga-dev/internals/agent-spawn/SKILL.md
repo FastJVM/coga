@@ -264,11 +264,12 @@ observation never establishes who did. Observation limits:
 
 Compose, prompt-file write, and audit happen before exec, so a
 `FileNotFoundError` from this call usually means a vanished skill, context,
-or prompt destination. Callers catch `repl_supervisor.AgentCliNotFound` for
-the install-the-CLI remedy and report every other one through
-`missing_launch_file_message`, naming the path. On the PTY path a missing
-binary appears as the child's exit 127, not as that exception. On Windows the
-child-environment resolution raises it before any spawn.
+or prompt destination. Callers catch `repl_supervisor.AgentCliNotFound` and
+report it through `agent_cli_missing_message`, which names the `[agents.*]`
+table that declared the agent and sends the reader to `coga.toml`; every
+other one goes through `missing_launch_file_message`, naming the path. On the PTY path a
+missing binary appears as the child's exit 127, not as that exception. On
+Windows the child-environment resolution raises it before any spawn.
 
 ## No launch preflight for the Codex sandbox grant
 

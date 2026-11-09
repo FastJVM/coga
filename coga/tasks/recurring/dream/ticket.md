@@ -1,11 +1,11 @@
 ---
 title: Dream
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: a016b48f-4534-47a8-901c-f8013bb4a3d3
+period_generation: ef3ecf66-e00b-49e0-89cc-431528f93eb7
 workflow:
   name: direct/body
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - direct/body
     assignee: agent
+step: 1 (execute)
 ---
 
 ## Description
@@ -560,8 +561,8 @@ above before handling the remaining proposals. Apply the proposal-ownership rule
 each issue before opening anything: report the covering ticket or PR, or
 preserve uncovered overlap in a scoped draft. For an unowned issue with an
 evidenced correction, open a proposal PR applying that correction to the named
-reference, template, or other contract. Group only coherent fixes, keep shipped
-live/packaged twins in sync, and include the Dream period,
+reference, template, or other contract. Group only coherent fixes, edit each
+shipped definition at its package owner, and include the Dream period,
 `validate-drift: <kind>`, affected paths, original messages, and validation results.
 Validate each affected task with `coga validate --task <slug> --json`; for
 template or shared-contract fixes, compare repo validation before and after
@@ -723,162 +724,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Dream Skill: validate-drift
-
-Generated: 2026-11-02T22:39:14+00:00
-Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
-Task: `recurring/dream`
-
-Result: 24 issue(s): 0 direct fix, 0 PR proposal, 24 human-needed.
-
-### Human Needed
-
-- `context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set`: `large-blackboard` (warn) - blackboard region is 47.4 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
-  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `fix-git-sync-failure`: `unfrozen-workflow` (warn) - workflow 'code/with-self-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `implement-the-include-allowlist-that-url-skill-upd`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive`: `stuck-in-progress` (warn) - in_progress but idle for 117.2h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `parse-agents-rejects-cogalocaltoml`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `publish-sibling-ticket-handoffs-during-targeted-au`: `stuck-in-progress` (warn) - in_progress but idle for 116.1h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `stop-creating-linked-worktrees-for-coga-retire`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `ticket-sync-fails-with-read-only-git-inside-agent`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/01-webhook-for-slack-is-public`: `stuck-in-progress` (warn) - in_progress but idle for 101.6h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v1/05-chat-ticket-edits-strand-the-checkout-on-a-chat-br`: `stuck-in-progress` (warn) - in_progress but idle for 87.3h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v1/06-fix-coga-git-sync-failures-that-leave-main-diverge`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/12-fix-release-env-fixture-interpreter-symlink-in-fre`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/16-find-out-what-macos-actually-ships`: `unfrozen-workflow` (warn) - workflow 'docs/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/19-install-link-for-claude-code-yields-the-desktop-ap`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 670 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Ask the owner to synthesize durable authoring decisions into the ticket body under `coga/blackboard`. Preserve intentional launch-only notes under `## Production notes`; do not discard ambiguous content. Publish the state edit through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `v1/26-make-the-readme-install-section-the-only-install-p`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 733 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Ask the owner to synthesize durable authoring decisions into the ticket body under `coga/blackboard`. Preserve intentional launch-only notes under `## Production notes`; do not discard ambiguous content. Publish the state edit through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `v1/27-link-uninstall-from-the-readme`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 605 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Ask the owner to synthesize durable authoring decisions into the ticket body under `coga/blackboard`. Preserve intentional launch-only notes under `## Production notes`; do not discard ambiguous content. Publish the state edit through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `v1/31-test-install-on-windows`: `unfrozen-workflow` (warn) - workflow 'human/run' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/31-test-install-on-windows`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 762 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Ask the owner to synthesize durable authoring decisions into the ticket body under `coga/blackboard`. Preserve intentional launch-only notes under `## Production notes`; do not discard ambiguous content. Publish the state edit through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `v1/33-review-all-doc`: `stuck-in-progress` (warn) - in_progress but idle for 94.1h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v1/36-usage-report-name-the-human-split-per-agent-show-c`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/39-trim-the-audit-log`: `large-blackboard` (warn) - blackboard region is 32.1 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
-  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-- `v1/40-state-the-hatchling-prerequisite-in-the-clean-whee`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v1/42-idea-piece`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window`: `large-blackboard` (warn) - blackboard region is 32.7 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
-  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
-
-## Run log (2026-11-02, run 20261102T223931Z)
-
-- preflight: git-common-dir ok, remote ok, gh ok
-- Phase 1 validate-drift: reported — 24 human-needed (12 unfrozen-workflow, 5 stuck-in-progress, 4 unsynthesized-draft-blackboard, 3 large-blackboard), 0 direct-fix, 0 pr-proposal.
-- Repo identity: coga-source (no Rule A exclusion). Corpus excluded this live run's own ticket `recurring/dream`, parked `coga/tasks/_*`, and installer-managed `google-agents-cli-*`.
-- Phase 2 knowledge scan: reported — 24/24 shards complete (distinct ids), 23 raw findings.
-- Phase 3 contract audit: reported — 9/9 shards complete (incl. inline `ca-copy`: 98 live/packaged pairs tracked + byte-identical), 10 raw findings, all duplicates of Phase 2 classes.
-- Merged: 21 distinct findings.
-
-## Findings
-
-### extract (area-grouped)
-
-- **coga/recurring/scheduling** — `recurring-unblock-launch` (source: done): watchdog loudness differs for bare sweep vs `--force` vs named `coga recurring launch`; legacy-pause classifier false-positive. [ks-recurring-2]
-- **coga-dev/codebase/gotchas** — `windows-native/01-core-port-cli-and-test-suite-pass-on-native-window` (source: done): Windows-portability editing hazards (eager POSIX imports in cli, utf-8/LF via atomicio, oscompat for locks/process groups, `shutil.which` for .cmd, refusal before state change). [ks-windows-ci-1]
-- **coga-dev/codebase/gotchas** — `windows-native/02-pr-ci-with-linux-and-windows-test-jobs` (source: done): `os.path.relpath` raises ValueError across Windows drives; fall back to absolute. [ks-windows-ci-1]
-- **coga-dev/testing** — `v1/02-reconcile-the-coga-notifications-leaked-webhook-re` (source: done): full suite can exhaust /tmp inodes; rerun with TMPDIR on main disk. [ks-code-skills-4]
-- **coga-dev/principles (README authoring)** — `v1/32-finish-the-readme-launch-checks-left-open-by-readm` (source: done): README is the PyPI long description, so links must be absolute; historical examples pinned. [ks-docs-3]
-- **skills/competition-testing (new skill)** — `competition-testing/test-compound-engineering` (source: done): hands-on competitor-trial method (VM, entry log + command relay, bare-Claude control, Drive write-up, nothing committed). [ks-code-skills-1]
-- **coga/first-task (`coga validate`)** — `validate-that-committed-skill-scripts-with-a-sheba` (source: done+checkout; local branch `shebang-exec-check` remains): `non-executable-script` check documented only in local-only coga-dev/testing. [ks-code-skills-2]
-- **coga-dev/internals/agent-config** — `v1/21-show-which-agents-are-available-on-the-machine-dur` (source: canceled): `AGENT_CLIS` governs discovery only; any `[agents.<name>]` is drivable. [ks-install-3]
-- **coga-dev/internals/usage-pricing + coga/usage** — `define-the-api-equivalent-cost-proxy-and-price-tab` (source: canceled): owner declined dollar proxy 2026-09-23 (no consumer); reopen condition. [ks-usage-1]
-- **coga/checkouts** — `detect-stranded-blackboard-prose-across-checkouts` (source: canceled): declined detector, why, and reopen discriminator. [ks-state-3]
-
-### stale / drift
-
-- `coga/workflows/blocker-reminders/run.md` + `coga/skills/coga/blockers/remind/SKILL.md` (+ twins): name coga/notifications/producers as eligibility owner; producers defers to the blocker-reminders template. [ks-recurring-2, ks-code-skills-3]
-- `docs/contexts/coga/skill-management/SKILL.md`: gh outcome set omits `failed` for unrecognised gh output. [ks-recurring-2]
-- `coga/tasks/cleanup/README.md`: says drained tickets await retirement; all retired. [ks-docs-1]
-- `coga/skills/code/implement/SKILL.md`, `coga/skills/code/self-qa/SKILL.md` (+ twins): "the example fixture" after move to tests/fixtures/seeded-repo. [ks-code-skills-3]
-- `docs/contexts/coga-dev/internals/notifications/SKILL.md`: caller list omits launch.py `_prepare_step_checkout` start post. [ks-code-skills-2, ca-contexts-1]
-- `coga/skills/coga/branch-sweep/sweep/SKILL.md` step 7 (+ comment in `src/coga/branchsweep.py`): report destination is stdout/clone log, not period blackboard. [ks-code-skills-4]
-- `coga/skills/coga/autoclose/sweep/SKILL.md`: foreign linked worktree branch still judged locally — owner: v1/09-guard-foreign-linked-worktree-branch-cleanup. [ks-recurring-3]
-- `coga/skills/coga/releasing/SKILL.md`: "release.yml is the only workflow" — owner: v1/13-repair-ci-and-resume-with-release-focused-triggers. [ks-code-skills-2, ca-skills-2]
-- trim-log links to `coga/recurring/trim-log/{ticket,operations}.md` 404 on main (install, edge-code, configuration, init, architecture, spool-merge, show skill, dream template, + others) — owner: commit-journal/activate-trim-log-in-this-repo-after-retention-mer (staged rollout; test tolerates via fallback). [ks-install-2, ks-docs-3, ca-skills-2, ca-contexts-2 ×2, ca-contexts-3 ×4, ca-templates2-1]
-
-### gap
-
-- `coga/install`: no remedy when `coga` not on PATH after `uv tool install` — owner: v1/26-make-the-readme-install-section-the-only-install-p. [ks-install-2]
-- No skill for the attended human fresh-machine install walk (cogatest VM setup/hygiene; lives only in v1/29's `guide-for-zach.md`) — no owner. [ks-install-1]
-
-## Phase 4 — Retro (verified)
-
-22 eligible done tickets processed in an isolated linked worktree based on origin/main 61fd3fa01; outcome verified against fetched origin/main (all PR branches pushed, all 15 direct deletes on main, checkout held nothing unlanded); worktree, temp branch and local-config copy removed.
-
-- Knowledge PRs (each deletes its source tickets): #1141 test-suite pitfalls (v1/02, v1/39, windows-native/02 → coga-dev/testing); #1142 Windows import/write hazards (windows-native/01 → coga-dev/codebase/gotchas); #1143 watchdog-pause reporting by entry point (recurring-unblock-launch → coga/recurring/scheduling + twin); #1144 README links must be absolute (v1/32 → coga-dev/packaging); #1145 new skill coga/skills/competition-testing/hands-on-trial (competition-testing/test-compound-engineering).
-- Direct-deleted (nothing durable): automate-checkout-setup-and-deduplicate-instructio, commit-journal/publish-log-lines-left-uncommitted, context-audiences/02-move-coga-dev-contexts-out-of-the-shipped-set, fix-parser-bugs-documented-in-pr-1055, launch-moves-the-checkout-to-main-before-and-after, make-every-code-workflow-review-with-the-other-age, recurring/{address-pr-comments,autoclose-merged,blocker-reminders,phone-home,resolve-conflicts,skill-update,usage-report}, v1/37-fix-the-usage-report-cost-proxy-parenthetical-and, v1/38-coalesce-coga-state-commits.
-- Deferred retirement debt (done + live local branch): blocks/06, blocks/08, blocks/09, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba; plus 34 canceled tickets (2 with live branches: define-the-split-a-ticket-mechanic-shared-by-code, scrub-the-service-account-token-from-the-launch-ch).
-- Observed, not this run's: stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` on branch `dream/ops-20261026T172253Z` from the 2026-10-26 Dream run — human to inspect and remove.
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-11-02T23:05:55+00:00
-Task: `recurring/dream`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
-
-## Dream Run Summary
-
-Generated: 2026-11-02T23:20Z (run 20261102T223931Z, coga-source repo)
-
-| Phase | Result | Notes |
-|---|---|---|
-| preflight | ok | git-common-dir, remote, gh |
-| 1 validate-drift | reported / human-needed | 24 issues: 0 direct-fix, 0 pr-proposal, 24 human-needed |
-| 2 knowledge scan | reported | 24/24 shards; 23 raw → merged |
-| 3 contract audit | reported | 9/9 shards (98 twin pairs identical); 10 raw, all dupes of Phase 2 classes |
-| 4 retro/done-ticket | pr-opened | 22 tickets: 5 knowledge PRs (#1141–#1145, 7 tickets), 15 direct deletes |
-| 5 cleanup-orphan-markers | no-op | |
-| 6 disposition | proposed / pr-opened | 6 proposal PRs, 3 draft tickets |
-| upstream-captured | 0 | coga-source repo |
-
-Findings: 21 distinct (10 extract, 9 stale/drift, 2 gap).
-
-**PRs opened**
-- Retro: #1141 test-suite pitfalls · #1142 Windows hazards · #1143 watchdog-pause reporting · #1144 README absolute links · #1145 competitor-trial skill
-- Proposals: #1146 blocker-reminder eligibility owner · #1147 seeded-fixture wording in code skills · #1148 branch-sweep report destination · #1149 notification caller inventory · #1150 skill-management `failed` outcome · #1151 cleanup/README retired
-
-**Draft tickets created**
-- `validate-drift-unsynthesized-draft-blackboard-four` (brief-for-human; members v1/19, v1/26, v1/27, v1/31)
-- `add-a-skill-for-the-attended-human-fresh-machine-i` (gap, code/with-review)
-- `document-the-non-executable-script-validate-check` (done+checkout extract; overlaps PR #1139 on coga/first-task)
-
-**Already ticketed / reused**
-- validate-drift: unfrozen-workflow — already ticketed as `_v2/validate-drift-unfrozen-workflow-11-hand-authored`; 12 members this run, new since filed: implement-the-include-allowlist-that-url-skill-upd, stop-creating-linked-worktrees-for-coga-retire, ticket-sync-fails-with-read-only-git-inside-agent, v1/06, v1/12, v1/16, v1/31, v1/36, v1/40, v1/42.
-- validate-drift: stuck-in-progress — already ticketed as `_v2/validate-drift-stuck-in-progress-11-in-progress-ti`; 5 members, all new since filed: marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive, publish-sibling-ticket-handoffs-during-targeted-au, v1/01, v1/05, v1/33.
-- validate-drift: large-blackboard (3) — all done tickets on the Retro route (context-audiences/02 deleted; v1/39 in #1141; windows-native/01 in #1142); no slimming draft.
-- trim-log dead links — contexts carried by reused PR #1139; show skill + dream template links already ticketed as `commit-journal/activate-trim-log-in-this-repo-after-retention-mer` (activation creates the linked files).
-- autoclose/sweep foreign-branch note — already ticketed as `v1/09-guard-foreign-linked-worktree-branch-cleanup`.
-- releasing "only workflow" — already ticketed as `v1/13-repair-ci-and-resume-with-release-focused-triggers`.
-- install PATH remedy gap — already ticketed as `v1/26-make-the-readme-install-section-the-only-install-p`.
-
-**Retirement debt** (`coga retire <slug>`)
-- done + live local branch: blocks/06, blocks/08, blocks/09, document-the-remedy-for-a-bloated-blackboard-sibli, reuse-the-existing-control-worktree-for-recurring, service-recurring-from-a-temp-control-worktree-ins, validate-that-committed-skill-scripts-with-a-sheba (extract routed to draft above).
-- 34 canceled tickets. Retiring these unlocks extracts: v1/21-show-which-agents-are-available-on-the-machine-dur (coga-dev/internals/agent-config: AGENT_CLIS governs discovery only); define-the-api-equivalent-cost-proxy-and-price-tab (usage-pricing + coga/usage: declined dollar proxy and reopen condition); detect-stranded-blackboard-prose-across-checkouts (coga/checkouts: declined detector and reopen discriminator).
-
-**Machine-local validator issues:** none.
-
-**Human-needed:** stale linked worktree `/home/n/Code/claude/.dream-retro-20261026T172253Z/dream-ops` (branch `dream/ops-20261026T172253Z`) left by the 2026-10-26 Dream run — inspect and remove. All PRs need human review; none auto-merge.

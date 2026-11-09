@@ -38,7 +38,6 @@ from uuid import UUID, uuid4
 from typer import Exit as NotificationExit
 
 from coga import usage as usage_tracking
-from coga.agent_cli_setup import offer_agent_cli
 from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
@@ -1754,18 +1753,11 @@ class _LaunchInvocation:
                 f"(cli={self.agent.cli})"
             )
 
-            # Verify CLI binary exists. `coga build` is a new user's first launch,
-            # so it offers the install and login (the TTY is proven above) rather
-            # than failing on a missing agent CLI.
+            # Verify the configured CLI binary exists. Coga never installs agent
+            # CLIs; every agent-backed command uses the same point-of-need error.
             agent_path = shutil.which(self.agent.cli)
-            if (
-                agent_path is None
-                and self.ref.id_slug == ONBOARDING_TASK
-                and offer_agent_cli(self.agent.cli)
-            ):
-                agent_path = shutil.which(self.agent.cli)
             if agent_path is None:
-                _bail(agent_cli_missing_message(self.agent.cli))
+                _bail(agent_cli_missing_message(self.agent.name, self.agent.cli))
             _report(f"Launch: found agent CLI at {agent_path}")
 
             # Fail loud BEFORE any status is written: if a referenced context or
@@ -1983,12 +1975,12 @@ class _LaunchInvocation:
                     _report(f"{self.ref.id_slug}: {exc}; stopping")
                     break
                 # Re-check the CLI every step — catches the case where the chain
-                # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
+                # rotates to an agent (e.g. codex) whose CLI won't resolve. Stop
                 # cleanly and hand back to the human rather than blocking.
                 if shutil.which(self.agent.cli) is None:
                     message = (
                         f"{self.ref.id_slug}: next step needs agent {step_agent!r} "
-                        f"but {agent_cli_missing_message(self.agent.cli)}"
+                        f"but {agent_cli_missing_message(self.agent.name, self.agent.cli)}"
                     )
                     if self.is_bootstrap and self.return_timeout:
                         _bail(f"{message} No agent was started.")
@@ -2106,7 +2098,10 @@ class _LaunchInvocation:
                 except ComposeError as exc:
                     _bail(str(exc))
                 except AgentCliNotFound:
-                    _bail(f"Failed to spawn agent: {self.agent.cli!r} not found.")
+                    _bail(
+                        "Failed to spawn agent: "
+                        f"{agent_cli_missing_message(self.agent.name, self.agent.cli)}"
+                    )
                 except FileNotFoundError as exc:
                     _bail(missing_launch_file_message(exc))
 
@@ -2576,7 +2571,7 @@ def _require_agent_after_script(
     if shutil.which(agent.cli) is None:
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open "
-            f"for agent {worker!r}, but {agent_cli_missing_message(agent.cli)} "
+            f"for agent {worker!r}, but {agent_cli_missing_message(agent.name, agent.cli)} "
             "The deterministic work was kept."
         )
 
@@ -3746,8 +3741,8 @@ def missing_launch_file_message(exc: FileNotFoundError) -> str:
     executable boundary (ordinary launches also append their audit there), so
     a `FileNotFoundError` escaping it is far more often a missing prompt layer
     than a missing agent CLI — and blaming the CLI sends the operator to debug
-    a PATH that is fine. Name the path instead; `AgentCliNotFound` carries the
-    genuine CLI case.
+    a `cli` setting that is fine. Name the path instead; `AgentCliNotFound`
+    carries the genuine CLI case.
     """
     missing = exc.filename or "a file it needed"
     detail = exc.strerror or str(exc)

@@ -267,15 +267,86 @@ FIXTURES = ROOT / "tests/fixtures/edge-migration"
 RUNBOOK = ROOT / "src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/edge-code-upgrades.md"
 
 
-def _operator_command(name, root, env, *, success=True):
+def _operator_command(name, root, env, *, success=True, runbook=RUNBOOK):
     import re
-    document = RUNBOOK.read_text(encoding="utf-8")
+    document = runbook.read_text(encoding="utf-8")
     match = re.search(rf"<!-- migration:{name} -->\n```sh\n(.*?)\n```", document, re.S)
     assert match, name
     result = subprocess.run(["bash", "-c", match[1]], cwd=root, env=env,
                             capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert (result.returncode == 0) == success, result.stdout + result.stderr
     return result.stdout
+
+
+@pytest.mark.parametrize("failure", [None, "conversion", "publication"])
+@windows_skip("POSIX shell migration runbook; native installed-wheel behavior is tested separately")
+def test_documented_package_cutover_preserves_state_and_stops_on_failure(tmp_path, failure):
+    import shlex
+
+    root = tmp_path / "company"
+    coga_os = root / "coga"
+    parent = coga_os / "recurring/phone-home"
+    parent.mkdir(parents=True)
+    (coga_os / "coga.toml").write_text(
+        'version = 1\n[git]\nenabled = false\n[notification.slack]\nenabled = false\n',
+        encoding="utf-8", newline="\n",
+    )
+    (coga_os / "coga.local.toml").write_text('user = "tester"\n', encoding="utf-8", newline="\n")
+    packaged = ROOT / "src/coga/resources/templates/coga/recurring/phone-home"
+    for name in ("ticket.md", "ticket.py", "operations.md"):
+        shutil.copyfile(packaged / name, parent / name)
+    ticket = parent / "ticket.md"
+    fence = b"<!-- coga:blackboard -->"
+    definition, saved = ticket.read_bytes().split(fence, 1)
+    saved = saved.replace(b'"run":0', b'"run":41') + b"\r\nKeep these operator notes.\r\n"
+    ticket.write_bytes(definition + fence + saved)
+    worklist = parent / "retires.md"
+    worklist.write_bytes(b"Keep this worklist.\r\n")
+
+    scripts = tmp_path / "bin"
+    scripts.mkdir()
+    (scripts / "python").write_text(
+        f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n', encoding="utf-8", newline="\n",
+    )
+    (scripts / "coga").write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$MIGRATION_CALLS"\n'
+        'if [ "$MIGRATION_FAILURE" = publication ] && [ "$*" = "run publish-state" ]; then\n'
+        '  exit 23\nfi\nexit 0\n', encoding="utf-8", newline="\n",
+    )
+    for name in ("python", "coga"):
+        (scripts / name).chmod(0o755)
+    calls = tmp_path / "calls.txt"
+    env = {
+        **os.environ,
+        "PATH": str(scripts) + os.pathsep + os.environ["PATH"],
+        "PYTHONPATH": str(ROOT / "src"),
+        "MIGRATION_CALLS": str(calls),
+        "MIGRATION_FAILURE": failure or "",
+    }
+    if failure == "conversion":
+        # Fail after writing the carrier and removing the first sibling.
+        # The documented shell must not publish this partial local change.
+        guard = tmp_path / "guard"
+        guard.mkdir()
+        (guard / "sitecustomize.py").write_text(
+            "from pathlib import Path\noriginal_unlink = Path.unlink\n"
+            "def fail_second_sibling(self, *args, **kwargs):\n"
+            "    if self.name == 'operations.md':\n"
+            "        raise PermissionError('injected sibling removal failure')\n"
+            "    return original_unlink(self, *args, **kwargs)\n"
+            "Path.unlink = fail_second_sibling\n", encoding="utf-8", newline="\n",
+        )
+        env["PYTHONPATH"] = str(guard) + os.pathsep + env["PYTHONPATH"]
+    runbook = ROOT / "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/templates/package-definitions-migration.md"
+    _operator_command("package-definitions", root, env, success=failure is None, runbook=runbook)
+    assert ticket.read_bytes().split(fence, 1)[1] == saved
+    assert worklist.read_bytes() == b"Keep this worklist.\r\n"
+    assert not (parent / "ticket.py").exists()
+    assert (parent / "operations.md").exists() == (failure == "conversion")
+    expected = [] if failure == "conversion" else ["run publish-state"]
+    if failure is None:
+        expected += ["recurring list", "validate --json"]
+    assert (calls.read_text().splitlines() if calls.exists() else []) == expected
 
 
 @pytest.mark.parametrize("layout", ["user", "tool-link"])

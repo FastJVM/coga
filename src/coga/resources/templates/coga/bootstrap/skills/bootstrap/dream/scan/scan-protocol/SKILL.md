@@ -99,7 +99,7 @@ client's own contexts, skills, workflows, and tasks live.
 The rule is therefore **per file, not per directory**: the owned set is every
 repo-relative path the *installed* package owns, derived from its
 `templates/coga` tree with two counterpart mappings (the default-layout form
-of the live/packaged twin mapping) —
+of the package/live counterpart mapping) —
 `templates/coga/<rel>` → `coga/<rel>`, and
 `templates/coga/bootstrap/<contexts|skills|workflows>/<rel>` →
 `coga/<contexts|skills|workflows>/<rel>`. The installed package is the

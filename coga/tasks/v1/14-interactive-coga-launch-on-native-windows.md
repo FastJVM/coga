@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 agent: claude
 ---
 
@@ -537,6 +537,7 @@ Previous ref: `windows-native/03-interactive-coga-launch-on-native-windows` (ren
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1189
 branch: coga/v1-14-interactive-coga-launch-on-native-windows-e8b518
 
 
@@ -1218,8 +1219,8 @@ Done; bumped to open-pr.
 title: Interactive coga launch on native Windows
 author: claude
 author_evidence: Implement phases 1 and 2 ran attended in Claude Code on Claude Opus 5.5; see the Implement sections on this blackboard.
-head: 8ab6297fc1e2076fc0ffeebb6ecf09e1fd7c71c7
-base: c00329d051a38dc4f320fc902d0d058703bc436a
+head: 7b87fb5fe097588d20cac5a538bf1d6f3e95d103
+base: 7d8c2eeb70ddc8983942a38040bea01e48f6ad7c
 depth: deep
 rationale: >-
   New Windows process supervisor (console, Job Object, CTRL_BREAK teardown,
@@ -1245,6 +1246,9 @@ deviations: >-
   coga/install, so the Windows baseline moved to README Get started. The
   final main reconcile is a merge (8ab6297fc) because the force push of a
   rebase was refused; it adds only coga state commits.
+  At open-pr, main's 46d6cf214 had deleted the legacy live copies
+  (package-definitions cutover); the owner accepted that, so merge 7b87fb5fe
+  drops this branch's eight live-copy edits and keeps the package owners.
 limitations: >-
   Tested on Windows Server 2025 24H2 with PowerShell 5.1, Git for Windows
   2.56 and Claude Code's native installer; Codex on native Windows is
@@ -1258,16 +1262,8 @@ limitations: >-
 files:
   .gitattributes: Check every text file out as LF so Git for Windows autocrlf cannot change fixtures or twins.
   README.md: Native Windows baseline in Get started; sessions run on Linux, macOS or native Windows.
-  coga/skills/coga/testing/clean-install/windows-aws/SKILL.md: Legacy live twin of the package windows-aws skill edit.
   docs/contexts/coga-dev/codebase/gotchas/SKILL.md: LF checkout rule, attached Git maintenance on Windows, agent_command_refusal.
   docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Claude transcript dir naming for Windows paths.
-  docs/contexts/coga/checkouts/SKILL.md: Legacy live twin; CRLF step-skill checkout still equals its owner.
-  docs/contexts/coga/checkouts/launch-boundary/SKILL.md: Legacy live twin of the Windows launch-boundary edit.
-  docs/contexts/coga/first-task/SKILL.md: Legacy live twin; link to README native Windows notes.
-  docs/contexts/coga/launch/SKILL.md: Legacy live twin of the Windows launch contract.
-  docs/contexts/coga/recurring/scheduling/SKILL.md: Legacy live twin of the Windows scheduling note.
-  docs/contexts/coga/script-tickets/SKILL.md: Legacy live twin of the Windows script-ticket note.
-  docs/contexts/coga/tickets/authoring/SKILL.md: Legacy live twin of the Windows authoring note.
   src/coga/_nt_session_wrapper.py: Windows session wrapper run inside the supervised console.
   src/coga/checkout_policy.py: Compare step-skill twins with CRLF folded to LF.
   src/coga/cli.py: Windows-aware entrypoint wiring for supervised sessions.
@@ -1313,6 +1309,11 @@ review:
   status: not-run
   detail: The workflow has no independent code-review step before open-pr; the owner reviews the PR. Design was evaluated by another agent, which is not code review.
 checks:
+  - command: PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 7b87fb5fe097588d20cac5a538bf1d6f3e95d103
+    base: 7d8c2eeb70ddc8983942a38040bea01e48f6ad7c
+    detail: Linux full suite after merging main's legacy-copy removal, 4710 passed, 33 skipped.
   - command: uv run --extra test python -m pytest -q -p no:cacheprovider
     status: passed
     head: 8ab6297fc1e2076fc0ffeebb6ecf09e1fd7c71c7

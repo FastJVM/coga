@@ -26,13 +26,12 @@ covers how the trial runs.
 
 ## Setup
 
-- **Fresh VM.** Use a spare bare `cogatest` UTM machine, and have the human
-  confirm which one at launch. Install coverage starts at the machine's
-  prerequisites (the agent CLI itself and anything else the bare machine
-  demands), not at the tool's own install command. Record each demand in
-  order. Ask whether a step was the tool's demand or a habit carried over
-  from an earlier trial, and leave carried-over steps out of the tool's
-  prerequisites.
+- **Fresh VM.** Follow
+  [coga/testing/fresh-vm](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/fresh-vm/SKILL.md)
+  for VM choice, preparation, baseline capture, reuse, and cleanup.
+- **Install coverage.** Start at the machine's prerequisites (the agent CLI
+  itself and anything else the bare machine demands), not at the tool's own
+  install command. Record each demand in order.
 - **Read the earlier trials' write-ups before install.** Their prerequisite
   chains and standing results are the baseline.
 - **Shared trial task.** Every trial builds the same small product, so a bad
@@ -80,10 +79,10 @@ before recording conclusions. The command relay is for pasting.
 - **Running entry log.** Numbered entries in the order things happened, each
   tagged worked, friction, question closed, or reads-against-Coga. It is not
   the deliverable and not a draft of it.
-- **Command relay.** The human usually cannot copy from the agent session into
-  the VM. Put every command or prompt the human should run in the relay,
-  never only in chat. In the VM, `claude.ai/code/artifacts` lists both
-  artifacts by title, so no URL typing is needed.
+- **Command relay.** Put every command or prompt the human should run in the
+  relay, never only in chat. Follow the shared VM skill's
+  [command and evidence guidance](https://github.com/FastJVM/coga/blob/main/coga/skills/coga/testing/fresh-vm/SKILL.md#moving-commands-and-evidence)
+  to make the artifacts available in the guest.
 
 Record both artifact URLs on the blackboard. Republish from the same source
 path to keep each URL.

@@ -67,8 +67,8 @@ The repo separates implementation from the OS it operates:
   is in `paths.py`.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
-- `dependencies.py` (external CLI manifest) and `agent_cli_setup.py` (agent
-  CLI install and login offer, for `coga init` and `coga build`).
+- `dependencies.py` (supporting-tool install manifest, supported agent CLI
+  scan order, and the shared missing-agent requirement).
 - `skill_manager.py` (`coga skill`; `gh_skill_repo` decides GitHub-backed
   membership, `classify_gh_update_output` maps `gh` output to outcomes; a
   legacy digest that includes machine-local directories may still prove a
@@ -114,7 +114,7 @@ in [coga-dev/codebase/gotchas](gotchas/SKILL.md).
 
 - [coga-dev/testing](../testing/SKILL.md): running the suite, environment
   pitfalls, verification tiers (no hosted CI), receipts.
-- [coga-dev/packaging](../packaging/SKILL.md): bundled batteries, twins, wheel.
+- [coga-dev/packaging](../packaging/SKILL.md): package owners, state exceptions, wheel.
 - [coga/releasing](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/skills/coga/releasing/SKILL.md): PyPI release and install gate.
 - [coga/skill-management](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/skill-management/SKILL.md): skill shapes and
   `coga skill`.

@@ -113,7 +113,7 @@ class CheckoutNotice:
                 "Preparation itself never sweeps. Code or docs outside the roots "
                 "need a branch and PR; implementation inside a root and knowledge "
                 "chosen for review also need the branch before editing. Commit "
-                "intended PR files and packaged twins before any sweeping command. "
+                "intended PR files before any sweeping command. "
                 "Routine task/log/recurring state still follows publication's "
                 "adoption rules, even when committed. State can publish from the "
                 "branch; do not switch for each kind of edit."

@@ -1,0 +1,224 @@
+---
+title: Weekly Coga usage snapshot
+status: done
+owner: nicktoper
+agent: claude
+contexts:
+- coga/period-task
+period_generation: 21b29b5d-57a1-464f-88d4-bcea375098c2
+workflow:
+  name: phone-home/run
+  steps:
+  - name: send
+    skills: []
+    assignee: agent
+---
+
+## Description
+
+Attempt one weekly usage snapshot from the sibling `ticket.py`, without an
+agent. This template owns the snapshot's behavior and data boundary.
+
+The snapshot is edge code, not a registered recipe. Its default implementation
+is `src/coga_edge/phone_home.py`, shipped in the Coga wheel and called by the
+selected definition's `ticket.py` shim (packaged by default, or a deliberate
+local override). Each period keeps its copied shim. It imports only shared core
+and runs under `runner.run_reported` (the `## Recipe Failure` floor), then
+bumps once through the CLI; bump failure propagates. `phone-home/run` has one
+agent-owned `send` step with no skills, so normal completion needs no agent.
+Run by hand outside a launch, it prints its report without advancing a task.
+Upgrades, full local forks and legacy adoption are owned by
+[coga/edge-code](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/edge-code/SKILL.md).
+The schedule is declared in this template's frontmatter (operator-local time).
+New templates are due on the first sweep, too. Coga installs no scheduler.
+Downloads, init, and ordinary commands send no events. Repos that never sweep
+never report: these are repos with active sweeps, **not install counts**.
+
+### Admission and configuration
+
+`[telemetry] enabled = false` suppresses both
+capture and its Slack receipt before identity minting or worker creation.
+This is not a global network-off switch: git sync and lifecycle notifications
+retain their own switches.
+
+Production admission is checked before creating each worker and again inside
+it. Suppress for presence of `PYTEST_CURRENT_TEST`, active `CI` (anything other
+than empty/0/false/no/off, case-insensitive), source/editable imports under a
+Coga development tree, or a target or cwd inside such a tree. Both the installed `coga` dependency
+and the selected implementation file are checked; with a stock shim the latter
+is the wheel module, while repo/cwd checks still cover the launching repo.
+Resolve symlinks;
+a development ancestor has `project.name = "coga"` in `pyproject.toml`,
+`src/coga/runner.py`, and `tests/`. A wheel targeting `tests/fixtures/seeded-repo/` or a linked
+source checkout is suppressed too. Editable installations intentionally do not
+contribute PMF data. There is no bypass flag, endpoint, host, or key option.
+Automated installed-wheel tests preserve CI/pytest gates and fake transport;
+manual ingestion proof uses a release wheel outside development trees.
+
+### State, publication, and loss
+
+The repo-owned parent blackboard holds exactly one readable single-line JSON
+`period_state:` value: `schema` (2), `run` (nonnegative monotonic invocation
+number), nullable `repo_id` (UUID v4), and sorted unique `seen_movements`
+(SHA-256 fingerprints of complete movement events at the last reservation).
+The unused seed has run zero, null identity and an empty set. Declare only
+`period_state` in `state_keys`; quiet, disabled, failed and suppressed runs
+increment `run`. Hashes stay local and never become payload properties.
+
+Schema 1 (`offset`/`digest`) remains readable for migration. A valid prefix
+seeds exactly its consumed movement, leaving later events unread. A null
+identity baselines the snapshot because the first enabled run promises zero.
+An invalid non-null prefix cannot migrate losslessly: trim refuses untouched;
+phone-home retains its visible reset warning and zero baseline when it runs.
+Trim may perform the non-sending migration under a joint guarded log/parent
+publication, preserving `run`, identity, above-fence bytes and unrelated prose.
+After migration trim only reads this state.
+
+Under `git.state_lock(cfg)`, capture parent bytes, read using
+`taskfile.read_blackboard(expected_bytes=...)`, replace using
+`taskfile.replace_blackboard(expected_bytes=...)`, and explicitly publish only
+that parent via `git.publish(..., expect={parent: original_bytes})`. The current
+lock is reentrant, so mutation and publication share one lock window. On direct
+first use, create a state carrier once from the unused package seed and pin
+control's absence (`expect={parent: None}`). Recurring creation publishes its
+carrier with the period before dispatch. State lookup uses a unique active or
+parked parent and rejects malformed carriers and incomplete forks; it never
+reseeds existing state. A direct invocation retains its own policy: a false
+job selection stops recurring admission, not this explicit call. Preserve
+all above-fence bytes and unrelated prose. No period bump is relied upon to
+publish its parent. No-git/disabled-git runs keep authoritative local state;
+publication failures retain state and ordinary local audit evidence.
+
+Gate first. Disabled/development-suppressed runs increment the marker and
+baseline the cursor, without minting identity or sending anything. Enabled
+valid runs mint identity if absent, prepare the payload and reserve state
+**before** spawning transport. No outcome is persisted. No retry, redirect,
+queue, replay or post-transport state rewrite exists. A crash after reservation
+can lose an event; capture failure cannot roll back the cursor.
+
+Invalid inventory (including duplicate discovery, malformed tickets or invalid
+status) warns locally and skips capture/receipt, advances only `run`, preserves
+identity/cursor, and completes successfully. Corrupt state, unexpected argv,
+and invalid payload/version values fail visibly before sending.
+
+Disabling stops sending; movement from the gap may appear in the first count
+after re-enabling. A disabled sweep baselines only through that moment; lines
+appended later can count after re-enable. An off/on toggle between runs is
+unobservable. No suppression marker is persisted. Synced clones share identity;
+unsynced first runs can mint different identities. No distributed exactly-once
+claim or coordination.
+
+The repo parent accumulates state while the package seed stays unused and
+identity-free. Transitional checks compare legacy definitions separately from
+their complete mutable blackboards, validate carriers as state, and require an
+unused packaged seed. State changes never need a definition-divergence entry.
+
+### Scope and approximate movement
+
+Inventory uses `tasks.list_tasks` and `read_ticket`: both ticket shapes, every
+status, including drafts, parked v2 work and terminal tickets still on disk.
+Exclude refs equal to `recurring` or starting `recurring/`; normal discovery
+excludes templates, READMEs and attachments. Explicit zeros for all seven
+`lifecycle.VALID_STATUSES`. Never send partial counts from invalid inventory.
+
+Movement counts complete valid timestamp/ref/actor audit envelopes for work
+refs (including deleted tasks), using the versioned/legacy decoding contract
+in [coga-dev/internals/spool-merge](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga-dev/internals/spool-merge/SKILL.md). The decoded
+message is exactly one of:
+
+- `advanced to step <positive integer> (<step name>)`, optionally followed by
+  the producer's ` → <operator>` handoff and/or ` — <FYI>` suffix;
+- `task done`, optionally followed by ` — <FYI>`;
+- `auto-bumped on merge of PR #<integer> → done`, or
+  `auto-bumped on merge of the linked PR → done`.
+
+Actor and handoff names may contain spaces; step names may contain parentheses,
+as permitted by the audit producers. An FYI suffix may contain line breaks. These names are parsed locally, never sent.
+
+No rewinds, launches, creates, other marks, blocks, unblocks, embedded prose,
+malformed lines or housekeeping. First enabled run baselines complete events
+and sends movement zero. Later reservations count current movement hashes
+absent from `seen_movements`, then replace the set with the current set before
+transport. Hash canonical LF event bytes, excluding the final terminator;
+CRLF conversion, reordering and removal of consumed records do not reset the
+cursor. Exact-event duplicates collapse; a partial legacy event waits until
+complete. Missing log is empty. Equal/out-of-order timestamps do not affect
+counting. Identical real transitions in one minute can still collapse.
+
+Retention protects unread events in its control snapshot even when reporting
+is delayed past the age window. After consumption, a later trim may remove
+them. The fingerprint set is replaced, not accumulated forever. Incoming
+archived replays are classified using control's unread snapshot and exact Git
+provenance, so a consumed hash forgotten after trimming cannot resurrect and
+count again. Genuinely new backdated movement remains reportable. Ordinary
+trimming causes no recurring telemetry loss; transport failure/crash semantics
+above are unchanged. This is approximate activity, not an audit ledger.
+Snapshots supply current inventory; never sum historical inventories.
+
+### Closed wire contract
+
+One `coga_weekly_snapshot` attempt per eligible valid run, HTTPS POST to
+`https://us.i.posthog.com/i/v0/e/`, TLS verified, no redirects or SDK. Recipient:
+FastJVM US Cloud project `606347`, shared with Multiply. Its public write-only
+key is embedded only in the edge module's `POSTHOG_CAPTURE_KEY`. Publishing it permits
+spam injection; rotation affects old Multiply builds too. Operational key source, rotation and project settings are in the
+[maintenance runbook](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/operations.md).
+
+Exact envelope: `api_key`, `event`, `distinct_id`, `timestamp`, `properties`.
+Identity is the persisted UUID; timestamp is UTC occurrence time. Exact measured
+properties:
+
+| Property | Type and source |
+| --- | --- |
+| `coga_version` | Installed package metadata; numeric-leading ASCII version syntax, at most 64 characters; invalid input rejected |
+| `os_name` | Closed `linux` / `macos` / `windows` / `other` vocabulary |
+| `os_version` | Only leading numeric dotted release component, bounded to 64 ASCII characters; empty when unavailable |
+| `python_version` | Numeric interpreter major.minor.micro, at most 64 ASCII characters |
+| `tickets_draft`, `tickets_active`, `tickets_in_progress`, `tickets_blocked`, `tickets_paused`, `tickets_done`, `tickets_canceled` | Nonnegative integers, never booleans |
+| `movement_count` | Nonnegative integer, never boolean |
+
+No dynamic properties, `$set`, `$lib`, owner/agent names, paths, slugs, titles,
+bodies, blackboards, remotes, branches, Slack IDs, environment values, raw logs,
+errors, cursor fingerprints/digests, hostnames, or full kernel build text. Protocol fields
+are not measured properties. Keep the default identified event/person keyed
+only by opaque repo ID; no identify/alias calls or person attributes. IP discard
+and disabled GeoIP are required project settings. The network peer necessarily
+sees source IP. Query actual stored keys at acceptance; separately explain
+service routing metadata, and block acceptance on unexpected enrichment.
+
+### Transport and reports
+
+A private short-lived Python worker (the selected implementation file re-run
+with `--worker`, including a complete local fork) reads the prepared keyless event on stdin,
+validates the closed schema, adds the constant key and does one POST. The parent
+enforces a three-second wall deadline including stalled DNS/connect/read,
+kills and reaps on expiry (plus teardown overhead). No response body is read.
+Never print credentials, request/response bodies or raw transport exceptions.
+Fixed outcomes: accepted, rejected, network-error, timed-out; admission may
+return suppressed. HTTP accepted is not proof of ingestion.
+
+After capture, a separately bounded three-second worker calls existing
+`notification.post(..., fatal=False, record_failure=False)` with the same
+keyless envelope and attempt outcome. Say `attempted / HTTP accepted`, never
+`ingested`. Skip disabled Slack. Receipt failure cannot affect capture, state
+or completion. A compact period report contains counts/outcomes and at most
+one aggregated delivery warning via `blackboard.append_blackboard_report`;
+outside a task it goes to stdout. Local validation failures remain distinct.
+
+### Maintenance
+
+For wheel verification, project read-back, key rotation or person deletion,
+read the persistent template's
+[operations.md](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/recurring/phone-home/operations.md).
+Those are separate operator procedures, not actions for a weekly run.
+Supporting Markdown stays with the template; it is not copied into a period task.
+
+## Context
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Phone home
+
+Run 8: capture suppressed; receipt suppressed.

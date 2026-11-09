@@ -1,6 +1,6 @@
 ---
 title: Remove the agent CLI install offer from coga init
-status: in_progress
+status: done
 owner: zach
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
@@ -496,63 +495,263 @@ fresh PR is equally fine; Zach wants it back in front of Nico either way. The
 `## PR` receipt below is stale from `b9057a89b` — its `head`, `checks`, and the
 two `install/SKILL.md` file entries all need rewriting before it goes back out.
 
+## Review assist — message fixed, #1176 reopened (2026-11-07, claude, attended)
+
+Attended assist with Zach. PR #1176 is **open again** at `781a3377d`, retitled
+"Remove agent CLI install offers; point missing-CLI errors at coga.toml". The
+ticket stays `in_progress` on `review`; no bump.
+
+### The skill could not run as written
+
+`code/address-pr-comments` requires an open PR with unresolved review threads.
+#1176 was `CLOSED` and had **zero** review threads and zero review objects —
+Nico's feedback was one top-level issue comment posted 61 seconds before he
+closed it. Verified, not inferred. Reopening was Zach's explicit direction.
+
+### The finding that shaped the fix
+
+`shutil.which()` already accepts a full path, so `cli = "/opt/homebrew/bin/claude"`
+in `coga.toml` **already worked before this change**. Proven end to end: with
+`cli` pointed at a binary in a directory absent from `PATH`, launch resolved and
+spawned it. So the earlier blackboard reading — that Nico's comment implied a
+design change to the agent-spawn contract — was wrong on its premise. No
+behavior changed; only text that denied an existing capability.
+
+This supersedes the "competing reading is rejected" paragraph above: there was
+nothing to reject, because there was no design change to make.
+
+### What changed
+
+- `dependencies.agent_cli_missing_message(name, cli)` — was `(cli)`. Takes the
+  `[agents.<name>]` table so it can name the one line to change. Now reads:
+  "Agent CLI 'claude' not found. Set `cli` in [agents.claude] in coga.toml to
+  your agent CLI." No `PATH`, no installer, no URL.
+- Seven call sites pass `agent.name, agent.cli` (launch ×4, megalaunch ×2,
+  commands/ticket ×1). All already held the `AgentType`; no new plumbing.
+- Packaged `coga.toml` `cli` comment — "either a command name or a full path".
+  Only the template; `coga/coga.toml` is a `SCAFFOLD_COUNTERPART` and exempt
+  from byte-matching it, so the repo's own config was untouched.
+- init next-steps item 2 — dropped the PATH sentence. It deliberately does
+  **not** name `coga.toml`: that reader has no agent CLI, and Nico's
+  `test_init_next_steps_do_not_send_the_user_to_edit_coga_toml` (`8a8941a38`)
+  forbids sending anyone to edit a `.toml`.
+- `coga-dev/internals/agent-spawn` — its missing-CLI paragraph still asserted
+  the PATH requirement.
+
+### Reconciliation
+
+Merged `origin/main` at `7c26221cb` (was 56 behind, six conflicts). The two
+modify/delete conflicts were the `coga/install` copies `8a88b5ada` deleted; the
+deletion was accepted and the no-agent-installer policy re-homed into
+`coga/init` (both twins mirrored) and the README's Get started, which the branch
+had already edited. Nothing restored from the deleted files. Now 0 behind.
+
+Checked first that Nico had not started the same work: of the last 40 main
+commits he wrote 37, and the two touching this ground (`8a8941a38` init next
+steps, `9dc9eee11` op install offer — the latter Zach's) do not overlap.
+
+### Verification
+
+Focused suites at `781a3377d`, all passing: `test_dependencies` 4,
+`test_init` 151, `test_launch` + `test_megalaunch` 412, `test_packaging` 37,
+`test_ticket` + `test_compose` + `test_layout_contexts` 180. Real-pty runs with
+the agent CLIs off `PATH` confirmed the new init item 2, the new `coga build`
+failure (exit 2, nothing else), and the off-`PATH` `cli` spawn.
+
+Still no full `python -m pytest` receipt, for the same reason as before: the
+suite wants an `rg` binary this machine lacks, which fails identically on clean
+main. Zach has the finding and has not filed it; it has now cost two PRs a
+full-suite receipt.
+
+### Left alone deliberately
+
+README lines 86 and 132 still say "on `PATH`". Line 132 is factually right (the
+scan does use `PATH`); line 86 is a Get-started prerequisite, true as advice but
+not the only way. Zach scoped this change to three surfaces and the README was
+not one. Flagged, not changed.
+
+> Superseded the same day: Nico's second pass widened the scope and both README
+> lines were reworded. See the next section.
+
+## Second review pass — the PATH/toml split (2026-11-07, claude, attended)
+
+Nico reopened and closed #1176 again, this time with two inline threads on
+`init.py` (`:446` and `:581`) and the comment: *"the message was the only thing
+wrong." — Not really; I skimmed through the code and could find a lot of places.*
+He was right; the previous section's claim was too narrow. PR reopened at
+`8d2ed4c85` with both threads replied to (not resolved — owner gate).
+
+### The rule, from Nico via Zach
+
+`git`, `gh`, `op` and `coga` itself are found on `PATH`. **Agent CLIs are found
+through `coga.toml`.** So nothing agent-related names `PATH` at all; the remedy
+is always the `[agents.*]` table. This is the durable rule for later tickets,
+and it is cleaner than how this ticket's Description states it. All 16 non-agent
+`PATH` mentions in `src/` stay untouched.
+
+### Two of the finds were defects, not wording
+
+- **`recurring_autofix.analyze_record` was an eighth presence check** with its
+  own `"agent CLI {cli!r} is not on PATH, so the run cannot be analyzed"` text.
+  The earlier pass found seven sites and missed it, which is precisely how a
+  PATH claim survived a sweep that fixed the others. It now calls
+  `agent_cli_missing_message`. **A structural guard
+  (`test_every_agent_cli_check_routes_through_the_shared_message`) now fails if
+  any module matching `shutil.which(*agent*.cli)` omits that function** — it
+  currently covers `launch`, `megalaunch`, `commands/ticket`, `recurring_autofix`.
+  Prefer extending that guard over another manual sweep.
+- **`coga/first-task` documented the deleted offer**: "When the onboarding
+  agent's CLI is not on `PATH`, it offers to install it and log in first." Wrong
+  before this branch existed.
+
+### Wording, for the record
+
+Six docstrings/comments (`init.py` 446/580/588/590, `launch.py` 2008/3644),
+`coga/init` and the two clean-install runbooks in both twins, README ×2, three
+test references, and the stale `test_launch.py` docstring.
+
+### Where PATH legitimately survives near an agent word
+
+Five places, each checked against the rule. Do not "fix" these:
+
+- `test_launch_script.py:245,1574` — `setenv("PATH", "/agents-absent")`, the
+  mechanism that makes a CLI unfindable in a test.
+- `test_init.py:1263` — `assert "PATH" not in agent_step`, enforcing the rule.
+- `coga-dev/current-direction` — the direction log, naming `PATH` to record that
+  the requirement was dropped.
+- `coga-dev/testing` — what environment a spawned agent inherits
+  (`build_launch_env`), not how the agent is found.
+
+### Held for ticket 20, and said out loud to Nico
+
+`_installed_agent_clis` still scans `PATH` for hardcoded `claude`/`codex`, so
+agents are genuinely not yet found via the toml *in init*. Reason: init is the
+command that creates `coga.toml`, so there is no config to read. Zach's call was
+to hold the scan for `v1/20-ask-which-agents-to-enable-during-coga-init`; the
+docstring now records both the reason and the owner, and the thread reply offers
+to change it in this PR if Nico wants it sooner. **Ticket 20 should expect this
+to be the next thing Nico asks about.**
+
+### Verification
+
+1280 tests at `8d2ed4c85`, all passing: launch + megalaunch + launch_script +
+recurring 1007; dependencies + packaging + recurring_autofix + init 273. Plus
+the real-pty runs from the previous section, which the message change did not
+alter. Full `python -m pytest` still blocked on the missing `rg` binary.
+
+### The sweep was incomplete — second pass at `b95bd3c48`
+
+Zach asked whether the PR body reflected the changes. It did not, and checking
+exposed the method error: **I grepped for `PATH` on lines that also named an
+agent, so any reference phrased without one survived.** Diffing the branch
+against main found five more. Use the diff, not a keyword grep, for this class
+of question.
+
+- `repl_supervisor.AgentCliNotFound` — its docstring said only this exception
+  means "install the CLI / fix your PATH". The exception class for this exact
+  failure still recommended an install this branch removes.
+- `tests/test_launch.py` — a docstring asserting "only the PATH requirement",
+  and a comment about debugging "a PATH".
+- `tests/test_init.py` — "With neither CLI on PATH" and "init scans PATH for
+  them".
+- `code/peer-review` ×2 twins — "if your review tool isn't on PATH" is
+  ambiguous about whose tool; now "isn't available".
+
+Net across the branch, audited line by line: **38 `PATH` lines removed, 14
+added**. All 14 are `assert "PATH" not in …` guards, statements of the rule, or
+quotes of the removed wording explaining why a guard exists. Nothing added
+asserts a `PATH` requirement.
+
+The PR body also had two wrong counts and credited real-pty receipts taken at
+an earlier head. Both fixed; the pty runs were redone at `b95bd3c48`.
+
+Final verification at `b95bd3c48`: **1324 tests** — megalaunch + launch_script +
+recurring 737, launch 270, dependencies + autofix + packaging + repl_supervisor
++ init 317 (1 skipped). Real-pty at the same head: init next step names no
+`PATH`, no URL, no `coga.toml`; `coga build` prints only the new message at exit
+2. Full `python -m pytest` still blocked on the missing `rg` binary.
+
+### Five `PATH` mentions remain near an agent word — do not "fix" these
+
+Superseding the list in the previous section, which is now stale by one entry:
+
+- `test_launch_script.py:245,1574` — `setenv("PATH", "/agents-absent")`, the
+  mechanism that makes a CLI unfindable in a test.
+- `test_init.py:1263` — `assert "PATH" not in agent_step`, enforcing the rule.
+- `coga-dev/current-direction` — the direction log, naming `PATH` to record the
+  requirement was dropped.
+- `coga-dev/testing` — what environment a spawned agent inherits
+  (`build_launch_env`), not how the agent is found.
+
+All 16 non-agent `PATH` mentions in `src/` (git ×3, gh ×5, op ×1, coga/uv and
+generic tooling ×7) are untouched by design.
+
 ## PR
 
 ```yaml
-title: Remove all agent CLI installation offers
+title: Remove agent CLI install offers; point missing-CLI errors at coga.toml
 author: claude_codex
-author_evidence: Claude wrote the init-only removal; Codex extended it to every agent-backed command and reviewed its own extension.
-head: b9057a89b51d5bbd436416dc5c2ae9d4bd68dd67
-base: 0ecfd8e8f0708a52dfe7be3d9d78b3c1fe11ec67
+author_evidence: Claude wrote the init-only removal and the post-review coga.toml fix; Codex extended the removal to every agent-backed command and reviewed its own extension.
+head: b95bd3c4809a1e1daed6b2768ef04ce2cb4af819
+base: 29df72447b0d18123cf9488dee9ffbaa498f5b6d
 depth: deep
-rationale: The only review was Codex reviewing changes it wrote itself, so read the diff rather than the receipt.
-implementation: 'Deletes init''s "install which agent CLI?" picker, the `coga build` install exception, and the `agent_cli_setup` module. A missing agent CLI now gets one message everywhere: Coga requires it on PATH. Init still scans PATH and still offers a single installed CLI as the default agent.'
-deviations: Began as init-only and grew to every agent-backed command during review. Coga's own `uv tool install coga` instructions stay.
-limitations: Coga no longer says how to install an agent CLI. Users install one themselves.
+rationale: Codex reviewed changes it wrote itself, and Nico's review reversed the remedy after that. Read the diff rather than the receipt.
+implementation: 'Deletes init''s "install which agent CLI?" picker, the `coga build` install exception, and the `agent_cli_setup` module. After Nico''s review the single point-of-need failure names the `[agents.<name>]` table in coga.toml instead of asserting a PATH requirement — `shutil.which` already accepted a full path, so no behavior changed. Init still scans PATH and still offers a single installed CLI as the default agent.'
+deviations: Began as init-only, grew to every agent-backed command during Codex review, then changed remedy from "must be on PATH" to "set `cli` in coga.toml" after Nico's 2026-11-07 review. Coga's own `uv tool install coga` instructions stay.
+limitations: 'Coga no longer says how to install an agent CLI. Users install one themselves. README lines 86/132 still say "on PATH": line 132 is factually correct and line 86 is Get-started advice, both left in scope-respecting deliberately.'
 files:
-  README.md: Removes agent installer links and states the PATH-only prerequisite while retaining Coga's uv install.
+  README.md: Removes agent installer links and states the prerequisite while retaining Coga's uv install.
   coga/skills/coga/testing/clean-install/SKILL.md: Legacy live twin; replaces embedded agent setup commands/URL with an operator-provided PATH prerequisite.
   coga/skills/coga/testing/clean-install/macos-aws/SKILL.md: Legacy live twin; removes the macOS agent installer command/URL.
   docs/contexts/coga-dev/codebase/SKILL.md: Removes the deleted installer module from the source map.
-  docs/contexts/coga-dev/current-direction/SKILL.md: Records the owner reversal to no agent installation offers or links.
-  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Updates the spawn-race remedy to the shared PATH requirement.
-  docs/contexts/coga/init/SKILL.md: Legacy live twin documenting scan/default behavior and the factual missing-CLI next step.
-  docs/contexts/coga/install/SKILL.md: Legacy live twin owning the no-agent-installer policy.
+  docs/contexts/coga-dev/current-direction/SKILL.md: Records the owner reversal to no agent installation offers or links, then the 2026-11-07 shift to a coga.toml remedy.
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Points the missing-CLI remedy at the `[agents.*]` table instead of a PATH requirement.
+  docs/contexts/coga/init/SKILL.md: Legacy live twin documenting scan/default behavior and the factual missing-CLI next step; also absorbs the retired install topic's agent policy.
   src/coga/agent_cli_setup.py: Deleted the now-unused agent installer/login implementation.
-  src/coga/commands/init.py: Removes init's install picker and clone call, keeps scan/default behavior, and prints a conditional PATH fact.
-  src/coga/dependencies.py: Removes agent install URLs/package/login metadata and defines the shared PATH-only failure.
-  src/coga/launch.py: Removes the coga-build installer exception and uses the shared failure for spawn races.
-  src/coga/megalaunch.py: Uses the shared PATH-only failure for its FileNotFoundError boundary.
+  src/coga/commands/init.py: Removes init's install picker and clone call, keeps scan/default behavior, and prints one statement of fact with no PATH claim and no coga.toml pointer.
+  src/coga/dependencies.py: Removes agent install URLs/package/login metadata; `agent_cli_missing_message(name, cli)` names the `[agents.<name>]` table and sends the reader to coga.toml.
+  src/coga/launch.py: Removes the coga-build installer exception; four call sites pass the agent type name.
+  src/coga/megalaunch.py: Two call sites pass the agent type name for its FileNotFoundError and preflight boundaries.
+  src/coga/commands/ticket.py: Authoring preflight passes the agent type name.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: Package owner of the init contract; mirrored to docs.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/install/SKILL.md: Package owner of the install contract; mirrored to docs.
+  src/coga/resources/templates/coga/coga.toml: The `cli` key comment now says a command name or a full path, not a PATH requirement.
   src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/SKILL.md: Package owner of the clean-install runbook; removes agent installer commands/URL.
   src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/macos-aws/SKILL.md: Package owner of the macOS runbook; removes agent installer commands/URL.
   tests/test_agent_cli_setup.py: Deleted tests for the removed installer module.
-  tests/test_dependencies.py: Pins the absence of agent installer metadata and the PATH-only shared message.
-  tests/test_init.py: Removes install-picker cases and covers no/one/both installed scan behavior and URL-free next steps.
-  tests/test_launch.py: Removes build-installer cases and pins PATH-only launch, chained-handoff, and spawn-race failures.
-  tests/test_megalaunch.py: Pins megalaunch's missing-agent PATH requirement.
+  tests/test_dependencies.py: Pins the absence of agent installer metadata, the coga.toml remedy, the absence of PATH, and a path-valued `cli` still naming its table.
+  tests/test_init.py: Removes install-picker cases and covers no/one/both installed scan behavior plus next steps free of URL, PATH and coga.toml.
+  tests/test_launch.py: Removes build-installer cases and pins the coga.toml remedy for launch, chained-handoff, and spawn-race failures.
+  tests/test_megalaunch.py: Pins megalaunch's missing-agent coga.toml remedy and the absence of PATH.
 review:
-  reviewer: codex
-  kind: self
-  status: passed
-  head: 3badabee50b3e046ddf9205db0c1ff13c6454855
-  base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-  detail: Direct Codex review completed with no unresolved findings. Codex independently reviewed Claude's original diff, then authored the owner-directed expansion and self-reviewed the final head.
+  reviewer: nicktoper
+  kind: human
+  status: changes-requested-and-addressed
+  head: 25e310236ca9b4c1698b4197dffe6cefff1255eb
+  base: 0a150faf1a0925530533812de8927b6dabb8d042
+  detail: Nico closed the PR with one top-level comment (no review object, no inline threads) rejecting the PATH requirement in favor of the toml. Addressed at 781a3377d and the PR reopened with a reply in the same thread. An earlier Codex self-review passed at 3badabee5 against 0bf1d5dad, but it reviewed its own expansion.
 checks:
+  - command: python -m pytest tests/test_dependencies.py tests/test_init.py tests/test_launch.py tests/test_megalaunch.py tests/test_packaging.py tests/test_ticket.py tests/test_compose.py tests/test_layout_contexts.py
+    status: passed
+    head: b95bd3c4809a1e1daed6b2768ef04ce2cb4af819
+    base: 29df72447b0d18123cf9488dee9ffbaa498f5b6d
+    detail: 784 passed across the five runs (4 + 151 + 412 + 37 + 180). Run as separate invocations, not one command.
+  - command: coga init; coga build; coga build with `cli` set to an off-PATH absolute path
+    status: passed
+    head: b95bd3c4809a1e1daed6b2768ef04ce2cb4af819
+    base: 29df72447b0d18123cf9488dee9ffbaa498f5b6d
+    detail: 'Real pty via pty.fork, agent CLIs absent from a shim PATH. Init item 2 named no PATH, no URL and no coga.toml; coga build printed only "Agent CLI ''claude'' not found. Set `cli` in [agents.claude] in coga.toml to your agent CLI." at exit 2; with `cli` pointed outside PATH, launch resolved and spawned it, proving the path form already worked.'
+  - command: python -m pytest
+    status: not-run
+    head: b95bd3c4809a1e1daed6b2768ef04ce2cb4af819
+    detail: No full-suite receipt at this head. test_edge_distribution.py needs an `rg` binary this machine lacks and fails identically on clean main. Second PR in a row blocked on it; still unfiled.
   - command: python -m pytest
     status: failed
     head: b9057a89b51d5bbd436416dc5c2ae9d4bd68dd67
     base: 0ecfd8e8f0708a52dfe7be3d9d78b3c1fe11ec67
-    detail: '3 failed, 4472 passed, 11 skipped in 1:28:00. All three reproduce on clean main at 0ecfd8e8f: test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers, and test_packaging.py twin-drift and broken-anchor checks caused by `### Windows baseline` existing only in the live copy of install/SKILL.md. This branch adds no new failures.'
-  - command: coga init <scratch repo> --user reviewer; coga build with claude/codex hidden from PATH
-    status: passed
-    head: 3badabee50b3e046ddf9205db0c1ff13c6454855
-    base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: Real TTY. Init kept `uv tool install coga`, printed only the agent PATH requirement, and did not prompt or link; coga build failed with the same message.
+    detail: 'Superseded, kept for history. 3 failed, 4472 passed, 11 skipped in 1:28:00; all three reproduced on clean main at 0ecfd8e8f. Two were twin-drift/broken-anchor checks against the live install/SKILL.md, which main has since deleted.'
   - command: uv tool install --force git+https://github.com/FastJVM/coga@3badabee5; coga init --user zach; coga build
     status: passed
     head: 3badabee50b3e046ddf9205db0c1ff13c6454855
     base: 0bf1d5dad2f2387ac73ecbadfb645182730a6661
-    detail: Fresh macOS guest with no agent CLI, Homebrew, or npm. Init printed no install prompt or agent URL and stated the PATH requirement once; coga build failed with only that message.
+    detail: Fresh macOS guest with no agent CLI, Homebrew, or npm. Covers the install-offer removal only; its PATH-requirement wording is the text Nico then rejected.
 ```

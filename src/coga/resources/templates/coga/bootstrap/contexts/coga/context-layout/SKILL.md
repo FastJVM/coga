@@ -13,7 +13,8 @@ coga/
   log.md             repo-global audit log (CLI-managed)
   tasks/             tickets: <slug>.md, or <slug>/ticket.md plus attachments,
                      at any sub-directory depth
-  recurring/<name>/  recurring task templates
+  recurring/<name>/  local recurring definitions or package-backed state
+  recurring/jobs.toml explicit recurring activation choices
   skills/<ref>/      project-local skills and overrides
   contexts/<ref>/    project-local contexts (default contexts root)
   workflows/<ref>.md project-local workflows

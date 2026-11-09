@@ -111,12 +111,14 @@ is `coga status` and the ticket bodies; stage posture is
   recovery when a step went wrong but the premise holds. When the premise is
   wrong, cancel the ticket with its reason, fix the owning context and start
   a new one. Contract: [`coga/lifecycle`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md).
-- **Init offers to install missing external CLIs (owner reversal,
+- **Init offers selected missing supporting CLIs (owner reversal,
   2026-09-30).** Users read a missing `gh` as a broken, unprofessional
-  install and churn. Interactive `coga init` offers `git`, `gh` and `op`; it
-  still installs no Python package or skill, and nothing without a yes.
-  Agent CLIs are offered too (2026-10-01), through brew or npm only, and init
-  may set or replace the default agent behind an explicit confirm. Contract:
+  install and churn. Interactive `coga init` offers `git` and `gh`; it notes
+  `op` without installing it, installs no Python package or skill, and runs
+  nothing without a yes. Agent CLI installation offers and links were removed
+  2026-11-05, and 2026-11-07 made the remedy a `coga.toml` fix: a missing
+  agent CLI points at `cli` in the agent's `[agents.*]` table, while init may
+  offer an already-installed CLI as the default. Contract:
   [`coga/init`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 - **Native Windows is supported (2026-11).** The core port (2026-10-23)
   runs non-interactive commands and deterministic work;

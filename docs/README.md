@@ -120,7 +120,9 @@ defines where facts belong. For older context refs, see the
 [migration note](release-notes/context-audiences.md). Shipped definitions are
 owned by the package and resolved local-first; the
 [package-definitions note](release-notes/package-definitions.md) covers
-recurring selection, state carriers and migrating an existing repo.
+recurring selection, state carriers and migrating an existing repo. This
+source repo uses those package owners directly; there is no second user-topic
+tree under `docs/contexts/`. Its local topics are the Coga-dev library above.
 
 ## Proposals and history
 

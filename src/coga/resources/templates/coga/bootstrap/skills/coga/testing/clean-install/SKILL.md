@@ -73,23 +73,20 @@ exec; its filesystem, evidence, and any saved agent login are intact:
 docker start clean-pypi
 ```
 
-Install and authenticate an agent **inside that container** before either
-attended continuation. For example, add curl for Claude Code's installer from the host:
+Provide and authenticate an agent CLI **inside that container** before either
+attended continuation, using the operator's existing setup. This runbook gives
+no agent installer command or URL. Verify the chosen CLI is runnable (or
+point `cli` in `coga.toml` at its full path):
 
 ```sh
-docker exec --user root clean-pypi apt-get update
-docker exec --user root clean-pypi apt-get install -y --no-install-recommends curl
 docker exec -it clean-pypi bash
+command -v claude  # or: command -v codex
 ```
 
-Then, inside the container, follow the vendor's
-[Claude Code setup and login](https://code.claude.com/docs/en/setup):
+Then, inside the container, run the attended continuations with that configured
+agent:
 
 ```sh
-curl -fsSL https://claude.ai/install.sh | bash
-claude --version
-claude
-# Complete browser login using the URL shown, then exit the agent.
 coga-clean-install build --agent claude
 coga-clean-install ticket "Write a hello-world script" --agent claude
 ```
