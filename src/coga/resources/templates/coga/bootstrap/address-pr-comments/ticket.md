@@ -197,7 +197,7 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
    worktree. A failed or unavailable required test is `verify-failed`: do not
    push, and restore the worktree to its recorded original OID. Docs-only
    fixes need no pytest run; verify their factual claims, links, and
-   live/packaged twins instead. Diff review and the conditional test are a
+   package ownership instead. Diff review and the conditional test are a
    mandatory gate; never push first and verify afterward.
 7. **Push with the observed lease.** Follow the skill's §3 exactly: refresh
    the PR's `state`, base, head repository, `headRefName`, and `headRefOid`

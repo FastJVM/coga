@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 6 (review)
 agent: claude
 ---
 
@@ -537,6 +537,7 @@ Previous ref: `windows-native/03-interactive-coga-launch-on-native-windows` (ren
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1189
 branch: coga/v1-14-interactive-coga-launch-on-native-windows-e8b518
 
 
@@ -1073,3 +1074,272 @@ changed package owner over its legacy live copy
 and `coga/skills/coga/testing/clean-install/windows-aws`) so
 `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
 passes.
+
+## Implement — phase 2, session 2 (2026-11-06/07, attended, Claude Opus 5.5)
+
+Done; bumped to open-pr.
+
+- Rebased onto origin/main `ee4f104b4` (138 commits). The only conflict was
+  `tests/test_launch.py`: kept main's new tests and dropped a stale
+  `@windows_interactive_skip`. Fixed main's new gotcha in
+  `docs/contexts/coga-dev/codebase/gotchas/SKILL.md`, which named the deleted
+  `require_agent_sessions()`; it now names `launch.agent_command_refusal()`.
+  Force-pushed as `a469b51f7`.
+- Linux full suite on `a469b51f7`: **4562 passed, 31 skipped, 2 failed**.
+  Both failures **pre-exist on origin/main** and are untouched by this branch:
+  `test_live_and_packaged_copies_stay_identical` (`coga/skills/coga/releasing`
+  live vs packaged drift) and `test_context_navigation_has_no_broken_links`
+  (`coga-dev/testing` links a missing `macos-aws#full-suite-at-a-commit`
+  anchor). Not fixed here (out of scope).
+- Auth (owner): the owner logs in to their subscription on the box with `claude`
+  over the harness `ssh`. No API key was used.
+- Box `win-launch3`: i-05dc25bc97681ef1b, us-east-1a, t3.large, AMI
+  ami-0b5f645abc199e666, build 26100.33674, Git 2.56.0.windows.4, uv 0.13.7,
+  Python 3.11.18, Claude Code 2.1.319, coga 0.4.1 (branch checkout via
+  `uv tool install`). Throwaway repo `C:\Users\Administrator\tt` with a bare
+  local origin, a local `two-agent` workflow, and Haiku pinned in its
+  `coga.local.toml`. Temporary Defender exclusions were added with owner OK;
+  **remove and verify them before teardown**.
+- Host driver: `pty.fork` + `ssh -tt` + pyte (`uv run --with pyte`). Box
+  runner `run.py` ignores SIGINT/SIGBREAK, prints console modes before/after
+  and the coga exit. A `.cmd` runner caught Ctrl+C itself ("Terminate batch
+  job"), which is a harness artifact.
+- Attended results so far (all PASS):
+  - `--idle-timeout 30`: exit 2, limitation + `--max-session` message, sweep
+    withheld. Staged/unstaged dirt, branch, HEAD, remote tip and file hash were
+    unchanged, and the ticket stayed `active`.
+  - `--max-session 20` (claude at onboarding): CTRL_BREAK at 20 s, child exit
+    0x0, reported 124/`timeout`. No claude/node/bash left; modes 503/7 before =
+    after. Noticed `coga usage: claude transcript not found:
+    C:\Users\Administrator\tt\<id>.jsonl` because no session transcript existed
+    yet; recheck the path once authenticated sessions run.
+  - Picker: ↑/↓/j/k, Space, a/n, q, Esc pass. Resize redrew within 0.24 s,
+    keeping the selection. Ctrl+C during idle polling and during redraw with a
+    queued Enter both cancelled ("Nothing selected"): exit 0, no traceback, no
+    saved selection, no session, modes restored.
+- Real-agent attended results (owner logged in to their subscription on the box;
+  Haiku pinned; folder trust pre-accepted in the box's `~/.claude.json`). All PASS.
+  Every run: no claude/node/bash left in `tasklist`, and modes 503/7 before =
+  after.
+  - **bump** (`bump3`): the agent ran `coga bump`; sentinel trigger, CTRL_BREAK,
+    child 0x0, exit 0; advanced exactly to step 2 `human-executes` (owner).
+  - **mark done** (`done2`): the agent first asked (the step says "no live
+    action"); I typed the authorization into the REPL, which also proves input
+    works. Ticket `done`, exit 0. `done1` was the same refusal; its SSH was
+    killed at the 300 s driver deadline with no orphans.
+  - **block** (`block1`): `blocked`, reason "throwaway block check", exit 0.
+  - **chain** (`chain1`, local `two-agent` workflow): two sessions in one
+    launch, 1→2→3 `owner-check`, exit 0.
+  - **Ctrl+C** (`ctrlc1`): Claude showed "Press Ctrl-C again to exit"; no
+    KeyboardInterrupt/traceback; `--max-session 60` ended it, 124.
+  - **SSH hang-up** (`hangup1`, killed at 40 s into a live session): no orphans.
+  - **Picker Enter** (`COGA_REPL_MAX_SESSION=45 megalaunch --pick`, timeout2
+    selected): launched only timeout2; exactly one `[coga watcher]
+    idle-timeout is unavailable on Windows; running with max-session only`;
+    the max-session teardown gave 124, so megalaunch reported 1 failed (exit 1).
+  - **DWORD via a native parent** (fake `.cmd` agents through the batch
+    transport): `coga.exe` and `python -m coga.cli` each returned 0xC0000005,
+    0xC000013A and 7 exactly.
+  - `bump1` ended natural exit 1 because my driver answered the trust dialog's
+    default "No, exit" (a harness error); it shows natural exits pass through.
+- Fixes found on the box (owner: fix here):
+  - `59b43c47e` usage: Claude transcript dir naming now also maps `\` and `:`.
+    On Windows usage was always "transcript not found" because the computed
+    name was an absolute path. POSIX output is unchanged. Docs:
+    `coga-dev/internals/activity-capture`.
+  - `9b8a27e4b` checkout policy: compare step-skill twins with CRLF→LF, so a
+    `core.autocrlf` checkout doesn't fall back to `manual`. Natively,
+    `test_policy_checks_peer_review_skill_for_current_and_legacy_steps` ×3 had
+    failed (from main, exposed by the box's CRLF checkout). Docs: `coga/checkouts`
+    (both twins).
+- The Defender process exclusions (`python.exe`, `git.exe`, `uv.exe`) were added
+  by the owner (the classifier blocked my attempt). Remove these along with the
+  path exclusions before teardown. The native suite was restarted on `9b8a27e4b`.
+- First full native suite (S4U task, `9b8a27e4b`): **128 failed, 4367
+  passed, 103 skipped, 3 h**. The owner said to fix everything, including the 25
+  failures already on main. Causes and fixes:
+  - **CRLF source checkout** (25 already on main: trim-log "custom clean
+    filter", packaging pins, recurring carrier, edge-distribution timeouts).
+    Git for Windows' `core.autocrlf=true` checked Coga out as CRLF. Fixtures
+    copied CRLF templates, and safe-autocrlf kept them CRLF.
+    `5a0e2d8b1`: repo-wide `* text=auto eol=lf` in `.gitattributes`; no
+    committed bytes changed. Re-checkout: `git rm --cached -r -q . && git reset --hard`.
+  - **Orchestration tests' fakes bypassed by the Windows spawn** (~95 in
+    `test_launch`/`test_ticket`): they fake `shutil.which`/`subprocess.run`,
+    so the planner resolved and ran the real installed `claude.exe`.
+    `fd0083a37`/`a85bdf6a4`: a Windows conftest fixture. A faked `which` or
+    `run` keeps the bare CLI name, and a faked `run` takes the no-console
+    ungated spawn, as POSIX's no-TTY branch does. The real contract stays in
+    `test_repl_supervisor_nt.py`.
+  - **Detached Git maintenance held captured pipes**, which hung the trim-lock
+    tests. `1027bf4b3`: `git._git_env` sets `gc.autoDetach`/
+    `maintenance.autoDetach=false` on Windows. This is a production fix.
+  - Smaller: usage tests' MAX_PATH (a shallow cwd on Windows), the
+    `--idle-timeout` timeout test uses `--max-session` on Windows, LF
+    fixture writes in trim-log/packaging tests, `test_git` ignores Windows'
+    extra index-mode probe, the grandchild teardown test asks `tasklist`
+    (`process_is_running` is conservative), and the trim-lock join is 60 s
+    (a native trim takes about 12 s).
+- Rebased again onto main `29df72447`. Main retired `coga/install`. The
+  Windows baseline now lives in README *Get started* (also "Agent sessions run
+  on Linux, macOS, or native Windows"), and first-task links there. Main
+  restored legacy live copies per the note above; `8260f59f4` mirrors this
+  branch's package edits into them. Main's new owner-filtered picker test lost
+  its stale `windows_interactive_skip`.
+- Linux full suite on the rebased head: **4717 passed, 33 skipped**, plus
+  packaging/megalaunch reruns after the twin sync: 188 passed. Full native suite
+  restarted on `8260f59f4`.
+- Full native suite on `8260f59f4` (3 h 12 m): **33 failed, 4616 passed, 103
+  skipped**. Causes and fixes (`b12825b33`, test-only):
+  - 31 `test_launch` spawn tests fake `launch.run_with_done_marker`, but the
+    Windows planner first resolved the CLI ("agent CLI 'codex' not found").
+    The conftest fixture now keeps the bare name while that run is faked; the
+    faked run never spawns, as on POSIX.
+  - `test_installed_trim_log_adoption_and_headless_period[30-*]` (already on
+    main): the installed-wheel launch with a real trim takes ~40 s natively, so
+    `_run`'s bound is 120 s. `git log` is decoded as UTF-8, since the locale
+    code page garbled the "—" subject. On the box: edge tests 14 passed, 7
+    skipped; all 33 reran green.
+- Main moved by state-only commits. I merged it (`8ab6297fc`; the force push
+  of a rebase was refused), with no code change since `b12825b33`. Final
+  native full suite started on `8ab6297fc`.
+- Final native full suite on `8ab6297fc`: **4649 passed, 103 skipped, 0 failed**
+  (3 h 18 m); Linux full suite on the same head: 4719 passed, 33 skipped.
+- Cleanup: scheduled task `coga-suite` deleted; no python/git/uv/claude/node/bash
+  processes left; all Defender path and process exclusions removed, and
+  both lists were verified empty.
+- Teardown 2026-11-08T03:29:53Z: `win-launch3` i-05dc25bc97681ef1b (AMI
+  ami-0b5f645abc199e666, us-east-1a) terminated; SG and key pair deleted;
+  `status` confirms terminated, no volumes; no other instances in us-east-1.
+  The PR preparation record is below. Next: open-pr.
+
+## PR
+
+```yaml
+title: Interactive coga launch on native Windows
+author: claude
+author_evidence: Implement phases 1 and 2 ran attended in Claude Code on Claude Opus 5.5; see the Implement sections on this blackboard.
+head: 7b87fb5fe097588d20cac5a538bf1d6f3e95d103
+base: 7d8c2eeb70ddc8983942a38040bea01e48f6ad7c
+depth: deep
+rationale: >-
+  New Windows process supervisor (console, Job Object, CTRL_BREAK teardown,
+  batch transport) plus production fixes found on the box (usage transcript
+  dir, CRLF step-skill compare, attached Git maintenance, repo-wide LF
+  checkout). Platform-sensitive with no independent code review yet; inspect
+  the diff.
+implementation: >-
+  coga launch, megalaunch and ticket-driven sessions run attended on native
+  Windows through repl_supervisor_nt: an inherited console, a kill-on-close Job
+  Object, CTRL_BREAK then sentinel teardown, max-session (124) timeouts, a
+  .cmd/.bat prompt-pointer transport and DWORD exit codes preserved end to end.
+  --idle-timeout is refused on Windows (exit 2, no sweep) and max-session is
+  the bound. Usage capture finds Claude transcripts for Windows paths; checkout
+  policy compares step skills with CRLF folded; Coga's own Git calls on
+  Windows keep auto-maintenance attached so captured pipes are not held; the
+  repo checks text out as LF everywhere. README Get started documents the
+  native Windows baseline.
+deviations: >-
+  The owner extended scope during implement: fix the usage transcript path,
+  the CRLF checkout-policy compare, and every native suite failure including
+  the 25 already failing on main (CRLF checkout, timeouts). main retired
+  coga/install, so the Windows baseline moved to README Get started. The
+  final main reconcile is a merge (8ab6297fc) because the force push of a
+  rebase was refused; it adds only coga state commits.
+  At open-pr, main's 46d6cf214 had deleted the legacy live copies
+  (package-definitions cutover); the owner accepted that, so merge 7b87fb5fe
+  drops this branch's eight live-copy edits and keeps the package owners.
+limitations: >-
+  Tested on Windows Server 2025 24H2 with PowerShell 5.1, Git for Windows
+  2.56 and Claude Code's native installer; Codex on native Windows is
+  untested by owner decision. --idle-timeout is unavailable on Windows. The
+  PyPI 0.4.1 wheel predates this; Zach can try the PR wheel with
+  uv tool install --force --python 3.11 <wheel>. 103 tests skip natively,
+  all POSIX-only mechanics (PTY/fork 32, bash clean-install harness 38,
+  mode bits/permissions 11, process groups/signals 12, POSIX shell runbooks 7,
+  AWS driver 1, no-console 1) with Windows counterparts in
+  test_repl_supervisor_nt and the native installed-wheel tests.
+files:
+  .gitattributes: Check every text file out as LF so Git for Windows autocrlf cannot change fixtures or twins.
+  README.md: Native Windows baseline in Get started; sessions run on Linux, macOS or native Windows.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: LF checkout rule, attached Git maintenance on Windows, agent_command_refusal.
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Claude transcript dir naming for Windows paths.
+  src/coga/_nt_session_wrapper.py: Windows session wrapper run inside the supervised console.
+  src/coga/checkout_policy.py: Compare step-skill twins with CRLF folded to LF.
+  src/coga/cli.py: Windows-aware entrypoint wiring for supervised sessions.
+  src/coga/commands/launch.py: Refuse --idle-timeout on Windows; route to the Windows supervisor.
+  src/coga/commands/megalaunch.py: Windows picker launch path and idle-timeout warning.
+  src/coga/commands/ticket.py: Ticket-driven sessions use the Windows supervisor.
+  src/coga/git.py: Keep Git auto-maintenance attached for Coga's Git calls on Windows.
+  src/coga/launch.py: Plan Windows agent argv (full prompt or pointer) and supervise sessions natively.
+  src/coga/megalaunch.py: Windows key input, resize poll and Ctrl+C handling in the picker.
+  src/coga/oscompat.py: Windows process and console helpers.
+  src/coga/recurring_runner.py: Windows termination through the Job Object.
+  src/coga/repl_supervisor.py: Dispatch to the Windows backend; shared outcome types.
+  src/coga/repl_supervisor_nt.py: New native Windows supervisor.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Owner doc; CRLF step-skill checkout still equals its owner.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Owner doc for the Windows launch boundary.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Owner doc; link to README native Windows notes.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Owner doc for the Windows launch contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/SKILL.md: Owner doc for Windows scheduling.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/script-tickets/SKILL.md: Owner doc for Windows script tickets.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/authoring/SKILL.md: Owner doc for Windows authoring.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/testing/clean-install/windows-aws/SKILL.md: Owner skill for the AWS Windows clean-install box.
+  src/coga/usage.py: Map backslash and colon in Claude transcript dir names.
+  tests/conftest.py: Windows fixture letting agent fakes reach the Windows spawn path.
+  tests/test_checkouts.py: Windows launch-boundary coverage.
+  tests/test_cli.py: Windows CLI coverage.
+  tests/test_create.py: Platform-neutral fixtures.
+  tests/test_edge_distribution.py: UTF-8 git log decode and a 120 s bound for the native installed-wheel trim.
+  tests/test_git.py: Attached maintenance env tests; ignore Windows' extra index-mode probe.
+  tests/test_launch.py: Windows launch, timeout and refusal coverage.
+  tests/test_launch_restart.py: Windows restart coverage.
+  tests/test_launch_script.py: Windows script-ticket coverage.
+  tests/test_megalaunch.py: Windows picker coverage; stale skip removed.
+  tests/test_packaging.py: LF carrier writes; twin checks.
+  tests/test_recurring.py: Windows termination coverage.
+  tests/test_repl_supervisor.py: Mark POSIX PTY mechanics POSIX-only.
+  tests/test_repl_supervisor_nt.py: New Windows supervisor contract tests.
+  tests/test_ticket.py: Windows ticket-session coverage.
+  tests/test_trim_log.py: LF fixture writes and a 60 s native trim join.
+  tests/test_usage.py: Windows transcript naming and shallow repo dirs for MAX_PATH.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: The workflow has no independent code-review step before open-pr; the owner reviews the PR. Design was evaluated by another agent, which is not code review.
+checks:
+  - command: PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 7b87fb5fe097588d20cac5a538bf1d6f3e95d103
+    base: 7d8c2eeb70ddc8983942a38040bea01e48f6ad7c
+    detail: Linux full suite after merging main's legacy-copy removal, 4710 passed, 33 skipped.
+  - command: uv run --extra test python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 8ab6297fc1e2076fc0ffeebb6ecf09e1fd7c71c7
+    base: c00329d051a38dc4f320fc902d0d058703bc436a
+    detail: Linux full suite, 4719 passed, 33 skipped.
+  - command: uv run python -m pytest -q -p no:cacheprovider --junitxml junit.xml
+    status: passed
+    head: 8ab6297fc1e2076fc0ffeebb6ecf09e1fd7c71c7
+    base: c00329d051a38dc4f320fc902d0d058703bc436a
+    detail: Native Windows full suite on Windows Server 2025 24H2 (AWS i-05dc25bc97681ef1b, ami-0b5f645abc199e666, us-east-1a), Python 3.11.18, Git 2.56.0.windows.4; 4649 passed, 103 skipped (POSIX-only), 3 h 18 m.
+  - command: attended coga launch over ssh -tt from a host PTY (see Implement phase 2 session 2)
+    status: passed
+    head: a469b51f7f81c52326b6a6164ba7fcffaad13fa4
+    base: ee4f104b41d9ea0f9c7b7ec88d14f1257071a347
+    detail: >-
+      On the same box against a469b51f7 and its follow-ups 59b43c47e/9b8a27e4b: idle-timeout refusal (exit 2, no sweep), max-session 124,
+      picker keys/resize/q/Esc/Ctrl+C, bump to an owner step, mark done, block, two-session chain,
+      Ctrl+C passthrough, SSH hang-up without orphans, DWORD 0xC0000005/0xC000013A/7 via coga.exe and
+      python -m coga.cli. Later commits changed tests and Git maintenance env only.
+```
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `v1/14-interactive-coga-launch-on-native-windows`
+Recorded: 2026-11-08T03:30:32+00:00
+
+    Branch 'coga/v1-14-interactive-coga-launch-on-native-windows-e8b518' is not safe to publish. refs/heads/coga/v1-14-interactive-coga-launch-on-native-windows-e8b518 does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/skills/coga/testing/clean-install/windows-aws/SKILL.md, docs/contexts/coga/checkouts/SKILL.md, docs/contexts/coga/checkouts/launch-boundary/SKILL.md, docs/contexts/coga/first-task/SKILL.md, docs/contexts/coga/launch/SKILL.md, docs/contexts/coga/recurring/scheduling/SKILL.md, docs/contexts/coga/script-tickets/SKILL.md, docs/contexts/coga/tickets/authoring/SKILL.md. Reconcile it and relaunch, or `coga block --task v1/14-interactive-coga-launch-on-native-windows`.

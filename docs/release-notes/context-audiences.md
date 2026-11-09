@@ -5,7 +5,7 @@ User topics, including the former `dev/` code-task conventions, now all live
 under `coga/`. Development topics move to `coga-dev/` in Coga’s own source
 library and are absent from the wheel. The namespace states the audience:
 `coga/` ships, `coga-dev/` never does.
-The [audience criterion](../contexts/coga/context-layout/SKILL.md#context-audiences)
+The [audience criterion](../../src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md#context-audiences)
 explains the boundary.
 
 This is a clean break: no aliases, redirects, or stub topics. Update ticket
@@ -44,7 +44,7 @@ not usable references.
 | Previous topic | Shipped user knowledge | Local-only development knowledge |
 | --- | --- | --- |
 | `coga/testing` | `coga/sandboxes` — restrictions and grants | `coga-dev/testing` — suite, test environments, receipts |
-| `coga/packaging` | `coga/edge-code` — shims, upgrades, forks; `coga/context-layout` — distribution and overrides | `coga-dev/packaging` — twins and wheel construction |
+| `coga/packaging` | `coga/edge-code` — shims, upgrades, forks; `coga/context-layout` — distribution and overrides | `coga-dev/packaging` — package ownership and wheel construction |
 | `coga/extension-model` | Same ref — repo extension choices, recipes, aliases | `coga-dev/microkernel` — core placement and migrations |
 | `coga/knowledge` | Same ref — fact ownership, attach versus cite | `coga-dev/archive-access` — this repo’s archive rule |
 | `coga/internals/state-publication` | `coga/state-publication` — publication and recovery | `coga-dev/internals/state-publication` — invariants, sweep and authoring machinery |

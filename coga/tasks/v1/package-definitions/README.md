@@ -276,9 +276,12 @@ contracts. The implementer should cover:
   runtime checks with its imports, before A's compatibility allowances exist.
   Run the control checkout's own compatibility code/checks, not B imports via
   the primary checkout's editable install. Include dirty topic deletions and
-  the committed recurring-deletion adoption path, parent state conversion,
+  parent state conversion,
   preserved counters/worklists, and an ordinary local context/task edit as
-  positive controls. Preserve existing refusal/concurrency coverage.
+  positive controls. Preserve existing refusal/concurrency coverage. Current control now keeps
+  committed recurring additions, edits and deletions on the feature branch
+  until merge; pin that boundary rather than restoring the former committed
+  recurring-deletion adoption. Dirty recurring state remains publishable.
 - `tests/test_packaging.py`: inverse counterpart inventory, required package
   resources, state-carrier shape/exception reasons, package-only defaults,
   forbidden `coga-dev/` contents, and negative tests adding an accidental twin
@@ -394,9 +397,10 @@ These are pre-migration paths and symbols, not line-number claims.
   script may become packaged, but those write destinations do not change.
 - `src/coga/git.py`, `sync_coga_state()` passes `coga_root_paths()` to
   `publish()`; `_state_areas()` includes both the Coga root and configured
-  contexts root. `_routine_state_areas()` additionally permits committed
-  task/log/recurring changes from feature branches. Thus live recurring
-  deletions can publish even after being committed to a feature branch.
+  contexts root. `_routine_state_areas()` now permits committed task/log changes from
+  feature branches, while committed recurring files wait for merge. Dirty
+  recurring deletions and carrier conversions publish through the ordinary
+  sweep. Stage B preserves that newer control contract.
   Package source is outside this repo's configured state roots.
 - `tests/test_packaging.py`, `_live_counterparts()` and
   `_discover_live_packaged_twins()` derive the inventory below.

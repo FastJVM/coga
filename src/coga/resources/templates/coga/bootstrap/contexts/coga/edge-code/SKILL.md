@@ -21,8 +21,9 @@ completion. A missing module is an ordinary script failure, never a fallback.
 Installing a wheel does not discover or rewrite repositories. Legacy full
 copies adopt the shim once through the
 [reviewed migration procedure](edge-code-upgrades.md); until then they retain
-their old code. Markdown, schedules, workflows and shim-contract changes still
-need reviewed repo edits.
+their old code. Local overrides still need reviewed repo edits for Markdown,
+schedules, workflows and shim contracts. Package-backed definitions instead
+follow package upgrades for future periods; existing frozen periods stay intact.
 
 Ordinary Python attachments have the same shipping option: a worker has a
 direct module entry point invoked explicitly by instructions, or a plain named
