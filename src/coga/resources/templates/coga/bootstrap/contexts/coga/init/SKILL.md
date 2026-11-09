@@ -111,8 +111,16 @@ gets one note naming what needs it. Each install runs only on a yes, so an
 invocation that must exit changes nothing on the machine. Agent CLIs are not
 in that set: Coga never installs one or says where to get one. Init runs
 before any `coga.toml` exists, so it scans the machine for them rather than
-reading config. When exactly one agent CLI resolves and it is not
-the packaged default (`claude`), init asks whether to make it the default
+reading config. In an interactive terminal it prints that scan, before
+anything is written: a heading, then one row per agent CLI Coga can drive
+carrying the display name, the binary, and whether that binary was found. Every
+supported agent appears in every state, so a machine with none installed reads
+a complete list rather than an absence, and a machine with several still sees
+the list. The rows come from `coga.dependencies.AGENT_CLIS`, which is also
+where the next steps get their agent names. The scan asks nothing and writes
+nothing; an agent that was not found is named with its binary so you can
+install it or put it on `PATH`. When exactly one agent CLI resolves and it is
+not the packaged default (`claude`), init asks whether to make it the default
 agent. On a yes it writes `default_agent = "<type>"` into the new `coga.toml`
 and leaves the `[agents.*]` table order alone (the `default_agent` comment in
 `coga.toml` explains the key). It also repoints delivered tickets that name
@@ -139,8 +147,9 @@ coga init --user <your-name>
 This path stages and commits nothing, never writes `recurring/jobs.toml`,
 and never restores or reseeds a shipped definition or recurring state. After
 validating the name and Git preconditions, it makes the same optional CLI
-install/login offers as a fresh init, but never changes the default agent: the
-committed `coga.toml` is team config. It then wires the agent skill links
+install/login offers as a fresh init, but never changes the default agent and
+prints no agent-CLI scan: the committed `coga.toml` is team config, and the
+scan is about this machine. It then wires the agent skill links
 before saving your name. If that fails, it exits non-zero and leaves the local
 config untouched. Fix the reported path and re-run; correct links
 from an earlier attempt are reused. Then it writes `user`. A missing file

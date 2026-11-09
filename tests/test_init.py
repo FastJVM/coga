@@ -22,6 +22,7 @@ from coga.cli import app
 from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
 from coga.config import ConfigError, load_config
+from coga.dependencies import AGENT_CLIS, AgentCLI
 from coga.notification import post
 from coga.paths import (
     bootstrap_workflow_path,
@@ -3052,6 +3053,145 @@ def test_agent_offer_never_prompts_without_a_tty(
     _agent_picker(monkeypatch, have={"codex"})
     monkeypatch.setattr(init_cmd, "_interactive", lambda: False)
     assert _real_offer_agent("claude") is None
+
+
+def test_agent_scan_lists_every_supported_cli_when_none_is_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The case that matters: a machine with nothing installed reads a
+    complete list of what coga can drive, not an absence. The leading blank
+    line keeps the tree off the end of whatever init printed above it — on a
+    fresh VM the heading read as another line of the `op` note."""
+    _agent_picker(monkeypatch, have=set())
+    init_cmd.print_agent_scan()
+
+    out = capsys.readouterr().out
+    assert out.startswith("\n")
+    assert "Checking for agent CLIs..." in out
+    assert "Agent CLIs coga can drive" in out
+    assert "├── ○ Claude Code (claude) — not found" in out
+    assert "└── ○ Codex (codex) — not found" in out
+
+
+def test_agent_scan_still_prints_when_every_cli_is_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """More than one installed is the case the default-agent offer returns
+    early on, so the scan must not hang off that branch."""
+    _agent_picker(monkeypatch, have={"claude", "codex"})
+    init_cmd.print_agent_scan()
+
+    out = capsys.readouterr().out
+    assert "├── ● Claude Code (claude) — found" in out
+    assert "└── ● Codex (codex) — found" in out
+    assert "not found" not in out
+
+
+def test_agent_scan_renders_an_agent_added_to_the_registry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One record is the whole edit: the scan hardcodes no agent. Patch the
+    name bound into `init`, not `coga.dependencies` — the `from ... import`
+    already copied it, so patching the source module changes nothing here."""
+    _agent_picker(monkeypatch, have={"gizmo"})
+    monkeypatch.setattr(
+        init_cmd, "AGENT_CLIS", (*AGENT_CLIS, AgentCLI("gizmo", "Gizmo Build"))
+    )
+    init_cmd.print_agent_scan()
+
+    out = capsys.readouterr().out
+    assert "├── ○ Claude Code (claude) — not found" in out
+    assert "├── ○ Codex (codex) — not found" in out
+    assert "└── ● Gizmo Build (gizmo) — found" in out
+
+
+def test_agent_scan_falls_back_to_the_slug_without_a_label(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A record added without a label renders under its slug, not a raise."""
+    _agent_picker(monkeypatch, have=set())
+    monkeypatch.setattr(init_cmd, "AGENT_CLIS", (AgentCLI("gizmo"),))
+    init_cmd.print_agent_scan()
+
+    assert "└── ○ gizmo (gizmo) — not found" in capsys.readouterr().out
+
+
+def test_agent_scan_prints_nothing_for_an_empty_registry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A heading with nothing under it is worse than silence."""
+    _agent_picker(monkeypatch, have=set())
+    monkeypatch.setattr(init_cmd, "AGENT_CLIS", ())
+    init_cmd.print_agent_scan()
+
+    assert capsys.readouterr().out == ""
+
+
+def test_init_prints_the_agent_scan_before_writing_anything(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every interactive fresh init prints the scan, including with both CLIs
+    installed, and prints it before `coga/` exists so it is outside the
+    rollback. It asks nothing: `typer.confirm` would raise if it did."""
+    target = _make_git_repo(tmp_path / "company")
+    real_which = shutil.which
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: (
+            f"/usr/bin/{name}" if name in {"claude", "codex"} else real_which(name)
+        ),
+    )
+    monkeypatch.setattr(
+        "coga.commands.init.typer.confirm",
+        lambda *a, **kw: pytest.fail("the scan asked a question"),
+    )
+    written_before: list[bool] = []
+    real_scan = init_cmd.print_agent_scan
+
+    def scan() -> None:
+        written_before.append((target / "coga").exists())
+        real_scan()
+
+    monkeypatch.setattr(init_cmd, "print_agent_scan", scan)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert written_before == [False]
+    assert "Agent CLIs coga can drive" in result.output
+    assert "● Claude Code (claude) — found" in result.output
+    assert "● Codex (codex) — found" in result.output
+
+
+def test_init_prints_no_agent_scan_without_a_tty(tmp_path: Path, fake_vendor) -> None:
+    """A scripted log cannot act on the scan, so it is never printed."""
+    target = _make_git_repo(tmp_path / "company")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Checking for agent CLIs" not in result.output
+    assert "Agent CLIs coga can drive" not in result.output
+
+
+def test_init_on_a_clone_prints_no_agent_scan(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone's `coga.toml` is committed team config and the scan is about
+    this machine, so the clone path never prints it — not even on a tty."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    monkeypatch.setattr(
+        init_cmd,
+        "print_agent_scan",
+        lambda: pytest.fail("the clone path printed the agent scan"),
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Agent CLIs coga can drive" not in result.output
 
 
 def test_write_default_agent_names_the_agent_in_the_packaged_coga_toml(

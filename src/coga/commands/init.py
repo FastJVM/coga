@@ -53,6 +53,7 @@ from coga.dependencies import (
     NEEDS_ROOT,
     PACKAGE_MANAGERS,
     Dependency,
+    agent_label,
 )
 from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
@@ -579,12 +580,51 @@ def _gh_logged_in(gh: str) -> bool:
 def _installed_agent_clis() -> list[str]:
     """The `AGENT_CLIS` that resolve to a runnable binary, in supported order.
 
-    Init runs before any `coga.toml` exists, so this is a machine scan rather
-    than a config read; `v1/20-ask-which-agents-to-enable-during-coga-init`
-    owns redesigning it. Nothing here states a requirement: which binary a
-    launch needs comes from that agent's `cli` in `coga.toml`.
+    A machine scan rather than a config read, and deliberately so: init is the
+    command that creates the `coga.toml` a point-of-need lookup reads, and
+    `print_agent_scan` prints before anything is written, so there is no
+    config to consult yet. "What can this machine run" and "what does this
+    repo use" are different questions; this answers the first. Nothing here
+    states a requirement — which binary a launch needs comes from that agent's
+    `cli` in `coga.toml`.
     """
-    return [name for name in AGENT_CLIS if shutil.which(name) is not None]
+    return [agent.name for agent in AGENT_CLIS if shutil.which(agent.name) is not None]
+
+
+def print_agent_scan() -> None:
+    """Print every supported agent CLI and whether its binary is on PATH.
+
+    Public and argument-free so a later `coga check` can call it with no init
+    state to supply; it holds no interactivity check of its own, so such a
+    command can print unconditionally while init prints only on a tty. Rows
+    come from `AGENT_CLIS`, so an agent added there renders with no edit here,
+    and `AgentCLI.display` reads a label-less entry under its slug rather than
+    raising. The binary rides in parens inside the label, so no row needs
+    column alignment.
+
+    The leading blank line is load-bearing: on a fresh VM the heading ran
+    straight on from the `op` note above it and read as another line of that
+    block. Found is green; not found is left uncoloured rather than given a
+    warning colour, because having exactly one agent is the normal case. An
+    empty registry prints nothing at all rather than a heading with nothing
+    under it. Asks nothing and writes nothing.
+    """
+    if not AGENT_CLIS:
+        return
+    installed = _installed_agent_clis()
+    typer.echo("")
+    typer.echo("Checking for agent CLIs...")
+    typer.echo("")
+    typer.echo("Agent CLIs coga can drive")
+    for position, agent in enumerate(AGENT_CLIS, start=1):
+        last = position == len(AGENT_CLIS)
+        found = agent.name in installed
+        typer.secho(
+            f"{'└──' if last else '├──'} {'●' if found else '○'} "
+            f"{agent.display} ({agent.name}) — "
+            f"{'found' if found else 'not found'}",
+            fg=typer.colors.GREEN if found else None,
+        )
 
 
 def _offer_agent_cli(default_agent: str | None) -> str | None:
@@ -631,8 +671,6 @@ def _template_default_agent(template_root: Traversable) -> str | None:
         return named.strip()
     return next(iter(agents))
 
-
-_AGENT_LABELS = {"claude": "Claude Code", "codex": "Codex"}
 
 _TABLE_START = re.compile(r"^[ \t]*\[")
 _DEFAULT_AGENT_KEY = re.compile(r"^[ \t]*default_agent[ \t]*=")
@@ -1343,10 +1381,20 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         sys.exit(2)
 
     # Every precondition has passed: only now offer optional supporting-tool
-    # installs and `gh auth login`, then choose an installed default agent, so
-    # a doomed invocation never changes the machine. The chosen default agent
-    # is written once coga.toml exists.
+    # installs and `gh auth login`, then show what this machine can drive and
+    # choose an installed default agent, so a doomed invocation never changes
+    # the machine. The chosen default agent is written once coga.toml exists.
+    #
+    # The scan sits here, not inside `_offer_agent_cli`, for four reasons: it
+    # is in no early-returning branch, so every interactive fresh init prints
+    # it; it is before `target.mkdir()`, so it is outside the rollback and
+    # writes nothing; it is after the `op` note, so its leading blank line is
+    # what separates them; and it is before the make-this-the-default confirm,
+    # which it now gives context to. The clone path gets no call: a clone's
+    # coga.toml is committed team config and the scan is about this machine.
     _offer_optional_tools()
+    if _interactive():
+        print_agent_scan()
     template_default_agent = _template_default_agent(template_root)
     default_agent = _offer_agent_cli(template_default_agent)
 
@@ -1575,17 +1623,18 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `coga.toml` would name a key they have nothing to put in it, and the
     # next steps deliberately never send anyone to edit a `.toml`.
     if not _installed_agent_clis():
+        drivable = " or ".join(f"{agent.display} (`{agent.name}`)" for agent in AGENT_CLIS)
         steps.append(
-            "No agent CLI was found — coga drives Claude Code (`claude`) or "
-            "Codex (`codex`). Agent-backed commands (`coga build`, "
-            "`coga launch`, `coga ticket`) need one."
+            f"No agent CLI was found — coga drives {drivable}. "
+            "Agent-backed commands (`coga build`, `coga launch`, "
+            "`coga ticket`) need one."
         )
     if is_empty:
-        build_agent = default_agent or AGENT_CLIS[0]
-        other = next(name for name in AGENT_CLIS if name != build_agent)
+        build_agent = default_agent or AGENT_CLIS[0].name
+        other = next(agent.name for agent in AGENT_CLIS if agent.name != build_agent)
         steps.append(
-            f"Run `coga build` with {_AGENT_LABELS[build_agent]}, or "
-            f"`coga build --agent {other}` with {_AGENT_LABELS[other]} "
+            f"Run `coga build` with {agent_label(build_agent)}, or "
+            f"`coga build --agent {other}` with {agent_label(other)} "
             "— it launches the coga-build onboarding: one question "
             "about what you want to build, then an agent-led chat that ends in "
             "a short vision you sign off on and a flat batch of starter tickets "

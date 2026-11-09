@@ -6,7 +6,9 @@ from pathlib import Path
 from coga.dependencies import (
     AGENT_CLIS,
     DEPENDENCIES,
+    AgentCLI,
     agent_cli_missing_message,
+    agent_label,
 )
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "coga"
@@ -16,7 +18,26 @@ _AGENT_WHICH = re.compile(r"shutil\.which\(\s*[\w.]*agent[\w.]*\.cli\s*\)")
 def test_agent_clis_have_no_install_metadata() -> None:
     """Coga scans supported agent CLIs but never carries installer metadata."""
     dependency_names = {dep.name for dep in DEPENDENCIES}
-    assert dependency_names.isdisjoint(AGENT_CLIS)
+    assert dependency_names.isdisjoint({agent.name for agent in AGENT_CLIS})
+    assert not any(hasattr(agent, "install") for agent in AGENT_CLIS)
+
+
+def test_agent_label_reads_the_registry() -> None:
+    assert agent_label("claude") == "Claude Code"
+    assert agent_label("codex") == "Codex"
+
+
+def test_agent_label_falls_back_to_an_unregistered_type() -> None:
+    """A repo's `default_agent` can name any agent its `coga.toml` declares,
+    registered here or not, so the lookup is total rather than a `KeyError`."""
+    assert agent_label("house-agent") == "house-agent"
+
+
+def test_agent_cli_display_falls_back_to_the_binary() -> None:
+    """A record added without a label renders under its slug by construction,
+    so no reader has to repeat a `.get`."""
+    assert AgentCLI("gizmo").display == "gizmo"
+    assert AgentCLI("gizmo", "Gizmo Build").display == "Gizmo Build"
 
 
 def test_agent_cli_missing_message_points_at_the_toml_not_path() -> None:
