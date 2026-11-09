@@ -49,13 +49,14 @@ repair before trimming. The parent, selection, local override files and exact
 packaged shim identity are pinned decision inputs, rechecked before every
 publication attempt.
 
-After upgrading every writer, run the command above on current control and
-publish its selection and attribute edits. The live `.gitattributes` retains
-the old rule until adoption;
-remove its transitional exception once the physical rule matches the package.
-Do not enable a job before its compatible implementation is installed.
-Rollback likewise requires a compatible wheel/repo pair; do not restore old
-cursor state or trimmed history.
+Publish the selection and attribute edits together after upgrading every
+writer. When preparing adoption for PR review, commit both files before any
+command that publishes Coga state; clean committed files on a feature branch
+wait for merge under the
+[publication rules](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md#control-versus-feature-checkouts).
+Keep participating schedulers stopped until the merged files and compatible
+installations are verified. Rollback likewise requires a compatible wheel/repo
+pair; do not restore old cursor state or trimmed history.
 
 ## Interrupted maintenance
 

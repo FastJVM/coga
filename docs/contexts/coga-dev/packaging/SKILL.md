@@ -79,18 +79,23 @@ holds local Coga-dev knowledge. There are no forwarding files or symlink mirrors
   refs remain pinned separately by `REQUIRED_BOOTSTRAP_CONTEXT_REFS`.
 - `SCAFFOLD_COUNTERPARTS` explains required physical configuration, context,
   audit log, attribute and ignore files. `INTENTIONALLY_DIVERGENT_TWINS`
-  explains actual differences from their seeds. This repo has not adopted
-  trim-log, so its physical log attribute remains unchanged until that
-  separate explicit adoption; removing definitions does not select the job.
+  explains actual differences from their seeds. This repo selects packaged
+  trim-log in `coga/recurring/jobs.toml`; its physical log attribute matches
+  the package seed. Adoption and removal of the old attribute exception
+  belong in the same reviewed change.
 - `STATE_CARRIER_COUNTERPARTS` explains saved recurring parent blackboards.
   `inspect_parent_dir` requires the exact carrier shape and rejects leftover
-  definition siblings. Arbitrary blackboard notes remain state even without
-  declared `state_keys`; phone-home's complete cursor is independently parsed.
+  definition siblings. `LAZY_STATE_CARRIER_COUNTERPARTS` names the adopted
+  trim-log parent, which may be absent until its first admitted run creates
+  state; any present copy still requires the exact carrier shape. Arbitrary
+  blackboard notes remain state even without declared `state_keys`;
+  phone-home's complete cursor is independently parsed.
 - `LOCAL_DEFINITION_OVERRIDES` requires a reason for every retained definition
   counterpart. It is currently empty. An ambiguous customization is retained
   for owner review, never silently deleted. All exception entries must name
-  real current files; stale reasons fail. Repo-only jobs and attachments have
-  no packaged counterpart and stay local.
+  real current files except the explicitly lazy state carrier above; stale
+  reasons fail. Repo-only jobs and attachments have no packaged counterpart
+  and stay local.
 - Authoring starters may exist only as ignored, untracked materializations.
   `.coga/`, `.venv/`, generated agent views, bytecode caches and local config
   are machine-local artifacts outside the definition inventory.
