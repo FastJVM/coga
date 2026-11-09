@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -85,10 +85,11 @@ is named with its binary so the user can install it or put it on `PATH`.
 - [ ] Non-interactive init prints no scan, and the clone path prints no scan.
 - [ ] The scan is separated from whatever init printed above it by a blank
       line, so it does not read as another line of the `op` note.
-- [ ] `_do_init`'s next-steps strings name agents through the registry, not
-      through literals, so the third agent needs no edit there either.
-- [ ] `coga/init` and `coga/install` describe the scan, each context's bundled
-      twin matches, and `python -m pytest` passes.
+- [ ] The `coga build` coax in `_do_init`'s next steps names agents through
+      the registry, not through literals, so the third agent needs no edit
+      there either. The "Install an agent CLI" step above it is left alone:
+      #1176 deletes it.
+- [ ] `coga/init` describes the scan and `python -m pytest` passes.
 
 ### Proposed shape
 
@@ -122,10 +123,9 @@ It takes a plain string rather than a record because its callers hold an agent
 type that may not be in the registry at all — `_do_init`'s `build_agent` comes
 from `default_agent`.
 
-The record carries no install URL and no `packages`. Sibling #1176 removed
-every agent-installer URL from `dependencies.py` and wrote "Coga provides no
-agent installer command or URL" into `coga/install`; a URL on the record would
-put one back.
+The record carries no install URL and no `packages`. Sibling #1176 removes
+every agent-installer URL from `dependencies.py` and leaves nothing in Coga
+holding one; a URL on the record would put one back.
 
 **One scan, in `src/coga/commands/init.py`.** Add a public, argument-free
 `print_agent_scan() -> None`. Public and argument-free is the whole point of
@@ -173,18 +173,20 @@ context to. `print_agent_scan` itself holds no interactivity check, so a
 
 `_setup_initialized_clone` gets no call — the clone path prints no scan.
 
-**The other label readers.** `_do_init`'s next-steps strings go through
-`agent_label()`: the `coga build` coax (`_AGENT_LABELS[build_agent]`,
-`_AGENT_LABELS[other]`) and, post-#1176, the no-agent-found prerequisite line
-that spells "Claude Code (`claude`) or Codex (`codex`)" as a literal — build
-its list from `AGENT_CLIS`. `build_agent = AGENT_CLIS[0]` becomes
-`AGENT_CLIS[0].name`, and `next(a for a in AGENT_CLIS if a.name != build_agent)`
-keeps its current "pick any other" behaviour; redesigning that coax for three
-agents is not this ticket.
+**The other label readers.** On main the `coga build` coax is the one that
+changes: `_AGENT_LABELS[build_agent]` and `_AGENT_LABELS[other]` become
+`agent_label(...)` calls. `build_agent = default_agent or AGENT_CLIS[0]`
+becomes `... or AGENT_CLIS[0].name`, and
+`next(a.name for a in AGENT_CLIS if a.name != build_agent)` keeps its current
+"pick any other" behaviour; redesigning that coax for three agents is not this
+ticket. The "Install an agent CLI" step above it keeps its `install_hint`
+literals — #1176 deletes that step, so see
+`### Build on current main, alongside #1176`.
 
 **Order of work.** Registry first (`dependencies.py` + `agent_label`), then
-the `init.py` readers it breaks, then `print_agent_scan` and its call site,
-then the two contexts and their bundled twins, then tests.
+the `init.py` readers it breaks, then extract `_installed_agent_clis` from
+`_offer_agent_cli`, then `print_agent_scan` and its call site, then
+`coga/init`, then tests.
 
 **Tests**, in `tests/test_init.py` near the existing agent-offer tests, reusing
 the `_agent_picker`-style tty fake:
@@ -221,7 +223,7 @@ agent and the input string for an unknown one.
   `init._AGENT_SKILL_DIRS` carries its own label pairs for
   `_link_skills_for_agents`, and the packaged `coga.toml` declares each
   `[agents.*]` table as shipped text. Neither is folded into the registry
-  here, so adding Gemini goes from four edits to three, not to one.
+  here, so adding a third agent goes from four edits to three, not to one.
 - **Offering to install an agent CLI.** Out now, not ruled out forever (Nico,
   2026-11-04). Sibling `v1/remove-the-agent-cli-install-offer-from-coga-init`
   (PR #1176) removes the existing offer. Do not reintroduce one, and do not
@@ -229,15 +231,16 @@ agent and the input string for an unknown one.
 - **A standalone `coga check`.** Spec Kit's scan is its own command; coga's is
   init-only for now. The acceptance criteria keep the function callable from
   one later, which is all this ticket owes it.
-- **Adding a third agent.** Gemini belongs to sibling
-  `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive`. This ticket
-  makes room for it and adds nothing.
+- **Adding a third agent.** No ticket owns one. The sibling that owned Gemini
+  was canceled on main at `17a3b37a5`, so the registry's justification is the
+  general case Nico gave: users arrive with an off-mainstream agent such as
+  Kimi or Grok Build. This ticket makes room for one and adds none.
 - **Unpinning the packaged stateless targets.** `bootstrap/ticket` and
   `bootstrap/orient` keep `agent: claude`. Only the cut selection made
   unpinning necessary.
 - **Extracting megalaunch's picker.** There is no picker, so there is nothing
   to extract and `coga.megalaunch` is untouched.
-- **Install URLs or packages on the registry record.** #1176 removed every
+- **Install URLs or packages on the registry record.** #1176 removes every
   agent-installer URL from `dependencies.py`. The record carries a binary and
   a display name, nothing that could install anything.
 - **Splitting the agent type from its binary.** `AgentCLI.name` is one field
@@ -248,7 +251,7 @@ agent and the input string for an unknown one.
   `next(... if a.name != build_agent)` advertises an arbitrary second agent;
   that is pre-existing and stays. Related and still unfiled:
   `bump.resolve_other_agent` infers the peer only at exactly two declared
-  agents and raises at three or more, which goes live when the Gemini sibling
+  agents and raises at three or more, which goes live when a third agent
   lands.
 
 ## Context
@@ -309,10 +312,11 @@ absence is what this ticket fixes.
   module docstring already claims to be the single source of truth for coga's
   external CLIs, so a supported-agent record belongs beside it rather than in
   a command module.
-- `coga/install` describes the same set for humans. `dependencies.py`'s
-  docstring says keeping the list in one place is what stops the check and the
-  docs drifting; the split between `AGENT_CLIS` and `_AGENT_LABELS` is that
-  claim already half-broken.
+- `coga/init` describes the same set for humans, and absorbed the retired
+  `coga/install` topic's agent policy. `dependencies.py`'s docstring says
+  keeping the list in one place is what stops the check and the docs drifting;
+  the split between `AGENT_CLIS` and `_AGENT_LABELS` is that claim already
+  half-broken.
 
 ### Constraints that are easy to miss
 
@@ -330,31 +334,107 @@ absence is what this ticket fixes.
   half-built `coga/` on any exception. Printing before `target.mkdir()` keeps
   the scan out of that rollback.
 
-### Sequencing against #1176
+### Why the scan reads `PATH` and not `coga.toml`
 
-Read as of 2026-11-06 against the open PR, not from the earlier description of
-it. Three corrections:
+Nico's rule, from his review of #1176: an agent is declared in `coga.toml`, not
+required on `PATH`. #1176 applied it to every failure message, which now name
+the `[agents.<name>]` table that declared the agent. #1176 deliberately left
+init's `PATH` scan alone and recorded that this ticket owns the question, so
+expect it to be asked here.
 
-- **#1176 does not delete `_offer_agent_cli`.** It narrows it to the
-  exactly-one case: `installed = _installed_agent_clis()` then
-  `if len(installed) != 1: return None`. Both the no-agent prompt and the
-  `>1` early return are gone, so *every* count other than one returns before
-  anything prints. That is still the reason to print from `_do_init` rather
-  than from inside it.
-- **#1176 adds `init._installed_agent_clis()`**, "the `AGENT_CLIS` on PATH, in
-  stable supported order". Reuse it; do not add a second `PATH` walk. Starting
-  commit `4c7751674` added its own tuple-returning copy of the same helper —
-  resolve that conflict in favour of #1176's.
-- **#1176 deletes `dependencies.install_hint` and the `claude` / `codex`
-  `Dependency` entries**, along with `Dependency.login` and the `npm` entry in
-  `PACKAGE_MANAGERS`. After it, `AGENT_CLIS` is the only trace of an agent in
-  `dependencies.py` and nothing anywhere holds an agent install URL. The
-  registry is therefore built fresh, not grown from the deleted records.
+The answer is that the scan reads `PATH` and that is correct (Zach,
+2026-11-09). At scan time there is no `coga.toml` to read: init is the command
+that creates one, and the scan prints before `target.mkdir()`. The one init
+path where a `coga.toml` already exists is the clone path, and that path prints
+no scan.
 
-**Base this branch on main after #1176 merges.** Landing first would leave the
-new `AgentCLI` records sitting beside the `Dependency` records #1176 deletes,
-and #1176's merge would have to be hand-resolved to keep them. If #1176 is
-still open at implement time, say so and ask rather than guessing the order.
+The two questions are different. The scan answers "what can this machine run",
+which is a `PATH` question. `coga.toml` answers "what does this repo use",
+which is the question the post-init failure messages answer. Nothing in the
+scan asserts that an agent must be on `PATH` to be usable, and the not-found
+row names a binary rather than stating a requirement.
+
+Reading the packaged `coga.toml` template's `[agents.*]` tables is the nearest
+"read the toml" alternative, and it is declined: the template declares `cli`
+and carries no display name, so the labels the scan exists to show would still
+come from the registry.
+
+### Build on current main, alongside #1176
+
+**Decided by Zach, 2026-11-09.** Do not wait for #1176. Build this on current
+main and open its PR against main, so Nico reviews both PRs at the same time as
+two independent diffs. #1176 merges first; this branch then reconciles. Coga's
+PR publisher pins the base to `cfg.git_control_branch` (`main`), so a stacked
+PR based on #1176's branch is not available and must not be hand-opened.
+
+Write against main as it is, not as #1176 leaves it. What main has today, at
+`ce55fcffa`:
+
+- **No `_installed_agent_clis`.** That helper is #1176's. Main's only `PATH`
+  scan is the inline comprehension inside `_offer_agent_cli` at
+  `init.py:595`.
+- **`_offer_agent_cli` still branches three ways** (`init.py:581-622`): more
+  than one installed returns early, exactly one is chosen, none reaches a
+  free-text "Install which agent CLI?" prompt. #1176 deletes the third branch.
+- **`dependencies.py` still holds the agent install surface**: `install_hint`,
+  both agent `Dependency` records with their `install` URLs and `packages`,
+  `Dependency.login`, and the `npm` entry in `PACKAGE_MANAGERS`.
+  `init.py:51-58` imports `install_hint` and `init.py:32` imports
+  `agent_cli_setup.offer_agent_cli`.
+- **The next-steps block has three agent readers, not two**
+  (`init.py:1581-1592`): an "Install an agent CLI" step built from
+  `install_hint('claude')` / `install_hint('codex')`, then
+  `_AGENT_LABELS[build_agent]` and `_AGENT_LABELS[other]` in the `coga build`
+  coax.
+
+**Stay additive.** Removing `install_hint`, `agent_cli_setup.py`, the agent
+`Dependency` records, or the install-offer branch is #1176's scope. This ticket
+converts `AGENT_CLIS` to records, adds `agent_label`, adds the scan and its
+call site, and edits the `coga build` coax. The new `AgentCLI` records sit
+beside `Dependency` records that still carry install URLs; that is fine and
+temporary. The record itself still carries no URL.
+
+**Two deliberate choices that shrink the merge.**
+
+- Extract main's inline comprehension into a module-level
+  `_installed_agent_clis() -> list[str]` and have both `_offer_agent_cli` and
+  `print_agent_scan` call it. #1176 performs the same extraction with the same
+  name and return type, so the overlap resolves by keeping either copy instead
+  of reconciling two different helpers. Do not add a second `PATH` walk, and do
+  not return a tuple — starting commit `4c7751674` did, which is the shape to
+  discard.
+- Leave the "Install an agent CLI" next-steps step and its `install_hint`
+  literals alone. #1176 deletes that whole step, so editing it would turn a
+  clean deletion into a conflict. Only the `coga build` coax goes through
+  `agent_label()`. After #1176 merges, its replacement no-agent line is the
+  one that needs the registry, and that is reconciliation work, not this
+  ticket's.
+
+### Known reconciliation when #1176 merges
+
+Every file this ticket touches is a file #1176 changes, so expect a conflict in
+all five and treat resolving them as scheduled work rather than a surprise.
+Resolve in favour of #1176 wherever the two disagree about install offers, and
+in favour of this ticket wherever they disagree about labels:
+
+- `src/coga/dependencies.py` — keep this ticket's `AgentCLI` / `AGENT_CLIS`
+  records and `agent_label`; take #1176's deletion of `install_hint`, the agent
+  `Dependency` records, `Dependency.login`, and the `npm` package manager.
+- `src/coga/commands/init.py` — keep one `_installed_agent_clis`; take #1176's
+  narrowed `_offer_agent_cli` and its deleted install branch and imports; keep
+  `print_agent_scan` and its `_do_init` call site; route #1176's new no-agent
+  prerequisite line through `agent_label()` / `AGENT_CLIS` so it stops spelling
+  both names as a literal.
+- `.../bootstrap/contexts/coga/init/SKILL.md` — take #1176's rewritten agent
+  paragraphs, then re-apply this ticket's one fact: the scan is printed.
+- `tests/test_init.py` — keep both sets; #1176 deletes the install-picker cases
+  and this ticket adds the scan cases, which do not overlap in content.
+- `tests/test_dependencies.py` — keep both; #1176 pins the absence of installer
+  metadata and this ticket pins `agent_label`.
+
+If #1176 has already merged by the time implement starts, none of this applies:
+read main directly and follow `### Proposed shape`, which describes the
+post-#1176 shape.
 
 ### A gotcha that will cost time otherwise
 
@@ -370,27 +450,30 @@ Run the suite with `python -m pytest`. `coga-dev/testing` has the fallback
 spellings for when the ambient interpreter is not Coga-capable, and
 `coga-dev/codebase` is the entry point for Coga's own contribution rules.
 
-### Contexts to update in the same PR
+### The context to update in the same PR
 
-- `coga/init` (`docs/contexts/coga/init/SKILL.md`), "Fresh repo" — add that
-  init prints the scan.
-- `coga/install` (`docs/contexts/coga/install/SKILL.md`), "Prerequisites" —
-  add that init scans for the supported agent CLIs and shows what it found.
+One topic, one file:
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`,
+under "Fresh repo".
 
-Each has a bundled twin under
-`src/coga/resources/templates/coga/bootstrap/contexts/`. #1176 edits both
-copies of both topics; read them as of the merge, not as described here.
-`test_packaging.py::test_live_and_packaged_copies_stay_identical` enforces
-byte-identical twins, so apply each edit to both copies verbatim.
+There is no twin to mirror and no second copy to keep identical. PR #1190
+("Enforce package-owned definitions after the repository cutover", merged
+2026-11-08) deleted the live `docs/contexts/coga/` tree — `docs/contexts/` now
+holds only `coga-dev` — and replaced twin equality with strict ownership in
+`tests/required_package_resources.txt`, which names the packaged path above as
+the sole owner of `coga/init`.
+`test_packaging.py::test_live_and_packaged_copies_stay_identical` no longer
+exists, so any instruction below to edit "both copies" is void.
 
-Post-#1176, `coga/init`'s "Fresh repo" already says "Init only scans `PATH`
-for them" — the edit is that the scan is *printed*: every supported agent CLI
-with its binary and whether that binary was found, in an interactive terminal,
-before anything is written. `coga/install`'s "Prerequisites" bullet for the
-agent CLI gains the same fact in one clause.
+`coga/install` is gone too, retired by `8a88b5ada`. Its agent policy moved into
+`coga/init`, which is why the scan fact now has one home.
 
-Write both updates as what init does, not as a rule about what coga will never
-do — see *Out of scope* on keeping the install question open.
+The edit is that the scan is *printed*: every supported agent CLI with its
+binary and whether that binary was found, in an interactive terminal, before
+anything is written. Write it as what init does, not as a rule about what coga
+will never do — see *Out of scope* on keeping the install question open. #1176
+rewrites this topic's agent paragraphs, so edit it as of that merge rather than
+as it reads today.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -693,11 +776,16 @@ return.
 
 ### When restarting
 
-Base implement on #1176's head, or on main once #1176 merges. Do not implement
-against current main: `_installed_agent_clis` does not exist there, and the
-`AgentCLI` records would land beside the `Dependency` records #1176 deletes.
-The fresh-VM render check wants the redesigned scan, so it comes after
-implement, not before.
+**Reversed by Zach on 2026-11-09 — build on current main; see the note at the
+end of this blackboard.** The two reasons given below are now accepted costs,
+not blockers: the helper is extracted here instead of reused, and the
+`AgentCLI` records do land beside `Dependency` records #1176 deletes.
+
+~~Base implement on #1176's head, or on main once #1176 merges. Do not
+implement against current main: `_installed_agent_clis` does not exist there,
+and the `AgentCLI` records would land beside the `Dependency` records #1176
+deletes.~~ The fresh-VM render check wants the redesigned scan, so it comes
+after implement, not before.
 
 ### A referenced sibling went away
 
@@ -772,6 +860,10 @@ paths rather than treating a red run as a regression.
 
 ## 2026-11-07 — #1176 was closed, and this ticket's sequencing is now void
 
+**Partly superseded by the 2026-11-09 note below: #1176 was reopened, so the
+sequencing has a target again. The `coga/install` finding here still stands and
+is now fixed in the ticket body.** Kept so the closure is not rediscovered.
+
 Still parked at `review-design`, not bumped. Main moved 79 commits overnight
 (`0309c437a` → `3942e54b7`). Three things changed that this ticket depends on.
 
@@ -824,6 +916,143 @@ parked:
 ### The twin-parity test is green again
 
 See the corrected note above. Nothing to work around, no ticket to file.
+
+
+## 2026-11-09 — spec brought current, and the wait on #1176 dropped
+
+Attended session at `review-design`. No code written. The design itself did not
+change: the scope is still the scan plus the registry behind it, as cut on
+2026-11-06. Four stale facts in the ticket body were fixed, and the one open
+design question was answered. Main is at `ce55fcffa`.
+
+### #1176 was reopened, so the sequencing has a target again
+
+Nico closed it on 2026-11-07, Zach fixed the message he objected to, and it was
+reopened the same day. It is **open** at head `ec8ad1bfa`, which merges
+`origin/main` into the branch and conflicts with nothing
+(`git merge-tree --write-tree origin/main refs/remotes/pr1176` returns a clean
+tree). All three claims in `### Sequencing against #1176` were re-verified at
+that head and hold; exact anchors are recorded in that section.
+
+Nico's last word is 2026-11-07 21:51Z: "I skimmed through the code and could
+find a lot of places. I highlighted two here already but I didn't read further
+as it's clearly not there yet." Work continued on the branch after that comment,
+but he has not responded since. That PR's `review` step owns the response, not
+this ticket. Superseded later the same day: this ticket no longer waits on it —
+see the note at the end of this blackboard.
+
+### The `PATH`-versus-toml question is answered (Zach, 2026-11-09)
+
+#1176's handoff warned that this ticket would be asked why init scans `PATH`
+when Nico's rule is that agents come from the toml. Zach's answer: scanning
+`PATH` is the right flow, because at init time there is no `coga.toml` to read —
+init is what creates it. The messaging #1176 fixed is correct for every command
+that runs *after* init; the scan is a different question.
+
+Written into the body as `### Why the scan reads PATH and not coga.toml`, with
+three verified supports: the scan prints before `target.mkdir()`, so nothing is
+written yet; the only init path where a `coga.toml` already exists is the clone
+path, which prints no scan; and the packaged template declares `cli` but no
+display name, so deriving rows from the template would still need the registry
+for the labels. #1176's own `_installed_agent_clis` docstring already states
+the reason and names this ticket as the owner, which is the reply to give Nico.
+
+### The docs tree was cut over — this is the big one
+
+PR #1190 ("Enforce package-owned definitions after the repository cutover",
+merged 2026-11-08) deleted the live `docs/contexts/coga/` tree. `docs/contexts/`
+now holds only `coga-dev`, and `coga/init` exists in exactly one place:
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`.
+Twin equality was replaced by strict ownership in
+`tests/required_package_resources.txt`, and
+`test_packaging.py::test_live_and_packaged_copies_stay_identical` no longer
+exists.
+
+So the doc work is one file, not four, and every earlier instruction on this
+blackboard about editing "both copies" or keeping twins byte-identical is void.
+`### The context to update in the same PR` now says so.
+
+### What was edited in the body
+
+- The doc acceptance criterion dropped `coga/install` and the twin clause.
+- `### Contexts to update in the same PR` became
+  `### The context to update in the same PR`: one packaged file, no twin, with
+  the #1190 cutover recorded.
+- `coga/install` references in `### Proposed shape` and `### What already
+  exists and should be reused` were re-pointed at `coga/init`, which absorbed
+  that topic's agent policy.
+- Three Out-of-scope bullets stopped naming Gemini as the owner of a third
+  agent — the sibling that owned it was canceled on main at `17a3b37a5`. The
+  registry's justification is now stated as Nico's general case: users arrive
+  with an off-mainstream agent such as Kimi or Grok Build.
+- Two past-tense claims that #1176 "removed" things were corrected to
+  "removes"; it has not merged.
+- Added `### Why the scan reads PATH and not coga.toml`.
+
+### Branch state, unchanged
+
+The local branch still points at `4c7751674`, the 34-line pre-design sketch.
+`origin/<branch>` still holds all seven pre-re-scope commits (+1730/−493 across
+21 files) and was deliberately never force-pushed. Neither is the deliverable;
+implement starts from `### Proposed shape`. The archive tag
+`archive/v1-20-pre-rescope` is still present locally.
+
+### The wait on #1176 was dropped — build alongside it (Zach, 2026-11-09)
+
+Reversing the parking decision of 2026-11-06. Zach wants Nico reviewing both
+PRs at the same time, so this ticket no longer waits for #1176 to merge. It is
+built on current main and its PR targets main, giving Nico two independent
+diffs. #1176 merges first and this branch reconciles afterward.
+
+**Why not a stacked PR.** `open_pr.py:684` sets `base = cfg.git_control_branch`,
+which is `main` and a repo-wide setting, so coga cannot open a PR against
+#1176's branch. Hand-opening one is worse than it looks: `_refresh_body` at
+`open_pr.py:591-594` raises "existing PR base differs or is unavailable" on any
+later run, so the `open-pr` and `review` steps would refuse to manage the PR
+they are supposed to own. The `code/open-pr` skill also forbids routing around
+a refusal with a bare `gh pr create`. Stacking would additionally need a rebase
+every time #1176's head moves, which it has done repeatedly under Nico's
+review.
+
+**The cost, accepted knowingly.** All five files this ticket touches are among
+the 25 #1176 changes, so a conflict in every one of them is certain rather than
+likely. `### Known reconciliation when #1176 merges` lists the per-file
+resolution. Two implementation choices were added to shrink it: extract
+`_installed_agent_clis` with #1176's exact name and `list[str]` return so the
+overlap resolves by keeping either copy, and leave the "Install an agent CLI"
+next-steps step untouched because #1176 deletes it outright.
+
+**Order still matters.** #1176 merges first. If this ticket merged first it
+would hand fresh conflicts to the PR that is already struggling in review.
+
+### Spec rewritten for build-on-main
+
+`### Sequencing against #1176` was replaced by `### Build on current main,
+alongside #1176`, which records what main actually has at `ce55fcffa` —
+verified, not assumed:
+
+- no `_installed_agent_clis`; the only `PATH` scan is inline at `init.py:595`
+- `_offer_agent_cli` still branches three ways at `init.py:581-622`
+- `install_hint`, both agent `Dependency` records with `install` URLs and
+  `packages`, `Dependency.login` and the `npm` package manager are all present;
+  `init.py:51-58` imports `install_hint` and `init.py:32` imports
+  `agent_cli_setup.offer_agent_cli`
+- the next-steps block has **three** agent readers at `init.py:1581-1592`, not
+  two — an "Install an agent CLI" step built from `install_hint('claude')` /
+  `install_hint('codex')`, plus the two `_AGENT_LABELS` lookups in the
+  `coga build` coax
+
+Three body edits followed: the next-steps acceptance criterion now scopes
+itself to the `coga build` coax and excludes the install step; "The other label
+readers" was rewritten for main's `default_agent or AGENT_CLIS[0]`; and "Order
+of work" gained the helper extraction.
+
+### Ready to bump
+
+Both evaluator must-fix findings were resolved on 2026-11-06, the open question
+was answered the same day, and the spec is current against main at `ce55fcffa`
+and #1176 at `ec8ad1bfa`. `review-design` needs no further pass — bump to
+`implement` whenever Zach is ready, with no dependency left to wait on.
 
 
 ## Superseded designs
