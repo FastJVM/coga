@@ -10550,3 +10550,23 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-08 15:14 v1 [v1/30-complete-the-authenticated-clean-install-audit] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-11-08 15:15 v1 [v1/01-webhook-for-slack-is-public] [human:nicktoper] advanced to step 3 (cleanup-and-verify) → claude
 2026-11-09 09:14 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] launched (operator=zach, launch_agent=claude, agent=claude)
+2026-11-09 10:59 v1 [recurring/address-pr-comments] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-11-09
+2026-11-09 10:59 v1 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-11-09
+2026-11-09 10:59 v1 [recurring/autoclose-merged] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-11-09
+2026-11-09 10:59 v1 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-11-09
+2026-11-09 10:59 v1 [recurring/blocker-reminders] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-11-09
+2026-11-09 10:59 v1 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-11-09
+2026-11-09 10:59 v1 [recurring/dream] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/dream] [system] deleted completed prior-period task before 2026-W46
+2026-11-09 10:59 v1 [recurring/dream] [system] created recurring/dream for 2026-W46
+2026-11-09 10:59 v1 [recurring/phone-home] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/phone-home] [system] created recurring/phone-home for 2026-W46
+2026-11-09 10:59 v1 [recurring/resolve-conflicts] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W46
+2026-11-09 10:59 v1 [recurring/skill-update] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/skill-update] [system] created recurring/skill-update for 2026-W46
+2026-11-09 10:59 v1 [recurring/usage-report] [system] created (status=active)
+2026-11-09 10:59 v1 [recurring/usage-report] [system] created recurring/usage-report for 2026-W46
