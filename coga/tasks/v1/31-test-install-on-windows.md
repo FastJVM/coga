@@ -161,3 +161,29 @@ the attended install/authentication/first-task-through-done walk against an
 identified unmodified candidate. Return its Windows/Python versions, commit,
 wheel hash and results to ticket 33 so documentation can be refreshed and
 accepted. No Windows execution or acceptance occurred in the docs pass.
+
+### Chosen walk route — 2026-11-09
+
+Zach runs the walk on his own Windows PC in a Windows 11 guest under
+VirtualBox, following `coga/skills/coga/testing/fresh-vm/SKILL.md` for the VM
+and `coga/skills/coga/testing/clean-install/human-walk/operator-guide.md` for
+the walk itself. A new user account on the host does not substitute, because
+it inherits machine-wide Git, Python and winget packages.
+
+- VirtualBox with the Microsoft Windows 11 ISO, Skip Unattended Installation
+  ticked so the setup screens are walked.
+- 8 GB memory, 4 CPUs, 64 GB disk. Defer the product key and record the
+  edition and activation state.
+- Local `cogatest` account when setup offers one; do not rely on
+  `start ms-cxh:localonly`.
+- Record the fresh-vm baseline before installing anything, then snapshot the
+  guest as bare.
+- Restore that snapshot for every re-walk. Deleting the VM through VirtualBox
+  would delete the snapshot with it.
+- Install the candidate by pinned commit, not from PyPI: release 0.4.1
+  predates the Windows port.
+- The candidate is a `main` commit after PR #1189, which merged `v1/14` on
+  2026-11-09 while that ticket sits at its review step.
+
+An agent assist records findings per the human-walk skill. Zach keeps
+execution and the completion decision.
