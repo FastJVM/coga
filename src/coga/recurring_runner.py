@@ -27,7 +27,6 @@ from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.launch import LaunchBail, _interactive_stdio_has_tty, settle_delegated_period
 from coga.launch_script import script_entry_point as resolve_script_entry_point
 from coga import oscompat
-from coga import launch as launch_module
 from coga.oscompat import ProcessTree
 from coga.compose import LaunchContext
 from coga.config import (
@@ -1910,9 +1909,6 @@ def run_recurring_scan(
             cfg, control_worktree_host
         )
         agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
-    elif not launch_module.agent_sessions_supported():
-        agent_spawn_refusal = launch_module.WINDOWS_AGENT_SESSION_MESSAGE
-        agent_refusal_label = "agent sessions unsupported on Windows"
     elif not _interactive_stdio_has_tty():
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
@@ -3768,14 +3764,9 @@ def _resume_named_pause(cfg: Config, ref: TaskRef) -> int | None:
     if not origin:
         return None
     if resolve_script_entry_point(ref) is None:
-        refusal = None
-        if not launch_module.agent_sessions_supported():
-            refusal = launch_module.WINDOWS_AGENT_SESSION_MESSAGE
-        elif not _interactive_stdio_has_tty():
-            refusal = _AGENT_NEEDS_TTY
-        if refusal is not None:
+        if not _interactive_stdio_has_tty():
             typer.secho(
-                f"cannot resume {ref.id_slug}: {refusal}",
+                f"cannot resume {ref.id_slug}: {_AGENT_NEEDS_TTY}",
                 fg=typer.colors.RED,
                 err=True,
             )

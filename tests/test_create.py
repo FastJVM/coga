@@ -46,7 +46,6 @@ def _patch_recurring_command_launch(
     monkeypatch.setattr(
         "coga.launch.launch_recurring_period", typed_child_launch
     )
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
 
 
 @pytest.fixture

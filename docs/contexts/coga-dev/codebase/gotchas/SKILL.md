@@ -134,9 +134,18 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `expect=` byte comparisons in `git.publish` and `write_ticket`. Write any
   file Coga or Git reads back through `atomicio.atomic_write_text`, or with
   `encoding="utf-8", newline="\n"`, and read it with `encoding="utf-8"`.
-  A new agent-session entry point must call `launch.require_agent_sessions()`
-  (or check `agent_sessions_supported()`) before any checkout, publication or
-  draft write. Its exit code skips the CLI exit sweep.
+  Coga's own `.gitattributes` checks every text file out as LF, because Git
+  for Windows' default `core.autocrlf=true` would otherwise give a CRLF
+  source checkout that breaks byte pins and guarded audit rewrites in tests
+  and would ship CRLF templates in a wheel built there. Renormalize an older
+  Windows checkout once with `git rm --cached -r -q . && git reset --hard`.
+  On Windows `git._git_env` also sets `gc.autoDetach` and
+  `maintenance.autoDetach` to false: a detached auto-maintenance there keeps
+  the captured pipes of the Git call that started it, so a Coga read would wait
+  for the whole background gc.
+  A new agent-session entry point must run `launch.agent_command_refusal()`
+  before any checkout, publication or draft write, so a Windows command line
+  that cannot be represented refuses before effects, with the sweep withheld.
 - **Known open: uninstall recovery hints use POSIX syntax on Windows.**
   `commands/uninstall.py::_uninstall_via_tool` displays its env overrides as
   `VAR=value` prefixes (`shlex.quote`) in the "Uninstalling global package"

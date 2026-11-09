@@ -75,7 +75,7 @@ def _phone(git_repo, raw, *, carrier=False):
     replace_blackboard(parent, region[:match.start()] + "period_state: " + json.dumps(state) + region[match.end():])
     if carrier:
         from coga.recurring_state import render_carrier
-        parent.write_text(render_carrier(read_blackboard(parent) + "\nother: keep\n"), encoding="utf-8")
+        parent.write_text(render_carrier(read_blackboard(parent) + "\nother: keep\n"), encoding="utf-8", newline="\n")
         parent.with_name("ticket.py").unlink()
     git_repo.git("add", "coga/recurring/phone-home")
     git_repo.git("commit", "-m", "seed consumed movement")
@@ -304,7 +304,7 @@ def test_trim_retry_publishes_its_failure_report_before_inventory_check(git_repo
     monkeypatch.setattr(trim_log, "trim", partial(trim_log.trim, clock=lambda: TODAY))
     cfg, path = _seed(git_repo)
     period = cfg.repo_root / "tasks/trim-report.md"
-    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n")
+    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/tasks/trim-report.md")
     git_repo.git("commit", "-m", "seed trim period")
     git_repo.git("push", "origin", "main")
@@ -335,7 +335,7 @@ def test_trim_retry_does_not_publish_other_inventory_edits(git_repo, monkeypatch
     from coga.blackboard import append_blackboard_report
     cfg, path = _seed(git_repo)
     period = cfg.repo_root / "tasks/trim-report.md"
-    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n")
+    period.write_text("---\ntitle: Trim\nstatus: in_progress\nowner: marc\nworkflow: null\n---\n\n<!-- coga:blackboard -->\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/tasks/trim-report.md")
     git_repo.git("commit", "-m", "seed trim period")
     git_repo.git("push", "origin", "main")
@@ -343,7 +343,7 @@ def test_trim_retry_does_not_publish_other_inventory_edits(git_repo, monkeypatch
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
     append_blackboard_report(cfg, period, "## Trim log\n\nRetained failure report.\n")
     other = cfg.repo_root / "tasks/retired.md"
-    other.write_text("---\ntitle: Local draft\nstatus: draft\nowner: marc\nworkflow: null\n---\n")
+    other.write_text("---\ntitle: Local draft\nstatus: draft\nowner: marc\nworkflow: null\n---\n", encoding="utf-8", newline="\n")
     before = path.read_bytes()
     with pytest.raises(RetentionError, match="unpublished edits"):
         trim_log.trim(cfg, clock=lambda: TODAY)
@@ -355,11 +355,11 @@ def test_trim_retry_does_not_publish_other_inventory_edits(git_repo, monkeypatch
 def test_archive_proof_includes_events_introduced_only_by_a_merge(git_repo):
     cfg, path = _seed(git_repo)
     git_repo.git("checkout", "-b", "side")
-    (git_repo.root / "side.txt").write_text("side\n")
+    (git_repo.root / "side.txt").write_text("side\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "side.txt")
     git_repo.git("commit", "-m", "side")
     git_repo.git("checkout", "main")
-    (git_repo.root / "main.txt").write_text("main\n")
+    (git_repo.root / "main.txt").write_text("main\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "main.txt")
     git_repo.git("commit", "-m", "main")
     git_repo.git("merge", "--no-commit", "--no-ff", "side")
@@ -382,13 +382,13 @@ def test_install_validates_all_files_before_writing(git_repo, obstacle):
     path = cfg.repo_root / "workflows/trim-log/run.md"
     if obstacle == "fork":
         path.parent.mkdir(parents=True)
-        path.write_text("custom workflow")
+        path.write_text("custom workflow", encoding="utf-8", newline="\n")
     elif obstacle == "parked":
         (cfg.repo_root / "recurring/_trim-log").mkdir(parents=True)
     elif obstacle == "attribute":
-        (cfg.repo_root / ".gitattributes").write_text("/log.md merge=custom\n")
+        (cfg.repo_root / ".gitattributes").write_text("/log.md merge=custom\n", encoding="utf-8", newline="\n")
     elif obstacle == "info-attribute":
-        (git_repo.root / ".git/info/attributes").write_text("coga/log.md merge=custom\n")
+        (git_repo.root / ".git/info/attributes").write_text("coga/log.md merge=custom\n", encoding="utf-8", newline="\n")
     else:
         path.parent.mkdir(parents=True)
         path.symlink_to(cfg.repo_root / "coga.toml")
@@ -419,11 +419,11 @@ def test_install_preserves_other_selections_and_refuses_disabled(git_repo):
     cfg = load_config(git_repo.coga_os)
     jobs = cfg.repo_root / "recurring" / "jobs.toml"
     jobs.parent.mkdir(parents=True, exist_ok=True)
-    jobs.write_text("# mine\n[jobs]\ndream = false\n", encoding="utf-8")
+    jobs.write_text("# mine\n[jobs]\ndream = false\n", encoding="utf-8", newline="\n")
     trim_log.install(cfg)
     text = jobs.read_text(encoding="utf-8")
     assert text.startswith("# mine\n") and "dream = false" in text and "trim-log = true" in text
-    jobs.write_text("[jobs]\ntrim-log = false\n", encoding="utf-8")
+    jobs.write_text("[jobs]\ntrim-log = false\n", encoding="utf-8", newline="\n")
     before = jobs.read_bytes()
     with pytest.raises(RetentionError, match="disabled"):
         trim_log.install(cfg)
@@ -572,7 +572,7 @@ def test_incompatible_installed_cursor_refuses_before_changing_history(git_repo,
     elif problem == "missing-parent":
         parent.unlink()
     else:
-        parent.with_name("ticket.py").write_text("# local fork\n")
+        parent.with_name("ticket.py").write_text("# local fork\n", encoding="utf-8", newline="\n")
     git_repo.git("add", "coga/recurring")
     git_repo.git("commit", "-m", "seed incompatible reporting state")
     git_repo.git("push", "origin", "main")
@@ -668,7 +668,9 @@ def test_retraction_and_trim_share_transaction_lock(git_repo, monkeypatch, write
             retract_log_lines(cfg, "refused", before)
         else:
             assert retract_log_append(cfg, before, refused)
-    thread.join(10)
+    # A real trim takes about 12 s on a native Windows box; join returns as
+    # soon as it finishes, so this is only an upper bound.
+    thread.join(60)
     assert finished.is_set() and not failures
     assert path.read_bytes() == _line("recent", "2026-10-26 12:00") + peer
 

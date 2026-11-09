@@ -373,7 +373,7 @@ def test_ownership_accepts_carriers_but_rejects_definitions_and_incomplete_forks
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
     parent = tmp_path / live
     assert "expected state-only carrier" in _ownership_problems()[0]
-    parent.write_text(render_carrier("\n\ncustom state without declared keys\n"), encoding="utf-8")
+    parent.write_text(render_carrier("\n\ncustom state without declared keys\n"), encoding="utf-8", newline="\n")
     assert _ownership_problems() == []
     parked = parent.parent.with_name("_phone-home")
     parent.parent.rename(parked)
@@ -405,7 +405,7 @@ def test_ownership_accepts_trim_log_first_use_state(tmp_path: Path, monkeypatch:
     assert _ownership_problems() == []
     parent = tmp_path / "coga/recurring/trim-log/ticket.md"
     parent.parent.mkdir(parents=True)
-    parent.write_text(render_carrier("\n\nfirst-use state\n"), encoding="utf-8")
+    parent.write_text(render_carrier("\n\nfirst-use state\n"), encoding="utf-8", newline="\n")
     assert _ownership_problems() == []
     parent.write_bytes(packaged.read_bytes())
     assert "expected state-only carrier" in _ownership_problems()[0]

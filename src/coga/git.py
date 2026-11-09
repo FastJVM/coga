@@ -3193,9 +3193,31 @@ _MESSAGE_LOCALE = {"LC_ALL": "C"}
 def _git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    if os.name == "nt":
+        _keep_maintenance_attached(env)
     if extra:
         env.update(extra)
     return env
+
+
+def _keep_maintenance_attached(env: dict[str, str]) -> None:
+    """Run Git's auto-maintenance in the foreground of Coga's Git calls.
+
+    On Windows a detached `git maintenance run --auto` inherits the captured
+    stdout/stderr pipes instead of daemonizing, so Coga's read waits until
+    background maintenance finishes. Maintenance still runs; it just cannot
+    outlive the command that triggered it. Appends to any `GIT_CONFIG_COUNT`
+    entries already present.
+    """
+    try:
+        count = int(env.get("GIT_CONFIG_COUNT", "0"))
+    except ValueError:
+        count = 0
+    for key in ("gc.autoDetach", "maintenance.autoDetach"):
+        env[f"GIT_CONFIG_KEY_{count}"] = key
+        env[f"GIT_CONFIG_VALUE_{count}"] = "false"
+        count += 1
+    env["GIT_CONFIG_COUNT"] = str(count)
 
 
 def _redact(text: str, args: Iterable[str]) -> str:

@@ -81,17 +81,25 @@ Coga is [built with Coga](https://github.com/FastJVM/coga/tree/main/coga/tasks).
 
 ## Get started
 
-Agent sessions run on Linux or macOS. Coga runs inside an existing Git
-repository; outside one, `coga init` stops. You'll need working Git and either
-Claude Code (`claude`) or Codex (`codex`) installed; Coga does not install or
-link to an installer for either agent. Coga requires Python 3.11+, but the
+Agent sessions run on Linux, macOS, or native Windows. Coga runs inside an
+existing Git repository; outside one, `coga init` stops. You'll need working
+Git and either Claude Code (`claude`) or Codex (`codex`) installed; Coga does
+not install or link to an installer for either agent. Coga requires Python
+3.11+, but the
 recommended `uv` installer can obtain a compatible Python for you.
 
-**Native Windows is not ready for a first task.** PyPI release 0.4.1
-does not run there. The development version runs deterministic commands but
-still refuses agent sessions; see the [launch platform boundary](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md#phases-and-routing).
-WSL has not been verified as an alternative. The steps below are for macOS
-and Linux.
+**On native Windows** (tested on Windows Server 2025), work in PowerShell, for
+example in Windows Terminal; Coga needs no bash or WSL. PyPI release 0.4.1
+predates the Windows port and does not run there.
+
+- Install uv with `irm https://astral.sh/uv/install.ps1 | iex`, then run
+  `uv python install 3.11`.
+- Install Git for Windows. Its default `core.autocrlf=true` is fine: Coga
+  writes LF and Git normalizes.
+- Claude Code's native installer is the tested agent. Codex is untested on
+  native Windows.
+- `coga launch --idle-timeout` is unavailable there, because the agent owns the
+  console; use `--max-session` for a wall-clock limit.
 
 On macOS, check that `git --version` works. If it prompts for developer
 tools, run `xcode-select --install`; Git installed another way works too.

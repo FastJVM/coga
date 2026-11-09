@@ -1349,7 +1349,6 @@ def test_ticket_command_withholds_sweep_after_failed_authoring(
         return SimpleNamespace(exit_code=0)
 
     monkeypatch.setattr(command, "_interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("coga.launch.agent_sessions_supported", lambda: True)
     monkeypatch.setattr(command, "spawn_agent_session", interview)
     monkeypatch.chdir(git_repo.coga_os)
     monkeypatch.setattr(sys, "argv", ["coga", "ticket", "demo"])
@@ -2567,6 +2566,28 @@ def test_summarize_git_failure_bounds_overwrite_paths(path_count, trailer):
     assert git.summarize_git_failure(raw) == expected
 
 
+def test_windows_git_env_keeps_auto_maintenance_attached():
+    env = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": "x"}
+    git._keep_maintenance_attached(env)
+    assert env == {
+        "GIT_CONFIG_COUNT": "3",
+        "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": "x",
+        "GIT_CONFIG_KEY_1": "gc.autoDetach", "GIT_CONFIG_VALUE_1": "false",
+        "GIT_CONFIG_KEY_2": "maintenance.autoDetach", "GIT_CONFIG_VALUE_2": "false",
+    }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the detach override is Windows-only")
+def test_git_env_on_windows_disables_detached_maintenance(git_repo):
+    env = git._git_env()
+    for key in ("gc.autoDetach", "maintenance.autoDetach"):
+        value = subprocess.run(
+            ["git", "-C", str(git_repo.root), "config", "--get", key],
+            env=env, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        assert value == "false"
+
+
 def test_git_env_keeps_the_ambient_locale_unless_pinned(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_DE.UTF-8")
 
@@ -3247,11 +3268,23 @@ def test_control_publication_rechecks_index_before_staging_any_path(git_repo, mo
     ticket.write_text(_ticket_text(blackboard="working prose\n"), encoding="utf-8", newline="\n")
     working = ticket.read_bytes()
     real = git.run_git
+    real_modes = git._index_modes
     probes = 0
+    reading_modes = False
+
+    def modes(root):  # type: ignore[no-untyped-def]
+        # Windows also reads index modes (Git owns executable bits there);
+        # that lookup is not one of the staging rechecks this test races.
+        nonlocal reading_modes
+        reading_modes = True
+        try:
+            return real_modes(root)
+        finally:
+            reading_modes = False
 
     def race(root, *args, **kwargs):
         nonlocal probes
-        if args[:3] == ("ls-files", "--stage", "-z"):
+        if args[:3] == ("ls-files", "--stage", "-z") and not reading_modes:
             probes += 1
             if probes == 2:
                 ticket.write_text(_ticket_text(blackboard="concurrent staged draft\n"), encoding="utf-8", newline="\n")
@@ -3260,6 +3293,7 @@ def test_control_publication_rechecks_index_before_staging_any_path(git_repo, mo
         return real(root, *args, **kwargs)
 
     monkeypatch.setattr(git, "run_git", race)
+    monkeypatch.setattr(git, "_index_modes", modes)
     head = _head(git_repo)
     assert git.publish(cfg, [ticket], "Working prose")
     assert probes == 2

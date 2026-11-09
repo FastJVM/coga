@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+import os
+
 import typer
 
+from coga import git
 from coga import launch as launch_service
+from coga.oscompat import process_exit_status
+
+WINDOWS_IDLE_TIMEOUT_REFUSAL = (
+    "--idle-timeout is unavailable on native Windows: the agent owns the "
+    "console directly, so Coga cannot observe its output to measure "
+    "idleness. Use --max-session <seconds> for a wall-clock limit instead."
+)
+
+
+def _idle_timeout_unavailable() -> bool:
+    return os.name == "nt"
 
 
 def launch(
@@ -33,7 +47,8 @@ def launch(
         help="Tear down a stalled interactive REPL after this many seconds with "
         "no output or input (it never signalled done). Off by default — an "
         "attended launch waits indefinitely. `coga recurring` sets it so one "
-        "stuck agent can't block the sweep.",
+        "stuck agent can't block the sweep. Unavailable on native Windows; "
+        "use --max-session there.",
     ),
     max_session: float | None = typer.Option(
         None,
@@ -61,6 +76,12 @@ def launch(
     ),
 ) -> None:
     """Compose context, start work on a task."""
+    if idle_timeout is not None and _idle_timeout_unavailable():
+        # Refuse before any state change, and keep the CLI's final sweep from
+        # publishing pre-existing dirt on the way out (exit stays 2).
+        git.state_sweep_withheld.set(True)
+        typer.secho(WINDOWS_IDLE_TIMEOUT_REFUSAL, fg=typer.colors.RED, err=True)
+        raise typer.Exit(2)
     try:
         with launch_service.launch_reporting(typer.secho):
             result = launch_service.launch(
@@ -72,6 +93,8 @@ def launch(
     except launch_service.LaunchBail as exc:
         if exc.reason:
             typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise typer.Exit(exc.code) from exc
+        # An agent's Windows exit code is a DWORD; keep it exact (see
+        # `process_exit_status`). Every other code passes unchanged.
+        raise typer.Exit(process_exit_status(exc.code)) from exc
     if result.exit_code:
-        raise typer.Exit(result.exit_code)
+        raise typer.Exit(process_exit_status(result.exit_code))

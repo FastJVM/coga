@@ -461,18 +461,10 @@ def test_skipped_sweep_with_git_disabled_keeps_its_own_note(
     assert "not on control" not in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("argv", [
-    ["launch", "windows-agent"],
-    ["chat"],
-    ["build"],
-    ["ticket", "A new Windows draft"],
-    ["ticket", "--pick-agent", "A new Windows draft"],
-    ["megalaunch"],
-    ["megalaunch", "--pick"],
-])
-def test_windows_agent_refusal_keeps_checkout_and_control(
-    git_repo, monkeypatch: pytest.MonkeyPatch, capsys, argv: list[str]
+def test_windows_idle_timeout_refusal_keeps_checkout_and_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
+    """`--idle-timeout` refuses on Windows with exit 2 and no state sweep."""
     from coga import launch as launch_module
 
     ticket = git_repo.coga_os / "tasks" / "windows-agent.md"
@@ -483,9 +475,15 @@ def test_windows_agent_refusal_keeps_checkout_and_control(
     git_repo.checkout_branch("feature/keep-this-checkout")
     ticket.write_text(ticket.read_text(encoding="utf-8") + "\nUnpublished Café notes.\n", encoding="utf-8", newline="\n")
     (git_repo.coga_os / "log.md").write_text("Unpublished log.\n", encoding="utf-8", newline="\n")
+    git_repo.git("add", "log.md", cwd=git_repo.coga_os)
     monkeypatch.chdir(git_repo.coga_os)
-    monkeypatch.setattr(launch_module, "agent_sessions_supported", lambda: False, raising=False)
-    monkeypatch.setattr("sys.argv", ["coga", *argv])
+    monkeypatch.setattr("coga.commands.launch._idle_timeout_unavailable", lambda: True)
+
+    def launched(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("the launch service ran")
+
+    monkeypatch.setattr(launch_module, "launch", launched)
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "windows-agent", "--idle-timeout", "30"])
     before = {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()}
     head = git_repo.git("rev-parse", "HEAD")
     control = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
@@ -494,12 +492,58 @@ def test_windows_agent_refusal_keeps_checkout_and_control(
     with pytest.raises(SystemExit) as excinfo:
         main()
 
-    assert excinfo.value.code != 0
-    output = capsys.readouterr()
-    assert "agent sessions are not supported on native Windows yet" in output.err
-    assert "v1/14-interactive-coga-launch-on-native-windows" in output.err
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "--idle-timeout is unavailable on native Windows" in err
+    assert "--max-session" in err
+    assert "refused before changing state" in err
     assert {p.relative_to(git_repo.root): p.read_bytes() for p in git_repo.coga_os.rglob("*") if p.is_file()} == before
     assert git_repo.git("branch", "--show-current").strip() == "feature/keep-this-checkout"
     assert git_repo.git("rev-parse", "HEAD") == head
     assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == control
     assert git_repo.git("ls-files", "--stage") == index
+
+
+def test_idle_timeout_is_not_refused_off_windows(
+    clone: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga import launch as launch_module
+    from coga.launch import LaunchResult
+
+    seen: list[object] = []
+
+    def launched(task, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append(kwargs["idle_timeout"])
+        return LaunchResult()
+
+    monkeypatch.setattr("coga.commands.launch._idle_timeout_unavailable", lambda: False)
+    monkeypatch.setattr(launch_module, "launch", launched)
+    result = CliRunner().invoke(app, ["launch", "x", "--idle-timeout", "30"])
+    assert result.exit_code == 0, result.output
+    assert seen == [30.0]
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [(7, 7), (0xC000013A, 0xC000013A - 0x100000000), (0xC0000005, 0xC0000005 - 0x100000000)],
+)
+def test_launch_adapter_keeps_windows_dword_exit_codes(
+    clone: Path, monkeypatch: pytest.MonkeyPatch, code: int, expected: int
+) -> None:
+    """A Windows agent's DWORD exit survives Python 3.11's signed SystemExit."""
+    from coga import launch as launch_module
+    from coga import oscompat
+    from coga.launch import LaunchBail
+
+    monkeypatch.setattr(
+        "coga.commands.launch.process_exit_status",
+        lambda value: oscompat.process_exit_status(value, windows=True),
+    )
+
+    def launched(task, **kwargs):  # type: ignore[no-untyped-def]
+        raise LaunchBail(code)
+
+    monkeypatch.setattr(launch_module, "launch", launched)
+    result = CliRunner().invoke(app, ["launch", "x"])
+    assert result.exit_code == expected
+    assert expected & 0xFFFFFFFF == code

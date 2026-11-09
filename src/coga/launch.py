@@ -26,13 +26,14 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator, NamedTuple, TypeVar
-from uuid import uuid4
+from typing import Callable, Iterator, Mapping, NamedTuple, TypeVar
+from uuid import UUID, uuid4
 
 from typer import Exit as NotificationExit
 
@@ -177,42 +178,6 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 _ASSIST_ALIGNMENT_ATTEMPTS = 3
 _T = TypeVar("_T")
 
-WINDOWS_AGENT_SESSION_MESSAGE = (
-    "agent sessions are not supported on native Windows yet; see "
-    "v1/14-interactive-coga-launch-on-native-windows."
-)
-
-
-def agent_sessions_supported() -> bool:
-    return os.name != "nt"
-
-
-def require_agent_sessions() -> None:
-    """Refuse an agent entry before writes, including the CLI exit sweep."""
-    if not agent_sessions_supported():
-        _bail(WINDOWS_AGENT_SESSION_MESSAGE, exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
-
-
-def _preflight_platform_target(task: str, *, prompt_report: bool) -> None:
-    """Only a locally visible script can admit work on native Windows.
-
-    This read-only classifier precedes checkout preparation, recurring
-    catch-up, chat receipts and draft creation. Missing/stale targets cannot
-    justify moving the checkout to discover whether they need an agent.
-    The normal path reclassifies after every sync as before.
-    """
-    if prompt_report or agent_sessions_supported():
-        return
-    try:
-        cfg = load_config()
-        ref = resolve_target(cfg, task)
-    except (ConfigError, TaskNotFoundError):
-        require_agent_sessions()
-        return
-    if script_entry_point(ref) is None:
-        require_agent_sessions()
-
-
 _CHECKOUT_GUARD_SCOPE: ContextVar[ExitStack | None] = ContextVar(
     "checkout_guard_scope", default=None
 )
@@ -332,7 +297,6 @@ def launch(
     Queue callers use the specialized recurring/delegation entry points below.
     No command-line parser objects or process exits cross this boundary.
     """
-    _preflight_platform_target(task, prompt_report=prompt_report)
     with ExitStack() as local_scope:
         if task == "bootstrap/orient" and not prompt_report:
             try:
@@ -794,8 +758,6 @@ def _launch(
     direct_chat: bool = False,
 ) -> LaunchResult:
     """Run the fixed launch phases; each may finish without starting an agent."""
-    if agent_spawn_refusal is None:
-        _preflight_platform_target(task, prompt_report=prompt_report)
     invocation = _LaunchInvocation(
         task=task,
         args=args,
@@ -1677,9 +1639,6 @@ class _LaunchInvocation:
     def _prepare_agent(self) -> LaunchResult | None:
         """Preflight the selected agent before committing lifecycle changes."""
 
-        if not self.prompt_report:
-            require_agent_sessions()
-
         # Deterministic completion, failure, and handoff paths have already
         # returned without consulting agent config, materializing skills,
         # composing a prompt, or probing the CLI binary.
@@ -1824,6 +1783,17 @@ class _LaunchInvocation:
                 self.env = build_launch_env(self.cfg, self.ticket.secrets)
             except SecretError as exc:
                 _bail(str(exc))
+
+            # Native Windows: refuse a command line no transport can carry
+            # before any lifecycle write, with the exit sweep withheld.
+            require_representable_agent_command(
+                self.agent,
+                env=self.env,
+                ref=self.ref,
+                name=self.ticket.title or "",
+                discussion=_is_discussion_bootstrap(self.ref),
+                kickoff=_bootstrap_kickoff(self.ref),
+            )
 
             # Refuse to start an agent session when git push access is broken. Coga
             # drives the whole session through git/gh (branch push, `gh pr create`,
@@ -2562,11 +2532,6 @@ def _require_agent_after_script(
     """Fail loud when ``ticket.py`` left work open but no agent can take it."""
 
     step_label = _script_step_label(ticket)
-    if not agent_sessions_supported():
-        _bail(
-            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open; "
-            f"{WINDOWS_AGENT_SESSION_MESSAGE} The deterministic work was kept."
-        )
     if not _interactive_stdio_has_tty():
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
@@ -3560,13 +3525,123 @@ def _argv_prompt(
     """
     if len(prompt.encode()) <= _MAX_PROMPT_ARG_BYTES:
         return prompt
+    return _prompt_pointer(prompt_file, marker_line)
+
+
+def _prompt_pointer(
+    prompt_file: Path, marker_line: str = "", *, separator: str = "\n"
+) -> str:
+    """The file-pointer message, repeating the launch marker on its own line.
+
+    A Windows .cmd/.bat agent cannot receive raw CR/LF intact, so its pointer
+    uses U+2028 LINE SEPARATOR instead. ``str.splitlines`` (usage capture's
+    exact-line marker match) treats both as line boundaries.
+    """
     pointer = (
         f"Read the file {prompt_file} in full before doing anything else — "
         "its contents are your complete composed Coga prompt, too large to "
         "pass as a command-line argument. Follow it exactly as if it had "
         "been given to you as this message."
     )
-    return f"{pointer}\n\n{marker_line}\n" if marker_line else pointer
+    if not marker_line:
+        return pointer
+    return f"{pointer}{separator}{separator}{marker_line}{separator}"
+
+
+_BATCH_POINTER_SEPARATOR = "\u2028"
+
+
+class AgentCommandRefused(ComposeError):
+    """The final agent command cannot be represented on native Windows."""
+
+
+def _plan_windows_agent_command(
+    agent,
+    *,
+    env: Mapping[str, str],
+    prompt: str | None,
+    prompt_file: Path,
+    marker_line: str,
+    name: str = "",
+    discussion: bool = False,
+    session_id: str | None = None,
+    kickoff: str | None = None,
+):
+    """Plan the Windows argv (full prompt or pointer) from serialized size."""
+    from coga import repl_supervisor_nt
+
+    def parts_for(prompt_arg: str) -> list[tuple[str, str]]:
+        parts = _agent_command_parts(
+            agent, prompt_arg, name=name, discussion=discussion,
+            session_id=session_id,
+        )
+        if kickoff:
+            parts.append((kickoff, "kickoff"))
+        return parts
+
+    try:
+        return repl_supervisor_nt.plan_agent_command(
+            parts_for,
+            prompt=prompt,
+            pointer_for=lambda batch: _prompt_pointer(
+                prompt_file,
+                marker_line,
+                separator=_BATCH_POINTER_SEPARATOR if batch else "\n",
+            ),
+            env=env,
+        )
+    except repl_supervisor_nt.CommandRefused as exc:
+        raise AgentCommandRefused(
+            f"Cannot start agent {agent.name}: {exc}"
+        ) from exc
+
+
+def agent_command_refusal(
+    agent,
+    *,
+    env: Mapping[str, str],
+    ref: TargetRef,
+    name: str = "",
+    discussion: bool = False,
+    kickoff: str | None = None,
+) -> str | None:
+    """Windows preflight: why this agent's command cannot be built, else None.
+
+    Plans the pointer form, the smallest command a launch can use, before
+    activation, draft creation or queue admission. The placeholder prompt
+    path and marker have the real ones' width. A missing CLI is left to the
+    caller's own CLI check. POSIX always returns None.
+    """
+    if os.name != "nt":
+        return None
+    placeholder = Path(tempfile.gettempdir()) / (
+        f"coga-{ref.id_slug.replace('/', '-')}-XXXXXXXX.md"
+    )
+    try:
+        _plan_windows_agent_command(
+            agent,
+            env=env,
+            prompt=None,
+            prompt_file=placeholder,
+            marker_line=usage_tracking.launch_marker_line(str(UUID(int=0))),
+            name=name,
+            discussion=discussion,
+            session_id=str(UUID(int=0)) if agent.session_id_flag else None,
+            kickoff=kickoff,
+        )
+    except AgentCliNotFound:
+        return None
+    except AgentCommandRefused as exc:
+        return str(exc)
+    return None
+
+
+def require_representable_agent_command(agent, **kwargs) -> None:
+    """``agent_command_refusal`` as an exit-2 refusal with the sweep withheld."""
+    refusal = agent_command_refusal(agent, **kwargs)
+    if refusal is not None:
+        git.state_sweep_withheld.set(True)
+        _bail(refusal)
 
 
 def build_agent_command(
@@ -3601,26 +3676,51 @@ def build_agent_command(
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
     """
-    launch_args = shlex.split(agent.launch_args)
+    return [
+        token
+        for token, _ in _agent_command_parts(
+            agent, prompt, name=name, discussion=discussion,
+            session_id=session_id,
+        )
+    ]
+
+
+def _agent_command_parts(
+    agent,
+    prompt: str,
+    *,
+    name: str = "",
+    discussion: bool = False,
+    session_id: str | None = None,
+) -> list[tuple[str, str]]:
+    """``build_agent_command``'s argv with each token's role.
+
+    Roles name an argument in a refusal without printing its value.
+    """
+    cli = [(agent.cli, "agent CLI")]
+    launch_args = [(tok, "launch option") for tok in shlex.split(agent.launch_args)]
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template:
         tokens = [
-            tok.replace("{prompt}", prompt)
+            (tok.replace("{prompt}", prompt), "discussion token")
             for tok in shlex.split(discussion_template)
         ]
-        return [agent.cli, *launch_args, *tokens]
-    name_args: list[str] = []
+        return [*cli, *launch_args, *tokens]
+    name_args: list[tuple[str, str]] = []
     if name and agent.name_flag:
-        name_args = [*shlex.split(agent.name_flag), name]
-    session_id_args: list[str] = []
+        name_args = [(tok, "title") for tok in [*shlex.split(agent.name_flag), name]]
+    session_id_args: list[tuple[str, str]] = []
     if session_id and agent.session_id_flag:
-        session_id_args = [*shlex.split(agent.session_id_flag), session_id]
+        session_id_args = [
+            (tok, "session ID")
+            for tok in [*shlex.split(agent.session_id_flag), session_id]
+        ]
     return [
-        agent.cli,
+        *cli,
         *launch_args,
         *name_args,
         *session_id_args,
-        prompt,
+        (prompt, "prompt"),
     ]
 
 
@@ -3763,7 +3863,6 @@ def spawn_agent_session(
     # rewriting it, so a variable this target does not export (a stateless
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
-    require_agent_sessions()
     env = apply_task_env(env, cfg, ref, ticket)
     # Never inherit a parent assist capability into a nested ordinary launch.
     # Re-mint it only for the exact recorded branch/PR this spawn already
@@ -3820,18 +3919,48 @@ def spawn_agent_session(
         f"{label}: prompt written to {prompt_file} "
         f"({len(prompt)} chars)"
     )
-    prompt_arg = _argv_prompt(prompt, prompt_file, marker_line)
-    if prompt_arg is not prompt:
-        _report(
-            f"{label}: prompt exceeds the {_MAX_PROMPT_ARG_BYTES}-byte "
-            f"single-argument limit — the agent will read it from "
-            f"{prompt_file}"
-        )
-
-    usage_provider = usage_tracking.parser_key_for_cli(agent.cli)
     usage_session_id = (
         str(uuid4()) if agent.session_id_flag else None
     )
+    windows_plan = None
+    if os.name == "nt":
+        # Windows budgets the complete serialized command, not one argument:
+        # plan after every token (title, session id, kickoff) is known.
+        try:
+            windows_plan = _plan_windows_agent_command(
+                agent,
+                env=env,
+                prompt=prompt,
+                prompt_file=prompt_file,
+                marker_line=marker_line,
+                name=name,
+                discussion=discussion,
+                session_id=usage_session_id,
+                kickoff=kickoff,
+            )
+        except BaseException as exc:
+            prompt_file.unlink(missing_ok=True)
+            if isinstance(exc, AgentCommandRefused):
+                # Refusal precedes any launch audit or spawn admission; keep
+                # the final CLI sweep from publishing unrelated dirt.
+                git.state_sweep_withheld.set(True)
+            raise
+        prompt_arg = windows_plan.prompt_arg
+        if windows_plan.prompt_in_file:
+            _report(
+                f"{label}: the Windows command line cannot carry the prompt "
+                f"— the agent will read it from {prompt_file}"
+            )
+    else:
+        prompt_arg = _argv_prompt(prompt, prompt_file, marker_line)
+        if prompt_arg is not prompt:
+            _report(
+                f"{label}: prompt exceeds the {_MAX_PROMPT_ARG_BYTES}-byte "
+                f"single-argument limit — the agent will read it from "
+                f"{prompt_file}"
+            )
+
+    usage_provider = usage_tracking.parser_key_for_cli(agent.cli)
     usage_pre_existing = usage_tracking.snapshot_session_files(usage_provider)
     usage_secret_values = _configured_secret_values(
         ticket, env, secrets_are_scoped=secrets_are_scoped
@@ -3856,15 +3985,18 @@ def spawn_agent_session(
                 "a guarded spawn-time launch audit cannot be published before "
                 "its post-append validation"
             )
-        cmd = build_agent_command(
-            agent,
-            prompt_arg,
-            name=name,
-            discussion=discussion,
-            session_id=usage_session_id,
-        )
-        if kickoff:
-            cmd.append(kickoff)
+        if windows_plan is not None:
+            cmd = list(windows_plan.argv)
+        else:
+            cmd = build_agent_command(
+                agent,
+                prompt_arg,
+                name=name,
+                discussion=discussion,
+                session_id=usage_session_id,
+            )
+            if kickoff:
+                cmd.append(kickoff)
         _report(
             f"{label}: command: "
             f"{_format_agent_command_for_console(cmd, prompt)}"

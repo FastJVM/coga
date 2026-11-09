@@ -29,8 +29,10 @@ if os.name == "posix":
     import termios
     import tty
 
+import shutil
 import signal
 import sys
+import time
 
 import typer
 from rich.console import Console, Group
@@ -130,13 +132,6 @@ def megalaunch(
     sequences that directory as one contiguous block in number order; this is
     a naming convention, not a flag.
     """
-    from coga.launch import LaunchBail, require_agent_sessions
-
-    try:
-        require_agent_sessions()
-    except LaunchBail as exc:
-        typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise typer.Exit(exc.code) from None
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -384,29 +379,116 @@ def _read_key(resize_fd: int) -> str:
     return _decode_key(data)
 
 
+# Windows console extended keys arrive from `getwch` as a "\xe0" (or
+# "\x00") prefix and a scan character; map them to the POSIX byte forms so
+# `_decode_key` stays the one decoder.
+_WINDOWS_EXTENDED_KEYS = {"H": b"\x1b[A", "P": b"\x1b[B"}
+_WINDOWS_KEY_POLL = 0.05
+
+
+def _windows_console() -> bool:
+    return os.name == "nt"
+
+
+class _PosixKeys:
+    """Raw-mode key reads plus the SIGWINCH self-pipe (see `_read_key`)."""
+
+    def __enter__(self) -> _PosixKeys:
+        # SIGWINCH self-pipe: `_read_key` blocks in os.read/select, and PEP
+        # 475 retries reads around signals, so a flag set by a handler would
+        # never be seen while the read stays blocked. The wakeup fd turns the
+        # signal into a readable byte `_read_key` can select on. The no-op
+        # handler is required — SIGWINCH is ignored by default, and only
+        # signals with a Python-level handler reach the wakeup fd. Installed
+        # for the whole picker so a resize landing between keypresses (cooked
+        # mode) is buffered, not lost.
+        self._resize_read, self._resize_write = os.pipe()
+        os.set_blocking(self._resize_write, False)
+        self._previous_wakeup = signal.set_wakeup_fd(self._resize_write)
+        self._previous_handler = signal.signal(
+            signal.SIGWINCH, lambda signum, frame: None
+        )
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        signal.signal(signal.SIGWINCH, self._previous_handler)
+        signal.set_wakeup_fd(self._previous_wakeup)
+        os.close(self._resize_read)
+        os.close(self._resize_write)
+
+    def read(self) -> str:
+        return _read_key(self._resize_read)
+
+    def cancelled(self) -> bool:
+        # Raw mode turns Ctrl+C into the "\x03" key on POSIX.
+        return False
+
+
+class _WindowsKeys:
+    """`msvcrt` polling for the Windows console, with a whole-picker quit flag.
+
+    With processed console input, Ctrl+C can arrive as a SIGINT between reads
+    (during the poll sleep or a redraw) rather than as the "\x03" key. The
+    handler only sets a flag; the picker treats it exactly like `q`, and it
+    wins over a queued Enter. There is no SIGWINCH, so a changed terminal size
+    is polled and returned as "resize".
+    """
+
+    def __enter__(self) -> _WindowsKeys:
+        from coga.repl_supervisor_nt import ConsoleModes
+
+        self._quit = False
+        self._modes = ConsoleModes.save()
+        self._size = shutil.get_terminal_size()
+        self._previous_handler = signal.signal(signal.SIGINT, self._on_interrupt)
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        try:
+            signal.signal(signal.SIGINT, self._previous_handler)
+        finally:
+            self._modes.restore()
+
+    def _on_interrupt(self, signum, frame) -> None:  # type: ignore[no-untyped-def]
+        self._quit = True
+
+    def cancelled(self) -> bool:
+        return self._quit
+
+    def read(self) -> str:
+        import msvcrt
+
+        while True:
+            if self._quit:
+                return "quit"
+            if msvcrt.kbhit():
+                char = msvcrt.getwch()
+                if char in ("\x00", "\xe0"):
+                    data = _WINDOWS_EXTENDED_KEYS.get(msvcrt.getwch(), b"")
+                else:
+                    data = char.encode("utf-8", "replace")
+                action = _decode_key(data)
+                return "quit" if self._quit else action
+            size = shutil.get_terminal_size()
+            if size != self._size:
+                self._size = size
+                return "resize"
+            time.sleep(_WINDOWS_KEY_POLL)
+
+
 def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
     """Arrow-key picker: ↑/↓ (or j/k) move, Space toggles, Enter launches.
 
     Nothing starts checked — the list reaches wide (drafts, paused, blocked,
     and other owners' tickets under --owner/--all-owners), so every launch is an explicit opt-in. Returns
     the confirmed slugs, or an empty list when the human backed out (`q`/Esc,
-    or confirming with nothing checked).
+    Ctrl+C, or confirming with nothing checked).
     """
     console = Console()
     cursor = 0
     selected: set[int] = set()
-    # SIGWINCH self-pipe: `_read_key` blocks in os.read/select, and PEP 475
-    # retries reads around signals, so a flag set by a handler would never be
-    # seen while the read stays blocked. The wakeup fd turns the signal into a
-    # readable byte `_read_key` can select on. The no-op handler is required —
-    # SIGWINCH is ignored by default, and only signals with a Python-level
-    # handler reach the wakeup fd. Installed for the whole picker so a resize
-    # landing between keypresses (cooked mode) is buffered, not lost.
-    resize_read, resize_write = os.pipe()
-    os.set_blocking(resize_write, False)
-    previous_wakeup = signal.set_wakeup_fd(resize_write)
-    previous_handler = signal.signal(signal.SIGWINCH, lambda signum, frame: None)
-    try:
+    keys = _WindowsKeys() if _windows_console() else _PosixKeys()
+    with keys:
         with Live(
             _picker_view(candidates, selected, cursor, console),
             console=console,
@@ -414,8 +496,8 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
             transient=True,
         ) as live:
             while True:
-                key = _read_key(resize_read)
-                if key == "quit":
+                key = keys.read()
+                if key == "quit" or keys.cancelled():
                     return []
                 if key == "enter":
                     return [candidates[i][0].id_slug for i in sorted(selected)]
@@ -434,11 +516,8 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
                 live.update(
                     _picker_view(candidates, selected, cursor, console), refresh=True
                 )
-    finally:
-        signal.signal(signal.SIGWINCH, previous_handler)
-        signal.set_wakeup_fd(previous_wakeup)
-        os.close(resize_read)
-        os.close(resize_write)
+                if keys.cancelled():
+                    return []
 
 
 def _picker_window(total: int, cursor: int, rows: int) -> tuple[int, int]:

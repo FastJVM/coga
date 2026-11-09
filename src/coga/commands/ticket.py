@@ -6,6 +6,8 @@ import os
 import shutil
 import sys
 
+from typing import Callable
+
 import typer
 
 from coga import git
@@ -19,10 +21,13 @@ from coga.authoring import (
 from coga.commands.create import _split_create_path, create_draft
 from coga.create import is_parked_dir
 from coga.launch import (
+    LaunchBail,
     _interactive_stdio_has_tty,
     missing_launch_file_message,
+    require_representable_agent_command,
     spawn_agent_session,
 )
+from coga.oscompat import process_exit_status
 from coga.compose import ComposeError
 from coga.repl_supervisor import AgentCliNotFound
 from coga.config import Config, ConfigError, load_config, scrub_op_auth_env
@@ -84,13 +89,6 @@ def ticket(
     ),
 ) -> None:
     """Run the bootstrap/ticket authoring skill."""
-    from coga.launch import LaunchBail, require_agent_sessions
-
-    try:
-        require_agent_sessions()
-    except LaunchBail as exc:
-        typer.secho(exc.reason, fg=typer.colors.RED, err=True)
-        raise typer.Exit(exc.code) from None
     if pick_agent and agent_override:
         _bail("Pass --agent or --pick-agent, not both.")
     # Checked before any target is scaffolded, so a non-TTY `--pick-agent`
@@ -111,19 +109,48 @@ def ticket(
     ref: TaskRef | BootstrapRef
     source_ticket: Ticket
 
+    picked = False
+
+    def before_create() -> None:
+        """Pick and preflight the interviewer before a new draft exists.
+
+        A fresh draft has no `agent:`, so its interviewer resolves exactly as
+        the bootstrap ticket's would. A refusal leaves no draft behind.
+        """
+        nonlocal agent_override, picked
+        if pick_agent:
+            agent_override = _pick_authoring_agent(
+                cfg, source_ticket=bootstrap_ticket, bootstrap_ticket=bootstrap_ticket
+            )
+            picked = True
+        try:
+            agent_name = resolve_authoring_agent(
+                cfg,
+                source_ticket=bootstrap_ticket,
+                bootstrap_ticket=bootstrap_ticket,
+                agent_override=agent_override,
+            )
+        except ConfigError:
+            return  # reported with its remedy after resolution below
+        _preflight_authoring_command(
+            cfg, bootstrap_ref, agent_name, kickoff=AUTHORING_KICKOFF_NEW
+        )
+
     if target is None:
         ref = bootstrap_ref
         source_ticket = bootstrap_ticket
         kickoff = AUTHORING_KICKOFF
     else:
-        ref, source_ticket, created = _resolve_or_create_target(cfg, target)
+        ref, source_ticket, created = _resolve_or_create_target(
+            cfg, target, before_create=before_create
+        )
         kickoff = AUTHORING_KICKOFF_NEW if created else AUTHORING_KICKOFF_EDIT
 
     # Interviewer selection is `resolve_authoring_agent`'s precedence chain,
     # shared with megalaunch's picked-draft pass. It selects the *interviewer*
     # only — the interview never writes an agent onto the ticket it is editing;
     # the human chooses that through the authoring allowlist.
-    if pick_agent:
+    if pick_agent and not picked:
         agent_override = _pick_authoring_agent(
             cfg, source_ticket=source_ticket, bootstrap_ticket=bootstrap_ticket
         )
@@ -146,6 +173,26 @@ def ticket(
         kickoff=kickoff,
         bootstrap_title=bootstrap_ticket.title or "",
     )
+
+
+def _preflight_authoring_command(
+    cfg: Config, ref: TaskRef | BootstrapRef, launch_agent: str, *, kickoff: str
+) -> None:
+    """Refuse an unrepresentable Windows agent command (exit 2, no sweep)."""
+    try:
+        agent = cfg.agent_type(launch_agent)
+    except ConfigError:
+        return  # `_run_authoring_session` reports it
+    try:
+        require_representable_agent_command(
+            agent,
+            env=scrub_op_auth_env(os.environ),
+            ref=ref,
+            discussion=True,
+            kickoff=kickoff,
+        )
+    except LaunchBail as exc:
+        _bail(exc.reason)
 
 
 def _pick_authoring_agent(
@@ -203,7 +250,10 @@ def _pick_authoring_agent(
 
 
 def _resolve_or_create_target(
-    cfg: Config, target: str
+    cfg: Config,
+    target: str,
+    *,
+    before_create: Callable[[], None] | None = None,
 ) -> tuple[TaskRef, Ticket, bool]:
     """Resolve `target` to an existing task to edit, or scaffold a new draft.
 
@@ -244,6 +294,8 @@ def _resolve_or_create_target(
                 f"on live tickets only. Capture there with `coga create "
                 f"{target!r}`, or author the ticket outside the parked tree."
             )
+        if before_create is not None:
+            before_create()
         result = create_draft(title=target)
         # Re-resolve through discovery so the TaskRef carries the correct shape
         # (file-form vs directory-form) — create may land a bare `<slug>.md`.
@@ -299,6 +351,7 @@ def _run_authoring_session(
     agent_path = shutil.which(agent.cli)
     if agent_path is None:
         _bail(agent_cli_missing_message(agent.name, agent.cli))
+    _preflight_authoring_command(cfg, ref, launch_agent, kickoff=kickoff)
 
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_agent} -> {agent.name}"
@@ -346,7 +399,7 @@ def _run_authoring_session(
             fg=typer.colors.YELLOW,
             err=True,
         )
-        sys.exit(session.exit_code)
+        sys.exit(process_exit_status(session.exit_code))
 
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)

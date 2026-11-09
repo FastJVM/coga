@@ -194,7 +194,7 @@ def _defer_spawn_release_interrupts() -> Iterator[None]:
     interrupt delivered there sees the already-recorded release state.
     """
     pthread_sigmask = getattr(signal, "pthread_sigmask", None)
-    if pthread_sigmask is None:  # pragma: no cover - this module is POSIX-only
+    if pthread_sigmask is None:  # Windows: no signal mask to defer with
         yield
         return
     previous = pthread_sigmask(
@@ -205,6 +205,59 @@ def _defer_spawn_release_interrupts() -> Iterator[None]:
         yield
     finally:
         pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+def _admit_held_child(
+    release: Callable[[], None],
+    *,
+    after_spawn: Callable[[], None],
+    spawn_release_guard: (
+        Callable[[], AbstractContextManager[None]] | None
+    ) = None,
+    after_spawn_release: Callable[[], None] | None = None,
+    on_spawn_admission_failure: Callable[[], None] | None = None,
+) -> None:
+    """Run a held child's admission callbacks and release it, once.
+
+    Shared by the POSIX pipe gate and the Windows named-event gate; only
+    ``release`` (the commit point) differs. ``after_spawn`` runs under the
+    optional guard; ``release`` must either complete or raise before the child
+    can execute. SIGINT/SIGTERM are deferred across it and the released-state
+    update. Before release, a failure runs ``on_spawn_admission_failure`` to
+    retract provisional effects; after release, effects are retained because
+    agent work may already be running, and ``after_spawn_release`` failures
+    propagate without compensation. The caller kills the child on any raise.
+    """
+    child_released = False
+    guard = (
+        spawn_release_guard()
+        if spawn_release_guard is not None
+        else nullcontext()
+    )
+    with guard:
+        try:
+            after_spawn()
+            with _defer_spawn_release_interrupts():
+                release()
+                # This assignment is part of the signal-masked commit point. A
+                # pending interrupt delivered as the prior mask is restored
+                # must retain the launch audit and started state because the
+                # child can already execute.
+                child_released = True
+            if after_spawn_release is not None:
+                after_spawn_release()
+        except BaseException as admission_exc:
+            if not child_released and on_spawn_admission_failure is not None:
+                try:
+                    on_spawn_admission_failure()
+                except BaseException as compensation_exc:
+                    raise RuntimeError(
+                        "agent child admission failed and its provisional "
+                        "effects could not be retracted: "
+                        f"admission={admission_exc}; "
+                        f"compensation={compensation_exc}"
+                    ) from compensation_exc
+            raise
 
 
 @dataclass(frozen=True)
@@ -382,42 +435,40 @@ def run_with_done_marker(
         raise ValueError("on_spawn_admission_failure requires after_spawn")
 
     def release_gated_child(gate_write_fd: int) -> None:
-        child_released = False
-        guard = (
-            spawn_release_guard()
-            if spawn_release_guard is not None
-            else nullcontext()
+        def write_gate_byte() -> None:
+            written = os.write(gate_write_fd, b"\0")
+            if written != 1:
+                raise OSError(
+                    errno.EIO,
+                    "short write while releasing held agent child",
+                )
+
+        assert after_spawn is not None
+        _admit_held_child(
+            write_gate_byte,
+            after_spawn=after_spawn,
+            spawn_release_guard=spawn_release_guard,
+            after_spawn_release=after_spawn_release,
+            on_spawn_admission_failure=on_spawn_admission_failure,
         )
-        with guard:
-            assert after_spawn is not None
-            try:
-                after_spawn()
-                with _defer_spawn_release_interrupts():
-                    written = os.write(gate_write_fd, b"\0")
-                    if written != 1:
-                        raise OSError(
-                            errno.EIO,
-                            "short write while releasing held agent child",
-                        )
-                    # This assignment is part of the signal-masked commit
-                    # point. A pending interrupt delivered as the prior mask
-                    # is restored must retain the launch audit and started
-                    # state because the child can already execute.
-                    child_released = True
-                if after_spawn_release is not None:
-                    after_spawn_release()
-            except BaseException as admission_exc:
-                if not child_released and on_spawn_admission_failure is not None:
-                    try:
-                        on_spawn_admission_failure()
-                    except BaseException as compensation_exc:
-                        raise RuntimeError(
-                            "agent child admission failed and its provisional "
-                            "effects could not be retracted: "
-                            f"admission={admission_exc}; "
-                            f"compensation={compensation_exc}"
-                        ) from compensation_exc
-                raise
+
+    if os.name == "nt":
+        from coga import repl_supervisor_nt
+
+        return repl_supervisor_nt.run(
+            cmd,
+            env,
+            session_id=session_id,
+            terminal_status=terminal_status,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            output_fd=output_fd,
+            input_fd=input_fd,
+            after_spawn=after_spawn,
+            spawn_release_guard=spawn_release_guard,
+            after_spawn_release=after_spawn_release,
+            on_spawn_admission_failure=on_spawn_admission_failure,
+        )
 
     if not sys.stdout.isatty():
         import subprocess

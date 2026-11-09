@@ -11,8 +11,8 @@ Each step links to the topic that owns its contract.
 
 ## 0. Check readiness
 
-Use a macOS or Linux terminal for agent sessions; the current native Windows
-boundary is in [coga/launch](../launch/SKILL.md#phases-and-routing).
+Use a macOS, Linux or native Windows terminal; Windows needs the
+README's [native Windows notes](https://github.com/FastJVM/coga/blob/main/README.md#get-started).
 For this walk's GitHub PR, start on clean, current `main` (or your configured
 control branch) in a repo with a remote you can push to. Install GitHub CLI
 and run `gh auth login`; Git push credentials must also work.

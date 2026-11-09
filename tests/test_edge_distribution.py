@@ -71,8 +71,10 @@ def _install(wheel, installed):
 
 
 def _run(root, env, *args):
+    # A native Windows launch with a real trim and Git publication takes over
+    # 30 s on the reference box; the timeout only bounds a hang.
     result = subprocess.run([sys.executable, *args], cwd=root, env=env,
-                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+                            capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     return result.stdout
 
@@ -538,7 +540,8 @@ assert create_named(cfg,"trim-log").created
     assert Ticket.read(period).status == "done"
     assert ("Removed 1 events" in period.read_text()) is (retention_days == 30)
     assert ("archived old event" in (coga_os / "log.md").read_text()) is (retention_days == 0)
-    subjects = subprocess.run(["git", "log", "--format=%s"], cwd=root, capture_output=True, text=True, check=True).stdout
+    subjects = subprocess.run(["git", "log", "--format=%s"], cwd=root, capture_output=True, text=True,
+                              encoding="utf-8", check=True).stdout
     assert ("Log: recurring/trim-log — retained" in subjects) is (retention_days == 30)
     assert not (guard / "called").exists()
 
