@@ -10598,3 +10598,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-09 12:56 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] launched (operator=codex, agent=codex)
 2026-11-09 13:16 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] launched (operator=codex, agent=codex)
 2026-11-09 13:16 v1 [v1/31-test-install-on-windows] [human:zach] activated (draft → active)
+2026-11-09 13:58 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [agent:codex] advanced to step 6 (open-pr) → claude — Direct Codex review completed with no code findings; full Python 3.12 suite and real-PTY checks passed. PR remains deep and not merge-ready until the required native-Windows full-suite receipt exists.

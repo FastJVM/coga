@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -1211,6 +1211,40 @@ third agent is one record is enforced by
 not work, because `init` binds the name at import.
 
 
+## Peer review
+
+Direct Codex review **completed** on 2026-11-09 at
+`fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5`, against merge base
+`cb378d532e0f7a34a91753901f47da758524d4b4`. This was independent review of
+Claude's implementation. It covered the complete five-path diff, every
+`AGENT_CLIS` / `agent_label` reader, fresh-init and clone call ordering, the
+package-owned `coga/init` contract, and the new tests. No must-fix code finding
+or unresolved design issue was found; no review fix commit was needed.
+
+The human-visible surface was driven in a real PTY, not only through captured
+tests. At 80x24, a fresh Git repo with a restricted `PATH` containing neither
+agent printed the missing-`op` note, one blank separator, the progress line,
+blank line and complete two-row tree; init then completed. At 40x12, a second
+run with only `claude` available rendered the Claude row green and the Codex
+row uncoloured, with the chosen box-drawing glyphs and no layout defect.
+
+The full supported-version suite passed on Ubuntu 26.04 / WSL2 with Python
+3.12.13: 4,719 passed, 33 skipped in 469.26s. Python 3.14.4 produced 4,718
+passed, 33 skipped and one failure in 471.01s; the same cyclic-symlink message
+expectation fails on pristine `origin/main`, and the exact node passes under
+3.12. A first 3.14 run also exposed CRLF bytes in the checkout's packaged
+phone-home script despite a clean Git status; normalizing that working-tree
+file to the committed LF blob made all four affected trim-log cases pass and
+left no diff.
+
+The remaining gate is external to this diff: the new non-ASCII terminal output
+makes this platform-sensitive under `coga-dev/testing`, so a native Windows
+full-suite receipt is required before merge. No AWS Windows run was authorized
+in this session. The PR recommendation is therefore `deep`, not merge-ready.
+The branch was unconditionally rebased onto current `origin/main`, re-reviewed,
+and force-pushed with lease.
+
+
 ## PR
 
 ```yaml
@@ -1219,112 +1253,110 @@ author: claude
 author_evidence: >-
   Implement session 2026-11-09 ran Claude Opus 5 (1M context), attended by
   Zach; see the implement handoff above.
-head: b64415d107928882fbe3065daac14209a829c96d
-base: 5d8ff2f136e0e2c96536e0b7c07b7e7919fedbc7
-depth: careful
+head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+base: cb378d532e0f7a34a91753901f47da758524d4b4
+depth: deep
 rationale: >-
-  Small diff, but it converts a public manifest constant from strings to
-  records and deletes a label map, so every reader has to be confirmed
-  converted. Reviewers should also judge the two deliberate extras: routing
-  #1176's no-agent next-steps line through the registry, and repairing a
-  #1176 test that records would have made vacuously true.
+  The bounded implementation is understood and independent review found no
+  code defects, but the Unicode terminal surface is platform-sensitive and
+  has no required native-Windows full-suite receipt. Inspect the diff and do
+  not merge until that receipt exists.
 implementation: >-
-  Interactive `coga init` now prints a Spec Kit-style tree of every agent CLI
-  Coga can drive, with each one's display name, binary, and whether that
-  binary is on PATH. Behind it, `AGENT_CLIS` becomes `AgentCLI` records and
-  `init._AGENT_LABELS` is replaced by `dependencies.agent_label`, so the scan
-  and init's next-steps labels read one registry instead of two.
+  Interactive fresh-repo `coga init` now prints a Spec Kit-style tree of
+  every agent CLI Coga can drive, with each display name, binary and PATH
+  result. `AGENT_CLIS` is now the single record registry for the scan and
+  init's next-step labels, with total fallback for label-less entries.
 deviations: >-
-  Two additions beyond the literal proposed shape, both assigned to this
-  session by the ticket's reconciliation notes: #1176's no-agent next-steps
-  line now reads the registry instead of spelling both agent names as a
-  literal (rendered output is byte-identical at two agents), and
-  `test_agent_clis_have_no_install_metadata` now compares record names
-  because `isdisjoint` against records is trivially true and would have
-  stopped guarding.
+  Two deliberate additions beyond the literal proposed shape remain: the
+  post-#1176 no-agent prerequisite line also reads the registry instead of
+  spelling both agents literally, and the installer-metadata regression test
+  compares record names so converting strings to records did not make it
+  vacuously pass. Review found both changes correct and in scope.
 limitations: >-
-  No full `python -m pytest` run completed; see the handoff for why and for
-  the blast-radius argument that bounds it. No fresh-VM render check, so the
-  glyphs and colour are unverified on a clean terminal and the not-found rows
-  were produced by faking `shutil.which`. No native Windows run, though the
-  scan prints new non-ASCII and tier 2 may require one before merge. The
-  pre-existing `test_edge_distribution` legacy-adoption failure is unrelated
-  and unfixed.
+  No native Windows run was performed; repository policy requires its full
+  suite before merge because the scan adds non-ASCII terminal output. The
+  fresh-machine case was exercised with a restricted PATH in a real Linux
+  PTY, not on a fresh VM. Python 3.14.4 has one unrelated full-suite failure
+  in the cyclic-symlink diagnostic test that reproduces on pristine main;
+  Python 3.12.13 is fully green.
 files:
   src/coga/dependencies.py: >-
     Adds the `AgentCLI` record and `agent_label`, and converts `AGENT_CLIS`
-    from binary-name strings to records — the single registry the scan and
-    the next-steps labels both read.
+    from binary strings to the registry shared by init's readers.
   src/coga/commands/init.py: >-
-    Adds the public argument-free `print_agent_scan` and its interactive-only
-    `_do_init` call site, deletes `_AGENT_LABELS`, and routes the next-steps
-    agent names through the registry.
+    Adds public argument-free `print_agent_scan`, calls it only for
+    interactive fresh init before writes, deletes `_AGENT_LABELS`, and routes
+    next-step agent names through the registry.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >-
-    Records that interactive fresh init prints the scan and that the clone
-    path does not; sole owner of the `coga/init` topic after PR #1190.
+    Records the interactive fresh-init scan and the clone-path exclusion in
+    the sole package-owned `coga/init` topic.
   tests/test_init.py: >-
-    Covers the scan's rendering in every state, a registry-added agent, a
-    label-less record, an empty registry, and the three init paths
-    (interactive, non-interactive, clone).
+    Covers every scan state, registry extension, label fallback, empty
+    registry, before-write ordering, non-interactive init and clone setup.
   tests/test_dependencies.py: >-
-    Pins `agent_label` for known and unknown types and `AgentCLI.display`'s
-    slug fallback, and repairs the install-metadata guard for records.
+    Covers known and unknown labels, display fallback, and preserves the
+    no-agent-installer-metadata guard after the registry conversion.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+  base: cb378d532e0f7a34a91753901f47da758524d4b4
   detail: >-
-    No code review has run. `peer-review` is the next workflow step and will
-    refresh this record. The 2026-11-06 design evaluation is not code review.
+    Direct Codex review completed on the final rebased diff with no must-fix
+    code findings. Real-PTY rendering passed at 80x24 and 40x12. The review
+    does not recommend merge without the required native-Windows receipt.
 checks:
-  - command: python -m pytest tests/test_init.py tests/test_dependencies.py tests/test_packaging.py
+  - command: TERM=dumb PYTHONPATH=/home/zach2179/dev/coga/src /home/zach2179/coga-review-venv312/bin/python -m pytest
     status: passed
-    head: b64415d107928882fbe3065daac14209a829c96d
-    base: 5d8ff2f136e0e2c96536e0b7c07b7e7919fedbc7
+    head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+    base: cb378d532e0f7a34a91753901f47da758524d4b4
     detail: >-
-      207 passed in 50.39s, re-run at the post-rebase head. Covers both
-      changed modules and packaged-resource ownership.
-  - command: python -m pytest tests/test_launch.py tests/test_megalaunch.py
+      Ubuntu 26.04 LTS under WSL2, Python 3.12.13: 4,719 passed, 33 skipped
+      in 469.26s. Full supported-version suite at the final head.
+  - command: TERM=dumb PYTHONPATH=/home/zach2179/dev/coga/src /home/zach2179/.venvs/coga/bin/python -m pytest tests/test_init.py tests/test_dependencies.py tests/test_packaging.py
     status: passed
-    head: 3113e4f04bea15e33c304345fe9cfe1a69fa3a42
-    base: b74ec5542ea2145caf2924ace71754ee1ce45ede
+    head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+    base: cb378d532e0f7a34a91753901f47da758524d4b4
     detail: >-
-      421 passed in 506.16s. Both import `coga.dependencies`. Run at the
-      pre-rebase head; `git diff 3113e4f04 b64415d10 -- src tests` is empty,
-      so the tested source and tests are byte-identical to the current head.
-      The rebase pulled in only `coga/log.md` and an unrelated ticket file.
-  - command: python -m pytest tests/test_ticket.py tests/test_recurring_autofix.py
+      Ubuntu 26.04 LTS under WSL2, Python 3.14.4: 207 passed in 4.45s;
+      covers both changed modules and package-resource ownership.
+  - command: TERM=xterm-256color PATH=/tmp/coga-scan-review.DOOjqm/bin PYTHONPATH=/home/zach2179/dev/coga/src /home/zach2179/.venvs/coga/bin/python -m coga.cli init /tmp/coga-scan-review.DOOjqm/repo --user tester
     status: passed
-    head: 3113e4f04bea15e33c304345fe9cfe1a69fa3a42
-    base: b74ec5542ea2145caf2924ace71754ee1ce45ede
+    head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+    base: cb378d532e0f7a34a91753901f47da758524d4b4
     detail: >-
-      134 passed in 56.43s. Both import `coga.dependencies`. Pre-rebase head;
-      see the identical-source note above.
-  - command: python -m pytest tests/test_cli.py tests/test_uninstall.py tests/test_edge_distribution.py
+      Real 80x24 PTY with neither agent on PATH. The missing-op note, leading
+      separation, headings, full not-found tree and completed fresh init all
+      rendered as designed.
+  - command: TERM=xterm-256color PATH=/tmp/coga-scan-review.DOOjqm/bin PYTHONPATH=/home/zach2179/dev/coga/src /home/zach2179/.venvs/coga/bin/python -c 'from coga.commands.init import print_agent_scan; print_agent_scan()'
+    status: passed
+    head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+    base: cb378d532e0f7a34a91753901f47da758524d4b4
+    detail: >-
+      Real 40x12 PTY with only claude on PATH. The Claude row rendered green,
+      Codex stayed uncoloured, and the tree remained legible.
+  - command: TERM=dumb PYTHONPATH=/home/zach2179/dev/coga/src /home/zach2179/.venvs/coga/bin/python -m pytest
     status: failed
-    head: 3113e4f04bea15e33c304345fe9cfe1a69fa3a42
-    base: b74ec5542ea2145caf2924ace71754ee1ce45ede
+    head: fa36ebd2c13f18494b77a17a6adf1c9f8fe5f0a5
+    base: cb378d532e0f7a34a91753901f47da758524d4b4
     detail: >-
-      92 passed, 1 skipped, 1 failed. The failure is
-      test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers,
-      verified pre-existing by reproducing it in a detached worktree of
-      pristine main at 991037866 with none of this branch's edits.
-      `cli.py` and `uninstall.py` are the two importers of `commands.init`.
-      Pre-rebase head; see the identical-source note above.
-  - command: python -m pytest
+      Ubuntu 26.04 LTS under WSL2, Python 3.14.4: 4,718 passed, 33 skipped,
+      1 failed in 471.01s. The sole failure is
+      test_config::test_layout_contexts_cyclic_root_rejected; it reproduces
+      identically on an exported pristine origin/main tree and its exact node
+      passes under Python 3.12.13.
+  - command: Native Windows full suite through the Windows AWS harness
     status: not-run
     detail: >-
-      Did not complete. One run was killed by me after main moved mid-run
-      (PR #1189) made the tree stale; a second was killed externally at 34%,
-      showing one unidentified failure near 30% and nothing else; a 15-file
-      chunk exceeded the 9m40s tool ceiling. A full run here takes about an
-      hour. Zach chose on 2026-11-09 to bump on the bounded evidence above
-      and leave the full run to peer-review/open-pr.
+      Required before merge because this platform-sensitive change adds
+      non-ASCII terminal output. No external AWS run was authorized during
+      peer review.
   - command: coga validate --json
     status: not-run
     detail: >-
-      Validation behaviour is unchanged; the diff touches init's console
-      output and a label registry only.
+      Validation behavior and config/task schemas are unchanged; the diff is
+      init console output, its label registry, tests and owning documentation.
 ```
 
 
