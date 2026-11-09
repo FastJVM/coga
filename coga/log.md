@@ -10593,3 +10593,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-09 11:04 v1 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
 2026-11-09 11:10 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-09 11:49 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-09 12:55 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [agent:claude] advanced to step 5 (peer-review) → codex
