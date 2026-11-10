@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -786,7 +786,9 @@ ask for a draft): make the built-in commands agent-agnostic. `coga chat`
 (coga-build) pin `agent: claude`. `--agent` cannot override a pin that names
 an undeclared type for orient/coga-build, so a repo that declares only Codex
 cannot use them. This ticket makes that repo shape the norm for Codex-only
-machines.
+machines. Its scope also covers one-agent repos and `code/with-review` (see
+the 2026-11-10 review-design entry): authoring should default to
+`code/with-self-review` when only one agent is declared.
 
 Hand-test plan: Zach is on the Windows laptop. The hand test before any PR
 runs on the Mac in a UTM VM, installing coga from the branch commit (not
@@ -794,19 +796,25 @@ PyPI). Cases: only-claude, only-codex, both, none. Peer-review's handoff
 should list what to look at in each: the scan tree, the summary line, the
 `coga.toml` tables, `coga-build.md`'s `agent:`, and `coga validate`.
 
+## 2026-11-10 — review-design (Zach)
+
+The design's two open questions are resolved; the spec in the body stands
+unchanged.
+
+- **None-found next steps stay neutral.** They keep "install one, uncomment
+  its table" with no "`coga build` currently needs Claude Code" caveat. The
+  agent-agnostic follow-up fixes the underlying gap, so the message does not
+  go stale.
+- **One-agent repos and `code/with-review` go to the follow-up.** A one-agent
+  repo whose author picks `code/with-review` gets `unresolvable-step-assignee`
+  from validate and fails at the peer hand-off. This ticket leaves init's next
+  steps alone; the agent-agnostic follow-up (or a ticket it spawns) should
+  make authoring default to `code/with-self-review` when only one agent is
+  declared.
+
 ## Open Questions
 
-1. **Should the none-found next steps steer toward Claude?** Until the
-   follow-up lands, a none-found user who installs Codex and uncomments
-   `[agents.codex]` cannot `coga build` (the ticket still says `claude`).
-   The spec keeps the neutral "install one, uncomment its table". An
-   alternative is to add "(`coga build` currently needs Claude Code)". That
-   is accurate but steers users.
-2. **One-agent repos and `code/with-review`.** A one-agent repo whose author
-   picks `code/with-review` gets `unresolvable-step-assignee` from validate
-   and fails at the peer hand-off. The spec leaves init's next steps alone.
-   Should the follow-up (or a separate ticket) make authoring default to
-   `code/with-self-review` when only one agent is declared?
+None.
 
 ## Superseded designs
 
