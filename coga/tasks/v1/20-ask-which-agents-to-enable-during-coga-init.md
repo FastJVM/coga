@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
@@ -98,10 +98,28 @@ binary, so the user can install it and uncomment its table.
 - [ ] Tests cover only-claude, only-codex, both found, and none found,
       asserting the generated `coga.toml` (which tables are live, which are
       commented out, the default agent) in each case.
-- [ ] `coga validate` passes on the repo init generates in all four cases.
+- [ ] `coga validate` passes on the repo init generates when at least one
+      agent was found (only-claude, only-codex, both). With none found, its
+      only errors are `coga-build`'s `unknown-agent` and
+      `unresolvable-operator` for `agent: claude`. That is the accurate state
+      (no agent is configured), and both messages already say to restore the
+      `[agents.*]` table (Zach, 2026-11-10).
+- [ ] No `default_agent` line is written: the default comes from declaration
+      order (see Proposed shape). The packaged `# default_agent = "claude"`
+      example stays as it is.
 - [ ] The edit is all-or-nothing: if the rewritten `coga.toml` fails its own
       parse-back check, init warns and writes the packaged `coga.toml`
-      unchanged rather than failing the whole init.
+      unchanged rather than failing the whole init. In that case nothing is
+      stamped into delivered tickets, and the next steps treat every registry
+      agent as declared, which is what the packaged file says.
+- [ ] Init's summary (the block after "Initialized coga repo at …") says what
+      the configuration did whenever it commented anything out: which agents
+      `coga.toml` declares, and which tables are commented out because their
+      binary was not found.
+- [ ] `_offer_agent_cli`, its confirm prompt, `_write_default_agent`,
+      `_DEFAULT_AGENT_KEY`, `_DEFAULT_AGENT_EXAMPLE`, the "Made `X` the default
+      agent" / "Could not make `X` the default agent" summary lines, and their
+      tests are gone. Init asks no agent question.
 
 **Scope of the behaviour**
 
@@ -114,7 +132,11 @@ binary, so the user can install it and uncomment its table.
 
 - [ ] Nothing in the scan or the configuration is hardcoded. Rows and table
       handling are driven by the supported-agent registry, so an agent added
-      there renders and is configured with no edit to either.
+      there renders and is configured with no edit to either. "Configured"
+      here means its packaged `[agents.<name>]` table is kept or commented out
+      by the same loop. A registry agent with no packaged table has nothing to
+      comment out and is skipped. Shipping its table is the out-of-scope
+      template edit below.
 - [ ] Adding an agent is one record for the scan, the configuration, and
       init's next-steps labels. Today the labels are split between
       `dependencies.AGENT_CLIS` and `init._AGENT_LABELS`.
@@ -134,8 +156,9 @@ binary, so the user can install it and uncomment its table.
 
 ### Proposed shape
 
-This is a starting shape for the design step to verify and complete, not a
-finished spec.
+Verified against main `655e561dd` on 2026-11-10 (design step). Main has not
+touched `src/` or `tests/` since the branch head `fa36ebd2c`, so the registry
+and scan below are already on the branch as described.
 
 **One record, in `src/coga/dependencies.py`.** Add a frozen dataclass:
 
@@ -180,57 +203,174 @@ so not found is not a warning. The non-ASCII glyphs follow the precedent of
 `_print_notification_state`'s `✓`; the Windows console question belongs to
 `v1/31-test-install-on-windows`. Do not downgrade the glyphs here.
 
-The design should decide whether the printout also says what init is about to
-write (for example a line naming the tables that will be commented out), so
-the user is not surprised by the generated `coga.toml`.
+The scan itself does not say what init will write. `print_agent_scan` must
+stay free of init state so a later `coga check` can call it, so the
+configuration outcome is reported in init's summary instead (see
+"Summary and next steps").
 
-**One configuration step.** Compute the found set once, before
-`target.mkdir()`. After the scaffold is copied, rewrite `coga/coga.toml` in
-memory: comment out the `[agents.*]` table of every registry agent not in the
-found set, parse the result back, and write it only if the parse-back shows
-exactly the expected tables. On failure, warn and keep the packaged file.
-Warn rather than raise, because `_do_init`'s rollback `try` would otherwise
-cost the user the whole init.
+**One configuration step: `_configure_agent_tables`.** Add to `init.py`:
 
-The default agent then needs no `default_agent` line in most cases:
-`Config.default_agent` falls back to the first declared `[agents.*]` table,
-and the packaged template declares its tables in registry order, so commenting
-out the not-found tables leaves the first found agent first. The design should
-confirm that, and decide whether to write `default_agent` explicitly anyway.
-Either way, reuse `_stamp_agent_into_delivered_tickets` to point the delivered
-`agent: claude` tickets at the new default.
+    def _configure_agent_tables(coga_toml: Path, found: Sequence[str]) -> bool:
 
-**What happens to `_offer_agent_cli`.** Its only job today is the
-exactly-one-installed confirm ("Make `codex` the default agent in coga.toml
-(instead of `claude`)?"). The configuration step now makes the found agent the
-default without asking, so that confirm is redundant. The design should remove
-it, together with `_write_default_agent` if nothing else uses it, and say so in
-the design notes. The scan asks no question.
+It comments out the `[agents.<name>]` table of every `AGENT_CLIS` record whose
+`name` is not in `found`, and returns True when the file now declares exactly
+the expected set. That includes the no-op case where every agent was found and
+nothing is rewritten. It returns False, leaving the file untouched, on any
+failure. Steps:
 
-**Call sites.** In `_do_init`: `if _interactive(): print_agent_scan()` between
-`_offer_optional_tools()` and `target.mkdir()`, then the configuration step
-after the scaffold is written, also interactive-only. `_setup_initialized_clone`
-gets neither.
+1. Read the text and `tomllib.loads` it as `before`. On a decode error or
+   `OSError`, return False.
+2. For each registry agent not in `found` whose table `before["agents"]`
+   declares: find the line matching `^[ \t]*\[agents\.<name>\][ \t]*$`. From
+   there up to the next live table header (`_TABLE_START`, which ignores
+   commented headers), prefix `# ` to every live line, meaning lines that are
+   not blank and not already comments. Comments and blank lines are left
+   alone. This bounds the table by its live keys, not by the next header
+   (the `[recurring]`/`[launch]` trap in Context). Re-measured on main
+   `655e561dd`: the only live lines between `[agents.claude]` and
+   `[notification]` are the two agent tables. Claude comments 7 lines
+   (header + `cli`, `file`, `mode`, `name_flag`, `session_id_flag`,
+   `discussion`); codex comments 6 (header + `cli`, `file`, `mode`,
+   `discussion`, `launch_args`).
+3. Parse the new text as `after`. Write it (`newline="\n"`) only if
+   `after["agents"]` (or `{}` when the key is gone) has exactly the expected
+   names in the original order, and `after` with `agents` removed equals
+   `before` with `agents` removed. Otherwise return False.
 
-**Next steps.** The no-agent prerequisite line now says to install an agent CLI
-and uncomment its `[agents.*]` table, naming agents through the registry. The
-`coga build` coax names the default agent through `agent_label()` and offers
-`--agent <other>` only for another agent the generated `coga.toml` declares.
+Expected names = `[a.name for a in AGENT_CLIS if a.name in found and a.name in
+before["agents"]]`. Do not collect `before`'s other, non-registry tables into
+this list; there are none in the packaged file, and they would stay live.
 
-**Tests**, in `tests/test_init.py` near the existing agent-offer tests:
+**The default agent needs no key.** Confirmed: `Config.default_agent()`
+(`src/coga/config.py`) returns the first-declared `[agents.*]` table when no
+`default_agent` key is set, and the packaged `coga.toml` declares claude then
+codex in registry order. So commenting out the not-found tables leaves the
+first found agent as the default. Writing `default_agent` anyway would add a
+second statement of the same fact and needs `_write_default_agent`'s whole
+insertion machinery, so it is not written. After a successful configuration
+with `found` non-empty and `found[0]` differing from
+`_template_default_agent(template_root)`, call
+`_stamp_agent_into_delivered_tickets(coga_os, template_default, found[0])`.
+Keep `_template_default_agent` for that "old" value. Then `coga-build.md`
+reads `agent: codex` in a Codex-only repo, and `coga validate` passes there
+(verified by hand on 2026-11-10).
 
-- Scan: no agent on `PATH` renders every registry entry as not found; both on
-  `PATH` still prints; an added registry agent renders; `AgentCLI("gizmo")`
+**Remove the offer.** Delete `_offer_agent_cli`, `_write_default_agent`,
+`_DEFAULT_AGENT_KEY` and `_DEFAULT_AGENT_EXAMPLE`. Also delete the
+`default_agent_set` branch in `_do_init`, its two summary messages, and the
+tests named `test_agent_offer_*`, `test_write_default_agent_*` and
+`test_init_writes_the_chosen_default_agent` in `tests/test_init.py`. A test
+asserting the both-installed case still writes a two-table `coga.toml` covers
+what those guarded.
+
+**Call sites in `_do_init`.**
+
+- Before `target.mkdir()` and after `_offer_optional_tools()`:
+
+      interactive = _interactive()
+      if interactive:
+          print_agent_scan()
+      found = _installed_agent_clis() if interactive else None
+
+  `print_agent_scan` keeps its own internal `_installed_agent_clis()` call so
+  it stays argument-free. The second `shutil.which` pass is the same
+  function, not a second scan implementation. `template_default_agent` is
+  computed as today.
+- Inside the rollback `try`, where `_write_default_agent` is called today
+  (after `_pin_control_branch`, before the commit):
+  `agents_configured = found is not None and _configure_agent_tables(coga_os
+  / "coga.toml", found)`, then the stamp described above. `found is None`
+  (non-interactive) never touches the file. `_configure_agent_tables` must
+  not raise. Catch `OSError` and `tomllib.TOMLDecodeError` inside it, so a
+  failure cannot trigger the rollback.
+- `_setup_initialized_clone` gets neither call. Its existing behaviour is
+  unchanged.
+
+**Summary and next steps.** Let `declared` be the agents `coga.toml` now
+declares: `expected` when configured, else every registry name in the
+packaged file. Let `default` be `declared[0]` if any.
+
+- Summary, only when something was commented out:
+  `Declared Claude Code in coga/coga.toml; commented out [agents.codex]
+  (codex not on PATH) — uncomment it once installed.` Name agents through
+  `agent_label()` and tables through `AgentCLI.name`. With none found:
+  `No agent CLI found, so every [agents.*] table in coga/coga.toml is
+  commented out.` If the configuration failed (interactive, `found` given,
+  returned False), print a yellow warning that `coga.toml` was left as
+  packaged and declares every supported agent.
+- No-agent prerequisite (when `found == []`, or for non-interactive init
+  when `_installed_agent_clis()` is empty, as today):
+  `No agent CLI was found — coga drives Claude Code (`claude`) or Codex
+  (`codex`). Install one, then uncomment its [agents.*] table in
+  coga/coga.toml. Agent-backed commands (`coga build`, `coga launch`,
+  `coga ticket`) need one.` The `drivable` list is built from `AGENT_CLIS`
+  as on the branch. Rewrite the comment above it, which says the next steps
+  never send anyone to a `.toml`. They now do in this one case, because
+  uncommenting a table is the remedy.
+- `coga build` coax (empty repo): `Run `coga build` with
+  {agent_label(default)}`, plus `, or `coga build --agent {other}` with
+  {agent_label(other)}` for each other agent in `declared`. With one declared
+  agent there is no alternative. With none declared, name the delivered
+  ticket's agent (the template default, `claude`) with no alternative. The
+  prerequisite line above has already said what to do first.
+
+**Tests**, in `tests/test_init.py`, replacing the deleted agent-offer tests:
+
+- Scan (already on the branch): no agent on `PATH` renders every registry
+  entry as not found; both on `PATH` still prints; an added registry agent
+  renders (patch `coga.commands.init.AGENT_CLIS`); `AgentCLI("gizmo")`
   renders as `gizmo`.
-- Configuration: only-claude, only-codex, both, none — assert the generated
-  `coga.toml`, the default agent, and `coga-build.md`'s `agent:`; `coga
-  validate` passes on each.
-- Parse-back failure leaves the packaged `coga.toml` and warns.
-- Non-interactive init prints no scan and leaves the packaged `coga.toml`.
+- `_configure_agent_tables` unit tests against a copy of
+  `_PACKAGED_COGA_TOML`, one per case (only-claude, only-codex, both, none).
+  Assert the live tables, that each commented table's header and keys are
+  present as `# ` lines, the line counts above, that `[notification]` and
+  everything after it are byte-identical, and `Config.default_agent()` (or
+  the first `agents` key) in each case.
+- Parse-back failure returns False and leaves the file byte-identical. For
+  example, a header with no live keys after it, or monkeypatch `tomllib.loads`
+  to return a mismatched dict on the second call.
+- End-to-end interactive init (fake TTY, `shutil.which` patched) for
+  only-claude, only-codex, both and none: assert the generated `coga.toml`,
+  `coga-build.md`'s `agent:`, the summary line and the coax. Run
+  `coga validate` and assert it passes for the three found cases, and that
+  for none its errors are exactly the two `coga-build` agent issues.
+- Non-interactive init prints no scan and leaves `coga.toml` byte-identical to
+  `_PACKAGED_COGA_TOML`.
 - Clone setup prints no scan and does not touch `coga.toml`.
 
-In `tests/test_dependencies.py`: `agent_label` returns the label for a known
-agent and the input string for an unknown one.
+In `tests/test_dependencies.py` (already on the branch): `agent_label` returns
+the label for a known agent and the input string for an unknown one.
+
+**Docs, same PR.**
+
+- `coga/init` (`src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md`),
+  "Fresh repo": replace the paragraph from "When exactly one agent CLI
+  resolves…" through "…init asks nothing." with the scan and the
+  configuration. Cover commented-out not-found tables, the default as the
+  first found agent, the coga-build stamp, the parse-back fallback, the
+  non-interactive no-op, and the next-steps change. The clone paragraph's
+  "never changes the default agent" becomes "never scans or rewrites
+  `coga.toml`".
+- `docs/contexts/coga-dev/internals/agent-config/SKILL.md` cites
+  `_write_default_agent` under "The default agent". Repoint it at
+  `_configure_agent_tables` and declaration order.
+- Packaged `coga.toml`: the `default_agent` comment ("Unset, it's the first
+  [agents.*] table below") stays true. Add one line above `[agents.claude]`
+  saying `coga init` comments out the table of any agent whose CLI it did
+  not find, and that uncommenting it enables that agent. Changing the
+  packaged file changes `_PACKAGED_COGA_TOML`, so re-run the line-count
+  assertions.
+- `coga/configuration`
+  (`src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md`),
+  the paragraph starting "Init supplies definitions for Claude Code and
+  Codex": it is now false for a one-agent machine. Say that init declares the
+  agents whose CLI it found and comments out the rest, so with one agent
+  installed no config edit is needed, and to add another, uncomment its
+  table. Keep the `default_agent` example for a repo that declares both. Its
+  advice `coga chat --agent codex` fails in a Codex-only repo, because
+  `bootstrap/orient`'s `agent: claude` must name a declared type. State that
+  limit plainly and point at the follow-up ticket (see Out of scope) rather
+  than inventing a workaround.
 
 ### Out of scope
 
@@ -239,10 +379,14 @@ agent and the input string for an unknown one.
 - **Offering to install an agent CLI.** Out now, not ruled out forever (Nico,
   2026-11-04). Do not reintroduce one, and do not write a rule anywhere saying
   coga never will.
-- **Unpinning the packaged stateless targets.** `bootstrap/ticket` and
-  `bootstrap/orient` keep `agent: claude`. See the constraint below; if the
-  design finds a Codex-only repo is left worse off than today, raise it with
-  Zach rather than unpinning in this ticket.
+- **Making the built-in commands agent-agnostic.** `bootstrap/ticket`,
+  `bootstrap/orient` and `coga-build` keep `agent: claude`. Design found
+  that a Codex-only repo is worse off than today: `coga chat` fails even
+  with `--agent codex` (details in Context). Zach decided on 2026-11-10 that
+  this belongs in a follow-up ticket that makes the built-in commands
+  agent-agnostic properly, not a launch bandaid here. This ticket ships with
+  that gap and says so in `coga/configuration` and in the PR body. Do not
+  touch launch, `resolve_main_agent`, or the pins.
 - **Fixing single-agent peer resolution.** `bump.resolve_other_agent` infers
   the peer only at exactly two declared agents. A repo configured with one
   agent cannot resolve an `other-agent` step; see the constraint below.
@@ -330,28 +474,54 @@ than redo it. The toml configuration is the new work.
   commented header, and the packaged `coga.toml` ships `[recurring]` and
   `[launch]` commented out, so the next live header after `[agents.codex]` is
   `[notification]`, about eighty lines later. A naive "comment every line until
-  the next table" comments the whole unattended-runs block. Bound the table by
-  its keys and skip blank lines. Measured on 2026-11-06: commenting codex
-  touches 6 lines (header + 5 keys), claude 7 (header + 6). Re-measure against
-  current main.
-- **Pinned `agent: claude` targets.** `bootstrap/ticket` and `bootstrap/orient`
-  pin `agent: claude`. In a Codex-only repo `[agents.claude]` is now commented
-  out, so `coga chat` / `coga ticket` resolve an undeclared type instead of a
-  missing binary. The design must check what the user sees (including
-  `resolve_main_agent`'s `allow_prospective_default` path) and record it.
-  `coga validate` does not check a bootstrap target's `agent:`.
+  the next table" would comment the whole unattended-runs block. The shape
+  above comments only live lines, which is safe for the same reason;
+  re-measured counts are in Proposed shape.
+- **Pinned `agent: claude` targets: what a Codex-only user sees** (verified
+  2026-11-10 in a throwaway repo with `[agents.claude]` commented out):
+  - `coga ticket "x"` fails: "No authoring agent available: Agent type
+    'claude' is not defined in [agents]. Known: ['codex']. (from
+    bootstrap/ticket's `agent:`; pass --agent <name> to override)".
+    `coga ticket --agent codex` works, because
+    `authoring.resolve_authoring_agent` checks the override first.
+  - `coga chat` fails, and so does `coga chat --agent codex`: "`agent:
+    claude` on bootstrap/orient is not a configured agent type (configured:
+    ['codex']) … a `--agent` override is ephemeral and cannot repair an
+    invalid routing input." The error comes from `bump.resolve_main_agent`,
+    reached through launch's operator resolution. It validates the pinned
+    name before the override applies. Today, with both tables live,
+    `coga chat --agent codex` gets past routing. This regression is accepted
+    and goes to the follow-up (Out of scope).
+  - `coga build` in a Codex-only repo works, because init stamps `agent:
+    codex` into `coga-build.md`.
+- **No agent found, then the user uncomments only `[agents.codex]`.**
+  `coga-build.md` still says `agent: claude`, so `coga build` and
+  `coga build --agent codex` fail with the same routing error (verified). It
+  has the same root cause as `coga chat` and goes to the same follow-up. The
+  next steps here still say "uncomment its table" without singling out Claude.
 - **Single-agent repos and `other-agent` steps.** With one declared agent,
-  workflows with an `other-agent` step (e.g. `code/with-review`) cannot
-  resolve a peer. The design must record what the user sees and whether init's
-  next steps should mention `code/with-self-review`.
-- **Zero declared agents.** `Config.default_agent` returns `None` when no
-  `[agents.*]` table is declared; the design must confirm config load,
-  `coga validate`, and the next steps all behave in the none-found case.
+  `bump.resolve_other_agent` raises "assignee='other-agent' needs exactly two
+  configured `[agents.*]` types…" at the hand-off to the peer step, and
+  `coga validate` reports `unresolvable-step-assignee` on any ticket whose
+  frozen workflow has one. Only authored workflows carry `assignee:
+  other-agent` (`code/with-review`, `docs/with-review`,
+  `code/design-then-implement`). No recurring job or delivered ticket does,
+  so a freshly initialized one-agent repo validates clean. Init's next steps
+  do not mention `code/with-self-review`: they point at `coga build`, and
+  workflow choice happens later in authoring (see Open Questions).
+- **Zero declared agents** (verified): config load succeeds (`coga status`
+  runs and shows the operator as `(unresolved)`), and init's own
+  `_load_scaffolded_config` for the audit write works. `coga validate`
+  reports exactly two errors, both on `coga-build`: `unknown-agent` and
+  `unresolvable-operator`. Removing `agent:` instead swaps the first for
+  `missing-main-agent`, so that does not help. The criterion is written
+  accordingly.
 - **Scan before anything is written.** `_do_init` removes a half-built `coga/`
   on any exception. Print before `target.mkdir()`; make the toml rewrite warn,
   not raise.
-- **The more-than-one-installed case.** `_offer_agent_cli` returns early there,
-  so nothing may hang off it.
+- **The more-than-one-installed case.** `_offer_agent_cli` is deleted, so
+  this trap goes with it. The scan and configuration call sites above are not
+  inside any branch that depends on the count.
 - **The clone path must not scan or configure.** `coga/init` ("Clone of a repo
   that already uses Coga") is where that boundary is written down.
 
@@ -504,6 +674,56 @@ PR receipt — moved to `## Superseded designs` as the 2026-11-06 → 2026-11-10
 entry. The decisions it records (registry shape, Spec Kit tree rendering, the
 blank line before the scan) carry forward and are restated in the body.
 
+## 2026-11-10 — design (scan-and-configure)
+
+The spec is in the body. Verified against main `655e561dd`. Main has not
+touched `src/`/`tests/` since `fa36ebd2c`, so implement can build on the
+branch as is (still reconcile first).
+
+Decisions taken in this step:
+
+- **No `default_agent` key.** Declaration order already makes the first found
+  agent the default. `_write_default_agent` and its regexes go along with
+  `_offer_agent_cli`.
+- **Comment-out rule: live lines only,** from the agent's header to the next
+  live header. Counts: claude 7, codex 6 (re-measured).
+- **The configuration outcome is reported in init's summary, not in the
+  scan,** so `print_agent_scan` stays init-agnostic for a later `coga check`.
+- **None-found validate errors are accepted** (Zach, 2026-11-10): the two
+  `coga-build` agent errors are the honest state and already tell the user
+  to restore the table.
+- **The Codex-only `coga chat` regression is accepted** (Zach, 2026-11-10:
+  "not the lane of this ticket … better handled with a follow-up ticket,
+  making sure the built-in commands are agent agnostic rather than a
+  bandaid"). Evidence is in `### Constraints that are easy to miss`.
+
+Follow-up to file (not filed yet; Zach to create it with `coga ticket` or
+ask for a draft): make the built-in commands agent-agnostic. `coga chat`
+(bootstrap/orient), `coga ticket` (bootstrap/ticket) and `coga build`
+(coga-build) pin `agent: claude`. `--agent` cannot override a pin that names
+an undeclared type for orient/coga-build, so a repo that declares only Codex
+cannot use them. This ticket makes that repo shape the norm for Codex-only
+machines.
+
+Hand-test plan: Zach is on the Windows laptop. The hand test before any PR
+runs on the Mac in a UTM VM, installing coga from the branch commit (not
+PyPI). Cases: only-claude, only-codex, both, none. Peer-review's handoff
+should list what to look at in each: the scan tree, the summary line, the
+`coga.toml` tables, `coga-build.md`'s `agent:`, and `coga validate`.
+
+## Open Questions
+
+1. **Should the none-found next steps steer toward Claude?** Until the
+   follow-up lands, a none-found user who installs Codex and uncomments
+   `[agents.codex]` cannot `coga build` (the ticket still says `claude`).
+   The spec keeps the neutral "install one, uncomment its table". An
+   alternative is to add "(`coga build` currently needs Claude Code)". That
+   is accurate but steers users.
+2. **One-agent repos and `code/with-review`.** A one-agent repo whose author
+   picks `code/with-review` gets `unresolvable-step-assignee` from validate
+   and fails at the peer hand-off. The spec leaves init's next steps alone.
+   Should the follow-up (or a separate ticket) make authoring default to
+   `code/with-self-review` when only one agent is declared?
 
 ## Superseded designs
 
