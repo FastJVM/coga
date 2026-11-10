@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 7 (review)
+step: 1 (design)
 agent: claude
 ---
 
