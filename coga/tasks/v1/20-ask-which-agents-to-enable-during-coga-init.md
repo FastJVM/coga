@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -648,6 +648,89 @@ branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
 PR #1192 (print-only scan) was closed unmerged by Nico on 2026-11-10; the next
 open-pr opens a new PR. The branch head `fa36ebd2c` is the starting point
 described in `### Starting point on the branch`.
+
+## Evaluator review
+
+Verdict: not ready for implementation. The overall direction and repository
+placement are sound, and the accepted Codex-only and single-agent limitations
+are stated clearly, but the following design defects need owner resolution.
+
+### Must resolve before implementation
+
+1. **The printed scan is not the snapshot that configures the repo.** Under
+   `Proposed shape` / `Call sites in _do_init`, `print_agent_scan()` calls
+   `_installed_agent_clis()` internally and `_do_init` immediately calls it a
+   second time for `found`. That conflicts with both "Make the scan drive init"
+   and the preceding "One scan" contract: a binary appearing or disappearing
+   between calls can make the displayed result disagree with `coga.toml`.
+   `src/coga/commands/init.py::_installed_agent_clis` is already the one PATH
+   reader, and the branch's `print_agent_scan` can remain argument-free while
+   returning the snapshot it printed (or while delegating rendering to a
+   helper). Specify one result for both output and configuration, or explicitly
+   weaken the acceptance language and cover the intended two-snapshot behavior.
+
+2. **A found registry entry without a packaged table selects an undeclared
+   ticket agent.** The registry acceptance says such an entry is skipped, and
+   `_configure_agent_tables` computes `expected` by filtering against
+   `before["agents"]`. But `The default agent needs no key` stamps
+   `found[0]`, not the first name in that filtered declared set. If a newly
+   registered `gizmo` is found but has no packaged table, configuration can
+   succeed while `src/coga/commands/init.py::_stamp_agent_into_delivered_tickets`
+   writes `agent: gizmo`; `src/coga/config.py::Config.default_agent` instead
+   resolves the first live table, and `coga validate` reports the stamped name
+   as unknown. Define "default" and stamping as the first *declared found*
+   agent, and reconcile the broader "declares exactly the agents the scan
+   found" criterion with the explicit no-table exception.
+
+3. **The configuration-failure next steps contradict the fallback state.**
+   The all-or-nothing criterion says a failed rewrite leaves the packaged
+   `coga.toml` unchanged and next steps treat every packaged registry agent as
+   declared. But `Summary and next steps` emits the no-agent prerequisite
+   whenever `found == []`, including that failure, and its exact text says to
+   uncomment an `[agents.*]` table. In the fallback file both packaged tables
+   are already live. Make this line depend on the effective `declared` /
+   configuration outcome, or define distinct successful-zero and fallback
+   wording; add the fallback case to the end-to-end assertions.
+
+4. **The proposed write is not all-or-nothing on `OSError`.**
+   `_configure_agent_tables` promises to return `False` with the original file
+   untouched on any failure, yet step 3 directly opens/writes the destination
+   and the call-site instructions say to catch `OSError`. A write can truncate
+   or partially replace the file before raising, after which init may continue
+   with a corrupt committed config. The existing
+   `src/coga/commands/init.py::_write_default_agent` also writes directly, so it
+   is not evidence for this stronger contract. Specify an atomic temporary-file
+   plus replace transaction (including cleanup), or narrow the guarantee and
+   let a write error enter init's existing rollback. Test a write/replace
+   failure as well as the parse-back mismatch.
+
+5. **The tests do not enforce the central one-record extension claim.** The
+   acceptance criteria promise that adding a registry record drives the scan,
+   table handling, and next-step labels, but `Proposed shape` only reuses the
+   branch's `tests/test_init.py::test_agent_scan_renders_an_agent_added_to_the_registry`.
+   That test cannot catch hardcoding in `_configure_agent_tables`, declaration
+   summaries, or the build coax; the separate `agent_label` unit tests do not
+   compose those paths. Add a temporary third record *and matching temporary
+   table* and assert scan rendering, configuration, summary, and next-step
+   label behavior from the same simulated registry addition. Include the
+   no-packaged-table skip case separately because it controls finding 2.
+
+6. **The docs plan depends on an unfiled, transient ticket.** `Docs, same PR`
+   tells the packaged `coga/configuration` topic to point at a follow-up ticket,
+   while the blackboard says that ticket does not exist yet. Even after filing,
+   `coga/knowledge` (`Narrative links, never restates` and the retirement
+   guidance) says durable topics must not rely on task links that disappear at
+   retirement. Have `coga/configuration` own the user-visible limitation and
+   remedy boundary directly; track the implementation follow-up on the
+   blackboard/task system without making that transient file required reading.
+
+### Optional recommendation
+
+- The scan changes terminal glyph/encoding behavior, which
+  `docs/contexts/coga-dev/testing/SKILL.md` classifies as platform-sensitive.
+  Add the required native-Windows full-suite receipt to the verification plan;
+  the current Mac UTM hand walk is useful product evidence but does not replace
+  that pre-merge receipt.
 
 ## 2026-11-10 — PR #1192 closed; re-scoped to scan-and-configure (Zach)
 
