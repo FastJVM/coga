@@ -193,3 +193,20 @@ The publication question above is still open. A tag exposes the reviewed commit 
 ### Optional
 
 - Retitle the ticket to describe a retained local branch with unmatched source changes. The current title labels the work stale and never pushed, claims the proposed comparison cannot establish. Also update the shipped topic's existing “unpushed non-bookkeeping commits” wording when adding the new report interpretation.
+
+## Implementation plan pending owner confirmation
+
+- Check current-workspace ticket mentions, including ordinary task attachments, and recorded `## Dev` branch claims in every Coga workspace of the Git checkout. An incomplete scan suppresses a manual release candidate and prevents explicit publication. Check claims again after archival.
+- Bind manual eligibility to the configured remote's GitHub repository using its effective fetch and push URLs and explicit `gh --repo`. Refuse if those URLs cannot establish one repository. Keep ordinary automatic cleanup on its existing path.
+- Report the lowest-numbered merged PR with successfully inspected unmatched paths, before worktree handling can skip the branch. Any ordinary landing proof disqualifies manual release. A successful mismatch alongside an incomplete comparison can be reported with release unavailable. A visible worktree hold makes release unavailable and prevents archival. A detached rebase or bisect can still reach Git's final deletion guard after publication.
+- Recheck open PRs, ticket claims, occupancy and the reviewed tip after archival. Keep Git's worktree-aware deletion and its immediate tip check. Fetch the reported tag and restore at the full reviewed OID, including when the tag points to a descendant.
+- Origin control was checked at `78972b9e2`. It records this branch and the in-progress implement step. GitHub showed no PR for the branch. Implementation awaits the owner's confirmation of remote publication and the proposed behavior.
+
+## Recipe Failure
+
+Recipe: `branch-sweep`
+Exit: 2
+Task: `branch-sweep-never-releases-a-merged-pr-s-stale-ne`
+Recorded: 2026-11-11T00:36:13+00:00
+
+    branch-sweep: unexpected arguments: '--publish-and-release-local'

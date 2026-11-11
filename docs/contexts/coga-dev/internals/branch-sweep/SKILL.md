@@ -72,6 +72,24 @@ branches; ownership is `branchsweep._terminal_owners` over
 `branchsweep.sweep_branches` preserves `skill_manager.SKILL_UPDATE_BRANCH`
 before any PR lookup or deletion.
 
+## Retained drafts
+
+`MergedPrVerdict` keeps a successful source difference separately from
+the landing decision and incomplete comparisons. `sweep_branches` records
+that evidence before the worktree gate can skip a retained local ref.
+`_draft_claim` combines the strict current-workspace mention scan with
+`live_checkout_claim` for recorded claims. The restricted sweep bypasses
+the draft report.
+
+`run_branch_sweep_recipe` routes the explicit release to `_release_local_draft`
+before sweep or retire follow-up processing. The manual path scopes
+`prs_for_head` to the repository named by the effective Git remote URLs.
+It passes only the reviewed local tip to `_publish_retirement_tag` and uses
+`branchcleanup.force_delete_local_branch` for the final ref recheck and Git's
+porcelain deletion guard. The operator supplies the deletion authority.
+The [release procedure](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md#review-and-release-a-retained-local-draft)
+owns the command, proof requirements, and exact-tip recovery.
+
 ## Retirement tags
 
 `_publish_retirement_tag` archives the actual authorized tip, fetching
