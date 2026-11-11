@@ -1,7 +1,7 @@
 ---
 title: coga bump on feature branch leaves stale index.lock and blocks syncing with
   main
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -36,6 +36,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
