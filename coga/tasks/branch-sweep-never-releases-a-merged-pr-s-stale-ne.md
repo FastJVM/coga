@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 contexts:
 - coga/checkout-cleanup/branch-sweep
@@ -210,7 +210,9 @@ The design needs clarification before implementation. The ticket body composes i
 - Fetched and rebased onto current `origin/main` before review. Main's intervening changes were ticket/audit state only. The projected ticket was backed up, verified, and restored byte-for-byte; it remains outside implementation commits.
 - Five isolated probes passed through the CLI parser and real temporary Git repositories: manual tag-collision fallback, Git's detached-bisect deletion guard, a worktree acquired after archival, incomplete claim enumeration, and explicit repository/limit arguments to the shared GitHub lookup. Manual paths never entered ordinary sweep or retire follow-up processing, and all remote branches survived. Probe command: `TERM=dumb PYTHONPATH=/home/n/Code/coga/src /tmp/coga-branchsweep-py311/bin/python /tmp/coga-peer-branchsweep-f40cab82-probes.py`.
 - No raw-terminal, pager, prompt, or Slack surface changed; the output is plain stdout/stderr exercised by the recipe tests and CLI probes.
-- The full Linux suite is running at the reviewed head. Do not advance until its final receipt is recorded. Native Windows verification remains waived by the owner for this ticket.
+- Full Linux suite passed at the reviewed head: Pop!_OS 24.04 LTS, CPython 3.11.15, Git 2.43.0; 4738 passed, 33 skipped, 0 failed in 809.38 seconds. The exact command is in `## PR`. Native Windows verification remains waived by the owner for this ticket.
+- Final freshness check fetched control at `20eaba933afe0ef4f15462af2e7fe52899f3ce0b`. Its two later commits contain only a new draft ticket, its audit entry, and these review notes. The shared `check_branch_contains_control` gate passed with `state-only-drift` and no overlaps, as permitted by `coga/pr-publication`; implementation and review receipts remain on the tested head. The new draft and log bytes already match control and were preserved.
+- Pushed `c044ed403e4dd04dbb5c136511d21f34f88e35f4` with an explicit lease against the prior remote head. `git range-diff` confirmed the rebase preserved the implementation patch exactly. The next step can run the mechanical PR-opening command using the preparation below.
 
 ## PR
 
@@ -218,31 +220,60 @@ The design needs clarification before implementation. The ticket body composes i
 title: Report and release reviewed local branch drafts
 author: codex
 author_evidence: The Codex session launched for this implement step wrote and committed the change.
-head: b0af572a6be1bc78f0716ee161ca12fabaa903c8
-base: 0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb
+head: c044ed403e4dd04dbb5c136511d21f34f88e35f4
+base: 30f6be817e0abd4788b3f29b98dc259c7fdf3e8e
 depth: deep
-rationale: The command publishes local Git history and deletes a ref. Review the eligibility checks, exact-tip proof, and archive and deletion ordering.
-implementation: The ordinary sweep reports structured merged-PR source differences. Explicit release scopes PR evidence to the configured remote, checks live claims and occupancy, archives the reviewed OID, and repeats the applicable guards before local-only porcelain deletion.
-deviations: The CLI smoke check triggered state sync, which published the developer internals topic in the base commit. The shipped procedure is included in the feature diff.
-limitations: A detached rebase or bisect can leave an archive published when Git refuses deletion. The final ref check and porcelain deletion are separate operations.
+rationale: The command publishes local Git history and deletes a ref. Review the eligibility checks, exact-tip proof,
+  and archive/deletion ordering. Direct Codex self-review and the Linux full suite passed; native Windows verification
+  was waived by the owner.
+implementation: The ordinary sweep reports structured merged-PR source differences. Explicit release scopes PR evidence
+  to the configured remote, checks live claims and occupancy, archives the reviewed OID, and repeats the applicable
+  guards before local-only porcelain deletion.
+deviations: The implement-step CLI smoke check published the developer internals topic to control before the feature
+  commit. The shipped procedure is in the feature diff. At final handoff, newer control commits contain only non-overlapping
+  ticket/log state; the shared freshness gate permits that drift.
+limitations: A detached rebase or bisect can leave an archive published when Git refuses deletion. The final ref
+  check and porcelain deletion are separate operations, so the target branch must remain free of concurrent updates.
+  Both actual author and reviewer identities are Codex; this is recorded as self-review.
 files:
   src/coga/autoclose.py: Allow explicit GitHub repository scoping and reject incomplete scoped PR results.
   src/coga/branchcleanup.py: Share the final tip recheck and worktree-aware force deletion with manual release.
   src/coga/branchsweep.py: Report retained drafts and implement the one-branch archive and release path.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Document report interpretation, publication, and exact-tip recovery.
-  tests/test_branchsweep.py: Exercise retained and ineligible drafts, archive and retry, changed evidence, occupancy, and recovery through the recipe.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Document report
+    interpretation, publication, and exact-tip recovery.
+  tests/test_branchsweep.py: Exercise retained and ineligible drafts, archive and retry, changed evidence, occupancy,
+    and recovery through the recipe.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: This is the implement step. Independent code review is a later workflow step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: c044ed403e4dd04dbb5c136511d21f34f88e35f4
+  base: 30f6be817e0abd4788b3f29b98dc259c7fdf3e8e
+  detail: Direct review completed in this fresh peer-review session with no must-fix findings and no source edits.
+    Reviewed every changed path and the shared claim, archive, deletion, and recipe-dispatch contracts. Both the
+    implementing and reviewing identities are Codex; independent authorship is not claimed.
 checks:
-  - command: 'TERM=dumb PYTHONPATH="$PWD/src" /tmp/coga-branchsweep-py311/bin/python -m pytest'
-    status: passed
-    head: b0af572a6be1bc78f0716ee161ca12fabaa903c8
-    base: 0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb
-    detail: Pop!_OS 24.04 LTS, CPython 3.11.15, Git 2.43.0. Clean detached checkout. 4738 passed, 33 skipped, 0 failed in 820.27 seconds.
-  - command: Native Windows full suite via the Coga Windows AWS harness
-    status: not-run
-    detail: The owner waived native Windows full-suite verification for this ticket.
+- command: TERM=dumb PYTHONPATH=/home/n/Code/coga/src /tmp/coga-branchsweep-py311/bin/python -m pytest --basetemp=/home/n/Code/coga-peer-branchsweep-pytest-f40cab82
+    > /tmp/coga-peer-branchsweep-f40cab82-pytest.log 2>&1
+  status: passed
+  head: c044ed403e4dd04dbb5c136511d21f34f88e35f4
+  base: 30f6be817e0abd4788b3f29b98dc259c7fdf3e8e
+  detail: Pop!_OS 24.04 LTS, CPython 3.11.15, Git 2.43.0. 4738 passed, 33 skipped, 0 failed in 809.38 seconds. Implementation
+    paths match the tested commit; only projected/published Coga state changed in the checkout.
+- command: TERM=dumb PYTHONPATH=/home/n/Code/coga/src /tmp/coga-branchsweep-py311/bin/python /tmp/coga-peer-branchsweep-f40cab82-probes.py
+  status: passed
+  head: c044ed403e4dd04dbb5c136511d21f34f88e35f4
+  base: 30f6be817e0abd4788b3f29b98dc259c7fdf3e8e
+  detail: 'Five isolated probes passed: CLI manual release with tag collision, detached bisect refusal with a reported
+    archive, occupancy acquired after publication, incomplete claim enumeration, and explicit repository/limit arguments
+    to gh. Temporary Git remotes were used; all remote branches survived and manual release never entered ordinary
+    sweep or retire follow-up processing.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: c044ed403e4dd04dbb5c136511d21f34f88e35f4
+  base: 30f6be817e0abd4788b3f29b98dc259c7fdf3e8e
+  detail: No whitespace errors in the five-path implementation diff.
+- command: Native Windows full suite via the Coga Windows AWS harness
+  status: not-run
+  detail: The owner waived native Windows full-suite verification for this ticket; no Windows host was provisioned.
 ```
