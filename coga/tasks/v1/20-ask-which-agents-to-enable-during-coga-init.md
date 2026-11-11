@@ -1173,6 +1173,24 @@ Two Windows-specific checks beyond macOS's:
   as item 2, after item 1 says no agent is installed. Minor wording; the
   agent-agnostic follow-up is the natural home.
 
+## 2026-11-11 — follow-ups filed before open-pr (Zach)
+
+The follow-up this ticket kept deferring to is now three drafts, filed
+before the PR so the merge-closed ticket leaves nothing unowned:
+
+- `v1/make-coga-s-built-in-commands-agent-agnostic`: `coga chat`,
+  `coga ticket` and `coga build` pinned to `agent: claude`. This also takes
+  the none-case next-steps wording above.
+- `v1/give-coga-build-tickets-a-self-review-workflow-in`: in a one-agent
+  repo, coga build's starter tickets get a workflow with no `other-agent`
+  step.
+- `v1/make-adding-a-third-agent-one-registry-edit`: fold
+  `init._AGENT_SKILL_DIRS` and the packaged `[agents.*]` tables into the
+  registry.
+
+The Python-range install failure from the Windows walk is already owned by
+`v1/cap-requires-python-and-stop-init-leading-with-a-c`.
+
 ## PR
 
 ```yaml
