@@ -613,8 +613,11 @@ def main() -> None:
         sys.argv = [sys.argv[0]] + full
 
     from coga.launch import checkout_guard_scope
+    from coga.repl_supervisor import deferred_done_marker
 
-    with checkout_guard_scope():
+    # The done marker waits for the whole end-of-command boundary below: a
+    # supervisor that tears the session down mid-sweep can SIGKILL Git.
+    with checkout_guard_scope(), deferred_done_marker():
         relay_token = git.control_relay_started.set(False)
         withheld_token = git.state_sweep_withheld.set(False)
         log_mark = _log_mark(cfg)

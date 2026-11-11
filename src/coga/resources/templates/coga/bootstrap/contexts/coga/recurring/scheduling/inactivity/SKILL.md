@@ -78,7 +78,11 @@ running, the supervisor watches its completion separately; timeout settings
 and their precedence are in [scheduling](../SKILL.md#variants).
 
 Session-ending commands atomically write the task's qualified slug to
-`COGA_DONE_SENTINEL`. The supervisor accepts only its launched slug, so
+`COGA_DONE_SENTINEL`. A command run through the `coga` CLI writes it only
+after its end-of-command boundary (the state sweep and the unpublished-log
+warning) has returned, whether the command succeeded, exited, or raised after
+asking to signal. Supervisor teardown therefore never interrupts Coga's own
+publication. The supervisor accepts only its launched slug, so
 repointing `COGA_REPO_ROOT`, `COGA_TASK_*`, and the expected task to another
 worktree does not change the signal's identity. Preserve the inherited
 sentinel path when doing so. A failed write warns on stderr with the path and
@@ -106,7 +110,11 @@ generation, when present, and only after it has seen that ticket open or
 absent during the session, so a stale terminal copy (for example a published
 blob from an earlier life of the path) never ends a fresh launch. It allows
 five seconds of continuously observed
-terminal state for the normal signal to arrive, then tears down the REPL
+terminal state for the normal signal to arrive. While any `coga` command in
+the session is still running (it leaves `<sentinel>.pending-<pid>` beside
+the sentinel until it exits; a file whose process is gone is ignored), the
+backstop is not consulted, so a final transition's slow publication cannot
+start teardown early. After that window it tears down the REPL
 with a `ticket-terminal` reason and a clean completion result. It does not
 claim a sentinel was observed. Missing, unreadable or malformed tickets,
 another recurring generation, blocked/paused tickets and nonfinal workflow

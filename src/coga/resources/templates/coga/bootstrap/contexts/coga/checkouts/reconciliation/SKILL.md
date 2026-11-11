@@ -49,6 +49,38 @@ Reconciliation preserves main's newer work and the still-needed local intent:
 If any work already landed, prove that from history and content before dropping
 the duplicate. Preserve the owning definition and reconcile dependent references.
 
+## Sync a feature branch with control
+
+Every Coga command run from a feature or detached checkout publishes the
+ticket and log it changed to control and leaves those files dirty in that
+checkout by design ([state publication](../../state-publication/SKILL.md#control-versus-feature-checkouts)).
+A new ticket stays untracked. That dirt blocks `git merge` or `git rebase` of
+control until it is dropped.
+
+Drop it only when every dirty or untracked file under the Coga and contexts
+roots already equals control. Each such file must be a regular file whose
+bytes (after clean filters) and mode equal the copy in the local
+`<remote>/<control>` ref. A tracked file must also have no staged change.
+`coga status` checks this against local refs (fetch first for a current
+answer). When it holds, `coga status` prints the exact command, anchored to
+the Git root, with paths quoted for the current shell. On POSIX it has this
+shape, and any part with no paths is left out:
+
+```bash
+git --literal-pathspecs -C <root> checkout -- <tracked…> && rm -- <untracked…> && git -C <root> merge --no-edit <remote>/<control>
+```
+
+Native Windows PowerShell gets the same steps with `Remove-Item -LiteralPath`,
+each nested in `if ($?) { … }`. `git merge --autostash` is not enough: it sets
+aside tracked dirt, but an untracked ticket identical to control still aborts
+the merge ("untracked working tree files would be overwritten"). Prefer merge
+over rebase for a branch that is already pushed, so it needs no force-push.
+
+When `coga status` instead lists files that differ, are staged, have another
+mode, or are deleted, do not use the command. Publish the differing state
+first (`coga run publish-state`), then check again. Otherwise reconcile those
+files by hand as in [Preserve both sides](#preserve-both-sides).
+
 ## Verify and escalate
 
 Inspect the combined diff and run checks appropriate to the affected work

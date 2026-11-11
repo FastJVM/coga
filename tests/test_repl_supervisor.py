@@ -962,3 +962,49 @@ def test_supervised_step_env_pins_spawned_agent_and_drops_inherited(
         {EXPECTED_AGENT_ENV: "claude"}, task_path=task, step="1 (a)"
     )
     assert EXPECTED_AGENT_ENV not in env
+
+
+def test_completion_pending_requires_a_live_process(tmp_path: Path) -> None:
+    from coga.repl_supervisor import completion_pending
+
+    sentinel = tmp_path / "sentinel"
+    assert completion_pending(str(sentinel)) is False
+    live = tmp_path / f"sentinel.pending-{os.getpid()}"
+    live.write_text("", encoding="utf-8")
+    assert completion_pending(str(sentinel)) is True
+    live.unlink()
+    # A command that died without cleaning up cannot disable the backstop.
+    (tmp_path / "sentinel.pending-999999999").write_text("", encoding="utf-8")
+    (tmp_path / "sentinel.pending-junk").write_text("", encoding="utf-8")
+    assert completion_pending(str(sentinel)) is False
+    assert completion_pending("") is False
+
+
+@posix_pty_only
+def test_terminal_ticket_backstop_waits_for_a_live_pending_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A final bump publishes `done` before its boundary finishes; while its
+    pending witness is live the terminal probe is not consulted."""
+    started = tmp_path / "started"
+    released = tmp_path / "released"
+    script = (
+        f'p="${{{SENTINEL_ENV}}}.pending-$$"; : > "$p"; : > "{started}"; sleep 1; '
+        f': > "{released}"; rm -f "$p"; sleep 30'
+    )
+    seen: list[bool] = []
+
+    def terminal_status() -> str | None:
+        # The ticket turns terminal only once the command is running.
+        if not started.exists():
+            return None
+        seen.append(released.exists())
+        return "done"
+
+    outcome = _run_through_pty(
+        monkeypatch, ["bash", "-c", script],
+        session_id="v1/x", terminal_status=terminal_status,
+    )
+    assert (outcome.kind, outcome.done_signalled) == ("done", False)
+    assert outcome.reason == "ticket-terminal (done; done signal not observed)"
+    assert seen and all(seen)

@@ -66,10 +66,17 @@ elif role == "cancel":
     sweep = cli._sweep_coga_state
 
     def child_sweep(cfg):
-        # mark canceled has published its own transition and emitted the done
-        # marker before cli.main reaches this boundary. No timing sleeps.
+        # mark canceled has published its own transition and requested the
+        # done marker before cli.main reaches this boundary. No timing sleeps.
         record("child-sweep-entered")
         if settings["child_sweep"] == "interrupted":
+            # cli.main withholds that marker until the boundary returns, so
+            # Coga's own teardown never interrupts this sweep. Model a stop
+            # that still lands mid-sweep (an external kill) by releasing the
+            # held marker early.
+            held = repl_supervisor._deferred_done.get()
+            repl_supervisor._deferred_done.set(None)
+            repl_supervisor.emit_done_marker(held[-1])
             while True:
                 signal.pause()
         sweep(cfg)

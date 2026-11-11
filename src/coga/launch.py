@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shlex
 import shutil
 import signal
@@ -62,6 +61,7 @@ from coga.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
+from coga import oscompat
 from coga.oscompat import lock_fd
 from coga.config import (
     build_launch_env,
@@ -3324,12 +3324,7 @@ def _checkout_refusal_message(
 
 def _checkout_command(argv: list[str]) -> str:
     """Copyable diagnostics for POSIX shells or native Windows PowerShell."""
-    if os.name == "nt":
-        return " ".join(
-            arg if re.fullmatch(r"[\w./:@=+-]+", arg) else "'" + arg.replace("'", "''") + "'"
-            for arg in argv
-        )
-    return shlex.join(argv)
+    return oscompat.shell_command(argv)
 
 
 def _checkout_exemption(cfg: Config, ref: TaskRef) -> str | None:
@@ -3464,6 +3459,7 @@ def _align_recorded_assist_checkout(
         ["git", "-C", str(root), "merge-base", "--is-ancestor", before, remote_oid],
         capture_output=True,
         check=False,
+        env=git._git_env(),
     )
     if ancestry.returncode != 0:
         raise git.GitError(

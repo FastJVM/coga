@@ -172,10 +172,22 @@ paths stay with their error heading so the operator can identify what blocks
 the move. Filename whitespace is preserved.
 
 A **feature or detached checkout** publishes the same way but keeps its
-published ticket and log dirty by design. `coga status` warns when control is
-ahead of the local copy. Never `git add` `coga/tasks/**` or `coga/log.md`
+published ticket and log dirty by design. To merge control into the branch,
+follow [Sync a feature branch with control](../checkouts/reconciliation/SKILL.md#sync-a-feature-branch-with-control).
+`coga status` prints the exact command when the dirty Coga state already
+equals control, and warns when control is ahead of the local copy or when the
+checkout's `index.lock` exists. Never `git add` `coga/tasks/**` or `coga/log.md`
 into a PR; `coga open-pr` excludes that state from its cleanliness gate and
 refuses a branch whose only commits are Coga state.
+
+**Index locks.** Coga runs every Git call with `GIT_OPTIONAL_LOCKS=0`, so a
+read such as `git status` never takes the checkout's `index.lock` for an
+opportunistic refresh. Feature-checkout publication therefore never writes
+the real index. Session-ending commands signal a supervising launch only
+after their end-of-command publication returns
+([session liveness](../recurring/scheduling/inactivity/SKILL.md#session-completion-and-liveness)),
+so teardown does not kill Coga's own Git calls. Coga never deletes an
+`index.lock`; `coga status` reports one.
 
 **Committed-state boundary.** On a feature or detached checkout, clean
 committed files stay with the branch except for the configured task directory

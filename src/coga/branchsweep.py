@@ -931,10 +931,11 @@ def _verbatim_patch_ids(
     text conversion so the proof describes the stored source bytes.
     """
     # Use bytes: text-mode subprocess IO would normalize CRLF in a patch.
-    git = ["git", "-C", str(root)]
+    base = ["git", "-C", str(root)]
+    git_env = git._git_env()
     patches = subprocess.run(
         [
-            *git, "log", "--stdin", *(["--no-walk=unsorted"] if no_walk else []),
+            *base, "log", "--stdin", *(["--no-walk=unsorted"] if no_walk else []),
             "--no-merges", "--root", "--format=commit %H", "--patch", "--binary",
             "--full-index", "--no-color", "--no-ext-diff", "--no-textconv",
             "--no-renames", "--no-notes", "--no-relative", "--ignore-submodules=none",
@@ -943,12 +944,13 @@ def _verbatim_patch_ids(
         input=("\n".join(revisions) + "\n").encode("ascii"),
         capture_output=True,
         check=False,
+        env=git_env,
     )
     if patches.returncode != 0:
         return None
     ids = subprocess.run(
-        [*git, "patch-id", "--verbatim"], input=patches.stdout,
-        capture_output=True, check=False,
+        [*base, "patch-id", "--verbatim"], input=patches.stdout,
+        capture_output=True, check=False, env=git_env,
     )
     if ids.returncode != 0:
         return None
@@ -1713,6 +1715,7 @@ def _git(
         capture_output=True,
         text=True, encoding="utf-8",
         check=False,
+        env=git._git_env(),
     )
 
 

@@ -1592,6 +1592,7 @@ def _git_output(root: Path, *args: str) -> str | None:
             encoding="utf-8",
             errors="surrogateescape",
             check=False,
+            env=git._git_env(),
         )
     except OSError:
         return None

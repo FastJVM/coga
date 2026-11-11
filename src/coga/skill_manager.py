@@ -22,6 +22,7 @@ from typing import Any
 import yaml
 
 from coga.config import Config
+from coga.git import _git_env
 from coga.github_source import github_owner_repo
 from coga.paths import packaged_template_path
 from coga.skill import Skill
@@ -1204,12 +1205,14 @@ def run_subprocess(
     args: Sequence[str],
     cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    argv = list(args)
     return subprocess.run(
-        list(args),
+        argv,
         cwd=cwd,
         text=True, encoding="utf-8",
         capture_output=True,
         check=False,
+        env=_git_env() if argv and argv[0] == "git" else None,
     )
 
 

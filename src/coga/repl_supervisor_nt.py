@@ -41,6 +41,8 @@ from coga.repl_supervisor import (
     ReplOutcome,
     _admit_held_child,
     _sentinel_signals_done,
+    completion_pending,
+    remove_sentinel_dir,
 )
 
 # CreateProcess's lpCommandLine limit, in UTF-16 units including the NUL.
@@ -598,7 +600,11 @@ def run(
                         "sentinel-file (COGA_DONE_SENTINEL touched)", kind="done"
                     )
 
-            if not sent_term and terminal_status is not None:
+            if (
+                not sent_term
+                and terminal_status is not None
+                and not completion_pending(sentinel_path)
+            ):
                 status = terminal_status()
                 if status is not None:
                     trigger_term(
@@ -637,14 +643,7 @@ def run(
                 except (OSError, ValueError):
                     pass
             if sentinel_dir is not None:
-                try:
-                    os.unlink(sentinel_path)
-                except OSError:
-                    pass
-                try:
-                    os.rmdir(sentinel_dir)
-                except OSError:
-                    pass
+                remove_sentinel_dir(sentinel_dir)
 
     exit_code, kind, notes = classify_exit(code, term_kind)
     for note in notes:
