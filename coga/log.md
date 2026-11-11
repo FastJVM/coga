@@ -10687,3 +10687,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 14:18 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] advanced to step 7 (review) → zach
 2026-11-11 14:28 v1 [v1/fix-the-readme-s-native-windows-install-steps] [human:zach] created (status=draft)
 2026-11-11 14:33 v1 [v1/46-wire-agent-skills-on-windows-without-symlink-pr] [human:zach] created (status=draft)
+2026-11-11 14:38 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [human:zach] ticket authoring launched (interviewer=claude, agent=claude)
