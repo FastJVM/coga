@@ -1194,205 +1194,129 @@ The Python-range install failure from the Windows walk is already owned by
 ## PR
 
 ```yaml
-title: "Write coga.toml from init's agent-CLI scan"
-author: claude (Claude Opus 5, 1M context) — implementing agent for this step
-head: 01ce1cc180cd4367ecb3881a489469688cce6934  # c50a583a rebased onto 8baf8e326 on 2026-11-11; branch patch byte-identical, focused suite 178 passed after the rebase
-base: 8baf8e326
-review_depth: deep
-review_depth_rationale: >
+title: Write coga.toml from init's agent-CLI scan
+author: claude
+author_evidence: >
+  Implement step ran as Claude (Opus 5) on 2026-11-10; the marker-removal
+  commit c50a583a is Claude-authored too. See the implement and peer-review
+  entries on this ticket.
+head: 01ce1cc180cd4367ecb3881a489469688cce6934
+base: 8baf8e326550704d05ffb8f94f9a81fda6e8a8c6
+depth: deep
+rationale: >
   Rewrites a committed config file that every later command reads, on the one
   code path a new user cannot skip, with a fallback that must never leave a
-  truncated file. The commenting rule has two traps (the commented
-  [recurring]/[launch] headers, and the prose interleaved with the keys) and
-  the second already produced a real defect caught by hand, not by tests.
+  truncated file. The commenting rule has a trap (the commented
+  [recurring]/[launch] headers below the agent tables), so read the
+  table-range logic in _configure_agent_tables closely.
 implementation: >
-  One PATH read drives both init outputs. print_agent_scan returns its
-  snapshot; _configure_agent_tables comments out the not-found agents' tables
-  by prefixing their live lines and returns the names still declared; summary
-  and next steps read the file back rather than the scan. The default comes
-  from declaration order, so no default_agent key is written and the offer
-  machinery is deleted.
-deviations:
-  - >
-    Boundary markers around a disabled table shipped briefly and were removed
-    by the owner on 2026-11-11, along with the "re-enabling is mechanical"
-    criterion they satisfied — both had been added mid-implement rather than
-    approved. The generated file matches the approved live-lines-only rule.
-    Landed after peer review; the focused suite re-ran at 178 passed.
-  - >
-    _configure_agent_tables returns list[str] | None rather than bool, and the
-    write goes through a temp file plus os.replace. Both came from the
-    evaluator review's findings 2 and 4.
-limitations:
-  - >
-    A repo that declares only Codex cannot run `coga chat`, even with
-    `--agent codex`: bootstrap/orient pins `agent: claude` and a --agent
-    override cannot repair a pin naming an undeclared type. Accepted by Zach
-    2026-11-10; coga/configuration states the limit and the remedy.
-  - >
-    A one-agent repo cannot resolve an `other-agent` workflow step.
-    Pre-existing in bump.resolve_other_agent; this change makes one-agent
-    repos the norm for single-agent machines.
-  - >
-    A disabled table's commented lines sit directly above the packaged file's
-    own commented prose with nothing marking where the table ends. Stripping
-    `# ` across the whole region turns prose into TOML statements; validate
-    catches it. A property of the packaged file's layout, out of scope here.
+  One PATH read drives both init outputs. print_agent_scan prints the
+  Spec Kit-style tree and returns its snapshot; _configure_agent_tables
+  comments out the not-found agents' [agents.*] tables with a plain "# " on
+  the table's own lines and returns the names still declared; the write goes
+  through a temp file plus os.replace. Summary and next steps read the file
+  back rather than the scan. The default agent comes from declaration order,
+  so no default_agent key is written and the old agent-offer machinery
+  (_offer_agent_cli, _write_default_agent) is deleted.
+deviations: >
+  Boundary markers around a disabled table were added mid-implement and
+  removed on 2026-11-11 at the owner's direction, along with the
+  "byte-for-byte uncomment" criterion they served; the head's src/tests tree
+  equals the pre-marker commit's. _configure_agent_tables returns
+  list[str] | None rather than bool (evaluator finding 2).
+limitations: >
+  A repo that declares only Codex cannot run coga chat, coga ticket or
+  coga build, which pin agent: claude; filed as
+  v1/make-coga-s-built-in-commands-agent-agnostic. A one-agent repo cannot
+  resolve an other-agent workflow step, so coga build's starter tickets stall
+  there; filed as v1/give-coga-build-tickets-a-self-review-workflow-in.
+  Adding a third agent still takes three edits; filed as
+  v1/make-adding-a-third-agent-one-registry-edit. A disabled table's
+  commented lines sit directly above the packaged file's own commented prose,
+  so stripping "# " across the whole region breaks TOML; coga validate
+  catches it. tests/conftest.py still names the deleted _offer_agent_cli in an
+  inert stub (raising=False); tidy later.
 files:
-  - src/coga/commands/init.py: >
-      print_agent_scan returns its snapshot; _configure_agent_tables and
-      _agent_table_state added; _offer_agent_cli, _write_default_agent and
-      their two regexes deleted; call sites, summary and next steps rewritten.
-  - src/coga/dependencies.py: >
-      AGENT_CLIS registry and the PATH lookup the scan and the configuration
-      both read.
-  - tests/test_init.py: >
-      agent-offer and write-default-agent tests deleted; configuration unit
-      tests (4 cases), registry-extension and no-packaged-table cases,
-      parse-back and write-failure cases, four end-to-end cases, summary,
-      fallback and validate coverage.
-  - tests/test_dependencies.py: >
-      registry and PATH-lookup coverage for the scan's input.
-  - src/coga/resources/templates/coga/coga.toml: >
-      one comment block saying init comments out tables whose CLI it did not
-      find, and to uncomment one to enable it.
-  - src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >
-      Fresh repo rewritten for the scan-and-configure behaviour; clone
-      paragraph says it neither scans nor rewrites coga.toml.
-  - src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: >
-      Choosing an agent rewritten for a one-agent repo; owns the Codex-only
-      coga chat limitation in its own words, with no task link.
+  src/coga/commands/init.py: >
+    print_agent_scan returns its snapshot; _configure_agent_tables and
+    _agent_table_state added; _offer_agent_cli, _write_default_agent and
+    their regexes deleted; call sites, summary and next steps rewritten.
+  src/coga/dependencies.py: >
+    AGENT_CLIS registry (display name plus binary) and the PATH lookup that
+    the scan and the configuration both read.
+  tests/test_init.py: >
+    Configuration unit tests, registry-extension and no-packaged-table cases,
+    parse-back and write-failure cases, four end-to-end cases, summary,
+    fallback and validate coverage; agent-offer tests deleted.
+  tests/test_dependencies.py: Registry and PATH-lookup coverage for the scan's input.
+  src/coga/resources/templates/coga/coga.toml: >
+    One comment block saying init comments out tables whose CLI it did not
+    find, and to uncomment one to enable it.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >
+    Fresh-repo section rewritten for scan-and-configure; the clone paragraph
+    says it neither scans nor rewrites coga.toml.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: >
+    Choosing an agent rewritten for a one-agent repo; states the Codex-only
+    coga chat limitation in its own words.
 review:
-  code_review: >
-    Run by codex 2026-11-11 (session 01a1c922-798d-71a1-ae5c-d2b5dfa2b951):
-    no must-fix findings. 181 focused passed, a real 42-column PTY check of
-    the scan, and a full local suite of 4717 passed / 34 skipped / 15 failed
-    with every failure classified as pre-existing and outside this change.
-    Two non-blocking notes. The file list below no longer carries
-    docs/contexts/coga-dev/internals/agent-config/SKILL.md, which had already
-    landed on main and is not in the branch diff. The other is left in place:
-    tests/conftest.py's _stub_init_dep_check still names the deleted
-    _offer_agent_cli in its docstring and its monkeypatch loop. It is inert
-    (raising=False, and tests/ is not shipped in the wheel); fixing it would
-    move the head off the commit both hand walks ran against, which is not
-    worth it for a dead test-only reference. Tidy it in a later change.
-    The marker removal landed after this review at the owner's direction; it
-    only deletes code, and the focused suite re-ran at 178 passed.
-tested_tree: >
-  Three trees are involved and they are not interchangeable. The implement
-  receipts ran at d7d1518; the rebase onto main produced 803c88b5b with an
-  identical `src`/`tests`/`docs` tree (`git diff d7d1518 803c88b5b -- src
-  tests docs` empty). A second rebase onto current main produced 1405cc43e,
-  again tree-identical, and that is the commit codex peer-reviewed. Removing
-  the markers then produced c50a583a, the head of this PR, whose tree is
-  byte-identical to f848223e0 — the commit before the markers landed. So the
-  full-suite receipts below describe the marker-era tree, and everything at
-  c50a583a is the same code minus the marker block. The focused suite and
-  both hand walks ran at c50a583a itself.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 1405cc43eee461f265d966a189de1a5dfeee41f4
+  base: 40861cb24cbe64c7c181f5725ebbb0934bffc8e1
+  detail: >
+    Codex peer review 2026-11-11 (session 01a1c922-798d-71a1-ae5c-d2b5dfa2b951),
+    no must-fix findings; 181 focused passed and a 42-column PTY render check
+    of the scan. Reviewed the marker-era head; since then the markers were
+    deleted and the branch rebased with an identical patch, so this receipt
+    predates the current diff
 checks:
-  - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest tests/test_init.py tests/test_dependencies.py -q -p no:randomly
-    result: 178 passed in 38.40s
-    platform: macOS (Darwin 25.4.0), Python 3.12.7
-    commit: c50a583a088bcba889b9ef0d745886628498aefe
-    note: >
-      The head of this PR. 181 at 1405cc43e; the three fewer are the marker
-      round-trip tests, removed with the code they covered. Everything this
-      change touches lives in these two files.
-  - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest tests/test_init.py tests/test_dependencies.py -q
-    result: 181 passed
-    platform: macOS (Darwin 25.4.0), Python 3.12.7
-    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
-    note: >
-      Re-run at the rebased head 803c88b5b with `-p no:randomly`: 181 passed,
-      33s.
+  - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest tests/test_init.py tests/test_dependencies.py -q -p no:randomly -p no:cacheprovider
+    status: passed
+    head: 01ce1cc180cd4367ecb3881a489469688cce6934
+    base: 8baf8e326550704d05ffb8f94f9a81fda6e8a8c6
+    detail: 178 passed in 2.77s (Linux/WSL2, Python 3.14.4), run after the rebase.
+  - command: four-case interactive coga init walk (none, only-claude, only-codex, both), Windows 11 Home 26300 VMware VM, uv tool install --python 3.13 from git at the head SHA
+    status: passed
+    head: c50a583a088bcba889b9ef0d745886628498aefe
+    base: 40861cb24cbe64c7c181f5725ebbb0934bffc8e1
+    detail: >
+      4 of 4 matched the predicted table; scan glyphs render in Windows
+      Terminal; the both-case coga.toml is byte-identical to the packaged
+      template (Get-FileHash). Pre-rebase head with an identical patch
+  - command: four-case interactive coga init walk, macOS VM, uv tool install from git at the head SHA
+    status: passed
+    head: c50a583a088bcba889b9ef0d745886628498aefe
+    base: 40861cb24cbe64c7c181f5725ebbb0934bffc8e1
+    detail: >
+      4 of 4 matched; real claude binary for only-claude and both. Pre-rebase
+      head with an identical patch
+  - command: python -m pytest -q -p no:randomly (codex, full local suite)
+    status: passed
+    head: 1405cc43eee461f265d966a189de1a5dfeee41f4
+    base: 40861cb24cbe64c7c181f5725ebbb0934bffc8e1
+    detail: >
+      4717 passed, 34 skipped, 15 failed in 1:36:05; every failure classified
+      as outside this change (12 sandbox-only /dev/fd errors in unchanged
+      clean-install harnesses, 3 the since-fixed branch-sweep anchor on main)
   - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest -q -p no:randomly
-    result: >
-      4418 passed, 25 skipped, 6 failed — of 4766 collected. Stopped at 93%
-      (test 4449) by the harness, not by a failure. HEAD verified identical
-      before and after, so the real checkout did not move under the run.
-    platform: macOS (Darwin 25.4.0), Python 3.12.7
-    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
-    runtime: ~140 min
-  - command: >
-      PYTHONPATH=$PWD/src TERM=dumb python -m pytest -q -p no:randomly
-      tests/test_trim_log.py tests/test_uninstall.py tests/test_upstream_coga.py
-      tests/test_usage_report.py tests/test_usage.py tests/test_validate.py
-      tests/test_version_guard.py tests/test_views.py
-      tests/test_windows_clean_install.py tests/test_windows_process_recovery.py
-      tests/test_workspace_discovery.py tests/test_repl_supervisor.py
-    result: 402 passed, 10 skipped
-    platform: macOS (Darwin 25.4.0), Python 3.12.7
-    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
-    runtime: 305s
-    note: >
-      The 317 tests the stopped run never reached (4450-4766), plus the two
-      modules that held its unexplained failures. Together with the run above,
-      every collected test has executed on this tree — but as two runs, not
-      one clean full run. A reviewer wanting a single receipt should take one.
-  - command: coga validate (by hand, in repos generated by a real interactive init)
-    result: >
-      clean for only-codex and both; for none, exactly unknown-agent and
-      unresolvable-operator on coga-build
-    platform: macOS (Darwin 25.4.0), Python 3.12.7
-    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
-  - command: full local suite (codex, during peer review)
-    result: >
-      4717 passed, 34 skipped, 15 failed in 1:36:05 — twelve sandbox-only
-      `/dev/fd/*: Operation not permitted` errors in unchanged clean-install
-      harnesses, three the known broken branch-sweep anchor on main. None
-      touch this branch's code.
-    platform: macOS, in codex's sandbox
-    commit: 1405cc43eee461f265d966a189de1a5dfeee41f4
-  - command: four-case interactive walk, macOS VM, installed from the branch SHA
-    result: >
-      all four match the predicted table (none / only-claude / only-codex /
-      both); glyphs render, colour is correct, coga-build's agent: flips to
-      codex in the only-codex case, validate clean except the two predicted
-      coga-build errors in the none case
-    platform: macOS VM (cogatest-path-toml-write), uv tool install from git
-    commit: c50a583a088bcba889b9ef0d745886628498aefe
+    status: passed
+    head: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
+    base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
+    detail: >
+      Implement run, in two parts: 4418 passed, 25 skipped, 6 failed before
+      the harness stopped it at 93%, then the remaining modules 402 passed,
+      10 skipped. All 6 failures pre-existing (4 the branch-sweep anchor since
+      fixed on main, 2 cross-test pollution that pass alone)
   - command: full suite natively on Windows (AWS harness)
-    result: WAIVED BY OWNER 2026-11-11
-    note: >
-      coga-dev/testing tier 2 prescribes the AWS Windows harness for
-      platform-sensitive changes, and the implement step copied that in as a
-      merge gate. Zach waived it: Nico's harness work already covers native
-      Windows, and the attended four-case walks are what answer whether this
-      commit breaks anything. The harness is also unreachable from this
-      machine — no aws CLI and no credentials — so it was never an option
-      here. The Windows VMware walk below is this commit's native-Windows
-      evidence.
-  - command: four-case interactive walk, Windows VMware VM, installed from the branch SHA
-    result: >
-      4 of 4 passed (none, only-claude, only-codex, both). Glyphs render in
-      Windows Terminal; the both-case coga.toml is byte-identical to the
-      packaged template (Get-FileHash).
-    platform: Windows 11 Home build 26300 (VMware Workstation VM), Python 3.13 via uv
-    commit: c50a583a088bcba889b9ef0d745886628498aefe
-    note: >
-      The glyph question is the reason this one matters: the automated suite
-      compares Python strings and cannot see how a Windows console renders
-      the scan tree. Details under the 2026-11-11 Windows VMware walk entry.
+    status: not-run
+    detail: >
+      Waived by the owner 2026-11-11: Nico's harness work already covers
+      native Windows, and the attended Windows walk is this change's
+      platform evidence. No aws CLI or credentials on the owner's machine.
   - command: Python 3.11 floor
-    result: >
-      not covered — 3.12.7 was the only interpreter available here
-full_suite_failures: >
-  6 failures, none from this change, all classified. Four are one defect:
-  tests/test_packaging.py::test_context_navigation_has_no_broken_links fails
-  because docs/contexts/coga-dev/internals/branch-sweep/SKILL.md links
-  #review-and-release-a-retained-local-draft in the packaged
-  coga/checkout-cleanup/branch-sweep topic, which has no such heading.
-  Reproduced on a clean clone of origin/main (7e342fbfa) with none of this
-  branch applied, so it is pre-existing; it arrived with main's 6d1ca237f.
-  test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers
-  and test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep
-  (both parametrizations) shell out to run tests/test_packaging.py, so they are
-  that same defect, not three more. The other two —
-  test_repl_supervisor::test_terminal_ticket_stops_repl_without_claiming_a_sentinel
-  and test_trim_log::test_trim_preserves_all_discovered_statuses — pass alone
-  and pass with their own modules on this tree, which matches the known
-  cross-test pollution of a full in-place run in this checkout. Not fixed here:
-  code/implement does not own unrelated failures.
+    status: not-run
+    detail: Not covered; 3.12, 3.13 and 3.14 were the interpreters used.
 ```
 
 ## Open Questions
