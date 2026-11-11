@@ -400,8 +400,12 @@ branch doesn't need a force-push.
 - Automatically deleting an `index.lock` that coga did not create. Another
   git process may own it. At most, detect it and report a clear message.
 
-
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/v1-coga-bump-on-feature-branch-leaves-stale-inde-5a3760
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
