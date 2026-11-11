@@ -10663,3 +10663,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-10 19:16 v1 [keep-unfinished-dependency-blockers-open-in-megala] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-10 19:16 v1 [keep-unfinished-dependency-blockers-open-in-megala] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-10 19:16 v1 [keep-unfinished-dependency-blockers-open-in-megala] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-11-10 19:47 v1 [keep-unfinished-dependency-blockers-open-in-megala] [agent:codex] advanced to step 2 (peer-review) → codex

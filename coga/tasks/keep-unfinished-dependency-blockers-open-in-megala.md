@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -159,4 +159,100 @@ ordinary ticket.
 branch: coga/keep-unfinished-dependency-blockers-open-in-mega-3a6dfd
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implement progress
+
+- Human approved targeted resolutions with partial progress kept blocked and the existing atomic activation/publication safeguards retained.
+- `src/coga/megalaunch.py` + `_finished_blocker_dependencies` selects satisfied entries; `_publish_partial_dependency_resolution` publishes partial answers against exact ticket bytes; `_activate_for_launch` answers only selected records before its existing guarded publication.
+- `src/coga/blackboard.py` + `resolve_blockers_text` targets full captured blocker records, preserving inert examples, superseded designs, legacy asks, and existing answers. Records rather than IDs are necessary because `_blocker_id` uses whole seconds and different asks can share an ID. ID generation is unchanged; broader ID-consumer implications remain an adjacent finding, with no existing follow-up found.
+- Regression-first run: all four new multi-blocker cases failed on the original implementation (active/canceled/human asks cleared; two done dependencies answered with the wrong task name). First focused fixed run: 191 passed in 20.43s. Final verification and publication receipts are recorded below.
+- Shipped lifecycle topic owns the multi-dependency/mixed-ask contract; megalaunch links it and owns exact publication and retry behavior. No fixture shape or workflow snapshot changed; runtime regressions use the existing megalaunch fixtures.
+- Independent code review belongs to the next workflow step; none has run in implement.
+- Final head pushed: `975a5b81d1191fa1da74bb1309118e0a40ee9f34`; base `d53c5566e3454ae6ecdb1809ce131279146cf0f0`. Includes the human-approved one-link navigation repair as a separate commit.
+- Post-rebase focused/packaging run: 232 passed, 1 failed in 20.88s. Failure: `tests/test_packaging.py::test_context_navigation_has_no_broken_links`, because the unchanged local development branch-sweep topic links to removed anchor `#review-and-release-a-retained-local-draft` in the shipped branch-sweep topic. Both paths have zero diff from origin/main. Human approved removing the stale fragment so the link opens its owning topic; implemented in `975a5b81d`. The first full-suite run was interrupted before completion to restart verification on the final commit; it is not a full-suite receipt.
+- Repo validation passed (107 OK, 10 warnings, no errors); seeded fixture validation passed (5 OK, no issues).
+- Native Windows suite is required before merge for the new Git publication path under `coga-dev/testing`. Existing harness host no longer exists. Human explicitly deferred Windows verification to review; it remains required before merge. No host was provisioned. The harness requires approval outside windows-native tickets. AWS profile `coga-test` is configured; a read-only status attempt needed escalation to refresh SSO cache.
+
+## Implement handoff
+
+- Implemented and pushed both commits on the recorded branch. Fresh final fetch confirms the branch contains current `origin/main`; no implementation changes are uncommitted. The projected ticket remains outside the implementation commits.
+- Final Linux receipts: full suite **4,719 passed, 33 skipped in 960.48s**; focused megalaunch/blackboard plus packaging **233 passed in 33.07s**. Repo validation: **107 OK, 10 warnings, no errors**. Seeded fixture validation: **5 OK, no issues**. Exact commands, tested head/base, platform, interpreter, and omission reasons are in PR preparation below.
+- No PR opened. Independent review is the next workflow step. Actual implementer is **Codex**, despite the ticket's configured `agent: claude`; assess review independence using the actual identity, as the preparation contract requires.
+- Human explicitly deferred the required native Windows full-suite receipt to review; obtain it before merge. No Windows resources were provisioned. Local tests used Python 3.12.12, so this step supplies no Python 3.11 floor receipt.
+- Residual adjacent finding: timestamp-only blocker IDs can collide for asks appended within one second (`blackboard._blocker_id`). This implementation safely targets complete captured records. Other ID consumers and ID generation remain outside scope; no existing follow-up ticket was found. Preserve this finding for the later durable-knowledge/Retro handoff.
+
+## PR
+
+```yaml
+title: Keep unfinished dependency blockers open in megalaunch
+author: codex
+author_evidence: Actual implement session used Codex, based on GPT-6. No model override was requested;
+  an exact runtime model identifier is not exposed. The ticket configures claude, which is not the implementing
+  identity.
+head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+depth: deep
+rationale: Changes dependency-drain publication and activation decisions. Independent review is the next
+  workflow step; the required Windows receipt was deferred there by the human.
+implementation: Resolve each satisfied dependency blocker with its own automatic answer using the captured
+  blocker record. Publish partial answers under an exact ticket lease while retaining blocked; publish
+  the remaining targeted resolutions and activation together before launch. Preserve all-open manual unblock
+  behavior.
+deviations: Human approved a separate one-link repair for an existing packaging navigation failure. Windows
+  verification was explicitly deferred to review.
+limitations: Native Windows full-suite evidence is still required before merge. Local verification uses
+  Python 3.12.12; Python 3.11 floor evidence was not collected in this step.
+files:
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Human-approved removal of a stale anchor found
+    by the required packaging navigation check.
+  src/coga/blackboard.py: Add targeted resolution of captured blocker records while preserving other asks,
+    historical answers, and inert text.
+  src/coga/megalaunch.py: Select satisfied dependency entries; publish partial resolutions while blocked
+    and retain atomic activation when every remaining ask is satisfied.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/lifecycle/SKILL.md: Own the explicit multiple-dependency
+    and mixed human/dependency blocker contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/megalaunch/SKILL.md: Document partial publication,
+    exact snapshots, activation, recovery, and reconsideration in the drain.
+  tests/test_blackboard.py: Cover exact-record targeting despite duplicate IDs and preservation of archived,
+    fenced, legacy, and previously answered entries.
+  tests/test_megalaunch.py: Cover unfinished/canceled/human blockers, two satisfied dependencies, same-run
+    fixed points, multiple refs per ask, and partial publication success/refusal/uncertainty.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Independent code review belongs to the following peer-review workflow step; design/approach
+    confirmation is not code review.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_packaging.py
+    tests/test_megalaunch.py tests/test_blackboard.py -q
+  status: passed
+  detail: '233 passed in 33.07s; Pop!_OS 24.04 LTS, Linux x86_64, Python 3.12.12. Log: /tmp/coga-dependency-final-focused-pytest.log.'
+  head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+  base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q
+  status: passed
+  detail: '4719 passed, 33 skipped in 960.48s (0:16:00); Pop!_OS 24.04 LTS, Linux x86_64 (kernel 7.2.15-76070215-generic),
+    Python 3.12.12. Code, tests, and docs matched the committed tree throughout this final run. Log: /tmp/coga-dependency-final-full-pytest.log.'
+  head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+  base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
+  status: passed
+  detail: 107 OK; 10 warnings; 0 errors. Python 3.12.12 on Pop!_OS 24.04 LTS.
+  head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+  base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+- command: cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src
+    /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
+  status: passed
+  detail: 5 OK; 0 warnings; 0 errors. Python 3.12.12 on Pop!_OS 24.04 LTS.
+  head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+  base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+- command: Native Windows full suite at the reviewed head
+  status: not-run
+  detail: Human explicitly deferred Windows verification to review. The new Git publication path requires
+    this receipt before merge under coga-dev/testing. No Windows host was provisioned.
+- command: git diff --check
+  status: passed
+  head: 975a5b81d1191fa1da74bb1309118e0a40ee9f34
+  base: d53c5566e3454ae6ecdb1809ce131279146cf0f0
+  detail: No whitespace errors in the implementation or projected handoff.
+```
