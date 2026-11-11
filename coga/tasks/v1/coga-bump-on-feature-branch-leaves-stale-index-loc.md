@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -436,3 +436,117 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Should the feature-sync hint also appear in launch's end-of-session
   output for feature-branch steps (implement / address-pr-comments)? The
   spec limits it to `coga status`, as the ticket asked.
+
+## Evaluator review
+
+2026-11-10 — **Not ready for implementation until the must-fix findings are
+resolved or explicitly dispositioned at owner review.** Reviewed cold against
+fetched `origin/main` at `fba00b9bfd9ec4b2f6643872633a6366365a06c8`.
+The ticket's requirements are in the composed Description/Context regions;
+its frozen workflow correctly hands this review to the owner. The selected
+documentation/status route preserves the existing feature-checkout contract,
+and the optional-lock mitigation addresses a verified real-index write.
+
+### Must fix before implementation
+
+1. **P1 — Deferring the sentinel does not cover Coga's other completion
+   trigger.** `src/coga/launch.py::_terminal_status_probe` observes a published
+   `done`/`canceled` ticket and returns terminal after five stable seconds.
+   Both `repl_supervisor.py::run_with_done_marker` and
+   `repl_supervisor_nt.py::run` act on that callback independently of the
+   sentinel. A final bump or terminal mark can publish its ticket, then spend
+   more than five seconds in the remaining command/publication boundary and
+   still be killed before the deferred marker. `git._run` supplies no
+   subprocess timeout; the blackboard's claim that Git bounds this delay is
+   not an established guarantee. Optional-lock suppression protects the
+   feature index, but this still exposes deliberate index writes in a control
+   checkout (including a separate control worktree advanced by publication).
+   Resolve the claimed guarantee: coordinate completion with this backstop,
+   or explicitly retain and document this race as a narrower scope decision.
+   Reconcile the opening “No publication path ... on signal/teardown” promise
+   with the explicit external-kill exclusions. Add a final-transition test
+   with a delayed boundary and the terminal probe active; the specified
+   non-final bump test cannot exercise this path. Existing evidence:
+   `tests/test_launch.py::test_terminal_status_probe_waits_for_publication_and_caches_blobs`
+   and the terminal-ticket tests in both supervisor modules.
+
+2. **P1 — Blob equality is insufficient proof for the destructive sync
+   hint, and the command does not handle all selected index states.**
+   `git checkout -- <path>` restores from the index, not HEAD. In a scratch
+   repo, a staged deletion whose working path and control path are both
+   absent satisfies the proposed equality rule, but that command exits 1
+   with “pathspec ... did not match”; the merge never runs. A mode-only
+   executable-bit change also satisfies the blob check, but the command
+   removes that unpublished change. Publication explicitly preserves modes
+   and distinct staged drafts (`coga/state-publication`, “Control versus
+   feature checkouts”; `src/coga/git.py::_stage_landed`,
+   `_plan_preparation`, `_regular_working_file`, `_tree_entry`). Define the
+   supported index states and prove modes/type as well as content before
+   recommending cleanup. Either restrict the shortcut to provably safe
+   unstaged regular-file states and route the rest to reconciliation, or
+   specify restoration of staged additions/deletions/renames without losing
+   unique staged content. Do not simply switch to a forced HEAD restore.
+   Require tests for staged deletion, a distinct staged draft, and a
+   mode-only change, alongside the proposed identical-untracked test.
+
+3. **P2 — The proposed status probe writes Git objects.**
+   `src/coga/git.py::_hash_blob` runs `hash-object -w`; a scratch probe
+   confirmed that previously absent working bytes become a stored object.
+   This violates the read-only status contract and can silently suppress the
+   differing-files warning when the object store is read-only. Use the
+   already-existing `_blob_id`, which applies the same clean filters without
+   `-w`, and test that differing-file diagnostics require no object writes.
+
+4. **P2 — Make the recovery command valid for its invocation directory and
+   supported shell.** The plan returns Git-root-relative paths but prints
+   commands relative to the user's cwd; `coga status` can run below the Git
+   root. Establish the root explicitly in the hint/docs or anchor every
+   operation. `shlex.quote`, POSIX `rm --`, and the proposed chain also do
+   not supply the native Windows PowerShell recovery contract. Existing
+   diagnostics in `src/coga/launch.py::_checkout_refusal_message` name the
+   root and shell, and `_checkout_command` has a PowerShell quoting test.
+   Specify supported shell rendering, literal Git path handling, and tests
+   for a nested cwd and paths containing spaces/apostrophes. This work is
+   platform-sensitive under `coga-dev/testing`, “Verification tiers and
+   receipts”: retain the required native Windows full-suite receipt before
+   merge, in addition to Linux verification.
+
+### Optional recommendations
+
+- Audit actual subprocesses rather than the named launch “snapshot”:
+  `launch._checkout_refusal_message` only prints the `git status --short
+  --branch` argv. Actual bypasses include
+  `recurring_runner._path_has_local_changes`, `branchsweep._git`, and
+  `launch._align_recorded_assist_checkout`. The broad caller-audit acceptance
+  criterion already permits fixing these; correct the misleading example.
+- For the structural regression, inspect the environment passed to
+  `subprocess.run`: `_run` receives an optional overlay and constructs the
+  effective environment internally. Force optional locks off after overlays
+  if the invariant is intended to hold for explicit `env=` values too.
+- The user-facing done-signal owner is
+  `coga/recurring/scheduling/inactivity`, “Session completion and liveness”;
+  `coga-dev/internals/agent-spawn`, “The supervisor”, owns its implementation
+  description. Update those owners and link from launch/publication. Keeping
+  the new hint limited to status is consistent with the selected scope.
+
+### Verification and handoff
+
+- Scratch real-Git probes confirmed that current feature-branch
+  `sync_coga_state` performs a real-index `status` call and changes the
+  index inode and mtime with optional locks enabled. Repeating publication
+  with `GIT_OPTIONAL_LOCKS=0` preserved both. This verifies the vulnerable
+  path and mitigation, not the exact kill source in the reported incident.
+  An isolated `cli.main` probe also observed the sentinel already present
+  during both the sweep and exit warning. The deletion, mode, and object
+  write probes above used disposable repositories only.
+- Targeted existing tests: **24 passed**, 719 deselected. Exact command:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py tests/test_launch.py tests/test_repl_supervisor.py tests/test_repl_supervisor_nt.py tests/test_views.py -k 'terminal_status_probe or terminal_ticket_stops or prepare_refuses_staged_content or publish_then_prepare_preserves_distinct_staged_renames or staged_union_log_draft or checkout_command_quotes_powershell_literals or render_status_warns_when_control_ref_ahead'`.
+  The first attempt with ambient `python` could not set up tests because
+  `tomlkit` was missing; the repository venv supplied the successful receipt.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate
+  --json` exited 0: 107 OK, ten pre-existing warnings on other tickets,
+  no errors and no finding for this ticket. No full-suite or native Windows
+  receipt is claimed for this design-only review.
+- No ticket-body, frontmatter, source, test, branch, or PR changes were made.
+  Owner review should resolve the four findings and the existing latency
+  question before advancing to implementation.
