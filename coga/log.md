@@ -10628,3 +10628,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-10 16:17 v1 [branch-sweep-never-releases-a-merged-pr-s-stale-ne] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-11-10 16:19 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [human:nicktoper] created (status=draft)
 2026-11-10 16:20 v1 [open-prs-only-when-ready-to-merge-and-needing-huma] [human:nicktoper] created (status=draft)
+2026-11-10 16:20 v1 [branch-sweep-never-releases-a-merged-pr-s-stale-ne] [agent:codex] advanced to step 3 (review-design) → nicktoper
