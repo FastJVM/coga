@@ -10676,3 +10676,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 11:23 v1 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-11 13:09 v1 [v1/20-ask-which-agents-to-enable-during-coga-init] [human:zach] advanced to step 6 (open-pr) → claude
 2026-11-11 13:14 v1 [v1/make-coga-s-built-in-commands-agent-agnostic] [human:zach] created (status=draft)
+2026-11-11 13:14 v1 [v1/give-coga-build-tickets-a-self-review-workflow-in] [human:zach] created (status=draft)
