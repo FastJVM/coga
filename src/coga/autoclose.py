@@ -582,12 +582,15 @@ def pr_head(url: str) -> tuple[str, str]:
     return branch, oid
 
 
-def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
+def prs_for_head(
+    branch: str, state: str, *, repository: str | None = None
+) -> list[dict[str, object]]:
     """Return GitHub PRs for one head branch and state.
 
     Branch retirement and the repository-wide branch sweep share this lookup:
     neither may dispose of a branch while another PR still has that head.
     """
+    scope = ["--repo", repository, "--limit", "1000"] if repository else []
     try:
         result = subprocess.run(
             [
@@ -600,6 +603,7 @@ def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
                 state,
                 "--json",
                 "number,headRefOid",
+                *scope,
             ],
             capture_output=True,
             text=True, encoding="utf-8",
@@ -618,6 +622,8 @@ def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
         raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
     if not isinstance(data, list):
         raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
+    if repository and (len(data) >= 1000 or any(not isinstance(item, dict) for item in data)):
+        raise GhError(f"`gh pr list --head {branch}` returned incomplete PR evidence")
     return [item for item in data if isinstance(item, dict)]
 
 

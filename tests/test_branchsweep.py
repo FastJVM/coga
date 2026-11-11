@@ -10,6 +10,7 @@ import pytest
 
 from coga import branchsweep as bs
 from coga.config import load_config
+from coga.runner import run_recipe
 from coga.skill_manager import SKILL_UPDATE_BRANCH
 
 
@@ -1755,6 +1756,369 @@ def test_diverged_lineage_with_local_work_is_skipped(
     assert result.local_deleted == []
     assert _branch_exists_local(repo, "feat")
     assert any("local-only.txt" in note for note in result.notes), result.notes
+
+
+def _retained_draft(repo: Path, monkeypatch, *, before_merge: bool = False) -> tuple[str, str]:
+    if before_merge:
+        _git(repo, "checkout", "--detach")
+    else:
+        _push_branch(repo, "feat", land_in_main=True)
+        _git(repo, "checkout", "feat")
+    with monkeypatch.context() as dates:
+        timestamp = "2026-10-01T12:00:00Z" if before_merge else "2026-10-03T12:00:00Z"
+        dates.setenv("GIT_AUTHOR_DATE", timestamp)
+        dates.setenv("GIT_COMMITTER_DATE", timestamp)
+        _commit(repo, "draft.txt", "reviewed draft", "local draft")
+    draft = _tip(repo, "HEAD")
+    _git(repo, "checkout", "main")
+    if before_merge:
+        with monkeypatch.context() as dates:
+            dates.setenv("GIT_AUTHOR_DATE", "2026-10-02T12:00:00Z")
+            dates.setenv("GIT_COMMITTER_DATE", "2026-10-02T12:00:00Z")
+            _push_branch(repo, "feat", land_in_main=True)
+        _git(repo, "branch", "-f", "feat", draft)
+    return draft, _tip(repo, "refs/remotes/origin/feat")
+
+
+@pytest.mark.parametrize("before_merge", [True, False])
+def test_recipe_reports_retained_local_draft(repo: Path, monkeypatch, capsys, before_merge: bool) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch, before_merge=before_merge)
+    _fake_gh(monkeypatch, {"feat": merged})
+
+    assert run_recipe(_cfg(repo), "branch-sweep", []) == 0
+
+    report = capsys.readouterr().out.split(bs.SWEEP_REPORT_HEADING, 1)[1]
+    assert "retained local draft" in report
+    assert all(value in report for value in ("feat", draft, "#7", merged, "draft.txt"))
+    assert "coga/checkout-cleanup/branch-sweep" in report
+    assert "never pushed" not in report and "abandoned" not in report
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert _branch_exists_remote(repo, "feat")
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+def _manual_prs(monkeypatch, merged: str, *, mismatched_remote: bool = False):
+    real_git = bs._git
+
+    def git_with_github_identity(root, *args, **kwargs):
+        if args[:2] == ("remote", "get-url"):
+            project = "elsewhere" if mismatched_remote and "--push" in args else "project"
+            url = f"https://github.com/example/{project}.git\n"
+            return subprocess.CompletedProcess(args, 0, url, "")
+        return real_git(root, *args, **kwargs)
+
+    def fake_prs(branch, state, *, repository=None):
+        assert branch == "feat"
+        assert repository == "github.com/example/project"
+        if state == "merged":
+            return [{"number": 7, "headRefOid": merged}]
+        return []
+
+    monkeypatch.setattr(bs, "_git", git_with_github_identity)
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
+    return fake_prs
+
+
+def _release(repo: Path, draft: str, branch: str = "feat") -> int:
+    return run_recipe(_cfg(repo), "branch-sweep", ["--publish-and-release-local", branch, draft])
+
+
+@pytest.mark.parametrize("descendant_tag", [False, True])
+def test_manual_release_recovers_reviewed_tip_without_deleting_remote(
+    repo: Path, tmp_path: Path, monkeypatch, capsys, descendant_tag: bool,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    tag = "retired/feat"
+    if descendant_tag:
+        _git(repo, "checkout", "--detach", draft)
+        _commit(repo, "later.txt", "later", "descendant archive")
+        _git(repo, "push", "origin", f"HEAD:refs/tags/{tag}")
+        _git(repo, "checkout", "main")
+    _manual_prs(monkeypatch, merged)
+
+    assert _release(repo, draft) == 0
+
+    output = capsys.readouterr().out
+    assert all(value in output for value in (draft, tag, "origin", "deleted local"))
+    assert not _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    recovery = tmp_path / "recovery"
+    _git(repo, "clone", "--no-local", "--no-tags", "--single-branch", _remote_url(repo), str(recovery))
+    assert _git(recovery, "cat-file", "-e", draft, check=False).returncode != 0
+    _git(recovery, "fetch", "--no-tags", "origin", f"refs/tags/{tag}")
+    assert (_tip(recovery, "FETCH_HEAD") != draft) == descendant_tag
+    _git(recovery, "switch", "-c", "recovered", draft)
+    assert _tip(recovery, "HEAD") == draft
+
+
+def test_manual_release_retries_after_archive_failure(repo: Path, monkeypatch, capsys) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    _manual_prs(monkeypatch, merged)
+    real_git = bs._git
+
+    def refuse_tag_push(root, *args, **kwargs):
+        if args[:1] == ("push",):
+            return subprocess.CompletedProcess(args, 1, "", "tag push refused")
+        return real_git(root, *args, **kwargs)
+
+    with monkeypatch.context() as failure:
+        failure.setattr(bs, "_git", refuse_tag_push)
+        assert _release(repo, draft) == 2
+    assert "tag push refused" in capsys.readouterr().out
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+    assert _release(repo, draft) == 0
+    assert _tip(repo, "refs/tags/retired/feat") == draft
+    assert not _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("change", ["tip before archive", "tip", "ticket claim", "open PR"])
+def test_manual_release_preserves_branch_on_changed_evidence(repo: Path, monkeypatch, capsys, change: str) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    fake_prs = _manual_prs(monkeypatch, merged)
+    publish = bs._publish_retirement_tag
+    archived = False
+    moved = _tip(repo, "HEAD")
+
+    def publish_then_change(*args, **kwargs):
+        nonlocal archived
+        tag = publish(*args, **kwargs)
+        assert tag == "retired/feat"
+        archived = True
+        if change == "tip":
+            _git(repo, "branch", "-f", "feat", moved)
+        if change == "ticket claim":
+            _write_ticket(repo, "live", status="active", branch="feat")
+        return tag
+
+    def prs(branch, state, **kwargs):
+        if state == "open" and archived and change == "open PR":
+            return [{"number": 8, "headRefOid": draft}]
+        response = fake_prs(branch, state, **kwargs)
+        if state == "merged" and change == "tip before archive":
+            _git(repo, "branch", "-f", "feat", moved)
+        return response
+
+    monkeypatch.setattr(bs, "prs_for_head", prs)
+    monkeypatch.setattr(bs, "_publish_retirement_tag", publish_then_change)
+
+    assert _release(repo, draft) == 2
+    captured = capsys.readouterr()
+    assert "was not deleted" in captured.err
+    if change == "tip before archive":
+        assert "tip changed" in captured.err
+        assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+    else:
+        assert f"Archive for {draft} remains at 'retired/feat' on origin" in captured.err
+        assert _tip(repo, "refs/tags/retired/feat") == draft
+    assert _tip(repo, "refs/heads/feat") == (moved if change.startswith("tip") else draft)
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("owned", [False, True])
+def test_recipe_reports_a_draft_held_in_a_linked_worktree(
+    repo: Path, tmp_path: Path, monkeypatch, capsys, owned: bool,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    if owned:
+        _own_worktrees(repo)
+    _fake_gh(monkeypatch, {"feat": merged})
+
+    assert run_recipe(_cfg(repo), "branch-sweep", []) == 0
+    report = capsys.readouterr().out.split(bs.SWEEP_REPORT_HEADING, 1)[1]
+    assert "retained local draft" in report and "Manual release unavailable" in report
+    assert draft in report
+
+    _manual_prs(monkeypatch, merged)
+    assert _release(repo, draft) == 2
+    assert "checked out in worktree" in capsys.readouterr().err
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert linked.is_dir() and _branch_exists_remote(repo, "feat")
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+def test_manual_release_keeps_archive_when_git_refuses_during_rebase(
+    repo: Path, tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    _commit(repo, "draft.txt", "main version", "conflicting main change")
+    assert _git(linked, "rebase", "main", check=False).returncode != 0
+    assert "branch refs/heads/feat" not in _git(repo, "worktree", "list", "--porcelain").stdout
+    _manual_prs(monkeypatch, merged)
+
+    assert _release(repo, draft) == 2
+
+    captured = capsys.readouterr()
+    assert "could not delete local 'feat'" in captured.out
+    assert f"Archive for {draft} remains at 'retired/feat' on origin" in captured.err
+    assert _tip(repo, "refs/tags/retired/feat") == _tip(repo, "refs/heads/feat") == draft
+    assert linked.is_dir() and _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize(
+    ("case", "diagnostic"),
+    [
+        ("open", "an open PR"),
+        ("closed", "no merged PR"),
+        ("claim", "also records branch"),
+        ("unreadable", "could not prove the branch unclaimed"),
+        ("attachment", "could not prove the branch unclaimed"),
+        ("mention", "a live ticket in this workspace names the branch"),
+        ("compare", "complete PR comparison"),
+    ],
+)
+def test_recipe_excludes_non_candidates_and_refuses_manual_release(
+    repo: Path, monkeypatch, capsys, case: str, diagnostic: str,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    _manual_prs(monkeypatch, merged)
+    workspace = repo
+    if case in {"claim", "unreadable"}:
+        workspace = repo / "primary"
+        workspace.mkdir()
+        (repo / "coga").rename(workspace / "coga")
+        other = repo / "service"
+        (other / "coga").mkdir(parents=True)
+        (other / "coga/coga.toml").write_text("version = 1\n", encoding="utf-8")
+        _write_ticket(other, "live", status="active", branch="feat")
+        if case == "unreadable":
+            (other / "coga/tasks/live.md").write_text("---\nbroken: [\n---\n", encoding="utf-8")
+    if case in {"attachment", "mention"}:
+        live = repo / "coga/tasks/live"
+        live.mkdir(parents=True)
+        (live / "ticket.md").write_text(
+            _ticket_text("live", status="active", body="", blackboard=""), encoding="utf-8",
+        )
+        attachment = live / "handoff.txt"
+        attachment.write_text("Review branch feat." if case == "mention" else "unknown", encoding="utf-8")
+        if case == "attachment":
+            read_text = Path.read_text
+
+            def cannot_read(path, *args, **kwargs):
+                if path == attachment:
+                    raise PermissionError("unreadable attachment")
+                return read_text(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", cannot_read)
+
+    def prs(branch, state, *, repository=None):
+        assert repository in (None, "github.com/example/project")
+        if branch != "feat":
+            return []
+        if state == "merged" and case != "closed":
+            return [{"number": 7, "headRefOid": "f" * 40 if case == "compare" else merged}]
+        if state == case and case in {"open", "closed"}:
+            return [{"number": 8, "headRefOid": merged}]
+        return []
+
+    monkeypatch.setattr(bs, "prs_for_head", prs)
+    assert run_recipe(_cfg(workspace), "branch-sweep", []) == 0
+    assert "retained local draft" not in capsys.readouterr().out
+    assert _release(workspace, draft) == 2
+    assert diagnostic in capsys.readouterr().err
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_manual_release_refuses_mixed_pr_comparisons_in_either_order(
+    repo: Path, monkeypatch, capsys, reverse: bool,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    _manual_prs(monkeypatch, merged)
+    prs = [{"number": 7, "headRefOid": merged}, {"number": 8, "headRefOid": "f" * 40}]
+    if reverse:
+        prs.reverse()
+    monkeypatch.setattr(
+        bs, "prs_for_head", lambda branch, state, **_: prs if (branch, state) == ("feat", "merged") else [],
+    )
+
+    assert run_recipe(_cfg(repo), "branch-sweep", []) == 0
+    report = capsys.readouterr().out.split(bs.SWEEP_REPORT_HEADING, 1)[1]
+    assert "retained local draft" in report and "Manual release unavailable" in report
+    assert f"merged PR #7 at {merged}" in report
+    assert _release(repo, draft) == 2
+    assert "complete PR comparison" in capsys.readouterr().err
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+def test_manual_release_refuses_mismatched_remote_before_pr_lookup(repo: Path, monkeypatch, capsys) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    _manual_prs(monkeypatch, merged, mismatched_remote=True)
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    assert _release(repo, draft) == 2
+    assert "must fetch and push one matching GitHub repository" in capsys.readouterr().err
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+@pytest.mark.parametrize("landing", ["control", "closed PR", "another merged PR"])
+def test_manual_release_refuses_when_ordinary_cleanup_has_a_proof(
+    repo: Path, monkeypatch, capsys, landing: str,
+) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    fake_prs = _manual_prs(monkeypatch, merged)
+    if landing == "control":
+        _git(repo, "merge", "--ff-only", "feat")
+    elif landing == "closed PR":
+        _write_ticket(repo, "done", status="done", branch="feat")
+
+    def prs(branch, state, **kwargs):
+        response = fake_prs(branch, state, **kwargs)
+        if (landing, state) in {("closed PR", "closed"), ("another merged PR", "merged")}:
+            return [*response, {"number": 8, "headRefOid": draft}]
+        return response
+
+    monkeypatch.setattr(bs, "prs_for_head", prs)
+    assert _release(repo, draft) == 2
+    diagnostic = "already reachable from control" if landing == "control" else "ordinary cleanup has a landing proof"
+    assert diagnostic in capsys.readouterr().err
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+@pytest.mark.parametrize("branch", ["main", SKILL_UPDATE_BRANCH])
+def test_manual_release_refuses_protected_branch(repo: Path, monkeypatch, capsys, branch: str) -> None:
+    if branch != "main":
+        _git(repo, "branch", branch)
+    tip = _tip(repo, f"refs/heads/{branch}")
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    assert _release(repo, tip, branch) == 2
+    assert "branch is protected" in capsys.readouterr().err
+    assert _tip(repo, f"refs/heads/{branch}") == tip
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+@pytest.mark.parametrize("branch", ["FEAT", "alias"])
+def test_manual_release_requires_the_exact_direct_branch_ref(
+    repo: Path, monkeypatch, capsys, branch: str,
+) -> None:
+    draft, _ = _retained_draft(repo, monkeypatch)
+    _git(repo, "symbolic-ref", "refs/heads/alias", "refs/heads/feat")
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    assert _release(repo, draft, branch) == 2
+    assert "local branch is missing or its tip could not be read" in capsys.readouterr().err
+    assert _tip(repo, "refs/heads/feat") == draft
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+
+
+def test_restricted_sweep_does_not_report_manual_release(repo: Path, monkeypatch) -> None:
+    draft, merged = _retained_draft(repo, monkeypatch)
+    _fake_gh(monkeypatch, {"feat": merged})
+
+    result = bs.sweep_branches(_cfg(repo), repo, only={"feat"}, echo=lambda _: None)
+
+    assert all("retained local draft" not in note for note in result.notes)
+    assert _tip(repo, "refs/heads/feat") == draft
 
 
 # --- the run record ----------------------------------------------------------
