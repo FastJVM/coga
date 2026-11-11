@@ -1,6 +1,6 @@
 ---
 title: Re-run the macOS install walk from source
-status: draft
+status: active
 owner: zach
 workflow:
   name: human/run
@@ -9,6 +9,7 @@ workflow:
     skills: []
     assignee: owner
 step: 1 (execute)
+agent: claude
 ---
 
 ## Description
