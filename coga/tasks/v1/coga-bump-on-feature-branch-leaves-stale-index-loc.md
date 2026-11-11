@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 agent: claude
 ---
 
@@ -69,6 +69,201 @@ Done when:
   documents the exact one-command way to sync a feature branch with control
   and `coga status` points at it when that dirt is present. The design step
   chooses between them.
+
+**Design choice (owner-confirmed in the design session): the
+documentation + `coga status` route.** A feature checkout keeps its
+published ticket and log dirty on purpose. Launch projects the current
+control ticket onto feature branches, and `coga/state-publication`
+("Control versus feature checkouts") says so. Automatically restoring
+those files to HEAD would make later commands in that checkout read a stale
+ticket. The owner also chose to have `coga status` report a present
+`index.lock`.
+
+### Root cause
+
+This was inferred from the code and the evidence timings, not reproduced
+live. The chain:
+
+1. `coga bump` (and `mark done`, `mark canceled`, `block`) calls
+   `emit_done_marker()` (`src/coga/repl_supervisor.py`) *inside* the command
+   handler (`src/coga/commands/bump.py`, `bump()`).
+   `cli.main()` (`src/coga/cli.py`) only afterwards runs the end-of-command
+   boundary: `_sweep_coga_state()` → `git.sync_coga_state()`, then
+   `_warn_unpublished_log_lines()`. So coga's own git work keeps running
+   after the supervisor has been told to tear the session down.
+2. The supervisor (`run_with_done_marker()`, `_trigger_term()` in
+   `src/coga/repl_supervisor.py`) polls the sentinel every 0.25 s. It sends
+   `SIGTERM` to the agent's process group and escalates to `SIGKILL` after
+   `_KILL_GRACE_SECONDS` (2 s). An agent CLI may also kill its tool
+   subprocesses outright on shutdown. The `coga bump` process is a
+   descendant of the agent, so it and its git children die mid-sweep.
+3. The sweep's candidate selection runs `git status` against the
+   **checkout's real index** (`git._candidates()` → `_dirty_paths()`).
+   `git status` opportunistically refreshes the index and writes it under
+   `<git-dir>/index.lock` unless `GIT_OPTIONAL_LOCKS=0`. `git._git_env()`
+   does not set that variable. Git removes its lock on
+   SIGTERM/SIGINT/SIGHUP/SIGPIPE, but **SIGKILL leaves the 0-byte lock**.
+   That matches the evidence: a 0-byte lock whose mtime equals the session's
+   `ended_at`. The ticket landed at :36, before the marker. The log commit at
+   :39 came from the supervisor's own teardown publication, which uses
+   scratch indexes and tolerates a stale lock (status just skips its
+   optional write), so nothing noticed.
+
+Publication's deliberate index writes (`_build_tree()`,
+`_write_published()`) already use a scratch `GIT_INDEX_FILE`. The
+real-index writes in `_stage_landed()` (`git add` / `update-index`) and the
+`read-tree -m -u` in `_realign_control()` / `_apply_preparation()` run only
+when this checkout holds the control branch, so they cannot be what fires
+on a feature branch.
+
+### Acceptance criteria
+
+- [ ] Every git subprocess coga starts through `git._git_env()` (that is,
+      `git.run_git()` / `git._run()`) runs with `GIT_OPTIONAL_LOCKS=0`. This
+      is forced: a value already in the environment is overridden.
+- [ ] Other in-package git callers that can run during a supervised
+      session and touch a checkout either route through `git._git_env()` or
+      set `GIT_OPTIONAL_LOCKS=0` themselves. At minimum this covers the
+      `subprocess` git calls in `src/coga/launch.py` (the checkout snapshot
+      that runs `git status --short --branch`), `src/coga/branchcleanup.py`,
+      and `src/coga/validate.py`. The implementer lists any caller
+      deliberately left alone, with the reason, on the blackboard.
+- [ ] `emit_done_marker()` no longer signals the supervisor before the
+      end-of-command boundary when it is called under `cli.main()`. The
+      marker is written only after `_sweep_coga_state()` and
+      `_warn_unpublished_log_lines()` have both returned, on every path where
+      the command requested it: a normal return, a `SystemExit`, or another
+      exception that propagates after the request. Outside `cli.main()` (a
+      direct library or test call) it still writes immediately.
+- [ ] Regression tests in `tests/test_git.py` (or a new focused module):
+  - (a) Use a real temporary repo with a bare remote, a feature-branch
+        checkout, a dirty ticket, and a stat-dirty tracked file (touched so
+        its mtime is newer than the index entry). Run
+        `git.sync_coga_state()` from the feature checkout. Assert that every
+        recorded git call ran with `GIT_OPTIONAL_LOCKS=0` and that the real
+        index file was not rewritten (its mtime and inode are unchanged). The
+        test must fail on current `main`. See Proposed shape, step 6.
+  - (b) Through `cli.main()` with `COGA_DONE_SENTINEL` set and a monkeypatched
+        `git.sync_coga_state` and `cli._warn_unpublished_log_lines` that
+        record call order: running `coga bump` on a ticket at a non-final
+        step writes the sentinel only after both have run. A test that the
+        marker is still written when the sweep raises. The test must fail on
+        current `main`.
+  - (c) The existing supervisor/bump tests in `tests/test_repl_supervisor.py`
+        and the bump tests still pass, with no added teardown hang.
+- [ ] `coga status` (`src/coga/views.py`, beside `_warn_if_control_ahead()`)
+      prints, to stderr in yellow, one **feature-sync hint** when HEAD is not
+      the control branch and every dirty or untracked file under
+      `git.coga_root_paths(cfg)` is byte-identical (clean-filtered blob id)
+      to the local `refs/remotes/<remote>/<control>` copy. The hint gives the
+      exact command with shell-quoted paths, and omits the parts that have
+      no paths:
+      `git checkout -- <tracked…> && rm -- <untracked…> && git merge --no-edit <remote>/<control>`.
+      It also names the reconciliation section. When some dirty Coga-root
+      files differ from control, it prints no command. Instead it names the
+      differing files and says to publish them first
+      (`coga run publish-state`) or reconcile per the section. It prints
+      nothing on a control checkout, with no dirt, with git disabled, or when
+      the remote-tracking ref is absent. No network, fail-open to silence on
+      `GitError`, the same posture as `stale_coga_task_rels()`.
+- [ ] `coga status` prints one stderr warning when
+      `<absolute-git-dir>/index.lock` exists (per-worktree git dir for a
+      linked worktree). It names the path and says: confirm no git process
+      is using this checkout, then remove it. Coga never deletes it.
+- [ ] Tests for both status lines in `tests/test_views.py` /
+      `tests/test_status.py`. Cover these cases: all-identical (command
+      printed, including an untracked identical ticket), one-differs (no
+      command), a control checkout (silent), and a present lock (warning).
+      The `conftest.py` autouse stub of `stale_coga_task_rels` shows the
+      pattern for keeping other status tests quiet.
+- [ ] Docs, updated in the same PR:
+  - `coga/checkouts/reconciliation`: a new `## Sync a feature branch with
+    control` section. It states that published Coga state stays dirty in a
+    feature checkout by design, gives the exact command above, and gives the
+    precondition (every dirty Coga-root path equals control, which
+    `coga status` checks). It says why `git merge --autostash` is not enough
+    (an identical untracked ticket still blocks the merge), recommends merge
+    over rebase for an already-pushed branch, and says what to do when files
+    differ.
+  - `coga/state-publication`, "Control versus feature checkouts": replace
+    "`coga status` warns when control is ahead of the local copy" with a
+    sentence linking to the new reconciliation section and the status hint.
+    Add a short note that coga's git calls run without optional index locks
+    and that session-ending commands signal the supervisor only after their
+    end-of-command publication.
+  - `coga/launch` (or whichever topic owns the done-marker contract; find
+    it with `grep -rn "COGA_DONE_SENTINEL\|done marker"` under
+    `src/coga/resources/templates/coga/bootstrap/contexts`): record that the
+    marker is emitted after the end-of-command boundary.
+- [ ] `python -m pytest` passes. `coga validate --json` is clean.
+
+### Proposed shape
+
+1. **`src/coga/git.py`, `_git_env()`**: set
+   `env["GIT_OPTIONAL_LOCKS"] = "0"` after copying `os.environ` and before
+   applying `extra`. Update the module docstring's invariants with one line:
+   coga never takes Git's optional index lock.
+2. **Other git callers**: route the `launch.py` checkout-snapshot argv,
+   `branchcleanup.py`'s runner, and `validate.py`'s runner through
+   `git._git_env()` (pass `env=`), or add the variable locally where
+   importing `git` would create a cycle.
+3. **Deferred done marker** (`src/coga/repl_supervisor.py`, `src/coga/cli.py`):
+   - Add a module-level `ContextVar` in `repl_supervisor`, for example
+     `_deferred_done: ContextVar[list[str] | None]`, default `None`.
+   - `emit_done_marker(session_id)`: if the var holds a list, append the
+     marker and return. Otherwise behave as today.
+   - Add `flush_deferred_done_marker()`, which writes the last requested
+     marker through the existing sentinel-write path.
+   - In `cli.main()`, set the var to `[]` next to `withheld_token`. In the
+     outer `finally`, after `_warn_unpublished_log_lines()`, call the flush
+     in its own `try/finally` so a failing warning cannot suppress it, then
+     reset the token.
+   - Commands keep calling `emit_done_marker()` exactly where they do now,
+     so no command handler changes.
+4. **Status lines** (`src/coga/git.py` + `src/coga/views.py`):
+   - Add `git.feature_sync_plan(cfg) -> FeatureSyncPlan | None`, a frozen
+     dataclass with `tracked: list[str]`, `untracked: list[str]`,
+     `differing: list[str]`, and `target: str` (`<remote>/<control>`).
+   - Use `git status --porcelain=v2 -z --untracked-files=all -- <roots>` for
+     dirty and untracked paths (optional locks are now off).
+   - Compare `_hash_blob(root, working_bytes, rel)` with
+     `_blob_oid(root, remote_ref, rel)`. A deleted path counts as identical
+     only when control also lacks it.
+   - Return `None` on a control checkout, when there is no dirt, or on
+     `GitError`.
+   - Add `git.stale_index_lock(cfg) -> Path | None`, using
+     `_scratch_dir(root) / "index.lock"` (the absolute git dir).
+   - In `views.render_status()`, call two new warning helpers next to
+     `_warn_if_control_ahead()`. Build the command with `shlex.quote`.
+5. **Docs** as listed in the acceptance criteria. Edit the package copies
+   under `src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
+6. **Tests** as listed. For (a), the simplest robust form is a structural
+   assertion: monkeypatch `git._run` to record `(argv, env)` for every call
+   made by a feature-branch `git.publish()`. Assert that every call has
+   `GIT_OPTIONAL_LOCKS == "0"` in its effective env, and that every argv
+   whose subcommand writes an index (`status`, `add`, `update-index`,
+   `read-tree`, `rm`, `checkout`, `stash`, `merge`) either carries
+   `GIT_INDEX_FILE` or is `status`/`diff` with optional locks off. Add a
+   real-git check as well: after a feature-branch publish with a touched
+   (stat-dirty) file, the index mtime is unchanged. That proves the real
+   index was not rewritten.
+
+### Out of scope (design)
+
+- Deleting any `index.lock`, coga-created or not. Detection and reporting
+  only.
+- Automatically restoring, committing, or merging published files in a
+  feature checkout (the rejected route), and any new `coga` command for
+  syncing. The microkernel rule would put one at the edge anyway.
+- Changing `_KILL_GRACE_SECONDS`, the supervisor's signal escalation, or how
+  agent CLIs kill their tool subprocesses.
+- Making the deliberate control-checkout real-index writes (`_stage_landed`,
+  `read-tree -m -u`) SIGKILL-proof. Nothing can make a lock-holding write
+  survive SIGKILL. The deferred marker removes coga's own teardown race for
+  them, and an external kill (a human Ctrl-C escalated to SIGKILL, the
+  idle/max-session timeout) is not addressed.
+- Cleaning up leftover scratch-index files (`coga-git-index-*`) in the git
+  dir.
 
 ## Context
 
@@ -209,3 +404,35 @@ branch doesn't need a force-push.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design notes (design step, 2026-11-10)
+
+- Spec is under `## Description` (Root cause / Acceptance criteria /
+  Proposed shape / Out of scope (design)).
+- Owner decisions taken live in the attended design session:
+  (1) the documentation + `coga status` hint route, not auto-restore;
+  (2) `coga status` also warns about a present `index.lock`.
+- I checked on git 2.43 in a scratch repo:
+  `git merge --autostash --no-edit origin/main` cleans up identical
+  tracked dirt, but an untracked ticket identical to control still aborts
+  the merge ("untracked working tree files would be overwritten"). That is
+  why the sync command needs `rm -- <untracked>` and is a `&&` chain, not a
+  single git command.
+- The root cause is inferred, not reproduced live. The evidence's lock
+  mtime equals `ended_at`, and the ticket commit (:36) precedes the lock
+  (:38.4), which fits a kill during the post-marker sweep. Whether the kill
+  came from our 2 s SIGKILL escalation or from Codex killing its tool
+  subprocesses is unknown. The fix covers both.
+
+## Open Questions
+
+- Teardown latency: deferring the done marker means a supervised session
+  stays up until the end-of-command sweep finishes (normally one fetch and
+  push, a few seconds; longer offline, bounded by git's own timeouts). Is
+  that acceptable? The alternative is to skip the sweep entirely in a
+  supervised session (`COGA_SUPERVISED`), because the supervisor publishes
+  after the child exits anyway. That is faster, but it changes the
+  documented "every mutating command sweeps" contract.
+- Should the feature-sync hint also appear in launch's end-of-session
+  output for feature-branch steps (implement / address-pr-comments)? The
+  spec limits it to `coga status`, as the ticket asked.
