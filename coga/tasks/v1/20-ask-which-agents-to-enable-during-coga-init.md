@@ -1116,6 +1116,63 @@ the six in the implement run. A full suite taken after a rebase should show
 those gone. Nobody needs to re-run one on that account; it is only noted so a
 reviewer comparing counts is not surprised.
 
+## 2026-11-11 — Windows VMware walk: four cases, all passing (Zach)
+
+Handoff item 1 is done. Run by Zach in VMware Workstation's
+`coga-win11-walk` (Windows 11 Home, build 26300), starting from the
+`bare + tools` snapshot: clean Windows plus VMware Tools, with no Git, no
+Python and no agent CLI. `walk1-done` was not used because it has a real
+`claude`. Setup was Git 2.56.0.windows.4 through `winget` (it was present on
+this fresh install), then uv 0.13.7, then `uv tool install --force --python
+3.13 git+…@c50a583a`. uv's `(from git+https://github.com/FastJVM/
+coga@c50a583a088bcba889b9ef0d745886628498aefe)` clause was read back. Recon
+before the cases: `Get-Command claude, codex, coga` printed nothing, and the
+shell was not elevated. Both agents were inert `.cmd` stubs, one case
+directory each, prepended to the full `PATH`. Answered `n` to init's `gh`
+install offer every time, so every case ran on the same machine. Windows
+Terminal, Windows PowerShell 5.1.
+
+| Case | Scan | coga.toml | coga-build `agent:` | validate |
+| --- | --- | --- | --- | --- |
+| none | both ○ | no live table; both commented (56, 85) | `claude` | the 2 predicted errors |
+| only-claude | claude ●, codex ○ | claude live (56), codex commented (85) | `claude` | All good |
+| only-codex | claude ○, codex ● | codex live (85), claude commented (56) | `codex` | All good |
+| both | both ● | both live at 56 and 85, none commented | `claude` | All good |
+
+Same table, same line numbers as macOS. Observed by eye in every case:
+`├── └── ● ○` render as real glyphs on the Windows console with no wrapping,
+the blank line above `Checking for agent CLIs...` is present, and green is on
+found rows only. The summary line named what was commented out, and was
+absent in both. Next steps matched macOS: install-and-uncomment only for
+none, "with Codex" for only-codex, the `--agent codex` alternative only for
+both. The none-case validate errors are verbatim `unknown-agent` and
+`unresolvable-operator`, both pointing at the `[agents.*]` table to restore.
+
+Two Windows-specific checks beyond macOS's:
+
+- **Byte-identical, both case.** `Get-FileHash` of the generated
+  `coga/coga.toml` and of the installed package's
+  `resources/templates/coga/coga.toml` are equal (`28ECC840…FD76`). The
+  rewrite path does not change line endings or encoding on Windows.
+- **The disabled table, only-claude.** Lines 85–89 and 99 (`[agents.codex]`
+  and its five keys) carry a single `# `. The prose at 90–98 and everything
+  from 100 on is identical to the packaged template at `c50a583a`.
+
+**Not this ticket's, recorded for v1/31.**
+
+- `uv tool install` without `--python` fails on a machine with no Python.
+  uv picks CPython 3.15.2, PyYAML 6.0.3 has no Windows wheel for 3.15, and
+  the source build stops at "Microsoft Visual C++ 14.0 or greater is
+  required". coga's `requires-python = ">=3.11"` has no upper bound. Walk 1
+  missed this only because it installed Python 3.11 explicitly first.
+- Every case printed `Skipped … skill wiring — …\.claude\skills\coga exists
+  but isn't a directory` (and the same for Codex). `Get-Item` shows nothing
+  exists there. This is v1/31 finding 8 (no symlink privilege without
+  Developer Mode, reported under the wrong message), unchanged on `main`.
+- Next steps in the none case still list "Run `coga build` with Claude Code"
+  as item 2, after item 1 says no agent is installed. Minor wording; the
+  agent-agnostic follow-up is the natural home.
+
 ## PR
 
 ```yaml
@@ -1288,11 +1345,16 @@ checks:
       here. The Windows VMware walk below is this commit's native-Windows
       evidence.
   - command: four-case interactive walk, Windows VMware VM, installed from the branch SHA
-    result: PENDING
+    result: >
+      4 of 4 passed (none, only-claude, only-codex, both). Glyphs render in
+      Windows Terminal; the both-case coga.toml is byte-identical to the
+      packaged template (Get-FileHash).
+    platform: Windows 11 Home build 26300 (VMware Workstation VM), Python 3.13 via uv
+    commit: c50a583a088bcba889b9ef0d745886628498aefe
     note: >
       The glyph question is the reason this one matters: the automated suite
       compares Python strings and cannot see how a Windows console renders
-      the scan tree.
+      the scan tree. Details under the 2026-11-11 Windows VMware walk entry.
   - command: Python 3.11 floor
     result: >
       not covered — 3.12.7 was the only interpreter available here
