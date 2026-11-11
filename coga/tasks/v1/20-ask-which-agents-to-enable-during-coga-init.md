@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -97,6 +97,9 @@ binary, so the user can install it and uncomment its table.
 - [ ] The generated `coga.toml` declares exactly the agents the scan found;
       every other registry agent's `[agents.*]` table is present but commented
       out.
+- [ ] Re-enabling a commented table is mechanical: uncommenting the lines
+      init marked restores that table byte for byte, its explanatory comments
+      included, and the file still parses.
 - [ ] The default agent is the first found agent in registry order, and the
       delivered tickets that ship `agent: claude` (`coga/tasks/coga-build.md`)
       are pointed at it when it is not `claude`.
@@ -234,17 +237,24 @@ callers read the first declared name, never `found[0]`. Steps:
 1. Read the text and `tomllib.loads` it as `before`. On a decode error or
    `OSError`, return False.
 2. For each registry agent not in `found` whose table `before["agents"]`
-   declares: find the line matching `^[ \t]*\[agents\.<name>\][ \t]*$`. From
-   there up to the next live table header (`_TABLE_START`, which ignores
-   commented headers), prefix `# ` to every live line, meaning lines that are
-   not blank and not already comments. Comments and blank lines are left
-   alone. This bounds the table by its live keys, not by the next header
-   (the `[recurring]`/`[launch]` trap in Context). Re-measured on main
-   `655e561dd`: the only live lines between `[agents.claude]` and
-   `[notification]` are the two agent tables. Claude comments 7 lines
-   (header + `cli`, `file`, `mode`, `name_flag`, `session_id_flag`,
-   `discussion`); codex comments 6 (header + `cli`, `file`, `mode`,
-   `discussion`, `launch_args`).
+   declares: find the line matching `^[ \t]*\[agents\.<name>\][ \t]*$`. The
+   disabled range runs from there to the table's **last live key**, found by
+   scanning to the next live table header (`_TABLE_START`, which ignores
+   commented headers) and keeping the last non-blank, non-comment line. Ending
+   at the last key is what keeps the `[recurring]`/`[launch]` block and the
+   `# analyze` / `# peer` examples out of it (the trap in Context). Prefix
+   `# ` to **every** non-blank line in that range, prose comments included, so
+   a line that was already a comment reads `# # ...`. Then insert a marker
+   comment above the range and another below it.
+
+   Prefixing only the live lines, as this ticket specified through the design
+   step, fails its own criterion: the disabled block ends up flush against the
+   packaged file's `# analyze` prose with no boundary, and a user who strips
+   `# ` across the block — which is what "uncomment the table" means — turns
+   that prose into invalid statements. Verified by hand on 2026-11-10 against
+   a real Codex-only init: `tomllib` rejected the result. Zach chose the
+   markers over dropping the prose or rewording the instruction. The test
+   asserts the mechanical uncomment restores the packaged file byte for byte.
 3. Parse the new text as `after`. Write it only if `after["agents"]` (or `{}`
    when the key is gone) has exactly the expected names in the original order,
    and `after` with `agents` removed equals `before` with `agents` removed.
@@ -352,9 +362,12 @@ does not have.
 - `_configure_agent_tables` unit tests against a copy of
   `_PACKAGED_COGA_TOML`, one per case (only-claude, only-codex, both, none).
   Assert the live tables, that each commented table's header and keys are
-  present as `# ` lines, the line counts above, that `[notification]` and
-  everything after it are byte-identical, and `Config.default_agent()` (or
-  the first `agents` key) in each case.
+  present as `# ` lines, that the markers bracket each one, that
+  `[notification]` and everything after it are byte-identical, and
+  `Config.default_agent()` (or the first `agents` key) in each case.
+- The marker round trip: uncommenting between the markers, mechanically,
+  restores the packaged file byte for byte and declares both agents again.
+  This is the criterion the markers exist for.
 - Parse-back failure returns None and leaves the file byte-identical. For
   example, a header with no live keys after it, or monkeypatch `tomllib.loads`
   to return a mismatched dict on the second call.
@@ -919,6 +932,245 @@ Generating them would delete most of what this ticket adds — the line-by-line
 commenting, the `[recurring]`/`[launch]` trap, the parse-back check — at the
 cost of the packaged file's hand-written explanatory comments, which is why
 this ticket comments shipped text instead.
+
+## 2026-11-10 — implement: built, hand-walked, one design fix
+
+The spec in the body is implemented. Two commits on the branch above the
+print-only scan.
+
+**What changed.** `print_agent_scan` returns the snapshot it printed, so one
+`PATH` read feeds both outputs. `_configure_agent_tables` comments out the
+not-found agents' tables and returns the names still declared;
+`_agent_table_state` reads the outcome back off disk for the summary and next
+steps. `_offer_agent_cli`, `_write_default_agent`, `_DEFAULT_AGENT_KEY` and
+`_DEFAULT_AGENT_EXAMPLE` are gone, with their tests. Docs updated: `coga/init`,
+`coga/configuration`, `coga-dev/internals/agent-config`, and the packaged
+`coga.toml`'s own comment.
+
+**The one design change, decided with Zach mid-step.** The approved shape
+commented only live lines, which does not satisfy the ticket's own "enabling it
+later is uncommenting a block". A hand walk of a real Codex-only init showed
+why: the disabled block sits flush against the packaged file's `# analyze` and
+`# peer` examples with no boundary, and init's commented keys are
+indistinguishable from the file's explanatory prose, so a mechanical `# ` strip
+runs past the last key and turns prose into TOML statements. `tomllib` rejected
+it. Zach chose boundary markers over dropping the prose or rewording the
+instruction. Now every non-blank line in the table's range is prefixed, prose
+included (`# # ...`), the range ends at the last live key, and two marker
+comments bracket it. A mechanical uncomment restores the packaged file byte for
+byte, asserted for only-claude, only-codex and none. Body spec and test plan
+updated to match.
+
+**Hand walk on this Mac, from source.** Interactive init in throwaway repos
+with `PATH` controlled:
+
+| Case | Scan | coga.toml | coga-build `agent:` | validate |
+| --- | --- | --- | --- | --- |
+| only-codex | claude ○, codex ● | `[agents.codex]` live, claude bracketed | `codex` | All good (1 task) |
+| none | both ○ | no live agent table | `claude` | the 2 predicted `coga-build` errors |
+| both | both ● | byte-identical to packaged | `claude` | — |
+
+The none-found errors are verbatim `unknown-agent` and
+`unresolvable-operator`, both naming the table to restore, which is the
+criterion. This Mac has a real `claude`, so only-claude could not be walked
+with a real binary; its coverage is the parametrized end-to-end test.
+
+**Adjacent finding, not fixed here.** A `coga` command published this
+session's uncommitted work to `main`. At 17:51 Zach ran `coga mark active` on
+`v1/re-run-the-macos-install-walk-from-source` in this checkout;
+`7e342fbfa "Sync coga state"` committed and pushed both this ticket's
+then-current edits *and* my uncommitted
+`docs/contexts/coga-dev/internals/agent-config/SKILL.md` edit, a source file
+outside `coga/`. Nothing was lost — the published docs edit is identical to the
+one in this branch's second commit, and the rebase deduplicated it — but a
+state sync that sweeps unrelated dirty source files can publish half-finished
+work to the control branch. `v1/coga-bump-on-feature-branch-leaves-stale-index-loc`
+is already in flight on sync behaviour and may be the right home.
+`retro/done-ticket` owns carrying this into a durable context.
+
+**Suite.** Every collected test ran at `d7d1518`, in two runs rather than one
+(counts and commands in `## PR`). Six failures, none from this change. Four are
+a single pre-existing `main` defect: `docs/contexts/coga-dev/internals/
+branch-sweep/SKILL.md` links `#review-and-release-a-retained-local-draft` in
+the packaged `coga/checkout-cleanup/branch-sweep` topic, which has no such
+heading, so `test_packaging::test_context_navigation_has_no_broken_links` fails
+and three wrapper tests that shell out to that file fail with it. Reproduced on
+a clean clone of `origin/main` (`7e342fbfa`) with none of this branch applied.
+It arrived with main's `6d1ca237f`; the fix is either adding the heading or
+repointing the link, and it is not this ticket's to make. The other two
+(`test_repl_supervisor`'s sentinel test, `test_trim_log`'s status test) pass
+alone and pass with their own modules, matching the documented cross-test
+pollution of a full in-place run in this checkout.
+
+**Still outstanding.** The native-Windows full-suite receipt (tier 2 in
+`coga-dev/testing`): this change does filesystem and encoding work on top of
+the scan's non-ASCII glyphs, and the AWS harness is not reachable from this
+session. It does not need a merge —
+`scripts/clean-install/aws-windows.sh walk NAME <REF> WIN_USER` takes an
+arbitrary ref. Recorded as a gate in `## PR`.
+
+**What the tests cannot tell us.** The scan's assertions compare captured
+Python strings, so they pass regardless of how a console renders
+`├── └── ● ○`. A green native Windows suite is not evidence the tree displays
+correctly; only an eyeball on a real Windows console is.
+`v1/31-test-install-on-windows` (active, `human/run`) owns that question. To
+run this branch there without merging: `uv tool install --force
+git+https://github.com/FastJVM/coga@803c88b`. Both branch and main report
+version `0.4.1`, so the reliable tell is that `main` has no `print_agent_scan`
+at all — if `coga init` prints "Checking for agent CLIs...", it is this branch.
+
+**For the hand test before the PR.** Zach's four-case VM walk from the branch
+commit. In each case look at: the scan tree and the blank line above it; the
+summary line naming what was commented out; the `[agents.*]` tables and the
+markers around a disabled one; `coga-build.md`'s `agent:`; the `coga build`
+coax and whether it offers an `--agent` alternative; and `coga validate`. The
+case this Mac could not cover is only-claude with a real binary, and the case
+never seen on any real machine is none-found — a fresh VM is exactly that.
+
+## PR
+
+```yaml
+title: "Write coga.toml from init's agent-CLI scan"
+author: claude (Claude Opus 5, 1M context) — implementing agent for this step
+head: 803c88b5bc303a45a772075fdf14c56f31fb2bdf
+base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
+review_depth: deep
+review_depth_rationale: >
+  Rewrites a committed config file that every later command reads, on the one
+  code path a new user cannot skip, with a fallback that must never leave a
+  truncated file. The commenting rule has two traps (the commented
+  [recurring]/[launch] headers, and the prose interleaved with the keys) and
+  the second already produced a real defect caught by hand, not by tests.
+implementation: >
+  One PATH read drives both init outputs. print_agent_scan returns its
+  snapshot; _configure_agent_tables comments out the not-found agents' tables,
+  brackets each in markers, and returns the names still declared; summary and
+  next steps read the file back rather than the scan. The default comes from
+  declaration order, so no default_agent key is written and the offer
+  machinery is deleted.
+deviations:
+  - >
+    Boundary markers around a disabled table, and prose comments prefixed too,
+    rather than the approved live-lines-only rule. The approved rule did not
+    satisfy the ticket's own uncomment criterion; found by hand-walking a
+    Codex-only init, decided with Zach mid-step, body spec updated.
+  - >
+    _configure_agent_tables returns list[str] | None rather than bool, and the
+    write goes through a temp file plus os.replace. Both came from the
+    evaluator review's findings 2 and 4.
+limitations:
+  - >
+    A repo that declares only Codex cannot run `coga chat`, even with
+    `--agent codex`: bootstrap/orient pins `agent: claude` and a --agent
+    override cannot repair a pin naming an undeclared type. Accepted by Zach
+    2026-11-10; coga/configuration states the limit and the remedy.
+  - >
+    A one-agent repo cannot resolve an `other-agent` workflow step.
+    Pre-existing in bump.resolve_other_agent; this change makes one-agent
+    repos the norm for single-agent machines.
+  - >
+    only-claude was not walked with a real binary: this Mac has claude
+    installed, so that case rests on the end-to-end test.
+files:
+  - src/coga/commands/init.py: >
+      print_agent_scan returns its snapshot; _configure_agent_tables and
+      _agent_table_state added; _offer_agent_cli, _write_default_agent and
+      their two regexes deleted; call sites, summary and next steps rewritten.
+  - tests/test_init.py: >
+      agent-offer and write-default-agent tests deleted; configuration unit
+      tests (4 cases), marker round trip (3 cases), registry-extension and
+      no-packaged-table cases, parse-back and write-failure cases, four
+      end-to-end cases, summary, fallback and validate coverage.
+  - src/coga/resources/templates/coga/coga.toml: >
+      one comment block saying init comments out tables whose CLI it did not
+      find, and how to re-enable one.
+  - src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md: >
+      Fresh repo rewritten for the scan-and-configure behaviour; clone
+      paragraph says it neither scans nor rewrites coga.toml.
+  - src/coga/resources/templates/coga/bootstrap/contexts/coga/configuration/SKILL.md: >
+      Choosing an agent rewritten for a one-agent repo; owns the Codex-only
+      coga chat limitation in its own words, with no task link.
+  - docs/contexts/coga-dev/internals/agent-config/SKILL.md: >
+      default-agent paragraph repointed from _write_default_agent to
+      _configure_agent_tables and declaration order.
+review:
+  code_review: >
+    Not run. peer-review (step 5, other-agent) is the next step and has not
+    started. The design passed evaluate-design and review-design, which is
+    design approval, not code review.
+tested_tree: >
+  Every run below executed at d7d1518466a7d36bef698a3e5040bd37f62dd4ad. The
+  branch was then rebased onto current main to 803c88b5b, which replayed only
+  over main's coga/ state commits: `git ls-tree` gives identical `src`, `tests`
+  and `docs` trees for both commits (src e5b8f9bc1, tests 0804d3ac8, docs
+  6561ee050), and `git diff d7d1518 803c88b5b -- src tests docs` is empty. The
+  receipts therefore carry their own commit, not the rebased head; the targeted
+  run was additionally repeated at 803c88b5b.
+checks:
+  - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest tests/test_init.py tests/test_dependencies.py -q
+    result: 181 passed
+    platform: macOS (Darwin 25.4.0), Python 3.12.7
+    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
+    note: >
+      Re-run at the rebased head 803c88b5b with `-p no:randomly`: 181 passed,
+      33s. Everything this change touches lives in these two files.
+  - command: PYTHONPATH=$PWD/src TERM=dumb python -m pytest -q -p no:randomly
+    result: >
+      4418 passed, 25 skipped, 6 failed — of 4766 collected. Stopped at 93%
+      (test 4449) by the harness, not by a failure. HEAD verified identical
+      before and after, so the real checkout did not move under the run.
+    platform: macOS (Darwin 25.4.0), Python 3.12.7
+    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
+    runtime: ~140 min
+  - command: >
+      PYTHONPATH=$PWD/src TERM=dumb python -m pytest -q -p no:randomly
+      tests/test_trim_log.py tests/test_uninstall.py tests/test_upstream_coga.py
+      tests/test_usage_report.py tests/test_usage.py tests/test_validate.py
+      tests/test_version_guard.py tests/test_views.py
+      tests/test_windows_clean_install.py tests/test_windows_process_recovery.py
+      tests/test_workspace_discovery.py tests/test_repl_supervisor.py
+    result: 402 passed, 10 skipped
+    platform: macOS (Darwin 25.4.0), Python 3.12.7
+    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
+    runtime: 305s
+    note: >
+      The 317 tests the stopped run never reached (4450-4766), plus the two
+      modules that held its unexplained failures. Together with the run above,
+      every collected test has executed on this tree — but as two runs, not
+      one clean full run. A reviewer wanting a single receipt should take one.
+  - command: coga validate (by hand, in repos generated by a real interactive init)
+    result: >
+      clean for only-codex and both; for none, exactly unknown-agent and
+      unresolvable-operator on coga-build
+    platform: macOS (Darwin 25.4.0), Python 3.12.7
+    commit: d7d1518466a7d36bef698a3e5040bd37f62dd4ad
+  - command: full suite natively on Windows (AWS harness)
+    result: REQUIRED BEFORE MERGE — not run
+    note: >
+      Platform-sensitive under coga-dev/testing tier 2: filesystem and encoding
+      work plus the scan's non-ASCII glyphs. The harness is not reachable from
+      this session. A reviewer should not approve without it.
+  - command: Python 3.11 floor
+    result: >
+      not covered — 3.12.7 was the only interpreter available here
+full_suite_failures: >
+  6 failures, none from this change, all classified. Four are one defect:
+  tests/test_packaging.py::test_context_navigation_has_no_broken_links fails
+  because docs/contexts/coga-dev/internals/branch-sweep/SKILL.md links
+  #review-and-release-a-retained-local-draft in the packaged
+  coga/checkout-cleanup/branch-sweep topic, which has no such heading.
+  Reproduced on a clean clone of origin/main (7e342fbfa) with none of this
+  branch applied, so it is pre-existing; it arrived with main's 6d1ca237f.
+  test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers
+  and test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep
+  (both parametrizations) shell out to run tests/test_packaging.py, so they are
+  that same defect, not three more. The other two —
+  test_repl_supervisor::test_terminal_ticket_stops_repl_without_claiming_a_sentinel
+  and test_trim_log::test_trim_preserves_all_discovered_statuses — pass alone
+  and pass with their own modules on this tree, which matches the known
+  cross-test pollution of a full in-place run in this checkout. Not fixed here:
+  code/implement does not own unrelated failures.
+```
 
 ## Open Questions
 
