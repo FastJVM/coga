@@ -50,8 +50,9 @@ default_status = "draft"
 # error — delete those lines if upgrading from coga 0.2.0.
 #
 # `coga init` comments out the table of any agent whose CLI it did not find on
-# PATH, so this file declares what your machine can actually run. Uncomment a
-# table to enable that agent once its CLI is installed.
+# PATH, so this file declares what your machine can actually run. Each disabled
+# table is wrapped in a pair of marker comments naming that agent; uncomment
+# the lines between them to enable it once its CLI is installed.
 
 [agents.claude]
 cli = "claude"
