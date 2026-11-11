@@ -683,6 +683,7 @@ Previous ref: `marketing/fix-installer/ask-which-agents-to-enable-during-coga-in
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1196
 branch: coga/v1-20-ask-which-agents-to-enable-during-coga-ini-83a35a
 
 PR #1192 (print-only scan) was closed unmerged by Nico on 2026-11-10; the next
