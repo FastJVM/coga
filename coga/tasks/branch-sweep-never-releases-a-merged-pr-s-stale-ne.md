@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 contexts:
 - coga/checkout-cleanup/branch-sweep
@@ -53,7 +53,7 @@ A commit date and a merged PR establish neither the intent behind those unique c
 - [ ] `coga run branch-sweep --publish-and-release-local <branch> <full-local-oid>` is an explicit request to publish that reviewed commit to the configured Git remote and delete just the named local branch. Recheck the merged-PR/source-difference condition and check the exact current local tip, control and shared-branch protections, live-ticket claims, and worktree occupancy. Refuse on a missing or changed tip, uncertain required checks, or a branch held by a worktree. Git's branch deletion must still enforce its worktree guard, including during rebase and bisect.
 - [ ] The command publishes or verifies a containing retirement tag before local deletion, using the existing base name and collision fallback. It reports the archived commit, tag and remote, and whether local deletion succeeded. Archive failure, a changed tip detected after publication, or a Git deletion refusal leaves the local branch in place and exits nonzero. If a tag was already published, report it so the operator can restore the draft or retry. No remote branch is deleted, no worktree is removed, and no other branch or retire follow-up is processed by this invocation.
 - [ ] Add regression tests in `tests/test_branchsweep.py` for a divergent draft dated before a different merged head and for unique work added after merge. Both are retained by the ordinary recipe and described without claiming they are abandoned or proving they were never pushed. Cover manual success with recovery of the reviewed tip from the tag, the remote branch remaining untouched, archive failure and retry, a changed tip before and after archive publication, and refusals for open PRs, protected or claimed branches, worktree occupancy, and unavailable evidence. Exercise the normal recipe entry point and keep existing automatic sweep regressions passing.
-- [ ] Update the shipped `coga/checkout-cleanup/branch-sweep` topic with report interpretation, review and invocation instructions, the effect of publishing formerly local content, and restoration from the reported tag. Record the Linux and native Windows full-suite receipts required by `coga-dev/testing` for Git-behavior changes.
+- [ ] Update the shipped `coga/checkout-cleanup/branch-sweep` topic with report interpretation, review and invocation instructions, the effect of publishing formerly local content, and restoration from the reported tag. Record the Linux full-suite receipt required by `coga-dev/testing` for Git-behavior changes. The owner waived native Windows verification for this ticket.
 
 ### Proposed shape
 
@@ -166,9 +166,9 @@ branch: coga/branch-sweep-never-releases-a-merged-pr-s-stale--4acafa
 
 Proposed report-only behavior for the daily sweep and explicit release of one reviewed local commit. Dates cannot distinguish a superseded draft from still-needed work. The existing retirement helper can preserve the reviewed tip, and the existing Git porcelain protects checked-out branches. Its last tip check and deletion have a small race window, so the proposed command requires a quiescent target branch during release.
 
-## Open Questions
+## Owner decision
 
-- Is explicit publication of previously local content to the configured Git remote acceptable for this command? The proposal makes publication part of `--publish-and-release-local` so the archive survives loss of this clone and reuses the existing recovery procedure. If release must stay private to the clone, choose a local-only archive at design review and revise the recovery and collision criteria before implementation.
+- The owner approved `--publish-and-release-local` publishing the reviewed commit and reachable history to the configured Git remote, including when a later check preserves the local branch.
 
 ## Evaluator review
 
@@ -186,27 +186,54 @@ The design needs clarification before implementation. The ticket body composes i
 
 5. **Restore the reported commit when a tag contains it.** `src/coga/branchsweep.py` (`_publish_retirement_tag`) can reuse a remote tag at a descendant. The shipped branch-sweep topic currently restores at the tag, which would recreate that descendant. Have the manual procedure fetch the reported archive and create the recovery branch at the full reported OID. Extend manual success coverage to reuse a descendant tag and recover the exact reviewed tip. `test_retirement_tag_containing_the_tip_counts_as_archived` already demonstrates the existing containment rule.
 
-### Owner decision
-
-The publication question above is still open. A tag exposes the reviewed commit and its reachable history to readers of the configured remote, even if a later check or Git refusal preserves the local branch. The procedure should describe that outcome if the owner approves remote archival.
-
 ### Optional
 
 - Retitle the ticket to describe a retained local branch with unmatched source changes. The current title labels the work stale and never pushed, claims the proposed comparison cannot establish. Also update the shipped topic's existing “unpushed non-bookkeeping commits” wording when adding the new report interpretation.
 
-## Implementation plan pending owner confirmation
+## Implementation decisions
 
 - Check current-workspace ticket mentions, including ordinary task attachments, and recorded `## Dev` branch claims in every Coga workspace of the Git checkout. An incomplete scan suppresses a manual release candidate and prevents explicit publication. Check claims again after archival.
 - Bind manual eligibility to the configured remote's GitHub repository using its effective fetch and push URLs and explicit `gh --repo`. Refuse if those URLs cannot establish one repository. Keep ordinary automatic cleanup on its existing path.
 - Report the lowest-numbered merged PR with successfully inspected unmatched paths, before worktree handling can skip the branch. Any ordinary landing proof disqualifies manual release. A successful mismatch alongside an incomplete comparison can be reported with release unavailable. A visible worktree hold makes release unavailable and prevents archival. A detached rebase or bisect can still reach Git's final deletion guard after publication.
 - Recheck open PRs, ticket claims, occupancy and the reviewed tip after archival. Keep Git's worktree-aware deletion and its immediate tip check. Fetch the reported tag and restore at the full reviewed OID, including when the tag points to a descendant.
-- Origin control was checked at `78972b9e2`. It records this branch and the in-progress implement step. GitHub showed no PR for the branch. Implementation awaits the owner's confirmation of remote publication and the proposed behavior.
 
-## Recipe Failure
+## Implement handoff
 
-Recipe: `branch-sweep`
-Exit: 2
-Task: `branch-sweep-never-releases-a-merged-pr-s-stale-ne`
-Recorded: 2026-11-11T00:36:13+00:00
+- `b0af572a6be1bc78f0716ee161ca12fabaa903c8` implements and documents retained-draft reporting, explicit remote archival, and exact-tip local release. It is pushed to the recorded branch and includes the fetched `origin/main` at `0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb`. The full Linux run passed from a clean checkout of the pushed commit.
+- The CLI smoke command `.venv/bin/coga run branch-sweep --publish-and-release-local` rejected the deliberately incomplete invocation with exit 2. Its state sync also published the already-edited developer internals topic to `main` in `0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb`. The branch was rebased over that commit. The shipped user topic remains in the feature diff.
+- The owner waived native Windows full-suite verification for this ticket. The native suite was not run, and no Windows host was provisioned.
 
-    branch-sweep: unexpected arguments: '--publish-and-release-local'
+## PR
+
+```yaml
+title: Report and release reviewed local branch drafts
+author: codex
+author_evidence: The Codex session launched for this implement step wrote and committed the change.
+head: b0af572a6be1bc78f0716ee161ca12fabaa903c8
+base: 0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb
+depth: deep
+rationale: The command publishes local Git history and deletes a ref. Review the eligibility checks, exact-tip proof, and archive and deletion ordering.
+implementation: The ordinary sweep reports structured merged-PR source differences. Explicit release scopes PR evidence to the configured remote, checks live claims and occupancy, archives the reviewed OID, and repeats the applicable guards before local-only porcelain deletion.
+deviations: The CLI smoke check triggered state sync, which published the developer internals topic in the base commit. The shipped procedure is included in the feature diff.
+limitations: A detached rebase or bisect can leave an archive published when Git refuses deletion. The final ref check and porcelain deletion are separate operations.
+files:
+  src/coga/autoclose.py: Allow explicit GitHub repository scoping and reject incomplete scoped PR results.
+  src/coga/branchcleanup.py: Share the final tip recheck and worktree-aware force deletion with manual release.
+  src/coga/branchsweep.py: Report retained drafts and implement the one-branch archive and release path.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md: Document report interpretation, publication, and exact-tip recovery.
+  tests/test_branchsweep.py: Exercise retained and ineligible drafts, archive and retry, changed evidence, occupancy, and recovery through the recipe.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: This is the implement step. Independent code review is a later workflow step.
+checks:
+  - command: 'TERM=dumb PYTHONPATH="$PWD/src" /tmp/coga-branchsweep-py311/bin/python -m pytest'
+    status: passed
+    head: b0af572a6be1bc78f0716ee161ca12fabaa903c8
+    base: 0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb
+    detail: Pop!_OS 24.04 LTS, CPython 3.11.15, Git 2.43.0. Clean detached checkout. 4738 passed, 33 skipped, 0 failed in 820.27 seconds.
+  - command: Native Windows full suite via the Coga Windows AWS harness
+    status: not-run
+    detail: The owner waived native Windows full-suite verification for this ticket.
+```
