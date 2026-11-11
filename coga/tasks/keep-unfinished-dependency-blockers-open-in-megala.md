@@ -1,6 +1,6 @@
 ---
 title: Keep unfinished dependency blockers open in megalaunch
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -152,5 +153,10 @@ ordinary ticket.
 -->
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: coga/keep-unfinished-dependency-blockers-open-in-mega-3a6dfd
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
