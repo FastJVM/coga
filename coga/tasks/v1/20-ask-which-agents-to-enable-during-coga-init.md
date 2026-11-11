@@ -45,24 +45,29 @@ none of it and writes a `coga.toml` that declares every supported agent
 whether or not it is installed. A Claude-only user commits a config declaring a
 Codex binary they do not have.
 
-Make the scan drive init: print it, and write `coga.toml` from it (Nico, review
+Read `PATH` first, and let what it finds decide what init writes (Nico, review
 of PR #1192, 2026-11-10: "use the path to detect and self configure the
-toml").
+toml"). Init is the one command that reads `PATH` to find an agent, because it
+is the one command that creates the `coga.toml` every later command reads. That
+one read feeds both of init's outputs, so the list the user reads is the list
+that configured the repo.
 
-The printout copies GitHub Spec Kit's `specify check`: a heading, then one row
-per agent in the registry with its display name, its binary, and found / not
-found. The list is complete in every state, including when nothing was found.
+The first output is a printout copying GitHub Spec Kit's `specify check`: a
+heading, then one row per agent in the registry with its display name, its
+binary, and found / not found. The list is complete in every state, including
+when nothing was found.
 
-The generated `coga.toml` declares the agents the scan found. A not-found
-agent's `[agents.*]` table is written commented out, so enabling it later is
-uncommenting a block. The default agent is the first found agent in registry
-order. If nothing was found, every agent table is written commented out, and
-init's next steps say to install an agent CLI and uncomment its table.
+The second output is the generated `coga.toml`, which declares the agents the
+scan found. A not-found agent's `[agents.*]` table is written commented out, so
+enabling it later is uncommenting a block. The default agent is the first table
+the file still declares, which is the first found agent in registry order. If
+nothing was found, every agent table is written commented out, and init's next
+steps say to install an agent CLI and uncomment its table.
 
-Coga drives Claude Code and Codex today. The other half of this ticket is
-making a third cheaper: one registry record feeds the scan, the toml
-configuration, and init's next-steps labels. Users commonly arrive with an
-off-mainstream agent, so the registry is the part of this with a future.
+Coga drives Claude Code and Codex today. A scan row needs an agent's display
+name and its binary together, and those sit in two separate lists. Today they
+are `dependencies.AGENT_CLIS` and `init._AGENT_LABELS`. They become one record
+that the scan, the toml configuration, and init's next-steps labels all read.
 
 The scan offers no install. An agent that is not on `PATH` is named with its
 binary, so the user can install it and uncomment its table.
@@ -83,6 +88,9 @@ binary, so the user can install it and uncomment its table.
       line, so it does not read as another line of the `op` note.
 - [ ] The printing function is standalone and takes no init state, so a later
       `coga check` can call it without a refactor.
+- [ ] One `PATH` read serves both the printout and the configuration, so the
+      rows the user read are the agents `coga.toml` declares. A second read
+      could disagree with the first.
 
 **The configuration**
 
@@ -137,11 +145,12 @@ binary, so the user can install it and uncomment its table.
       by the same loop. A registry agent with no packaged table has nothing to
       comment out and is skipped. Shipping its table is the out-of-scope
       template edit below.
-- [ ] Adding an agent is one record for the scan, the configuration, and
-      init's next-steps labels. Today the labels are split between
-      `dependencies.AGENT_CLIS` and `init._AGENT_LABELS`.
-- [ ] A test adds an agent to the registry and asserts it renders, so the
-      claim above is enforced rather than asserted.
+- [ ] A test adds an agent to the registry, with a matching packaged table,
+      and asserts the scan renders it and the configuration comments its table
+      out when its binary is absent.
+- [ ] A found registry agent with no packaged table is skipped, and the
+      default agent is the first found agent the file actually declares. A
+      skipped agent is never stamped into a delivered ticket.
 - [ ] A registry entry with no display name renders under its slug instead of
       raising, in the scan and in init's next-steps strings.
 - [ ] Init's next steps name agents through the registry, not literals: the
@@ -210,13 +219,17 @@ configuration outcome is reported in init's summary instead (see
 
 **One configuration step: `_configure_agent_tables`.** Add to `init.py`:
 
-    def _configure_agent_tables(coga_toml: Path, found: Sequence[str]) -> bool:
+    def _configure_agent_tables(
+        coga_toml: Path, found: Sequence[str]
+    ) -> list[str] | None:
 
 It comments out the `[agents.<name>]` table of every `AGENT_CLIS` record whose
-`name` is not in `found`, and returns True when the file now declares exactly
-the expected set. That includes the no-op case where every agent was found and
-nothing is rewritten. It returns False, leaving the file untouched, on any
-failure. Steps:
+`name` is not in `found`, and returns the names the file now declares, in
+declaration order. That includes the no-op case where every agent was found and
+nothing is rewritten. It returns None, leaving the file untouched, on any
+failure. Returning the declared list rather than a bool is what keeps the
+default agent and the summary honest when a found agent has no packaged table:
+callers read the first declared name, never `found[0]`. Steps:
 
 1. Read the text and `tomllib.loads` it as `before`. On a decode error or
    `OSError`, return False.
@@ -232,14 +245,19 @@ failure. Steps:
    (header + `cli`, `file`, `mode`, `name_flag`, `session_id_flag`,
    `discussion`); codex comments 6 (header + `cli`, `file`, `mode`,
    `discussion`, `launch_args`).
-3. Parse the new text as `after`. Write it (`newline="\n"`) only if
-   `after["agents"]` (or `{}` when the key is gone) has exactly the expected
-   names in the original order, and `after` with `agents` removed equals
-   `before` with `agents` removed. Otherwise return False.
+3. Parse the new text as `after`. Write it only if `after["agents"]` (or `{}`
+   when the key is gone) has exactly the expected names in the original order,
+   and `after` with `agents` removed equals `before` with `agents` removed.
+   Otherwise return None. Write it atomically: a temporary file beside
+   `coga_toml` (`newline="\n"`), then `os.replace` onto it, removing the
+   temporary file if either step raises. A direct write that fails partway
+   leaves a truncated `coga.toml` that init would go on to commit, which is
+   worse than not configuring at all.
 
 Expected names = `[a.name for a in AGENT_CLIS if a.name in found and a.name in
-before["agents"]]`. Do not collect `before`'s other, non-registry tables into
-this list; there are none in the packaged file, and they would stay live.
+before["agents"]]`, which is also the return value on success. Do not collect
+`before`'s other, non-registry tables into this list; there are none in the
+packaged file, and they would stay live.
 
 **The default agent needs no key.** Confirmed: `Config.default_agent()`
 (`src/coga/config.py`) returns the first-declared `[agents.*]` table when no
@@ -248,12 +266,15 @@ codex in registry order. So commenting out the not-found tables leaves the
 first found agent as the default. Writing `default_agent` anyway would add a
 second statement of the same fact and needs `_write_default_agent`'s whole
 insertion machinery, so it is not written. After a successful configuration
-with `found` non-empty and `found[0]` differing from
+that declared at least one agent, with the first declared name differing from
 `_template_default_agent(template_root)`, call
-`_stamp_agent_into_delivered_tickets(coga_os, template_default, found[0])`.
-Keep `_template_default_agent` for that "old" value. Then `coga-build.md`
-reads `agent: codex` in a Codex-only repo, and `coga validate` passes there
-(verified by hand on 2026-11-10).
+`_stamp_agent_into_delivered_tickets(coga_os, template_default, declared[0])`.
+Stamp the first *declared* name, not `found[0]`: a found agent with no packaged
+table is skipped, and stamping it would write an `agent:` the file does not
+declare, which `Config.default_agent` disagrees with and `coga validate`
+reports as `unknown-agent`. Keep `_template_default_agent` for that "old"
+value. Then `coga-build.md` reads `agent: codex` in a Codex-only repo, and
+`coga validate` passes there (verified by hand on 2026-11-10).
 
 **Remove the offer.** Delete `_offer_agent_cli`, `_write_default_agent`,
 `_DEFAULT_AGENT_KEY` and `_DEFAULT_AGENT_EXAMPLE`. Also delete the
@@ -267,46 +288,54 @@ what those guarded.
 
 - Before `target.mkdir()` and after `_offer_optional_tools()`:
 
-      interactive = _interactive()
-      if interactive:
-          print_agent_scan()
-      found = _installed_agent_clis() if interactive else None
+      found = print_agent_scan() if _interactive() else None
 
-  `print_agent_scan` keeps its own internal `_installed_agent_clis()` call so
-  it stays argument-free. The second `shutil.which` pass is the same
-  function, not a second scan implementation. `template_default_agent` is
-  computed as today.
+  `print_agent_scan` stays argument-free and returns the `PATH` snapshot it
+  just printed, so there is exactly one read and the printed rows cannot
+  disagree with what gets configured. A later `coga check` calls it the same
+  way and ignores the return. `None` means non-interactive, which is distinct
+  from `[]`, found nothing. `template_default_agent` is computed as today.
 - Inside the rollback `try`, where `_write_default_agent` is called today
-  (after `_pin_control_branch`, before the commit):
-  `agents_configured = found is not None and _configure_agent_tables(coga_os
-  / "coga.toml", found)`, then the stamp described above. `found is None`
-  (non-interactive) never touches the file. `_configure_agent_tables` must
-  not raise. Catch `OSError` and `tomllib.TOMLDecodeError` inside it, so a
-  failure cannot trigger the rollback.
+  (after `_pin_control_branch`, before the commit): call
+  `_configure_agent_tables(coga_os / "coga.toml", found)` when `found is not
+  None` and keep its return as `configured`, then the stamp described above.
+  `found is None` (non-interactive) never touches the file.
+  `_configure_agent_tables` must not raise. Catch `OSError` and
+  `tomllib.TOMLDecodeError` inside it, so a failure cannot trigger the
+  rollback.
 - `_setup_initialized_clone` gets neither call. Its existing behaviour is
   unchanged.
 
 **Summary and next steps.** Let `declared` be the agents `coga.toml` now
-declares: `expected` when configured, else every registry name in the
-packaged file. Let `default` be `declared[0]` if any.
+declares: `configured` when the rewrite succeeded, else every registry name in
+the packaged file. Let `default` be `declared[0]` if any. Every line below
+reads `declared`, never `found`: after a failed rewrite the file still declares
+everything, and a message that said otherwise would describe a file the user
+does not have.
 
 - Summary, only when something was commented out:
   `Declared Claude Code in coga/coga.toml; commented out [agents.codex]
   (codex not on PATH) — uncomment it once installed.` Name agents through
-  `agent_label()` and tables through `AgentCLI.name`. With none found:
+  `agent_label()` and tables through `AgentCLI.name`. With none declared:
   `No agent CLI found, so every [agents.*] table in coga/coga.toml is
   commented out.` If the configuration failed (interactive, `found` given,
-  returned False), print a yellow warning that `coga.toml` was left as
+  returned None), print a yellow warning that `coga.toml` was left as
   packaged and declares every supported agent.
-- No-agent prerequisite (when `found == []`, or for non-interactive init
-  when `_installed_agent_clis()` is empty, as today):
-  `No agent CLI was found — coga drives Claude Code (`claude`) or Codex
-  (`codex`). Install one, then uncomment its [agents.*] table in
-  coga/coga.toml. Agent-backed commands (`coga build`, `coga launch`,
-  `coga ticket`) need one.` The `drivable` list is built from `AGENT_CLIS`
-  as on the branch. Rewrite the comment above it, which says the next steps
-  never send anyone to a `.toml`. They now do in this one case, because
-  uncommenting a table is the remedy.
+- No-agent prerequisite, when no agent CLI was found — `found == []`, or for
+  non-interactive init when `_installed_agent_clis()` is empty, as today. The
+  `drivable` list is built from `AGENT_CLIS` as on the branch. The remedy
+  depends on `declared`, because only a successful rewrite leaves a table to
+  uncomment:
+  - Nothing declared, the successful none-found case: `No agent CLI was
+    found — coga drives Claude Code (`claude`) or Codex (`codex`). Install
+    one, then uncomment its [agents.*] table in coga/coga.toml. Agent-backed
+    commands (`coga build`, `coga launch`, `coga ticket`) need one.` Rewrite
+    the comment above this line, which says the next steps never send anyone
+    to a `.toml`. They now do in this one case, because uncommenting a table
+    is the remedy.
+  - Agents still declared, meaning non-interactive init or a failed rewrite:
+    today's text, with no `coga.toml` pointer. The tables are already live, so
+    installing the binary is the whole remedy.
 - `coga build` coax (empty repo): `Run `coga build` with
   {agent_label(default)}`, plus `, or `coga build --agent {other}` with
   {agent_label(other)}` for each other agent in `declared`. With one declared
@@ -326,14 +355,29 @@ packaged file. Let `default` be `declared[0]` if any.
   present as `# ` lines, the line counts above, that `[notification]` and
   everything after it are byte-identical, and `Config.default_agent()` (or
   the first `agents` key) in each case.
-- Parse-back failure returns False and leaves the file byte-identical. For
+- Parse-back failure returns None and leaves the file byte-identical. For
   example, a header with no live keys after it, or monkeypatch `tomllib.loads`
   to return a mismatched dict on the second call.
+- A failing write returns None and leaves the file byte-identical, proving the
+  `os.replace` transaction: monkeypatch `os.replace` (or the temporary file's
+  write) to raise `OSError`, and assert no temporary file is left behind.
+- A registry agent added with a matching packaged table is configured by the
+  same loop: patch `coga.commands.init.AGENT_CLIS` with a third record, add its
+  table to the copied toml, and assert the configuration keeps it when found
+  and comments it out when not. This is the configuration half of the
+  no-hardcoding claim the scan test makes.
+- A found registry agent with *no* packaged table is skipped: the return value
+  omits it, the first declared name is the default, and nothing stamps it into
+  `coga-build.md`.
 - End-to-end interactive init (fake TTY, `shutil.which` patched) for
   only-claude, only-codex, both and none: assert the generated `coga.toml`,
   `coga-build.md`'s `agent:`, the summary line and the coax. Run
   `coga validate` and assert it passes for the three found cases, and that
   for none its errors are exactly the two `coga-build` agent issues.
+- End-to-end with the configuration failed (patch `_configure_agent_tables` to
+  return None) and nothing found: the yellow warning prints, `coga.toml` is
+  byte-identical to `_PACKAGED_COGA_TOML`, `coga-build.md` still reads
+  `agent: claude`, and the prerequisite line names no `coga.toml` table.
 - Non-interactive init prints no scan and leaves `coga.toml` byte-identical to
   `_PACKAGED_COGA_TOML`.
 - Clone setup prints no scan and does not touch `coga.toml`.
@@ -369,8 +413,9 @@ the label for a known agent and the input string for an unknown one.
   table. Keep the `default_agent` example for a repo that declares both. Its
   advice `coga chat --agent codex` fails in a Codex-only repo, because
   `bootstrap/orient`'s `agent: claude` must name a declared type. State that
-  limit plainly and point at the follow-up ticket (see Out of scope) rather
-  than inventing a workaround.
+  limit plainly rather than inventing a workaround, and have the topic own it
+  in its own words. Do not cite the follow-up ticket: `coga/knowledge` keeps a
+  durable topic off task links that vanish at retirement.
 
 ### Out of scope
 
@@ -393,9 +438,6 @@ the label for a known agent and the input string for an unknown one.
 - **A standalone `coga check`.** The scan stays callable from one later; that
   is all this ticket owes it.
 - **Adding a third agent.** This ticket makes room for one and adds none.
-- **The other place a third agent still needs.** `init._AGENT_SKILL_DIRS`
-  carries its own label pairs, and the packaged `coga.toml` declares each
-  `[agents.*]` table as shipped text. Neither is folded into the registry here.
 - **Splitting the agent type from its binary.** Split `AgentCLI.name` when a
   supported agent's binary first differs from its table name.
 
@@ -811,6 +853,72 @@ unchanged.
   steps alone; the agent-agnostic follow-up (or a ticket it spawns) should
   make authoring default to `code/with-self-review` when only one agent is
   declared.
+
+## 2026-11-10 — implement: ticket edited, evaluator findings dispositioned
+
+Zach asked during implement whether the registry's "make a third agent
+cheaper" goal belonged in this ticket. It did not, as a goal. The merged record
+is forced by the feature — a scan row needs an agent's display name and its
+binary together, and those were two lists in two modules — but the claim built
+on top of it, "adding an agent is one record", is false while
+`init._AGENT_SKILL_DIRS` carries its own label pairs and the packaged
+`coga.toml` ships each `[agents.*]` table as hand-written text. A third agent
+is three edits. The ticket had an Out-of-scope bullet admitting exactly that,
+which is the tell: the carve-out existed only to defend the claim.
+
+Body edits, Zach approved 2026-11-10:
+
+- `## Description` leads with the `PATH`-first ordering, which Zach judged
+  unclear in the previous design: init is the one command that reads `PATH`,
+  because it is the one command that creates the `coga.toml` every later
+  command reads, and that one read feeds both outputs. Named the two outputs
+  first and second so the causality is on the page.
+- Dropped the "other half of this ticket" framing and the one-record claim.
+  The registry paragraph now says why the two lists merge.
+- Dropped Out of scope's "The other place a third agent still needs." See the
+  follow-up note below; the fact survives there.
+- Reworded the registry test criterion to assert this change reads a list
+  instead of `claude`/`codex` literals, rather than underwriting a promise
+  about future agents.
+
+Evaluator findings, all six resolved in the body rather than deferred. None
+contradicted an acceptance criterion:
+
+1. **Two `PATH` reads.** `print_agent_scan` now returns the snapshot it
+   printed; still argument-free, so a later `coga check` ignores the return.
+   New scan criterion states the invariant.
+2. **Found agent with no packaged table.** `_configure_agent_tables` returns
+   the declared list instead of a bool, and the default and the stamp read its
+   first element, never `found[0]`. New registry criterion.
+3. **Fallback next steps contradicted the fallback file.** Every summary and
+   next-steps line now reads `declared`, not `found`. The no-agent
+   prerequisite has two forms: with nothing declared it points at the table to
+   uncomment; with tables still live, non-interactive or a failed rewrite, it
+   keeps today's text and no `coga.toml` pointer.
+4. **Non-atomic write.** Temporary file beside `coga.toml` plus `os.replace`,
+   with cleanup, so a partway failure cannot leave a truncated config for init
+   to commit.
+5. **One-record claim untested through configuration.** Test plan adds a third
+   record with a matching packaged table asserted through the configuration,
+   and the no-packaged-table skip as its own case.
+6. **Docs cited an unfiled, retirement-transient ticket.** `coga/configuration`
+   owns the Codex-only `coga chat` limitation in its own words, with no task
+   link, per `coga/knowledge`.
+
+Still open, Zach's call: the native-Windows full-suite receipt. The toml
+rewrite is filesystem and encoding work on top of the scan's non-ASCII glyphs,
+which `coga-dev/testing` tier 2 calls platform-sensitive and requires before
+merge. The AWS harness is not reachable from this session, so implement records
+it as an outstanding gate in the `## PR` receipt rather than satisfying it.
+
+For the agent-agnostic follow-up, in addition to what the design entry above
+records: making a third agent genuinely one edit also needs
+`init._AGENT_SKILL_DIRS` folded into the registry and the packaged
+`[agents.*]` tables generated from the record instead of shipped as text.
+Generating them would delete most of what this ticket adds — the line-by-line
+commenting, the `[recurring]`/`[launch]` trap, the parse-back check — at the
+cost of the packaged file's hand-written explanatory comments, which is why
+this ticket comments shipped text instead.
 
 ## Open Questions
 

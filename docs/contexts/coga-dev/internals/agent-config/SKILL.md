@@ -56,8 +56,11 @@ else the period's `agent:`; the autofix analyst uses `--agent`, else
 default only after `[authoring] agent`, `COGA_AUTHORING_AGENT`, and the
 ticket's own `agent:`. The packaged `bootstrap/ticket`, `bootstrap/orient`,
 and onboarding tickets pin `agent: claude`, which outranks the default.
-Interactive `coga init` may write the key (`commands/init.py`
-`_write_default_agent`); see [coga/init](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
+Interactive `coga init` writes no `default_agent` key at all: it comments out
+the `[agents.*]` table of every supported agent whose CLI it did not find
+(`commands/init.py` `_configure_agent_tables`), which leaves declaration order
+to name the default — the first agent found. See
+[coga/init](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 
 ## `peer` resolution
 
