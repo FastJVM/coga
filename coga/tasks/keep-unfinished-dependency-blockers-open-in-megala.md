@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -182,56 +182,20 @@ branch: coga/keep-unfinished-dependency-blockers-open-in-mega-3a6dfd
 
 ## Peer review
 
-- Codex direct review completed on initial rebased head `bef10e1034e84530007d232dd1f380ec3b962276` / base `2107e39bdd0dbe419813944889d41968d4b690a7`, with no findings in the seven implementation paths. Actual implementer was Codex; this is self-review, not independent review inferred from configured roles.
-- Inspected exact named refs, cancellation, asks naming multiple refs, captured records and duplicate IDs, inert/legacy/archived text, partial publication and refusal/uncertainty recovery, atomic activation, manual all-open unblock, owner scope, budgets, and fixed-point retries.
-- Initial Linux review receipts on that head: full suite 4,719 passed / 33 skipped in 808.24s; focused/package checks 233 passed in 20.73s; repo validation 107 OK / 10 warnings / no errors; seeded validation 5 OK / no issues. Logs `/tmp/coga-dependency-peer-full-pytest.log`, `/tmp/coga-dependency-peer-focused-pytest.log`. These receipts are historical after the fixture repair below.
-- Real PTY smoke: bare CLI in an isolated repo, A done / C active / B blocked on both plus a human region ask. Observed 0 launched, 0 drained, 1 skipped-unresolved-blocker. B stayed blocked; only A resolved; the summary retained C and the human ask. No picker/raw-terminal interaction code changed. Runner `/tmp/coga-dependency-terminal-smoke.py`. Supplemental 10,000 generated Markdown projections preserved blocker identity/order without exceptions.
-
-### Native Windows finding and approved repair
-
-- Full native run on the initial review head found `tests/test_checkouts.py::test_abrupt_launch_death_is_recovered_at_the_next_entry` failing. Isolated reproduction: 1 failed in 49.44s on the branch; 1 failed in 50.91s on unchanged main `2107e39bdd0dbe419813944889d41968d4b690a7`, using a separate clone and absolute baseline PYTHONPATH. The test file was identical on both. Evidence `/tmp/coga-dependency-windows-repro.log`, `/tmp/coga-dependency-windows-baseline.log`.
-- The fresh child interpreter faked CLI discovery and its supervisor callback but lacked conftest's Windows resolver shim. Native command planning reported Claude missing and exited 2 before the simulated crash `os._exit(91)`. This is a baseline fixture defect, not a dependency-drain regression.
-- Human approved including the child-resolver repair and rerunning suites. The fixture now supplies the fake resolver in that child, preserving Windows planning and crash-recovery coverage without skipping the test. The testing topic documents why child fixtures must install their own fakes. Local targeted regression passed (1 in 2.64s) before final rebase.
-- Stopped the failing native run at 2026-11-11T05:11:29Z, verified zero Python/Git/uv processes, and retained interrupted-run evidence under `.coga/clean-install/dependency-review-20261110/first-suite/`. It is not a completed full-suite receipt.
-- Main received routine state updates during the run. Preserved and verified the current ticket, audit log, and the newly created other task outside the repo; proved the latter two byte-identical to published main before clearing only those duplicates for rebase. Rebase completed without conflicts and restored the current handoff byte-for-byte. Only this ticket is dirty.
-- Final candidate head `9310fb1781aa32adf48b5e6b71b15d91b653cbdb`, base `0ba56e5100d0302f0de4fdf74ebda9d30b391519`, pushed with `--force-with-lease`. Re-reviewed all nine diff paths; the original seven are byte-identical to the initial reviewed head. No further findings. Final focused/package/blackboard/megalaunch plus repaired-case run passed: 234 in 21.94s. Repaired native Windows case passed: 1 in 92.80s at this head; `/tmp/coga-dependency-windows-fixed.log`. Final Linux full suite passed: 4,719 passed / 33 skipped in 792.54s at this head (`/tmp/coga-dependency-peer-final-full-pytest.log`), same Pop!_OS 24.04 / Linux x86_64 / Python 3.12.12. Final repo validation: 108 OK / 11 warnings / no errors; one added warning is the empty-description draft that arrived on main. Seeded validation: 5 OK / no issues. Repeated the PTY smoke at 80x24 on this head, with the same correct partial-resolution result. Final native full suite restarted at 2026-11-11T05:17:12Z with verbose test names; its incomplete failed result is recorded below; original remote evidence moved to `C:\coga-clean-install\dependency-review-first\`.
-
-### Additional native findings and pending repair approval
-
-- Final native run at `9310fb1781aa32adf48b5e6b71b15d91b653cbdb` passed the repaired crash-recovery case but subsequently reported `tests/test_git.py::test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control` failing at 36%. The full run later aborted as recorded below; it is not a green receipt. This test file has no branch diff. Isolated reproduction confirmed failure on the branch (1 failed in 469.86s) and on unchanged main `0ba56e5100d0302f0de4fdf74ebda9d30b391519` (1 failed in 402.76s). Logs `/tmp/coga-dependency-windows-cutover.log` and `/tmp/coga-dependency-windows-cutover-baseline.log`; helpers have matching `.ps1` names. The read-only control clone inherits system Git `core.autocrlf=true`: normalizing its legacy definition prefix from CRLF to LF reproduces the exact pinned expected SHA256 `4a6560da0ccd7a44cda17a0c6b63126352d24ca7a19e7f019e98db7c1a9d3f1d` (raw CRLF prefix is `d8c72ec8e7c546293462d89d9890a5f40e59c31e2e0a3b14aa6620f75838d8cf`). A fresh LF-only clone fixed two of the three common nested failures; a targeted run reported 1 failed / 2 passed in 3.58s, isolating one historical fixture write that omits `newline="\n"`. The baseline diagnostic also hit long fixture paths; this Windows host has LongPathsEnabled=0. Proposed repair keeps historical product imports and assertions pinned, sets LF in control clones, backports only that fixture write, and uses a short native temp root. Asked the attending human to approve this additional test-only scope. The later full-run outcome is recorded below. No further code edit or workflow transition has occurred.
-
-- The continuing native run also reported both `test_final_package_edits_never_escape_a_mutating_cli_sweep` variants failing. Isolating the dirty-package variant with short `--basetemp=C:\pfg` passed (1 in 280.83s) without source/assertion changes; log `/tmp/coga-dependency-windows-package-probe.log`. The short-path execution plan addresses that nested fixture layout.
-- Two `tests/test_launch.py::test_launch_agent_not_in_path` variants failed because the test globally forbids the substring `install`, while a legitimate Windows startup warning names `coga/testing/clean-install/macos-aws`. The actual missing-CLI remedy is correct. Isolated branch case: 1 failed in 1.95s; unchanged-main case: 1 failed in 3.13s, both at the same overbroad negative assertion. Logs `/tmp/coga-dependency-windows-launch-missing.log` and `/tmp/coga-dependency-windows-launch-missing-baseline.log`. A minimal test-only repair scopes the remedy assertions to the missing-CLI diagnostic, preserving the warning and product behavior. No source edit for this finding has been made.
-
-- The native full run terminated early during pytest reporting: exit 3; 5 failed, 2,481 passed, 54 skipped in 13,463.43s (3:44:23). JUnit also records one internal error. The test body `test_windows_keys_resize_and_extended_keys` passed, but its global `shutil.get_terminal_size` lambda did not accept pytest's `fallback=` argument while reporting before fixture teardown. Reproduced exit 3 on Linux with `-vv` (`/tmp/coga-terminal-size-reporting-repro.log`) and unchanged-main Windows (body passed in 1.32s, then the same internal error; `/tmp/coga-dependency-windows-terminal-size-baseline.log`). Correct repair scopes that stdlib monkeypatch so it is restored before reporting; no picker behavior changes. Disk was healthy (about 27 GB free). Full incomplete artifacts are under `.coga/clean-install/dependency-review-20261110/suite/`.
-- The completed package-cutover ticket `coga/tasks/v1/package-definitions/02-repo-cutover-to-package-owned-definitions.md` already records the historical CRLF and nested MAX_PATH failures with a before-merge verification obligation. The Windows interactive ticket `coga/tasks/v1/14-interactive-coga-launch-on-native-windows.md` is at owner review; its key-source equivalent is the reporting-mock case above. No work or workflow transition was performed on either ticket.
-- Superseded the narrower pending permission question with one explicit batch approval: historical LF fixtures / short paths, precise missing-CLI diagnostic assertions, and the terminal-size mock lifetime. Approval was later received; the implemented batch is recorded below.
-- Diagnostic continuation selects only nodes after the passed Windows-keys test using `/tmp/coga-dependency-windows-remainder.py`; it is explicitly not a full-suite receipt. Task `CogaDependencyRemainder`, remote evidence `C:\coga-clean-install\dependency-remainder\`, poll/download helper `/tmp/coga-dependency-windows-remainder-poll.py`. The first wrapper attempt omitted the repository root on sys.path and produced two collection errors, preserved under `remainder-collection-error/`; the wrapper now adds cwd before calling pytest. Restarted that diagnostic. Cleanup must wait for or stop both scheduled tasks, then remove both names.
-
-### Approved portability batch and final rerun
-
-- Human approved both the historical portability repair and the consolidated test-only batch. Commit `8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5`, base `46f3e7383a20e6d068577720c1684ebd40cd7a0d`, is pushed. Main drift since the previous receipt only changed unrelated ticket/audit state. Original product behavior and historical product imports/assertions remain unchanged.
-- Control clones now explicitly disable autocrlf; only the pinned Stage A test's one fixture write is backported to LF. Missing-CLI remedy assertions inspect that diagnostic line, and the stdlib terminal-size mock is restored before pytest reporting. The testing topic owns the short native temp-root and shared-mock guidance.
-- Direct review of the final eleven-path diff completed without product-code findings; Codex remains the actual implementer/reviewer, conservatively recorded as self-review. Required final verification is still running.
-- Focused Linux/package/historical-control checks passed: 239 in 103.39s. The exact verbose terminal-size reproduction now passes (1 in 0.21s). Final Linux full suite passed: 4,719 passed / 33 skipped in 771.03s (12:51), same Linux/Python 3.12.12 environment; `/tmp/coga-dependency-peer-batch-full.log`. Repo validation passed with 108 OK / 12 warnings / no errors; seeded validation 5 OK / no issues. The final 80x24 PTY smoke also passed.
-- The optional remainder diagnostic at the previous head was stopped at 2026-11-11T10:00:30Z while permission was pending. Its stdout contains 721 passes, 1 skip, no failures; it selected 2,212 nodes after deselecting the first 2,540. It is not a full-suite receipt. Artifacts, including the baseline terminal-size JUnit, are retained under `.coga/clean-install/dependency-review-20261110/remainder-suite/`.
-- Both old scheduled tasks were removed and zero Python/Git/uv processes verified. All original three Defender exclusions were removed and absence verified at 2026-11-11T10:01:45Z. Initial cleanup used a nested PowerShell JSON array and removed nothing; corrected the manifest parsing and verified all three actual removals before proceeding. Teardown then failed because SSO expired; no cloud resources were destroyed. After approval and refreshed AWS access the same running host is being reused for final verification, with `C:\ct` as the short pytest temp root.
-
-### Owner deferral and checkout recovery (current)
-
-- Owner explicitly requested **Stop Windows testing; defer verification** after main merged PRs #1193 and #1194. The latter changes Git optional locks and native supervisor/done-marker handling. Native verification remains required before merge; do not treat the partial runs as a full-suite receipt.
-- Final native attempt at head `8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5` / base `46f3e7383a20e6d068577720c1684ebd40cd7a0d` started 2026-11-11T16:42:18Z and was stopped at 20:37:22Z on the owner's instruction, at 58% without reported failures or internal errors. Raw partial artifacts are retained under `.coga/clean-install/dependency-review-20261110/final-suite/`; no completed full native receipt exists. Earlier native focused receipt remains historical evidence for the six approved fixture repairs.
-- Both scheduled tasks were removed and zero Python/Git/uv processes verified. All three final exclusions (checkout, `C:\ct`, Git) were removed and absence verified at 20:39:25Z. AWS teardown completed: instance terminated at 20:40:22Z, security group deleted 20:40:23Z, key pair deleted 20:40:25Z. Status at 20:40:41Z confirms terminated and no retained volume, security group, or key pair.
-- Reflog proves another Coga activity switched the primary from the feature branch to `main` at 18:59:52Z and later fast-forwarded it. The reviewer failed to halt a sequence after its branch/status assertion failed and inadvertently rebased clean main to `9a13fac7b7f01028bece2d94cdd2a8215a340251`. This retained upstream history; no source/ticket work was lost. Primary was verified clean on that exact origin/main tip, and both local/remote feature refs remain `8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5`.
-- Current control ticket remains `in_progress`, step `2 (peer-review)`; there is no PR. The old navigation fix is now independently landed on main; reconcile it as a proven duplicate. Main also appended Git tests and changed the shared test fixtures. **Do not bump yet:** the branch still needs integration/re-review and Linux verification against current main. Owner confirmation that the shared primary checkout is free is pending; the recovery rule prohibits switching another task's occupied checkout. No source edits or checkout switch are authorized by elapsed time. Ticket notes may be updated on main; keep the projected ticket out of implementation commits.
-
-### Windows resources and cleanup obligation
-
-- Human approved default provisioning and teardown, then separately approved temporary Defender exclusions. Run `dependency-review-20261110`, region/zone `us-east-1a`, default `t3.large` / 50 GB; instance `i-009374adc23a09e72`; AMI `ami-0b5f645abc199e666` (`Windows_Server-2025-English-Full-Base-2026.10.28`). Windows Server 2025 build 26100.33674, Python 3.11.18. Instance CPU credit mode is unlimited.
-- Historical first-run exclusions were newly added and verified at 2026-11-11T04:12:30Z: `C:\Users\Administrator\coga-work`, `C:\Users\Administrator\AppData\Local\Temp\pytest-of-Administrator`, `C:\Program Files\Git`. The original manifest was `C:\coga-clean-install\dependency-review-owned-exclusions.json`; all three were removed and verified absent as recorded above.
-- Final-run exclusions were applied and verified at 2026-11-11T16:21:52Z: checkout `C:\Users\Administrator\coga-work`, short pytest temp `C:\ct`, and `C:\Program Files\Git`. The final ownership manifest is `C:\coga-clean-install\dependency-final-owned-exclusions.json`; cleanup helper now reads that manifest and validates a flat three-string array. Remove and verify absence before final teardown. Old pytest fixtures were removed; about 28 GB free before rerun.
-- Final native focused run started at 2026-11-11T16:22:48Z on the pushed final head, six cases with `--basetemp=C:\ct`; task `CogaDependencyReview`, evidence `C:\coga-clean-install\dependency-final-focused\`. Helpers `/tmp/coga-dependency-windows-final-focused-{schedule,poll}.py`; full-run helpers use `final-{schedule,poll}.py` and evidence `dependency-final`. All six focused cases passed (1138.01s / 18:58), with JUnit confirming 6 tests and zero errors/failures/skips; artifacts `final-focused-suite/`. Final full suite started at 2026-11-11T16:42:18Z on the same commit, `--basetemp=C:\ct`, source unchanged. Poll `/tmp/coga-dependency-windows-final-poll.py`; metadata records Python runtime UTF-8 mode 0. This full run was later interrupted at the owner’s request; see the current deferral record below.
-- Remote suite evidence `C:\coga-clean-install\dependency-review\`; ignored local evidence `.coga/clean-install/dependency-review-20261110/`. Helpers `/tmp/coga-dependency-windows-schedule.py`, `/tmp/coga-dependency-windows-poll.py` (`artifacts` downloads), `/tmp/coga-dependency-remote-ps.py`, `/tmp/coga-dependency-windows-cleanup.ps1`. Before ending this session: collect artifacts, verify no test processes, remove exclusions, remove scheduled task, run harness teardown, then status must confirm terminated with no retained volume/security group/key pair.
+- Direct Codex code review **completed** over final integrated head `72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37` / base `d26934ef4c30b800e0b61c7ab0351d9690883265`, with no must-fix product findings. Actual implementer and reviewer were Codex: this is **self-review**, not independence inferred from the configured claude agent or a fresh session.
+- Reviewed all ten diff paths, exact task refs/cancellation, multiple refs in an ask, full captured blocker records and colliding IDs, fenced/legacy/archived text, partial publication and refusal/uncertainty recovery, atomic activation, all-open manual unblock, owner scope, budgets, and fixed-point retries. Re-reviewed integration with main's Git optional-lock environment and deferred done-marker/supervisor changes.
+- Human-approved baseline Windows repairs: fresh-child fake CLI resolver in `test_checkouts`; LF control clones and only one explicit-LF fixture write in the pinned Stage A tests; missing-CLI remedy assertions scoped to that diagnostic; terminal-size stdlib mock restored before pytest reporting. Historical product imports and assertions remain pinned. The testing topic owns the fixture guidance. No added product behavior for these repairs.
+- Baseline evidence: abrupt-death failure reproduced on unchanged main `2107e39bdd0dbe419813944889d41968d4b690a7`; historical cutover and missing-CLI failures reproduced on unchanged main `0ba56e5100d0302f0de4fdf74ebda9d30b391519`. Verbose reporter failure also reproduced on Linux and unchanged main Windows. Detailed logs/receipts remain in Git history and `.coga/clean-install/dependency-review-20261110/`.
+- Fresh fetch/rebase integrated main's merged PRs #1193/#1194. All ten remaining feature patches are byte-identical after stripping diff blob-ID metadata. The separately approved navigation repair independently landed as `4ee4d7e73` and was dropped as a proven duplicate. Current branch has three implementation commits; no ticket is staged or committed as feature work.
+- Final integrated-head Linux receipts: **4,777 passed / 33 skipped in 880.99s (14:40)**; focused/packaging **239 passed in 115.16s**. Python 3.12.12 on Pop!_OS 24.04 LTS, Linux x86_64 / 7.2.15-76070215-generic. Logs `/tmp/coga-dependency-peer-integrated-full.log` and `/tmp/coga-dependency-peer-integrated-focused.log`. Repo validation passed: **108 OK / 13 warnings / no errors**; seeded validation **5 OK / no issues**. No current native/Python 3.11 full-suite receipt is claimed.
+- Native focused receipt at old head `8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5` / base `46f3e7383a20e6d068577720c1684ebd40cd7a0d`: six approved repair cases passed in 1138.01s (18:58), JUnit confirms zero errors/failures/skips. Artifacts `final-focused-suite/`. The earlier repaired native crash case passed in 92.80s at `9310fb1781aa32adf48b5e6b71b15d91b653cbdb`.
+- **Owner explicitly requested “Stop Windows testing; defer verification” to owner review after material main drift.** The last native full attempt ran at old head `8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5` from 2026-11-11T16:42:18Z to owner-requested stop at 20:37:22Z, reaching 58% without reported failures or internal errors. Partial artifacts `final-suite/`; earlier interrupted evidence is in `first-suite/`, `suite/`, and `remainder-suite/`. **No completed native full-suite receipt exists. Native verification of the integrated head remains required before merge; deferral is not a waiver.**
+- Native environment: Windows Server 2025 Datacenter build 26100.33674, Python 3.11.18, runtime UTF-8 mode 0, absolute checkout `src` PYTHONPATH, TERM=dumb, short pytest root `C:\ct`. Run `dependency-review-20261110`, default t3.large / 50 GB, us-east-1a; instance `i-009374adc23a09e72`, AMI `ami-0b5f645abc199e666` (`Windows_Server-2025-English-Full-Base-2026.10.28`).
+- **Windows cleanup completed.** Both scheduled tasks removed and zero Python/Git/uv processes verified. All three final Defender exclusions (checkout, `C:\ct`, Git) removed and absence verified at 20:39:25Z. Instance terminated 20:40:22Z, security group deleted 20:40:23Z, key pair deleted 20:40:25Z; status 20:40:41Z confirms terminated and no retained volume/security group/key pair. Original three exclusions had also been removed/verified before the final run. No cloud resources remain.
+- Checkout recovery: another Coga activity returned the shared primary to main at 18:59:52Z. A failed guard was mistakenly followed by a rebase of clean main, retaining upstream history; no source/ticket work was lost and the pushed feature stayed at `8fdf885cb`. Published that finding and paused for the human. After the human follow-up, verified main clean/unchanged since our handoff, backed up the current control ticket, switched to the feature, rebased, and restored the ticket byte-for-byte. Branch/status guards now stop the operation sequence on failure.
+- Real-terminal verification completed at this integrated head in an 80x24 PTY: A done, C active, B blocked on A/C plus a human ask. Bare megalaunch reported zero launches/drains and one unresolved skip; independent inspection proved B stayed blocked and only A resolved. Runner `/tmp/coga-dependency-terminal-integrated.py`. The verbose terminal-size reporter regression also passed (1 in 0.60s).
+- Branch is committed and pushed at the final head above. Final fetch saw only unrelated ticket/log updates since the reviewed base; no further material drift. Current ticket is the only dirt and stays out of implementation commits. Review/preparation are complete for handoff to mechanical PR opening; native merge approval remains pending the explicitly deferred full-suite receipt.
+- Adjacent Retro finding: the native runbook’s roughly two-hour estimate was too optimistic for this suite/host (the last attempt reached 58% in about 3h55m). Preserve that evidence for future harness expectations; no further harness scope was added here.
 
 ## PR
 
@@ -240,25 +204,23 @@ title: Keep unfinished dependency blockers open in megalaunch
 author: codex
 author_evidence: The implement handoff and retained usage identify Codex as the actual implementer, despite
   the configured claude agent. Codex also made the approved Windows fixture repair during this review session.
-head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+base: d26934ef4c30b800e0b61c7ab0351d9690883265
 depth: deep
-rationale: Changes dependency activation and Git publication/recovery decisions. Direct Codex self-review completed
-  over the final diff; final Linux and native verification follow the human-approved baseline test-only repairs.
+rationale: Changes dependency activation and exact Git publication/recovery decisions. Direct Codex self-review
+  completed without product-code findings. Owner explicitly deferred the required full native verification
+  to owner review; inspect the diff and obtain that receipt before merge.
 implementation: Resolve each satisfied dependency blocker with its own automatic answer using the captured
   blocker record. Publish partial answers under an exact ticket lease while retaining blocked; publish the
   remaining targeted resolutions and activation together before launch. Preserve all-open manual unblock behavior.
-deviations: 'Human approved the stale-link repair, fresh-child Windows resolver fixture, and the subsequent
-  portability batch: LF control clones and one explicit-LF historical fixture write, short native temp root,
-  precise missing-CLI assertion, and restored terminal-size mock before reporting. Product behavior and historical
-  assertions are preserved.'
-limitations: Owner explicitly stopped Windows testing and deferred native verification to owner review; it
-  remains required before merge. No full native run completed. Material main drift is not yet integrated because
-  another Coga activity returned the shared primary to main; checkout ownership confirmation, final reconciliation/review,
-  and Linux rerun remain pending.
+deviations: Human approved baseline Windows test-only repairs discovered during verification. The separately
+  approved stale-link repair independently landed on main and dropped out during rebase. Main Git/Windows-supervisor
+  changes were integrated; native verification of that integrated head was explicitly deferred by the owner.
+limitations: Owner explicitly deferred native Windows verification to owner review; the integrated head still
+  requires a full native receipt before merge. Local full verification uses Python 3.12.12. Historical Windows
+  focused checks used Python 3.11.18 and precede material main integration. This was Codex self-review; no
+  independent reviewer was used.
 files:
-  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Human-approved removal of a stale anchor found by
-    the required packaging navigation check.
   src/coga/blackboard.py: Add targeted resolution of captured blocker records while preserving other asks,
     historical answers, and inert text.
   src/coga/megalaunch.py: Select satisfied dependency entries; publish partial resolutions while blocked and
@@ -284,133 +246,75 @@ review:
   reviewer: codex
   kind: self
   status: pending
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
-  detail: Direct Codex self-review completed at the recorded feature head/base with no product-code findings,
-    and the approved baseline fixture repairs were reviewed. Material changes since merged into main still
-    require integration/re-review. Owner deferred native verification; merge approval remains pending the required
-    full native receipt.
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: Direct Codex self-review completed over all ten final diff paths at the recorded head/base, with
+    no must-fix product-code findings. The main integration was re-reviewed. Merge approval remains pending
+    the required native Windows full-suite receipt explicitly deferred by the owner; the completed code review
+    is ready for PR publication.
 checks:
 - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q
   status: passed
-  detail: 4719 passed, 33 skipped in 792.54s (0:13:12). Pop!_OS 24.04 LTS, Linux x86_64 / 7.2.15-76070215-generic,
-    Python 3.12.12. Log /tmp/coga-dependency-peer-final-full-pytest.log.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_packaging.py tests/test_megalaunch.py
-    tests/test_blackboard.py tests/test_checkouts.py::test_abrupt_launch_death_is_recovered_at_the_next_entry
-    -q
-  status: passed
-  detail: 234 passed in 21.94s. Same Linux/Python environment. Log /tmp/coga-dependency-peer-final-focused-pytest.log.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
-  status: passed
-  detail: 108 OK, 11 warnings, no errors. The added warning is an empty-description draft introduced by main.
-    Python 3.12.12 on Pop!_OS 24.04 LTS. Output /tmp/coga-dependency-peer-final-validate.json.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src
-    /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
-  status: passed
-  detail: 5 OK, no warnings or errors. Same Linux/Python environment. Output /tmp/coga-dependency-peer-final-seed-validate.json.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: C:\Users\Administrator\coga-work\.venv\Scripts\python.exe -m pytest tests/test_checkouts.py::test_abrupt_launch_death_is_recovered_at_the_next_entry
-    -q -x --tb=short --basetemp=C:\coga-clean-install\dependency-fixed-temp --junitxml=C:\coga-clean-install\dependency-review-fixed.xml
-  status: passed
-  detail: 1 passed in 92.80s. Windows Server 2025 Datacenter build 26100.33674, Python 3.11.18; cwd C:\Users\Administrator\coga-work,
-    absolute PYTHONPATH to its src, TERM=dumb, no externally enabled Python UTF-8 mode. Log /tmp/coga-dependency-windows-fixed.log;
-    JUnit retained under .coga/clean-install/dependency-review-20261110/reproductions/.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: 'stty cols 80 rows 24
-
-    PYTHONPATH=/home/n/Code/coga/src TERM=xterm-256color .venv/bin/python /tmp/coga-dependency-terminal-final.py
-    run
-
-    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-dependency-terminal-final.py inspect'
-  status: passed
-  detail: 'Real 80x24 PTY: A done, C active, B blocked on A/C plus a human region ask. Observed zero launched/drained
-    and one skipped-unresolved-blocker; inspected B remained blocked, only A resolved, C and human asks intact.
-    Python 3.12.12 / Linux. No picker or raw-terminal interaction code changed.'
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: git diff --check
-  status: passed
-  detail: No whitespace errors in the implementation or current projected handoff.
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
-- command: C:\Users\Administrator\coga-work\.venv\Scripts\python.exe -m pytest -vv --tb=short --junitxml=C:\coga-clean-install\dependency-review\junit.xml
-  status: failed
-  detail: 'Incomplete full native run: exit 3; 5 failed, 2481 passed, 54 skipped in 13463.43s (3:44:23), plus
-    one JUnit internal error. Windows Server 2025 Datacenter build 26100.33674, Python 3.11.18, absolute PYTHONPATH
-    to the checkout src, TERM=dumb, no externally enabled Python UTF-8 mode. Historical LF/fixture failures,
-    two long-path package variants, two overbroad missing-CLI assertions, then an invalid global terminal-size
-    mock crashed pytest reporting after its test body passed. All nine new dependency-drain regression cases
-    passed before the abort. Artifacts .coga/clean-install/dependency-review-20261110/suite/. This is not a
-    completed Windows full-suite receipt; repair approval remains pending.'
-  head: 9310fb1781aa32adf48b5e6b71b15d91b653cbdb
-  base: 0ba56e5100d0302f0de4fdf74ebda9d30b391519
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: 4777 passed, 33 skipped in 880.99s (0:14:40). Pop!_OS 24.04 LTS, Linux x86_64 / 7.2.15-76070215-generic,
+    Python 3.12.12. Code/tests/docs matched the committed tree throughout; final head stayed unchanged. Log
+    /tmp/coga-dependency-peer-integrated-full.log.
 - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_packaging.py tests/test_megalaunch.py
     tests/test_blackboard.py tests/test_checkouts.py::test_abrupt_launch_death_is_recovered_at_the_next_entry
     tests/test_git.py::test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep
     tests/test_launch.py::test_launch_agent_not_in_path -q
   status: passed
-  detail: 239 passed in 103.39s. Linux x86_64, Pop!_OS 24.04, Python 3.12.12. Exact code/test/docs bytes match
-    the committed tree; log /tmp/coga-dependency-peer-batch-focused.log.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
-- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_megalaunch.py::test_windows_keys_resize_and_extended_keys
-    -vv --tb=short
-  status: passed
-  detail: 1 passed in 0.21s; the prior reporter-internal-error reproduction now exits 0. Same Linux environment.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+  detail: 239 passed in 115.16s (0:01:55). Pop!_OS 24.04 LTS, Linux x86_64 / 7.2.15-76070215-generic, Python
+    3.12.12. Code/tests/docs match the committed tree. Log /tmp/coga-dependency-peer-integrated-focused.log.
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
 - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --json
   status: passed
-  detail: 108 OK, 12 warnings, no errors. Python 3.12.12 on Pop!_OS 24.04; log /tmp/coga-dependency-peer-batch-validate.json.
-    Warnings reflect live task state.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: 108 OK; 13 warnings; no errors. Same Linux/Python environment. Output /tmp/coga-dependency-peer-integrated-validate.json.
 - command: cd tests/fixtures/seeded-repo/coga && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src
     /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json
   status: passed
-  detail: 5 OK, no warnings or errors. Same Linux environment; log /tmp/coga-dependency-peer-batch-seed-validate.json.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: 5 OK; no warnings or errors. Same Linux/Python environment. Output /tmp/coga-dependency-peer-integrated-seed-validate.json.
 - command: 'stty cols 80 rows 24
 
-    PYTHONPATH=/home/n/Code/coga/src TERM=xterm-256color .venv/bin/python /tmp/coga-dependency-terminal-batch.py
+    PYTHONPATH=/home/n/Code/coga/src TERM=xterm-256color .venv/bin/python /tmp/coga-dependency-terminal-integrated.py
     run
 
-    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-dependency-terminal-batch.py inspect'
+    PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-dependency-terminal-integrated.py inspect'
   status: passed
-  detail: 'Real 80x24 PTY at final head: 0 launched, 0 drained, 1 skipped-unresolved-blocker. Verified B blocked;
-    only A resolved; C and human ask remain open. Linux/Python 3.12.12.'
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
-- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: 'Real 80x24 PTY on Linux/Python 3.12.12: zero launched/drained and one unresolved skip. Verified
+    B remained blocked, only A resolved, and C plus the human ask stayed open.'
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest tests/test_megalaunch.py::test_windows_keys_resize_and_extended_keys
+    -vv --tb=short
   status: passed
-  detail: 4719 passed, 33 skipped in 771.03s (0:12:51). Pop!_OS 24.04 LTS, Linux x86_64 / 7.2.15-76070215-generic,
-    Python 3.12.12. Code/tests/docs match the committed tree throughout; log /tmp/coga-dependency-peer-batch-full.log.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: 1 passed in 0.60s; verbose reporting exits cleanly. Same Linux/Python environment. Log /tmp/coga-dependency-peer-integrated-verbose-key.log.
+- command: git diff --check && git diff --check origin/main...HEAD
+  status: passed
+  head: 72d6062e7ec5281f2815b09d5c8c2c4ebfe97a37
+  base: d26934ef4c30b800e0b61c7ab0351d9690883265
+  detail: No whitespace errors in the implementation diff or projected handoff.
 - command: C:\Users\Administrator\coga-work\.venv\Scripts\python.exe -m pytest tests/test_git.py::test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control
     tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep tests/test_launch.py::test_launch_agent_not_in_path
     tests/test_megalaunch.py::test_windows_keys_resize_and_extended_keys -vv --tb=short --basetemp=C:\ct --junitxml=C:\coga-clean-install\dependency-final-focused\junit.xml
   status: passed
   detail: 6 passed in 1138.01s (0:18:58), JUnit confirms no errors/failures/skips. Native Windows Server 2025
     build 26100.33674, Python 3.11.18; absolute checkout src PYTHONPATH, TERM=dumb. Artifacts .coga/clean-install/dependency-review-20261110/final-focused-suite/.
+    Historical before material main integration; does not verify the integrated head.
   head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
   base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
-- command: C:\Users\Administrator\coga-work\.venv\Scripts\python.exe -m pytest -vv --tb=short --basetemp=C:\ct
-    --junitxml=C:\coga-clean-install\dependency-final\junit.xml
-  status: pending
-  detail: Owner stopped this attempt at 2026-11-11T20:37:22Z after starting 16:42:18Z. Reached 58% with no
-    reported failures/internal errors; no completed full-suite receipt. Native Windows Server 2025 / Python
-    3.11.18, UTF-8 mode 0. Partial artifacts .coga/clean-install/dependency-review-20261110/final-suite/. Verification
-    of the final integrated head is deferred to owner review and remains required before merge.
-  head: 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5
-  base: 46f3e7383a20e6d068577720c1684ebd40cd7a0d
+- command: Native Windows full suite at the integrated PR head
+  status: not-run
+  detail: Owner explicitly stopped Windows testing and deferred verification to owner review. No completed
+    native full-suite receipt exists. The historical attempt at 8fdf885cbb1bd90b4ed808e1d4b3afbad8c175c5 reached
+    58% without reported failures before stopping; its partial results do not verify this integrated head.
+    The full native receipt remains required before merge. Host teardown and exclusion removal are complete.
 ```

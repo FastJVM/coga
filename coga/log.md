@@ -10678,3 +10678,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 13:14 v1 [v1/make-coga-s-built-in-commands-agent-agnostic] [human:zach] created (status=draft)
 2026-11-11 13:14 v1 [v1/give-coga-build-tickets-a-self-review-workflow-in] [human:zach] created (status=draft)
 2026-11-11 13:14 v1 [v1/make-adding-a-third-agent-one-registry-edit] [human:zach] created (status=draft)
+2026-11-11 13:14 v1 [keep-unfinished-dependency-blockers-open-in-megala] [agent:codex] advanced to step 3 (open-pr) → claude — Review and main reconciliation complete; Linux checks passed. Owner deferred native Windows full-suite verification to owner review; required before merge.
