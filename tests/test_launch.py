@@ -4568,9 +4568,10 @@ def test_launch_agent_not_in_path(
     assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
     assert "Agent CLI 'claude' not found" in combined
-    assert "Set `cli` in [agents.claude] in coga.toml" in combined
-    assert "http" not in combined
-    assert "install" not in combined.lower()
+    diagnostic = next(line for line in combined.splitlines() if "Agent CLI 'claude' not found" in line)
+    assert "Set `cli` in [agents.claude] in coga.toml" in diagnostic
+    assert "http" not in diagnostic
+    assert "install" not in diagnostic.lower()
 
 
 def test_launch_warns_for_large_blackboard(

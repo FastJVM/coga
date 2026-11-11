@@ -64,7 +64,11 @@ is their hand-run counterpart: a first-time user installs on a fresh
   transition test needs Git history containing that merge; a shallow checkout
   reports an explicit skip and cannot supply that transition receipt. Pass
   `--basetemp` on a roomy volume for full runs: the suite creates many
-  temporary repos and can fill a small `/tmp` tmpfs.
+  temporary repos and can fill a small `/tmp` tmpfs. On Windows, use a short
+  root such as `C:\ct`; nested control checks and wheel copies can otherwise
+  exceed MAX_PATH. Control clones disable `core.autocrlf` to preserve pinned
+  definition bytes. The Stage A check backports one explicit-LF test-fixture
+  write; its product code and assertions remain pinned to the historical tree.
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets
@@ -165,6 +169,9 @@ is their hand-run counterpart: a first-time user installs on a fresh
   for adopting repositories.
 - **`coga.config` and `coga.launch` share one `subprocess` module
   object.** Use one argv-dispatching mock on `coga.config.subprocess.run`.
+- **Scope standard-library mocks to the operation under test.** For example,
+  restore `shutil.get_terminal_size` with `monkeypatch.context()` before
+  pytest reports the result; pytest also calls it with `fallback=`.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
   with `--no-build-isolation` and fails (not skips) without it; see

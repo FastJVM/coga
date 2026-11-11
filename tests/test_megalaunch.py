@@ -6439,13 +6439,15 @@ def test_windows_keys_resize_and_extended_keys(monkeypatch: pytest.MonkeyPatch) 
                           "a", "n", "\r", "\x1b", "q", "\x03", "\xe0", "M"])
     _windows_picker(monkeypatch, msvcrt)
     sizes = iter([(80, 24), (80, 24), (100, 30)])
-    monkeypatch.setattr(command.shutil, "get_terminal_size", lambda: next(sizes))
-    with command._WindowsKeys() as keys:
-        actions = [keys.read() for _ in range(13)]
-        assert actions == ["up", "down", "down", "space", "down", "up", "all",
-                           "none", "enter", "quit", "quit", "quit", ""]
-        # Idle polling notices a resize without SIGWINCH.
-        assert keys.read() == "resize"
+    # shutil is shared with pytest, which queries terminal size while reporting.
+    with monkeypatch.context() as terminal:
+        terminal.setattr(command.shutil, "get_terminal_size", lambda: next(sizes))
+        with command._WindowsKeys() as keys:
+            actions = [keys.read() for _ in range(13)]
+            assert actions == ["up", "down", "down", "space", "down", "up", "all",
+                               "none", "enter", "quit", "quit", "quit", ""]
+            # Idle polling notices a resize without SIGWINCH.
+            assert keys.read() == "resize"
 
 
 def _picker_candidates(repo: Path) -> list:

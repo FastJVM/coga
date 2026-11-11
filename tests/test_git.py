@@ -4192,10 +4192,24 @@ def _package_publication_owner(git_repo, owner: str) -> None:
     assert "sync failed" not in result.stderr and "sync refused" not in result.stderr
 
 
-def _check_package_control(git_repo, tmp_path: Path, label: str) -> None:
+def _check_package_control(
+    git_repo, tmp_path: Path, label: str, *, stage_a_fixture: bool = False,
+) -> None:
     """Run the published control tree's own imports and tests, in a fresh clone."""
     control = tmp_path / label
-    git_repo.git("clone", "--branch", "main", str(git_repo.origin), str(control))
+    git_repo.git("clone", "--config", "core.autocrlf=false", "--branch", "main",
+                 str(git_repo.origin), str(control))
+    if stage_a_fixture:
+        # Backport only the pinned test's LF fixture write. Its product code
+        # and byte-equality assertions remain the historical control's own.
+        fixture = control / "tests/test_packaging.py"
+        text = fixture.read_text(encoding="utf-8")
+        original = 'parent.write_text(render_carrier(read_blackboard(parent)), encoding="utf-8")'
+        assert text.count(original) == 1
+        fixture.write_text(
+            text.replace(original, original[:-1] + ', newline="\\n")'),
+            encoding="utf-8", newline="\n",
+        )
     env = _package_publication_environment(control)
     imported = subprocess.run(
         [sys.executable, "-c", "import coga; print(coga.__file__)"],
@@ -4259,7 +4273,7 @@ def test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control(git_
     selection.write_text("[jobs]\nphone-home = true\n", encoding="utf-8", newline="\n")
     _package_publication_owner(git_repo, "zach")
     assert _control(git_repo, "coga/recurring/jobs.toml") == selection.read_text()
-    _check_package_control(git_repo, tmp_path, "stage-a-selection")
+    _check_package_control(git_repo, tmp_path, "stage-a-selection", stage_a_fixture=True)
 
     parent.write_bytes(CARRIER_PREFIX.encode() + original.split(b"<!-- coga:blackboard -->", 1)[1])
     for name in siblings:
@@ -4294,7 +4308,7 @@ def test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control(git_
     for name, tree in custom.items():
         assert git_repo.git("rev-parse", f"origin/main:coga/recurring/{name}").strip() == tree
     assert git_repo.git("rev-parse", "origin/main:src/coga/resources").strip() == package_tree
-    _check_package_control(git_repo, tmp_path, "stage-a-first-conversion")
+    _check_package_control(git_repo, tmp_path, "stage-a-first-conversion", stage_a_fixture=True)
 
 
 @pytest.mark.parametrize("committed", [False, True], ids=["dirty-package", "committed-package"])
