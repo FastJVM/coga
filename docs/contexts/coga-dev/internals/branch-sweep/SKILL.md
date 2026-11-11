@@ -87,7 +87,7 @@ before sweep or retire follow-up processing. The manual path scopes
 It passes only the reviewed local tip to `_publish_retirement_tag` and uses
 `branchcleanup.force_delete_local_branch` for the final ref recheck and Git's
 porcelain deletion guard. The operator supplies the deletion authority.
-The [release procedure](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md#review-and-release-a-retained-local-draft)
+The [release procedure](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/checkout-cleanup/branch-sweep/SKILL.md)
 owns the command, proof requirements, and exact-tip recovery.
 
 ## Retirement tags
