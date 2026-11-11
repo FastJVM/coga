@@ -144,6 +144,10 @@ is their hand-run counterpart: a first-time user installs on a fresh
   so a reused directory with different username casing matches Git's path
   reports on Windows. `init_git_repo` disables `core.autocrlf` for ordinary
   fixtures. Dedicated Git tests still exercise CRLF clean filters.
+  A fresh child interpreter does not inherit pytest's monkeypatches. Launch
+  fixtures that fake the supervisor inside that child must also fake the
+  Windows CLI resolver there, so command planning can reach the simulated
+  agent without requiring an installed agent CLI.
   `write_executable` supplies a
   Python shebang on POSIX and a `.cmd` launcher on Windows. Use
   `remove_test_checkout` when a fixture deliberately removes a Git clone;

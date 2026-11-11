@@ -748,6 +748,10 @@ def test_abrupt_launch_death_is_recovered_at_the_next_entry(
         launch._interactive_stdio_has_tty = lambda: True
         launch._preflight_push_auth = lambda *a, **k: None
         launch.shutil.which = lambda name: '/usr/bin/' + name
+        if os.name == 'nt':
+            from coga import repl_supervisor_nt
+            # This interpreter does not inherit conftest's fake CLI resolver.
+            repl_supervisor_nt.resolve_executable = lambda name, env: name
         def child(*args, **kwargs):
             path = Path({str(ref.ticket_path)!r})
             path.write_bytes(path.read_bytes() + b'\\nHandoff retained after abrupt death.\\n')
