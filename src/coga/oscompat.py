@@ -6,6 +6,7 @@ import errno
 import getpass
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -54,6 +55,33 @@ def unlock_fd(fd: int) -> None:
     else:
         os.lseek(fd, 0, os.SEEK_SET)
         msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+
+def shell_command(argv: list[str], *, windows: bool | None = None) -> str:
+    """One copyable command line for POSIX shells or native Windows PowerShell."""
+    if windows if windows is not None else os.name == "nt":
+        return " ".join(
+            arg if re.fullmatch(r"[\w./:=+-][\w./:@=+-]*", arg) else "'" + arg.replace("'", "''") + "'"
+            for arg in argv
+        )
+    return shlex.join(argv)
+
+
+def shell_chain(commands: list[list[str]], *, windows: bool | None = None) -> str:
+    """Commands that each run only when the previous one succeeded.
+
+    POSIX joins them with `&&`. Windows PowerShell 5.1 has no `&&`, and a
+    flat `a; if ($?) { b }; if ($?) { c }` still runs `c` after `a` fails, so
+    each later command nests inside the previous success test.
+    """
+    windows = windows if windows is not None else os.name == "nt"
+    rendered = [shell_command(argv, windows=windows) for argv in commands]
+    if not windows:
+        return " && ".join(rendered)
+    line = rendered[-1]
+    for command in reversed(rendered[:-1]):
+        line = f"{command}; if ($?) {{ {line} }}"
+    return line
 
 
 def process_exit_status(code: int, *, windows: bool | None = None) -> int:

@@ -31,6 +31,11 @@ Invariants, in the order they matter:
   `prepare_control_checkout` applies the same `_local_control_subsumed`
   proof). It checks ancestry explicitly rather than trusting `merge
   --ff-only`'s exit, and never stashes, rebases, resets, or commits.
+- **No optional locks.** Every Git call runs with `GIT_OPTIONAL_LOCKS=0`
+  (`_git_env`), so a read such as `git status` never takes the checkout's
+  `index.lock` for an opportunistic refresh that a killed process would
+  leave behind. Deliberate index writes use a scratch `GIT_INDEX_FILE`
+  except on a control checkout.
 
 Outcomes: `publish` returns `True` (pushed), `False` (control already held
 the built tree), or `None` (soft-skipped: git disabled, not a repo, control
@@ -2903,6 +2908,141 @@ def stale_coga_task_rels(cfg: Config) -> list[str]:
         return []
 
 
+@dataclass(frozen=True)
+class FeatureSyncPlan:
+    """How a feature checkout's dirty Coga state relates to control.
+
+    `tracked` and `untracked` are Git-root-relative paths proven safe to
+    drop before merging `target`: each is a regular file whose working
+    bytes and mode equal the `target` copy, and a tracked one has no staged
+    change (its index entry is HEAD's, so `git checkout --` restores HEAD).
+    `manual` names every other dirty path with why it is excluded; any entry
+    there means no shortcut command is safe.
+    """
+
+    root: Path
+    target: str
+    tracked: tuple[str, ...]
+    untracked: tuple[str, ...]
+    manual: tuple[tuple[str, str], ...]
+
+
+def feature_sync_plan(cfg: Config) -> FeatureSyncPlan | None:
+    """Classify a feature checkout's dirty Coga-root files against control.
+
+    Read-only and no-network, like `stale_coga_task_rels`: compares against
+    the local remote-tracking control ref, hashes working bytes without
+    writing objects (`_blob_id`), and fails open to `None` on any Git error.
+    `None` also means nothing to report: git disabled, not a repository, a
+    detached HEAD or the control branch checked out, no remote-tracking ref,
+    or no dirty Coga-root path.
+    """
+    if not cfg.git_enabled:
+        return None
+    try:
+        root = toplevel(cfg.repo_root)
+        if root is None:
+            return None
+        branch = symbolic_head(root)
+        if branch is None or branch == cfg.git_control_branch:
+            return None
+        ref = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}"
+        if not _ref_present(root, ref):
+            return None
+        specs = []
+        for path in coga_root_paths(cfg):
+            rel = relative_to_root(root, path).rstrip("/")
+            specs.append("." if rel in ("", ".") else rel)
+        status = run_git(
+            root,
+            "status", "--porcelain=v2", "-z", "--untracked-files=all",
+            "--no-renames", "--ignore-submodules=none", "--", *specs,
+            env={"GIT_LITERAL_PATHSPECS": "1"},
+        )
+        entries = _status_v2_entries(status)
+        if not entries:
+            return None
+        index_modes = _index_modes(root) if os.name != "posix" else None
+        tracked: list[str] = []
+        untracked: list[str] = []
+        manual: list[tuple[str, str]] = []
+        for kind, fields, rel in entries:
+            reason = _feature_sync_obstacle(
+                root, ref, kind, fields, rel, index_modes=index_modes,
+            )
+            if reason is not None:
+                manual.append((rel, reason))
+            elif kind == "?":
+                untracked.append(rel)
+            else:
+                tracked.append(rel)
+        return FeatureSyncPlan(
+            root=root,
+            target=f"{cfg.git_remote}/{cfg.git_control_branch}",
+            tracked=tuple(tracked),
+            untracked=tuple(untracked),
+            manual=tuple(manual),
+        )
+    except (GitError, OSError):
+        return None
+
+
+def _feature_sync_obstacle(
+    root: Path,
+    ref: str,
+    kind: str,
+    fields: list[str],
+    rel: str,
+    *,
+    index_modes: Mapping[str, str] | None,
+) -> str | None:
+    """Why dropping `rel` before merging `ref` could lose work, else `None`."""
+    if kind == "?":
+        pass
+    elif kind != "1":
+        return "unmerged or renamed index entry"
+    else:
+        xy, sub = fields[1], fields[2]
+        if xy[0] != ".":
+            return "has staged changes"
+        if xy[1] == "D":
+            return "deleted in the working tree"
+        if xy[1] != "M" or sub != "N...":
+            return "not an ordinary modified file"
+    working = _regular_working_file(root, rel, index_modes=index_modes)
+    if working is None:
+        return "deleted in the working tree"
+    if working is False:
+        return "not a regular file"
+    control = _tree_entry(root, ref, rel)
+    if control is None:
+        return "not on control"
+    mode, data = working
+    if mode != control[0]:
+        return "file mode differs from control"
+    if _blob_id(root, data, rel) != control[1]:
+        return "differs from control"
+    return None
+
+
+def stale_index_lock(cfg: Config) -> Path | None:
+    """This checkout's `index.lock` when one exists, else `None`.
+
+    The per-worktree Git dir for a linked worktree. Detection only: another
+    Git process may own the lock, so Coga never removes it. Fails open.
+    """
+    if not cfg.git_enabled:
+        return None
+    try:
+        root = toplevel(cfg.repo_root)
+        if root is None:
+            return None
+        lock = _scratch_dir(root) / "index.lock"
+        return lock if lock.exists() else None
+    except (GitError, OSError):
+        return None
+
+
 def _lifecycle(data: bytes | None) -> tuple[str | None, int | None] | None:
     ticket = _parse_ticket(data)
     if ticket is None:
@@ -3197,6 +3337,10 @@ def _git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
         _keep_maintenance_attached(env)
     if extra:
         env.update(extra)
+    # Forced last, over the caller's environment and any overlay: an
+    # opportunistic index refresh holds `index.lock`, and a process killed
+    # mid-refresh (supervisor teardown escalating to SIGKILL) leaves it.
+    env["GIT_OPTIONAL_LOCKS"] = "0"
     return env
 
 
@@ -3462,6 +3606,7 @@ __all__ = [
     "CheckoutKind",
     "CheckoutPreparation",
     "CheckoutRelation",
+    "FeatureSyncPlan",
     "GitError",
     "MAX_PUBLISH_ATTEMPTS",
     "ObjectWriteError",
@@ -3476,6 +3621,7 @@ __all__ = [
     "control_branch_present",
     "current_branch",
     "fast_forward_control",
+    "feature_sync_plan",
     "fetch_control",
     "is_linked_worktree",
     "last_commit_times",
@@ -3489,6 +3635,7 @@ __all__ = [
     "remote_configured",
     "run_git",
     "stale_coga_task_rels",
+    "stale_index_lock",
     "state_lock",
     "state_sweep_withheld",
     "summarize_git_failure",

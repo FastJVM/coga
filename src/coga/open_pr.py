@@ -42,7 +42,7 @@ from coga.github_preflight import (
     stranded_task_state_paths,
     stranded_task_state_remediation,
 )
-from coga.git import GitError
+from coga.git import GitError, _git_env
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import body_sections, split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
@@ -71,6 +71,7 @@ def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProc
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=_git_env() if args and args[0] == "git" else None,
     )
 
 

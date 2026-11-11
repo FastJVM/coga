@@ -34,10 +34,12 @@ import sys
 import tempfile
 import time
 from contextlib import AbstractContextManager, contextmanager, nullcontext
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
 
+from coga import oscompat
 from coga.atomicio import atomic_write_text
 
 
@@ -616,14 +618,7 @@ def run_with_done_marker(
                 os.waitpid(pid, 0)
             except ChildProcessError:
                 pass
-            try:
-                os.unlink(sentinel_path)
-            except OSError:
-                pass
-            try:
-                os.rmdir(sentinel_dir)
-            except OSError:
-                pass
+            remove_sentinel_dir(sentinel_dir)
             raise
         else:
             os.close(gate_write_fd)
@@ -729,7 +724,11 @@ def run_with_done_marker(
                             kind="done",
                         )
 
-                if not sent_term and terminal_status is not None:
+                if (
+                    not sent_term
+                    and terminal_status is not None
+                    and not completion_pending(sentinel_path)
+                ):
                     status = terminal_status()
                     if status is not None:
                         _trigger_term(
@@ -800,14 +799,7 @@ def run_with_done_marker(
         if not done_signalled and _sentinel_signals_done(sentinel_path, session_id):
             done_signalled = True
     finally:
-        try:
-            os.unlink(sentinel_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(sentinel_dir)
-        except OSError:
-            pass
+        remove_sentinel_dir(sentinel_dir)
 
     code, kind, notes = _classify_exit(status, term_kind)
     for note in notes:
@@ -907,8 +899,17 @@ def emit_done_marker(session_id: str | None = None) -> None:
     repo), so a path-scoped marker written from the "wrong" cwd never
     matched what the supervisor polled and the REPL hung. A bare call writes
     the legacy `"done"` sentinel.
+
+    Inside `deferred_done_marker` (every command dispatched by `cli.main`)
+    the request is held and written only after the end-of-command boundary
+    — the state sweep and the unpublished-log warning — has returned, so
+    the supervisor never tears down a command still running Git.
     """
     marker = session_id or "done"
+    deferred = _deferred_done.get()
+    if deferred is not None:
+        deferred.append(marker)
+        return
     sentinel = os.environ.get(SENTINEL_ENV)
     if sentinel is None:
         if os.environ.get(EXPECTED_TASK_ENV) or os.environ.get("COGA_SUPERVISED"):
@@ -925,6 +926,94 @@ def emit_done_marker(session_id: str | None = None) -> None:
         atomic_write_text(Path(sentinel), f"{marker}\n")
     except OSError as exc:
         _warn_unsignalled(marker, f"cannot write {SENTINEL_ENV}={sentinel}: {exc}")
+
+
+# Session-ending requests held by `deferred_done_marker`; `None` outside it.
+_deferred_done: ContextVar[list[str] | None] = ContextVar(
+    "coga_deferred_done", default=None
+)
+
+# `<sentinel>.pending-<pid>`: a Coga command is running in the session.
+_PENDING_INFIX = ".pending-"
+
+
+@contextmanager
+def deferred_done_marker() -> Iterator[None]:
+    """Hold `emit_done_marker` until this block (the whole command) exits.
+
+    `cli.main` wraps dispatch *and* its end-of-command boundary in this, so
+    a session-ending command signals the supervisor only after its last Git
+    call — on a normal return, `SystemExit`, or any other exception. The
+    last request wins. For the block's duration it also leaves
+    `<sentinel>.pending-<pid>`, which keeps the supervisor's terminal-ticket
+    backstop (a published `done`/`canceled` ticket) from tearing the session
+    down while the command is still publishing. A file whose process has
+    exited is ignored, so a crashed command cannot disable the backstop.
+    """
+    requested: list[str] = []
+    token = _deferred_done.set(requested)
+    pending = _mark_completion_pending()
+    try:
+        yield
+    finally:
+        _deferred_done.reset(token)
+        try:
+            if requested:
+                emit_done_marker(requested[-1])
+        finally:
+            if pending is not None:
+                try:
+                    pending.unlink()
+                except OSError:
+                    pass
+
+
+def _mark_completion_pending() -> Path | None:
+    sentinel = os.environ.get(SENTINEL_ENV)
+    if not sentinel:
+        return None
+    path = Path(f"{sentinel}{_PENDING_INFIX}{os.getpid()}")
+    try:
+        path.write_text(f"{os.getpid()}\n", encoding="utf-8")
+    except OSError:
+        return None
+    return path
+
+
+def completion_pending(sentinel_path: str) -> bool:
+    """Whether a live Coga command in the session still holds its done signal."""
+    if not sentinel_path:
+        return False
+    directory, name = os.path.split(sentinel_path)
+    prefix = name + _PENDING_INFIX
+    try:
+        entries = os.listdir(directory)
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.startswith(prefix):
+            continue
+        pid = entry[len(prefix):]
+        if pid.isdigit() and int(pid) > 0 and oscompat.process_is_running(int(pid)):
+            return True
+    return False
+
+
+def remove_sentinel_dir(sentinel_dir: str) -> None:
+    """Remove the private sentinel directory and everything a session left in it."""
+    try:
+        entries = os.listdir(sentinel_dir)
+    except OSError:
+        entries = []
+    for entry in entries:
+        try:
+            os.unlink(os.path.join(sentinel_dir, entry))
+        except OSError:
+            pass
+    try:
+        os.rmdir(sentinel_dir)
+    except OSError:
+        pass
 
 
 def _warn_unsignalled(marker: str, cause: str) -> None:
@@ -946,6 +1035,8 @@ __all__ = [
     "_TTY_SANITIZE",
     "ReplOutcome",
     "build_supervised_step_env",
+    "completion_pending",
+    "deferred_done_marker",
     "emit_done_marker",
     "run_with_done_marker",
     "unsignalled_advance_warning",

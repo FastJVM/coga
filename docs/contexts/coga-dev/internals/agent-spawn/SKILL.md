@@ -176,7 +176,12 @@ its arguments and then delegates to `repl_supervisor_nt.run`, described
 `coga mark done`, `coga mark canceled`, and `coga block` call
 `emit_done_marker`, which atomically writes the task's `id_slug` to
 `$COGA_DONE_SENTINEL`; the supervisor polls every 0.25 s and accepts a content
-match (slug, not path, so a bump from another checkout works). Ticket spawns
+match (slug, not path, so a bump from another checkout works). Under
+`cli.main`, `repl_supervisor.deferred_done_marker` holds that write until the
+end-of-command sweep and log warning return, and leaves
+`<sentinel>.pending-<pid>` for the command's lifetime; both supervisors skip
+the terminal-status probe while `completion_pending` finds a live one, and
+`remove_sentinel_dir` clears the private directory. Ticket spawns
 also supply `launch._terminal_status_probe` through the supervisor's
 `terminal_status` callback. The completion backstop, signal diagnostics and
 recurring outcome contract live in

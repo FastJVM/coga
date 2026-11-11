@@ -4929,3 +4929,196 @@ def test_unblock_refusal_exits_without_the_sweep(git_repo, monkeypatch):
 
     assert exc.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert not sweeps and path.read_bytes() == original
+
+
+# --- optional index locks and the feature-sync plan ----------------------------
+
+
+def test_git_env_forces_optional_locks_off(monkeypatch):
+    monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "1")
+    assert git._git_env()["GIT_OPTIONAL_LOCKS"] == "0"
+    assert git._git_env({"GIT_OPTIONAL_LOCKS": "1"})["GIT_OPTIONAL_LOCKS"] == "0"
+
+
+def test_feature_sweep_never_rewrites_the_real_index(git_repo, monkeypatch):
+    """A killed `git status` refresh leaves `index.lock`; Coga never takes it.
+
+    A stat-dirty tracked file makes any opportunistic refresh rewrite the
+    index, so an unchanged inode and mtime prove the sweep never did.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    ticket.write_text(_ticket_text(blackboard="dirty\n"), encoding="utf-8", newline="\n")
+    touched = git_repo.coga_os / "coga.toml"
+    later = touched.stat().st_mtime + 10
+    os.utime(touched, (later, later))
+    index = git_repo.root / ".git" / "index"
+    before = index.stat()
+    monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "1")
+
+    calls: list[tuple[list[str], dict]] = []
+    real_run = subprocess.run
+
+    def recording_run(argv, *args, **kwargs):
+        if argv and argv[0] == "git":
+            calls.append((list(argv), kwargs.get("env") or dict(os.environ)))
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(git.subprocess, "run", recording_run)
+    git.sync_coga_state(cfg)
+    monkeypatch.undo()
+
+    assert "dirty" in _control(git_repo, "coga/tasks/demo.md")
+    assert any("status" in argv for argv, _env in calls)
+    assert all(env.get("GIT_OPTIONAL_LOCKS") == "0" for _argv, env in calls)
+    after = index.stat()
+    assert (after.st_ino, after.st_mtime_ns) == (before.st_ino, before.st_mtime_ns)
+
+
+def _feature_with_published(git_repo, files: dict[str, str]) -> None:
+    """Feature checkout whose control copy of each file is `files[rel]`."""
+    for rel, text in files.items():
+        git_repo.push_competing_commit(rel, text)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("fetch", "origin")
+
+
+def test_feature_sync_plan_offers_the_shortcut_for_identical_state(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    published = _ticket_text(step="2 (review)")
+    _feature_with_published(git_repo, {
+        "coga/tasks/demo.md": published,
+        "coga/tasks/it's new.md": "fresh\n",
+    })
+    (git_repo.coga_os / "tasks" / "demo.md").write_text(published, encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "tasks" / "it's new.md").write_text("fresh\n", encoding="utf-8", newline="\n")
+
+    plan = git.feature_sync_plan(cfg)
+
+    assert plan is not None
+    assert (plan.tracked, plan.untracked, plan.manual) == (
+        ("coga/tasks/demo.md",), ("coga/tasks/it's new.md",), (),
+    )
+    assert plan.target == "origin/main"
+    assert plan.root == git_repo.root
+
+
+@pytest.mark.skipif(os.name == "nt", reason="runs the POSIX rendering")
+def test_feature_sync_command_merges_control_from_a_nested_cwd(git_repo):
+    from coga.views import feature_sync_message
+
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    published = _ticket_text(step="2 (review)")
+    _feature_with_published(git_repo, {
+        "coga/tasks/demo.md": published,
+        "coga/tasks/it's new.md": "fresh\n",
+    })
+    (git_repo.coga_os / "tasks" / "demo.md").write_text(published, encoding="utf-8", newline="\n")
+    (git_repo.coga_os / "tasks" / "it's new.md").write_text("fresh\n", encoding="utf-8", newline="\n")
+    message = feature_sync_message(git.feature_sync_plan(cfg), windows=False)
+    command = message.split("run:\n  ", 1)[1].split("\n", 1)[0]
+
+    nested = git_repo.coga_os / "workflows"
+    result = subprocess.run(["sh", "-c", command], cwd=nested, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+    assert git_repo.git("status", "--porcelain") == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git("rev-parse", "origin/main").strip()
+
+
+@pytest.mark.parametrize(
+    ("setup", "reason"),
+    [
+        ("differs", "differs from control"),
+        ("staged", "has staged changes"),
+        ("staged-deletion", "has staged changes"),
+        ("deleted", "deleted in the working tree"),
+        ("untracked-differs", "differs from control"),
+        ("untracked-local-only", "not on control"),
+    ],
+)
+def test_feature_sync_plan_routes_unsafe_states_to_manual(git_repo, setup, reason):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    published = _ticket_text(step="2 (review)")
+    _feature_with_published(git_repo, {"coga/tasks/demo.md": published, "coga/tasks/new.md": "fresh\n"})
+    rel = "coga/tasks/demo.md"
+    if setup == "differs":
+        ticket.write_text(_ticket_text(blackboard="local only\n"), encoding="utf-8", newline="\n")
+    elif setup == "staged":
+        ticket.write_text(published, encoding="utf-8", newline="\n")
+        git_repo.git("add", "--", rel)
+    elif setup == "staged-deletion":
+        git_repo.git("rm", "-q", "--", rel)
+    elif setup == "deleted":
+        ticket.unlink()
+    elif setup == "untracked-differs":
+        rel = "coga/tasks/new.md"
+        (git_repo.root / rel).write_text("mine\n", encoding="utf-8", newline="\n")
+    else:
+        rel = "coga/tasks/draft.md"
+        (git_repo.root / rel).write_text("draft\n", encoding="utf-8", newline="\n")
+
+    plan = git.feature_sync_plan(cfg)
+
+    assert plan is not None
+    assert (rel, reason) in plan.manual
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executable bit")
+def test_feature_sync_plan_treats_a_mode_change_as_unsafe(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    _feature_with_published(git_repo, {"coga/tasks/other.md": "x\n"})
+    ticket.chmod(0o755)
+
+    plan = git.feature_sync_plan(cfg)
+
+    assert plan is not None
+    assert plan.manual == (("coga/tasks/demo.md", "file mode differs from control"),)
+
+
+def test_feature_sync_plan_writes_no_objects(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("fetch", "origin")
+    unique = "never stored anywhere 6f1e\n"
+    ticket.write_text(unique, encoding="utf-8", newline="\n")
+    oid = subprocess.run(
+        ["git", "-C", str(git_repo.root), "hash-object", "--stdin"],
+        input=unique, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    plan = git.feature_sync_plan(cfg)
+
+    assert plan is not None and plan.manual == (("coga/tasks/demo.md", "differs from control"),)
+    missing = subprocess.run(["git", "-C", str(git_repo.root), "cat-file", "-e", oid])
+    assert missing.returncode != 0
+
+
+def test_feature_sync_plan_is_silent_without_feature_dirt(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    ticket.write_text(_ticket_text(blackboard="dirty\n"), encoding="utf-8", newline="\n")
+    assert git.feature_sync_plan(cfg) is None  # control checkout
+
+    git_repo.git("stash", "-q")
+    git_repo.checkout_branch("feature/x")
+    assert git.feature_sync_plan(cfg) is None  # no dirt
+
+    git_repo.git("stash", "pop", "-q")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    assert git.feature_sync_plan(cfg) is None  # no remote-tracking ref
+
+
+def test_stale_index_lock_reports_without_removing(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    assert git.stale_index_lock(cfg) is None
+    lock = git_repo.root / ".git" / "index.lock"
+    lock.write_bytes(b"")
+    assert git.stale_index_lock(cfg) == lock
+    assert lock.exists()

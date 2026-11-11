@@ -85,7 +85,6 @@ with `check=False`, no third-party git binding.
 
 from __future__ import annotations
 
-import os
 import shlex
 import subprocess
 from dataclasses import dataclass, field
@@ -1153,7 +1152,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         # raising.
         errors="surrogateescape",
         check=False,
-        env={**os.environ, "LC_ALL": "C"},
+        env=git._git_env({"LC_ALL": "C"}),
     )
 
 

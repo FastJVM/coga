@@ -450,3 +450,117 @@ def test_mark_done_from_repointed_worktree(
     assert probe() is None  # Allow the ordinary command to finish signaling.
     now[0] += 5
     assert probe() == "done"
+
+
+# --- the end-of-command boundary ---------------------------------------------
+#
+# Under `cli.main` the sentinel waits for the state sweep and the
+# unpublished-log warning: a supervisor that tears the session down on the
+# signal must never kill Coga's own Git calls (a SIGKILLed `git status`
+# leaves `index.lock`).
+
+
+def _main(monkeypatch: pytest.MonkeyPatch, *argv: str) -> int | str | None:
+    from coga import cli
+
+    monkeypatch.setattr("sys.argv", ["coga", *argv])
+    try:
+        cli.main()
+    except SystemExit as exc:
+        return exc.code
+    return 0
+
+
+def _boundary_recorder(
+    monkeypatch: pytest.MonkeyPatch, sentinel: Path, *, sweep_error: bool = False
+) -> list[tuple[str, bool, bool]]:
+    """Record (stage, sentinel written, completion pending) at each boundary step."""
+    from coga.repl_supervisor import completion_pending
+
+    calls: list[tuple[str, bool, bool]] = []
+
+    def observe(stage: str) -> None:
+        calls.append((stage, sentinel.exists(), completion_pending(str(sentinel))))
+
+    def sweep(*args, **kwargs):  # type: ignore[no-untyped-def]
+        observe("sweep")
+        if sweep_error:
+            raise RuntimeError("sweep exploded")
+
+    monkeypatch.setattr("coga.git.sync_coga_state", sweep)
+    monkeypatch.setattr(
+        "coga.cli._warn_unpublished_log_lines", lambda *a, **k: observe("warn")
+    )
+    return calls
+
+
+def test_main_writes_the_sentinel_only_after_the_boundary(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo)
+    calls = _boundary_recorder(monkeypatch, sentinel)
+
+    assert _main(monkeypatch, "bump", slug) == 0
+
+    assert calls == [("sweep", False, True), ("warn", False, True)]
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
+    # The pending witness is gone once the signal is out.
+    assert not list(sentinel.parent.glob("sentinel.pending-*"))
+
+
+def test_main_final_bump_holds_the_terminal_backstop_through_the_boundary(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The final bump publishes a `done` ticket the supervisor's terminal
+    probe can see; the live pending witness keeps that backstop off until
+    the boundary is over, however long it takes."""
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+    sentinel.unlink(missing_ok=True)
+    calls = _boundary_recorder(monkeypatch, sentinel)
+
+    assert _main(monkeypatch, "bump", slug) == 0
+
+    assert Ticket.read(task_path).status == "done"
+    assert calls == [("sweep", False, True), ("warn", False, True)]
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
+
+
+def test_main_still_signals_when_the_sweep_raises(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo)
+    calls = _boundary_recorder(monkeypatch, sentinel, sweep_error=True)
+
+    with pytest.raises(RuntimeError, match="sweep exploded"):
+        _main(monkeypatch, "bump", slug)
+
+    assert [stage for stage, _written, _pending in calls] == ["sweep", "warn"]
+    assert not any(written for _stage, written, _pending in calls)
+    assert sentinel.read_text(encoding="utf-8").strip() == slug
+
+
+def test_main_failed_command_does_not_signal(
+    repo: Path, sentinel: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, workflow=None)
+    _boundary_recorder(monkeypatch, sentinel)
+
+    assert _main(monkeypatch, "bump", slug) not in (0, None)
+
+    assert not sentinel.exists()
+    assert not list(sentinel.parent.glob("sentinel.pending-*"))
+
+
+def test_emit_outside_main_still_writes_immediately(sentinel: Path) -> None:
+    from coga.repl_supervisor import deferred_done_marker, emit_done_marker
+
+    emit_done_marker("v1/a")
+    assert sentinel.read_text(encoding="utf-8").strip() == "v1/a"
+    sentinel.unlink()
+    with deferred_done_marker():
+        emit_done_marker("v1/b")
+        assert not sentinel.exists()
+    assert sentinel.read_text(encoding="utf-8").strip() == "v1/b"

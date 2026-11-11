@@ -950,3 +950,30 @@ def test_native_exit_codes_cross_wrapper_and_outer_cli(
     outcome = json.loads(receipt.read_text())
     assert result.returncode & 0xFFFFFFFF == dword
     assert (outcome["exit_code"], outcome["kind"], outcome["done_signalled"]) == (dword, kind, done)
+
+
+def test_fake_terminal_backstop_waits_for_a_live_pending_command(fake_tree) -> None:
+    """A Coga command still in its end-of-command boundary holds the
+    terminal-ticket backstop off until it removes its pending witness."""
+    waits = {"n": 0}
+
+    def behavior(tree):
+        pending = Path(tree.env[SENTINEL_ENV] + f".pending-{os.getpid()}")
+        waits["n"] += 1
+        if waits["n"] == 1:
+            pending.write_text("x", encoding="utf-8")
+        elif waits["n"] == 4:
+            pending.unlink()
+        return 0 if "interrupt" in tree.events else None
+
+    seen: list[int] = []
+
+    def terminal_status():
+        seen.append(waits["n"])
+        return "done"
+
+    _FakeTree.behavior = staticmethod(behavior)
+    outcome = _run(fake_tree, terminal_status=terminal_status, session_id="slug")
+    assert (outcome.kind, outcome.done_signalled) == ("done", False)
+    assert "ticket-terminal" in outcome.reason
+    assert seen and min(seen) >= 4

@@ -901,6 +901,7 @@ def _configured_remote_identity(
             capture_output=True,
             text=True, encoding="utf-8",
             check=False,
+            env=git._git_env(),
         )
     except OSError:
         return None
@@ -4787,6 +4788,7 @@ def _path_has_local_changes(root: Path, rel: str) -> bool:
         capture_output=True,
         text=True, encoding="utf-8",
         check=False,
+        env=git._git_env(),
     )
     lines = [line for line in result.stdout.splitlines() if line.strip()]
     return any(not _is_generated_snapshot_status(line, rel) for line in lines)
@@ -4882,6 +4884,7 @@ def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
         capture_output=True,
         text=True, encoding="utf-8",
         check=False,
+        env=git._git_env(),
     )
     return result.returncode == 0
 
@@ -5001,6 +5004,7 @@ def _show_path(root: Path, ref: str, rel: str) -> str:
             capture_output=True,
             text=True, encoding="utf-8",
             check=False,
+            env=git._git_env(),
         )
     except FileNotFoundError:
         return ""
