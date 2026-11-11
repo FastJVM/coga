@@ -1,6 +1,6 @@
 ---
 title: Branch sweep never releases a merged PR's stale never-pushed local draft
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -35,6 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
