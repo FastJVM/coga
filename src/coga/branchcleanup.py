@@ -959,7 +959,7 @@ def delete_local_branch(
         stderr = (safe.stderr + safe.stdout).strip()
         result.local_worktree_path = _worktree_path_from_delete_error(stderr)
         if _merge_check_refusal(stderr):
-            _recheck_and_force_delete(
+            force_delete_local_branch(
                 root,
                 branch,
                 tip,
@@ -989,7 +989,7 @@ def delete_local_branch(
         )
         return
 
-    _recheck_and_force_delete(root, branch, tip, "a PR vouched for it", echo, result)
+    force_delete_local_branch(root, branch, tip, "a PR vouched for it", echo, result)
 
 
 def _merge_check_refusal(output: str) -> bool:
@@ -1006,7 +1006,7 @@ def _merge_check_refusal(output: str) -> bool:
     return "is not fully merged" in output
 
 
-def _recheck_and_force_delete(
+def force_delete_local_branch(
     root: Path,
     branch: str,
     tip: str,
@@ -1170,6 +1170,7 @@ __all__ = [
     "delete_branch",
     "delete_remote_branch",
     "delete_local_branch",
+    "force_delete_local_branch",
     "local_branch_exists",
     "local_branch_landed",
 ]

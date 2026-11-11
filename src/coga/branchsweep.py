@@ -84,6 +84,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from stat import S_ISREG
 from typing import TYPE_CHECKING, Callable
 
 from coga.atomicio import atomic_write_text
@@ -100,6 +101,7 @@ from coga.branchcleanup import (
     WorktreeCleanupResult,
     delete_local_branch,
     delete_remote_branch,
+    force_delete_local_branch,
     inspect_worktree_for_removal,
     local_branch_landed,
     remove_inspected_worktree,
@@ -109,6 +111,7 @@ from coga.checkout_disposal import live_checkout_claim
 from coga.config import Config, local_config_path
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
+from coga.github_source import github_repository_identity
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.retire_worklist import (
     RetireFollowUp,
@@ -129,6 +132,8 @@ if TYPE_CHECKING:
     from coga.branchcleanup import _WorktreeLocalState
 
 SWEEP_REPORT_HEADING = "## Branch Sweep"
+_FULL_OID = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
+_RELEASE_OPTION = "--publish-and-release-local"
 
 
 @dataclass
@@ -172,6 +177,18 @@ class BranchSweepResult:
 
 
 @dataclass(frozen=True)
+class _SourceDifference:
+    number: str
+    head: str
+    paths: tuple[str, ...]
+
+    def describe_paths(self) -> str:
+        shown = ", ".join(self.paths[:3])
+        extra = len(self.paths) - 3
+        return f"{shown} (+{extra} more)" if extra > 0 else shown
+
+
+@dataclass(frozen=True)
 class MergedPrVerdict:
     """Whether a merged PR authorizes deleting one local ref, and why.
 
@@ -183,6 +200,8 @@ class MergedPrVerdict:
 
     landed: bool
     reason: str
+    source_difference: _SourceDifference | None = None
+    comparison_incomplete: bool = False
 
 
 def sweep_branches(
@@ -358,6 +377,15 @@ def sweep_branches(
             local_tip is not None
             and local_branch_landed(root, branch, cfg.git_control_branch)
         )
+        if (
+            only is None and local_tip is not None and not local_landed
+            and local_verdict is not None and not local_merged
+            and local_verdict.source_difference is not None
+        ):
+            _report_retained_draft(
+                cfg, root, branch, local_tip, local_verdict,
+                worktree_branches.get(branch), result, echo,
+            )
         remove_worktree = False
         if branch in worktree_branches and (
             remote_merged
@@ -492,8 +520,8 @@ def _publish_retirement_tag(
     echo: Callable[[str], None],
     *,
     pr_heads: dict[str, str] | None = None,
-) -> bool:
-    """Push an immutable archive covering every tip authorized for deletion.
+) -> str | None:
+    """Return the name of the remote archive covering the authorized tips.
 
     `pr_heads` maps merged PR head SHAs to their PR numbers. GitHub keeps each
     at `refs/pull/<n>/head`, so when the tips diverge — a local ref whose
@@ -502,11 +530,10 @@ def _publish_retirement_tag(
     """
     tag = f"retired/{branch}"
 
-    def refuse(reason: str) -> bool:
+    def refuse(reason: str) -> None:
         message = f"Branch sweep: {branch!r} could not publish {tag!r}: {reason} — left in place."
         result.retirement_failures.append(message)
         _note(result, echo, message)
-        return False
 
     for tip in dict.fromkeys(tips):
         if _object_present(root, tip):
@@ -586,7 +613,7 @@ def _publish_retirement_tag(
                 f"Branch sweep: {branch!r} at {target} is already archived by "
                 f"{name!r} on {cfg.git_remote}.",
             )
-            return True
+            return name
         # An unpublished local tag elsewhere may be someone's only archive.
         if local_tag is not None and local_tag != target:
             continue
@@ -603,7 +630,7 @@ def _publish_retirement_tag(
             result, echo,
             f"Branch sweep: archived {branch!r} at {target} as {name!r} on {cfg.git_remote}.",
         )
-        return True
+        return name
 
     return refuse(
         f"{' and '.join(repr(name) for name in names)} already archive other "
@@ -746,20 +773,30 @@ def _inspect_pinning_worktree(
     return cleanup, local_state
 
 
-def _merged_prs(branch: str) -> list[tuple[str, str]]:
+def _pr_heads(branch: str, state: str, repository: str | None) -> list[tuple[str, str]]:
+    if repository is None:
+        items = prs_for_head(branch, state)
+    else:
+        items = prs_for_head(branch, state, repository=repository)
+    heads = [(str(item.get("number", "")), str(item.get("headRefOid") or "")) for item in items]
+    if repository is not None and any(
+        not re.fullmatch(r"[1-9][0-9]*", number) or not _FULL_OID.fullmatch(head)
+        for number, head in heads
+    ):
+        raise GhError(f"incomplete {state} PR head evidence for {branch!r}")
+    return [(number, head) for number, head in heads if head]
+
+
+def _merged_prs(branch: str, *, repository: str | None = None) -> list[tuple[str, str]]:
     """`(number, head SHA)` of every merged PR whose head branch is `branch`.
 
     Raises `GhError` if `gh` is missing, unauthed, or errors.
     """
-    return [
-        (str(item.get("number", "")), str(item["headRefOid"]))
-        for item in prs_for_head(branch, "merged")
-        if item.get("headRefOid")
-    ]
+    return _pr_heads(branch, "merged", repository)
 
 
 def _closed_unmerged_prs(
-    branch: str, merged: list[tuple[str, str]]
+    branch: str, merged: list[tuple[str, str]], *, repository: str | None = None
 ) -> list[tuple[str, str]]:
     """`(number, head SHA)` of PRs for head `branch` closed without merging.
 
@@ -768,10 +805,8 @@ def _closed_unmerged_prs(
     """
     merged_numbers = {number for number, _head in merged}
     return [
-        (number, str(item["headRefOid"]))
-        for item in prs_for_head(branch, "closed")
-        if item.get("headRefOid")
-        and (number := str(item.get("number", ""))) not in merged_numbers
+        (number, head) for number, head in _pr_heads(branch, "closed", repository)
+        if number not in merged_numbers
     ]
 
 
@@ -827,12 +862,15 @@ def merged_pr_verdict(
         if head == tip:
             return MergedPrVerdict(True, f"PR #{number} {verb} at this exact tip")
     reason = ""
+    differences: list[_SourceDifference] = []
+    comparison_incomplete = False
     for number, head, verb in candidates:
         refused = f"has {verb} PR #{number} at {head[:12]}, but"
         if not _object_present(root, head) and not _fetch_pr_head(
             root, remote, number, head
         ):
             reason = f"{refused} that head could not be fetched from {remote} to compare against"
+            comparison_incomplete = True
             continue
         beyond = _git(
             root, "rev-list", tip, f"^{head}", *(f"^{ref}" for ref in landed_refs)
@@ -842,6 +880,7 @@ def merged_pr_verdict(
                 f"{refused} its history could not be compared: "
                 f"{(beyond.stderr + beyond.stdout).strip()}"
             )
+            comparison_incomplete = True
             continue
         commits = [line for line in beyond.stdout.splitlines() if line]
         if commits:
@@ -849,6 +888,7 @@ def merged_pr_verdict(
             local_patches = _verbatim_patch_ids(root, commits, no_walk=True)
             if merged_patches is None or local_patches is None:
                 reason = f"{refused} its patches could not be compared"
+                comparison_incomplete = True
                 continue
             matching = Counter(merged_patches.values())
             unmatched = []
@@ -862,6 +902,7 @@ def merged_pr_verdict(
         offending = _non_state_paths(root, commits, coga_prefix=coga_prefix)
         if offending is None:
             reason = f"{refused} the commits beyond it could not be inspected"
+            comparison_incomplete = True
             continue
         if not offending:
             beyond_note = (
@@ -871,10 +912,12 @@ def merged_pr_verdict(
                 else "; the ref is contained in or patch-equivalent to landed history"
             )
             return MergedPrVerdict(True, f"PR #{number} {verb}{beyond_note}")
-        shown = ", ".join(sorted(offending)[:3])
-        more = f" (+{len(offending) - 3} more)" if len(offending) > 3 else ""
-        reason = f"{refused} the ref carries commits touching {shown}{more} — left in place"
-    return MergedPrVerdict(False, reason)
+        difference = _SourceDifference(number, head, tuple(sorted(offending)))
+        if verb == "merged":
+            differences.append(difference)
+        reason = f"{refused} the ref carries commits touching {difference.describe_paths()} — left in place"
+    selected = min(differences, key=lambda item: (len(item.number), item.number, item.head), default=None)
+    return MergedPrVerdict(False, reason, selected, comparison_incomplete)
 
 
 def _verbatim_patch_ids(
@@ -1084,6 +1127,169 @@ def discharge_owned_followups(
             )
 
 
+def _report_retained_draft(
+    cfg: Config, root: Path, branch: str, tip: str, verdict: MergedPrVerdict,
+    worktree: str | None, result: BranchSweepResult, echo: Callable[[str], None],
+) -> None:
+    if _draft_claim(cfg, root, branch) is not None:
+        return
+    difference = verdict.source_difference
+    assert difference is not None
+    if worktree is not None:
+        eligibility = f"Manual release unavailable while checked out in {worktree!r}"
+    elif verdict.comparison_incomplete:
+        eligibility = "Manual release unavailable while another PR comparison is incomplete"
+    else:
+        eligibility = "See the manual release procedure before deciding whether to publish"
+    _note(
+        result, echo,
+        f"Branch sweep: retained local draft {branch!r} at {tip}. Compared with "
+        f"merged PR #{difference.number} at {difference.head}, it has unmatched "
+        f"changes touching {difference.describe_paths()}. {eligibility} "
+        "(coga/checkout-cleanup/branch-sweep, Review and release a retained local draft).",
+    )
+
+
+def _draft_claim(cfg: Config, root: Path, branch: str) -> str | None:
+    try:
+        if branch in _live_ticket_branches(cfg, {branch}, strict=True):
+            return "a live ticket in this workspace names the branch"
+        return live_checkout_claim(cfg, root, branch=branch, worktree=None)
+    except Exception as exc:  # noqa: BLE001 — an incomplete scan cannot clear the claim gate
+        return f"could not prove the branch unclaimed: {exc}"
+
+
+class _ReleaseRefused(RuntimeError):
+    pass
+
+
+def _github_git_identity(url: str) -> tuple[str, str, str] | None:
+    if "://" in url and not url.startswith(("https://", "http://", "ssh://", "git://")):
+        return None
+    identity = github_repository_identity(url)
+    if identity and all(re.fullmatch(r"[a-z0-9_.-]+", part) for part in identity):
+        return identity
+    return None
+
+
+def _release_repository(cfg: Config, root: Path) -> str:
+    fetch = _git(root, "remote", "get-url", "--", cfg.git_remote)
+    push = _git(root, "remote", "get-url", "--push", "--all", "--", cfg.git_remote)
+    targets = push.stdout.splitlines()
+    identity = _github_git_identity(fetch.stdout.strip())
+    if (
+        fetch.returncode != 0 or push.returncode != 0 or identity is None
+        or len(targets) != 1 or _github_git_identity(targets[0]) != identity
+    ):
+        raise _ReleaseRefused("the configured remote must fetch and push one matching GitHub repository")
+    return "/".join(identity)
+
+
+def _check_release_tip(root: Path, branch: str, tip: str) -> None:
+    ref = f"refs/heads/{branch}"
+    listed = _git(root, "for-each-ref", "--format=%(refname) %(objectname) %(symref)", ref)
+    current = None
+    for line in listed.stdout.split("\n"):
+        if line.startswith(f"{ref} "):
+            oid, _, symbolic_target = line.removeprefix(f"{ref} ").partition(" ")
+            if not symbolic_target:
+                current = oid
+            break
+    if listed.returncode != 0 or listed.stderr or current is None:
+        raise _ReleaseRefused("the local branch is missing or its tip could not be read")
+    if current != tip:
+        raise _ReleaseRefused(f"the local tip changed from {tip} to {current}")
+
+
+def _check_release_claims(cfg: Config, root: Path, branch: str, repository: str) -> None:
+    if prs_for_head(branch, "open", repository=repository):
+        raise _ReleaseRefused("an open PR has this head branch")
+    if claim := _draft_claim(cfg, root, branch):
+        raise _ReleaseRefused(claim)
+    worktrees = _git(root, "worktree", "list", "--porcelain")
+    if worktrees.returncode != 0 or not worktrees.stdout.startswith("worktree "):
+        raise _ReleaseRefused("could not list worktrees")
+    for occupied, path in _worktree_paths_by_branch(worktrees.stdout).items():
+        if os.path.normcase(occupied) == os.path.normcase(branch):
+            raise _ReleaseRefused(f"the branch is checked out in worktree {path!r}")
+
+
+def _release_control_refs(cfg: Config, root: Path, tip: str) -> list[str]:
+    control = cfg.git_control_branch
+    expected = {f"refs/heads/{control}", f"refs/remotes/{cfg.git_remote}/{control}"}
+    listed = _git(root, "for-each-ref", "--format=%(refname) %(objectname)", *sorted(expected))
+    refs = []
+    for line in listed.stdout.split("\n"):
+        ref, _, oid = line.partition(" ")
+        if ref in expected:
+            refs.append(oid)
+    if listed.returncode != 0 or listed.stderr or not refs:
+        raise _ReleaseRefused("could not establish local control history")
+    for ref in refs:
+        ancestry = _git(root, "merge-base", "--is-ancestor", tip, ref)
+        if ancestry.returncode == 0:
+            raise _ReleaseRefused("the local tip is already reachable from control")
+        if ancestry.returncode != 1:
+            raise _ReleaseRefused("could not compare the local tip with control history")
+    return refs
+
+
+def _release_local_draft(
+    cfg: Config, root: Path, branch: str, tip: str, result: BranchSweepResult,
+) -> int:
+    archive = None
+    try:
+        if not _FULL_OID.fullmatch(tip):
+            raise _ReleaseRefused("supply the full local commit OID")
+        if branch.startswith("-") or _git(root, "check-ref-format", f"refs/heads/{branch}").returncode:
+            raise _ReleaseRefused("supply a valid local branch name")
+        if os.path.normcase(branch) in {
+            os.path.normcase(cfg.git_control_branch), os.path.normcase(SKILL_UPDATE_BRANCH),
+        }:
+            raise _ReleaseRefused("the branch is protected")
+        _check_release_tip(root, branch, tip)
+        repository = _release_repository(cfg, root)
+        _check_release_claims(cfg, root, branch, repository)
+
+        merged = _merged_prs(branch, repository=repository)
+        if not merged:
+            raise _ReleaseRefused("no merged PR has this head branch")
+        closed = (
+            _closed_unmerged_prs(branch, merged, repository=repository)
+            if branch in _terminal_owners(cfg, root, {branch}) else []
+        )
+        coga_prefix, error = coga_root_prefix(cfg.repo_root)
+        if coga_prefix is None:
+            raise _ReleaseRefused(f"could not locate the Coga root: {error}")
+        verdict = merged_pr_verdict(
+            root, tip, merged, landed_refs=_release_control_refs(cfg, root, tip),
+            remote=cfg.git_remote, coga_prefix=coga_prefix, closed=closed,
+        )
+        if verdict.landed:
+            raise _ReleaseRefused(f"ordinary cleanup has a landing proof: {verdict.reason}")
+        if verdict.comparison_incomplete or verdict.source_difference is None:
+            raise _ReleaseRefused("could not establish unmatched source changes with a complete PR comparison")
+        _check_release_tip(root, branch, tip)
+        archive = _publish_retirement_tag(cfg, root, branch, [tip], result, print)
+        if archive is None:
+            raise _ReleaseRefused("retirement archive failed")
+
+        if _release_repository(cfg, root) != repository:
+            raise _ReleaseRefused("the configured remote repository changed during archival")
+        _check_release_claims(cfg, root, branch, repository)
+        _check_release_tip(root, branch, tip)
+        cleanup = BranchCleanupResult(branch=branch, notes=result.notes)
+        force_delete_local_branch(root, branch, tip, "operator-authorized release", print, cleanup)
+        if not cleanup.local_deleted:
+            raise _ReleaseRefused("Git deletion did not complete")
+        result.local_deleted.append(branch)
+        return 0
+    except (_ReleaseRefused, GhError, OSError, UnicodeError, ValueError) as exc:
+        archived = f" Archive for {tip} remains at {archive!r} on {cfg.git_remote}." if archive else ""
+        sys.stderr.write(f"[branch-sweep] local {branch!r} was not deleted: {exc}.{archived}\n")
+        return 2
+
+
 def run_branch_sweep_recipe(
     cfg: Config, argv: list[str], *, result: BranchSweepResult | None = None
 ) -> int:
@@ -1095,7 +1301,7 @@ def run_branch_sweep_recipe(
     to name the deleted branches does not have to snapshot `git ls-remote`
     either side of the run.
     """
-    if argv:
+    if argv and (len(argv) != 3 or argv[0] != _RELEASE_OPTION):
         sys.stderr.write(
             f"branch-sweep: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
@@ -1106,6 +1312,8 @@ def run_branch_sweep_recipe(
         return 2
     if result is None:
         result = BranchSweepResult()
+    if argv:
+        return _release_local_draft(cfg, root, argv[1], argv[2], result)
     # Not rebound from the return value: `sweep_branches` hands back this same
     # object, and reading the caller's own reference keeps the out-parameter
     # contract true even if that ever stops being so.
@@ -1209,7 +1417,7 @@ _MENTION_END = r"(?![\w-])(?![./]\w)"
 _PERIOD_TASK_PREFIX = "recurring/"
 
 
-def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
+def _live_ticket_branches(cfg: Config, candidates: set[str], *, strict: bool = False) -> set[str]:
     """The `candidates` any non-terminal ticket names anywhere in its files.
 
     Every file of an ordinary task is read — the ticket body above and below
@@ -1235,18 +1443,23 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
             if read_ticket(ref).status in TERMINAL_STATUSES:
                 continue
         except TicketError:
-            pass
+            if strict:
+                raise
         if ref.id_slug.startswith(_PERIOD_TASK_PREFIX):
             try:
                 blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
             except (OSError, TaskFileError):
+                if strict:
+                    raise
                 continue
             branches.update(candidates.intersection(parse_branch_names(blackboard)))
             continue
-        for path in _task_files(ref.path):
+        for path in _task_files(ref.path, strict=strict):
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
+                if strict:
+                    raise
                 continue
             branches.update(pattern.findall(text))
             if len(branches) == len(candidates):
@@ -1339,7 +1552,20 @@ def _closed_pr_claim(cfg: Config, root: Path, branch: str) -> str | None:
     return None
 
 
-def _task_files(path: Path) -> list[Path]:
+def _task_files(path: Path, *, strict: bool = False) -> list[Path]:
+    if strict:
+        def raise_walk_error(error: OSError) -> None:
+            raise error
+
+        if S_ISREG(path.stat().st_mode):
+            return [path]
+        files = []
+        for directory, _, names in os.walk(path, onerror=raise_walk_error):
+            for name in names:
+                child = Path(directory, name)
+                if S_ISREG(child.stat().st_mode):
+                    files.append(child)
+        return files
     if path.is_file():
         return [path]
     return [child for child in path.rglob("*") if child.is_file()]
@@ -1381,10 +1607,14 @@ def _worktree_branches(
         )
         return {}
 
+    return _worktree_paths_by_branch(listed.stdout)
+
+
+def _worktree_paths_by_branch(porcelain: str) -> dict[str, str]:
     worktrees: dict[str, str] = {}
     path = ""
     branch_prefix = "branch refs/heads/"
-    for line in listed.stdout.splitlines():
+    for line in porcelain.split("\n"):
         if line.startswith("worktree "):
             path = line.removeprefix("worktree ")
         elif path and line.startswith(branch_prefix):

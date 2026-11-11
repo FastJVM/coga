@@ -1,6 +1,6 @@
 ---
 name: coga/checkout-cleanup/branch-sweep
-description: What the branch sweep protects and archives before deleting — patch-equivalent merged-PR verdicts, the shared skill-update branch, the `retired/<branch>` remote archive — and the `[git] worktrees_ticket_owned` assumption for unrecorded worktrees.
+description: What the branch sweep protects and archives before deleting, how to review and release a retained local draft, and when unrecorded worktrees pin a branch.
 ---
 
 # Branch-sweep protection, archive, and unrecorded worktrees
@@ -50,6 +50,52 @@ retire/autoclose disposal into an archival operation, except for the owned
 branches the disposal passes to the restricted sweep, which archive like any
 sweep deletion.
 
+## Review and release a retained local draft
+
+The ordinary sweep can report a **retained local draft** when comparison
+with a merged PR finds unmatched source changes. The report names the
+branch, its full local commit OID, the merged PR and its head, and example
+paths. If several merged PRs have unmatched changes, it shows the one with
+the lowest PR number. These differences can be an earlier draft or later
+follow-up work. The sweep keeps both branch refs and any worktrees.
+A visible worktree hold or an incomplete comparison with another PR makes
+manual release unavailable. Live-ticket claims and incomplete claim scans
+suppress the draft entry.
+
+In the clone that has the draft, inspect the commits with
+`git log --stat <pr-head>..<full-local-oid>` and `git show <commit>`. If you
+need the PR head object, fetch `refs/pull/<pr-number>/head` from the configured
+remote. Review the commit and the history it would expose to readers of that
+remote. When you want to publish that exact draft and release its local
+branch, run:
+
+```sh
+coga run branch-sweep --publish-and-release-local <branch> <full-local-oid>
+```
+
+Use the full OID you reviewed. The command looks up PRs in the configured
+remote's GitHub repository and requires matching fetch and push destinations.
+It checks for unmatched source work, ordinary cleanup eligibility, open PRs,
+protected names, live-ticket claims, and worktree occupancy. The claim check
+includes mentions in the current workspace's live tickets and attachments and
+recorded `## Dev` branch claims across the Git checkout's Coga workspaces.
+The command archives the reviewed commit under the retirement tag rules
+above and deletes only the named local branch. It rechecks open PRs, claims,
+occupancy, and the tip after archival. Keep the target branch free of concurrent
+updates during the command. Git's worktree-aware deletion runs separately
+from the final tip check.
+
+The command reports the commit, tag, remote, and local deletion outcome.
+A detached rebase or bisect can make Git refuse deletion after archival.
+The reported tag remains on the remote if deletion fails after publication.
+To restore the exact draft, fetch the reported tag and switch at the reported
+OID. The tag itself can point to a descendant that already contains the draft.
+
+```sh
+git fetch --no-tags <remote> refs/tags/<tag>
+git switch -c <new-branch> <full-local-oid>
+```
+
 ## Unrecorded worktrees: `[git] worktrees_ticket_owned`
 
 The [checkout proofs](../SKILL.md#the-checkout-proofs) only touch worktrees a ticket or worklist recorded. An ad-hoc
@@ -72,6 +118,5 @@ worktree's registration keeps pinning its branch.
 The branch sweep is a clone-scoped recurring template: every clone runs it
 daily for its own refs and worktrees. Cadence and scope live in
 [recurring scheduling](../../recurring/scheduling/SKILL.md#repo-scope-and-clone-scope).
-It preserves and reports local refs with unpushed non-bookkeeping commits. A closed but unmerged PR alone is not evidence that its work landed,
-and it authorizes nothing without a terminal owner
+A closed but unmerged PR can authorize cleanup only with a terminal owner
 ([coga/checkout-cleanup/terminal-owners](../terminal-owners/SKILL.md)).
