@@ -25,9 +25,8 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 Init declares the agents whose CLI it found on `PATH` and comments out the
 `[agents.*]` table of every other supported agent. So with one agent installed
 you need no config edit: that agent is the only declared type and therefore the
-default. To add another, install its CLI, then open `coga/coga.toml` and
-uncomment its table — init bracketed each disabled table in marker comments
-that name the agent and say to uncomment the lines between them.
+default. To add another, install its CLI and uncomment its table in
+`coga/coga.toml`.
 
 In a repo that declares both, choose which one new tasks get with this
 top-level setting, placed before any `[table]` in `coga/coga.local.toml`:

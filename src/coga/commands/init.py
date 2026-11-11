@@ -659,18 +659,6 @@ _COMMENTED_AGENT_TABLE = re.compile(
     r"^[ \t]*#[ \t]*\[agents\.([^\]\s]+)\][ \t]*$", re.M
 )
 
-# Markers bracketing a table `coga init` commented out. They exist because the
-# disabled block sits flush against the packaged file's own commented examples,
-# so without them nothing says where the table the user should re-enable ends.
-# Uncommenting between them restores the table byte for byte, prose included.
-_DISABLED_START = (
-    "# --- disabled by `coga init`: `{name}` was not on PATH ---\n"
-)
-_DISABLED_END = (
-    "# --- end disabled agent; uncomment the lines between these markers, "
-    "then delete them, to enable it ---\n"
-)
-
 
 def _agent_table_state(coga_toml: Path) -> tuple[list[str], list[str]]:
     """What coga.toml declares, and which registry tables sit commented out.
@@ -714,28 +702,14 @@ def _configure_agent_tables(
     skipped, so it is found yet undeclared, and treating it as the default
     would stamp an `agent:` that `coga validate` reports as unknown.
 
-    Three traps shape the rewrite.
-
-    Commenting "every line to the next table header" would swallow the
-    eighty-line unattended-runs block, because `[recurring]` and `[launch]`
-    ship commented out and so are not headers `_TABLE_START` can see. The
-    disabled range therefore ends at the table's own last live key, which
-    leaves the commented `# analyze` / `# peer` examples below it alone.
-
-    Within that range every line is prefixed, including the prose comments
-    between the keys, so a line that was already a comment reads `# # ...` and
-    restores as prose when one marker is stripped. Prefixing only the live
-    lines would mix init's work with the file's own prose indistinguishably,
-    and a user stripping `# ` across the block — which is what "uncomment the
-    table" means — would turn that prose into invalid statements. The range is
-    then bracketed by two generated marker comments, because the block sits
-    flush against those `# analyze` examples and nothing else would say where
-    it ends.
-
-    And a direct write that failed partway would leave a truncated coga.toml
-    for init to commit, so the new text lands through a sibling temporary file
-    and `os.replace`. Raises nothing: a failure here must not trigger init's
-    rollback of an otherwise good repo.
+    Two traps shape the rewrite. Commenting "every line to the next table
+    header" would swallow the eighty-line unattended-runs block, because
+    `[recurring]` and `[launch]` ship commented out and so are not headers
+    `_TABLE_START` can see; this comments only live lines, which stops at the
+    table's own last key. And a direct write that failed partway would leave a
+    truncated coga.toml for init to commit, so the new text lands through a
+    sibling temporary file and `os.replace`. Raises nothing: a failure here
+    must not trigger init's rollback of an otherwise good repo.
     """
     try:
         text = coga_toml.read_text(encoding="utf-8")
@@ -761,24 +735,13 @@ def _configure_agent_tables(
         )
         if start is None:
             continue
-        # The table runs to its last live key: past that are the packaged
-        # file's own commented examples, which are not this agent's to disable.
-        end = start
-        for i in range(start + 1, len(lines)):
-            if _TABLE_START.match(lines[i]):
+        for i in range(start, len(lines)):
+            stripped = lines[i].strip()
+            if i > start and _TABLE_START.match(lines[i]):
                 break
-            if lines[i].strip() and not lines[i].strip().startswith("#"):
-                end = i
-        for i in range(start, end + 1):
-            if lines[i].strip():
-                lines[i] = f"# {lines[i]}"
-        if not lines[end].endswith("\n"):
-            # A table whose last key ends the file without a trailing newline
-            # would otherwise have the end marker concatenated onto it, which
-            # still parses as one comment and so slips past the check below.
-            lines[end] += "\n"
-        lines.insert(end + 1, _DISABLED_END)
-        lines.insert(start, _DISABLED_START.format(name=agent.name))
+            if not stripped or stripped.startswith("#"):
+                continue
+            lines[i] = f"# {lines[i]}"
     new_text = "".join(lines)
 
     try:
@@ -1653,8 +1616,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             kept = ", ".join(agent_label(name) for name in declared_agents)
             typer.echo(
                 f"Declared {kept} in {coga_os / 'coga.toml'}; commented out "
-                f"{tables} ({missing} not on PATH) — each is bracketed by "
-                f"markers saying how to re-enable it."
+                f"{tables} ({missing} not on PATH) — uncomment once installed."
             )
         else:
             typer.echo(
@@ -1746,8 +1708,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         drivable = " or ".join(f"{agent.display} (`{agent.name}`)" for agent in AGENT_CLIS)
         remedy = (
             "Install one, then uncomment its [agents.*] table in "
-            f"{coga_os / 'coga.toml'} — each disabled table is bracketed by "
-            "markers saying what to uncomment. "
+            f"{coga_os / 'coga.toml'}. "
             if not declared_agents
             else ""
         )

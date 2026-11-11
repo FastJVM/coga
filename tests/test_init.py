@@ -3391,33 +3391,25 @@ def _packaged_toml_copy(tmp_path: Path) -> tuple[Path, str]:
     return coga_toml, original
 
 
-def _reenable_agents(text: str) -> str:
-    """Do what the markers tell a user to do: uncomment between them.
-
-    Mechanical on purpose. The point of the markers is that this needs no
-    judgement about which commented line was a setting and which was prose."""
-    out: list[str] = []
-    inside = False
-    for line in text.splitlines(keepends=True):
-        if line.startswith("# --- disabled by"):
-            inside = True
-            continue
-        if line.startswith("# --- end disabled"):
-            inside = False
-            continue
-        out.append(
-            re.sub(r"^# ?", "", line) if inside and line.startswith("#") else line
-        )
-    return "".join(out)
+def _commented_table_lines(text: str, name: str) -> list[str]:
+    """Every `# `-prefixed line of the commented-out `[agents.<name>]` table."""
+    lines = text.splitlines()
+    start = lines.index(f"# [agents.{name}]")
+    out = [lines[start]]
+    for line in lines[start + 1 :]:
+        if not line.startswith("#"):
+            break
+        out.append(line)
+    return out
 
 
 @pytest.mark.parametrize(
-    "found, declared, commented",
+    "found, declared, commented, commented_lines",
     [
-        (["claude"], ["claude"], ["codex"]),
-        (["codex"], ["codex"], ["claude"]),
-        (["claude", "codex"], ["claude", "codex"], []),
-        ([], [], ["claude", "codex"]),
+        (["claude"], ["claude"], ["codex"], {"codex": 6}),
+        (["codex"], ["codex"], ["claude"], {"claude": 7}),
+        (["claude", "codex"], ["claude", "codex"], [], {}),
+        ([], [], ["claude", "codex"], {"claude": 7, "codex": 6}),
     ],
     ids=["only-claude", "only-codex", "both", "none"],
 )
@@ -3426,10 +3418,10 @@ def test_configure_agent_tables_declares_what_the_scan_found(
     found: list[str],
     declared: list[str],
     commented: list[str],
+    commented_lines: dict[str, int],
 ) -> None:
     """The scan's PATH read decides what coga.toml declares. A not-found agent
-    keeps its table, commented out and bracketed, so enabling it later is an
-    uncomment."""
+    keeps its table, commented out, so enabling it later is an uncomment."""
     coga_toml, original = _packaged_toml_copy(tmp_path)
 
     assert init_cmd._configure_agent_tables(coga_toml, found) == declared
@@ -3443,37 +3435,21 @@ def test_configure_agent_tables_declares_what_the_scan_found(
     assert "default_agent" not in parsed
     assert '# default_agent = "claude"' in text
 
-    # Anchored at line starts: the packaged file's own prose mentions the
-    # markers, and a bare substring count would include it.
-    assert len(re.findall(r"^# --- disabled by", text, re.M)) == len(commented)
-    assert len(re.findall(r"^# --- end disabled", text, re.M)) == len(commented)
-    for name in commented:
-        assert f"# --- disabled by `coga init`: `{name}` was not on PATH ---" in text
-        assert f'# cli = "{name}"' in text
-    # Everything from the next live table on is byte-identical, which is what
-    # keeps the `[recurring]`/`[launch]` block (commented out, so not a header
-    # this can see) and the `# analyze` / `# peer` examples out of the rewrite.
-    assert text.endswith(original[original.index("[notification]") :])
-
-
-@pytest.mark.parametrize(
-    "found", [["claude"], ["codex"], []], ids=["only-claude", "only-codex", "none"]
-)
-def test_configure_agent_tables_round_trips_through_its_own_markers(
-    tmp_path: Path, found: list[str]
-) -> None:
-    """Uncommenting between the markers restores the packaged file byte for
-    byte, prose comments included. This is the criterion the markers exist for:
-    the disabled block sits flush against the file's own `# analyze` examples,
-    so without a boundary a mechanical uncomment ran past the table's last key
-    and turned that prose into invalid statements."""
-    coga_toml, original = _packaged_toml_copy(tmp_path)
-
-    assert init_cmd._configure_agent_tables(coga_toml, found) is not None
-
-    restored = _reenable_agents(coga_toml.read_text(encoding="utf-8"))
-    assert restored == original
-    assert list(tomllib.loads(restored)["agents"]) == ["claude", "codex"]
+    for name, count in commented_lines.items():
+        block = _commented_table_lines(text, name)
+        # The header plus every key of that table, and nothing live left over.
+        assert len(block) >= count
+        assert f"# cli = \"{name}\"" in block
+        assert f"[agents.{name}]" not in parsed.get("agents", {})
+    # Only the agent tables moved: everything from the next live table on is
+    # byte-identical, which is what keeps the `[recurring]`/`[launch]` block
+    # (commented out, so not a header this can see) out of the rewrite.
+    tail = original[original.index("[notification]") :]
+    assert text.endswith(tail)
+    assert text.count("\n") == original.count("\n")
+    assert sum(1 for a, b in zip(original.splitlines(), text.splitlines()) if a != b) == (
+        sum(commented_lines.values())
+    )
 
 
 def test_configure_agent_tables_leaves_the_packaged_bytes_alone_when_all_found(

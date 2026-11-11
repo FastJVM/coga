@@ -124,17 +124,12 @@ install it or put it on `PATH`.
 That one `PATH` read is also what configures the repo, so the rows you read are
 the agents your `coga.toml` ends up declaring. Before the commit, init comments
 out the `[agents.*]` table of every supported agent whose binary it did not
-find. The table stays in the file, bracketed by two marker comments naming the
-agent and saying to uncomment between them, so enabling it later is an
-uncomment rather than an edit you compose. The markers are there because the
-disabled block sits directly above the file's own commented `# analyze` and
-`# peer` examples, and without a boundary nothing says where the table ends;
-uncommenting between them restores the table exactly, explanatory comments
-included. No `default_agent` key is written: the default is the first table the
-file still declares, which is the first agent found. Init also repoints
-delivered tickets that name the old default, such as the onboarding ticket's
-`agent:`, at that agent. A machine with one agent CLI therefore needs no config
-edit to start working.
+find. The table stays in the file, so enabling that agent later is uncommenting
+a block rather than writing one. No `default_agent` key is written: the default
+is the first table the file still declares, which is the first agent found. Init
+also repoints delivered tickets that name the old default, such as the
+onboarding ticket's `agent:`, at that agent. A machine with one agent CLI
+therefore needs no config edit to start working.
 
 Found nothing? Every agent table is commented out. That is the honest state —
 no agent is configured — and the next steps say to install an agent CLI and
