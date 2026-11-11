@@ -40,7 +40,34 @@ step: 1 (design)
 
 ## Description
 
-Placeholder; body filled in the next commit.
+A `coga bump` run from a **feature-branch** checkout published the ticket and
+log to `origin/main` correctly, but left the checkout broken in two ways:
+
+1. A stale, empty `.git/index.lock` that no process owned. Every later git
+   write failed. `git stash create` exited 1 with no message, and
+   `git merge origin/main` printed only `fatal: stash failed`. The silent stash
+   failure made it look like a coga dirty-state problem instead of a lock
+   problem.
+2. The published ticket and log edits stayed dirty (` M`) in the feature
+   checkout, byte-identical to `origin/main`. That dirt blocks
+   `git merge`/`git rebase` of `origin/main` until someone runs
+   `git checkout -- <paths>` by hand.
+
+Find which coga publication path leaves `index.lock` behind and fix it. Likely
+candidates are the feature-branch publication plumbing or the
+advance-local-control step, possibly when the process is killed or races an
+agent session teardown. Then remove the manual sync burden from item 2.
+
+Done when:
+
+- The root cause of the stale lock is identified, with a regression test. No
+  publication path can exit (normally, on error, or on signal/teardown) while
+  leaving a coga-created `index.lock`.
+- One of these holds: coga restores published-and-identical files in a
+  feature checkout after publishing, or `coga/checkouts/reconciliation`
+  documents the exact one-command way to sync a feature branch with control
+  and `coga status` points at it when that dirt is present. The design step
+  chooses between them.
 
 ## Context
 
@@ -127,6 +154,56 @@ Recurring parents (coga/recurring/<name>/ticket.md) take schedule and related
 template settings owned by coga/recurring/templates; do not add them to an
 ordinary ticket.
 -->
+
+### Evidence (observed in another repo, 2026-11-10)
+
+- coga 0.4.1, git 2.43.0, Linux. A Codex agent (`launch_args = "--no-daemon"`)
+  ran `coga bump` at the end of an attended implement step, from a
+  `coga/<slug>-<hex>` feature branch. Control got the ticket commit at 15:16:36
+  and the log commit at 15:16:39.
+- `.git/index.lock`: 0 bytes, mtime 15:16:38.435. That is inside the publish
+  window and equal to the session's `ended_at` in the log usage record. So
+  the lock was created during publication, at the moment the agent session
+  ended. Afterwards no git process and no coga process had the repo as cwd
+  (`pgrep -x git`, `lsof`).
+- Afterwards, the feature checkout had ` M coga/log.md` and ` M coga/tasks/<slug>.md`,
+  both identical to `origin/main` (`git diff --quiet origin/main -- <paths>`).
+- Running `coga create` from the same feature checkout reproduced item 2
+  immediately: it published to control, left `coga/log.md` dirty, and left the
+  new ticket untracked locally. So any feature-branch coga command makes the
+  next `git merge origin/main` need a manual restore.
+
+Manual recovery used: confirm no owning process and `rm .git/index.lock`;
+check that the dirty coga files equal control, then `git checkout -- <paths>`;
+`git merge --no-edit origin/main`. Use merge, not rebase, so the already-pushed
+branch doesn't need a force-push.
+
+### Where to look
+
+- Publication code: `src/coga/git.py` and the state-publication/sync modules
+  it calls. Look for any git invocation that writes the **checkout's** index
+  (`git add`, `read-tree`, `checkout`, `update-index`, `stash`) during a
+  feature-branch publish. A lock in the checkout's `.git` means coga touched
+  the real index, not a temporary `GIT_INDEX_FILE`. Check whether that
+  subprocess can be killed mid-write: the supervisor tearing down the agent
+  at bump, a SIGTERM/SIGHUP to the process group, or a timeout.
+- `coga/state-publication` (cited, not attached;
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md`):
+  read "Control versus feature checkouts", "Strict publication on demand", and
+  "Recovering a failed publication". Update it in the same PR if behaviour
+  changes.
+- `coga/checkouts/reconciliation` (cited, not attached;
+  `.../contexts/coga/checkouts/reconciliation/SKILL.md`): edit it if the design
+  picks the documentation route.
+- Related history: `v1/06-fix-coga-git-sync-failures-that-leave-main-diverge`
+  (done) covered divergence of local main, not stale locks or feature-checkout
+  dirt.
+
+### Out of scope
+
+- Automatically deleting an `index.lock` that coga did not create. Another
+  git process may own it. At most, detect it and report a clear message.
+
 
 <!-- coga:blackboard -->
 
