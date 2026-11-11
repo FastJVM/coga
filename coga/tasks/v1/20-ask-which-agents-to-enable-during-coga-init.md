@@ -1178,8 +1178,8 @@ Two Windows-specific checks beyond macOS's:
 ```yaml
 title: "Write coga.toml from init's agent-CLI scan"
 author: claude (Claude Opus 5, 1M context) — implementing agent for this step
-head: c50a583a088bcba889b9ef0d745886628498aefe
-base: cbbfef358  # re-point at main when the PR is opened; see the Handoff note
+head: 01ce1cc180cd4367ecb3881a489469688cce6934  # c50a583a rebased onto 8baf8e326 on 2026-11-11; branch patch byte-identical, focused suite 178 passed after the rebase
+base: 8baf8e326
 review_depth: deep
 review_depth_rationale: >
   Rewrites a committed config file that every later command reads, on the one
