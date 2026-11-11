@@ -110,6 +110,12 @@ and the complete Description and Context as Markdown, preserving their source
 text, excluding frontmatter, blackboard and PR preparation. The snapshot has no
 outer code fence: its headings, lists, links and own code blocks render normally.
 Snapshot extraction happens at publication.
+GitHub rejects a body over 65,536 characters. When the full body would exceed
+that, only the file table changes: it groups paths by parent directory with
+per-status counts and names the `git diff --name-status` command that lists
+every path. Preparation coverage is still checked per path, and the snapshot
+stays literal. If the grouped body still exceeds the limit, publication refuses
+before pushing; shorten the preparation prose or receipts.
 The closure marker remains machine-readable outside that snapshot.
 
 Missing/unstructured preparation publishes a `deep` fallback with unknown
