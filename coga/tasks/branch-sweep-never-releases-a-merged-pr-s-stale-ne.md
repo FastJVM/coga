@@ -203,6 +203,15 @@ The design needs clarification before implementation. The ticket body composes i
 - The CLI smoke command `.venv/bin/coga run branch-sweep --publish-and-release-local` rejected the deliberately incomplete invocation with exit 2. Its state sync also published the already-edited developer internals topic to `main` in `0e04ded0cf03708c35ecce7a11c6aabb1b72b0eb`. The branch was rebased over that commit. The shipped user topic remains in the feature diff.
 - The owner waived native Windows full-suite verification for this ticket. The native suite was not run, and no Windows host was provisioned.
 
+## Peer review
+
+- Direct Codex review completed on head `c044ed403e4dd04dbb5c136511d21f34f88e35f4` against base `30f6be817e0abd4788b3f29b98dc259c7fdf3e8e`. No must-fix findings; no implementation edits were needed. Reviewed all five diff paths and the shared claim, task-discovery, repository-identity, archive, deletion, recipe-routing, and checkout-disposal contracts.
+- The implement handoff identifies Codex as the author, and this review also ran in Codex. It was a fresh review session, but the PR receipt is classified as self-review; no independent reviewer identity is claimed.
+- Fetched and rebased onto current `origin/main` before review. Main's intervening changes were ticket/audit state only. The projected ticket was backed up, verified, and restored byte-for-byte; it remains outside implementation commits.
+- Five isolated probes passed through the CLI parser and real temporary Git repositories: manual tag-collision fallback, Git's detached-bisect deletion guard, a worktree acquired after archival, incomplete claim enumeration, and explicit repository/limit arguments to the shared GitHub lookup. Manual paths never entered ordinary sweep or retire follow-up processing, and all remote branches survived. Probe command: `TERM=dumb PYTHONPATH=/home/n/Code/coga/src /tmp/coga-branchsweep-py311/bin/python /tmp/coga-peer-branchsweep-f40cab82-probes.py`.
+- No raw-terminal, pager, prompt, or Slack surface changed; the output is plain stdout/stderr exercised by the recipe tests and CLI probes.
+- The full Linux suite is running at the reviewed head. Do not advance until its final receipt is recorded. Native Windows verification remains waived by the owner for this ticket.
+
 ## PR
 
 ```yaml
