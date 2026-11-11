@@ -13,6 +13,7 @@ that half and commits nothing.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib.resources.abc import Traversable
 import json
@@ -591,16 +592,18 @@ def _installed_agent_clis() -> list[str]:
     return [agent.name for agent in AGENT_CLIS if shutil.which(agent.name) is not None]
 
 
-def print_agent_scan() -> None:
+def print_agent_scan() -> list[str]:
     """Print every supported agent CLI and whether its binary is on PATH.
 
-    Public and argument-free so a later `coga check` can call it with no init
-    state to supply; it holds no interactivity check of its own, so such a
-    command can print unconditionally while init prints only on a tty. Rows
-    come from `AGENT_CLIS`, so an agent added there renders with no edit here,
-    and `AgentCLI.display` reads a label-less entry under its slug rather than
-    raising. The binary rides in parens inside the label, so no row needs
-    column alignment.
+    Returns the agents it found, so init configures `coga.toml` from the very
+    rows the user just read instead of walking PATH a second time that could
+    disagree with the first. Still argument-free, so a later `coga check` calls
+    it the same way and ignores the return; it holds no interactivity check of
+    its own either, so such a command can print unconditionally while init
+    prints only on a tty. Rows come from `AGENT_CLIS`, so an agent added there
+    renders with no edit here, and `AgentCLI.display` reads a label-less entry
+    under its slug rather than raising. The binary rides in parens inside the
+    label, so no row needs column alignment.
 
     The leading blank line is load-bearing: on a fresh VM the heading ran
     straight on from the `op` note above it and read as another line of that
@@ -610,7 +613,7 @@ def print_agent_scan() -> None:
     under it. Asks nothing and writes nothing.
     """
     if not AGENT_CLIS:
-        return
+        return []
     installed = _installed_agent_clis()
     typer.echo("")
     typer.echo("Checking for agent CLIs...")
@@ -625,35 +628,7 @@ def print_agent_scan() -> None:
             f"{'found' if found else 'not found'}",
             fg=typer.colors.GREEN if found else None,
         )
-
-
-def _offer_agent_cli(default_agent: str | None) -> str | None:
-    """Offer an installed agent CLI as the default; that agent, or None.
-
-    Interactive init only, after `_offer_optional_tools`. Init never installs
-    an agent CLI or names an installer. A user with none installed is asked
-    nothing here and reads the prerequisite once, in `_do_init`'s next steps.
-    When exactly one agent CLI resolves and it is not `default_agent` — the
-    default agent of the coga.toml init is about to write — init asks to make
-    it the default (written as `default_agent`) and returns it on a yes.
-    Nothing is returned when the packaged template declares no default to
-    replace.
-    """
-    if not _interactive():
-        return None
-    installed = _installed_agent_clis()
-    if len(installed) != 1:
-        return None
-    chosen = installed[0]
-    if default_agent is None or chosen == default_agent:
-        return None
-    if not typer.confirm(
-        f"Make `{chosen}` the default agent in coga.toml (instead of "
-        f"`{default_agent}`)?",
-        default=True,
-    ):
-        return None
-    return chosen
+    return installed
 
 
 def _template_default_agent(template_root: Traversable) -> str | None:
@@ -673,56 +648,129 @@ def _template_default_agent(template_root: Traversable) -> str | None:
 
 
 _TABLE_START = re.compile(r"^[ \t]*\[")
-_DEFAULT_AGENT_KEY = re.compile(r"^[ \t]*default_agent[ \t]*=")
-_DEFAULT_AGENT_EXAMPLE = re.compile(r"^[ \t]*#[ \t]*default_agent[ \t]*=")
 
 
-def _write_default_agent(coga_toml: Path, name: str) -> bool:
-    """Set top-level `default_agent = "<name>"` in coga.toml; True on success.
+def _agent_table_start(name: str) -> re.Pattern[str]:
+    """The live `[agents.<name>]` header line, commented headers excluded."""
+    return re.compile(rf"^[ \t]*\[agents\.{re.escape(name)}\][ \t]*$")
 
-    `Config.default_agent` honours the key over declaration order, so init
-    names the chosen agent rather than reordering the `[agents.*]` tables. A
-    key already naming `name` is left as is; an existing key is replaced in
-    place; otherwise the template's commented example is uncommented, or the
-    line goes ahead of the first table (and the comments that introduce it),
-    where a top-level key must sit. Only a type declared under `[agents.*]` is
-    written, and the rewrite must parse to the original config plus exactly
-    that key, or coga.toml is left untouched and this returns False.
+
+_COMMENTED_AGENT_TABLE = re.compile(
+    r"^[ \t]*#[ \t]*\[agents\.([^\]\s]+)\][ \t]*$", re.M
+)
+
+
+def _agent_table_state(coga_toml: Path) -> tuple[list[str], list[str]]:
+    """What coga.toml declares, and which registry tables sit commented out.
+
+    Read back off disk instead of inferred from the scan, so init reports the
+    file the user actually has: a configuration that bailed leaves the packaged
+    template, where every table is live and none is commented out, and both
+    lists say so. Declared names keep the file's own order, which is the
+    order `Config.default_agent` resolves the default from. The commented list
+    is filtered through `AGENT_CLIS`, so a hand-commented table for some other
+    agent type is not reported as init's work. Returns two empty lists for an
+    unreadable or unparseable file, which the caller treats as nothing to say.
     """
-    text = coga_toml.read_text(encoding="utf-8")
     try:
+        text = coga_toml.read_text(encoding="utf-8")
+        parsed = tomllib.loads(text)
+    except (OSError, tomllib.TOMLDecodeError):
+        return [], []
+    agents = parsed.get("agents")
+    declared = list(agents) if isinstance(agents, dict) else []
+    commented = set(_COMMENTED_AGENT_TABLE.findall(text))
+    return declared, [a.name for a in AGENT_CLIS if a.name in commented]
+
+
+def _configure_agent_tables(
+    coga_toml: Path, found: Sequence[str]
+) -> list[str] | None:
+    """Comment out the not-found agents' tables; the names still declared.
+
+    The scan's PATH read is the input and this file is the output, so what the
+    machine has decides what the repo declares. Every registry agent absent
+    from `found` gets its `[agents.<name>]` table commented out rather than
+    deleted, which makes enabling it later an uncomment rather than an edit
+    the user has to compose. Returns the names the file now declares, in
+    declaration order, which is the first-is-default order
+    `Config.default_agent` reads; returns None, leaving coga.toml untouched, on
+    any failure.
+
+    Callers must read the returned list rather than `found`: a registry agent
+    the packaged template never declared has no table to comment out and is
+    skipped, so it is found yet undeclared, and treating it as the default
+    would stamp an `agent:` that `coga validate` reports as unknown.
+
+    Two traps shape the rewrite. Commenting "every line to the next table
+    header" would swallow the eighty-line unattended-runs block, because
+    `[recurring]` and `[launch]` ship commented out and so are not headers
+    `_TABLE_START` can see; this comments only live lines, which stops at the
+    table's own last key. And a direct write that failed partway would leave a
+    truncated coga.toml for init to commit, so the new text lands through a
+    sibling temporary file and `os.replace`. Raises nothing: a failure here
+    must not trigger init's rollback of an otherwise good repo.
+    """
+    try:
+        text = coga_toml.read_text(encoding="utf-8")
         before = tomllib.loads(text)
-    except tomllib.TOMLDecodeError:
-        return False
-    agents = before.get("agents")
-    if not isinstance(agents, dict) or name not in agents:
-        return False
-    if before.get("default_agent") == name:
-        return True
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    declared = before.get("agents")
+    if not isinstance(declared, dict):
+        declared = {}
+    expected = [
+        agent.name
+        for agent in AGENT_CLIS
+        if agent.name in found and agent.name in declared
+    ]
+
     lines = text.splitlines(keepends=True)
-    top = next(
-        (index for index, line in enumerate(lines) if _TABLE_START.match(line)),
-        len(lines),
-    )
-    new_line = f"default_agent = {json.dumps(name)}\n"
-    existing = [i for i in range(top) if _DEFAULT_AGENT_KEY.match(lines[i])]
-    example = [i for i in range(top) if _DEFAULT_AGENT_EXAMPLE.match(lines[i])]
-    if existing or example:
-        lines[(existing or example)[0]] = new_line
-    else:
-        # The comment block directly above the first table introduces it.
-        while top > 0 and lines[top - 1].lstrip().startswith("#"):
-            top -= 1
-        lines.insert(top, new_line + "\n")
+    for agent in AGENT_CLIS:
+        if agent.name in found or agent.name not in declared:
+            continue
+        header = _agent_table_start(agent.name)
+        start = next(
+            (i for i, line in enumerate(lines) if header.match(line)), None
+        )
+        if start is None:
+            continue
+        for i in range(start, len(lines)):
+            stripped = lines[i].strip()
+            if i > start and _TABLE_START.match(lines[i]):
+                break
+            if not stripped or stripped.startswith("#"):
+                continue
+            lines[i] = f"# {lines[i]}"
     new_text = "".join(lines)
+
     try:
         after = tomllib.loads(new_text)
     except tomllib.TOMLDecodeError:
-        return False
-    if after != {**before, "default_agent": name}:
-        return False
-    coga_toml.write_text(new_text, encoding="utf-8", newline="\n")
-    return True
+        return None
+    if list(after.get("agents", {})) != expected:
+        return None
+    if {k: v for k, v in after.items() if k != "agents"} != {
+        k: v for k, v in before.items() if k != "agents"
+    }:
+        return None
+
+    if new_text == text:
+        # Every declared agent was found: nothing to comment out, so leave the
+        # packaged bytes exactly as they shipped rather than rewriting them.
+        return expected
+
+    tmp = coga_toml.with_name(f"{coga_toml.name}.coga-tmp")
+    try:
+        tmp.write_text(new_text, encoding="utf-8", newline="\n")
+        os.replace(tmp, coga_toml)
+    except OSError:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+    return expected
 
 
 def _stamp_agent_into_delivered_tickets(coga_os: Path, old: str, new: str) -> None:
@@ -1381,22 +1429,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         sys.exit(2)
 
     # Every precondition has passed: only now offer optional supporting-tool
-    # installs and `gh auth login`, then show what this machine can drive and
-    # choose an installed default agent, so a doomed invocation never changes
-    # the machine. The chosen default agent is written once coga.toml exists.
+    # installs and `gh auth login`, then show what this machine can drive, so
+    # a doomed invocation never changes the machine.
     #
-    # The scan sits here, not inside `_offer_agent_cli`, for four reasons: it
-    # is in no early-returning branch, so every interactive fresh init prints
-    # it; it is before `target.mkdir()`, so it is outside the rollback and
-    # writes nothing; it is after the `op` note, so its leading blank line is
-    # what separates them; and it is before the make-this-the-default confirm,
-    # which it now gives context to. The clone path gets no call: a clone's
-    # coga.toml is committed team config and the scan is about this machine.
+    # This is the one PATH read for agents, and it is here for three reasons:
+    # it is in no early-returning branch, so every interactive fresh init
+    # prints it; it is before `target.mkdir()`, so it is outside the rollback
+    # and writes nothing; and it is after the `op` note, so the scan's leading
+    # blank line is what separates them. Its result configures coga.toml once
+    # that file exists, which is why the snapshot is kept rather than re-read:
+    # the rows the user just read are the agents the repo ends up declaring.
+    # `None` means non-interactive, which is distinct from `[]`, found nothing.
+    # The clone path gets no call: a clone's coga.toml is committed team config
+    # and the scan is about this machine.
     _offer_optional_tools()
-    if _interactive():
-        print_agent_scan()
+    found_agent_clis = print_agent_scan() if _interactive() else None
     template_default_agent = _template_default_agent(template_root)
-    default_agent = _offer_agent_cli(template_default_agent)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -1451,12 +1499,25 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         if pinned_branch is not None:
             _pin_control_branch(coga_os, pinned_branch, default_control_branch)
 
-        default_agent_set = default_agent is not None and _write_default_agent(
-            coga_os / "coga.toml", default_agent
+        # Write the scan's answer into the config every later command reads.
+        # Non-interactive init (`found_agent_clis is None`) never touches the
+        # file: a scripted run saw no scan to act on, so the packaged template
+        # declaring every supported agent stands.
+        configured_agents = (
+            None
+            if found_agent_clis is None
+            else _configure_agent_tables(coga_os / "coga.toml", found_agent_clis)
         )
-        if default_agent_set and template_default_agent is not None:
+        # Point the delivered tickets' `agent:` at the first agent the file
+        # still declares — not the first found, which may be a registry entry
+        # the template never declared a table for.
+        if (
+            configured_agents
+            and template_default_agent is not None
+            and configured_agents[0] != template_default_agent
+        ):
             _stamp_agent_into_delivered_tickets(
-                coga_os, template_default_agent, default_agent
+                coga_os, template_default_agent, configured_agents[0]
             )
 
         if is_empty:
@@ -1541,17 +1602,33 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f'    control_branch = "<your-branch>"',
             fg=typer.colors.YELLOW,
         )
-    if default_agent_set:
-        typer.echo(
-            f"Made `{default_agent}` the default agent (`default_agent` in "
-            f"{coga_os / 'coga.toml'})."
-        )
-    elif default_agent is not None:
+    # Read the outcome back off disk rather than inferring it from the scan:
+    # after a failed rewrite the packaged file is still there declaring
+    # everything, and a message built from `found_agent_clis` would describe a
+    # file the user does not have. Every line below reads these two lists.
+    declared_agents, commented_out_agents = _agent_table_state(
+        coga_os / "coga.toml"
+    )
+    if commented_out_agents:
+        tables = ", ".join(f"[agents.{name}]" for name in commented_out_agents)
+        missing = ", ".join(f"`{name}`" for name in commented_out_agents)
+        if declared_agents:
+            kept = ", ".join(agent_label(name) for name in declared_agents)
+            typer.echo(
+                f"Declared {kept} in {coga_os / 'coga.toml'}; commented out "
+                f"{tables} ({missing} not on PATH) — uncomment once installed."
+            )
+        else:
+            typer.echo(
+                f"No agent CLI found, so every [agents.*] table in "
+                f"{coga_os / 'coga.toml'} is commented out."
+            )
+    if found_agent_clis is not None and configured_agents is None:
         typer.secho(
-            f"Could not make `{default_agent}` the default agent: "
-            f"{coga_os / 'coga.toml'} did not take a `default_agent` line "
-            f"cleanly. Add `default_agent = \"{default_agent}\"` near its top, "
-            f"before any [table].",
+            f"Could not configure the agent tables in {coga_os / 'coga.toml'}: "
+            f"it was left exactly as packaged, so it declares every supported "
+            f"agent. Comment out the [agents.*] table of any agent you have "
+            f"not installed.",
             fg=typer.colors.YELLOW,
         )
     if host_gitignore_changed:
@@ -1618,23 +1695,43 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # neither requires nor installs (see `coga.dependencies`) — name the
     # prerequisite here, and only for the user the scan shows has none, so a
-    # fresh user isn't sent into the flow only to hit "not found". State the
-    # fact and stop: this reader has no agent CLI, so pointing them at
-    # `coga.toml` would name a key they have nothing to put in it, and the
-    # next steps deliberately never send anyone to edit a `.toml`.
-    if not _installed_agent_clis():
+    # fresh user isn't sent into the flow only to hit "not found".
+    #
+    # This is the one place the next steps send a reader to a `.toml`, and only
+    # when there is a table there to uncomment. Configuring commented every
+    # agent out, so installing the binary is half the remedy and the other half
+    # is in the file. When the tables are still live — a non-interactive run, or
+    # a configuration that bailed — installing the binary is the whole remedy,
+    # and naming coga.toml would send the reader to edit a file that is already
+    # right.
+    if not (found_agent_clis if found_agent_clis is not None else _installed_agent_clis()):
         drivable = " or ".join(f"{agent.display} (`{agent.name}`)" for agent in AGENT_CLIS)
+        remedy = (
+            "Install one, then uncomment its [agents.*] table in "
+            f"{coga_os / 'coga.toml'}. "
+            if not declared_agents
+            else ""
+        )
         steps.append(
-            f"No agent CLI was found — coga drives {drivable}. "
+            f"No agent CLI was found — coga drives {drivable}. {remedy}"
             "Agent-backed commands (`coga build`, `coga launch`, "
             "`coga ticket`) need one."
         )
     if is_empty:
-        build_agent = default_agent or AGENT_CLIS[0].name
-        other = next(agent.name for agent in AGENT_CLIS if agent.name != build_agent)
+        # Advertise only what coga.toml declares: a one-agent repo has no
+        # `--agent` alternative to offer. With nothing declared, the delivered
+        # ticket still names the template default, and the prerequisite line
+        # above has already said what to do first.
+        build_agent = (
+            declared_agents[0] if declared_agents else template_default_agent
+        ) or AGENT_CLIS[0].name
+        alternatives = "".join(
+            f", or `coga build --agent {name}` with {agent_label(name)}"
+            for name in declared_agents
+            if name != build_agent
+        )
         steps.append(
-            f"Run `coga build` with {agent_label(build_agent)}, or "
-            f"`coga build --agent {other}` with {agent_label(other)} "
+            f"Run `coga build` with {agent_label(build_agent)}{alternatives} "
             "— it launches the coga-build onboarding: one question "
             "about what you want to build, then an agent-led chat that ends in "
             "a short vision you sign off on and a flat batch of starter tickets "
