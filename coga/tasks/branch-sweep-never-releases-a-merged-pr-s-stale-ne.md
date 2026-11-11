@@ -159,6 +159,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/branch-sweep-never-releases-a-merged-pr-s-stale--4acafa
+
+
 Proposed report-only behavior for the daily sweep and explicit release of one reviewed local commit. Dates cannot distinguish a superseded draft from still-needed work. The existing retirement helper can preserve the reviewed tip, and the existing Git porcelain protects checked-out branches. Its last tip check and deletion have a small race window, so the proposed command requires a quiescent target branch during release.
 
 ## Open Questions
