@@ -10652,3 +10652,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-10 17:46 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [human:nicktoper] advanced to step 4 (implement) → claude
 2026-11-10 17:46 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-11-10 17:51 v1 [v1/re-run-the-macos-install-walk-from-source] [human:zach] activated (draft → active)
+2026-11-10 18:49 v1 [v1/coga-bump-on-feature-branch-leaves-stale-index-loc] [agent:claude] advanced to step 5 (peer-review) → codex

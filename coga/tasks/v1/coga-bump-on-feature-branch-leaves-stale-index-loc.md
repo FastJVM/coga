@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -427,6 +427,161 @@ The blackboard is a notepad to be written to often as the human and agent works 
   (:38.4), which fits a kill during the post-marker sweep. Whether the kill
   came from our 2 s SIGKILL escalation or from Codex killing its tool
   subprocesses is unknown. The fix covers both.
+
+## Owner dispositions (implement session, 2026-11-10)
+
+Taken live with the owner before implementation, resolving the evaluator's
+must-fix findings:
+
+1. Terminal-probe race: **pending-marker guard.** When `cli.main` defers the
+   done marker it writes `<sentinel>.pending` holding its PID; both
+   supervisors skip the terminal-status backstop while that file exists and
+   the PID is alive. Add a final-transition test with a delayed boundary.
+2. Sync hint scope: **restrict to provably safe states.** Command only when
+   every dirty Coga-root path is a regular file that is unstaged-only
+   (index == HEAD) with working blob *and mode* equal to control, or
+   untracked and equal to control. Anything staged, mode-different,
+   non-regular, or deleted is listed for manual reconciliation; no command.
+3. Object writes: use `git._blob_id` (no `-w`), not `_hash_blob`.
+4. Rendering: anchor with `git -C <root>` and absolute removal paths;
+   POSIX via `shlex`, native Windows via PowerShell literal quoting.
+   Native Windows full-suite receipt still required before merge.
+
+## Implementation handoff (implement step, 2026-11-10)
+
+What changed (all on the feature branch):
+
+- `git._git_env()` forces `GIT_OPTIONAL_LOCKS=0` after any overlay; module
+  docstring gains the "No optional locks" invariant.
+- Direct git subprocess callers now pass `env=git._git_env()`:
+  `launch._align_recorded_assist_checkout` ancestry check (`merge-base`),
+  `recurring_runner` (`remote get-url`, `_path_has_local_changes` status,
+  `_ref_has_path`, `_show_path`), `branchsweep` (`_verbatim_patch_ids`,
+  `_git`), `branchcleanup._git` (keeps `LC_ALL=C`), `validate._git_output`,
+  `open_pr._run` and `skill_manager.run_subprocess` (git argv only; they
+  also run `gh`). `launch._checkout_refusal_message` only *prints* argv.
+  **Deliberately left alone:** `dream_validate_drift` (dream's own
+  commit/push script, outside the end-of-command boundary, deliberate index
+  writes), `recurring_activity` / `retire_worklist` / `commands/update` /
+  `github_preflight` (ref-only subcommands: rev-parse, log, for-each-ref,
+  ls-tree, diff between refs, push --dry-run; none takes an index lock).
+- Deferred done marker: `repl_supervisor.deferred_done_marker()` (a
+  context manager over a `ContextVar`) wraps all of `cli.main`'s dispatch
+  and boundary; `emit_done_marker` appends inside it and the last request is
+  written after the sweep and log warning return, on success, SystemExit, or
+  exception. Command handlers are unchanged.
+- Pending guard (owner disposition 1): the same context manager writes
+  `<sentinel>.pending-<pid>` for the command's lifetime when the sentinel env
+  is non-empty (from boundary *entry*, not first request, so slow work
+  before `emit_done_marker` is covered too). Both supervisors skip the
+  terminal-status probe while `completion_pending()` finds a live PID.
+  `remove_sentinel_dir()` clears the private dir on every path.
+  Known limit: a SIGKILLed coga that stays an unreaped zombie still reads
+  as alive on POSIX until reaped; idle/max-session backstops still apply.
+- `git.feature_sync_plan()` / `FeatureSyncPlan` (disposition 2 + 3):
+  porcelain v2 over the Coga roots with literal pathspecs; safe only for
+  `.M` regular files (index == HEAD) and untracked regular files whose
+  `_blob_id` (no `-w`) and mode equal the remote-tracking control entry.
+  Everything else goes to `manual` with a reason.
+- `git.stale_index_lock()` (absolute git dir), `views._warn_if_index_locked`
+  and `views._hint_feature_sync` next to `_warn_if_control_ahead`; output
+  unwrapped and markup-free so paths copy cleanly.
+- Rendering (disposition 4): `oscompat.shell_command` / `shell_chain`
+  (POSIX `&&`; PowerShell nested `if ($?) { … }`, `Remove-Item
+  -LiteralPath` per file). `launch._checkout_command` now delegates to
+  `shell_command`; its PowerShell bare-word rule no longer lets a leading
+  `@` (splatting) through unquoted.
+- Docs: `coga/checkouts/reconciliation` new "Sync a feature branch with
+  control"; `coga/state-publication` feature paragraph + "Index locks";
+  `coga/recurring/scheduling/inactivity` (done-signal owner) records the
+  deferred write and the pending guard; `coga-dev/internals/agent-spawn`
+  names the implementation. `coga/launch` does not own the done-marker
+  contract, so it is unchanged.
+
+Still required before merge: **native Windows full-suite receipt**
+(platform-sensitive: supervisor + PowerShell rendering). Not run here.
+
+Test fixture change: `tests/fixtures/authoring_cancellation.py`'s
+`interrupted` variant assumed the old ordering (marker written before the
+sweep, then teardown kills the hung sweep). It now releases the held marker
+explicitly mid-sweep to model an external stop; the finalizer guarantees
+it checks are unchanged.
+
+Verification (Linux, git 2.43, head `d83726210c57` on base `7e342fbfa59e`):
+full suite **4736 passed, 33 skipped, 0 failed**. New regression tests were
+confirmed to fail with the fix reverted (optional-lock env and index stat;
+deferred marker ordering). `coga validate --json`: exit 0, 107 OK, the same
+ten pre-existing warnings.
+
+Pre-existing failure fixed at the owner's request (separate commit): main's
+`docs/contexts/coga-dev/internals/branch-sweep/SKILL.md` linked to
+`coga/checkout-cleanup/branch-sweep#review-and-release-a-retained-local-draft`,
+a section that exists only on the unmerged
+`branch-sweep-never-releases-a-merged-pr-s-stale-ne` branch (`c044ed403`).
+The coga-dev doc edit reached main early through a state sweep
+(`0e04ded0c Sync coga state`; the pre-review publication hazard). The link
+now targets the topic without the anchor. That ticket's PR may restore the
+anchor once its section merges.
+
+## PR
+
+```yaml
+title: Keep Coga's git calls off the index lock and defer the done marker
+author: claude
+author_evidence: Attended implement session run by Claude (claude-opus-5-5) under coga launch e9301af0-963e-4d01-bbf5-47659be5fc8b.
+head: d83726210c57584d79c4c2f6e76af94c597ca636
+base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+depth: deep
+rationale: Changes supervisor teardown ordering, adds a completion-pending guard to both POSIX and Windows supervisors, and prints a destructive recovery command from coga status; platform-sensitive and not yet independently reviewed or run on Windows.
+implementation: Forces GIT_OPTIONAL_LOCKS=0 in git._git_env and routes the remaining direct git subprocess callers through it; cli.main wraps dispatch and its end-of-command boundary in repl_supervisor.deferred_done_marker, which holds the done marker until the sweep and log warning return and leaves <sentinel>.pending-<pid> so both supervisors skip the terminal-ticket probe while a coga command is alive; coga status warns about an existing index.lock and, on a feature checkout, prints a root-anchored POSIX or PowerShell sync command when every dirty Coga-root file is an unstaged or untracked regular file equal in content and mode to the remote-tracking control copy, otherwise lists the files needing manual reconciliation.
+deviations: Owner dispositions of the evaluator findings (pending-marker guard, safe-state-only hint, non-writing _blob_id, anchored per-OS rendering) extend the original spec; the pending witness is written at boundary entry rather than at the first done request so slow work before emit_done_marker is also covered; launch._checkout_command now shares oscompat.shell_command, which also quotes a leading @ for PowerShell; a pre-existing broken coga-dev branch-sweep link anchor is dropped at the owner's request.
+limitations: The root cause is inferred, not reproduced live. A SIGKILLed coga left as an unreaped zombie still reads as a live pending command on POSIX until reaped (idle and max-session backstops still apply). Unstaged deletions are routed to manual reconciliation even when safe. dream_validate_drift, recurring_activity, retire_worklist, commands/update and github_preflight git calls are left unchanged (ref-only or deliberate commits outside the boundary). No native Windows run.
+files:
+  docs/contexts/coga-dev/internals/branch-sweep/SKILL.md: Drop an anchor to a branch-sweep section that is not on main yet (pre-existing broken link, fixed at owner request).
+  docs/contexts/coga-dev/internals/agent-spawn/SKILL.md: Describe the deferred marker, pending witness and sentinel-dir cleanup in the supervisor internals.
+  src/coga/branchcleanup.py: Run its git helper through git._git_env (keeps LC_ALL=C).
+  src/coga/branchsweep.py: Run patch-id proof and git helper through git._git_env.
+  src/coga/cli.py: Wrap dispatch and the end-of-command boundary in deferred_done_marker.
+  src/coga/git.py: Force GIT_OPTIONAL_LOCKS=0; add FeatureSyncPlan, feature_sync_plan and stale_index_lock.
+  src/coga/launch.py: Route the assist-alignment merge-base call through git._git_env; delegate command quoting to oscompat.
+  src/coga/open_pr.py: Run git argv through git._git_env.
+  src/coga/oscompat.py: Add shell_command and shell_chain for POSIX and PowerShell rendering.
+  src/coga/recurring_runner.py: Run its direct git calls (including a status) through git._git_env.
+  src/coga/repl_supervisor.py: Add deferred_done_marker, completion_pending and remove_sentinel_dir; skip the terminal probe while a command is pending.
+  src/coga/repl_supervisor_nt.py: Same pending guard and sentinel-dir cleanup on Windows.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md: New "Sync a feature branch with control" section.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/scheduling/inactivity/SKILL.md: Record the deferred done signal and the pending guard on the terminal backstop.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Link the sync section, mention the status lines, add the index-lock note.
+  src/coga/skill_manager.py: Run git argv through git._git_env.
+  src/coga/validate.py: Run its read-only git queries through git._git_env.
+  src/coga/views.py: Add the index-lock warning and feature-sync hint to coga status.
+  tests/conftest.py: Stub the two new status probes off the real-git harness.
+  tests/fixtures/authoring_cancellation.py: Model a mid-sweep stop explicitly now that the CLI withholds its marker.
+  tests/test_done_marker_emission.py: Cover marker ordering through cli.main, final bump with pending witness, sweep failure, failed command, and direct calls.
+  tests/test_git.py: Cover forced optional locks, an untouched real index on a feature sweep, feature_sync_plan safe/unsafe states, no object writes, the nested-cwd command run, and stale_index_lock.
+  tests/test_repl_supervisor.py: Cover completion_pending liveness and the PTY terminal backstop waiting on a live pending command.
+  tests/test_repl_supervisor_nt.py: Cover the Windows supervisor's pending guard with the fake process tree.
+  tests/test_views.py: Cover the status hint, omitted parts, manual listing, silence, PowerShell rendering and the lock warning.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: No code review yet; the workflow's later review step owns it. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: d83726210c57584d79c4c2f6e76af94c597ca636
+    base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+    detail: 4736 passed, 33 skipped.
+  - command: .venv/bin/python -m coga.cli validate --json
+    status: passed
+    head: d83726210c57584d79c4c2f6e76af94c597ca636
+    base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+    detail: Exit 0, 107 OK, ten pre-existing warnings on other tickets.
+  - command: native Windows python -m pytest
+    status: not-run
+    detail: No Windows host in this session; required before merge per coga-dev/testing.
+```
 
 ## Open Questions
 
