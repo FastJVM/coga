@@ -131,7 +131,7 @@ What the review step found:
   `v1/16` and `v1/19` are done, `v1/17`, `v1/18`, `v1/23`, `v1/24`, `v1/26`,
   `v1/27` and `v1/31` are drafts, and `v1/30` is blocked.
 - Two findings had nothing tracking them, so
-  `v1/cap-requires-python-and-stop-init-leading-with-a-c` was filed as a draft
+  `v1/47-cap-requires-python-and-stop-init-leading-with-a-c` was filed as a draft
   with the owner's agreement: finding 7's uncapped `requires-python`, and
   findings 9 through 11 on init's next steps. Closure would otherwise have
   retired them with this blackboard.
@@ -217,7 +217,7 @@ README line numbers below are `origin/main` at `717792674`.
    listed above are not orphaned yet.
 6. fixed on main by ordering — installing the Command Line Tools first removes
    the dialog. The source build that caused it is finding 7.
-7. tracked elsewhere — `v1/cap-requires-python-and-stop-init-leading-with-a-c`,
+7. tracked elsewhere — `v1/47-cap-requires-python-and-stop-init-leading-with-a-c`,
    draft, filed 2026-11-04. `pyproject.toml:10` is still uncapped, and
    `nothing-exercises-python-3-11-the-declared-floor` is canceled.
 8. tracked elsewhere — `v1/17-separate-installing-coga-from-installing-its-depen`

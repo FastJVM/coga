@@ -1,5 +1,5 @@
 ---
-title: 46-Wire agent skills on Windows without symlink privilege
+title: Wire agent skills on Windows without symlink privilege
 status: draft
 owner: zach
 workflow:

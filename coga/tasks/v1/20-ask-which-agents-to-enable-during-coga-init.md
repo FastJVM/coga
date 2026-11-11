@@ -1179,18 +1179,18 @@ Two Windows-specific checks beyond macOS's:
 The follow-up this ticket kept deferring to is now three drafts, filed
 before the PR so the merge-closed ticket leaves nothing unowned:
 
-- `v1/make-coga-s-built-in-commands-agent-agnostic`: `coga chat`,
+- `v1/49-make-coga-s-built-in-commands-agent-agnostic`: `coga chat`,
   `coga ticket` and `coga build` pinned to `agent: claude`. This also takes
   the none-case next-steps wording above.
-- `v1/give-coga-build-tickets-a-self-review-workflow-in`: in a one-agent
+- `v1/48-give-coga-build-tickets-a-self-review-workflow-in`: in a one-agent
   repo, coga build's starter tickets get a workflow with no `other-agent`
   step.
-- `v1/make-adding-a-third-agent-one-registry-edit`: fold
+- `v1/50-make-adding-a-third-agent-one-registry-edit`: fold
   `init._AGENT_SKILL_DIRS` and the packaged `[agents.*]` tables into the
   registry.
 
 The Python-range install failure from the Windows walk is already owned by
-`v1/cap-requires-python-and-stop-init-leading-with-a-c`.
+`v1/47-cap-requires-python-and-stop-init-leading-with-a-c`.
 
 ## PR
 
@@ -1228,11 +1228,11 @@ deviations: >
 limitations: >
   A repo that declares only Codex cannot run coga chat, coga ticket or
   coga build, which pin agent: claude; filed as
-  v1/make-coga-s-built-in-commands-agent-agnostic. A one-agent repo cannot
+  v1/49-make-coga-s-built-in-commands-agent-agnostic. A one-agent repo cannot
   resolve an other-agent workflow step, so coga build's starter tickets stall
-  there; filed as v1/give-coga-build-tickets-a-self-review-workflow-in.
+  there; filed as v1/48-give-coga-build-tickets-a-self-review-workflow-in.
   Adding a third agent still takes three edits; filed as
-  v1/make-adding-a-third-agent-one-registry-edit. A disabled table's
+  v1/50-make-adding-a-third-agent-one-registry-edit. A disabled table's
   commented lines sit directly above the packaged file's own commented prose,
   so stripping "# " across the whole region breaks TOML; coga validate
   catches it. tests/conftest.py still names the deleted _offer_agent_cli in an

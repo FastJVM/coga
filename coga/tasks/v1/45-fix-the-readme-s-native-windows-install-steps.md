@@ -41,7 +41,7 @@ Should fix:
 Coordinate with v1/43:
 
 - The README still says `uv tool install coga`, while PyPI 0.4.1 predates the Windows port (finding 2). This resolves when 1.0 publishes; until then, say how to install.
-- Coordinate with `v1/cap-requires-python-and-stop-init-leading-with-a-c`: without `--python`, uv now picks CPython 3.15 and the PyYAML build fails, needing MSVC. Seen in v1/20's walk on 2026-11-11. Whichever lands first, the README must not leave a no-Python machine on that path.
+- Coordinate with `v1/47-cap-requires-python-and-stop-init-leading-with-a-c`: without `--python`, uv now picks CPython 3.15 and the PyYAML build fails, needing MSVC. Seen in v1/20's walk on 2026-11-11. Whichever lands first, the README must not leave a no-Python machine on that path.
 
 Out of scope: init's symlink failure (finding 8) is a code bug and needs its own ticket. Evidence: `coga/tasks/v1/31-test-install-on-windows.md`, "Walk 1 summary" and findings 2–10.
 

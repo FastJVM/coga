@@ -64,6 +64,13 @@ Dream fixes, and the other deferred work are in [`../_v2/`](../_v2/README.md).
 | 41 | [Verify PostHog telemetry with the live clean-wheel proof](41-verify-posthog-telemetry-with-the-live-clean-wheel.md) |
 | 42 | [Publish the argument for Coga as a human instrument](42-idea-piece.md) |
 | 43 | [Publish coga 1.0 as the final V1 step](43-publish-coga-1-0-as-the-final-v1-step.md) |
+| | **Install-walk follow-ups** (from 20 and 31; land before 43) |
+| 45 | [Fix the README's native-Windows install steps](45-fix-the-readme-s-native-windows-install-steps.md) |
+| 46 | [Wire agent skills on Windows without symlink privilege](46-wire-agent-skills-on-windows-without-symlink-pr.md) |
+| 47 | [Cap requires-python and stop init leading with a coga.toml edit](47-cap-requires-python-and-stop-init-leading-with-a-c.md) |
+| 48 | [Give coga build tickets a self-review workflow in one-agent repos](48-give-coga-build-tickets-a-self-review-workflow-in.md) |
+| 49 | [Make coga's built-in commands agent-agnostic](49-make-coga-s-built-in-commands-agent-agnostic.md) |
+| 50 | [Make adding a third agent one registry edit](50-make-adding-a-third-agent-one-registry-edit.md) |
 
 ## Dependencies and release evidence
 
