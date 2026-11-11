@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -523,16 +523,61 @@ The coga-dev doc edit reached main early through a state sweep
 now targets the topic without the anchor. That ticket's PR may restore the
 anchor once its section merges.
 
+## Peer review
+
+Codex **completed** an independent direct review of all 25 diff paths at
+head `4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17` against base
+`db1442ea32e5834ce53fe8e62ab3654be57132b4` (fresh fetched `origin/main`).
+Implementation was by Claude; this fresh Codex session did not author it.
+No must-fix code findings. Reviewed forced optional-lock environments,
+real-index isolation, boundary exception ordering, both supervisors' live-PID
+pending guards, conservative content/mode/index-state proofs, literal paths,
+POSIX/PowerShell command rendering, caller-audit exclusions, tests and owners.
+The branch was rebased unconditionally onto fetched main and force-pushed
+with lease; the projected ticket was copied, byte-verified and restored
+unstaged around the rebase. No source changes were needed.
+
+Manual verification in disposable repos:
+- Real PTY at 80x24 and 120x40: lock warning and feature-sync hint visible;
+  executing the exact printed command from a nested cwd handled an apostrophe
+  and square brackets in an untracked filename and left a clean checkout at
+  `origin/main`.
+- Final `bump` with the real terminal-status probe and a seven-second delayed
+  end-of-command sweep: the boundary completed, then the sentinel was observed;
+  clean completion in 7.49s and no index lock. This also exercises the final
+  transition/backstop interaction beyond the five-second terminal window.
+- Validation: 107 OK, ten existing warnings, zero errors. Full Linux suite:
+  `PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider`
+  completed: **4736 passed, 33 skipped, zero failures in 754.25s**.
+  Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12,
+  at the head/base above. The earlier implement receipts remain historical.
+- Final fetch confirmed `origin/main` still at the reviewed base; branch
+  pushed at the reviewed head, `git diff --check` passed. Only this ticket
+  is dirty; no source edits or additional commits were needed.
+- Additional caller-audit exclusions: `config.py` and the packaged
+  `seed_local_config.py` use only `ls-files`, `check-ignore`, and ref/root
+  discovery (no optional index refresh); `commands/init.py` owns deliberate
+  installation index writes outside session-ending publication. The other
+  inspected subprocess-only modules invoke `gh`, agent CLIs or Python,
+  not Git. These exclusions do not change the publication-path guarantee.
+
+**Merge approval pending native Windows verification.** This changes process
+handling and PowerShell rendering; `coga-dev/testing` requires a native Windows
+full-suite receipt at the final head before merge. None has been supplied.
+Asked the attending owner about an existing host or receipt. The documented
+zombie-PID limitation and external idle/max-session kills remain outside the
+completion-triggered teardown fix; no stronger kill-proof guarantee is claimed.
+
 ## PR
 
 ```yaml
 title: Keep Coga's git calls off the index lock and defer the done marker
 author: claude
 author_evidence: Attended implement session run by Claude (claude-opus-5-5) under coga launch e9301af0-963e-4d01-bbf5-47659be5fc8b.
-head: d83726210c57584d79c4c2f6e76af94c597ca636
-base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+base: db1442ea32e5834ce53fe8e62ab3654be57132b4
 depth: deep
-rationale: Changes supervisor teardown ordering, adds a completion-pending guard to both POSIX and Windows supervisors, and prints a destructive recovery command from coga status; platform-sensitive and not yet independently reviewed or run on Windows.
+rationale: Changes supervisor teardown ordering, process liveness and recovery commands. Independent Codex direct code review completed without must-fix findings; native Windows full-suite verification is still required before merge.
 implementation: Forces GIT_OPTIONAL_LOCKS=0 in git._git_env and routes the remaining direct git subprocess callers through it; cli.main wraps dispatch and its end-of-command boundary in repl_supervisor.deferred_done_marker, which holds the done marker until the sweep and log warning return and leaves <sentinel>.pending-<pid> so both supervisors skip the terminal-ticket probe while a coga command is alive; coga status warns about an existing index.lock and, on a feature checkout, prints a root-anchored POSIX or PowerShell sync command when every dirty Coga-root file is an unstaged or untracked regular file equal in content and mode to the remote-tracking control copy, otherwise lists the files needing manual reconciliation.
 deviations: Owner dispositions of the evaluator findings (pending-marker guard, safe-state-only hint, non-writing _blob_id, anchored per-OS rendering) extend the original spec; the pending witness is written at boundary entry rather than at the first done request so slow work before emit_done_marker is also covered; launch._checkout_command now shares oscompat.shell_command, which also quotes a leading @ for PowerShell; a pre-existing broken coga-dev branch-sweep link anchor is dropped at the owner's request.
 limitations: The root cause is inferred, not reproduced live. A SIGKILLed coga left as an unreaped zombie still reads as a live pending command on POSIX until reaped (idle and max-session backstops still apply). Unstaged deletions are routed to manual reconciliation even when safe. dream_validate_drift, recurring_activity, retire_worklist, commands/update and github_preflight git calls are left unchanged (ref-only or deliberate commits outside the boundary). No native Windows run.
@@ -563,24 +608,46 @@ files:
   tests/test_repl_supervisor_nt.py: Cover the Windows supervisor's pending guard with the fake process tree.
   tests/test_views.py: Cover the status hint, omitted parts, manual listing, silence, PowerShell rendering and the lock warning.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: No code review yet; the workflow's later review step owns it. Design approval is not code review.
+  reviewer: codex
+  kind: independent
+  status: pending
+  head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+  base: db1442ea32e5834ce53fe8e62ab3654be57132b4
+  detail: Direct review completed over all 25 diff paths with no must-fix code findings. Implementer was Claude; reviewer is this fresh Codex session. Merge approval remains pending the required native Windows full-suite receipt.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: d83726210c57584d79c4c2f6e76af94c597ca636
-    base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
-    detail: 4736 passed, 33 skipped.
-  - command: .venv/bin/python -m coga.cli validate --json
-    status: passed
-    head: d83726210c57584d79c4c2f6e76af94c597ca636
-    base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
-    detail: Exit 0, 107 OK, ten pre-existing warnings on other tickets.
-  - command: native Windows python -m pytest
-    status: not-run
-    detail: No Windows host in this session; required before merge per coga-dev/testing.
+- command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: d83726210c57584d79c4c2f6e76af94c597ca636
+  base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+  detail: 4736 passed, 33 skipped.
+- command: .venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: d83726210c57584d79c4c2f6e76af94c597ca636
+  base: 7e342fbfa59e3269d32d75ff0c0cbe4d485a926b
+  detail: Exit 0, 107 OK, ten pre-existing warnings on other tickets.
+- command: native Windows python -m pytest
+  status: not-run
+  detail: No Windows host in this session; required before merge per coga-dev/testing.
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+  base: db1442ea32e5834ce53fe8e62ab3654be57132b4
+  detail: 4736 passed, 33 skipped, zero failures in 754.25s (12m34s). Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12. Full suite at the rebased head.
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+  base: db1442ea32e5834ce53fe8e62ab3654be57132b4
+  detail: Exit 0; 107 OK, ten existing warnings, zero errors. Pop!_OS 24.04 LTS, Python 3.12.12.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-lock-terminal-review.py
+  status: passed
+  head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+  base: db1442ea32e5834ce53fe8e62ab3654be57132b4
+  detail: 'Real PTY at 80x24 and 120x40: status reported a present lock and printed a copyable sync command; executing it from a nested directory with an apostrophe/bracket filename left a clean scratch checkout at origin/main.'
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-lock-delayed-review.py
+  status: passed
+  head: 4ee4d7e738f1f8f30b3ef2dc530e846eee0f4d17
+  base: db1442ea32e5834ce53fe8e62ab3654be57132b4
+  detail: 'Real PTY, final bump and real terminal-status probe with a seven-second delayed sweep: boundary finished, task done, sentinel observed, exit 0 in 7.49s, no index.lock. Disposable bare-remote harness; notifications disabled.'
 ```
 
 ## Open Questions
