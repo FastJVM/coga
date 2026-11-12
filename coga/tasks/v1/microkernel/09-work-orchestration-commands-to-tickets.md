@@ -176,10 +176,10 @@ Prior art: `ticket` (command head plus `bootstrap/ticket` and
 recipe, `bootstrap/resolve-conflicts` and `bootstrap/address-pr-comments`
 command tickets reached by aliases.
 
-Depends on `v1/microkernel/launch-decomposition` for a public
+Depends on `v1/microkernel/03-launch-decomposition` for a public
 one-session API (megalaunch currently imports the session runner out of
 `commands/launch.py`). Does not touch `runner.RECIPES`: that registry is
-owned by `v1/microkernel/gigantic-refactor-move-recurring-recipes-out-of-co`.
+owned by `v1/microkernel/04-gigantic-refactor-move-recurring-recipes-out-of-co`.
 
 Out of scope: `skill *`, `create`, the launch executor, recurring recipes.
 
