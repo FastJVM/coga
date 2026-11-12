@@ -1,6 +1,6 @@
 ---
 title: Remove the fixed uninstall-hint hazard from the gotchas topic
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:43d48cc7-ac9e-46f8-ad17-906eeb840f57
 ---
 
 ## Description
