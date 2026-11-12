@@ -10757,3 +10757,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:02 v1 [correct-state-publication-internals-for-pending-pu] [human:nicktoper] created (status=draft)
 2026-11-11 22:02 v1 [fix-the-checkouts-topics-attachment-claim-and-add] [human:nicktoper] created (status=draft)
 2026-11-11 22:02 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [human:nicktoper] created (status=draft)
+2026-11-11 22:02 v1 [replace-activity-capture-s-union-safe-description] [human:nicktoper] created (status=draft)
