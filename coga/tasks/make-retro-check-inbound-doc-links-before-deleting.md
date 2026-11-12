@@ -1,6 +1,6 @@
 ---
 title: Make Retro check inbound doc links before deleting a done ticket
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:d695166e-da6f-433b-8002-bc135ec2b880
 ---
 
 ## Description
