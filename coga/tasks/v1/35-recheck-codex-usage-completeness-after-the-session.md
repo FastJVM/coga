@@ -207,3 +207,10 @@ history `ts`/`session_id`. No transcript content was read.
 - `v1/honor-codex-home-when-locating-codex-rollouts` (draft).
   `_codex_rollout_paths` hardcodes `~/.codex/sessions` and ignores
   `CODEX_HOME`. It did not affect these misses. Nothing else is left open.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: legitimate Codex no-rollout unknowns and the unsupported CLAUDE_CONFIG_DIR

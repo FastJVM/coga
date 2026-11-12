@@ -325,3 +325,10 @@ checks:
     status: not-run
     detail: Required before approving this path-sensitive change by coga-dev/testing. No implement receipt is recorded; all local Windows harness runs have teardown markers and AWS_PROFILE is unset. The Windows harness skill requires owner approval for a new run outside windows-native tickets. Remains a pre-merge verification gap.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: legitimate Codex no-rollout unknowns and the unsupported CLAUDE_CONFIG_DIR
