@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -100,26 +100,178 @@ other workflow whose reviewed step requires automatic preparation. A custom
 workflow can then use the same primitives. Compose the actual selection and
 its reason in the runtime checkout notice.
 
-### Acceptance and reduction evidence
+### Acceptance criteria
 
-- [ ] In a fresh repo, obtain an editable workflow through the customization
-      ticket's path, make peer review use one agent, and verify the intended
-      branch is reused even with a new workflow name and edited skill.
-- [ ] Editing the source workflow affects newly frozen tickets only; changing
-      live instructions does not erase an explicit frozen checkout policy.
-- [ ] Parse/freeze/read round trips retain values; invalid values fail loud;
-      explicit manual, inherited roles, completion gates and owner assists
-      retain their separate semantics.
-- [ ] Old snapshots retain documented behavior, including CRLF-equivalent
-      skills, with a bounded compatibility plan rather than a second policy
-      system for newly authored workflows.
-- [ ] Existing branch/linkage, projected-ticket, control freshness, occupied
-      checkout and retry/return safeguards remain in shared checkout code.
-- [ ] Report removal of name/content inference from the normal declared path;
-      count the remaining fallback honestly. Do not claim it was deleted.
-- [ ] Update `coga/workflows`, `coga/checkouts` and affected launch/validation
-      guidance at their package owners. Cover workflow, validation, checkout,
-      composition and launch tests, full Linux suite and native Windows receipt.
+Declared path
+
+- [ ] `WorkflowStep` carries `checkout`; `_parse_step` accepts exactly
+      `control`, `create-or-reuse`, `reuse-required`, `manual` and raises
+      `WorkflowError` naming the step, the bad value and the vocabulary for
+      anything else (non-string, empty, unknown). Omitted parses as `manual`.
+- [ ] `Workflow.freeze()` writes `checkout:` on every step, after
+      `requires:` when present, including `manual`. `create`, activation in
+      `mark.py` and bump's bare-ref freeze all inherit this through `freeze()`.
+- [ ] `select_checkout_policy` returns the frozen step's explicit value as
+      authoritative, independent of workflow name, step name, step skills,
+      skill bytes, inline sections, `assignee:` and `requires:`. Its reason
+      names the source, e.g. `step 'peer-review' of workflow 'mine/review'
+      declares checkout: reuse-required`. No file resolution happens on this
+      path.
+- [ ] An invalid frozen value (`checkout: branch`, `checkout: 3`) refuses
+      before any checkout effect: `select_checkout_policy` raises, launch
+      reports it and stops without reserving, creating or switching a branch,
+      and `coga validate` reports a `bad-shape` error for that frozen step.
+- [ ] Peer-review acceptance (test): a repo-local workflow copied from
+      `code/with-review` under a new name (`team/solo-review`), with
+      `peer-review` changed to `assignee: agent` and a locally edited
+      `coga/skills/code/peer-review/SKILL.md`, freezes
+      `checkout: reuse-required` and launch reuses the recorded branch. The
+      same frozen ticket keeps `reuse-required` after the live workflow is
+      edited to drop the field or the skill is edited again; a ticket frozen
+      after that edit gets the new value.
+- [ ] Separate semantics stay separate: `checkout: manual` on a step that
+      `requires: branch` still runs manual entry and the bump gate still
+      requires the branch; an inherited role does not change the policy;
+      an owner-held step reached by an explicit assist uses its frozen value.
+
+Packaged definitions
+
+- [ ] The four code/docs workflows declare the policies the current `_ROWS`
+      table selects for them (see the table in Proposed shape). Every other
+      packaged workflow omits the field and therefore freezes `manual`,
+      which is what it gets today.
+- [ ] A fresh ticket frozen from each packaged code/docs workflow selects
+      the same kind per step as the table selected before the change
+      (parametrized test over workflow × step).
+
+Legacy fallback
+
+- [ ] A frozen step **without** a `checkout` key keeps today's behavior
+      exactly: the `_ROWS` lookup, step-skill shape check, resolved skill or
+      inline-section comparison, CRLF equivalence and the legacy
+      `code/with-review` inline peer-review case. Existing
+      `tests/test_checkouts.py` legacy cases pass unchanged.
+- [ ] The fallback reason says it came from the legacy table (e.g.
+      `... has no frozen checkout: (legacy snapshot); ...`) so a user can tell
+      which path ran.
+- [ ] No code rewrites a frozen ticket to add `checkout:`.
+
+Shared machinery and notice
+
+- [ ] `checkouts.py` keeps every safeguard (control proof, linkage,
+      reservation receipts, projection, occupancy, stranded-ticket guard,
+      retry/return). Only the policy *source* changes; the re-check
+      `select_checkout_policy(...) != policy` in `plan_ticket_checkout` and
+      `confirm_ticket_checkout` still detects a changed frozen step.
+- [ ] `ticket_notice` names the selected kind and its reason for every
+      action (control, switch, external, manual), not only for manual.
+
+Docs and evidence
+
+- [ ] `coga/workflows` documents `checkout:` in the definition format and the
+      frozen snapshot list; `coga/checkouts` replaces the closed-table section
+      with "the frozen step declares its entry", lists the packaged values,
+      and keeps a short "Legacy snapshots" subsection describing the
+      fallback and its retirement condition (below). `src/coga/resources/ticket.md`
+      frozen example shows `checkout:`. `coga-dev/microkernel` or
+      `coga-dev/codebase` mentions of `checkout_policy.py` stay accurate.
+- [ ] The PR reports physical line counts of `checkout_policy.py` and
+      `workflow.py` (and `validate.py` delta) at the base and head revisions,
+      says the declared path does no name/content inference, and states the
+      fallback was retained, not deleted, with its line count.
+- [ ] Tests: `tests/test_workflow*.py` (parse/freeze round trip, invalid
+      values), `tests/test_validate*.py` (frozen invalid value),
+      `tests/test_checkouts.py` (declared, legacy, invalid, notice),
+      composition/launch tests that assert notice text or frozen snapshots,
+      the seeded fixture. Full Linux `python -m pytest`, `coga validate
+      --json`, and a native Windows full-suite receipt per `coga-dev/testing`
+      (checkout selection is platform-sensitive: CRLF fallback).
+
+### Proposed shape
+
+1. **`src/coga/workflow.py`.** Add a module constant
+   `CHECKOUT_POLICIES: tuple[str, ...] = ("control", "create-or-reuse",
+   "reuse-required", "manual")` and `DEFAULT_CHECKOUT = "manual"`. Define
+   them here, not in `checkout_policy.py`, because `checkout_policy` imports
+   `workflow` and `validate` already imports workflow symbols; keep
+   `CheckoutPolicyKind` in `checkout_policy.py` as the `Literal` and assert
+   in a test that its args equal `CHECKOUT_POLICIES`. Add
+   `checkout: str = DEFAULT_CHECKOUT` to `WorkflowStep`; validate it in
+   `_parse_step` next to `requires`; emit it in `Workflow.freeze()`.
+   Export the constant in `__all__`.
+2. **`src/coga/checkout_policy.py`, `select_checkout_policy()`.** After
+   locating the current step: if `"checkout" in step`, validate the value
+   against `CHECKOUT_POLICIES` (raise a new `CheckoutPolicyError(ValueError)`
+   otherwise) and return `CheckoutPolicy(kind, "<label> declares checkout:
+   <kind>", named)`. Otherwise fall through to the existing `_ROWS` code,
+   unchanged except the reason prefix marking it legacy. Update the module
+   docstring: declared value first, closed table only for snapshots frozen
+   before the field. Keep `_changed_skill`, `_lf`, `_changed_section`.
+3. **Callers of `select_checkout_policy`.** In `src/coga/launch.py`,
+   `_prepare_step_checkout()` calls it before `plan_ticket_checkout`; catch
+   `CheckoutPolicyError` there (or move the call inside the existing `try`)
+   so the launch stops through the same refusal path, with nothing switched
+   (`switched=False`). In `src/coga/checkouts.py` the re-check calls inside
+   `plan_ticket_checkout`, `_authoritative_ticket` and
+   `confirm_ticket_checkout` should convert `CheckoutPolicyError` into
+   `CheckoutPreparationError` at the same stage. Verify that launch's
+   earlier preflight does not already reject the ticket; if it does (via
+   `assert_task_valid`), the in-selector raise is defense in depth, not the
+   primary gate.
+4. **`src/coga/validate.py`, `_check_step_shape()`.** Add a `checkout`
+   check beside `requires`: if the key is present and the value is not in
+   `CHECKOUT_POLICIES`, emit `Issue(kind="bad-shape", ...)` with severity
+   error. Absence is valid (legacy snapshot).
+5. **`src/coga/checkouts.py`, `ticket_notice()`.** Append
+   `Checkout policy: <kind> — <reason>.` to the summaries that do not already
+   carry the reason (switch, stay/control, external). Keep the manual text.
+6. **Packaged workflows** under
+   `src/coga/resources/templates/coga/bootstrap/workflows/`, matching the
+   current `_ROWS` selection:
+
+   | Workflow | Step → `checkout:` |
+   | --- | --- |
+   | `code/design-then-implement` | design, evaluate-design, review-design → control; implement → create-or-reuse; peer-review → reuse-required; open-pr → control; review → reuse-required |
+   | `code/with-review` | implement → create-or-reuse; peer-review → reuse-required; open-pr → control; review → reuse-required |
+   | `code/with-self-review` | implement → create-or-reuse; self-qa → reuse-required; pr → control; review → reuse-required |
+   | `docs/with-review` | implement → create-or-reuse; peer-review → reuse-required; open-pr → control; review → reuse-required |
+
+   Leave recurring/one-step/onboarding workflows without the field. Update
+   `tests/fixtures/seeded-repo/coga/workflows/code/*` the same way so the
+   fixture stays representative (check `INTENTIONALLY_DIVERGENT_TWINS` in
+   `tests/test_packaging.py` if a fixture twin is compared).
+7. **Docs** at package owners: `coga/workflows/SKILL.md` (Definition format,
+   Frozen snapshot list, a sentence that `checkout:` is metadata, so it is
+   frozen and live edits do not reach existing tickets);
+   `coga/checkouts/SKILL.md` ("Which checkout a step starts in": declaration,
+   default manual, value meanings, the packaged table, "Legacy snapshots"
+   with the retirement rule); `src/coga/resources/ticket.md` frozen example
+   comment. Check `coga/launch` and `coga/checkouts/manual` for sentences
+   that say "shipped step"/"closed table" and point them at the declaration.
+8. **Tests**, then run the full suite.
+
+Order: 1 → 4 → 2/3 → 5 → 6 → 7 → tests throughout.
+
+Retirement rule for the fallback (goes in `coga/checkouts`): `_ROWS` and its
+content comparison may be deleted only in a reviewed change after no live
+ticket in supported repos carries a code/docs snapshot without `checkout:`,
+or after an explicitly reviewed migration of those snapshots. Do not
+rewrite snapshots merely to delete the fallback.
+
+### Out of scope
+
+- Moving or reshaping CLI command heads, `launch-decomposition`, a new
+  agent-session module, locks, hooks or alternative workflow formats.
+- Making packaged workflows/skills discoverable or materializing editable
+  copies (`make-packaged-behavior-discoverable-and-editable`); this ticket's
+  acceptance test copies the workflow by hand.
+- Migrating or rewriting existing frozen tickets, or deleting `_ROWS`.
+- New policy kinds, or letting `checkout:` change roles, gates, occupancy,
+  owner-gate or assist authorization.
+- Lints that cross-check `checkout:` against `requires:` or the step role
+  (see Open Questions).
+- Changing `coga run prepare-checkout` (direct chat), which does not read
+  the step policy.
 
 ## Context
 
@@ -134,6 +286,32 @@ agent-session module. It can be implemented first after the refresh is
 accepted. The complete fresh-user acceptance case also needs
 `make-packaged-behavior-discoverable-and-editable`. Do not add locks, generic
 hooks, alternative workflow representations or automatic frozen-ticket edits.
+
+### Code map (verify by symbol; lines drift)
+
+- `src/coga/checkout_policy.py`: `select_checkout_policy(cfg, ticket)` reads
+  `ticket.workflow` and `ticket.current_step()`; `_ROWS` keyed by
+  `(workflow name, step name)`; `_changed_skill` compares resolved vs
+  `bootstrap_skill_path` bytes with `_lf` CRLF normalization;
+  `_changed_section` compares live vs packaged inline sections.
+- Callers: `launch.py` `_Launcher._prepare_step_checkout()` selects once and
+  passes the policy to `checkouts.plan_ticket_checkout()`; that function and
+  `_authoritative_ticket()` / `confirm_ticket_checkout()` re-select and
+  refuse on inequality; `ticket_notice()` composes the runtime notice; only
+  `_manages_branch_checkout()` launches reach this path (attended, ordinary,
+  non-recurring).
+- `plan_ticket_checkout()` branches on `policy.kind`: `control`/`manual`
+  stay; `reuse-required` without `branch:` refuses (or accepts
+  `## Already satisfied`); `create-or-reuse` reserves and creates.
+- Freezing: `Workflow.freeze()` is the only snapshot writer, called from
+  `create.py`, `mark.py` (activation of a bare ref) and `commands/bump.py`.
+- Frozen-step validation: `validate.py` `_check_step_shape()` already checks
+  `assignee` and `requires`; no unknown-key rejection exists, so a frozen
+  `checkout` key is accepted today and ignored.
+- Docs: `coga/checkouts/SKILL.md` "Which checkout a step starts in" holds
+  the closed table that this ticket replaces.
+- Baseline at `b3ade821e`: `checkout_policy.py` 145, `workflow.py` 195
+  physical lines.
 
 <!-- Ticket guide — keep this comment when filling in or updating the ticket.
 It documents field shapes; these are examples, not values to copy into every
@@ -222,6 +400,22 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Open Questions
+
+1. **Default for an omitted field.** The Description fixes `manual`. An
+   alternative is making `checkout:` required in definitions; that breaks
+   every existing custom workflow at load. Spec follows `manual`; confirm.
+2. **Freeze noise.** Every newly frozen step, including recurring one-step
+   period tickets, gains `checkout: manual`. Needed so absence means
+   "legacy". Accept, or freeze only for non-manual values and treat absence
+   in *new* snapshots as manual (would need a marker to tell new from old,
+   which the Description rejects)?
+3. **Cross-field lint.** Should `coga validate` warn on a definition step
+   with `requires: branch` but `checkout: control|manual`? Left out of
+   scope; a cheap follow-up if wanted.
+4. **Fallback retirement owner.** Spec records the retirement rule in
+   `coga/checkouts`; should a parked follow-up ticket also be created now?
 
 ## Superseded designs
 
