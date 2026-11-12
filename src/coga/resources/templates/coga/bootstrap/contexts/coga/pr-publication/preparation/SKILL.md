@@ -88,6 +88,13 @@ is `passed`, `failed`, `pending`, or `not-run`. Every receipt needs a detail
 (result/counts or reason for omission). With no independent review, use self
 or none and explain why; do not turn an absent tool into a passed review.
 
+Write every free-text value (`rationale`, `implementation`, `deviations`,
+`limitations`, `author_evidence`, each `detail`, each `files` explanation) as
+a folded block scalar (`>-`) or a quoted string: a plain scalar containing
+`: ` or starting with `[` or `{` is invalid YAML, and `coga open-pr` refuses
+it. `review` is always a nested mapping, never a string, and `depth` is exactly
+`merge`, `skim`, or `deep`.
+
 The formatter enumerates paths using Git's NUL-delimited rename-aware diff.
 The file table shows only each path and its change type (`M`, `A`, `D`, or the
 rename/copy status). Per-file explanations stay in preparation as coverage
