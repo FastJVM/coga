@@ -383,3 +383,10 @@ checks:
   base: 45a92ac8660f15e8112e29871787f76d6150c9b6
   detail: No whitespace errors on the final feature checkout before returning to main.
 ```
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: skill-update PR flow strands a detached-HEAD caller
