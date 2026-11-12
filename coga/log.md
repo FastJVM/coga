@@ -10704,3 +10704,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 16:59 v1 [recurring/usage-report] [system] task done
 2026-11-11 16:59 v1 [recurring/usage-report] [system] script exited with code 0
 2026-11-11 17:08 v1 [hold-dirty-context-edits-on-feature-checkouts-unti] [human:nicktoper] created (status=draft)
+2026-11-11 17:19 v1 [hold-dirty-context-edits-on-feature-checkouts-unti] [human:nicktoper] activated (draft → active)
