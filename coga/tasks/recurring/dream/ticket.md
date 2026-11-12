@@ -724,3 +724,38 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-11-12T05:15:12+00:00
+Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
+Task: `recurring/dream`
+
+Result: 12 issue(s): 0 direct fix, 0 PR proposal, 12 human-needed.
+
+### Human Needed
+
+- `fix-git-sync-failure`: `unfrozen-workflow` (warn) - workflow 'code/with-self-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `implement-the-include-allowlist-that-url-skill-upd`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `parse-agents-rejects-cogalocaltoml`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `stop-creating-linked-worktrees-for-coga-retire`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `ticket-sync-fails-with-read-only-git-inside-agent`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `v1/01-webhook-for-slack-is-public`: `stuck-in-progress` (warn) - in_progress but idle for 78.0h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `v1/14-interactive-coga-launch-on-native-windows`: `large-blackboard` (warn) - blackboard region is 49.3 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
+  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
+- `v1/18-handle-gh-not-being-installed-by-default`: `stuck-in-progress` (warn) - in_progress but idle for 173.4h
+  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+- `v1/20-ask-which-agents-to-enable-during-coga-init`: `large-blackboard` (warn) - blackboard region is 36.8 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
+  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
+- `v1/42-idea-piece`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+- `v1/package-definitions/02-repo-cutover-to-package-owned-definitions`: `large-blackboard` (warn) - blackboard region is 40.0 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
+  Remediation: Ask the owner to choose the `coga/blackboard` remedy. For done tickets, use Dream's Retro/retirement route instead of slimming; recurring writer state needs its owner's decision. For live tickets, promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments, move abandoned designs into the single `## Superseded designs` section (it does not count toward the size), move material several tickets cite into an unattached context, and leave the current handoff, worklist and verification on the blackboard with a pointer to each. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete. Publish ticket and attachment edits through `coga/state-publication`; use direct owner editing or a `brief-for-human` draft with no branch or PR requirement.
+- `v1/pr-are-only-when-ready-for-review`: `unfrozen-workflow` (warn) - workflow 'docs/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
+  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
