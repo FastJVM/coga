@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -237,62 +237,118 @@ Commit `7ff2f3d99` on the branch, rebased on origin/main and pushed. No PR yet.
 - Not changed: `coga status`/`feature_sync_plan`. The authoring bail text still suggests `coga run publish-state` generically; the held error text before it carries the actual remedy. That is a possible follow-up wording polish, not a defect.
 - Native Windows receipt is still needed before merge: the change is platform-sensitive (Git modes and CRLF in the above-fence comparison).
 
+## Peer review
+
+Direct review **completed** by Codex on final head `e4e72af3dd542e079798354b40407bce44f0dbff`, base `f8b85ace2ecb4e88b54ad5fa229911a0d6b86989` (2026-11-11). Codex independently reviewed Claude's original implementation; the fixes below are Codex-authored and self-reviewed. No nested reviewer or subagent was invoked. No unresolved code findings.
+
+- **Fixed reporting bug.** On a rejected push, a concurrent recurring-definition edit can make a previously publishable blackboard update held on the next attempt. Reporting only on attempt zero silently omitted that path. Reproduced using a real competing commit, then fixed in `e4e72af3d`: accumulate differing held paths on every attempt and emit one report from `publish`'s `finally`, including required-file refusals. The owner approved the fix. Added regressions for routine publication after retry and required-file refusal; focused tests: 3 passed, 377 deselected in 1.72s. The original reproducer now reports the held path correctly.
+- **Corrected the owning internals leaf** in `e7e72d08d`: it still described unfiltered dirty selection. It now names the hold predicate and links to the owning classification explanation.
+- **Terminal check completed** at 80x24 and 40x12 on the final head. Named context: exit 1, readable held path/remedy, no accompanying publication. No-path form: exit 0, ticket lands, context remains held and is reported once. Existing `feature_sync_plan` lists the context as `differs from control`. Scratch scripts: `/tmp/coga-held-peer-review-terminal.py` and `/tmp/coga-held-peer-review-retry.py`. An initial scratch status probe needed the bare Slack variable unset; the corrected fixture and the final-head reruns passed.
+- **Verification:** full Linux suite passed at the final committed head: **4799 passed, 33 skipped in 774.62s**, Pop!_OS 24.04 LTS, Python 3.12.12. Earlier pre-fix run deliberately interrupted before changing source, with no passed receipt claimed. Final-head validation passed: 113 OK, no errors, 12 existing warnings. Detailed commands and receipts are in `## PR`.
+- **Windows explicitly deferred by owner** in this attended peer-review session: "I defer the win check here". No instance provisioned; no native Windows pass claimed. Keep this omission visible for the human merge decision.
+- **Reconciliation:** fetched origin/main and rebased unconditionally, preserving and byte-verifying the projected ticket through `/tmp/coga-held-peer-review-ticket.md`. Final fetch after the suite reached 90% still matched the reviewed base. Remote branch verified at the final head. Branch and review fixes pushed; the live ticket remains unstaged. Prepared recommendation: deep, with the owner-deferred Windows omission and the self-reviewed fixes disclosed. Ready for the mechanical PR-opening step.
+
 ## PR
 
 ```yaml
 title: Hold dirty knowledge on feature checkouts until merge
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended by the owner.
-head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
-base: 12ad9f17396c129febded22c3af6ea23896b5e61
+author: claude/codex
+author_evidence: Claude Code authored the initial implementation; Codex authored the peer-review documentation
+  correction and the owner-approved retry-report fix and regressions.
+head: e4e72af3dd542e079798354b40407bce44f0dbff
+base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
 depth: deep
-rationale: Changes publication selection for every non-control checkout and narrows a 2026-10-07 owner decision; review the predicate, the recurring per-file rules, and the reworded return refusal.
-implementation: >-
-  Adds git._publishes_from_feature and uses it in _publish_locked/_candidates to hold dirty
-  non-routine files on feature or detached checkouts. Held files get one stderr report per
-  publish call, a held-specific refusal when required (publish-state, guided authoring), and
-  held wording in checkout-return blocking entries.
-deviations: >-
-  Owner resolved the evaluator must-fixes at implement start: a carrier publishes only where
-  control lacks the file or holds a carrier, and the launch exit contract is unchanged
-  (entry 75; ordinary return keeps its result).
-limitations: >-
-  No native Windows run yet (mode/CRLF paths). coga status output unchanged; it does not list
-  held files on detached HEAD or without a remote-tracking control ref.
+rationale: Changes publication selection for every non-control checkout and narrows an owner decision.
+  Inspect the recurring per-file boundary and transaction refusals. Native Windows verification was explicitly
+  deferred by the owner; the Codex-authored review fixes are self-reviewed.
+implementation: Adds _publishes_from_feature and filters dirty non-routine files on feature and detached
+  checkouts. Reports differing held paths once per publish call, including files first held after a push
+  retry; required held files refuse publication atomically. Checkout blocking entries explain the hold
+  and remedy. Control publication and launch exit contracts are unchanged.
+deviations: 'Owner resolved the evaluator must-fixes at implement start: a carrier publishes only where
+  control lacks the file or holds a carrier, and the launch exit contract is unchanged (entry 75; ordinary
+  return keeps its result).'
+limitations: Native Windows full suite explicitly deferred by the attending owner on 2026-11-11; no Windows
+  pass is claimed. Codex independently reviewed the original Claude implementation but self-reviewed its
+  own small reporting and documentation fixes. coga status remains unchanged and does not report held
+  files on detached HEAD or without a remote-tracking control ref.
 files:
-  src/coga/git.py: Hold predicate, selection, report, required refusal, return wording.
-  tests/test_git.py: New path-class, detached, report-once tests; revise feature cases of existing publication tests.
+  src/coga/git.py: Hold predicate, selection, required-file refusal and checkout wording; collect held
+    paths across retries and report once on return or exception.
+  tests/test_git.py: Path classes, detached HEAD, report-once/control cases; actual competing-definition
+    retry regressions for successful publication and required-file refusal.
   tests/test_publish_state.py: Named held file refuses with nothing published; no-path form reports held.
-  tests/test_authoring.py: coga ticket on a feature checkout refuses held knowledge and withholds the sweep.
-  tests/test_checkouts.py: Return refuses a held context without publishing it; direct chat ends with exit 75.
+  tests/test_authoring.py: coga ticket on a feature checkout refuses held knowledge and withholds the
+    sweep.
+  tests/test_checkouts.py: Return refuses a held context without publishing it; direct chat ends with
+    exit 75.
   tests/test_launch.py: Keep diagnostics fixture publishable by moving it under the task directory.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Held-for-merge contract replaces the pre-review hazard.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Work step, direct chat, and invoking-checkout rule.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Return steps 1 and 3 for held files.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Commit PR knowledge before the chat ends.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: Held files belong in the branch commit.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md: Held files cannot be published from the branch.
-  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Re-point the citation to the new anchor.
-  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the 2026-11-11 owner decision and the predicate.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Held-for-merge
+    contract replaces the pre-review hazard.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Work step, direct chat,
+    and invoking-checkout rule.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Return
+    steps 1 and 3 for held files.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Commit PR knowledge
+    before the chat ends.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: Held files belong
+    in the branch commit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md: Held files
+    cannot be published from the branch.
+  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Re-point the citation to the
+    new anchor.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the 2026-11-11 owner decision and
+    the predicate.
   docs/contexts/coga-dev/packaging/SKILL.md: Update the commit-before-sweep note.
+  docs/contexts/coga-dev/internals/state-publication/publish/SKILL.md: Correct the publication primitive
+    leaf to describe filtered dirty selection and link to the owning classification rules.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the code/self-qa step reviews next. Design approval is not code review.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: Direct review completed on the final diff. Independently reviewed Claude's implementation, reproduced
+    and fixed a missing notice when a recurring file first became held after a push retry, and corrected
+    the publication leaf. Those Codex-authored fixes were self-reviewed; there was no second reviewer
+    or nested review tool. No unresolved code findings. Native Windows verification deferred by owner.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
-    status: passed
-    head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
-    base: 12ad9f17396c129febded22c3af6ea23896b5e61
-    detail: >-
-      4797 passed, 33 skipped. Ran on the uncommitted tree before the rebase. The commit has
-      identical code; the rebase brought in only coga/log.md and this ticket file, which no test reads.
-  - command: .venv/bin/coga validate --json
-    status: passed
-    head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
-    base: 12ad9f17396c129febded22c3af6ea23896b5e61
-    detail: No errors; existing warnings only.
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: 4799 passed, 33 skipped in 774.62s (12m54s). Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic,
+    Python 3.12.12. Full run at this committed head. Earlier pre-fix run intentionally interrupted before
+    source changes; it is not a passed receipt.
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider
+    tests/test_git.py -k 'held_report'
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: 3 passed, 377 deselected in 1.72s. Ran on the uncommitted tree subsequently committed unchanged
+    at this head.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/coga validate --json
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: Exit 0; 113 OK, zero errors, 12 existing warnings.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-held-peer-review-retry.py
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: 'Real competing definition update forces a second attempt: ticket publishes, local blackboard
+    update remains held, and stderr names its path once with the remedy.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/coga-held-peer-review-terminal.py
+  status: passed
+  head: e4e72af3dd542e079798354b40407bce44f0dbff
+  base: f8b85ace2ecb4e88b54ad5fa229911a0d6b86989
+  detail: 'Real PTY at 80x24 and 40x12: readable held path/remedy, named-file exit 1 with control unchanged,
+    no-path exit 0 with routine ticket published and knowledge held. Existing feature_sync_plan reports
+    differs from control.'
+- command: 'Native Windows: uv run --directory coga-work python -m pytest'
+  status: not-run
+  detail: 'Attending owner explicitly deferred Windows verification in this peer-review session: "I defer
+    the win check here". No instance provisioned.'
 ```
 
 ## Implement-step decisions (owner, attended, 2026-11-11)
