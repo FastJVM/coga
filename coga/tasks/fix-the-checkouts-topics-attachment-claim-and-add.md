@@ -124,3 +124,19 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-checkouts-attachment-claim-size-exceptions
+
+## Plan
+
+- Item 1: replace the stale "`ticket.py` and attachments ... stay in the diff"
+  sentence in `coga/checkouts` "Stranded ticket writes" with a pointer to
+  `coga/state-publication` "Control versus feature checkouts"
+  (Committed-state boundary), which owns the rule (`git._publish_locked` sets
+  `adopt_only = _routine_state_areas(...)`; `git._candidates` adopts there).
+- Item 2: append closing `Size exception:` sentences (no split) to
+  `checkouts/SKILL.md` and `checkouts/launch-boundary/SKILL.md`.
+- PRs #1199 and #1197 are still open and touch the same files; expect a small
+  rebase conflict for whichever lands second.
