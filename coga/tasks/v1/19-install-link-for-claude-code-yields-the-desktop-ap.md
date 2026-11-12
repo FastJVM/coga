@@ -181,3 +181,10 @@ command. This is not merged yet. `src/coga/dependencies.py` still points to
 Those product fixes were owned here until the 2026-11-04 decision above
 dropped them; the documentation change was never a completion receipt for
 them.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: why Coga does not install agent CLIs

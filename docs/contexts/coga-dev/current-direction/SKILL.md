@@ -120,7 +120,11 @@ is `coga status` and the ticket bodies; stage posture is
   nothing without a yes. Agent CLI installation offers and links were removed
   2026-11-05, and 2026-11-07 made the remedy a `coga.toml` fix: a missing
   agent CLI points at `cli` in the agent's `[agents.*]` table, while init may
-  offer an already-installed CLI as the default. Contract:
+  offer an already-installed CLI as the default. Why no agent CLI install
+  (owner decision 2026-11-04): Coga's audience already uses an agentic coding
+  tool, so leading someone through installing `claude` or `codex` on a fresh
+  machine is not a job Coga owns, for either agent; reopening it needs an
+  owner reversal on audience. Contract:
   [`coga/init`](../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/init/SKILL.md).
 - **Native Windows is supported (2026-11).** The core port (2026-10-23)
   runs non-interactive commands and deterministic work;
