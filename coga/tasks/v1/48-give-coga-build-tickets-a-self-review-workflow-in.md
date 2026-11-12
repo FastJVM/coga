@@ -1,6 +1,6 @@
 ---
 title: Give coga build tickets a self-review workflow in one-agent repos
-status: draft
+status: in_progress
 owner: zach
 workflow:
   name: code/design-then-implement
@@ -35,6 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
