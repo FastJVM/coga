@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: e5bb8611-b44d-4e97-9106-cd9cac35b996
 ---
 
 ## Description
@@ -148,30 +147,79 @@ branch: remove-the-fixed-uninstall-hint-hazard-from-the-go
   same receipt.
 - Use `.venv/bin/python`; the shell's `python` lacks `tomlkit`.
 
+## Peer review
+
+- Codex direct independent review **completed**, with no findings. Implementing
+  identity is Claude, as recorded in the implement handoff; this session did
+  not author the implementation. Reviewed final head `7f30ec67b0e2b211391cd594801c1fa8de82bffd`
+  against base `8afa0200426bfa29d116b58ba5df07dd302858ab` after rebasing onto fetched main.
+- Inspected the complete branch diff and commit log, neighbouring gotchas,
+  `_uninstall_via_tool`, `_format_tool_command`, `_powershell_literal`, the
+  existing platform-syntax tests, and the owning `coga/uninstall` topic.
+  The change deletes only the stale eight-line bullet; fix `bd4b557b4` is an
+  ancestor of main. No other standing topic/resource repeats the stale claim.
+  PR #1208 remains open; its unrelated end-of-file addition does not overlap.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` at the
+  reviewed head/base: **3 failed, 4763 passed, 33 skipped in 714.01s**.
+  Platform: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic x86_64,
+  Python 3.12.12 (no Python 3.11 floor run). Failures are
+  `tests/test_packaging.py::test_context_navigation_has_no_broken_links` and
+  both `tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  parameters. All report README's link to deleted
+  `document-the-remedy-for-a-bloated-blackboard-sibli.md`.
+- Baseline confirmed after returning to main `8afa0200426bfa29d116b58ba5df07dd302858ab`:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links`
+  produced **1 failed in 0.47s**, with that identical broken link. README,
+  the affected tests, and uninstall code/docs are unchanged by this branch.
+  Existing follow-up: `make-retro-check-inbound-doc-links-before-deleting`.
+- `git diff --check main...HEAD` passed at the reviewed head/base. No rendered
+  terminal or native Windows run applies to this local-topic deletion; no
+  executable/user-facing surface changes. No fixes were needed.
+- Final fetch found no main drift. Force-with-lease push completed; primary
+  checkout returned clean to main before writing this handoff. The next step
+  is mechanical PR opening. Recommend **deep** because the required suite is
+  failed, while clearly identifying the unrelated baseline cause.
+
 ## PR
 
 ```yaml
 title: Drop fixed uninstall-hint hazard from the gotchas topic
 author: claude
-author_evidence: Implement session ran as claude (claude-opus-5-5) under megalaunch.
-head: 4193ca024b9e33e0e20c18fafd18c3574e5696a9
-base: 08033154298c2f99dbb04c0a271547912ec62776
-depth: skim
-rationale: Eight-line deletion of a stale "Known open" bullet in a local-only dev topic; the fix it described landed in bd4b557b4.
-implementation: Removes the gotchas bullet that named v1/15 as owner of the POSIX-only uninstall recovery hint; the code now renders PowerShell hints on native Windows and coga/uninstall documents both syntaxes.
+author_evidence: Implement session ran as claude (claude-opus-5-5) under megalaunch; preserved from implement
+  handoff.
+head: 7f30ec67b0e2b211391cd594801c1fa8de82bffd
+base: 8afa0200426bfa29d116b58ba5df07dd302858ab
+depth: deep
+rationale: Bounded eight-line deletion with completed independent review and no findings; deep because
+  the required full suite has three failures from the existing broken README link.
+implementation: Removes the stale gotchas bullet naming v1/15 as owner of POSIX-only uninstall recovery
+  hints. The fix already renders PowerShell hints on native Windows; coga/uninstall owns both syntaxes.
 deviations: None.
-limitations: Docs-only; no behavior change. The suite still has 3 failures already on main from a README link to a deleted ticket (tracked by make-retro-check-inbound-doc-links-before-deleting).
+limitations: Documentation only; no behavior change. Required suite has three existing failures from README
+  linking a deleted ticket, independently reproduced on main and tracked by make-retro-check-inbound-doc-links-before-deleting.
+  Linux Python 3.12.12 only; native Windows and Python 3.11 were not run for this local-topic deletion.
 files:
-  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Delete the stale uninstall-hint "Known open" bullet.
+  docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Delete the obsolete uninstall-hint Known open bullet.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Code review has not run yet; the peer-review step follows.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 7f30ec67b0e2b211391cd594801c1fa8de82bffd
+  base: 8afa0200426bfa29d116b58ba5df07dd302858ab
+  detail: 'Direct independent review completed on the final rebased diff with no findings. Verified the
+    landed fix, owning topic, existing syntax tests, and non-overlap with PR #1208; see Peer review.'
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: failed
-    head: 4193ca024b9e33e0e20c18fafd18c3574e5696a9
-    base: 08033154298c2f99dbb04c0a271547912ec62776
-    detail: '3 failed, 4763 passed, 33 skipped in 671.88s; Pop!_OS 24.04 LTS, Linux 7.2.15, Python 3.12.12. All 3 failures already exist on main: test_context_navigation_has_no_broken_links and both test_final_package_edits_never_escape_a_mutating_cli_sweep cases, from the README link to deleted document-the-remedy-for-a-bloated-blackboard-sibli.md.'
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q
+  status: failed
+  head: 7f30ec67b0e2b211391cd594801c1fa8de82bffd
+  base: 8afa0200426bfa29d116b58ba5df07dd302858ab
+  detail: 3 failed, 4763 passed, 33 skipped in 714.01s; Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic
+    x86_64, Python 3.12.12. Navigation and both final-package-publication parameters fail only on the
+    existing README link to deleted document-the-remedy-for-a-bloated-blackboard-sibli.md. The same navigation
+    failure was reproduced on main; see Peer review.
+- command: git diff --check main...HEAD
+  status: passed
+  head: 7f30ec67b0e2b211391cd594801c1fa8de82bffd
+  base: 8afa0200426bfa29d116b58ba5df07dd302858ab
+  detail: No whitespace errors.
 ```
