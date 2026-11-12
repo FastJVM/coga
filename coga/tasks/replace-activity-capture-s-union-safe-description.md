@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 88e72990-8cb6-4652-a007-c053c158dad4
 ---
 
 ## Description
@@ -144,26 +143,85 @@ branch: replace-activity-capture-s-union-safe-description
   (README.md links missing `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`).
 - Env note: system `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
 
+## Peer review
+
+- Codex direct independent review **completed**; implementation was by Claude
+  (implement handoff and commit co-author evidence). No must-fix findings.
+- Covered final head `a0b3158ce63a6df9bad80a3188944b43bc601a0d` against base
+  `59c86aaa37d1cf214d34527b5657190af51a51c4` after rebasing onto fetched main.
+  Verified the wording against `git.sync_log`, the event-aware publisher,
+  shipped `.gitattributes`, and the owning spool-merge topic; all links and
+  anchors in the changed topic resolve. PR #1200 is still open and edits
+  separate paragraphs without overlap.
+- Full Linux suite: 4763 passed, 33 skipped, 3 failed in 708.88s on
+  Pop!_OS 24.04 LTS, Python 3.12.12. All failures trace to the existing
+  missing README ticket link documented in the implement handoff, including
+  both nested publication checks. Exact receipts are below.
+- No interactive terminal, rendering, or native Windows check is applicable:
+  only local developer-topic prose changed. No code, fixture, or new test needed.
+- Rebasing needed no conflict resolution or review fixes. Pushed with
+  `git push --force-with-lease origin replace-activity-capture-s-union-safe-description`.
+  Final fetch confirmed main unchanged; returned the checkout to clean main
+  before writing this handoff. Next step is mechanical PR publication.
+
 ## PR
 
 ```yaml
 title: Drop union-safe wording for activity-capture log publication
-author:
-  agent: claude
-  model: claude-opus-5-5
-head: 8ed61b6aa75dbbaedc2f2dfcb531529872589140
-base: fc756a9cdb78c80d7275d9cde52a87fa94affa7e
-review_depth: light
-review_depth_rationale: one-sentence doc correction in a local-only coga-dev topic; no code or shipped resource changed
-implementation: replaced the stale "(its union-safe path)" claim with a statement that the log is not a union path plus a link to coga-dev/internals/spool-merge "merge=union files"
-deviations: none
-limitations: none
+author: claude
+author_evidence: Implement handoff identifies Claude Opus 5.5; the implementation commit retains its Claude
+  Opus 5.5 co-author trailer. Codex performed this fresh peer-review session.
+head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+depth: deep
+rationale: Bounded documentation correction with completed independent review and passing page-link validation.
+  Deep is required because the full suite and repository-wide navigation check have existing failures;
+  no must-fix finding concerns this diff.
+implementation: Replaces the stale union-safe claim with a brief description of event-aware log publication
+  and a link to the owning spool-merge section.
+deviations: None.
+limitations: Full suite remains red due to the pre-existing missing README ticket link. No runtime behavior
+  changed; interactive and native Windows checks do not apply to this documentation-only diff.
 files:
-  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: corrects the stale union-safe description of log publication
+  docs/contexts/coga-dev/internals/activity-capture/SKILL.md: Corrects the stale union-safe description
+    and links to the owning event-aware publication contract.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+  base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+  detail: 'Direct review completed on the final rebased diff; no must-fix findings. Checked sync_log,
+    the shared publisher and log_publication.reconcile, shipped Git attributes, and the linked contract.
+    PR #1200 remains open and edits separate paragraphs with no overlap. No runtime or rendered UI surface
+    changed.'
 checks:
-  - command: .venv/bin/python -m pytest -q
-    head: 8ed61b6aa75dbbaedc2f2dfcb531529872589140
-    result: 3 failed, 4763 passed, 33 skipped
-    note: all 3 failures reproduce on origin/main fc756a9cd without this change (see handoff)
-review: not run; peer-review is the next workflow step
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q
+  status: failed
+  head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+  base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+  detail: 'Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12: 4763 passed, 33 skipped,
+    3 failed in 708.88s. Failures: tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep[dirty-package],
+    [committed-package], and tests/test_packaging.py::test_context_navigation_has_no_broken_links. All
+    three trace to the existing missing README ticket link document-the-remedy-for-a-bloated-blackboard-sibli.md;
+    identical to the implement baseline reproduced on fc756a9cd. Only task/log state changed on main since
+    that baseline.'
+- command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+  base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+  detail: 1 failed in 0.65s; only problem is the existing missing README ticket link, not the changed
+    activity-capture page.
+- command: 'PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/tests .venv/bin/python -c ''from pathlib
+    import Path; from test_packaging import _context_link_problems; problems = _context_link_problems(Path("/home/n/Code/coga/docs/contexts/coga-dev/internals/activity-capture/SKILL.md"));
+    assert not problems, problems; print("Activity-capture links and anchors: passed")'''
+  status: passed
+  head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+  base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+  detail: All links and heading anchors in the changed activity-capture topic resolve, including spool-merge#mergeunion-files.
+- command: git diff --check main...HEAD
+  status: passed
+  head: a0b3158ce63a6df9bad80a3188944b43bc601a0d
+  base: 59c86aaa37d1cf214d34527b5657190af51a51c4
+  detail: No whitespace errors.
 ```
