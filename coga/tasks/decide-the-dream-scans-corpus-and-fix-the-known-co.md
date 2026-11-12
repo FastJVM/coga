@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: c62f3873-a4b7-4acc-a206-c266f4f5b815
 ---
 
 ## Description
@@ -167,35 +166,76 @@ within existing shard mechanics.
 - Next run's Dream should see ~2 more shards per scan; no code limits shard count.
 - System `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
 
+## Peer review
+
+Codex direct independent review **completed** with no findings or must-fix
+changes. Implement authorship is Claude per the implement handoff and the
+commit's Claude Opus 5.5 co-author trailer; this fresh Codex session reviewed
+the change rather than implementing it.
+
+- Final reviewed head: `0d75ea99216f8a262a7561854416d3c209e502e4`.
+  Reviewed base: `082c2fd3f4016812cd3e0eb9f2e2fb4481dc1225`.
+- Read the eight-line deletion, surrounding Dream dispatch/index/sharding
+  instructions, both scan skills, and scan-protocol Rules A/B. Both skills
+  explicitly include packaged skills in source-repo scans; deleting the
+  contradictory summary leaves one consistent corpus contract. Verified the
+  earlier owner request in commit `5c2caadca`'s monthly-audit ticket body.
+- No rendered UI or terminal interaction changed. A live Dream run was not
+  performed; the next run must confirm actual scan coverage. Packaged skill
+  Markdown totals 302,878 bytes across 31 files, consistent with the estimate.
+- Rebased before review and full-suite testing. The final freshness fetch
+  found three newer commits touching only another ticket and `coga/log.md`;
+  rebased again and completed direct review on the final head/base above.
+  Verified `src`, `tests`, `docs`, `README.md`, `AGENTS.md`, and `pyproject.toml`
+  are identical to the full-suite-tested revision. Kept that receipt
+  historical and ran the 22 Dream template tests on the final head rather
+  than repeating the twelve-minute full suite for unrelated ticket/log state.
+- Full suite: 3 failed, 4763 passed, 33 skipped on Linux x86_64, Python
+  3.12.12. All three failures are the same missing README ticket link recorded
+  by implement: navigation fails directly and inside both publication-test
+  parameters. README and those tests are unchanged from the reproduced main
+  baseline `46a376634`. Full output: `/tmp/coga-dream-peer-review-pytest.log`.
+- Final branch is committed and pushed with one implementation commit ahead
+  of main. Manual checkout returned to main. PR recommendation is `deep`
+  because failed checks and the historical full-suite receipt must remain
+  visible; the change itself has no unresolved review findings.
+
 ## PR
 
 ```yaml
 title: Include packaged skills in Dream's scan corpus
 author: claude
-author_evidence: Implement step ran in a Claude Code session (model claude-opus-5-5); ticket agent is claude.
-head: ac0591de3f3c4c69f6c69a0e7a01a2ccfe948e8a
-base: 46a37663479b255f4112dfcad9fad30fd3c3abd7
-depth: skim
-rationale: Eight-line deletion of a contradictory prose paragraph in the Dream template; the owner had already asked for the limitation to be lifted.
+author_evidence: Implement handoff identifies a Claude Code session using claude-opus-5-5; the implementation commit also carries a Claude Opus 5.5 co-author trailer.
+head: 0d75ea99216f8a262a7561854416d3c209e502e4
+base: 082c2fd3f4016812cd3e0eb9f2e2fb4481dc1225
+depth: deep
+rationale: Bounded eight-line prose deletion with completed independent review and no findings, but the full suite has three pre-existing failures and its receipt predates the final unrelated ticket/log-only rebase.
 implementation: Deletes the dream template's "Known corpus limitation" section so the template's own "apply no exclusion" rule, scan-protocol Rule B and the knowledge-scan and contract-audit skills consistently put package bootstrap/skills/** in both scans for the Coga source repo.
 deviations: None. The scan skills already matched the chosen corpus, so only the template changed.
-limitations: Not exercised by a live Dream run. Including the skills adds about 303 KB, roughly two more shards per scan.
+limitations: Not exercised by a live Dream run. Including the skills adds about 303 KB, roughly two more shards per scan. The full-suite receipt is historical after a final rebase that changed only another ticket and the log; Dream template checks passed on the final head.
 files:
   src/coga/resources/templates/coga/recurring/dream/ticket.md: Remove the stale corpus-limitation section that excluded packaged skills from both scans.
 review:
-  reviewer: claude
-  kind: none
-  status: not-run
-  detail: Code review has not run yet; the peer-review step follows.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 0d75ea99216f8a262a7561854416d3c209e502e4
+  base: 082c2fd3f4016812cd3e0eb9f2e2fb4481dc1225
+  detail: Codex direct independent review completed on the final diff with no findings. Checked the dispatch contract, both scan skills, protocol ownership and sharding rules, and the earlier owner request. No interactive UI surface changed.
 checks:
-  - command: .venv/bin/python -m pytest -q
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q
     status: failed
-    head: 0ca57ae2fdcbe2d3f98a78cfa4909e85d9360bfe
-    base: 3b8b93565c011a1f250a9ba554bcd85136ec2875
-    detail: 3 failed, 4763 passed, 33 skipped. All 3 failures reproduce on origin/main 46a376634 (README.md links a deleted ticket). Pre-rebase head; the rebase changed only this ticket file.
-  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_dream_skill_scripts.py tests/test_dream_validate_drift.py tests/test_dream_worker_templates.py tests/test_recurring.py tests/test_recurring_activity.py tests/test_recurring_autofix.py tests/test_recurring_clone.py tests/test_recurring_shims.py tests/test_recurring_state.py
-    status: failed
-    head: ac0591de3f3c4c69f6c69a0e7a01a2ccfe948e8a
-    base: 46a37663479b255f4112dfcad9fad30fd3c3abd7
-    detail: 1 failed, 838 passed, 2 skipped. The one failure is the same pre-existing README broken-link test_context_navigation_has_no_broken_links.
+    head: 4bbeec862ef31638955054e7b8bf91674e6bd0d4
+    base: 805fbf0493fa3c31626ce501ae1b84d8abba81cb
+    detail: 3 failed, 4763 passed, 33 skipped in 723.42s on Linux x86_64 with Python 3.12.12. Navigation and both final-package-publication parameters fail on the existing README link to deleted document-the-remedy-for-a-bloated-blackboard-sibli.md. Implement reproduced these on main 46a376634; README and the affected tests are unchanged. Historical receipt before final ticket/log-only rebase.
+  - command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_dream_worker_templates.py
+    status: passed
+    head: 0d75ea99216f8a262a7561854416d3c209e502e4
+    base: 082c2fd3f4016812cd3e0eb9f2e2fb4481dc1225
+    detail: 22 passed in 0.21s on the final head. No source, test, or governing documentation changed in the final rebase; only another ticket and coga/log.md changed, so the full suite was not repeated.
+  - command: git diff --check
+    status: passed
+    head: 0d75ea99216f8a262a7561854416d3c209e502e4
+    base: 082c2fd3f4016812cd3e0eb9f2e2fb4481dc1225
+    detail: No whitespace errors in the final branch diff.
 ```
