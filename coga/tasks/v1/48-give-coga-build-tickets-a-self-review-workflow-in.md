@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (peer-review)
+step: 6 (open-pr)
 agent: claude
 ---
 
@@ -460,19 +460,43 @@ Pre-existing failures, reproduced identically on an `origin/main` worktree
 (README links the missing ticket
 `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`).
 
+## Peer review (2026-11-12)
+
+Codex completed a direct, independent review of
+`c851148038fffe910d31f0fdcf1e488eb8f3ecb8` against merge base
+`6dc3745d03f231e59591d9c18a74cead8338b882` after rebasing onto the latest
+`origin/main`. No must-fix or unresolved findings remain; no review-fix commit
+was needed.
+
+- Inspected the full diff, peer-resolution message compatibility, create's
+  pre-allocation ordering, every activation preparation path, validator
+  compatibility, recurring autofix selection, packaged prose, and tests.
+- Traced megalaunch, the recurring runner, and `coga unblock`: each reaches
+  `prepare_active` before a durable ticket write and catches
+  `PeerWorkflowUnavailable` through `WorkflowError`. The optional dedicated
+  end-to-end tests for those callers remain omitted as disclosed below.
+- Rendered `coga create --help`; the new option and dependency are readable.
+- Focused coverage passed (726 tests). The Linux full suite retained four
+  unrelated baseline failures (4,795 passed, 33 skipped); the previously
+  reported edge-distribution failure passed this run. Scoped ticket validation
+  passed with only the existing unresolved-important-Slack-webhook warning.
+- This remains non-platform-sensitive under the ticket's tier decision: the
+  only filesystem change reorders existing `mkdir` calls. No Windows AWS
+  receipt is required; the owner still owns the VMware behavior walk.
+
 ## PR
 
 ```yaml
 title: Refuse peer workflows without a peer before writing; add --fallback-workflow
 author: claude
 author_evidence: Implement session ran in Claude Code on Claude Opus 5.5 (claude-opus-5-5); see implement handoff.
-head: 4f4adf45ab3c42cefd9e643cb106b7b414301297
-base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
+head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+base: 6dc3745d03f231e59591d9c18a74cead8338b882
 depth: deep
-rationale: Changes create and activation refusal ordering and adds a CLI option across create, mark, launch and recurring paths; no code review has run yet.
+rationale: Cross-cutting create and activation ordering warrants inspection, and the required full suite is not green despite an independent review and green focused coverage; inspect the disclosed baseline failures and caller paths before merge.
 implementation: Typed peer-resolution failure and a whole-workflow peer check shared by create (before any mkdir) and prepare_active (before any write); create --fallback-workflow and select_workflow, also used by recurring autofix; short refusal text in mark active and launch; shipped prose steers coga build, Dream and the ticket interviewer to code/with-self-review when no peer resolves.
 deviations: None from the spec. Activation checks peers before the current-step resolve, so a step-1 other-agent refusal now uses the short text (one existing test assertion updated).
-limitations: Megalaunch, recurring runner and coga unblock rely on PeerWorkflowUnavailable subclassing WorkflowError; no end-to-end no-write tests for them. Five full-suite failures exist identically on main. Windows VM behavior walk is the owner's.
+limitations: Dedicated end-to-end no-write tests for megalaunch, the recurring runner and coga unblock remain omitted; direct caller inspection confirms their pre-write prepare_active and WorkflowError paths. The full suite has four unrelated baseline failures. Tier-1 ran on Python 3.14.4, not the 3.11 floor. No Windows AWS receipt is required; the Windows VMware behavior walk is the owner's.
 files:
   docs/contexts/coga-dev/codebase/gotchas/SKILL.md: Note that create_task and prepare_active check peer resolution before writing.
   src/coga/bump.py: PeerAgentUnresolvable, peer_refusal_text and unresolvable_peer_refusal.
@@ -495,16 +519,38 @@ files:
   tests/test_launch.py: Launch refusal before writing on grouped and non-grouped paths.
   tests/test_mark.py: Byte-identical mark active refusal (bare ref and late frozen step), subclass check, updated step-1 assertion.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; the workflow's peer-review step has not run yet. Design approval is not code review.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+  base: 6dc3745d03f231e59591d9c18a74cead8338b882
+  detail: Direct Codex review completed after the final rebase with no must-fix or unresolved findings; Claude authored the implementation, so the review is independent. Reviewed the full diff, resolver and validation compatibility, pre-write ordering, inherited activation callers, rendered CLI help, packaged prose and tests.
 checks:
-  - command: python -m pytest -q -p no:cacheprovider
+  - command: PYTHONPATH=/home/zach2179/dev/coga/src TERM=dumb /home/zach2179/.venvs/coga/bin/python -m pytest -q -p no:cacheprovider tests/test_create.py tests/test_mark.py tests/test_launch.py tests/test_recurring_autofix.py tests/test_validate.py tests/test_bootstrap_ticket_skill_template.py tests/test_bootstrap_workflow_review_sections.py
+    status: passed
+    head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: "726 passed in 22.12s; focused create, activation, launch, autofix, validation and shipped-prose coverage."
+  - command: PYTHONPATH=/home/zach2179/dev/coga/src TERM=dumb /home/zach2179/.venvs/coga/bin/python -m coga.cli create --help
+    status: passed
+    head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: Rendered help names the no-peer condition, substitution output, --workflow dependency and example without truncating the contract.
+  - command: PYTHONPATH=/home/zach2179/dev/coga/src TERM=dumb /home/zach2179/.venvs/coga/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/zach2179/coga-pytest-v1-48.7cNx2y
     status: failed
-    head: 4f4adf45ab3c42cefd9e643cb106b7b414301297
-    base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
-    detail: "5 failed, 4794 passed, 33 skipped in 426s; Linux 6.18.33.2-microsoft-standard-WSL2 (WSL2), Python 3.14.4, 2026-11-12T07:01Z. All 5 failures reproduce identically on origin/main 8ab0f010e (see handoff); none touch this change."
+    head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: "4 failed, 4795 passed, 33 skipped in 467.31s; Linux 6.18.33.2-microsoft-standard-WSL2 x86_64, Python 3.14.4, 2026-11-12. Failures: test_layout_contexts_cyclic_root_rejected; both test_final_package_edits_never_escape_a_mutating_cli_sweep parameters (their nested package run fails on the same broken README link); test_context_navigation_has_no_broken_links. These were already reproduced on origin/main by the implement session, and the intervening base commits changed only Coga ticket/log state. The prior edge-distribution baseline failure passed."
+  - command: PYTHONPATH=/home/zach2179/dev/coga/src TERM=dumb /home/zach2179/.venvs/coga/bin/python -m coga.cli validate --task v1/48-give-coga-build-tickets-a-self-review-workflow-in --json
+    status: passed
+    head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: One task validated; only the existing repository-level slack-important-webhook-unresolved warning was reported.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: c851148038fffe910d31f0fdcf1e488eb8f3ecb8
+    base: 6dc3745d03f231e59591d9c18a74cead8338b882
+    detail: No whitespace errors.
 ```
 
 
