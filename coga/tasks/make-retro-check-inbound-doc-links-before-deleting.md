@@ -125,3 +125,18 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: make-retro-check-inbound-doc-links-before-deleting
+
+## Plan
+
+- Rule lives in `retro/done-ticket` (owner of deletion): before choosing a
+  source's deletion path, `git grep` tracked files (outside the task root and
+  `coga/log.md`) for the task path; repoint every live reference to a
+  full-OID commit permalink in a PR. Knowledge-bearing → same knowledge PR;
+  no-durable-knowledge with references → not direct-deleted, leaves in one
+  run-level reference-pin PR. Dream Phase 4 summarizes and links.
+- `coga delete`/`coga retire` warning: not in this change (core growth);
+  file a follow-up draft.
