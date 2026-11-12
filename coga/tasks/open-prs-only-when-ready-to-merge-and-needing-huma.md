@@ -1,6 +1,6 @@
 ---
 title: Open PRs only when ready to merge and needing human review
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
