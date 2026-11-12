@@ -10711,3 +10711,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 18:50 v1 [recurring/skill-update] [system] launched as a script (ticket.py)
 2026-11-11 18:50 v1 [recurring/skill-update] [system] task done
 2026-11-11 18:50 v1 [recurring/skill-update] [system] script exited with code 0
+2026-11-11 19:31 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [agent:claude] advanced to step 2 (evaluate-design) → codex
