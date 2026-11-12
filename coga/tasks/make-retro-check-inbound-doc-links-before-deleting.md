@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 8738122c-6667-4a78-8d3e-55cee359dfdd
 ---
 
 ## Description
@@ -134,7 +133,7 @@ branch: make-retro-check-inbound-doc-links-before-deleting
 
 - Rule owner: `retro/done-ticket`, new `### Inbound references`. Before
   choosing a source's deletion path, Retro runs
-  `git grep -n -F -e '<tasks-root>/<slug>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'`
+  `git grep -n -F -e '<tasks-root>/<slug>' -e '<task-leaf>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'` (plus repository-required exclusions)
   in the isolated checkout and inspects each hit. Prefix-sharing slugs,
   same-path fixture trees, and links from other live tickets are not
   references. It repoints each real reference to a permalink at the full OID of
@@ -145,7 +144,7 @@ branch: make-retro-check-inbound-doc-links-before-deleting
   - No-knowledge source with references: no direct delete, because
     `coga delete` publishes only the task and the log, and doc edits need
     review. It goes into one run-level reference-pin PR
-    (`codex/retro-pin-references`, "Pin links to deleted tickets"), with no
+    (`codex/retro-pin-references-<run-id>`, "Pin links to deleted tickets"), with no
     marker. Progress receipt: `pr pin-references — <url> — <slugs>`.
   - Self-review re-runs the search on each branch, and on the tree before each
     direct delete.
@@ -170,49 +169,122 @@ branch: make-retro-check-inbound-doc-links-before-deleting
   plus two `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
   cases that run that test in a subprocess. PR #1214 (OPEN) fixes it.
 
+## Peer review
+
+- **Completed direct Codex review** of final head `36d2a660490ee8eedb116f9efcbb9887223e218f` against base
+  `2881e54d72a4a3e1acbd885e5e63b7c253fefaba`. Original implementation is Claude Opus 5.5
+  (implement receipt and commit coauthor); Codex independently reviewed it,
+  applied must-fix repairs, and self-reviewed those repairs. The final record
+  is labeled self-review to disclose that overlap. No unresolved must-fix
+  findings, no nested review process, and no subagent.
+- Fixed: full-path grep missed relative links; unconditional direct-delete
+  instructions contradicted the new route; the reference-pin body inherited a
+  nonexistent-marker claim; a fixed branch name collided across runs. The
+  search now also uses the final slug component, resolves relative targets,
+  honors search restrictions, and leaves existing permalinks alone. Contracts,
+  marker instructions, result reporting and retire's summary match the rule.
+- Rebased onto fresh `origin/main` before review. Final fetch/rebase was a
+  no-op, preserving the head/base above. Both feature commits are pushed;
+  manual checkout returned cleanly to `main` before this handoff.
+- Verification: `.venv/bin/python -m pytest -q` finished with **3 failed, 4766 passed, 33 skipped in 703.56s (0:11:43)**.
+  Inspected all three failures: the README navigation failure and two
+  `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  subprocess failures share the pre-existing broken README link on main.
+  Confirmed main still has that link and lacks the task; PR #1214 is open.
+  Output: `/tmp/coga-inbound-peer-review-pytest.log`.
+- `python /tmp/coga-inbound-search-exercise.py` passed using the actual prompt
+  command in a temporary Git repo: root and relative bare-file links,
+  directory-ticket link and existing permalink were found; task/log/restricted
+  paths were excluded. Existing permalink is already safe after inspection.
+  No real Retro deletion was performed. No interactive terminal surface or
+  executable/runtime template changed. `git diff --check origin/main...HEAD`
+  passed on the feature branch.
+- Next: the mechanical `open-pr` step. Recommendation **deep** because the
+  known inherited test failures remain; `coga delete` / deterministic done
+  retirement guard is deferred to the already-filed draft.
+
 ## PR
 
 ```yaml
 title: Repoint inbound task links before Retro deletes a ticket
-author:
-  agent: claude
-  model: claude-opus-5-5
-head: 2e62cf0e1ba5a9705db8e8cbf549735e21923a63
-base: 79cd556d60d7cbd09e6c972ed4e09c1e23cb3063
-review_depth: light
-review_depth_rationale: Prompt/template text plus string-assertion tests; no Python behavior change. The risk is rule wording and consistency with Dream and retire.
-implementation: >-
-  Retro now searches tracked files for each source task's path before it
-  deletes. It repoints each live-tree reference to a full-OID commit permalink:
-  in the knowledge PR for a knowledge-bearing source, or in a single
-  reference-pin PR for a referenced source with no durable knowledge, which no
-  longer takes the direct delete. Dream Phase 4 and retire.md summarize the rule
-  and link to the skill.
-deviations: []
-limitations:
-  - coga delete / coga retire are not guarded; follow-up draft warn-when-coga-delete-or-coga-retire-leaves-a-live.
+author: claude/codex
+author_evidence: Implement handoff and commit coauthor record Claude Opus 5.5 as original
+  implementer. This Codex peer-review session authored commit 36d2a6604 with the review fixes.
+head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+depth: deep
+rationale: 'Bounded prompt/template change, but the full suite inherits the broken README
+  navigation on main (PR #1214 is still open). Codex independently reviewed the Claude implementation
+  and self-reviewed its own repairs; inspect the deletion-routing and link-search wording.'
+implementation: Retro searches tracked files for root-relative task paths and final slug components,
+  inspects relative targets, and pins durable live-tree references to a full-OID commit permalink
+  before deletion. Knowledge-bearing sources carry repoints in their knowledge PR; referenced
+  sources without new knowledge leave in one run-level reference-pin PR with a unique branch
+  and no markers. Dream and retire defer to this rule.
+deviations: No design deviation. Peer review repaired missed relative links, contradictory
+  unconditional direct-delete instructions, the marker assertion in the reference-pin PR body,
+  and the branch name collision across runs. The search honors repository access restrictions
+  and preserves existing commit permalinks.
+limitations: coga delete and deterministic done-ticket coga retire remain unguarded; follow-up
+  draft warn-when-coga-delete-or-coga-retire-leaves-a-live owns that decision. Search hits
+  require agent interpretation. No live Retro deletion was performed. Native Windows and interactive-terminal
+  checks were omitted because this changes prompt text and string assertions, with no runtime
+  code or executable template change.
 files:
-  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: owner of the new Inbound references rule and the matching contract/steps/progress/PR-body edits
-  src/coga/resources/templates/coga/recurring/dream/ticket.md: Phase 4 summary pointing to the rule, since its eligibility gates do not cover it
-  src/coga/resources/retire.md: retire's restatement of Retro's direct delete gains the reference-pin exception
-  tests/test_retro_skill_template.py: regression test for the rule; one assertion updated for the reworded Do-not line
-  tests/test_dream_worker_templates.py: test that Dream defers the rule to the skill
-checks:
-  - command: .venv/bin/python -m pytest -q
-    tree: identical to head 2e62cf0e1 (committed with no further edits; rebase was a no-op)
-    result: 3 failed, 4765 passed, 33 skipped
-    failures: pre-existing README blob/main link to a deleted ticket (test_packaging navigation + 2 test_git subprocess cases); fixed by open PR #1214
-  - command: .venv/bin/python -m pytest -q tests/test_retro_skill_template.py tests/test_dream_worker_templates.py tests/test_retire.py tests/test_packaging.py
-    result: 1 failed (same navigation test), 101 passed
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: Own the inbound-reference
+    search, permalink routing, progress and PR-body rules; keep deletion contracts consistent.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Point Phase 4 at the Retro
+    rule and explain why eligibility gates are insufficient.
+  src/coga/resources/retire.md: Keep the canceled-ticket Retro caller consistent with the
+    reference-pin exception.
+  tests/test_retro_skill_template.py: Cover the prompt contract, relative-link search, marker-free
+    route and unique per-run branch.
+  tests/test_dream_worker_templates.py: Check that Dream defers the rule to Retro.
 review:
-  code_review: not run yet; peer-review is the next workflow step
+  reviewer: codex
+  kind: self
+  status: passed
+  head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+  base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+  detail: Direct review completed on the final diff with no unresolved must-fix findings.
+    The initial review was independent of Claude authorship; the final review also includes
+    self-review of Codex repairs. No nested review tool or child agent was used.
+checks:
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+  base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+  detail: '3 failed, 4766 passed, 33 skipped in 703.56s (0:11:43). All three failures inherit
+    the README blob/main link to the deleted document-the-remedy-for-a-bloated-blackboard-sibli
+    ticket: the packaging navigation check and both test_git final-package sweep subprocess
+    cases. Captured at /tmp/coga-inbound-peer-review-pytest.log. No new failure relative to
+    the implement receipt.'
+- command: .venv/bin/python -m pytest -q tests/test_packaging.py::test_context_navigation_has_no_broken_links
+  status: failed
+  head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+  base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+  detail: '1 failed: README.md links the deleted document-the-remedy-for-a-bloated-blackboard-sibli
+    ticket on blob/main. Confirmed same README and absent target on origin/main; PR #1214
+    remains open.'
+- command: python /tmp/coga-inbound-search-exercise.py
+  status: passed
+  head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+  base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+  detail: 'Executed the template git-grep command in a temporary Git repo: root and relative
+    bare-file links, directory ticket link and existing permalink found; task/log/restricted-tree
+    hits excluded. Existing permalink was classified as already safe. No real tickets deleted.'
+- command: git diff --check origin/main...HEAD
+  status: passed
+  head: 36d2a660490ee8eedb116f9efcbb9887223e218f
+  base: 2881e54d72a4a3e1acbd885e5e63b7c253fefaba
+  detail: No whitespace errors in the final diff.
 ```
 
 ## Plan
 
 - Rule lives in `retro/done-ticket` (owner of deletion): before choosing a
   source's deletion path, `git grep` tracked files (outside the task root and
-  `coga/log.md`) for the task path; repoint every live reference to a
+  `coga/log.md`) for the task path and final slug component; repoint every live reference to a
   full-OID commit permalink in a PR. Knowledge-bearing → same knowledge PR;
   no-durable-knowledge with references → not direct-deleted, leaves in one
   run-level reference-pin PR. Dream Phase 4 summarizes and links.
