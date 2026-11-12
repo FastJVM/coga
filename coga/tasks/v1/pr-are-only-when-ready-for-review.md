@@ -1,6 +1,6 @@
 ---
 title: Open PRs only when ready for review in magicator
-status: draft
+status: canceled
 owner: nicktoper
 workflow: docs/with-review
 ---

@@ -10691,3 +10691,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 16:02 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [human:zach] activated (draft → active) — auto on launch
 2026-11-11 16:02 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [human:zach] started (active → in_progress) via coga launch
 2026-11-11 16:02 v1 [v1/48-give-coga-build-tickets-a-self-review-workflow-in] [human:zach] launched (operator=claude, agent=claude)
+2026-11-11 16:50 v1 [v1/pr-are-only-when-ready-for-review] [human:nicktoper] canceled (draft → canceled): Duplicate: magicator guidance is in magicator's repo-maintenance/open-prs-only-when-ready-to-merge; Coga side is in open-prs-only-when-ready-to-merge-and-needing-huma
