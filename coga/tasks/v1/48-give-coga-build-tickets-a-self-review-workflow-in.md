@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -87,8 +87,14 @@ Peer workflows keep shipping unchanged, and two-agent repos see no change.
       one line naming the substitution; in a two-agent repo creates a
       `code/design-then-implement` ticket and prints no extra line.
 - [ ] If the fallback workflow is itself unresolvable, create refuses with
-      the fallback's refusal text. `--fallback-workflow` without `--workflow`
-      exits 2 with a usage error and writes nothing.
+      the fallback's refusal text and does **not** print the substitution
+      line. `--fallback-workflow` without `--workflow` exits 2 with a usage
+      error and writes nothing.
+- [ ] A directory-form create (`force_directory=True`, as recurring period
+      tasks use) of an unresolvable peer workflow refuses with no residue: no
+      task directory, no parent directories created by the attempt, no log
+      line. After the config gains a peer, retrying the same create at the
+      same slug succeeds (no `Task directory already exists`).
 - [ ] `coga mark active` on a draft whose workflow (bare ref or frozen
       snapshot) has an unresolvable `other-agent` step at **any** frozen
       position exits non-zero with the refusal text, and the ticket file is
@@ -112,6 +118,17 @@ Peer workflows keep shipping unchanged, and two-agent repos see no change.
 - [ ] Tests cover each repo shape above (one agent; two agents with and
       without `peer =`; three agents with and without `peer =`), and
       `python -m pytest` passes.
+- [ ] Verification tier (`coga-dev/testing`): this change is **not**
+      platform-sensitive, so no native Windows AWS-harness receipt is
+      required. The only filesystem touch is reordering existing `mkdir`
+      calls in `create_task` after the checks; it adds no new path,
+      encoding, process, or lock behavior. Required evidence is a tier-1
+      Linux full-suite receipt (full SHA, OS, Python, exact command, counts,
+      runtime) in the PR and on the ticket. The owner also does a manual
+      behavior walk in the Windows VMware VM, installed from the PR branch.
+      If the implementation ends up touching path handling beyond that
+      reorder, the change becomes platform-sensitive and needs the Windows
+      AWS receipt before merge.
 
 Refusal text (`<wf>` is the workflow name; `<main>` the main agent):
 
@@ -156,18 +173,32 @@ The substitution line on a successful fallback:
    returns the fallback. `recurring_autofix.autofix_workflow()` becomes a
    call to it with `AUTOFIX_WORKFLOW` / `AUTOFIX_NO_PEER_WORKFLOW`, keeping
    its existing stderr note in `create_autofix_ticket()`.
-4. **Create refuses before writing** — `create.create_task()`: replace the
-   existing step-1 `resolve_operator(..., step_index=1)` block with the
-   whole-workflow check, raising `ValueError(refusal)` before
-   `git.write_ticket()`. Keep the step-1 resolve for non-peer failures
-   (owner-less owner step, unknown agent) — or fold it in, as long as both
-   still refuse pre-write. `commands/create.create_draft()` already turns
-   `ValueError` into `_bail` (exit 2).
+4. **Create refuses before any filesystem write** — `create.create_task()`:
+   run the whole-workflow check immediately after the workflow is loaded and
+   its step skills are checked, **before** directory normalization, slug
+   allocation, and any `mkdir` (today `task_dir.mkdir(parents=True)` for
+   directory form and `ticket_path.parent.mkdir(...)` for file form both run
+   before the step-1 resolve block). Raise `ValueError(refusal)` there. The
+   existing step-1 `resolve_operator(..., step_index=1)` block has the same
+   ordering bug for non-peer failures (owner-less owner step, unknown agent):
+   split path allocation so the slug, `ticket_path`/`task_dir`, existence
+   checks, and `created_ref` are computed first, run the step-1 resolve, and
+   only then `mkdir`. Either keep the step-1 resolve or fold it into the
+   pre-allocation check, as long as every refusal happens before the first
+   `mkdir`. This matters most for `recurring._create_at_slug`, which uses
+   `force_directory=True` and catches `ValueError`: a stranded empty
+   directory would make the retry fail with `Task directory already exists`
+   instead of re-evaluating the workflow. `commands/create.create_draft()`
+   already turns `ValueError` into `_bail` (exit 2).
 5. **Create CLI flag** — `src/coga/commands/create.py`: add
    `--fallback-workflow` to `create()` and a `fallback_workflow` kwarg to
    `create_draft()`. Usage error if given without `--workflow`. Call
-   `select_workflow()` after `load_config()`, echo the substitution line when
-   it substituted, then pass the chosen name to `create_task()`.
+   `select_workflow()` after `load_config()` and pass the chosen name to
+   `create_task()`. Echo the substitution line only **after** `create_task()`
+   returns successfully; if it raises (e.g. the fallback is itself
+   unresolvable), the user sees only the fallback's refusal.
+   `select_workflow()` does not pre-validate the fallback; `create_task()`'s
+   guard is the single place that refuses it.
    `commands/ticket.py`'s `create_draft(title=target)` call is unaffected.
 6. **Activation refuses before writing** — `src/coga/mark.py`:
    `_assert_operator_resolves()` also runs the whole-workflow check on the
@@ -219,10 +250,14 @@ The substitution line on a successful fallback:
    create refusal per shape with "nothing on disk" assertions (file absent,
    log unchanged) — note these must use the *packaged* peer workflows, not
    the `test_validate.py` fixture's local `code/with-review` override, which
-   has no `other-agent` step; the fallback flag per shape; `mark active`
+   has no `other-agent` step; the fallback flag per shape; an unresolvable
+   fallback refusing with no substitution line in output; a directory-form
+   (`force_directory=True`) refusal leaving no directory, then a successful
+   retry at the same slug once a peer is configured; `mark active`
    byte-identical refusal; launch refusal on both paths (see
    `tests/test_launch.py` for existing auto-activate refusal tests); the
-   unchanged-validate check.
+   unchanged-validate check. Optional but recommended: end-to-end no-write
+   assertions for megalaunch, the recurring runner, and `coga unblock`.
 
 ### Out of scope
 
@@ -384,7 +419,17 @@ ordinary ticket.
 
 ## Evaluator review
 
-Verdict: not ready for implementation until the two must-fix findings below
+**Resolved 2026-11-11 (owner review-design, ad-hoc chat):** both must-fix
+findings are now in the spec. Finding 1 → Proposed shape item 4 (check runs
+before slug/path allocation and any `mkdir`; step-1 resolve moved ahead of
+`mkdir` too) plus a directory-form no-residue/retry acceptance criterion.
+Finding 2 → item 5 (substitution line echoed only after `create_task()`
+succeeds) plus the "no substitution line" clause on the unresolvable-fallback
+criterion. The optional megalaunch/runner/unblock e2e tests are listed as
+recommended in item 9. Owner also confirmed keeping `--fallback-workflow`
+over always-self-review in build/Dream.
+
+Original verdict: not ready for implementation until the two must-fix findings below
 are resolved. The overall peer-resolution boundary and activation exception
 shape match the current resolver and `prepare_active` seams.
 
