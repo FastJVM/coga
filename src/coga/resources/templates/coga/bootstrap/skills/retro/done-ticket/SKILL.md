@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from every eligible done ticket in a single Dream run, or from one canceled ticket `coga retire` passes, into Coga contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge is direct-deleted via `coga delete`, with no PR and no marker.
+description: Extract durable knowledge from every eligible done ticket in a single Dream run, or from one canceled ticket `coga retire` passes, into Coga contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge leaves through a reference-pin PR when durable references need repointing, otherwise through direct `coga delete`, with no marker.
 ---
 
 # Retro Done Ticket
@@ -44,7 +44,8 @@ checkout.
 - Purpose: extract durable knowledge from one done ticket or every eligible
   done ticket in a single run, and delete every processed source task — a
   knowledge-bearing ticket through its reviewable knowledge PR, a
-  no-durable-knowledge ticket directly via `coga delete`.
+  no-durable-knowledge ticket through a reference-pin PR when needed, otherwise
+  directly via `coga delete`.
 - Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` in one subagent whose
   cwd is a dedicated isolated checkout, after a human chooses one exact done
   ticket or Dream passes every eligible done ticket in one run. Native
@@ -60,11 +61,12 @@ checkout.
 - May change: warranted context files, warranted skill files, and the exact
   resolved source task directories under `coga/tasks/` for every processed
   source task — a knowledge-bearing ticket deleted in its theme's knowledge PR,
-  a no-durable-knowledge ticket deleted directly via `coga delete` — plus the
-  lines of any tracked file that hold a live-tree reference to a deleted source
+  a no-durable-knowledge ticket deleted via the reference-pin PR or directly
+  via `coga delete` — plus the lines of any tracked file that hold a live-tree reference to a deleted source
   task (see **Inbound references**).
 - Action: `pr-required` for knowledge edits and the source-task deletions
-  bundled with them; `direct-delete` for no-durable-knowledge source tasks.
+  bundled with them and for reference repoints; `direct-delete` for
+  unreferenced no-durable-knowledge source tasks.
   Every Retro knowledge edit lands in a reviewable PR; the caller's knowledge
   files stay unchanged. This is Retro's deliberate review policy, not a
   general requirement for files inside the automatically published Coga roots
@@ -74,8 +76,8 @@ checkout.
 - Idempotency: for each source task, the task directory is gone, or an open PR
   is deleting the source task directory: a knowledge PR that also adds its
   `## Retro` marker, or the run's reference-pin PR. A
-  no-durable-knowledge ticket is direct-deleted during the run, so afterward its
-  directory is simply gone. A processed `## Retro` marker on a still-present
+  no-durable-knowledge ticket without inbound references is direct-deleted
+  during the run, so afterward its directory is simply gone. A processed `## Retro` marker on a still-present
   directory does not settle the task — Retro re-picks it for deletion.
 - Stop and ask: the cwd is not a verified linked worktree or independent clone
   distinct from the caller's checkout, the caller did not supply a complete
@@ -247,16 +249,25 @@ Markdown link, or a bare path a reader is told to open in a README, doc,
 context, skill, or code comment. The open-PR and live-checkout gates do not
 see these references, and a navigation test goes red on the control branch the
 moment the delete lands. Before choosing a source's deletion path, search the
-isolated checkout's tracked files for the task's path relative to the Git root
-(for example `coga/tasks/<slug>`, without the `.md`, so both the bare file and
-directory forms match), leaving out the task root and the log:
+isolated checkout's tracked files for both the task's path relative to the
+Git root and its final slug component (`<task-leaf>`, without `.md`). The
+leaf search also catches relative links such as `../tasks/<task-leaf>.md`
+and `../<task-leaf>/ticket.md` that omit the full task-root prefix. Leave
+out the task root and the log:
 
 ```bash
-git grep -n -F -e '<tasks-root>/<slug>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'
+git grep -n -F -e '<tasks-root>/<slug>' -e '<task-leaf>' -- . ':!<tasks-root>' ':!<coga-os>/log.md'
 ```
 
-Inspect each hit. A longer slug that shares the prefix, or the same relative
-path inside another repo tree such as a test fixture, is not a reference.
+Honor the repository's search restrictions: add exclusion pathspecs for
+restricted trees before running the command (for example `':!docs/archive'`).
+If those restrictions prevent establishing safe deletion, stop and escalate
+rather than searching them or deleting unchecked.
+
+Inspect each hit and resolve relative targets from the referring file. A longer
+slug that shares the prefix, or the same relative path inside another repo tree
+such as a test fixture, is not a reference. Existing commit permalinks already
+preserve the source and need no rewrite.
 Links from other live tickets are out of scope, because tickets are transient.
 Repoint every real reference to a commit permalink of the fresh control-branch
 tip that the isolated branch is based on (`git rev-parse
@@ -564,10 +575,10 @@ marker for the same source task.
    ```
 
    A source task with no new durable knowledge gets **no** marker — it is
-   direct-deleted in step 9. Never open a marker-only PR that writes the marker
-   and leaves the directory in place. Return a one-line result naming the
-   direct-deleted tickets when no source task in the run contributed new durable
-   knowledge.
+   deleted by the applicable route in step 9. Never open a marker-only PR that
+   writes the marker and leaves the directory in place. When no source task
+   contributed new durable knowledge, return a one-line result naming the
+   direct-deleted tickets and any reference-pin PR.
 
 9. **Delete every processed source task.**
    Before any deletion, verify that every unresolved adjacent bug and every
@@ -616,9 +627,9 @@ marker for the same source task.
    running Retro. Prefer
    `New context: <finding>` or `New skill: <finding>`. When the run has
    referenced no-durable-knowledge tickets, open the reference-pin PR the same
-   way, from `codex/retro-pin-references`, titled `Pin links to deleted
-   tickets`. Other no-durable-knowledge
-   tickets are not part of any branch — after the knowledge branches
+   way, from a unique `codex/retro-pin-references-<run-id>` branch, titled
+   `Pin links to deleted tickets`. Never reuse another run's branch. Other
+   no-durable-knowledge tickets are not part of any branch — after the knowledge branches
    are committed and pushed, remove each from the isolated checkout's clean
    temporary branch using the checkout-appropriate `coga delete` form from step
    9. Never branch-switch or refresh the caller's checkout.
@@ -660,8 +671,10 @@ Knowledge PR — use this shape:
 ```
 
 The reference-pin PR uses the same shape. Its Summary names the
-no-durable-knowledge tickets, and its Classification lists only the
-`Repointed references`.
+no-durable-knowledge tickets, its Source omits the Markers bullet (there are no
+markers), and its Classification lists only the `Repointed references`. Its
+Test Plan records the repeated inbound-reference search and verification that
+each permalink resolves the original source task.
 
 Other no-durable-knowledge tickets do not get a PR — they are removed directly with
 `coga delete <slug> --keep-control-checkout`, which commits
@@ -675,7 +688,7 @@ Each knowledge PR should make future task prompts better, and must stay small
 enough to review and describe with one clear title — that is what the per-PR
 limits protect. Splitting a run into several focused PRs is correct; a single
 sprawling PR is not. A ticket with no new durable knowledge contributes no
-knowledge edit and is direct-deleted via `coga delete` — it never rides in a
-knowledge PR. Never open a marker-only PR that writes a `## Retro` marker and
-leaves the source task directory on disk; a processed done ticket should not
+knowledge edit and is direct-deleted via `coga delete` when unreferenced;
+otherwise it leaves in the reference-pin PR. It never rides in a knowledge PR.
+Never open a marker-only PR that writes a `## Retro` marker and leaves the source task directory on disk; a processed done ticket should not
 survive the run.

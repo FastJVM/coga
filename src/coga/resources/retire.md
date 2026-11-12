@@ -9,9 +9,8 @@ declined and why, and what would reopen it — and nothing has landed it. Retro
 extracts that, then deletes the ticket. When new durable knowledge exists,
 Retro opens a PR that records the `## Retro` marker, edits the knowledge base,
 and deletes the source task directory in the same PR. When no new durable
-knowledge exists, there is no PR to bundle the deletion into, so Retro
-direct-deletes the task via `coga delete` — no marker, no PR. This task is the
-ad-hoc shell that drives that single skill against the named slug. Do not
+knowledge exists, Retro uses the deletion route in the skill's **Inbound references** section, with no marker.
+This task is the ad-hoc shell that drives that single skill against the named slug. Do not
 invent additional steps. The complete Retro pass runs in one subagent inside a
 dedicated isolated checkout; do not run it in this retire task's checkout.
 `coga retire` tries to dispose of this ticket's own recorded checkout and
@@ -87,7 +86,7 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 
 2. **Mark this retire task done.** Run `coga mark done <this-task-slug>`
    with a `--message` summarizing what happened: the retro PR link, or
-   "direct-deleted, no durable knowledge" when retro found nothing durable.
+   "direct-deleted, no durable knowledge or inbound references" for a direct delete.
 
 ### Stop conditions
 
