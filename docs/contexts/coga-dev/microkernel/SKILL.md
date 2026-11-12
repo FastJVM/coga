@@ -58,7 +58,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
 | `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | `lifecycle-verbs-to-ticket-operations` |
-| `recurring promote` | Placement of the task-to-template move | none yet |
+| `recurring promote` | Placement of the task-to-template move | `residual-command-surfaces` (scope proposed by the refresh) |
 
 These tickets live under `coga/tasks/v1/microkernel/`; the owner's
 2026-11-12 decision in [current direction](../current-direction/SKILL.md)
