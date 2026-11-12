@@ -1259,3 +1259,48 @@ Generated: 2026-11-12T05:52:03+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-11-12 (period 2026-W46, run `20261112T051938Z`, attended; human approved full scan cost and Phase 6 plan).
+
+| Phase | Result | Detail |
+|---|---|---|
+| Preflight | ok | git-common-dir, remote, gh |
+| 1 validate-drift | human-needed | 12 issues → 3 brief-for-human class drafts; 0 direct-fix; 0 PR proposal; 0 machine-local |
+| 2 knowledge scan | reported | 29/29 shards, 31 findings (15 extract, 16 stale, 0 gap) |
+| 3 contract audit | reported | 9/9 shards (ca-00 ownership inline: 0), 16 drift (9 dup of Phase 2, 7 new) |
+| 4 retro/done-ticket | pr-opened | 52 eligible → 9 knowledge PRs (13 tickets) + 39 direct deletes; verified, torn down |
+| 5 cleanup-orphan-markers | no-op | no candidates |
+| 6 disposition | proposed / pr-opened | 6 proposal PRs, 11 drafts, 0 upstream |
+| upstream-coga.md | upstream-captured: 0 | Coga source repo |
+
+**Knowledge PRs (Phase 4):** #1200 codex/claude capture unknowns · #1201 pytest temp roots · #1202 macOS tool baseline · #1203 hands-on-trial method · #1204 agent-CLI audience · #1205 PR-prep YAML · #1206 sync-failure attribution · #1207 sandboxed quiescence evidence · #1208 skill-update detached HEAD. All 10 `source: done` extract findings were among these PRs' source tickets.
+
+**Proposal PRs (Phase 6, pr-required):**
+- #1209 write-post dead ticket pointers (ks-07/ca-06)
+- #1210 package-cutover leftovers: codebase Twins rule, docs/with-review twin edits (ca-01; ks-29/ca-08)
+- #1211 dev internals: blackboard-io writer races (ks-08), notifications caller inventory (ks-17), agent-spawn cmd-shim limit (extract from v1/14, done+checkout)
+- #1212 user topics: extension-model delete-task route (ca-03), coga/important agent-unavailable alert (ks-24), docs/README Windows link (ca-08)
+- #1213 recurring/workflow contracts: branch-sweep/sweep (ks-15/ca-07), design-then-implement `--to 1` (ca-07), phone-home runbook (ca-07)
+- #1214 **Dream-caused regression fix**: Retro direct-deleted `document-the-remedy-for-a-bloated-blackboard-sibli`, which README.md links → `test_context_navigation_has_no_broken_links` red on main; PR pins the link to commit dc6832e0b. Root cause filed as draft `make-retro-check-inbound-doc-links-before-deleting`.
+
+**Drafts created (code/with-review — finding target is in an open PR that doesn't carry it, or needs a decision):**
+- `correct-state-publication-internals-for-pending-pu` (ks-10 ×2, ks-28; overlaps #1199)
+- `fix-the-checkouts-topics-attachment-claim-and-add` (ks-14, ca-03; overlaps #1199/#1197)
+- `correct-the-coga-workflows-topic-s-claim-that-init` (ks-06/ca-05; overlaps #1197)
+- `replace-activity-capture-s-union-safe-description` (ks-18; overlaps #1200)
+- `remove-the-fixed-uninstall-hint-hazard-from-the-go` (ks-27/ca-01; overlaps #1208)
+- `update-the-testing-topic-s-stale-helper-reference` (ca-02 + v1/14 Windows fixture extract; overlaps #1201/#1195)
+- `decide-the-dream-scans-corpus-and-fix-the-known-co` (ks-22/ca-07 — human corpus decision)
+- `make-retro-check-inbound-doc-links-before-deleting` (run-observed gap)
+
+**Drafts created (brief-for-human, Phase 1 classes):** `validate-drift-unfrozen-workflow-canceled-tickets` (7, all canceled) · `validate-drift-stuck-in-progress-in-progress-ticke` (v1/01, v1/18) · `validate-drift-large-blackboard-live-ticket-blackb` (v1/20; v1/14 is retirement debt, v1/package-definitions/02 removed by #1201).
+
+**Already covered:** `current-direction` names `code/agent-merge` → carried by open PR #1197 (adds the workflow). `agent-config` `_configure_agent_tables` → already ticketed as `v1/20-ask-which-agents-to-enable-during-coga-init` (PR #1196).
+
+**Retirement debt (run `coga retire <slug>`):**
+- done+checkout: `v1/14-interactive-coga-launch-on-native-windows` (local branch `coga/v1-14-…-e8b518`); its 2 extracts routed to #1211 and the testing draft.
+- canceled: 41 tickets. Retirement unlocks these extract findings: `marketing/fix-installer/add-gemini-as-an-agent-coga-can-drive` (coga/init — host .gitignore managed block written only by fresh init); `v1/42-idea-piece` (marketing/write-post — owner's public-claim wording limits); `pr-are-only-when-ready-for-review` (coga/checkouts — cross-repo tickets break branch/PR gates; host the ticket in the repo receiving edits).
+
+**Machine-local validator issues:** none. **Review gates:** all 15 PRs above need human review; none auto-merged.

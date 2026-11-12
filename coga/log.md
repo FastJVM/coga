@@ -10765,3 +10765,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:03 v1 [validate-drift-stuck-in-progress-in-progress-ticke] [human:nicktoper] created (status=draft)
 2026-11-11 22:03 v1 [validate-drift-large-blackboard-live-ticket-blackb] [human:nicktoper] created (status=draft)
 2026-11-11 22:05 v1 [make-retro-check-inbound-doc-links-before-deleting] [human:nicktoper] created (status=draft)
+2026-11-11 22:05 v1 [recurring/dream] [agent:claude] slack: Dream 2026-W46: validate-drift 12 human-needed (3 class drafts); scans 31+16 findings; Retro 9 knowledge PRs + 39 direct deletes; 6 proposal PRs (#1209–#1214, incl. README link fix for a Retro-caused test break); 11 drafts; 42 tickets of retirement debt.
