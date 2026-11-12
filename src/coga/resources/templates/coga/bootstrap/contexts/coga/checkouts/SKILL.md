@@ -199,5 +199,13 @@ them to pass the clean-tree gate, and never hand-edit `coga/log.md`.
 This ticket's own file is never implementation diff: control has already
 rewritten it, so a branch commit of it is an overlapping stranded write. Move
 an intentional authored-body change to the live ticket in the primary
-checkout and discard the clone's copy. `ticket.py` and attachments under
-`coga/tasks/` can be implementation work and stay in the diff.
+checkout and discard the clone's copy. `ticket.py` and other attachments
+under `coga/tasks/` do not stay in the diff either: the task directory is
+routine state, so a sweeping command run on the feature checkout adopts their
+committed branch copies to control (the committed-state boundary in
+[coga/state-publication](../state-publication/SKILL.md#control-versus-feature-checkouts)).
+
+Size exception: the launched lifecycle, the per-step checkout map, and the
+invocation and stranded-write rules stay together because each step's
+start-and-return contract needs all of them, while the procedures already
+live in leaves.

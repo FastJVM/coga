@@ -168,3 +168,7 @@ The base prompt links this procedure for agent-led investigation; launch's
 refusal prints the key checks before exiting 75 without spawning an agent.
 Direct chat gets the same guarantees, with no automatic stash or recovery
 bypass; its occupancy guard is in [coga/checkouts/chat](../chat/SKILL.md).
+
+Size exception: preparation, return, and refusal recovery stay together
+because recovery must re-prove exactly the conditions preparation and return
+check, and splitting them would let the two drift apart.
