@@ -31,6 +31,14 @@ rg -n --hidden --no-ignore -g '*.md' -g '*.py' 'coga run (validate-drift|cleanup
    stop their owning sessions. A ticket status alone is not process evidence.
    Keep executing code and frozen instructions untouched while a run exists;
    do not install the replacement wheel until those runs have stopped.
+   A process listing taken inside a sandboxed agent session shows only that
+   sandbox's processes: it is not host-wide evidence and cannot rule out cron,
+   other users or hosts, agent-app schedulers, or other clones. When the
+   session cannot see them, the owner records which writers participate,
+   which are excluded, and who stops them. An observed editable install or a
+   fresh import is not upgrade evidence and does not prove a running
+   supervisor reloaded the code; record the reviewed wheel's hash as
+   step 4 requires.
 
 3. Retain the old wheel and its hash, and extract its source without running
    the job. Set `OLD_SOURCE` to that exact old shipped implementation. For
