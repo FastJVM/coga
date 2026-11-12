@@ -159,3 +159,13 @@ pitfalls live in [coga-dev/testing](../../testing/SKILL.md); checkout hazards in
   `':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'`
   to the [discovery](../../../../../src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/discovery/SKILL.md) pathspecs, or a
   `coga/tasks/`-only search misses earlier deletions.
+- **Known open: `coga skill update --all --pr` from a detached HEAD ends on
+  `coga/skill-update`.** `skill_manager._current_git_branch` returns an empty
+  name there (`git branch --show-current`), so `run_skill_update_pr_flow`'s
+  `finally` (`if original_branch and original_branch != branch`) never checks
+  the caller's position back out. Separately, v1/10's peer review recorded that
+  a script launch publishes its audit-log append to control but leaves
+  `coga/log.md` dirty in an invoking feature checkout, so a `skill-update` job
+  run off the control branch can still meet the dirty-tracked-files preflight
+  refusal. Both were left out of scope by v1/10 (PR #1168, 2026-11-04); no
+  follow-up ticket is filed.
