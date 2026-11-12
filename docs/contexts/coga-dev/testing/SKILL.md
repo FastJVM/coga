@@ -68,18 +68,11 @@ is their hand-run counterpart: a first-time user installs on a fresh
   outside the checkout (for example a sibling directory of it): an in-checkout
   basetemp lets the missing-repo tests walk up, discover the checkout's real
   `coga.toml`, and stop testing the no-repo case (observed 2026-11-04).
-  Known open (2026-11-08): on native Windows the three publication
-  regressions (`test_stage_b_first_deletion_and_carrier_publish_against_stage_a_control`
-  and both `test_final_package_edits_never_escape_a_mutating_cli_sweep`
-  cases) pass their publication assertions but fail inside
-  `_check_package_control`. The control clone and its
-  `--basetemp={tmp_path/<label>-fixtures}` nest under pytest's `tmp_path`,
-  which puts the control tree's own wheel-copy tests past MAX_PATH, and the
-  pinned Stage A checkout carries LF/CRLF-sensitive packaging/carrier fixtures
-  that later fixes cannot rewrite. A fix needs a shallow Windows temp root (as
-  `test_usage.py::_repo_dir` uses) without altering the pinned Stage A proof;
-  until then that transition proof is Linux-receipted only, and a native
-  Windows full-suite receipt must name these three cases explicitly.
+  On Windows, use a short
+  root such as `C:\ct`; nested control checks and wheel copies can otherwise
+  exceed MAX_PATH. Control clones disable `core.autocrlf` to preserve pinned
+  definition bytes. The Stage A check backports one explicit-LF test-fixture
+  write; its product code and assertions remain pinned to the historical tree.
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
   primary checkout.** In-process imports are safe: `pyproject.toml` sets
@@ -158,6 +151,10 @@ is their hand-run counterpart: a first-time user installs on a fresh
   so a reused directory with different username casing matches Git's path
   reports on Windows. `init_git_repo` disables `core.autocrlf` for ordinary
   fixtures. Dedicated Git tests still exercise CRLF clean filters.
+  A fresh child interpreter does not inherit pytest's monkeypatches. Launch
+  fixtures that fake the supervisor inside that child must also fake the
+  Windows CLI resolver there, so command planning can reach the simulated
+  agent without requiring an installed agent CLI.
   `write_executable` supplies a
   Python shebang on POSIX and a `.cmd` launcher on Windows. Use
   `remove_test_checkout` when a fixture deliberately removes a Git clone;
@@ -186,6 +183,9 @@ is their hand-run counterpart: a first-time user installs on a fresh
   contract, is exempt.
 - **`coga.config` and `coga.launch` share one `subprocess` module
   object.** Use one argv-dispatching mock on `coga.config.subprocess.run`.
+- **Scope standard-library mocks to the operation under test.** For example,
+  restore `shutil.get_terminal_size` with `monkeypatch.context()` before
+  pytest reports the result; pytest also calls it with `fallback=`.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
   with `--no-build-isolation` and fails (not skips) without it; see

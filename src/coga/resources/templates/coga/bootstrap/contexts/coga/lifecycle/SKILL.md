@@ -158,9 +158,15 @@ Use A's exact path-qualified slug (for example `v2/some-ticket`), as a whole
 token, not its title or a partial slug. B must be active, in_progress, or
 blocked; activate a draft first. This uses the existing blocker mechanism:
 status and reminders show the ask, and the
-[megalaunch dependency drain](../megalaunch/SKILL.md) can retry B once A is
-`done` or retired. It is not a general dependency graph or a `dependencies:`
-field, and cancellation does not count as completion.
+[megalaunch dependency drain](../megalaunch/SKILL.md#dependency-drain) resolves
+each dependency ask only when its exact named task is `done` or was seen
+earlier in that run and has since been retired. With multiple dependencies,
+satisfied asks resolve individually; unfinished dependencies and unrelated
+human asks stay open, and B stays `blocked` while any ask remains. If an ask
+names multiple known task refs, all must be finished before that ask resolves.
+An explicit human `coga unblock` answer still resolves all open asks in one
+transition. This is not a general dependency graph or a `dependencies:` field,
+and cancellation does not count as completion.
 
 When a newer ticket supersedes an older one, use
 `coga mark canceled <old> --message "Superseded by <new>"`, with the successor's

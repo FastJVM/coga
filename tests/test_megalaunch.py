@@ -1616,6 +1616,127 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
     assert dependency["slug"] in (blocker.answer or "")
 
 
+@pytest.mark.parametrize("remaining", ["active", "done", "canceled", "human"])
+def test_megalaunch_drain_resolves_only_satisfied_blockers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, remaining: str
+) -> None:
+    """Each dependency gets its own answer; unfinished and human asks survive."""
+    from coga.blackboard import append_blocker, open_blockers, read_blockers
+
+    cfg = load_config(repo)
+    dependencies = []
+    for title, status in (("A dependency", "done"), ("C dependency", remaining)):
+        dependency = create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="lea",
+            agent="claude",
+            status="active",
+        )
+        ticket = Ticket.read(dependency["path"])
+        ticket.frontmatter["status"] = status if status != "human" else "active"
+        if status in {"done", "canceled"}:
+            ticket.frontmatter.pop("step", None)
+        ticket.write(dependency["path"])
+        dependencies.append(dependency)
+    blocked = create_task(
+        cfg=cfg,
+        title="B dependent",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    reasons = [
+        f"Depends on {dependencies[0]['slug']}: need its result",
+        "Which region should we use?" if remaining == "human"
+        else f"Depends on {dependencies[1]['slug']}: need its result",
+    ]
+    for reason in reasons:
+        append_blocker(Path(blocked["path"]), actor="claude", reason=reason)
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg)
+
+    blockers = read_blockers(Path(blocked["path"]))
+    assert [blocker.resolved for blocker in blockers] == [True, remaining == "done"]
+    assert dependencies[0]["slug"] in (blockers[0].answer or "")
+    if remaining == "done":
+        assert dependencies[1]["slug"] in (blockers[1].answer or "")
+        assert launched == [blocked["slug"]]
+        assert Ticket.read(blocked["path"]).status == "done"
+        assert run.counts["drained"] == 1
+    else:
+        assert blockers[1].answer is None
+        assert [blocker.reason for blocker in open_blockers(Path(blocked["path"]))] == reasons[1:]
+        assert launched == []
+        assert Ticket.read(blocked["path"]).status == "blocked"
+        assert run.results[0].outcome == "skipped-unresolved-blocker"
+
+
+@pytest.mark.parametrize("combined", [False, True])
+def test_megalaunch_drain_reconsiders_partial_progress_after_another_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, combined: bool
+) -> None:
+    """Partial resolutions do not prevent the same run reaching a fixed point."""
+    from coga import megalaunch as megalaunch_module
+    from coga.blackboard import append_blocker, open_blockers, read_blockers
+
+    cfg = load_config(repo)
+    tasks = []
+    for title in ("A done", "B dependent", "C blocked", "D done"):
+        tasks.append(create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="active",
+        ))
+    first, dependent, middle, last = tasks
+    for task in (first, last):
+        ticket = Ticket.read(task["path"])
+        ticket.frontmatter["status"] = "done"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(task["path"])
+    reasons = (
+        [f"Depends on {first['slug']} and {middle['slug']}"] if combined
+        else [f"Depends on {task['slug']}" for task in (first, middle)]
+    )
+    for task, asks in ((dependent, reasons), (middle, [f"Depends on {last['slug']}"])):
+        for reason in asks:
+            append_blocker(Path(task["path"]), actor="claude", reason=reason)
+        ticket = Ticket.read(task["path"])
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(task["path"])
+    launched = _done_on_spawn(monkeypatch)
+    original_spawn = megalaunch_module.spawn_agent_session
+
+    def record_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        if ref_obj.id_slug == middle["slug"]:
+            blockers = read_blockers(Path(dependent["path"]))
+            assert [b.resolved for b in blockers] == ([False] if combined else [True, False])
+            assert Ticket.read(dependent["path"]).status == "blocked"
+        assert open_blockers(ref_obj.ticket_path) == []
+        return original_spawn(cfg_, ref_obj, ticket_, agent, **kwargs)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", record_spawn)
+
+    run = run_megalaunch(cfg, max_tasks=2)
+
+    assert launched == [middle["slug"], dependent["slug"]]
+    assert run.counts["drained"] == 2
+    assert run.counts["completed"] == 2
+    assert open_blockers(Path(dependent["path"])) == []
+
+
 def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3418,6 +3539,114 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
     assert spawned == [blocked["slug"]]
     assert run.counts["drained"] == 1
     assert run.counts["completed"] == 1
+
+
+@pytest.mark.parametrize(
+    "publication", ["success", "refused", "uncertain", "local-edit", "local-deletion"]
+)
+def test_megalaunch_partial_dependency_resolution_publication(
+    git_repo, monkeypatch: pytest.MonkeyPatch, publication: str
+) -> None:
+    """Partial progress stays blocked on control and obeys publication recovery."""
+    from coga import git as git_module
+    from coga.blackboard import append_blocker, parse_blockers_text
+
+    cfg = load_config(git_repo.coga_os)
+    dependency = create_task(
+        cfg=cfg,
+        title="Finished dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ticket = Ticket.read(dependency["path"])
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(dependency["path"])
+    git_module.sync_task_state(cfg, Path(dependency["path"]), message="Seed done dependency")
+    blocked = create_task(
+        cfg=cfg,
+        title="Partly satisfied dependent",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    path = Path(blocked["path"])
+    for reason in (f"Depends on {dependency['slug']}: need its result", "Which region?"):
+        append_blocker(path, actor="claude", reason=reason)
+    ticket = Ticket.read(path)
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(path)
+    git_module.sync_task_state(cfg, path, message="Seed blocked dependent")
+    before = path.read_bytes()
+    ticket_rel = path.relative_to(git_repo.root).as_posix()
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    launched = _done_on_spawn(monkeypatch)
+    real_sync = git_module.sync_task_state
+    attempted = False
+    local_edit: bytes | None = None
+
+    def publish_resolution(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal attempted, local_edit
+        if kwargs.get("message", "").endswith("dependency asks resolved"):
+            attempted = True
+            assert kwargs["strict"] is True
+            assert kwargs["expect"] == {path: before}
+            if publication == "refused":
+                peer = Ticket.parse(before.decode("utf-8"))
+                peer.body += "\nPeer clarification.\n"
+                git_repo.push_competing_commit(ticket_rel, peer.render())
+            elif publication == "uncertain":
+                raise git_module.UncertainPublishError("control unreadable after push")
+            elif publication == "local-edit":
+                local_edit = path.read_bytes() + b"\nLocal clarification.\n"
+                path.write_bytes(local_edit)
+                raise git_module.GitError("publication refused after local edit")
+            elif publication == "local-deletion":
+                path.unlink()
+                raise git_module.GitError("publication refused after local deletion")
+        return real_sync(*args, **kwargs)
+
+    monkeypatch.setattr(git_module, "sync_task_state", publish_resolution)
+
+    run = run_megalaunch(cfg)
+
+    assert attempted
+    assert launched == []
+    remote = Ticket.parse(git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin))
+    assert remote.status == "blocked"
+    if publication in {"local-edit", "local-deletion"}:
+        if publication == "local-edit":
+            assert path.read_bytes() == local_edit
+        else:
+            assert not path.exists()
+        assert [b.resolved for b in parse_blockers_text(remote.body)] == [False, False]
+        assert run.results[0].outcome == "failed"
+        assert "local state retained for reconciliation" in run.results[0].detail
+        assert _log_lines_for(cfg, blocked["slug"], "resolved finished dependency")
+        return
+    assert Ticket.read(path).status == "blocked"
+    assert Ticket.read(path).launch_generation is None
+    local = parse_blockers_text(Ticket.read(path).body)
+    if publication == "refused":
+        assert path.read_bytes() == before
+        assert "Peer clarification." in remote.body
+        assert [b.resolved for b in parse_blockers_text(remote.body)] == [False, False]
+        assert run.results[0].outcome == "failed"
+        assert _log_lines_for(cfg, blocked["slug"], "resolved finished dependency") == []
+    else:
+        assert [b.resolved for b in local] == [True, False]
+        assert "Which region?" == local[1].reason
+        if publication == "success":
+            assert remote.body == Ticket.read(path).body
+            assert run.results[0].outcome == "skipped-unresolved-blocker"
+        else:
+            assert run.results[0].outcome == "failed"
+            assert "uncertain" in run.results[0].detail
 
 
 def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
@@ -6230,13 +6459,15 @@ def test_windows_keys_resize_and_extended_keys(monkeypatch: pytest.MonkeyPatch) 
                           "a", "n", "\r", "\x1b", "q", "\x03", "\xe0", "M"])
     _windows_picker(monkeypatch, msvcrt)
     sizes = iter([(80, 24), (80, 24), (100, 30)])
-    monkeypatch.setattr(command.shutil, "get_terminal_size", lambda: next(sizes))
-    with command._WindowsKeys() as keys:
-        actions = [keys.read() for _ in range(13)]
-        assert actions == ["up", "down", "down", "space", "down", "up", "all",
-                           "none", "enter", "quit", "quit", "quit", ""]
-        # Idle polling notices a resize without SIGWINCH.
-        assert keys.read() == "resize"
+    # shutil is shared with pytest, which queries terminal size while reporting.
+    with monkeypatch.context() as terminal:
+        terminal.setattr(command.shutil, "get_terminal_size", lambda: next(sizes))
+        with command._WindowsKeys() as keys:
+            actions = [keys.read() for _ in range(13)]
+            assert actions == ["up", "down", "down", "space", "down", "up", "all",
+                               "none", "enter", "quit", "quit", "quit", ""]
+            # Idle polling notices a resize without SIGWINCH.
+            assert keys.read() == "resize"
 
 
 def _picker_candidates(repo: Path) -> list:

@@ -144,7 +144,7 @@ _CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _TOP_LEVEL_HEADING_RE = re.compile(r"^ {0,3}#{1,2}(?:[ \t]+|$)")
 
 
-def _without_superseded_designs(text: str) -> str:
+def _without_superseded_designs(text: str, *, keep_lines: bool = False) -> str:
     """Omit exact archive sections, preserving all other text verbatim.
 
     Only an unindented, case-sensitive ``## Superseded designs`` line
@@ -154,6 +154,8 @@ def _without_superseded_designs(text: str) -> str:
     blackboards use ``---`` as a section separator, which CommonMark would
     otherwise read as a level-2 underline for the line above it.
     Backtick/tilde fenced examples never start or end a section.
+    `keep_lines` replaces archived lines with blanks so a targeted writer can
+    map the live projection back onto the original text.
     """
     live: list[str] = []
     archived = False
@@ -175,6 +177,8 @@ def _without_superseded_designs(text: str) -> str:
             archived = content.rstrip(" \t") == "## Superseded designs"
         if not archived:
             live.append(line)
+        elif keep_lines:
+            live.append("\n")
     return "".join(live)
 
 
@@ -570,6 +574,41 @@ def resolve_open_blockers_text(region: str, actor: str, answer: str) -> str:
     return "\n".join(resolved_lines) + trailing
 
 
+def resolve_blockers_text(region: str, actor: str, answers: dict[Blocker, str]) -> str:
+    """Resolve only the selected live, open blocker records, with individual answers.
+
+    Keep examples, superseded designs, and previous answers verbatim. Legacy
+    IDs are counted using the same live projection as `parse_blockers_text`.
+    Full records distinguish asks whose timestamp-based IDs collide.
+    """
+    blockers = iter(parse_blockers_text(region))
+    ts = datetime.now().strftime(BLOCKER_TS_FORMAT)
+    resolved_lines: list[str] = []
+    live = _without_superseded_designs(region, keep_lines=True)
+    for original, (line, fenced) in zip(
+        region.splitlines(keepends=True), markdown_lines(live), strict=True
+    ):
+        checkbox = None if fenced else _CHECKBOX_BLOCKER_RE.match(line)
+        legacy = None if fenced else _LEGACY_BLOCKER_RE.match(line)
+        blocker = next(blockers) if checkbox or legacy else None
+        if blocker is None or blocker.resolved or blocker not in answers:
+            resolved_lines.append(original)
+            continue
+        if checkbox:
+            resolved = original.rstrip("\r\n").replace("- [ ]", "- [x]", 1)
+        else:
+            assert legacy is not None
+            resolved = (
+                f"- [x] [{legacy.group('ts')}] [{legacy.group('actor')}] "
+                f"id={blocker.id} {legacy.group('reason').strip()}"
+            )
+        ending = "\n" if original.endswith("\n") else ""
+        resolved_lines.append(
+            f"{resolved}\n  resolved: [{ts}] [{actor}] {answers[blocker]}{ending}"
+        )
+    return "".join(resolved_lines)
+
+
 def format_bytes(size: int) -> str:
     """Human-friendly binary size."""
     if size < 1024:
@@ -621,6 +660,7 @@ __all__ = [
     "read_blockers",
     "open_blockers",
     "resolve_open_blockers",
+    "resolve_blockers_text",
     "format_bytes",
     "blackboard_size_warning",
 ]
