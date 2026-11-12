@@ -133,3 +133,46 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+**Verdict: ready with edits.** The diagnosis is right and the workflow fits. The ticket still misses one structural interaction (checkout return) and doesn't admit it reverses a documented design choice.
+
+**Claim accuracy (checked against the code)**
+- Correct. In `src/coga/git.py`, `_candidates` takes every path from `_dirty_paths` under the pathspecs. The `adopt_only` filter (`_routine_state_areas`, set in `_publish_locked` when HEAD is not control) applies only to the committed `base..HEAD` diff. So dirty contexts publish from a feature checkout, and committed ones wait for merge.
+- `git show --stat 39e20683e` confirms the incident: it touches only `docs/contexts/coga-dev/current-direction/SKILL.md`.
+
+**Assumptions to question before launch**
+1. **This is deliberate today.** coga/state-publication "The Coga roots" says there is no separate knowledge PR and instruction edits "land directly". Guided authoring (`coga ticket`) publishes context, skill, workflow and config edits as one guarded transaction. The ticket should say it narrows that rule for feature checkouts, and give the reason. The real friction is repo-specific: this repo puts contexts in `docs/contexts`, which AGENTS.md says to update "in the same PR". The design should consider whether this should be a per-repo `[layout]`/`[git]` policy rather than a universal change. Adopting repos on the default `coga/contexts` may want direct publication.
+2. **Checkout return is not addressed.** coga/checkouts/launch-boundary step 1 sweeps every dirty file before switching to `main`. If held files stay dirty, `git switch` either refuses or carries them onto control, and the next sweep there publishes them anyway. Holding would then delay the hazard instead of removing it. The design must say whether return refuses, requires a commit, or something else. Direct chat's "requires a clean checkout" before `prepare-checkout` (coga/checkouts/chat) has the same problem.
+3. **Recurring templates are whole-file and whole-template.** The hazard paragraph notes that a runtime blackboard write makes the whole template publishable. "Keep publishing blackboards" therefore needs a rule for dirty template definitions and `ticket.py` in the same directory.
+4. **More docs to update.** Besides state-publication and checkouts, these restate or cite the hazard:
+   - `code/self-qa/SKILL.md`, which names "Pre-review publication hazard"
+   - coga/checkouts step 2 ("left dirty, the sweep publishes it") and "Which checkout you invoke Coga from"
+   - coga/checkouts/launch-boundary step 1
+
+   Name them all so the same-PR rule is checkable.
+
+**Clarity and done criteria**
+- A cold agent can start: the problem, the incident, the code entry points and the open questions are concrete.
+- "Done" is not testable as written. Add invariants a reviewer can check, for example:
+  - after a sweep from a feature checkout, a dirty context or skill is absent from control
+  - the ticket and log still land
+  - a held file is reported on stderr (fail loud)
+  - `coga run publish-state PATH` on a held file exits 1 without publishing the task/log writes that came with it, matching the committed-file behavior
+  - checkout return behaves as the design specifies
+- Point tests at `tests/test_git.py` and `tests/test_publish_state.py` as well as `tests/test_checkouts.py`.
+
+**Workflow fit:** Good. The open questions make design-then-implement the right choice. The owner `review-design` gate matters because this reverses a documented choice.
+
+**Contexts:** I don't recommend attaching coga/state-publication whole. Most of it covers prepared transactions, human review and recovery, which this ticket doesn't touch. Do this instead:
+- In `## Context`, cite the exact anchors: state-publication#the-coga-roots, #when-coga-publishes (guided authoring), #control-versus-feature-checkouts, #strict-publication-on-demand; checkouts/launch-boundary step 1.
+- Copy in the two facts that drive the design: direct publication is intentional, and checkout return sweeps dirty files.
+
+The code/design skill already tells the agent to read referenced files. The implement step edits these files, so it will read them regardless.
+
+**Scope:** One coherent change, no split needed. If the owner prefers the per-repo policy route (point 1), that becomes the design's answer, not a sibling ticket.
+
+**Prompt size (~5,364 tokens):** No layer is over 40%. `workflow_skill` code/design is about 25% and `task_context` about 24%. Almost all of `task_context` is the template guide comment, which the template says to keep, so this ticket adds only about 360 tokens of its own content. Shrinking that comment is a template-level trim, not a fix for this ticket. Adding ~150 words of cited Context costs far less than attaching state-publication (~3,760 words).
+
+**Minor:** The slug is truncated ("…-unti"). Cosmetic only.
