@@ -375,7 +375,13 @@ knowledge is deleted in its theme's knowledge PR, which also records its
 `coga delete <slug>` from an independent clone. Both land the removal on the
 remote control branch without mutating the operator's checkout, with no PR and
 no marker. Recovery is via `git restore`. Retro never leaves a processed done
-ticket on disk and never opens a marker-only PR.
+ticket on disk and never opens a marker-only PR. Retro also searches tracked
+files for durable references to each source task, such as a README or doc
+link on `blob/<control-branch>`. Before a deletion lands, it repoints each one
+to a commit permalink in a PR. A no-durable-knowledge ticket with such a
+reference therefore leaves in the run's reference-pin PR, not by direct
+delete. The skill's **Inbound references** section owns the rule. The
+eligibility gates above do not cover it.
 
 After the subagent returns, fetch the remote control branch and verify:
 
