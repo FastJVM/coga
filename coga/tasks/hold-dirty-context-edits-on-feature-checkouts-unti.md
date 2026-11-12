@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (peer-review)
 agent: claude
 ---
 
@@ -225,6 +225,82 @@ Findings that shaped the design:
 - Checkout return needs no new decision logic. `_plan_preparation` already refuses any dirty roots file not on pinned control, so a held file can't ride a switch onto main. Only the refusal reason text gains a held-for-merge remedy.
 - publish-state and authoring get exit-1, nothing-published behavior for free from the `required` loop in `_publish_locked` once `_candidates` drops held dirty paths, provided explicit pathspecs are not exempt from the hold.
 - Recurring dir: classify per file. Carrier, blackboard-only change to a definition `ticket.md` (above-fence region equals control's), or `RUNTIME_STATE_FILES` publishes. Everything else is held whole.
+
+## Implement handoff (2026-11-11)
+
+Commit `7ff2f3d99` on the branch, rebased on origin/main and pushed. No PR yet.
+
+- `git._publishes_from_feature(cfg, root, base, rel)` is the one predicate. It covers routine areas, plus, under `recurring/<name>/`, a `RUNTIME_STATE_FILES` sibling, a carrier only where control has none or has a carrier (must-fix 1), and a definition `ticket.md` whose above-fence region equals control's. `_publish_locked` passes it to `_candidates` off control, and held dirty paths go into `held`. The first attempt writes one stderr report (`[git] held for merge (<branch>|detached HEAD): <rel>` lines plus a remedy line) for held paths that differ from base by `_tree_entry`. The `require_paths` loop raises a held-specific `GitError`. `_plan_preparation` only rewords blocking entries (`<rel> (held for merge on '<branch>': <proof>; <remedy>)`).
+- Exit contract per must-fix 2 is unchanged: entry refuses with 75, ordinary return keeps the session result but stops chaining and withholds the sweep, and direct chat keeps its conditional 75 (covered by a new chat test).
+- Existing tests revised to the new behavior, keeping their control cases: the sweep/every-eligible test, the recurring runtime test, prepare-cleans (split into a feature-refusal test and a control-clean test), symlinked skill dir (now parametrized feature/control), authoring relocation, the checkout-return config reload, recurring re-adoption (now uses a blackboard-only write to model prior publication), the package-edit sweep, and the launch diagnostics test (fixture moved under the task directory).
+- Docs: state-publication gets a new `### Held for merge on feature checkouts` section that replaces "Pre-review publication hazard". Also updated: checkouts, launch-boundary, chat, manual, reconciliation (remedy for held files), the self-qa citation, the coga-dev internals owner decision 2026-11-11, and the coga-dev packaging note.
+- Not changed: `coga status`/`feature_sync_plan`. The authoring bail text still suggests `coga run publish-state` generically; the held error text before it carries the actual remedy. That is a possible follow-up wording polish, not a defect.
+- Native Windows receipt is still needed before merge: the change is platform-sensitive (Git modes and CRLF in the above-fence comparison).
+
+## PR
+
+```yaml
+title: Hold dirty knowledge on feature checkouts until merge
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended by the owner.
+head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
+base: 12ad9f17396c129febded22c3af6ea23896b5e61
+depth: deep
+rationale: Changes publication selection for every non-control checkout and narrows a 2026-10-07 owner decision; review the predicate, the recurring per-file rules, and the reworded return refusal.
+implementation: >-
+  Adds git._publishes_from_feature and uses it in _publish_locked/_candidates to hold dirty
+  non-routine files on feature or detached checkouts. Held files get one stderr report per
+  publish call, a held-specific refusal when required (publish-state, guided authoring), and
+  held wording in checkout-return blocking entries.
+deviations: >-
+  Owner resolved the evaluator must-fixes at implement start: a carrier publishes only where
+  control lacks the file or holds a carrier, and the launch exit contract is unchanged
+  (entry 75; ordinary return keeps its result).
+limitations: >-
+  No native Windows run yet (mode/CRLF paths). coga status output unchanged; it does not list
+  held files on detached HEAD or without a remote-tracking control ref.
+files:
+  src/coga/git.py: Hold predicate, selection, report, required refusal, return wording.
+  tests/test_git.py: New path-class, detached, report-once tests; revise feature cases of existing publication tests.
+  tests/test_publish_state.py: Named held file refuses with nothing published; no-path form reports held.
+  tests/test_authoring.py: coga ticket on a feature checkout refuses held knowledge and withholds the sweep.
+  tests/test_checkouts.py: Return refuses a held context without publishing it; direct chat ends with exit 75.
+  tests/test_launch.py: Keep diagnostics fixture publishable by moving it under the task directory.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/state-publication/SKILL.md: Held-for-merge contract replaces the pre-review hazard.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/SKILL.md: Work step, direct chat, and invoking-checkout rule.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/launch-boundary/SKILL.md: Return steps 1 and 3 for held files.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/chat/SKILL.md: Commit PR knowledge before the chat ends.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/manual/SKILL.md: Held files belong in the branch commit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/checkouts/reconciliation/SKILL.md: Held files cannot be published from the branch.
+  src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Re-point the citation to the new anchor.
+  docs/contexts/coga-dev/internals/state-publication/SKILL.md: Record the 2026-11-11 owner decision and the predicate.
+  docs/contexts/coga-dev/packaging/SKILL.md: Update the commit-before-sweep note.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the code/self-qa step reviews next. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+    status: passed
+    head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
+    base: 12ad9f17396c129febded22c3af6ea23896b5e61
+    detail: >-
+      4797 passed, 33 skipped. Ran on the uncommitted tree before the rebase. The commit has
+      identical code; the rebase brought in only coga/log.md and this ticket file, which no test reads.
+  - command: .venv/bin/coga validate --json
+    status: passed
+    head: 7ff2f3d99b6d62657d3667c0e45826bf0704d0d8
+    base: 12ad9f17396c129febded22c3af6ea23896b5e61
+    detail: No errors; existing warnings only.
+```
+
+## Implement-step decisions (owner, attended, 2026-11-11)
+
+review-design advanced without recording resolutions; the owner answered at the start of implement:
+- Evaluator must-fix 1 adopted: an exact carrier `ticket.md` publishes only when control lacks the path or control's copy is itself an exact carrier. Replacing a control definition with a carrier is held whole (regression test).
+- Evaluator must-fix 2 adopted: no launch-result change. Entry refusal exits 75; ordinary return keeps the session's own result while stopping chaining and withholding the sweep; direct chat keeps its existing conditional exit 75.
+- Open Questions 1-3: proposed answers accepted (keep the above-fence comparison; stderr-only report; root layout holds non-routine source too).
 
 ## Open Questions
 
