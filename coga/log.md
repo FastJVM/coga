@@ -10749,3 +10749,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1201 (pytest-temp-roots) ready for review: https://github.com/FastJVM/coga/pull/1201
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1202 (macos-tool-baseline) ready for review: https://github.com/FastJVM/coga/pull/1202
 2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1203 (hands-on-trial-method) ready for review: https://github.com/FastJVM/coga/pull/1203
+2026-11-11 21:51 v1 [recurring/dream] [agent:claude] slack: Retro knowledge PR #1204 (agent-cli-audience) ready for review: https://github.com/FastJVM/coga/pull/1204
