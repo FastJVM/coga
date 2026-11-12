@@ -123,3 +123,7 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: remove-the-fixed-uninstall-hint-hazard-from-the-go
