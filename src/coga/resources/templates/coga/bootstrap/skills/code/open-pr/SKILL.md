@@ -192,10 +192,9 @@ Fix the cause and re-run it — it is idempotent:
   missing text in the launch checkout's ticket, then discard only confirmed
   duplicate hunks in the clone (`git restore --staged --worktree -- <path>`).
   Do not commit or stash confirmed duplicates to satisfy the gate.
-  Intentional `ticket.py`/attachment changes can belong to the
-  implementation and stay in the feature diff. Authored ticket-body changes
-  belong in the live ticket on control. See `coga/checkouts`,
-  "Stranded ticket writes".
+  Authored ticket-body, `ticket.py`, and attachment changes are task
+  state, not feature diff: make them in the live task on control. See
+  `coga/checkouts`, "Stranded ticket writes".
 
 ## Acceptance for this step
 
