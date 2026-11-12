@@ -14,9 +14,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: a5d4c6e3-d92e-4edf-af50-e9dc57f08579
 ---
 
 ## Description
@@ -117,4 +116,58 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Brief (2026-11-12, brief-and-hand-off, read-only)
+
+**Goal.** Get `v1/20-ask-which-agents-to-enable-during-coga-init` out of
+`coga validate`'s `large-blackboard` class (live region 36.8 KiB vs 32.0 KiB),
+per the `coga/blackboard` size remedy: move, never delete.
+
+**Facts observed (main @ 550516642).**
+- Target: `coga/tasks/v1/20-ask-which-agents-to-enable-during-coga-init.md`,
+  file form, `in_progress`, `step: 7 (review)`, **owner: zach** (not this
+  ticket's owner). PR #1196 is OPEN, unmerged. Last touched 92f10606f
+  (2026-11-11). So it is actively worked: coordinate with Zach first.
+- Live sections (the counted region; `## Superseded designs` at line 1327
+  is excluded): `## Dev` 0.3 KB, `## Evaluator review` 5.2 KB, six dated
+  `## 2026-11-10/11 — …` logs 25.0 KB (lines 776–1194), `## PR` 6.9 KB,
+  `## Open Questions` (None).
+- The current handoff is `### Handoff — what is left…` (line 1089), nested
+  inside `## 2026-11-11 — peer-review (codex)…`; it is partly stale (step
+  has moved 5 → 7, Windows walk now recorded at line 1120).
+- Other class members, out of scope here: v1/14 (49.3 KiB, done with live
+  checkout — retirement debt, `coga retire`), v1/package-definitions/02
+  (40.0 KiB, done — Dream Retro PR #1201), and **`recurring/dream`
+  (73.4 KiB)**, which the Dream disposition did not name. Dream's template
+  blackboard is rewritten each run, so per `coga/blackboard` it is not
+  trimmed by hand: route it to its owner as a decision (attachment,
+  exemption, or accepted warning) before this ticket can close.
+
+**Ordered steps for the human.**
+1. Confirm with Zach (target owner) that slimming now is fine while #1196 is
+   in review; otherwise record "accepted warning until #1196 merges" instead.
+2. Promote to directory form: `git mv` the `.md` to
+   `coga/tasks/v1/20-ask-which-agents-to-enable-during-coga-init/ticket.md`
+   (check `coga/tickets` for any CLI-supported promote path first).
+3. Move the six dated `## 2026-11-1x — …` sections verbatim into a sibling
+   attachment, e.g. `.../20-…/history-2026-11-10-11.md`, opening with
+   `<!-- moved from v1/20-… blackboard on 2026-11-12 -->`. Leave each moved
+   heading in place holding only a pointer line.
+4. Keep in place: `## Dev`, `## PR`, `## Open Questions`, and a current
+   handoff (lift the `### Handoff` block out of the moved log, or rewrite it
+   to reflect step 7 and #1196). Optionally move the resolved
+   `## Evaluator review` into the attachment too (5.2 KB) — it is history
+   once dispositioned.
+5. Record before/after live-region sizes on the target blackboard.
+6. Publish as state on control (`coga/state-publication`; e.g.
+   `coga run publish-state <path>` or the next lifecycle sweep). No branch/PR.
+
+**Irreversible action.** Pushing the restructure to control (the file move
+to directory form changes the task path every reader resolves). It is
+recoverable via git, but a concurrent edit on Zach's side would then
+conflict — hence step 1.
+
+**Done check.** `coga validate --json` shows no `large-blackboard` row for
+v1/20 (live region < 32 KiB), `coga validate` reports no new errors for the
+directory-form task, and the attachment holds every moved byte (diff the
+removed lines against the attachment). Then this ticket closes when the
+class is empty or the remaining rows are recorded as accepted/retire-owned.
