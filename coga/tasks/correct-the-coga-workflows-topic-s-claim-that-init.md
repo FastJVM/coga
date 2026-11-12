@@ -1,6 +1,6 @@
 ---
 title: Correct the coga workflows topic's claim that init seeds workflows
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:fa8dad89-c983-425f-83d5-883da49e4b79
 ---
 
 ## Description
