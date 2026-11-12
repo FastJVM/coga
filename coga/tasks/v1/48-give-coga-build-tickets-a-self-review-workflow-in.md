@@ -419,6 +419,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1218
 branch: coga/v1-48-give-coga-build-tickets-a-self-review-work-5d47f4
 
 ## Implement handoff (2026-11-11)
