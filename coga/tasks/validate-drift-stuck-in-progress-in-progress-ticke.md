@@ -14,9 +14,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: 978f9bfa-7c61-4ab2-889d-1cc0bfc1f1f2
 ---
 
 ## Description
@@ -118,3 +117,21 @@ ordinary ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief for the owner (brief-and-hand-off, 2026-11-12)
+
+**Goal.** Empty the `validate-drift: stuck-in-progress` class. For each idle in_progress ticket, choose relaunch, block, pause, or bump. Otherwise, record an accepted-warning decision in a context. Live members from `coga validate --json` on 2026-11-12:
+
+| Member | Step (assignee) | Idle | Why it is idle |
+|---|---|---|---|
+| `v1/01-webhook-for-slack-is-public` | 3 cleanup-and-verify (agent) | 82.9h | The agent step was never relaunched after the approve step was bumped on 2026-11-08. Its action list mixes owner [O] items 1–4 and 7 (new Slack hook, `~/.bashrc:150`, magicator2 secret, other machines, revoke the old hook) with agent [A] checks 5, 6, 8 and 9. |
+| `v1/18-handle-gh-not-being-installed-by-default` | 3 review-design (owner = **zach**, not nicktoper) | 178.4h | It waits on the owner to answer 3 design questions: pin vs latest `gh`, off-PATH fallback, and `gh_release.py` placement. |
+
+**Ordered steps.**
+1. **01-webhook.** Before you relaunch, do owner items 1–4 from its blackboard. The agent's verification needs a rotated `SLACK_WEBHOOK_URL`. Then run `coga launch v1/01-webhook-for-slack-is-public`. The agent pauses before item 7 (revoke); revoke only after item 6 passes. If the rotation can't happen soon, run `coga pause` on the ticket (or block it with the concrete ask) so validate stops flagging it as idle in_progress.
+2. **18-gh.** Ping zach to answer the 3 open questions on that ticket's blackboard, then run `coga bump` (review-design → implement). If zach is unavailable, run `coga block --task v1/18-handle-gh-not-being-installed-by-default --reason "<the 3 questions>"` so the wait is visible and not stuck.
+3. Optional: if long idle owner-gate steps are acceptable, record an accepted-warning decision with the tag line `validate-drift: stuck-in-progress`, the rationale, and the scope in a context. Otherwise there's nothing to record.
+
+**Irreversible action.** Revoking the old Slack webhook `B0B0KD0BTQB` (01-webhook item 7) is permanent. Do it only after the new hook is verified, or notifications will have a gap. Every other choice here (relaunch, pause, block, bump) is a reversible lifecycle transition.
+
+**Done check (verify-read-only step).** Run `coga validate --json`, which should show no `stuck-in-progress` entries. Alternatively, a context should hold the tag line, decision, rationale, and scope for any accepted warnings. Also confirm each member's status and step moved as decided.
