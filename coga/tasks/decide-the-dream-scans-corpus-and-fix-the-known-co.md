@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 6330e41b-ce61-42b0-b6ad-c25edc2dae15
 ---
 
 ## Description
@@ -145,3 +144,57 @@ template's "Known corpus limitation" paragraph (the losing side). Reasons:
   recurring/** in coga-source runs.
 Cost: ~303 KB of packaged skill Markdown ≈ 2 more 150 KB shards per scan,
 within existing shard mechanics.
+
+## Handoff (implement)
+
+- Commit ac0591de3 on `coga/decide-the-dream-scans-corpus` (pushed) deletes the
+  "### Known corpus limitation" section from
+  `src/coga/resources/templates/coga/recurring/dream/ticket.md`. No scan-skill
+  edit was needed: knowledge-scan and contract-audit already include the
+  package `bootstrap/{contexts,skills,workflows}/**` and `recurring/**` in
+  coga-source runs, so they are the winning side and own the corpus definition.
+- No other topic, test, or README restates the exclusion (grep for
+  "corpus limitation" / exclusion of bootstrap/skills across src, tests,
+  docs/contexts, README.md found nothing).
+- Pre-existing failures on origin/main (not caused by this change, reproduced
+  on detached origin/main 46a376634): `test_packaging.py::test_context_navigation_has_no_broken_links`
+  and both `test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+  params. All come from README.md linking the deleted ticket
+  `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`; already
+  referenced by `make-retro-check-inbound-doc-links-before-deleting` and
+  `correct-the-coga-workflows-topic-s-claim-that-init`.
+- Next run's Dream should see ~2 more shards per scan; no code limits shard count.
+- System `python` lacks `tomlkit`; tests ran with `.venv/bin/python`.
+
+## PR
+
+```yaml
+title: Include packaged skills in Dream's scan corpus
+author: claude
+author_evidence: Implement step ran in a Claude Code session (model claude-opus-5-5); ticket agent is claude.
+head: ac0591de3f3c4c69f6c69a0e7a01a2ccfe948e8a
+base: 46a37663479b255f4112dfcad9fad30fd3c3abd7
+depth: skim
+rationale: Eight-line deletion of a contradictory prose paragraph in the Dream template; the owner had already asked for the limitation to be lifted.
+implementation: Deletes the dream template's "Known corpus limitation" section so the template's own "apply no exclusion" rule, scan-protocol Rule B and the knowledge-scan and contract-audit skills consistently put package bootstrap/skills/** in both scans for the Coga source repo.
+deviations: None. The scan skills already matched the chosen corpus, so only the template changed.
+limitations: Not exercised by a live Dream run. Including the skills adds about 303 KB, roughly two more shards per scan.
+files:
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: Remove the stale corpus-limitation section that excluded packaged skills from both scans.
+review:
+  reviewer: claude
+  kind: none
+  status: not-run
+  detail: Code review has not run yet; the peer-review step follows.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: failed
+    head: 0ca57ae2fdcbe2d3f98a78cfa4909e85d9360bfe
+    base: 3b8b93565c011a1f250a9ba554bcd85136ec2875
+    detail: 3 failed, 4763 passed, 33 skipped. All 3 failures reproduce on origin/main 46a376634 (README.md links a deleted ticket). Pre-rebase head; the rebase changed only this ticket file.
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_dream_skill_scripts.py tests/test_dream_validate_drift.py tests/test_dream_worker_templates.py tests/test_recurring.py tests/test_recurring_activity.py tests/test_recurring_autofix.py tests/test_recurring_clone.py tests/test_recurring_shims.py tests/test_recurring_state.py
+    status: failed
+    head: ac0591de3f3c4c69f6c69a0e7a01a2ccfe948e8a
+    base: 46a37663479b255f4112dfcad9fad30fd3c3abd7
+    detail: 1 failed, 838 passed, 2 skipped. The one failure is the same pre-existing README broken-link test_context_navigation_has_no_broken_links.
+```

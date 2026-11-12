@@ -10803,3 +10803,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 23:21 v1 [decide-the-dream-scans-corpus-and-fix-the-known-co] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-11 23:21 v1 [decide-the-dream-scans-corpus-and-fix-the-known-co] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-11 23:21 v1 [decide-the-dream-scans-corpus-and-fix-the-known-co] [megalaunch] launched via coga megalaunch
+2026-11-11 23:37 v1 [decide-the-dream-scans-corpus-and-fix-the-known-co] [agent:claude] advanced to step 2 (peer-review) → codex — Chose to include packaged skills (owner's 2026-10-14 request); deleted the template paragraph. 3 pre-existing README-link test failures on main.
