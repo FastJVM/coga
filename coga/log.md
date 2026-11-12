@@ -10930,3 +10930,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-12 14:29 v1 [v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th] [human:nicktoper] activated (draft → active) — auto on launch
 2026-11-12 14:29 v1 [v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th] [human:nicktoper] started (active → in_progress) via coga launch
 2026-11-12 14:29 v1 [v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-11-12 14:31 v1 [v1/launch-on-a-stale-feature-branch-leaves-projected] [human:nicktoper] created (status=draft)
