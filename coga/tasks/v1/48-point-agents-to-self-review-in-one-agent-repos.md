@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -160,4 +160,68 @@ ordinary ticket.
 branch: coga/v1-48-point-agents-to-self-review-in-one-agent-r-7c4a8d
 
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implement handoff (2026-11-12)
+
+Commit abd765f1d on the branch (rebased on origin/main c370f1ee3, pushed).
+Prose only, 4 files:
+- `bootstrap/workflows/code/with-review.md` and `code/design-then-implement.md`:
+  the "## Before choosing this workflow" section, word for word from the ticket,
+  is the first body section (before the skilled-step framing note).
+- `bootstrap/workflows/build/onboarding.md`: the implementation-work bullet now
+  says that in a one-agent repo (definition inlined) it uses
+  `--workflow code/with-self-review` instead.
+- `recurring/dream/ticket.md`: the clause is added once, in "Filing rules for
+  every draft ticket Dream creates". All three places Dream files a
+  `code/with-review` draft (proposal ownership, Phase 1 PR proposals, gap
+  findings) already say "under the filing rules above", so one sentence
+  covers every site without repeating it.
+- `docs/with-review` was left alone (out of scope).
+
+Tests: `python -m pytest`: 5 failures. The same 5 fail on a clean origin/main
+worktree, so they were already broken and are unrelated to this change:
+test_config::test_layout_contexts_cyclic_root_rejected,
+test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers,
+test_git::test_final_package_edits_never_escape_a_mutating_cli_sweep[dirty-package, committed-package],
+test_packaging::test_context_navigation_has_no_broken_links (README links to
+the missing ticket document-the-remedy-for-a-bloated-blackboard-sibli.md).
+`coga validate --json` gave warnings only (existing hand-authored tickets).
+
+Human request: Zach wants to see the agent handle this live in the VMware VM
+(`coga-win11-walk`) by installing from this branch's SHA before the ticket moves on.
+
+### Live VM check (2026-11-12, coga-win11-walk, coga installed from git+…@abd765f1d)
+
+Zach ran `coga build` with the vision "a small Python command that tells me the
+date and time".
+- Two agents (claude + codex configured by init): the 5 build tickets came out
+  `code/design-then-implement`, and the agent's stated reason was "claude and
+  codex are both configured, so codex can be the second-agent reviewer". PASS
+  (this is the control).
+- One agent (fresh repo, `[agents.codex]` removed, only claude): the 6 build
+  tickets came out frozen `name: code/with-self-review` (Zach checked the
+  ticket files), and the agent said "Only one agent is configured, so the
+  build tickets use code/with-self-review". Decision tickets stayed
+  `draft-for-human`. PASS.
+- Three agents with no `peer =`: not run.
+
+## PR
+
+```yaml
+title: Point one-agent repos to code/with-self-review
+author: Claude Code (claude-opus-5-5), attended session
+head: abd765f1d9d99d12c8d2b1c220a25e1c88fadbcd
+base: c370f1ee398e9f5c3abd2a2c266bc6b841c835fa
+review_depth: light
+review_depth_rationale: four prose-only template edits; the shipped workflow text was specified word for word in the ticket
+files:
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: add the Before choosing this workflow section
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: add the Before choosing this workflow section
+  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: one-agent clause on the implementation-ticket create
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: one-agent clause in the draft filing rules covering every code/with-review filing
+review: not yet run (the peer-review step follows)
+checks:
+  - command: python -m pytest
+    result: on head abd765f1d (committed tree, clean src/tests), 4761 passed, 33 skipped, 5 failed; all 5 also fail on origin/main c370f1ee3 (listed under Tests above)
+  - command: coga validate --json
+    result: exit 0, warnings only
+```
