@@ -1,6 +1,6 @@
 ---
 name: docs/with-review
-description: Docs/markdown change implemented by one agent, then peer-reviewed for prose, accuracy, and repo↔packaged sync by the other agent before a PR is opened for the human's final review.
+description: Docs/markdown change implemented by one agent, then peer-reviewed for prose, accuracy, and single-owner edits by the other agent before a PR is opened for the human's final review.
 steps:
   - name: implement
     assignee: agent
@@ -86,10 +86,13 @@ accurate and reachable rather than running tests that cover nothing.
    opportunistic rewrites. Edit docs only while on the branch — note
    adjacent cleanup for a follow-up and write it to the blackboard with the
    handoff (step 7).
-4. **Keep shipped copies in sync.** If you touched a shipped Coga context or
-   template that has both a live copy under `coga/` and a packaged copy under
-   `src/coga/resources/templates/coga/`, edit **both** in the same commit
-   unless the divergence is intentional and noted.
+4. **Edit the single owner.** A shipped Coga definition has one committed
+   owner: the package copy under `src/coga/resources/` in the Coga source
+   repo, or the repo's own file anywhere else. Edit that owner only; do not
+   create a second copy. A local file at a shipped ref is a deliberate
+   override
+   ([coga/context-layout](https://github.com/FastJVM/coga/blob/main/src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md#local-first-then-bundled)),
+   so add or change one only when the ticket asks for that override.
 5. **Verify what changed.** Choose the checks that exercise the actual docs
    surface:
 
@@ -129,10 +132,9 @@ the ticket names) and check:
   the ticket (no opportunistic rewrites that bloat the diff)?
 - **Links & references** — internal links, file paths, and cross-doc
   references resolve; no dangling pointers to renamed/removed things.
-- **Cross-copy sync** — if the change edits a Coga context or template
-  with both a `coga/` copy and a `src/coga/resources/templates/coga/`
-  copy, confirm both were updated (or the divergence is deliberate and
-  documented). This is the most common docs-only miss.
+- **Single owner** — the change edits each shipped definition's one owner
+  and adds no unrequested local copy of a shipped ref (a same-ref local
+  file is an override, not a mirror).
 - **Tests** — run `python -m pytest` **only if** the change actually
   touched code or a fixture; a pure prose edit does not need it.
 
