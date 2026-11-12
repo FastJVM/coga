@@ -10790,3 +10790,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-11-11 22:51 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-11-11 22:51 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-11-11 22:51 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [megalaunch] launched via coga megalaunch
+2026-11-11 23:06 v1 [correct-the-coga-workflows-topic-s-claim-that-init] [agent:claude] advanced to step 2 (peer-review) → codex

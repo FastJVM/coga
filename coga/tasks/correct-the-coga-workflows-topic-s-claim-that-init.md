@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: fa8dad89-c983-425f-83d5-883da49e4b79
 ---
 
 ## Description
@@ -127,3 +126,56 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: fix-workflows-topic-init-claim
+
+## Handoff (implement)
+
+Changed only the opening paragraph of
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md`:
+shipped workflows, including `direct/body`, resolve from the package's
+`bootstrap/workflows/`; `coga init` copies only the ignored
+`workflows/_template.md` starter. Verified against
+`src/coga/commands/update.py` `FRESH_SCAFFOLDS` (the only workflows entry is
+`workflows/_template.md`; its comment says reusable definitions resolve from
+the installed package). No other surface repeats the old claim (grep of
+docs/contexts, package resources, README). No code or fixture change.
+
+PR #1197 is still open and also edits this file. If it merges first, rebase
+this branch; the conflict is limited to this one paragraph.
+
+Pre-existing failure, not from this change:
+`tests/test_packaging.py::test_context_navigation_has_no_broken_links` fails on
+origin/main 8ab0f010e. The README links to
+`coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md`, which was
+deleted in 61388855a. The two
+`test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`
+cases run that packaging test in a subprocess, so they fail for the same
+reason. Related follow-up:
+`coga/tasks/make-retro-check-inbound-doc-links-before-deleting.md`. That
+ticket fixes the retro process. The broken README link itself still needs a
+fix.
+
+## PR
+
+```yaml
+title: Correct coga/workflows claim that init seeds workflows
+author: claude (Claude Code, claude-opus-5-5)
+head: 42bcd1729944f15127a444e1ff069b6b3b312e0d
+base: 8ab0f010ede0c723d5b3eed20870be9318f45fd2
+review_depth: light
+review_depth_rationale: one-paragraph documentation correction in a shipped topic, verified against update.FRESH_SCAFFOLDS; no behavior change
+implementation: Replaced the sentence claiming coga init seeds workflows (including direct/body) with the package-resolution fact and the init template-only copy.
+deviations: none
+limitations: Overlaps PR #1197's edits to the same file; a rebase may be needed after #1197 merges.
+files:
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/workflows/SKILL.md: corrected the stale claim about init seeding workflows
+checks:
+  - command: .venv/bin/python -m pytest -q
+    tree: d8a7a7eaf (pre-rebase; the rebase onto 8ab0f010e changed only this ticket file under coga/tasks, and the source tree is identical)
+    result: 3 failed, 4763 passed, 33 skipped
+    failures: test_packaging::test_context_navigation_has_no_broken_links plus two test_git sweep cases that run it in a subprocess; pre-existing README link to a deleted ticket, also present on origin/main
+  - command: .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_git.py
+    tree: 42bcd1729
+    result: 3 failed, 389 passed, 1 skipped (same three pre-existing failures)
+review: not yet run; peer-review is the next workflow step
+```
+
