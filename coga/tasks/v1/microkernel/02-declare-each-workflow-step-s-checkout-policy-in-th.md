@@ -34,7 +34,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga-dev/microkernel/objectives
 - coga-dev/principles
@@ -416,6 +416,110 @@ The blackboard is a notepad to be written to often as the human and agent works 
    scope; a cheap follow-up if wanted.
 4. **Fallback retirement owner.** Spec records the retirement rule in
    `coga/checkouts`; should a parked follow-up ticket also be created now?
+
+## Evaluator review
+
+Cold review, 2026-11-12. **Not ready as written: settle the refusal boundary
+below before implementation.** The declaration/default/freeze/fallback design
+otherwise fits the current machinery and is one coherent PR. This is evidence
+for owner review, not owner approval. The body and frozen workflow are unchanged.
+
+Reviewed source at `1c8b6b14465416e1ac75f86f852d88f5506ec451`, then fetched
+and fast-forwarded to `83a6a9e5fdf6ad26685f93113d5a1ca4fba031bc` before
+writing this review. The relevant Python and test files did not change;
+intervening workflow/context edits were inspected. No implementation branch,
+code, or PR was produced.
+
+### Must resolve before implementation
+
+1. **P2 — Define where, and for which frozen steps, invalid policies must
+   refuse.** The acceptance criterion promises refusal before *any* checkout
+   effect, with no branch switch. In `src/coga/launch.py`,
+   `_Launcher._prepare_target()` calls `_CheckoutBoundary.enter()` before
+   reading the authoritative ticket; that boundary may already switch a clean
+   feature checkout to control. This ordering is an explicit contract in
+   `coga/checkouts/launch-boundary`, “Preparation and return”. A catch added
+   to `_prepare_step_checkout()` cannot provide the literal promise without
+   changing that contract.
+
+   There is also a concrete gap even when starting on control: the proposed
+   selector validates only the **current** step, while
+   `_Launcher._publish_startup()` calls `assert_task_valid()` **after**
+   `checkouts.plan_ticket_checkout()`. A valid current `create-or-reuse` step
+   and a later frozen step with `checkout: branch` therefore allow
+   `_reserve_and_create()` to create a branch/receipt before whole-ticket
+   validation refuses. `_prepare_agent()`'s composition preflight does not
+   validate frozen checkout fields. Thus that earlier preflight cannot be
+   assumed to close this gap.
+
+   Recommended disposition: explicitly permit the existing initial control
+   normalization; require validation of all frozen checkout values before
+   managed feature-branch planning, and retain the selector check as defense
+   in depth. State whether refusal also covers exempt launches, since
+   `_manages_branch_checkout()` excludes those and they do not all reach
+   `_publish_startup()`. Add tests for an invalid current value, an invalid
+   later-step value with a valid create step, and invocation from a clean
+   feature checkout. If only current-step validation in managed launches is
+   intended, narrow the acceptance wording instead. Do not move authority
+   reads ahead of control normalization implicitly.
+
+### Recommendations
+
+- **Exercise the legacy path explicitly.** `tests/test_checkouts.py::_frozen`
+  calls the live `Workflow.load(...).freeze()`. After this change it will
+  emit `checkout:` even in `test_policy_supports_older_frozen_snapshots` and
+  the CRLF/edited-skill/inline compatibility cases. Give those cases an
+  snapshot helper that removes `checkout`, preserving their existing behavior
+  assertions; separately exercise freshly frozen declarations. Otherwise
+  unchanged legacy tests either fail against the intentionally authoritative
+  declaration or stop exercising `_ROWS`. Existing parse/freeze tests are
+  in `tests/test_primitives.py::test_workflow_*`, not a current
+  `tests/test_workflow*.py` file.
+- **Correct the final re-check call site.** In `src/coga/checkouts.py`,
+  `recheck_ticket_checkout()` contains the direct selector call used by
+  `_publish_startup()` at stage `startup preflight`. Proposed shape item 3
+  omits it. `confirm_ticket_checkout()` instead reaches the selector through
+  `_authoritative_ticket()`. Include the actual direct call in the new-error
+  translation and refusal tests.
+- **Include the kind in legacy manual notices too.**
+  `checkouts.ticket_notice()`'s current manual arm includes the reason but
+  never says `manual`; the proposed legacy reason prefix does not add it.
+  Keeping that arm verbatim misses the all-actions notice criterion for old
+  snapshots. Preserve its guidance while adding the same explicit kind/reason
+  presentation, and test declared and legacy manual selection.
+- **Make the local-definition upgrade consequence visible.** A repo-local
+  copy of a code workflow without the new field wins over the updated
+  package. Its existing snapshots retain the fallback, but newly frozen
+  tickets get explicit `manual`, even if the definition's name and skills
+  still match the old table. Document that intentional consequence and the
+  remedy of declaring policies in the local definition; no snapshot rewrite
+  is needed. The seeded `code/with-review.md` is also a custom four-step
+  `implement/pr/approve/merge` workflow using `infra/testing-conventions`,
+  not a packaged twin. Assign its intended declarations deliberately rather
+  than treating it as the packaged step table.
+
+### Verified conclusions and checks
+
+- All requirements are under `## Description` / `## Context`; none is lost
+  to an uncomposed top-level section. The attached objectives and principles,
+  the named testing/packaging topics, and this design-review workflow fit.
+- All 19 packaged code/docs steps match the proposed policy table. All other
+  packaged workflows currently select manual. `Workflow.freeze()` has the
+  three named production callers; the constant placement avoids an import
+  cycle. Roles, gates, and checkout mechanics can stay separate.
+- Physical line counts (including blanks/comments) at both `49b34b229` and
+  the reviewed source: `checkout_policy.py` 145, `workflow.py` 195,
+  `validate.py` 2,039. Retaining the legacy code is an explicit compatibility
+  cost, not a deletion claim. Implementation evidence should also count the
+  scoped `launch.py` / `checkouts.py` changes, per the attached objectives.
+- Reconciled check at `83a6a9e5fdf6ad26685f93113d5a1ca4fba031bc`,
+  Pop!_OS 24.04 LTS (Linux), Python 3.12.12:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_checkouts.py tests/test_primitives.py -k 'test_policy or test_notice or test_workflow' --basetemp=/tmp/coga-checkout-design-review-20261112-refresh`
+  — **35 passed, 129 deselected, 0 skipped, 0 failed**, 1.78s. This is
+  design-review baseline evidence, not an implementation or Windows receipt.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task v1/microkernel/02-declare-each-workflow-step-s-checkout-policy-in-th --json`
+  — one valid task, no issues. `git diff --check` passed. A final fetch
+  confirmed `HEAD == origin/main` at the reviewed revision before handoff.
 
 ## Superseded designs
 
