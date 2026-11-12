@@ -1,6 +1,6 @@
 ---
 title: Make hands-on-trial cite the shared fresh-vm skill
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -20,7 +20,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
