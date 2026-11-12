@@ -25,7 +25,7 @@ workflow:
     assignee: owner
 step: 3 (open-pr)
 agent: claude
-launch_generation: pending:6c92458d-62af-4b65-81ba-a088b4070eb6
+launch_generation: 6c92458d-62af-4b65-81ba-a088b4070eb6
 ---
 
 ## Description
