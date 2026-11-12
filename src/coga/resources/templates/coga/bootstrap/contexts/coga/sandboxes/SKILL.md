@@ -88,6 +88,18 @@ writable_roots = ["<git common dir>"]
   outside the sandbox and retries publication at checkout return and in its
   exit sweep; see [recovering a failed publication](../state-publication/SKILL.md#recovering-a-failed-publication)
   when that retry is refused too.
+- To attribute a `[git] sync failed` line to the session that caused it,
+  match it to its enclosing session in `coga/log.md`: the preceding
+  `launched (… agent=X)` line and that session's usage record `"cli":"X"`.
+  The actor label (`[agent:…]`, `[human:…]`) is not evidence of which
+  harness ran the command, because a Codex daemon shell that dropped `COGA_*`
+  is credited to a human. A Codex session's effective policy, after every
+  config layer including `/etc/codex/requirements.toml`, is recorded in
+  `~/.codex/sessions/<date>/*.jsonl` as `turn_context.sandbox_policy`
+  (`type`, `network_access`, `writable_roots`). Publication builds on the
+  remote-tracking ref without fetching first, so a read-only `.git` fails at
+  `git hash-object` before any network call, while a writable `.git` with
+  network off fails at push or fetch.
 - Linked worktrees share the granted common dir. Create them under an already
   writable root, such as a `mktemp -d` directory, rather than as a sibling of
   the checkout: Dream's Retro pass puts its linked checkout inside its
