@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
 ---
 
@@ -157,6 +157,7 @@ ordinary ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/1224
 branch: coga/v1-48-point-agents-to-self-review-in-one-agent-r-7c4a8d
 
 
@@ -204,24 +205,100 @@ date and time".
   `draft-for-human`. PASS.
 - Three agents with no `peer =`: not run.
 
+## Peer review (2026-11-12)
+
+Codex completed a direct, independent review of final head
+`7423c3688d5523dec5737ad140c6f38492068d2a` against merge base
+`5a224774c20abff695d9861a57af67040baf975b`. No findings remain. The review
+checked the complete four-file diff, the ticket's verbatim workflow section,
+the exactly-two-agent exception, and all three Dream filing sites governed by
+the shared filing rule. `docs/with-review` remains unchanged as required.
+
+The branch was rebased on current `origin/main` before the final review and
+pushed with `--force-with-lease`. `python -m pytest` on the final head reported
+4845 passed, 33 skipped, and 1 failed in 468.40s. The sole failure,
+`test_config.py::test_layout_contexts_cyclic_root_rejected`, reproduces on the
+exact base commit and is unrelated to this prose-only diff. `coga validate
+--json` exited 0 with 84 OK and existing warnings only. The earlier live VMware
+check covers two-agent and one-agent behavior on byte-equivalent feature prose;
+the three-agent/no-peer case was not run.
+
 ## PR
 
 ```yaml
 title: Point one-agent repos to code/with-self-review
-author: Claude Code (claude-opus-5-5), attended session
-head: abd765f1d9d99d12c8d2b1c220a25e1c88fadbcd
-base: c370f1ee398e9f5c3abd2a2c266bc6b841c835fa
-review_depth: light
-review_depth_rationale: four prose-only template edits; the shipped workflow text was specified word for word in the ticket
+author: claude-opus-5-5
+author_evidence: >-
+  The attended implement session recorded Claude Code (claude-opus-5-5) as
+  the implementing agent and commit abd765f1d as its original pushed head.
+head: 7423c3688d5523dec5737ad140c6f38492068d2a
+base: 5a224774c20abff695d9861a57af67040baf975b
+depth: deep
+rationale: >-
+  The four-file prose change is bounded and independently reviewed with no
+  findings, but the required full suite has one inherited failure; the
+  preparation rubric therefore requires deep review rather than merge or skim.
+implementation: >-
+  Adds the required workflow-selection warning to both peer code workflows,
+  routes build implementation tickets to code/with-self-review when no peer
+  resolves, and applies the same fallback to every Dream code/with-review draft.
+deviations: >-
+  None. docs/with-review and Python behavior are unchanged as required.
+limitations: >-
+  The three-agent configuration with no peer was not exercised live. The
+  attended VMware check passed the two-agent control and one-agent fallback on
+  the same feature prose before rebasing. The full Linux suite retains one
+  failure that reproduces on the exact base commit.
 files:
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: add the Before choosing this workflow section
-  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: add the Before choosing this workflow section
-  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: one-agent clause on the implementation-ticket create
-  src/coga/resources/templates/coga/recurring/dream/ticket.md: one-agent clause in the draft filing rules covering every code/with-review filing
-review: not yet run (the peer-review step follows)
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: >-
+    Add the verbatim Before choosing this workflow section.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: >-
+    Add the verbatim Before choosing this workflow section.
+  src/coga/resources/templates/coga/bootstrap/workflows/build/onboarding.md: >-
+    Route implementation-ticket creation to code/with-self-review when no peer
+    resolves while retaining design-then-implement for exactly two agents.
+  src/coga/resources/templates/coga/recurring/dream/ticket.md: >-
+    Add the no-peer fallback to Dream's shared draft filing rules so it covers
+    all three downstream code/with-review filing sites.
+review:
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 7423c3688d5523dec5737ad140c6f38492068d2a
+  base: 5a224774c20abff695d9861a57af67040baf975b
+  detail: >-
+    Direct Codex review completed on the final rebased diff with no findings;
+    it checked exact wording, agent-count semantics, scope, and every Dream
+    code/with-review filing covered by the shared rule.
 checks:
   - command: python -m pytest
-    result: on head abd765f1d (committed tree, clean src/tests), 4761 passed, 33 skipped, 5 failed; all 5 also fail on origin/main c370f1ee3 (listed under Tests above)
+    status: failed
+    head: 7423c3688d5523dec5737ad140c6f38492068d2a
+    base: 5a224774c20abff695d9861a57af67040baf975b
+    detail: >-
+      4845 passed, 33 skipped, 1 failed in 468.40s on Linux WSL2 with
+      Python 3.14.4. The only failure is
+      test_config.py::test_layout_contexts_cyclic_root_rejected; it reproduces
+      on the exact base commit and is unrelated to the four prose paths.
+  - command: >-
+      PYTHONPATH=/tmp/coga-peer-review-4d08a190-7079-497c-9bdc-b4b2cfad2240/baseline-final/src
+      python -m pytest
+      /tmp/coga-peer-review-4d08a190-7079-497c-9bdc-b4b2cfad2240/baseline-final/tests/test_config.py::test_layout_contexts_cyclic_root_rejected
+    status: failed
+    head: 5a224774c20abff695d9861a57af67040baf975b
+    base: 5a224774c20abff695d9861a57af67040baf975b
+    detail: >-
+      The same cyclic-symlink message mismatch fails on the exact merge base in
+      0.19s, proving the final-head suite failure is inherited.
   - command: coga validate --json
-    result: exit 0, warnings only
+    status: passed
+    head: 7423c3688d5523dec5737ad140c6f38492068d2a
+    base: 5a224774c20abff695d9861a57af67040baf975b
+    detail: >-
+      Exit 0 with 84 OK, no fixes, and existing warnings only.
+  - command: git diff --check origin/main...HEAD
+    status: passed
+    head: 7423c3688d5523dec5737ad140c6f38492068d2a
+    base: 5a224774c20abff695d9861a57af67040baf975b
+    detail: "No whitespace errors."
 ```
