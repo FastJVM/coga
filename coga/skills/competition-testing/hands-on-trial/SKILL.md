@@ -65,11 +65,9 @@ push or open PRs.
 
 Record the tool's exact version, and any mode or generation it runs in, at
 the start of every lap: a fresh install can default to an older generation,
-and auto-update can make a later lap a different product from the first (the
-2026-10-30 Kiro trial's CLI installed V2 by default while its specs exist only
-in V3). When the tool meters usage, record the balance before lap 1 and the
-burn per lap; that is often the only cost comparison across trials (Kiro used
-34 of 50 free credits on one lap, so its free tier covered one lap, not three).
+and auto-update can make a later lap a different product from the first.
+When the tool meters usage, record the balance before lap 1 and the usage
+per lap so the write-up can compare costs and explain any trial limits.
 
 ## Controls
 
@@ -81,8 +79,7 @@ unattributed until the control has run.
 
 Before logging that the tool fabricated a result (for example "tests pass" on
 a VM without the runtime), have the human list the project's build and
-dependency artifacts: a tool may carry its own bundled runtime. The Kiro
-trial's first "fabricated" conclusion had to be retracted for that reason.
+dependency artifacts: a tool may carry its own bundled runtime.
 
 ## Artifacts
 
