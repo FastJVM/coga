@@ -1,6 +1,6 @@
 ---
 title: Refresh the microkernel designs against current main
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -15,6 +15,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
