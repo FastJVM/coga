@@ -1,6 +1,6 @@
 ---
 title: Fix the checkouts topics' attachment claim and add their size exceptions
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:83e31839-531a-497f-b46f-844a7ff5d451
 ---
 
 ## Description
