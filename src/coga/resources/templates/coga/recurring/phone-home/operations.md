@@ -125,8 +125,9 @@ by opaque repo UUID; do not switch to personless capture to simplify deletion.
 
 Perform a known forward advance/completion on a non-recurring work ticket using
 the normal CLI. Record the exact qualifying audit lines. For a later snapshot,
-run `/tmp/coga-telemetry-release/bin/python recurring/phone-home/ticket.py` from
-`coga/` (or wait for the next due sweep); the shim runs the installed edge implementation, reads the
+run `/tmp/coga-telemetry-release/bin/python -m coga_edge.phone_home` from
+`coga/` (or wait for the next due sweep); fresh init copies no recurring
+scripts, so this runs the installed edge implementation the packaged shim calls, reads the
 same parent and prints its report. Query again with
 the command above: expect another row, the same UUID, and the known movement
 count. Repeated direct runs are extra attempts, not a scheduler.

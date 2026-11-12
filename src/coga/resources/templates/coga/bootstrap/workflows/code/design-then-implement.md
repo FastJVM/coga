@@ -51,7 +51,7 @@ anything under `## Open Questions` on the blackboard. If an
 a disposition when one is intentionally rejected. Edit the ticket directly to
 correct scope or approach. When the spec is right, run `coga bump` to hand off
 to `implement`. If the design is wrong enough to redo, rewind with
-`coga bump <slug> --to design` instead of bumping; if the premise itself is
+`coga bump <slug> --to 1` (`design` is step 1) instead of bumping; if the premise itself is
 wrong, cancel and open a new ticket (`coga/lifecycle`).
 
 ## implement
