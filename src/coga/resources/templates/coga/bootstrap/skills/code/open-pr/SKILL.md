@@ -208,7 +208,9 @@ Fix the cause and re-run it — it is idempotent:
 
 ## What this skill does NOT do
 
-- Decide whether to merge — that's the human's job in the next step.
+- Decide whether to merge — that belongs to the next step: the owner's PR
+  review, or the agent merge step `code/merge-pr` on a workflow without an
+  owner gate.
 - Make code changes or resolve CI failures. If CI fails for a real reason,
   escalate per your launch mode — ask the attending human, or `coga block`
   in a queue run — and let the human redirect or relaunch as appropriate.

@@ -136,10 +136,11 @@ Workflow definitions and frozen snapshots carry no checkout field.
 ## Code review gate
 
 Every shipped code-producing workflow has the other agent review the code:
-`code/with-review` and `code/design-then-implement` freeze an `other-agent`
-`peer-review` step running `code/peer-review` (`docs/with-review` has its own
-prose review). `code/with-self-review` is the deliberate single-agent
-fallback for installs where `other-agent` cannot resolve. A workflow that
+`code/with-review`, `code/agent-merge`, and `code/design-then-implement`
+freeze an `other-agent` `peer-review` step running `code/peer-review`
+(`docs/with-review` has its own prose review). `code/with-self-review` is
+the deliberate single-agent fallback for installs where `other-agent`
+cannot resolve. A workflow that
 produces no code says so under `## No other-agent code review` in its body.
 
 `code/with-review` and its siblings freeze `code/address-pr-comments` on an
@@ -151,6 +152,13 @@ non-outdated, reply-less review thread in the closure's `coga/log.md` line,
 its sweep report, and one Slack line, report-only
 (`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
 
+`code/agent-merge` is the exception: it has no owner gate. Its final agent
+`merge` step runs `code/merge-pr`, which owns the pre-merge re-checks, the
+refusal and escalation rules, and the merge itself, then bumps to close the
+ticket. The peer review is the review, and the owner audits after the merge
+and can revert. Choose it only when the owner has accepted that trade; it has
+no single-agent fallback.
+
 ## Obligations the merge does not discharge
 
 Merge-triggered closure is unconditional: `autoclose-merged` marks a ticket
@@ -160,8 +168,8 @@ or a "still open" list on the blackboard. So, before `coga open-pr` runs, every 
 merge will not discharge — a release publication, an attended or
 post-release check, a proof on another platform — is filed as its own draft
 (`coga create`) and linked from the handoff, or the work is kept off a
-merge-closed workflow such as `code/with-review`. The same holds for a manual
-`coga mark done`: a closed ticket owns nothing, so an open item it records is
+merge-closed workflow such as `code/with-review` or `code/agent-merge`. The
+same holds for a manual `coga mark done`: a closed ticket owns nothing, so an open item it records is
 an orphan. `code/open-pr` carries the pre-check, and each composed path
 that runs `coga mark done` directly (`code/implement` and `code/self-qa` on
 the already-satisfied path, `direct/body`) runs the same check before it

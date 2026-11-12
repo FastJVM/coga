@@ -245,7 +245,10 @@ answer.
    can't be activated and `coga validate` errors on a workflow-less active
    ticket — so pick the lightest workflow that matches the shape of the work,
    unless the human explicitly picked one. If the task has an irreversible or
-   outward-facing step, pick a workflow with a human gate before it. If
+   outward-facing step, pick a workflow with a human gate before it.
+   `code/agent-merge` has no human gate before its merge: pick it only when
+   the human chose it for this ticket or the repo's instructions make it the
+   default for this kind of change. If
    genuinely nothing fits (e.g. pure concept-capture with no sequence of
    steps), tell the human: either the repo needs a new workflow, or the idea
    stays a deliberate workflow-less *draft* (valid, but un-activatable until a
