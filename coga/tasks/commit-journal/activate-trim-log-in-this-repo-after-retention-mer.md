@@ -1170,3 +1170,10 @@ adoption/cleanup PR are otherwise implementable. This is not owner approval.
 - 20c3261f9049 last_reminded: 2026-10-30 11:14
 
 - 7af0bbf2dd81 last_reminded: 2026-11-03 10:44
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: a sandboxed process listing is not host-wide quiescence evidence
