@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: f4a98cdd-4e63-48b9-bac7-ffbac465f9c7
 ---
 
 ## Description
@@ -142,30 +141,45 @@ branch: update-testing-topic-stale-helper
 - PR #1201 (still open) also edits this file in a different region. If it merges first, expect at most a trivial rebase.
 - Adjacent pre-existing failure, not fixed here: `README.md:53` links to the deleted ticket `coga/tasks/document-the-remedy-for-a-bloated-blackboard-sibli.md` (deleted in 61388855a). This fails `tests/test_packaging.py::test_context_navigation_has_no_broken_links`, and both `tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep` params fail because they re-run it. The draft `coga/tasks/make-retro-check-inbound-doc-links-before-deleting.md` references the same link; open-pr's freshness or the README owner needs to replace it.
 
+## Peer review
+
+- Completed independent direct review as Codex; implementation was by Claude (implement handoff and commit co-author trailer). No must-fix findings; no implementation changes made during review.
+- Reviewed final head `00d5c8f611d30fdd160035eceed3db91aecf3143` against base `02daa839179d74ee42bf5c69f7186cb8388ea640`. Read the full testing topic, branch diff and commit, `tests/conftest.py::_windows_agent_spawn_follows_test_fakes`, and the Windows planner/spawn code and its dedicated tests. The missing helper has no matches in tests/ or src/; removing the cite preserves the rule. The Windows bullet matches all three fake seams, the no-console/ungated dispatch conditions, and the dedicated test-module exemption.
+- Rebased unconditionally onto fetched main before review. Final fetch confirmed main still at the reviewed base; pushed the rebased branch with `--force-with-lease`, then returned this manual checkout to clean, current main before writing this handoff.
+- Full Linux suite at the reviewed head: 3 failed, 4763 passed, 33 skipped in 743.13s. Failures are `tests/test_packaging.py::test_context_navigation_has_no_broken_links` and both parameters of `tests/test_git.py::test_final_package_edits_never_escape_a_mutating_cli_sweep`; all trace to README.md:53's existing link to the ticket deleted in `61388855a`. README and that deletion are unchanged by this branch. `git diff --check` passed.
+- No terminal/manual surface to drive: this is Markdown guidance only. Native Windows verification is inapplicable because no code, fixtures, or skip rules changed. The Linux receipt uses Python 3.12.12 and is not Python 3.11 floor evidence. PR recommendation is `deep` because the required suite has failures, despite no findings in this diff.
+
 ## PR
 
 ```yaml
 title: Fix the testing topic's stale helper cite and add the Windows agent-seam rule
 author: claude
 author_evidence: Implement session ran as Claude Code (claude-opus-5-5) in a megalaunch queue.
-head: e4658cae779b0921e6d1b002a96280aa5821d6fd
-base: 8d463b93fcac82794d74f88e69c988289c64c9a0
-depth: skim
-rationale: Docs-only change to one local coga-dev topic; two bounded wording edits verified against tests/conftest.py.
+head: 00d5c8f611d30fdd160035eceed3db91aecf3143
+base: 02daa839179d74ee42bf5c69f7186cb8388ea640
+depth: deep
+rationale: Bounded documentation change with completed independent review and no findings, but the required full suite fails on the pre-existing README link to a deleted ticket. Inspect that verification limitation before merging.
 implementation: Drops the parenthetical citing the removed _strip_runtime_state helper while keeping the rule, and adds a Windows test-writing bullet requiring agent-modeling tests to fake shutil.which, subprocess.run, or launch.run_with_done_marker, citing conftest's _windows_agent_spawn_follows_test_fakes.
 deviations: None.
-limitations: No native Windows run; the change is documentation only, and the fixture it describes is unchanged.
+limitations: No native Windows or terminal check is applicable to this documentation-only change; the described fixture and execution behavior are unchanged. Linux verification used Python 3.12.12, not the Python 3.11 floor. Three existing suite failures remain outside this diff.
 files:
   docs/contexts/coga-dev/testing/SKILL.md: Remove stale helper cite; add Windows agent-seam test-writing bullet.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Peer review is the next workflow step.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: 00d5c8f611d30fdd160035eceed3db91aecf3143
+  base: 02daa839179d74ee42bf5c69f7186cb8388ea640
+  detail: Codex direct review completed on the final rebased diff with no must-fix findings; verified guidance against conftest and Windows planner/spawn code. Claude authored the implementation; no review fixes were needed.
 checks:
-  - command: .venv/bin/python -m pytest -q -p no:cacheprovider
+  - command: PYTHONPATH=/home/n/Code/coga/src TERM=dumb .venv/bin/python -m pytest -q -p no:cacheprovider --basetemp=/home/n/.codex/tmp/testing-topic-peer-20261112
     status: failed
-    head: e4658cae779b0921e6d1b002a96280aa5821d6fd
-    base: 8d463b93fcac82794d74f88e69c988289c64c9a0
-    detail: 3 failed, 4763 passed, 33 skipped. All failures come from the pre-existing README.md:53 broken link to a deleted ticket, not this diff. Run on an uncommitted tree verified identical to the commit.
+    head: 00d5c8f611d30fdd160035eceed3db91aecf3143
+    base: 02daa839179d74ee42bf5c69f7186cb8388ea640
+    detail: Pop!_OS 24.04 LTS, Linux 7.2.15-76070215-generic, Python 3.12.12; 3 failed, 4763 passed, 33 skipped in 743.13s. Navigation fails on README.md:53's pre-existing link to the deleted document-the-remedy-for-a-bloated-blackboard-sibli ticket; both final-package publication parameters fail on the same nested navigation check. Tested a clean committed tree.
+  - command: git diff --check
+    status: passed
+    head: 00d5c8f611d30fdd160035eceed3db91aecf3143
+    base: 02daa839179d74ee42bf5c69f7186cb8388ea640
+    detail: No whitespace errors; checked on the feature branch before checkout return.
 ```
