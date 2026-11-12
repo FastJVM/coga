@@ -7,9 +7,10 @@ description: Workflow definitions and the frozen snapshot — step format, resol
 
 A workflow is an ordered list of steps in a markdown file:
 `coga/workflows/<ref>.md` locally, else the package's bundled
-`bootstrap/workflows/<ref>.md`; local wins. `coga init` seeds some workflows
-into the repo, including `direct/body`, which runs the ticket body's ordered
-phases.
+`bootstrap/workflows/<ref>.md`; local wins. Shipped workflows, including
+`direct/body` (which runs the ticket body's ordered phases), resolve from the
+package's `bootstrap/workflows/`; `coga init` copies only the ignored
+`workflows/_template.md` authoring starter into the repo.
 
 An existing local entry always wins, including an unreadable file, directory,
 or broken symlink: it must be repaired, never bypassed with bundled text. A
