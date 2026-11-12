@@ -399,6 +399,11 @@ ordinary ticket.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: coga/v1-microkernel-02-declare-each-workflow-step-s-c-614991
+
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Open Questions
