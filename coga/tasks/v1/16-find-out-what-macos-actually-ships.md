@@ -452,3 +452,10 @@ On the machine-state premise: it's sound and well-supported (baseline shows stub
 ##### Prompt budget
 
 Nothing warrants a trim. `task_context` at 1932 tokens is 39% of the 4954 total — just under your threshold, and 5132 B of its 7.5 KiB is the stock ticket guide. Author prose is ~2568 B, roughly 646 tokens, about 13% of the composed prompt. That's lean. `base_prompt` at 33% is the next largest and is fixed overhead. The correct move here is to **add** the two missing citations, not cut.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New skill: measured macOS tool baseline and unrecorded from-main walk
