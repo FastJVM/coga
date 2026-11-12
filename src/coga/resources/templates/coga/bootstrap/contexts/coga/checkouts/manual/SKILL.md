@@ -44,7 +44,9 @@ moves:
    - `git switch main`, then `git merge --ff-only origin/main`.
 
    If any dirty path under the Coga roots is *not* already on `origin/main`,
-   or any other path is dirty, stop and escalate. Never discard unpublished
+   or any other path is dirty, stop and escalate. A knowledge file the sweep
+   [held for merge](../../state-publication/SKILL.md#held-for-merge-on-feature-checkouts)
+   belongs in the branch's commit (or redone on `main`), not discarded. Never discard unpublished
    state. Then write the step's handoff on `main` and run `coga bump`, which
    publishes it. The session leaves the checkout on `main`, clean.
 

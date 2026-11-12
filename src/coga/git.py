@@ -73,7 +73,9 @@ from coga.oscompat import lock_dir, lock_fd, unlock_fd
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.logfile import append_log, ref_tag_for_path
-from coga.paths import log_path, tasks_dir
+from coga import recurring_state
+from coga.paths import log_path, recurring_dir, tasks_dir
+from coga.taskfile import BLACKBOARD_FENCE
 from coga.ticket import (
     Ticket,
     TicketError,
@@ -625,7 +627,24 @@ def _publish_locked(
         if guard is not None:
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
-        rels = _candidates(root, pathspecs, base, ancestor, adopt_only, log_rel=log_rel)
+        held: list[str] = []
+        publishes = None if adopt_only is None else (
+            lambda rel, base=base: _publishes_from_feature(cfg, root, base, rel)
+        )
+        rels = _candidates(
+            root, pathspecs, base, ancestor, adopt_only, log_rel=log_rel,
+            publishes=publishes, held=held,
+        )
+        if held and _attempt == 0:
+            reported = _held_report(root, base, held)
+            if reported:
+                where = symbolic_head(root) or "detached HEAD"
+                sys.stderr.write("".join(
+                    f"[git] held for merge ({where}): {rel}\n" for rel in reported
+                ) + (
+                    f"[git] held files are not published from this checkout; "
+                    f"{_held_remedy(control)}.\n"
+                ))
         # The pending-expectation record is machine-local even where `.coga/`
         # is not ignored.
         pending_rel = relative_to_root(root, cfg.repo_root / _PENDING_FILE)
@@ -651,6 +670,11 @@ def _publish_locked(
             entry = (working[0], _hash_blob(root, working[1], rel)) if working else None
             # Mode counts too: a mode-only edit control lacks is not on control.
             if entry != _tree_entry(root, base, rel):
+                if rel in held:
+                    raise GitError(
+                        f"{rel}: held for merge on a feature checkout and differs "
+                        f"from control; {_held_remedy(control)}"
+                    )
                 raise GitError(
                     f"{rel}: required file is excluded from publication "
                     "and differs from control; check ignore rules or merge its "
@@ -887,6 +911,8 @@ def _candidates(
     ancestor: str | None,
     adopt_only: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
     *, log_rel: str | None = None,
+    publishes: Callable[[str], bool] | None = None,
+    held: list[str] | None = None,
 ) -> list[str]:
     """The files under `pathspecs` this publish carries.
 
@@ -902,9 +928,18 @@ def _candidates(
     is skipped, so a generated agent-skill view in a repo missing its ignore
     rule cannot stall every publish behind the guard's symlink refusal. One
     named explicitly, or replacing a tracked file, still reaches the guard.
+
+    `publishes`, given on a non-control checkout, holds every dirty path it
+    rejects for merge — even one named explicitly — and appends it to `held`.
     """
+    dirty = _dirty_paths(root, pathspecs)
+    if publishes is not None:
+        kept = [rel for rel in dirty if publishes(rel)]
+        if held is not None:
+            held.extend(rel for rel in dirty if rel not in kept)
+        dirty = kept
     rels = [
-        rel for rel in _dirty_paths(root, pathspecs)
+        rel for rel in dirty
         if rel in pathspecs
         or not (root / rel).is_symlink()
         or _blob_oid(root, "HEAD", rel) is not None
@@ -2361,6 +2396,12 @@ def _plan_preparation(
     candidate_bytes: dict[str, bytes | None] = {}
     entries = _status_v2_entries(status)
     index_modes = _index_modes(root) if entries and os.name != "posix" else None
+
+    def unproven(rel: str, proof: str) -> str:
+        # Off control, a file the sweep held for merge gets the held remedy.
+        if branch != control and not _publishes_from_feature(cfg, root, pinned, rel):
+            return f"{rel} (held for merge on {branch!r}: {proof}; {_held_remedy(control)})"
+        return f"{rel} ({proof})"
     paths = [rel for _kind, _fields, rel in entries]
     if paths:
         union = union_merge_paths(root, paths)
@@ -2384,7 +2425,7 @@ def _plan_preparation(
             )
             observations[-1] = replace(observation, working=_working_observation(root, rel, working, published, proof))
             if proof:
-                blocking.append(f"{rel} ({proof})")
+                blocking.append(unproven(rel, proof))
                 continue
             remove.append(rel)
             candidate_bytes[rel] = working[1] if working else None
@@ -2412,7 +2453,7 @@ def _plan_preparation(
             blocking.append(f"{rel} (staged content is not the published version)")
             continue
         if proof:
-            blocking.append(f"{rel} ({proof})")
+            blocking.append(unproven(rel, proof))
             continue
         (restore if head_entry is not None else remove).append(rel)
         candidate_bytes[rel] = working[1] if working else None
@@ -2568,6 +2609,81 @@ def _routine_state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tupl
 def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
     dirs, files = areas
     return rel in files or any(rel.startswith(prefix) for prefix in dirs)
+
+
+def _publishes_from_feature(cfg: Config, root: Path, base: str, rel: str) -> bool:
+    """Whether dirty `rel` under the Coga roots publishes from a non-control checkout.
+
+    On a feature or detached checkout, knowledge (contexts, skills, workflows,
+    shared config, recurring definitions, and in the root layout ordinary
+    source) is presumptively the branch's reviewed work, so a dirty copy is
+    held for merge exactly like a committed one. Routine state still lands:
+    the task directory and the log (`_routine_state_areas`), and under the
+    recurring directory only runtime state — a `RUNTIME_STATE_FILES` sibling,
+    an exact state-only carrier `ticket.md` where control has none or has a
+    carrier, and a definition `ticket.md` whose region above the blackboard
+    fence equals control's (a blackboard-only write). Anything else there,
+    including a deleted `ticket.md` or a definition replaced by a carrier, is
+    held whole. `base` is the control commit being compared against.
+    """
+    if _in_areas(rel, _routine_state_areas(cfg, root)):
+        return True
+    recurring_rel = relative_to_root(root, recurring_dir(cfg)).rstrip("/")
+    prefix = "" if recurring_rel == "." else recurring_rel + "/"
+    if not rel.startswith(prefix):
+        return False
+    parts = rel[len(prefix):].split("/")
+    if len(parts) != 2:
+        return False
+    name = parts[1]
+    if name in recurring_state.RUNTIME_STATE_FILES:
+        return True
+    if name != recurring_state.PARENT_TICKET:
+        return False
+    working = _regular_working_file(root, rel)
+    if not working:
+        return False
+    try:
+        text = working[1].decode("utf-8")
+        control_bytes = tree_bytes(root, base, rel)
+        control = None if control_bytes is None else control_bytes.decode("utf-8")
+    except UnicodeError:
+        return False
+    if recurring_state.carrier_problem(text) is None:
+        return control is None or recurring_state.carrier_problem(control) is None
+    if control is None:
+        return False
+    above = _above_fence(text)
+    return above is not None and above == _above_fence(control)
+
+
+def _above_fence(text: str) -> str | None:
+    """`text` above its first blackboard fence line (CRLF-normalized), or None."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    for index, line in enumerate(lines):
+        if line == BLACKBOARD_FENCE:
+            return "\n".join(lines[:index])
+    return None
+
+
+def _held_report(root: Path, base: str, held: Iterable[str]) -> list[str]:
+    """The held paths whose working copy (bytes and mode) differs from `base`."""
+    held = list(held)
+    index_modes = _index_modes(root) if held and os.name != "posix" else None
+    differing: list[str] = []
+    for rel in held:
+        working = _regular_working_file(root, rel, index_modes=index_modes)
+        if working is False:
+            differing.append(rel)
+            continue
+        entry = (working[0], _blob_id(root, working[1], rel)) if working else None
+        if entry != _tree_entry(root, base, rel):
+            differing.append(rel)
+    return differing
+
+
+def _held_remedy(control: str) -> str:
+    return f"commit it on this branch for review, or redo the edit on {control!r}"
 
 
 def _index_modes(root: Path) -> dict[str, str]:

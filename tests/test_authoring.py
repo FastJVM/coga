@@ -767,3 +767,59 @@ def test_finalize_authored_publishes_sibling_moves_and_removals(git_repo, bootst
         if path.is_file():
             assert git_repo.git("show", f"main:{rel}", cwd=git_repo.origin) == path.read_text(encoding="utf-8")
     assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_ticket_authoring_on_a_feature_checkout_refuses_held_knowledge(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Owner decision 2026-11-11: guided authoring gets no exception. A
+    context authored on a feature checkout is held for merge, so the whole
+    transaction refuses: nothing publishes, the edits stay, the sweep is
+    withheld, and the message names the held file and the remedy."""
+    from typer.testing import CliRunner
+
+    from coga import git
+    from coga.cli import app
+
+    cfg = load_config(git_repo.coga_os)
+    target = _create_task(git_repo.coga_os, "Target")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ticket")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    context = cfg.contexts_root / "team" / "SKILL.md"
+
+    class _Result:
+        returncode = 0
+
+    real_run = subprocess.run
+
+    def author(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if not str(cmd[0]).endswith("claude"):
+            return real_run(cmd, *args, **kwargs)
+        ticket = Ticket.read(target.ticket_path)
+        ticket.body += "\n\nAuthored detail.\n"
+        ticket.write(target.ticket_path)
+        _write(context, "---\nname: team\ndescription: Team.\n---\nBranch knowledge.\n")
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.launch.subprocess.run", author)
+    monkeypatch.setattr("coga.git.sync_log", lambda cfg, *, message: None)
+    token = git.state_sweep_withheld.set(False)
+    try:
+        result = CliRunner().invoke(app, ["ticket", target.id_slug])
+        withheld = git.state_sweep_withheld.get()
+    finally:
+        git.state_sweep_withheld.reset(token)
+
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "coga/contexts/team/SKILL.md: held for merge" in combined
+    assert "commit it on this branch for review, or redo the edit on 'main'" in combined
+    assert withheld
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip() == tip
+    assert "Authored detail." in target.ticket_path.read_text(encoding="utf-8")
+    assert context.is_file()
